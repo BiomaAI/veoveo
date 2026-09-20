@@ -4,7 +4,8 @@ use std::str::FromStr;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use surrealdb::types::{RecordId, RecordIdKey};
+use surrealdb::types as surrealdb_types;
+use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 use veoveo_mcp_contract::CanonicalTaskId;
 use veoveo_platform_store::{
@@ -280,4 +281,15 @@ mod tests {
 pub struct ManagedRuntimeBinding {
     pub instance: RecordId,
     pub generation: i64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, SurrealValue)]
+#[surreal(untagged)]
+pub enum ManagedSchedulerMode {
+    #[surreal(value = "running")]
+    Running,
+    #[surreal(value = "paused")]
+    Paused,
+    #[surreal(value = "retire")]
+    Retire,
 }

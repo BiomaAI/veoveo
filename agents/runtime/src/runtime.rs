@@ -465,6 +465,11 @@ impl AgentRuntime {
                 reason: "must be in 1..=1000".to_owned(),
             });
         }
+        if self.managed.is_some()
+            && self.managed_scheduler_mode().await? != crate::ManagedSchedulerMode::Running
+        {
+            return Ok(Vec::new());
+        }
         self.recover_expired_wakes().await?;
         let now = Utc::now();
         let mut response = self

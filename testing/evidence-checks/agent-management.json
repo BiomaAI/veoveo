@@ -207,6 +207,64 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-agent-kernel",
+        "--lib",
+        "--bin",
+        "agent"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-kernel"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-agent-kernel",
+        "-p",
+        "veoveo-agent-runtime",
+        "-p",
+        "veoveo-platform-store",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-agent-kernel",
+          "veoveo-agent-runtime",
+          "veoveo-platform-store",
+          "veoveo-mcp-gateway"
+        ],
+        "roots": [
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

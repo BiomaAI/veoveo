@@ -36,9 +36,12 @@ use rmcp::{
         StreamableHttpClientTransport, streamable_http_client::StreamableHttpClientTransportConfig,
     },
 };
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use tokio::sync::{Mutex, watch};
 use veoveo_agent_runtime::AgentRuntime;
+use veoveo_mcp_contract::agent_management::ManagedDispatch;
+use veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding;
 
 use crate::{
     manifest::AgentManifest,
@@ -121,6 +124,7 @@ struct Live {
     guard: McpClientGuard,
     minted_at: Instant,
     token_ttl: Duration,
+    access_token: SecretString,
 }
 
 /// What task watchers subscribe to: bump = reconnect happened, re-resume.
@@ -260,6 +264,46 @@ impl GatewayConnection {
             .await
     }
 
+    /// Every episode carries its original epoch even after credential rotation.
+    pub async fn managed_dispatch(&self, binding: &ManagedEpisodeBinding) -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(6), async {
+            self.ensure_fresh().await?;
+            let (http, endpoint, token) = {
+                let inner = self.inner.lock().await;
+                let live = inner
+                    .live
+                    .as_ref()
+                    .context("gateway connection is unavailable")?;
+                (
+                    inner.http.clone(),
+                    format!(
+                        "{}/admin/{}/agent-runtime/dispatch",
+                        inner.manifest.gateway.transport_url.trim_end_matches('/'),
+                        inner.manifest.gateway.profile
+                    ),
+                    live.access_token.clone(),
+                )
+            };
+            let status = http
+                .post(endpoint)
+                .bearer_auth(token.expose_secret())
+                .json(&ManagedDispatch {
+                    generation: binding.generation,
+                    epoch: binding.epoch,
+                })
+                .send()
+                .await?
+                .status();
+            anyhow::ensure!(
+                status == reqwest::StatusCode::NO_CONTENT,
+                "managed dispatch rejected: {status}"
+            );
+            Ok(())
+        })
+        .await
+        .context("managed dispatch preflight timed out")?
+    }
+
     fn request_freshness(&self) -> RequestFreshness {
         RequestFreshness {
             inner: Arc::downgrade(&self.inner),
@@ -349,6 +393,7 @@ impl GatewayConnectionInner {
             guard,
             minted_at: Instant::now(),
             token_ttl: Duration::from_secs(token.expires_in),
+            access_token: SecretString::from(token.access_token),
         });
         self.epoch += 1;
         let epoch = self.epoch;

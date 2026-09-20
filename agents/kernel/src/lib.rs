@@ -17,6 +17,7 @@ pub mod context;
 pub mod episode;
 pub mod input;
 pub mod llm;
+pub mod managed;
 pub mod manifest;
 pub mod memory;
 pub mod recorder;

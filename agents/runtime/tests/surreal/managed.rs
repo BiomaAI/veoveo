@@ -235,6 +235,18 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
     let episode = runtime.start_episode("operator work").await.unwrap();
     let binding = episode.managed.as_ref().expect("atomic provenance");
     assert_eq!((binding.generation, binding.epoch), (1, 1));
+    let watcher_runtime = runtime.clone();
+    let watcher_binding = binding.clone();
+    let mut revoked = tokio::spawn(async move {
+        watcher_runtime
+            .wait_for_managed_dispatch_revocation(&watcher_binding)
+            .await
+    });
+    assert!(
+        tokio::time::timeout(Duration::from_millis(50), &mut revoked)
+            .await
+            .is_err()
+    );
     assert_eq!(
         runtime
             .episode_record(episode.episode_id)
@@ -264,6 +276,25 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
             .unwrap()
     );
     assert!(runtime.start_episode("after pause").await.is_err());
+    assert_eq!(
+        runtime.managed_scheduler_mode().await.unwrap(),
+        veoveo_agent_runtime::ManagedSchedulerMode::Paused
+    );
+    let retained = runtime
+        .enqueue_wake(NewWake::now(
+            WakeKind::OperatorMessage,
+            None,
+            OpenObject::default(),
+        ))
+        .await
+        .unwrap();
+    assert!(
+        runtime
+            .claim_wakes(10, DEFAULT_CLAIM_LEASE)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     let stop =
         db.a.mutate_managed_agent(
             &authority,
@@ -274,6 +305,11 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
             LIMITS,
         )
         .await
+        .unwrap();
+    tokio::time::timeout(Duration::from_secs(2), revoked)
+        .await
+        .unwrap()
+        .unwrap()
         .unwrap();
     assert!(
         !db.a
@@ -352,6 +388,9 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
             generation: 4,
         })
         .unwrap();
+    let pending = current.claim_wakes(10, DEFAULT_CLAIM_LEASE).await.unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].wake_id, retained);
     let next = current.start_episode("new work").await.unwrap();
     assert_eq!(next.managed.unwrap().epoch, 2);
     assert!(
@@ -362,7 +401,7 @@ async fn atomic_admission_stop_and_restart_preserve_terminal_wakes() {
             .is_empty()
     );
     current
-        .complete_episode(next.episode_id, completed(), &[])
+        .complete_episode(next.episode_id, completed(), &[retained])
         .await
         .unwrap();
 }

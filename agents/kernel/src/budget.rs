@@ -12,7 +12,8 @@ use rig::agent::{
     AgentHook, CompletionCallAction, CompletionCallEvent, HookContext, ToolCall, ToolCallAction,
 };
 
-use crate::manifest::PerEpisodeBudget;
+use crate::{connection::GatewayConnection, manifest::PerEpisodeBudget};
+use veoveo_platform_store::agent_management::instances::ManagedEpisodeBinding;
 
 pub const BUDGET_TERMINATED_PREFIX: &str = "episode budget exhausted";
 
@@ -20,6 +21,7 @@ pub struct BudgetHook {
     budget: PerEpisodeBudget,
     completion_calls: AtomicU64,
     tool_calls: AtomicU64,
+    managed: Option<(GatewayConnection, ManagedEpisodeBinding)>,
 }
 
 impl BudgetHook {
@@ -28,7 +30,26 @@ impl BudgetHook {
             budget,
             completion_calls: AtomicU64::new(0),
             tool_calls: AtomicU64::new(0),
+            managed: None,
         }
+    }
+
+    pub fn with_managed_dispatch(
+        mut self,
+        connection: GatewayConnection,
+        binding: Option<ManagedEpisodeBinding>,
+    ) -> Self {
+        self.managed = binding.map(|binding| (connection, binding));
+        self
+    }
+
+    async fn dispatch_denial(&self) -> Option<String> {
+        let (connection, binding) = self.managed.as_ref()?;
+        connection
+            .managed_dispatch(binding)
+            .await
+            .err()
+            .map(|error| error.to_string())
     }
 }
 
@@ -38,6 +59,9 @@ impl AgentHook for BudgetHook {
         _ctx: &HookContext,
         _event: CompletionCallEvent<'_>,
     ) -> CompletionCallAction {
+        if let Some(reason) = self.dispatch_denial().await {
+            return CompletionCallAction::stop(reason);
+        }
         let seen = self.completion_calls.fetch_add(1, Ordering::Relaxed) + 1;
         if let Some(max) = self.budget.max_completion_calls
             && seen > max
@@ -50,6 +74,9 @@ impl AgentHook for BudgetHook {
     }
 
     async fn on_tool_call(&self, _ctx: &HookContext, _event: ToolCall<'_>) -> ToolCallAction {
+        if let Some(reason) = self.dispatch_denial().await {
+            return ToolCallAction::stop(reason);
+        }
         let seen = self.tool_calls.fetch_add(1, Ordering::Relaxed) + 1;
         if let Some(max) = self.budget.max_tool_calls
             && seen > max
