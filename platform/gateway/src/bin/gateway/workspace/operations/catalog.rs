@@ -7,7 +7,9 @@ use veoveo_mcp_contract::{GatewayDiscoveryDegradation, GatewayDiscoverySurface, 
 use super::{mcp_error, native::NativeClient};
 
 /// A partial isolated catalog is provisional until its native list-change stream
-/// settles the required servers. Open the stream first to retain early changes.
+/// settles the required servers. An empty selection requests the complete authoring
+/// picker, whose callers have not chosen a required subset yet. Open the stream
+/// first to retain early changes.
 pub(super) async fn required_tools(
     client: &NativeClient,
     required: &[GatewayToolName],
@@ -18,7 +20,7 @@ pub(super) async fn required_tools(
             .as_ref()
             .is_some_and(|tools| tools.list_changed == Some(true))
     });
-    if required.is_empty() || !reactive {
+    if !reactive {
         return catalog_tools(client, Some(required)).await;
     }
     tokio::time::timeout(Duration::from_secs(8), async {
@@ -77,11 +79,12 @@ async fn catalog_tools(
         if required.is_some_and(|required| {
             degradation.failures.iter().any(|failure| {
                 failure.surface == GatewayDiscoverySurface::Tools
-                    && required.iter().any(|tool| {
-                        tool.as_str()
-                            .split_once("__")
-                            .is_none_or(|(server, _)| server == failure.server.as_str())
-                    })
+                    && (required.is_empty()
+                        || required.iter().any(|tool| {
+                            tool.as_str()
+                                .split_once("__")
+                                .is_none_or(|(server, _)| server == failure.server.as_str())
+                        }))
             })
         }) {
             return Err(StatusCode::SERVICE_UNAVAILABLE);

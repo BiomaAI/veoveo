@@ -109,7 +109,10 @@ list-change notification and reads a fresh bounded catalog. This settlement has 
 eight-second deadline and never dispatches a tool or model call. Missing notifications,
 closed streams and unresolved capabilities fail admission. Optional unavailable servers
 cannot block publication of an unrelated capability. Ordinary inventory reads retain
-their partial-catalog behavior.
+their partial-catalog behavior. The authoring capability picker requests the complete
+tool catalog because its user has not selected a subset yet. It uses the same native
+notification settlement and returns an availability error at the deadline instead of
+silently presenting a provisional subset as the available choices.
 
 The result projection also preserves inline PNG, JPEG and WebP MCP image blocks.
 It admits at most eight images and 1 MiB of encoded image data per result, validates
