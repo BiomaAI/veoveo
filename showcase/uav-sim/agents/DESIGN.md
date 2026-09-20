@@ -33,3 +33,14 @@ old workloads, prove their exact runtime and OAuth identities, retain their phys
 volumes and transfer the existing signing keys. Never attach a fresh volume to an
 adopted pilot or run the old and managed workers together. The migration removes
 per-pilot Helm ownership after the transfer.
+
+Bioma's explicit `pilot_recovery` Rust test verifies the four drained memory
+archives against their SHA-256 manifest, restores them into separate temporary node
+directories and compares contents and filesystem metadata with the original
+archives. `VEOVEO_PILOT_EXPORT_DIRECTORY` selects the private export directory and
+`VEOVEO_PILOT_EXPORT_NODE` selects the Docker node. It removes its temporary
+directories without mounting or writing a live claim. Record restoration is a
+separate prerequisite to the registry adoption transaction.
+The check uses the existing `tar` parser at exactly 0.4.46, verified against its
+upstream release on September 19, 2026. Entry contents, links, ownership, mode and
+modification time are compared independently of filesystem enumeration order.

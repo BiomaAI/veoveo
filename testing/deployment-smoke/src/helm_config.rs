@@ -400,19 +400,32 @@ pub(crate) fn helm_config() -> Result<()> {
         [],
     )?;
     let mut bundles = Vec::new();
+    let mut manager_bundles = Vec::new();
     for document in serde_yaml_ng::Deserializer::from_str(&installation) {
         let object = Value::deserialize(document)?;
         if object["kind"] == "ConfigMap"
             && object["metadata"]["name"] == "bioma-gateway-control-plane"
         {
-            bundles.push(serde_json::from_value::<BTreeMap<String, String>>(
-                object["data"].clone(),
-            )?);
+            let data = serde_json::from_value::<BTreeMap<String, String>>(object["data"].clone())?;
+            match object["metadata"]["namespace"].as_str() {
+                Some("veoveo") => bundles.push(data),
+                Some("veoveo-agents") => manager_bundles.push(data),
+                _ => bail!("unexpected namespace for the Bioma control-plane configuration"),
+            }
         }
     }
     ensure!(
         bundles.len() == 1,
         "expected one complete Bioma gateway ConfigMap"
+    );
+    ensure!(
+        manager_bundles.len() == 1,
+        "expected one managed-agent catalog"
+    );
+    ensure!(
+        manager_bundles[0].len() == 1
+            && manager_bundles[0].get("gateway.json") == bundles[0].get("gateway.json"),
+        "the manager must receive the same public catalog without gateway JWK files"
     );
     let bundle_digest = veoveo_deploy_contract::gateway_bundle_digest(&bundles[0])?;
     let control_plane_revision = bundle_digest

@@ -16617,7 +16617,9 @@ dependencies = [
 name = "veoveo-bioma-acceptance"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
+ "tar",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
 ]

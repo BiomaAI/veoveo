@@ -799,3 +799,9 @@ snapshotted documentation too. Editing this iteration log during that command
 invalidated its otherwise passing 73-second compile. The frozen-input retry reuses
 the compiler output. Do not overlap any repository edits with an unqualified
 recorder command; a future catalog entry should bound this package's actual inputs.
+
+The corrected manager-only image published in 220.4 seconds; compilation consumed
+209.3 seconds. Unlike the preceding four-target release, the single-target build
+recompiled shared HTTP and SurrealDB dependencies. The changed dependency feature
+combination is a likely cache-reuse cost and should be measured before changing the
+builder's compilation groups. Only the manager image was published.

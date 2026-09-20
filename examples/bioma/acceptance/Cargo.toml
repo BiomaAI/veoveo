@@ -8,3 +8,7 @@ publish = false
 serde_json.workspace = true
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-gateway = { path = "../../../platform/gateway" }
+
+[dev-dependencies]
+serde.workspace = true
+tar = "=0.4.46"
