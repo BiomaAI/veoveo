@@ -179,3 +179,8 @@ Namespace retention protects archived memory during chart removal. PVCs have no
 Deployment owner reference and the manager never deletes them. Cross-namespace
 adoption of an existing PVC requires a storage-owner transfer of the same PV; an
 ordinary instance retry cannot replace missing retained memory.
+
+Managed namespace network policies apply even when the main installation disables its
+network policies. Additional gateway and store ingress rules render only when the main
+namespace uses isolation. Otherwise, an ingress-only rule would unexpectedly isolate
+existing services and reject their ordinary callers.
