@@ -24,6 +24,17 @@ spec:
     - name: managed-workload
       expression: >-
         {{ if eq $kind "pods" }}object.spec.serviceAccountName != 'veoveo-agent-manager'{{ else }}object.metadata.name != 'veoveo-agent-manager'{{ end }}
+    {{- if eq $kind "deployments" }}
+    - name: executable-change
+      expression: >-
+        !(request.operation == 'UPDATE' &&
+          has(oldObject.metadata.deletionTimestamp) &&
+          object.spec == oldObject.spec &&
+          object.metadata.labels == oldObject.metadata.labels &&
+          object.metadata.annotations == oldObject.metadata.annotations &&
+          has(object.metadata.ownerReferences) == has(oldObject.metadata.ownerReferences) &&
+          (!has(object.metadata.ownerReferences) || object.metadata.ownerReferences == oldObject.metadata.ownerReferences))
+    {{- end }}
   variables:
     - name: pod
       expression: {{ if eq $kind "pods" }}object.spec{{ else }}object.spec.template.spec{{ end }}

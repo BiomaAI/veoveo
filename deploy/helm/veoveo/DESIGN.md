@@ -166,6 +166,13 @@ references. The manager cannot replace its own privileged Deployment. Kernel ser
 accounts have no API token or RoleBinding. The namespace enforces Restricted Pod
 Security at the qualified Kubernetes v1.36 profile.
 
+Deleting managed Deployments permit finalizer updates when their complete specification,
+labels, annotations and owner references remain unchanged. Kubernetes must finish
+foreground garbage collection even after the installation retires an image. Changing
+the executable specification or ownership still requires ordinary admission. The native
+manager admission test completes foreground deletion under a policy that rejects all
+executable images, and rejects specification and ownership edits during that deletion.
+
 NetworkPolicy always isolates the managed namespace, independently of the main
 chart's optional network policy switch. Kernels may reach the gateway, store, DNS
 and explicit `agentManager.modelEgress` destinations. Only the manager receives
