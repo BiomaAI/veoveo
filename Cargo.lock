@@ -16923,6 +16923,7 @@ dependencies = [
  "veoveo-deploy-runtime",
  "veoveo-extension-contract",
  "veoveo-image-build-control",
+ "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
 ]
 

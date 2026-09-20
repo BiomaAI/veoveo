@@ -114,12 +114,18 @@ Live state uses these canonical resources:
 - `uav-sim://mission-plan/{plan_id}`
 
 `ui://uav-sim/live.html` is the only live-view App resource. There are no aliases for
-the removed hosted viewer service, scene mirror, or pose protocol. An installation may
-declare exact generic agent ids with `UAV_SIM_AGENT_MESSAGE_TARGETS`. The App resource
-publishes that closed list through the Apps extension, and the Console's authenticated
-human-message bridge projects it into App host context. This gives the domain App a
-prompt surface without granting the iframe agent credentials or adding UAV concepts to
-the Console.
+the removed hosted viewer service, scene mirror, or pose protocol. The App resource discovers up to 32 managed agent IDs in the caller's tenant and Work
+Context, ordered by key. Each target is Ready or Paused with an active managed generation, current service
+identity, an enabled definition admitted to that context, and a current vehicle grant
+for this simulation session. A requested template vehicle parameter does not qualify
+an agent. The query discloses message targets, never private instructions or grant
+contents. The gateway independently authorizes each human-message request.
+
+The Apps extension carries those IDs into the authenticated host context without
+giving the iframe agent credentials. Shared database LIVE subscriptions invalidate
+resource discovery when lifecycle, definition, grant or identity authority changes.
+Reconnect also invalidates the catalog. These notifications do not create model
+wakes; ordinary domain resource subscriptions retain their existing behavior.
 
 ## World And Session Lifecycle
 

@@ -4,7 +4,7 @@ use anyhow::Result;
 use opentelemetry::global;
 use opentelemetry::trace::TracerProvider as _;
 use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_otlp::{WithExportConfig, WithHttpConfig};
 use opentelemetry_sdk::{
     Resource,
     logs::{BatchConfigBuilder as LogBatchConfigBuilder, BatchLogProcessor, SdkLoggerProvider},
@@ -107,6 +107,9 @@ pub fn init_server_telemetry(
 fn build_tracer_provider(service_name: &'static str) -> Result<SdkTracerProvider> {
     let exporter = opentelemetry_otlp::SpanExporter::builder()
         .with_http()
+        .with_http_client(blocking_export_client(
+            opentelemetry_otlp::OTEL_EXPORTER_OTLP_TRACES_TIMEOUT,
+        )?)
         .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
         .build()?;
     let processor = BatchSpanProcessor::builder(exporter)
@@ -127,6 +130,9 @@ fn build_tracer_provider(service_name: &'static str) -> Result<SdkTracerProvider
 fn build_logger_provider(service_name: &'static str) -> Result<SdkLoggerProvider> {
     let exporter = opentelemetry_otlp::LogExporter::builder()
         .with_http()
+        .with_http_client(blocking_export_client(
+            opentelemetry_otlp::OTEL_EXPORTER_OTLP_LOGS_TIMEOUT,
+        )?)
         .with_protocol(opentelemetry_otlp::Protocol::HttpBinary)
         .build()?;
     let processor = BatchLogProcessor::builder(exporter)
@@ -140,6 +146,33 @@ fn build_logger_provider(service_name: &'static str) -> Result<SdkLoggerProvider
         .with_resource(resource(service_name))
         .with_log_processor(processor)
         .build())
+}
+
+// These batch processors export on OS threads. Cargo feature unification may
+// enable OTLP's higher-priority async client, which requires a Tokio reactor.
+// Select the blocking client explicitly and construct it outside the caller's
+// async runtime. Preserve OTLP's signal-specific/global timeout precedence.
+fn blocking_export_client(signal_timeout: &str) -> Result<reqwest::blocking::Client> {
+    let timeout = [
+        signal_timeout,
+        opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT,
+    ]
+    .into_iter()
+    .find_map(|key| {
+        env::var(key)
+            .ok()
+            .and_then(|value| value.parse::<u64>().ok())
+    })
+    .map(Duration::from_millis)
+    .unwrap_or(opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT_DEFAULT);
+    std::thread::spawn(move || {
+        reqwest::blocking::Client::builder()
+            .timeout(timeout)
+            .build()
+    })
+    .join()
+    .map_err(|_| anyhow::anyhow!("OTLP HTTP client initialization thread panicked"))?
+    .map_err(Into::into)
 }
 
 fn resource(service_name: &'static str) -> Resource {

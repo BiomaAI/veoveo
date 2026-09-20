@@ -10,20 +10,19 @@ contracts. These files are installation inputs, not a public UAV protocol.
 
 ## Ownership
 
-`template/manifest.json` declares trusted memory, context and gateway wiring.
+[`manifest.json`](../deploy/helm/files/agent-template/manifest.json) declares trusted memory, context and gateway wiring.
 Closed session and vehicle parameters describe the requested assignment. Current
 UAV control grants determine actual authority. Published definition revisions own
 instructions, tools, subscriptions and episode budgets. The manager supplies each
 instance's identity, credentials and retained volume.
 
-`template/instructions.md` is seed content for explicit definition creation. It
-does not reconcile over edits made through the API or Console. Installation replaces
-its named pilot/session placeholders before publication. Authored content receives
-no environment interpolation in the kernel.
+`instructions.md` is seed content for explicit definition creation. It
+does not reconcile over edits made through the API or Console. The requested assignment comes from the reviewed runtime context. Authored content
+receives no environment interpolation in the kernel.
 
 ## Installation And Cutover
 
-Install an immutable ConfigMap with `manifest.json` and `0001_mission_state.sql` as
+The [UAV chart](../deploy/helm/DESIGN.md) installs an immutable ConfigMap with `manifest.json` and `0001_mission_state.sql` as
 data keys. Calculate its revision with `runtime_config_revision` and place that
 exact name and digest in the approved runtime template. Bioma's installation values
 bind its kernel image, model connection, namespace and resource ceilings.

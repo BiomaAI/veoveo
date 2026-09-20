@@ -7,6 +7,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use veoveo_extension_contract::SimulationRuntimeBuildLock;
 
+#[path = "helm_config/agent_template.rs"]
+mod agent_template;
 #[path = "helm_config/commands.rs"]
 mod commands;
 #[path = "helm_config/gitops.rs"]
@@ -653,11 +655,13 @@ pub(crate) fn helm_config() -> Result<()> {
         "authoritative simulator and recording forwarder must precede the independent MCP deployment"
     );
     ensure!(
-        uav_sim.matches("kind: Deployment").count() == 6
+        uav_sim.matches("kind: Deployment").count() == 2
             && uav_sim.matches("runtimeClassName: nvidia").count() == 1
             && uav_sim.matches("nvidia.com/gpu: 1").count() == 2,
-        "UAV chart must render four pilots, one GPU runtime, and one GPU-independent MCP deployment"
+        "UAV chart must render one GPU runtime and one GPU-independent MCP deployment"
     );
+
+    agent_template::verify(&uav_sim)?;
 
     let production_without_digests = Command::new("helm")
         .args([

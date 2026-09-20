@@ -107,6 +107,7 @@ pub use recording_ingest::{
     RecordingIngestStreamDraft,
 };
 pub use recordings::{RecordingDraft, RecordingSeal};
+pub use resource_changes::ResourceChangeTable;
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;

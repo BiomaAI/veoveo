@@ -19,11 +19,6 @@ images:
     repository: veoveo/recording-forwarder
     tag: 0.1.0
     digest: ""
-  agent:
-    repository: veoveo/agent-kernel
-    tag: 0.1.0
-    digest: ""
-
 platform:
   installationId: veoveo
   publicBaseUrl: http://localhost:8780
@@ -236,47 +231,10 @@ interactive:
   enabled: true
   progressDeadlineSeconds: 1800
 
-agents:
+agentTemplate:
   enabled: false
-  tenant: enterprise
-  workContext: operations
-  gatewayUrl: http://localhost:8780
-  gatewayTransportUrl: http://mcp-gateway:8788
-  llmSecret:
-    existingSecret: veoveo-uav-pilot-agents
-    accountIdKey: cloudflare-account-id
-    apiTokenKey: cloudflare-api-token
-  privateKeySecret:
-    existingSecret: veoveo-uav-pilot-agents
-  persistence:
-    size: 2Gi
-    storageClass: ""
-    accessMode: ReadWriteOnce
-  pilots:
-    - agentId: uav-1-pilot
-      displayName: UAV 1 Pilot
-      clientId: uav-1-pilot
-      privateKeyId: uav-1-pilot-2026
-      privateKeySecretKey: uav-1-private-key-der-b64
-      vehicleId: uav-1
-    - agentId: uav-2-pilot
-      displayName: UAV 2 Pilot
-      clientId: uav-2-pilot
-      privateKeyId: uav-2-pilot-2026
-      privateKeySecretKey: uav-2-private-key-der-b64
-      vehicleId: uav-2
-    - agentId: uav-3-pilot
-      displayName: UAV 3 Pilot
-      clientId: uav-3-pilot
-      privateKeyId: uav-3-pilot-2026
-      privateKeySecretKey: uav-3-private-key-der-b64
-      vehicleId: uav-3
-    - agentId: uav-4-pilot
-      displayName: UAV 4 Pilot
-      clientId: uav-4-pilot
-      privateKeyId: uav-4-pilot-2026
-      privateKeySecretKey: uav-4-private-key-der-b64
-      vehicleId: uav-4
+  namespace: veoveo-agents
+
 service:
   port: 8802
 
@@ -297,14 +255,6 @@ resources:
     limits:
       cpu: "2"
       memory: 2Gi
-  agent:
-    requests:
-      cpu: 250m
-      memory: 512Mi
-    limits:
-      cpu: "2"
-      memory: 4Gi
-
 scheduling:
   runtime:
     runtimeClassName: nvidia
@@ -317,12 +267,6 @@ scheduling:
       kubernetes.io/arch: amd64
     tolerations: []
     affinity: {}
-  agent:
-    nodeSelector:
-      kubernetes.io/arch: amd64
-    tolerations: []
-    affinity: {}
-
 networkPolicy:
   enabled: true
   dnsNamespaceSelector:

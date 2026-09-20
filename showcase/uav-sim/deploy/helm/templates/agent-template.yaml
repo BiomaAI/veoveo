@@ -1,0 +1,14 @@
+{{- if .Values.agentTemplate.enabled }}
+{{- $data := dict "manifest.json" (.Files.Get "files/agent-template/manifest.json") "0001_mission_state.sql" (.Files.Get "files/agent-template/migrations/0001_mission_state.sql") }}
+{{- $digest := $data | toRawJson | sha256sum }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uav-pilot-{{ $digest | trunc 12 }}
+  namespace: {{ .Values.agentTemplate.namespace }}
+  labels:
+    {{- include "uav-sim.componentLabels" (dict "root" . "name" "uav-pilot-template" "component" "agent-template") | nindent 4 }}
+immutable: true
+data:
+  {{- $data | toYaml | nindent 2 }}
+{{- end }}
