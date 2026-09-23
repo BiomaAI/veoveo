@@ -26,7 +26,7 @@ Implemented in this workspace.
 The implementation includes the Map domain contract, SurrealDB records,
 tenant-scoped DuckDB Spatial tables, a supervised Valhalla land engine, a
 governed network planner, source acquisition, release activation, MCP discovery
-surfaces, administrative MCP tools, the Map workspace MCP App, gateway
+surfaces, administrative MCP tools, the Map Explorer MCP App, gateway
 proxying, Helm, offline image registration, governed spatial and raster
 derivations, and the immutable travel-model handoff to Optimization MCP.
 
