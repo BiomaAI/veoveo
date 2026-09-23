@@ -1,36 +1,37 @@
 # Connector Recipes
 
-A Veoveo installation operates beside the platforms an enterprise already
-trusts. Connector recipes bring those platforms into the same agentic
-surface. Each recipe is a guide a coding agent can execute: it installs the
-vendor's MCP server beside the Veoveo connector, authenticates against the
-platform, and proves the connection with a real call before any work depends
-on it. The catalog below records the verified install surface for every
-entry so an agent can begin from this table alone. Per-platform recipe files
-land in this directory as each platform is exercised; the catalog is the
-complete surface until they do.
+Connector recipes connect a Veoveo installation to third-party platforms
+through each vendor's MCP server. A recipe is a guide a coding agent can
+execute: it installs the vendor's server beside the Veoveo connector,
+authenticates against the platform, and makes one real call to confirm the
+connection before any work depends on it. The catalog below lists the
+install command, auth model, and status for each platform, which is enough
+for an agent to start. Per-platform recipe files are added to this
+directory as each platform is tested against an installation; until then,
+the catalog is the only reference.
 
-Every entry was verified against vendor documentation on 2026-07-23. The MCP
-ecosystem moves quickly, so re-verify an entry before relying on it and
+Every entry was checked against vendor documentation on 2026-07-23. Vendor
+MCP servers change often, so re-check an entry before relying on it and
 update the date when you do.
 
 ## Two Ways To Connect
 
 A client-side connector is the default. The coding agent adds the vendor's
 server to its own MCP client configuration next to the installation's
-`/mcp/{profile}` endpoint and pairs tools across both from the first
-session. No cluster change is required, and the platform's own auth and
-permissions continue to govern its side.
+`/mcp/{profile}` endpoint and can use tools from both in the same session.
+No cluster change is required. The vendor platform enforces its own auth
+and permissions on its calls.
 
-A governed upstream is the deeper integration. The vendor's server registers
-in the gateway control plane as a `streamable_http` upstream, which places
-it inside the installation's identity, policy, audit, and task boundary.
+A governed upstream is the deeper integration. The vendor's server is
+registered in the gateway control plane as a `streamable_http` upstream, so
+the gateway authenticates, authorizes, and audits its calls like any hosted
+server.
 Servers that ship as stdio processes reach the gateway through
 [`mcp/bridges/stdio`](../../mcp/bridges/stdio/), which re-exposes a child
 process over streamable HTTP on an internal network. Systems still speaking
-the MCP `2025-11-25` revision join through the isolated
-[`mcp/bridges/legacy`](../../mcp/bridges/legacy/) connector, which keeps the
-installation's own protocol surface at the current revision. Register the server and
+the MCP `2025-11-25` revision join through the separate
+[`mcp/bridges/legacy`](../../mcp/bridges/legacy/) connector, so the
+installation's own endpoints stay on the current revision. Register the server and
 a profile entry in the control plane document, then validate with
 `cargo run -p veoveo-mcp-gateway --bin gateway -- validate --control-plane
 <file>`. Choose this path for platforms whose calls should appear in the
@@ -47,9 +48,9 @@ third-party server, named so the provenance stays visible.
 
 ### Geospatial and Earth observation
 
-These pair with the `map`, `frames`, `view`, and `stream` servers:
-imagery tasking follows a map release, and matched traces land as governed
-feature layers.
+These pair with the `map`, `frames`, `view`, and `stream` servers. For
+example, an agent can task imagery over the area of a map release, or
+store matched GPS traces as feature layers.
 
 | Platform | Connect | Auth | Status |
 |---|---|---|---|
@@ -75,9 +76,9 @@ Operational weather and live airspace feed mission planning in `uav-sim`,
 
 ### Data and analytics
 
-External warehouses complement the sandboxed `duckdb`, `datasheet`, and
-`timeseries` servers. Exported GeoParquet and RRD-derived datasets remain
-governed artifacts on the Veoveo side.
+External warehouses sit alongside the sandboxed `duckdb`, `datasheet`, and
+`timeseries` servers. GeoParquet and RRD-derived datasets exported from
+Veoveo are stored as Veoveo artifacts, with their owner and access grants.
 
 | Platform | Connect | Auth | Status |
 |---|---|---|---|
@@ -91,9 +92,9 @@ governed artifacts on the Veoveo side.
 
 ### Observability and security
 
-Dashboards, incidents, and security posture for the infrastructure an
-installation runs on, alongside the `recording` and `timeseries` evidence
-plane.
+These platforms cover dashboards, incidents, and security posture for the
+infrastructure an installation runs on. They complement the `recording`
+and `timeseries` servers.
 
 | Platform | Connect | Auth | Status |
 |---|---|---|---|
@@ -107,9 +108,8 @@ plane.
 
 ### Industrial operations and fleet
 
-Edge devices, frontline manufacturing, network automation, and vehicle
-fleets connect physical operations to the same surface that records and
-reasons over them.
+These platforms cover edge devices, frontline manufacturing, network
+automation, and vehicle fleets.
 
 | Platform | Connect | Auth | Status |
 |---|---|---|---|
@@ -193,17 +193,19 @@ data.
 ## Gaps The Platform Already Fills
 
 No recipe-grade MCP server exists for MAVLink or PX4 vehicle control, for
-Rerun recordings, for Foxglove, or for OPC UA data access. The `uav-sim`,
-`recording`, and `stream` servers are the governed answer to the first
-three, which is worth stating plainly when a prospect asks how those systems
-connect.
+Rerun recordings, for Foxglove, or for OPC UA data access. Veoveo covers
+two of these itself. The `recording` server provides discovery, queries,
+and playback for Rerun recordings. The `uav-sim` server commands PX4
+vehicles over MAVLink inside its Isaac Sim runtime, but it is not a
+general MAVLink connector for real vehicles. Foxglove and OPC UA have no
+Veoveo equivalent.
 
 ## Recipe Format
 
 A platform's recipe is one file in this directory following
 [`TEMPLATE.md`](TEMPLATE.md), written when that platform is first exercised
 against a real installation. A recipe leads with the client-side install
-for Claude Code, proves itself with a runnable verification step, pairs the
+for Claude Code, includes a runnable verification step, pairs the
 vendor's tools with Veoveo tools in worked prompts, and adds the governed
 upstream registration when the platform warrants it. Recipes begin with read
 access and widen scopes only on explicit request. Community servers say so

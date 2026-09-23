@@ -121,8 +121,10 @@ impl Fault {
 impl IntoResponse for Fault {
     fn into_response(self) -> Response {
         let message = match self.1 {
-            ErrorCode::InvalidInput => "The Computer request is invalid.",
-            ErrorCode::Forbidden => "Current access does not allow this Computer action.",
+            ErrorCode::InvalidInput => {
+                "The Computer request has a missing or invalid field. Check it and try again."
+            }
+            ErrorCode::Forbidden => "You don't have permission to perform this Computer action.",
             ErrorCode::NotFound => "This Computer is unavailable in the current Work Context.",
             _ => "Computers is temporarily unavailable. Try again with the same request.",
         };

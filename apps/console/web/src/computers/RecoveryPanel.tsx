@@ -39,12 +39,12 @@ export function RecoveryPanel({ operation, scope, stale, onResumed, refresh }: {
     {resume.error && <p role="alert">{computerError(resume.error)} Refresh the update to review its current state.</p>}
     {resume.isPending && <p role="status">Submitting the saved recovery request…</p>}
     {saved.input ? <>
-      <p>The saved request refers to one recovery window. Retrying it cannot reopen a second window or override a newer cancellation.</p>
+      <p>Retrying sends the same saved request. It can't start a second recovery or undo a newer cancellation.</p>
       <button className="button button-secondary" disabled={blocked} onClick={() => resume.mutate(saved.input!)}>Retry saved recovery</button>
     </> : operation.canResume && <button className="button button-secondary" disabled={blocked || !!saved.error} onClick={start}>
       {operation.pendingCancellationAt ? "Continue after cancellation request…" : "Resume update…"}
     </button>}
-    {!saved.input && !operation.canResume && operation.phase === "recovery_required" && <p>Recovery is unavailable under the current policy or capacity. An authorized installation operator can check the cause.</p>}
+    {!saved.input && !operation.canResume && operation.phase === "recovery_required" && <p>Recovery isn't available right now because of policy or capacity limits. Ask an installation operator to check the cause.</p>}
     {(saved.input || saved.error) && <button className="button button-secondary" disabled={blocked} onClick={() => {
       if (!window.confirm("Review the current update first. Clearing this saved request does not cancel accepted recovery or release your home.")) return;
       try { window.sessionStorage.removeItem(key); setSaved({}); resume.reset(); refresh(); }

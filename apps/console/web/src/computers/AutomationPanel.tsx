@@ -107,14 +107,14 @@ export function AutomationPanel({ computerId, scope, snapshot, stale, profile, p
         <label>Application<input list="computer-agent-clients" value={clientId} onChange={e => setClientId(e.target.value)} maxLength={256} required /></label>
         <datalist id="computer-agent-clients">{inventory.data?.clientChoices.map(client => <option key={client.oauthClientId} value={client.oauthClientId}>{client.displayName}</option>)}</datalist>
         {inventory.data?.clientChoicesTruncated && <p>Showing the first 128 matching applications. Enter an exact client ID for another registered application.</p>}
-        <label>Principal<input list={selectedClient?.servicePrincipalId ? undefined : "computer-agent-principals"} value={selectedPrincipal} readOnly={!!selectedClient?.servicePrincipalId} onChange={e => setPrincipal(e.target.value)} maxLength={2048} required /></label>
+        <label>User or service account<input list={selectedClient?.servicePrincipalId ? undefined : "computer-agent-principals"} value={selectedPrincipal} readOnly={!!selectedClient?.servicePrincipalId} onChange={e => setPrincipal(e.target.value)} maxLength={2048} required /></label>
         <datalist id="computer-agent-principals">{principals.map(p => <option key={p.id} value={p.id}>{p.displayName}</option>)}</datalist>
         <p>Suggested applications are registered for the <code>{profile}</code> profile. The agent must sign in before receiving a grant, and current Work Context policy applies when it acts.</p>
-        {selectedClient?.servicePrincipalId && <p>This application signs in as the service principal shown above.</p>}
+        {selectedClient?.servicePrincipalId && <p>This application signs in as the service account shown above.</p>}
         <label>Access duration<select name="lifetime" defaultValue={Math.min(3600, limits.maximumLifetimeSeconds)}>{durations.map(seconds => <option key={seconds} value={seconds}>{seconds >= 3600 ? `${seconds / 3600} ${seconds === 3600 ? "hour" : "hours"}` : seconds >= 60 ? `${seconds / 60} ${seconds === 60 ? "minute" : "minutes"}` : `${seconds} seconds`}</option>)}</select></label>
         {([
           ["read", "View this Computer and discover its current status"],
-          ["execute", "Run bounded commands and transfer files through Artifacts"],
+          ["execute", "Run commands within the limits below and transfer files through Artifacts"],
           ["start", "Start this Computer with its retained files"],
           ["stop", "Stop this Computer and all its processes; retain its files"],
         ] as const).map(([permission, label]) => <label className="computer-pairing-check" key={permission}>

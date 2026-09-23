@@ -28,7 +28,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             OperationStage::Cancelled => TaskTransition::Cancelled,
             OperationStage::Failed => TaskTransition::Failed(TaskFailure {
                 code: "authority_denied".into(),
-                message: "Current authority does not permit this Computer action".into(),
+                message: "You don't have permission to perform this Computer action.".into(),
                 details: None,
             }),
             _ => return Err(WorkerError::Configuration),

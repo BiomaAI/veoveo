@@ -685,26 +685,26 @@ fn validate_aircraft_sets(
 }
 
 fn validate_text_set(
-    _name: &'static str,
+    name: &'static str,
     values: &BTreeSet<String>,
 ) -> Result<(), MobilityProfileError> {
     if values
         .iter()
         .any(|value| value.is_empty() || value.len() > 128 || value.chars().any(char::is_control))
     {
-        return Err(MobilityProfileError::InvalidControlledValue);
+        return Err(MobilityProfileError::InvalidControlledValue(name));
     }
     Ok(())
 }
 
 fn validate_optional_text(
-    _name: &'static str,
+    name: &'static str,
     value: Option<&str>,
 ) -> Result<(), MobilityProfileError> {
     if value.is_some_and(|value| {
         value.is_empty() || value.len() > 128 || value.chars().any(char::is_control)
     }) {
-        return Err(MobilityProfileError::InvalidControlledValue);
+        return Err(MobilityProfileError::InvalidControlledValue(name));
     }
     Ok(())
 }
@@ -729,9 +729,11 @@ pub enum MobilityProfileError {
     InvalidDepthRange,
     #[error("energy capacity is required for the selected energy source")]
     MissingEnergyCapacity,
-    #[error("controlled mobility profile value is invalid")]
-    InvalidControlledValue,
-    #[error("mobility planning envelope is invalid or internally inconsistent")]
+    #[error("each `{0}` value must be 1 to 128 characters with no control characters")]
+    InvalidControlledValue(&'static str),
+    #[error(
+        "planning envelope is invalid: minimum_speed must not exceed the maximum speed; minimum_turn_radius, operating_ceiling, maximum_range, and maximum_segment_length must be positive; climb and descent angles must be at most 90 degrees; maximum_route_points must be between 2 and 10000"
+    )]
     InvalidPlanningEnvelope,
     #[error(transparent)]
     Quantity(#[from] QuantityError),

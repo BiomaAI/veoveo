@@ -187,7 +187,9 @@ pub(super) fn rejection_message(reason: FileFailure) -> &'static str {
         }
         FileFailure::TooLarge => "The file exceeds this transfer's byte limit",
         FileFailure::PathUnavailable => "The retained file path is unavailable",
-        FileFailure::UnsupportedFile => "Choose a regular file inside the retained home",
+        FileFailure::UnsupportedFile => {
+            "Choose a regular file inside the Computer's home directory"
+        }
         FileFailure::FileChanged => {
             "The source file changed during transfer; retry when it is stable"
         }
@@ -196,11 +198,13 @@ pub(super) fn rejection_message(reason: FileFailure) -> &'static str {
         }
         FileFailure::InvalidRequest => "The file transfer request was rejected",
         FileFailure::WrongIdentity | FileFailure::ConfinementUnavailable => {
-            "The Computer file profile is unavailable"
+            "File transfer isn't available for this Computer"
         }
         FileFailure::Storage | FileFailure::OutputUnavailable => {
             "The file could not be transferred"
         }
-        FileFailure::CommitUnknown => "The file outcome requires recovery",
+        FileFailure::CommitUnknown => {
+            "We couldn't confirm whether the file was written; check the destination before retrying"
+        }
     }
 }

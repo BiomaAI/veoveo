@@ -65,7 +65,7 @@ pub(super) async fn check(
         Err(_) => finding(
             wire::FindingCode::AudienceForbidden,
             "audience",
-            "Choose one to 64 distinct Work Contexts. Publication into another context requires current governance authority there.",
+            "Choose between one and 64 different Work Contexts. Publishing into a Work Context requires owner or custodian access there.",
         ),
     }
     match state.models.iter().find(|m| {
@@ -102,7 +102,7 @@ pub(super) async fn check(
                 finding(
                     wire::FindingCode::ModelUnavailable,
                     "audience",
-                    "The model must be admitted in every selected Work Context.",
+                    "This model isn't approved in every selected Work Context.",
                 );
             }
         }
@@ -140,7 +140,7 @@ pub(super) async fn check(
                     finding(
                         wire::FindingCode::TemplateUnavailable,
                         "execution",
-                        "The template must admit the selected model and every publication context.",
+                        "The runtime template doesn't allow this model or one of the selected Work Contexts.",
                     );
                 }
                 if content
@@ -154,7 +154,7 @@ pub(super) async fn check(
                     finding(
                         wire::FindingCode::CapabilityUnavailable,
                         "execution",
-                        "The selected capabilities exceed the runtime template's approved authority.",
+                        "Some selected tools need permissions the runtime template doesn't grant. Remove them or choose another template.",
                     );
                 }
                 if let Some(model) = state.models.iter().find(|m| m.id == content.model.id)
@@ -168,7 +168,7 @@ pub(super) async fn check(
                     finding(
                         wire::FindingCode::ModelUnavailable,
                         "model",
-                        "The runtime template lacks the approved model credential or required service scopes.",
+                        "The runtime template is missing the model credential or service scopes this agent needs. Ask an operator to update the template.",
                     );
                 }
             }
@@ -193,7 +193,7 @@ pub(super) async fn check(
                             code: wire::FindingCode::CapabilityUnavailable,
                             field: "tools".into(),
                             message: format!(
-                                "Capability {required} is not currently available to you."
+                                "The tool `{required}` isn't available to you right now. Remove it or ask for access."
                             ),
                         });
                     }
@@ -202,7 +202,7 @@ pub(super) async fn check(
             Err(_) => findings.push(wire::Finding {
                 code: wire::FindingCode::CapabilityUnavailable,
                 field: "tools".into(),
-                message: "Capability discovery is unavailable. Publication has not changed.".into(),
+                message: "The list of available tools couldn't be loaded, so nothing was published. Try again shortly.".into(),
             }),
         }
     }

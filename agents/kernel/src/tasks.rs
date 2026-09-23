@@ -42,12 +42,12 @@ async fn watch_task(
     let descriptor: DeferredToolDescriptor = match serde_json::from_value(descriptor_value) {
         Ok(descriptor) => descriptor,
         Err(error) => {
+            tracing::error!(%error, "deferred tool descriptor is unreadable");
             let wake_id = runtime
                 .fail_task(
                     &task,
                     wrapped_json(serde_json::json!({
-                        "error": "unreadable deferred descriptor",
-                        "detail": error.to_string(),
+                        "error": "The saved details of this tool call couldn't be read, so its result can't be delivered. Call the tool again.",
                     })),
                 )
                 .await?;
@@ -140,7 +140,7 @@ async fn watch_task(
                 let wake_id = runtime
                     .fail_task(
                         &task,
-                        wrapped_json(serde_json::json!({ "error": "cancelled" })),
+                        wrapped_json(serde_json::json!({ "error": "The task was cancelled." })),
                     )
                     .await?;
                 bus.hint(wake_id);

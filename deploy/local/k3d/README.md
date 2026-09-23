@@ -8,17 +8,17 @@ installed.
 
 The Bioma enterprise reference uses a second cluster and explicit Kubernetes context.
 It installs its GitOps controller as a separate local platform fixture, then reconciles
-OCI charts through the same boundary expected in a fielded cluster. See
+OCI charts the same way a fielded cluster does. See
 [`examples/bioma/README.md`](../../../examples/bioma/README.md).
 
 One standalone OCI Distribution registry serves every local cluster on loopback
-port 5001. All Veoveo images use full Git revisions as tags. Registry blob
-deduplication moves only missing layers, and k3d nodes pull those layers through
-the same registry contract used by connected enterprise clusters.
+port 5001. All Veoveo images use full Git revisions as tags. The registry
+deduplicates blobs, so a push moves only missing layers, and k3d nodes pull from it
+exactly as connected enterprise clusters pull from theirs.
 
-The development ingress has one canonical origin: `http://localhost:8780`.
-Loopback HTTP is deliberate for the disposable local cluster. Fielded profiles
-remain HTTPS-only and terminate TLS at their Kubernetes Ingress.
+The development ingress has one origin: `http://localhost:8780`. It uses plain HTTP
+because the cluster is local and disposable. Fielded profiles use HTTPS only and
+terminate TLS at their Kubernetes Ingress.
 
 ## Tool versions
 
@@ -53,11 +53,11 @@ by local deployment profiles.
 ## GPU cluster
 
 The node image combines K3s with the NVIDIA Container Toolkit and a CDI-enabled
-containerd runtime. It does not embed an allocator. Each deployment profile chooses
-the canonical managed DRA path or explicitly bootstraps the NVIDIA device plugin;
-the two allocators never run on the same node. GPU workloads do not have a CPU fallback.
+containerd runtime. It does not embed an allocator. Each deployment profile either uses
+managed DRA or bootstraps the NVIDIA device plugin, and the two allocators never run
+on the same node. GPU workloads do not have a CPU fallback.
 The reference profile publishes six time-sliced device-plugin allocations because
-the authoritative UAV simulator, View, Stream, Reason, the cuOpt executor, and the
+the UAV simulator, View, Stream, Reason, the cuOpt executor, and the
 Rerun viewer MCP run at the same time. Each workload still requests one ordinary
 `nvidia.com/gpu` resource. Time-slicing provides schedulability, not memory or
 fault isolation. Profiles that need restart-stable physical pairing use the managed
@@ -86,8 +86,8 @@ The probe requests one Kubernetes GPU and checks CUDA, the NVIDIA Vulkan ICD, an
 the proprietary Vulkan device. A missing device, runtime, driver library, or
 graphics capability fails the job.
 
-The allocator-free node image is a hard cut. Rebuild the image and recreate any local
-cluster made from the earlier image before selecting managed DRA. A cluster restart
+Clusters built from earlier node images, which embedded an allocator, cannot switch to
+managed DRA. Rebuild the image and recreate the cluster first. A cluster restart
 does not remove a static device-plugin manifest already stored in that node.
 
 ## SUMO profile
@@ -133,10 +133,10 @@ operator-created Secrets from its own reconciliation path.
 `profile-up` renders the expanded selection of locked Helm charts and raw manifests before its first
 Kubernetes or Helm write. It computes the complete Secret-reference closure, reads only
 the presence and required key names from existing Secrets, and fails closed when a
-Secret or key is missing or cannot be verified. Closure evidence never retains Secret
+Secret or key is missing or cannot be verified. The recorded closure never contains Secret
 values.
 
-Useful control commands remain standard Kubernetes operations:
+Day-to-day control uses standard Kubernetes commands:
 
 ```bash
 k3d cluster list

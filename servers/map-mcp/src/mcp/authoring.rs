@@ -28,7 +28,7 @@ use super::{MapMcp, internal, invalid_params, require_scope};
 impl MapMcp {
     #[tool(
         title = "Create authored feature layer",
-        description = "Create an empty Work Context-owned feature layer with an immutable JSON Schema 2020-12 property contract and optional safe style revision.",
+        description = "Create an empty feature layer owned by the current Work Context, with a JSON Schema 2020-12 contract for feature properties and an optional style.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FeatureLayer>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -63,7 +63,7 @@ impl MapMcp {
 
     #[tool(
         title = "Update authored feature layer",
-        description = "Replace bounded layer metadata and append immutable schema or style revisions under optimistic concurrency.",
+        description = "Update a layer's metadata and add new schema or style revisions. Pass the layer revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FeatureLayer>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -98,7 +98,7 @@ impl MapMcp {
 
     #[tool(
         title = "Validate authored feature changes",
-        description = "Validate a bounded atomic feature changeset against WGS84 geometry, topology, valid time, JSON Schema, current feature revisions, and the current layer revision without writing it.",
+        description = "Check a feature changeset without writing it: WGS84 geometry and topology, valid time, the layer's JSON Schema, and the current feature and layer revisions.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ValidateFeatureChangesOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -127,7 +127,7 @@ impl MapMcp {
 
     #[tool(
         title = "Commit authored feature changes",
-        description = "Atomically append immutable feature revisions, update feature heads, increment the layer revision, record a scoped idempotent changeset, and publish the durable projection event.",
+        description = "Apply a feature changeset to a layer in one step. Pass the current layer and feature revisions. Retrying with the same changeset ID has no extra effect.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CommitFeatureChangesOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -169,7 +169,7 @@ impl MapMcp {
 
     #[tool(
         title = "Restore authored feature",
-        description = "Append a new live revision for a tombstoned feature under layer and feature optimistic concurrency.",
+        description = "Restore a deleted feature by adding a new live revision. Pass the current layer and feature revisions; the call fails if either has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CommitFeatureChangesOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -201,7 +201,7 @@ impl MapMcp {
 
     #[tool(
         title = "Query authored map features",
-        description = "Query current or published feature revisions with a WGS84 bounding box, valid-time interval, geometry type, bounded CQL2 JSON filter, and opaque keyset cursor.",
+        description = "Query current or published features by WGS84 bounding box, valid-time interval, geometry type, or a CQL2 JSON filter. To get the next page, pass the `cursor` from the previous response.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<QueryFeaturesOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -229,7 +229,7 @@ impl MapMcp {
 
     #[tool(
         title = "Publish authored feature layer",
-        description = "Create an immutable publication that pins the current layer, schema, and style revisions. Publication never promotes generic features into routing.",
+        description = "Publish the current layer, schema, and style revisions as a fixed version that compositions and exports can use. Publishing does not add features to routing.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<LayerPublication>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -271,7 +271,7 @@ impl MapMcp {
 
     #[tool(
         title = "Archive authored feature layer",
-        description = "Archive a feature layer under optimistic concurrency while preserving every feature, changeset, and publication revision.",
+        description = "Archive a feature layer. Every feature, changeset, and publication is kept. Pass the layer revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FeatureLayer>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -310,7 +310,7 @@ impl MapMcp {
 
     #[tool(
         title = "Create map composition",
-        description = "Create a governed map composition whose ordered layers pin immutable feature-layer publications and their publication styles.",
+        description = "Create a map composition: an ordered list of published feature layers, each shown with its published style.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -340,7 +340,7 @@ impl MapMcp {
 
     #[tool(
         title = "Update map composition",
-        description = "Append an immutable composition revision with optimistic concurrency while retaining publication pins.",
+        description = "Add a new revision of a map composition. Its layers stay tied to their publications. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -373,7 +373,7 @@ impl MapMcp {
 
     #[tool(
         title = "Archive map composition",
-        description = "Archive a composition under optimistic concurrency while preserving every immutable revision.",
+        description = "Archive a map composition. Every revision is kept. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MapComposition>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -403,7 +403,7 @@ impl MapMcp {
 
     #[tool(
         title = "Import feature layer artifact",
-        description = "Validate and atomically import up to 10000 features from an authorized GeoJSON FeatureCollection, RFC 8142 GeoJSON text sequence, or explicitly selected OGC GeoPackage vector table. GeoPackage CRS conversion is bounded to two-dimensional OGC:CRS84 output. This operation requires durable task invocation.",
+        description = "Import up to 10,000 features from a GeoJSON FeatureCollection, an RFC 8142 GeoJSON text sequence, or a selected OGC GeoPackage vector table in an artifact you can read. Either every feature imports or none do. GeoPackage coordinates are converted to two-dimensional OGC:CRS84. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ImportFeatureLayerOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -413,14 +413,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "import_feature_layer requires task-based invocation",
+            "`import_feature_layer` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Inspect GeoPackage artifact",
-        description = "Validate and inspect the vector feature tables, fields, CRS declarations, extensions, and R-tree declarations in an authorized OGC GeoPackage artifact before import. This operation requires durable task invocation.",
+        description = "List the vector tables, fields, CRS declarations, extensions, and R-tree indexes in a GeoPackage artifact before you import it. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<InspectGeoPackageOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -430,14 +430,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "inspect_geopackage requires task-based invocation",
+            "`inspect_geopackage` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Export published feature layer",
-        description = "Export an immutable layer publication as RFC 8142 GeoJSON text sequence, GeoParquet 1.0 WKB, or an OGC GeoPackage 1.4 vector table through a governed artifact. This operation requires durable task invocation.",
+        description = "Export a layer publication as an RFC 8142 GeoJSON text sequence, GeoParquet 1.0 (WKB), or an OGC GeoPackage 1.4 vector table. The result is an artifact. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExportFeatureLayerOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -447,14 +447,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "export_feature_layer requires task-based invocation",
+            "`export_feature_layer` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Build published feature vector tiles",
-        description = "Build a bounded sorted set of Mapbox Vector Tile 2.1 tiles and a MapLibre Style projection from an immutable layer publication. This operation requires durable task invocation.",
+        description = "Build Mapbox Vector Tile 2.1 tiles and a MapLibre style from a layer publication. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<BuildVectorTilesOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -464,7 +464,7 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "build_vector_tiles requires task-based invocation",
+            "`build_vector_tiles` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }

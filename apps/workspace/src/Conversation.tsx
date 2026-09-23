@@ -40,8 +40,8 @@ function ChatMessage() {
       <div className="message-text"><MessagePrimitive.Parts /></div>
       {source && <MessageAttachments attachments={source.attachments}/>}
       {agent && <div className="run-status" role="status">
-        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? meta.runPhase === "calling_tools" ? "Using capabilities…" : meta.runPhase === "preparing" ? "Preparing response…" : "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent. This agent could not start because response capacity is full." : "The response could not be completed." : ""}</span>
-        {typeof meta.runOperations === "number" && meta.runOperations > 0 && <span>{meta.runOperations} {meta.runOperations === 1 ? "operation" : "operations"} in the initiator’s private Activity</span>}
+        <span>{meta.runState === "queued" ? "Starting…" : meta.runState === "running" ? meta.runPhase === "calling_tools" ? "Using tools…" : meta.runPhase === "preparing" ? "Preparing response…" : "Responding…" : meta.runState === "interrupted" ? "Response interrupted. Send a new request to try again." : meta.runState === "cancelled" ? "Response stopped" : meta.runState === "failed" ? meta.runFailure === "capacity" ? "Your message was sent, but this agent couldn't start because too many agents are busy. Try again in a minute." : "The agent couldn't finish this response. Send your request again to retry." : ""}</span>
+        {typeof meta.runOperations === "number" && meta.runOperations > 0 && <span>{meta.runOperations} {meta.runOperations === 1 ? "tool call" : "tool calls"}, shown only in the requester's Activity</span>}
         {(meta.runState === "running" || meta.runState === "queued") && meta.canCancel === true && typeof meta.runId === "string" && <button className="stop-response" aria-label={`Stop ${name}'s response`} onClick={() => cancel(meta.runId as string)}><Square size={11}/> Stop response</button>}
       </div>}
     </div>
@@ -73,14 +73,14 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   catch (error) { selectionError = error instanceof Error ? error.message : "Update your agent selection."; }
   const cancel = useCallback(async (id: string) => {
     try { await api.cancelRun(snapshot.chat.id, id); await onChanged(); }
-    catch (error) { setError(error instanceof Error ? error.message : "Could not stop this response."); }
+    catch (error) { setError(error instanceof Error ? error.message : "Veoveo couldn't stop this response. Try again."); }
   }, [snapshot.chat.id, onChanged]);
   const send = useCallback(async () => {
     if (dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
     if (attempt.current && attempt.current.text !== text) {
-      setError("Retry the original message first to confirm whether it was sent."); return;
+      setError("Retry the original message first so Veoveo can check whether it was sent."); return;
     }
     if (selectionError && !attempt.current) { setError(selectionError); return; }
     const request = attempt.current ?? { id: crypto.randomUUID(), text, attachments, replyTo: reply?.target ?? null, addressedAgents: addressed };
@@ -92,7 +92,10 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
       await onChanged();
     } catch (error) {
       if (error instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(error.status)) attempt.current = undefined;
-      setError(error instanceof Error ? error.message : "The message could not be confirmed.");
+      // Without a definite answer the message may have been stored. Retrying
+      // reuses its ID, so the server never posts it twice.
+      setError(attempt.current ? "Veoveo couldn't tell whether your message was sent. Your text is kept here. Select Retry; it won't post twice."
+        : error instanceof Error ? error.message : "Veoveo couldn't send your message. Try again.");
     }
     finally { setPending(false); }
   }, [dictating, pending, draft, reply, attachments, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
@@ -107,7 +110,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
       <ThreadPrimitive.Viewport className="timeline">
         <div className="timeline-inner">
           {hasOlder && <button className="older" onClick={onOlder} disabled={loadingOlder}>{loadingOlder ? "Loading…" : "Load earlier messages"}</button>}
-          {snapshot.messages.length === 0 && <div className="chat-empty"><div className="spark">✳</div><h2>A place to work together.</h2><p>Write a message, invite your people, and bring your work into the conversation.</p></div>}
+          {snapshot.messages.length === 0 && <div className="chat-empty"><div className="spark">✳</div><h2>No messages yet</h2><p>Write the first message, or @mention an agent to ask for help.</p></div>}
           <ThreadPrimitive.Messages components={{ Message: ChatMessage }} />
         </div>
       </ThreadPrimitive.Viewport>
@@ -124,7 +127,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
         {activeAgents.length > 0 && <p className="composer-note" role="status">{selectionError ?? (responders.length
           ? `Will respond: ${responders.map(id => activeAgents.find(agent => agent.id === id)?.name ?? "Agent").join(", ")}.`
           : "No agent response requested.")} Begin with @Name or select an agent above.</p>}
-        {error && <p role="alert" className="error">{error} {attempt.current && "Your text is kept here; retry uses the same message ID."}</p>}
+        {error && <p role="alert" className="error">{error}</p>}
         <AttachmentComposer value={attachments} onChange={setAttachments} uploads={uploads} onUpload={onUpload}
           disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
         {reply && <div className="composer-reply" role="region" aria-label="Reply context"><ReplyQuote context={{ authorName: reply.authorName, text: [...reply.text].slice(0, 500).join("") }}/>

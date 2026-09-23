@@ -10,6 +10,6 @@ export function ResultImages({ images, omitted }: { images: OperationImage[]; om
 function ResultImage({ image, index }: { image: OperationImage; index: number }) {
   const [failed, setFailed] = useState<string>();
   const source = `data:${image.mimeType};base64,${image.data}`;
-  return failed === source ? <p className="muted">Image result {index + 1} could not be displayed.</p>
+  return failed === source ? <p className="muted">Image result {index + 1} couldn't be displayed.</p>
     : <img className="task-image" src={source} alt={`Image result ${index + 1}`} loading="lazy" onError={() => setFailed(source)}/>;
 }

@@ -257,8 +257,9 @@ pub(crate) async fn run(args: Arguments) -> Result<()> {
         "unconverted bindings remain"
     );
     println!(
-        "Imported {} definitions and {count} chat bindings; exact recovery evidence is in the private file.",
-        mappings.len()
+        "Imported {} definitions and {count} chat bindings. Recovery details are in {}.",
+        mappings.len(),
+        args.recovery.display()
     );
     Ok(())
 }

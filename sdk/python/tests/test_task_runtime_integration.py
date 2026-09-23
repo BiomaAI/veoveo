@@ -99,7 +99,7 @@ async def test_create_claim_transition_succeed_roundtrip(runtime):
     assert created.created
     snapshot = created.snapshot
     assert snapshot.status == TaskStatus.QUEUED
-    assert snapshot.status_message == "accepted; queued"
+    assert snapshot.status_message == "Queued"
     assert snapshot.retention_pins == frozenset(["agent-episode:1"])
     assert snapshot.ttl_ms == 60_000
 

@@ -37,7 +37,7 @@ enum MaintenanceOutputSchema {
     Rejected(ApiError),
 }
 pub fn tools() -> Vec<Tool> {
-    let create = Tool::new("create", "Create a retained Computer using the installation default. Reuse requestId when retrying. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
+    let create = Tool::new("create", "Create a Computer from the installation's default environment. Its home directory is kept across Stop and Start. Reuse requestId when retrying. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<CreateInput>())
         .with_title("Create Computer").with_output_schema::<LifecycleOutput>()
         .with_annotations(ToolAnnotations::new().read_only(false).destructive(false).idempotent(true).open_world(false));
     let lifecycle = |name: &'static str, description: &'static str| {
@@ -57,19 +57,19 @@ pub fn tools() -> Vec<Tool> {
     };
     vec![
         create,
-        Tool::new("transfer_file", "Import one governed Artifact into a new retained-home file, or export one regular file to an Artifact. Paths are relative to the retained home. Imports never overwrite or extract archives. Reuse requestId with identical input after a lost reply. The owner omits grantId; an agent requires its Execute grant. Cancellation of active work may stop the Computer. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<TransferFileInput>())
+        Tool::new("transfer_file", "Copy an Artifact into a new file in the Computer's home directory, or save a regular file from the home directory as an Artifact. Paths are relative to the home directory. Imports never overwrite existing files or extract archives. After a lost reply, retry with the same requestId and input. Owners omit grantId; agents pass a grant with Execute permission. Cancelling an active transfer may stop the Computer. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<TransferFileInput>())
             .with_title("Transfer Computer file")
             .with_output_schema::<FileOutputSchema>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("resume_update", "Resume the existing paused environment update under current recovery policy. Use its exact updatedAt and explicitly acknowledge any pendingCancellationAt. Keep requestId and all inputs on retries. This retains the home and original dispatch identities; it does not replay an uncertain mutation. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<ResumeUpdateInput>())
+        Tool::new("resume_update", "Resume a paused environment update. Pass the update's current updatedAt, and acknowledge pendingCancellationAt if the update shows one. Keep requestId and all inputs the same on retries. The home directory is kept, and steps whose outcome is uncertain are not repeated. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<ResumeUpdateInput>())
             .with_title("Resume environment update")
             .with_output_schema::<MaintenanceOutputSchema>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("update_template", "Update a Computer to an installation-admitted environment while retaining its home. This stops its processes. Finish active commands first. Omit templateId to select the current default; reuse requestId after a lost reply to retain the original selection. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<UpdateTemplateInput>())
+        Tool::new("update_template", "Move a Computer to another environment the installation allows, keeping its home directory. This stops its processes, so finish active commands first. Omit templateId to use the current default. After a lost reply, retry with the same requestId to keep the original choice. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<UpdateTemplateInput>())
             .with_title("Update environment")
             .with_output_schema::<MaintenanceOutputSchema>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
-        Tool::new("execute", "Run explicit argv in a retained Computer under your named automation grant. Use a home-relative directory and standard padded base64 stdin. Reuse requestId with identical input after a lost reply. Cancellation may stop the Computer run under the grant's explicit interruption scope. Requires the Tasks extension.", rmcp::handler::server::tool::schema_for_type::<ExecuteInput>())
+        Tool::new("execute", "Run a command (argv list) on a Computer using your automation grant. The working directory is relative to the home directory, and stdin is standard padded base64. After a lost reply, retry with the same requestId and input. Cancelling may stop the command's whole run, as the grant's Stop permission allows. Run as an MCP Task.", rmcp::handler::server::tool::schema_for_type::<ExecuteInput>())
             .with_title("Execute Computer command")
             .with_output_schema::<ExecutionOutputSchema>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(true)),
@@ -79,17 +79,23 @@ pub fn tools() -> Vec<Tool> {
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),
         lifecycle(
             "start",
-            "Start a stopped Computer with its retained home. Named agents supply a grantId with Start permission. Reuse requestId and grantId when retrying. Requires the Tasks extension.",
+            "Start a stopped Computer. Its home directory is unchanged. Agents pass a grantId with Start permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
         ),
         lifecycle(
             "stop",
-            "Stop the Computer's processes while keeping its retained home. Named agents supply a grantId with Stop permission. Reuse requestId and grantId when retrying. Requires the Tasks extension.",
+            "Stop a Computer's processes. Its home directory is kept. Agents pass a grantId with Stop permission. Reuse requestId and grantId when retrying. Run as an MCP Task.",
         ),
     ]
 }
 pub(super) fn input<T: DeserializeOwned>(arguments: Option<JsonObject>) -> Result<T, ErrorData> {
-    serde_json::from_value(serde_json::Value::Object(arguments.unwrap_or_default()))
-        .map_err(|_| ErrorData::invalid_params("invalid Computer action input", None))
+    serde_json::from_value(serde_json::Value::Object(arguments.unwrap_or_default())).map_err(
+        |error| {
+            // serde names the offending field; drop its JSON line/column suffix.
+            let detail = error.to_string();
+            let detail = detail.split(" at line ").next().unwrap_or_default();
+            ErrorData::invalid_params(format!("Invalid Computer action input: {detail}."), None)
+        },
+    )
 }
 pub(super) fn rejection(error: ApplicationError) -> Result<CallToolResponse, ErrorData> {
     if matches!(error, ApplicationError::Domain(ComputerError::Forbidden)) {

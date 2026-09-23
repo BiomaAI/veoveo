@@ -28,6 +28,11 @@ use crate::{
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
 pub const DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID: &str = "veoveo-internal-1";
 
+/// Error text for a hosted-server request that arrived without the gateway's
+/// internal identity, forwarded bearer, or authenticated HTTP context.
+pub const GATEWAY_ROUTING_REQUIRED: &str =
+    "This server only accepts requests routed through the Veoveo gateway.";
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct GatewayInternalSigningKey {
     key_id: String,

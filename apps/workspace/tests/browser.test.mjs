@@ -332,7 +332,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("textbox", { name: "Follow-up note" }).fill("Keep this answer while the other request changes.");
     console.log(JSON.stringify({ step: "independent task inputs and lost decline reply" }));
     await owner.getByRole("button", { name: "Decline request", exact: true }).click();
-    await owner.getByText("Your answer could not be confirmed. The current request has been refreshed.", { exact: true }).waitFor();
+    await owner.getByText("Veoveo couldn't tell whether your answer was received. The request below has been refreshed; answer again if it is still waiting.", { exact: true }).waitFor();
     await owner.getByRole("button", { name: "Decline request", exact: true }).waitFor({ state: "detached" });
     assert.equal(await owner.getByRole("spinbutton", { name: "Follow-ups" }).inputValue(), "2");
     assert.equal(operationPosts.length, 1, "lost reply does not replay the decline");
@@ -375,11 +375,11 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     inputs = [];
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
     await owner.getByText("Measured fixture work", { exact: true }).waitFor();
-    assert.equal(await owner.getByRole("progressbar", { name: "Operation progress" }).getAttribute("aria-valuenow"), "4");
+    assert.equal(await owner.getByRole("progressbar", { name: "Task progress" }).getAttribute("aria-valuenow"), "4");
     progress = { completed: 5, total: null, message: "Working without a known total" };
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
     await owner.getByText("Working without a known total", { exact: true }).waitFor();
-    assert.equal(await owner.getByRole("progressbar", { name: "Operation progress" }).getAttribute("aria-valuenow"), null);
+    assert.equal(await owner.getByRole("progressbar", { name: "Task progress" }).getAttribute("aria-valuenow"), null);
     progress = null;
     operation.phase = "input_required"; operation.revision++;
     inputs = [
@@ -406,7 +406,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     result = { isError: false, text: [], resources: [{ uri: `media://artifact/${artifact}`, name: "Generated image", mimeType: "image/png" }], images: [], omittedImages: 0, structured: null };
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
     await owner.getByRole("button", { name: "Preview", exact: true }).click();
-    await owner.getByText("This file is unavailable with your current access. A chat or Task link does not grant file access.", { exact: true }).waitFor();
+    await owner.getByText("You don't have access to this file. Ask its owner to share it with you.", { exact: true }).waitFor();
     assert.equal(await owner.getByRole("img", { name: "Generated image", exact: true }).count(), 0);
     fileAllowed = true;
     await owner.getByRole("button", { name: "Preview", exact: true }).click();
@@ -427,7 +427,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     assert.equal(operationPosts.length, 6, "restoring an inline image never resubmits the tool");
     resultAllowed = false;
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
-    await owner.getByText("This activity is no longer available with your access, or its retention period has ended.", { exact: true }).waitFor();
+    await owner.getByText("This task is no longer available. You may have lost access, or it was removed after its retention period.", { exact: true }).waitFor();
     assert.equal(await owner.getByRole("img", { name: "Image result 1", exact: true }).count(), 0, "denied refresh detaches previously visible image bytes");
     resultAllowed = true;
     await owner.getByRole("button", { name: "Refresh task", exact: true }).click();
@@ -531,11 +531,11 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.getByRole("button", { name: "Attach files", exact: true }).click();
     await owner.getByRole("region", { name: "Completed uploads", exact: true }).getByRole("button", { name: "workspace-acceptance.txt", exact: true }).click();
     await owner.getByRole("button", { name: "Attach files", exact: true }).click();
-    await owner.getByRole("textbox", { name: "Artifact resource link", exact: true }).fill("javascript:alert(1)");
+    await owner.getByRole("textbox", { name: "File link", exact: true }).fill("javascript:alert(1)");
     await owner.getByRole("textbox", { name: "Name shown in chat", exact: true }).fill("Shared image <script>");
     await owner.getByRole("button", { name: "Add file link", exact: true }).click();
-    await owner.getByText("Use an Artifact resource link, such as artifact:// followed by its file ID.", { exact: true }).waitFor();
-    await owner.getByRole("textbox", { name: "Artifact resource link", exact: true }).fill(`artifact://${artifact}`);
+    await owner.getByText("Paste a file link that starts with artifact:// followed by the file ID.", { exact: true }).waitFor();
+    await owner.getByRole("textbox", { name: "File link", exact: true }).fill(`artifact://${artifact}`);
     await owner.getByRole("button", { name: "Add file link", exact: true }).click();
     assert.equal(await owner.getByRole("list", { name: "Files to send", exact: true }).getByRole("listitem").count(), 2);
     assert.equal(await owner.getByRole("textbox", { name: "Message", exact: true }).inputValue(), "");
@@ -557,12 +557,12 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.waitForFunction(() => [...document.querySelectorAll('.message-attachments img')].some(image => image.complete && image.naturalWidth > 0));
     const ownUpload = ownFiles.locator(".task-resource").filter({ hasText: "workspace-acceptance.txt" });
     await ownUpload.getByRole("button", { name: "Preview", exact: true }).click();
-    await ownUpload.getByText("This file is available to download. Inline preview supports raster images up to 20 MiB.", { exact: true }).waitFor();
+    await ownUpload.getByText("Preview works only for images up to 20 MiB. Use Download to open this file.", { exact: true }).waitFor();
     assert.equal(await ownUpload.getByRole("link", { name: "Download", exact: true }).getAttribute("href"), "/workspace/api/artifacts/01a0a75d-3458-78f3-ac54-91f1cab1fea3/download");
     await member.reload();
     const theirFiles = member.locator(`[data-message-id="message:${attached.id}"]`).getByRole("region", { name: "Attachments", exact: true });
     await theirFiles.locator(".task-resource").filter({ hasText: "Shared image <script>" }).getByRole("button", { name: "Preview", exact: true }).click();
-    await theirFiles.getByText("This file is unavailable with your current access. A chat or Task link does not grant file access.", { exact: true }).waitFor();
+    await theirFiles.getByText("You don't have access to this file. Ask its owner to share it with you.", { exact: true }).waitFor();
     assert.equal(await theirFiles.locator("img").count(), 0);
     const afterFiles = { sends: sends.length, runs: runs.length, uploads: uploadAdmissions };
     await owner.reload();
@@ -583,7 +583,7 @@ test("headed Workspace supports shared authors, stable retries, ownership contro
     await owner.locator(".message-text").getByText(recoveredMessage.text, { exact: true }).waitFor();
     assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);
     revokeOwner = true;
-    await owner.getByText("This chat or action is no longer available with your access.", { exact: true }).waitFor();
+    await owner.getByText("You don't have permission to load this chat. Ask the chat owner or an administrator for access.", { exact: true }).waitFor();
     await owner.getByRole("textbox", { name: "Message", exact: true }).waitFor({ state: "detached" });
     assert.equal(await owner.locator(".message-text").count(), 0, "revocation clears retained conversation state");
     assert.deepEqual({ sends: sends.length, runs: runs.length, uploads: uploadAdmissions }, afterFiles);

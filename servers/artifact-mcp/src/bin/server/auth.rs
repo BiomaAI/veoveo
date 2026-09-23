@@ -62,12 +62,16 @@ pub(super) fn caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let bearer_token = parts
         .extensions
         .get::<ForwardedBearer>()
         .map(|value| value.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     Ok(PlaneCaller {
         memberships: identity.actor.group_memberships(),
         identity,
@@ -81,5 +85,7 @@ fn request_parts(
     context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }

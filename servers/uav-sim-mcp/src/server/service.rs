@@ -221,7 +221,10 @@ impl UavSimMcp {
             .iter()
             .any(|vehicle| &vehicle.vehicle_id == vehicle_id)
         {
-            return Err(McpError::resource_not_found("vehicle not found", None));
+            return Err(McpError::resource_not_found(
+                format!("Vehicle `{}` was not found in this session.", vehicle_id),
+                None,
+            ));
         }
         self.state
             .control_authority
@@ -252,7 +255,7 @@ impl UavSimMcp {
 impl UavSimMcp {
     #[tool(
         title = "Configure UAV frame world",
-        description = "Bind an unconfigured simulation session to one immutable Frames world revision and one static simulation frame.",
+        description = "Bind a new simulation session to one Frames world revision and one simulation frame. Do this once, before flying.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ConfigureWorldOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -281,7 +284,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Get UAV simulation state",
-        description = "Read the current typed session, Google Photorealistic 3D Tiles, native sensor-stream health, recording, and vehicle state.",
+        description = "Read the session's current state: Google Photorealistic 3D Tiles loading, sensor-stream health, recording, and vehicles.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SimulationState>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -301,7 +304,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "List active vehicle control grants",
-        description = "Read the active UAV-domain principal-to-vehicle grants visible to the authenticated caller in one session. Each grant supplies the exact vehicle id, permissions, and canonical Map mobility-profile URI that downstream Map route requests must use; caller input never establishes vehicle authority.",
+        description = "Read the vehicle grants you can see in one session. Each grant gives the vehicle id, the permissions, and the Map mobility-profile URI to use in Map route requests. Only a grant gives you control of a vehicle; naming a vehicle id in your input does not.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<crate::contract::VehicleControlGrant>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -327,7 +330,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Grant vehicle control",
-        description = "Bind one authenticated principal to one simulated vehicle with explicit UAV-domain permissions and one exact Map mobility profile.",
+        description = "Grant one user or service control of one simulated vehicle, with explicit UAV permissions and one Map mobility profile.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleControlGrant>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -343,7 +346,13 @@ impl UavSimMcp {
             .iter()
             .any(|vehicle| vehicle.vehicle_id == request.vehicle_id)
         {
-            return Err(McpError::resource_not_found("vehicle not found", None));
+            return Err(McpError::resource_not_found(
+                format!(
+                    "Vehicle `{}` was not found in this session.",
+                    request.vehicle_id
+                ),
+                None,
+            ));
         }
         let grant = self
             .state
@@ -367,7 +376,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Revoke vehicle control",
-        description = "Revoke one UAV-domain principal-to-vehicle grant using optimistic revision control.",
+        description = "Revoke one vehicle grant. Pass the grant revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleControlGrant>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -399,7 +408,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Prepare vehicle mission",
-        description = "Admit one Map-produced route handoff for the calling principal's granted vehicle and immutable Frames world revision.",
+        description = "Check a Map route handoff against your vehicle grant and the session's Frames world, and return a mission plan to pass to `execute_vehicle_mission_plan`.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::VehicleMissionPlan>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -415,7 +424,13 @@ impl UavSimMcp {
             .iter()
             .any(|vehicle| vehicle.vehicle_id == request.vehicle_id)
         {
-            return Err(McpError::resource_not_found("vehicle not found", None));
+            return Err(McpError::resource_not_found(
+                format!(
+                    "Vehicle `{}` was not found in this session.",
+                    request.vehicle_id
+                ),
+                None,
+            ));
         }
         let Some(world) = state.world else {
             return Err(McpError::invalid_request(
@@ -448,7 +463,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "List authoritative UAV live cameras",
-        description = "List the logical operator cameras rendered and encoded once inside the authoritative simulator for shared authorized viewing.",
+        description = "List the operator cameras the simulator renders. Each camera is rendered and encoded once and shared by every authorized viewer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<veoveo_mcp_contract::LiveCameraDescriptor>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -467,7 +482,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Open authoritative UAV live view",
-        description = "Create one actor- and browser-instance-scoped authorization for an existing simulator-owned camera product. The authorization does not allocate another RTX render or NVENC encode.",
+        description = "Authorize this browser to watch an existing simulator camera. This does not start another render or encode.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -530,7 +545,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Renew authoritative UAV live view",
-        description = "Rotate the stream token and extend the calling actor and browser instance's live-view authorization.",
+        description = "Renew this browser's camera authorization and rotate its stream token.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -608,7 +623,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Close authoritative UAV live view",
-        description = "Revoke only the calling actor and browser instance's ephemeral live-view authorization. The shared camera product and other viewers remain active.",
+        description = "Revoke this browser's camera authorization. The camera and other viewers keep running.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CloseLiveViewResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -714,7 +729,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Step UAV simulation",
-        description = "Advance a paused session by a bounded number of physics steps.",
+        description = "Advance a paused session by a number of physics steps.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CommandAcknowledgement>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -750,7 +765,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Take off simulated UAV",
-        description = "Atomically arm one PX4-backed vehicle and start a bounded takeoff to a typed relative altitude.",
+        description = "Arm one PX4 vehicle and start a takeoff to a relative altitude, in one step.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CommandAcknowledgement>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -793,7 +808,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Run UAV scenario",
-        description = "Run a bounded live scenario as a durable non-replayable task in the loaded Google Photorealistic 3D Tiles world.",
+        description = "Run a time-limited live scenario in the loaded Google Photorealistic 3D Tiles world. Run as an MCP Task; an interrupted run is not retried.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::ScenarioResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -809,7 +824,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Execute vehicle mission plan",
-        description = "Execute one admitted single-vehicle mission plan under the calling principal's exclusive UAV command lease.",
+        description = "Fly a mission plan from `prepare_vehicle_mission` with one vehicle. The call takes your exclusive command lease for that vehicle while it flies.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::MissionResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -832,7 +847,7 @@ impl UavSimMcp {
 
     #[tool(
         title = "Capture UAV dataset",
-        description = "Capture a bounded sensor interval as a durable non-replayable task and return governed recording identities.",
+        description = "Record sensor data for a time interval and return the recording identities. Run as an MCP Task; an interrupted capture is not retried.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CaptureDatasetResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -873,7 +888,7 @@ impl ServerHandler for UavSimMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Govern UAV simulation sessions through typed resources and bounded controls. Map MCP owns operational geography and route handoffs; Frames owns immutable world revisions; this server owns principal-to-vehicle grants, mission admission, exclusive command leases, execution, telemetry, and the UAV App. Each logical operator camera renders and encodes continuously inside the authoritative simulator, while authenticated browser viewers share its H.264 product through ui://uav-sim/live.html. Use official Tasks for scenarios, admitted vehicle mission plans, and dataset captures; live operations are not replayed after an indeterminate interruption."
+            "Fly simulated UAVs. To fly a mission: (1) call `list_active_vehicle_control_grants` to find your vehicle and its Map mobility profile; (2) get a route handoff from Map MCP; (3) call `prepare_vehicle_mission` with that handoff; (4) call `execute_vehicle_mission_plan` as an MCP Task. Scenarios and sensor captures also run as MCP Tasks, and an interrupted flight is never retried automatically. Watch the operator cameras in the ui://uav-sim/live.html app."
                 .to_owned(),
         );
         info
@@ -1255,7 +1270,12 @@ impl ServerHandler for UavSimMcp {
                     .vehicles
                     .iter()
                     .find(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-                    .ok_or_else(|| McpError::resource_not_found("vehicle not found", None))?;
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("Vehicle `{}` was not found in this session.", vehicle_id),
+                            None,
+                        )
+                    })?;
                 return json_resource(uri, vehicle);
             }
             if let Some(session_id) = uris::parse_recordings(uri) {
@@ -1527,7 +1547,10 @@ impl UavSimMcp {
                     .iter()
                     .any(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
             {
-                return Err(McpError::resource_not_found("vehicle not found", None));
+                return Err(McpError::resource_not_found(
+                    format!("Vehicle `{}` was not found in this session.", vehicle_id),
+                    None,
+                ));
             }
             return Ok(());
         }
@@ -2189,7 +2212,9 @@ fn require_task<'a>(
     tasks
         .iter()
         .find(|task| task.task_id.to_string() == task_id)
-        .ok_or_else(|| McpError::resource_not_found("task not found", None))
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Task `{task_id}` was not found."), None)
+        })
 }
 
 fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpError> {
@@ -2278,7 +2303,14 @@ fn require_scope(
     let identity = internal_identity(context)?;
     identity_has_scope(&identity, required)
         .then_some(identity)
-        .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+        .ok_or_else(|| {
+            McpError::invalid_request(
+                format!(
+                    "You don't have permission to make this request. Missing scope `{required}`."
+                ),
+                None,
+            )
+        })
 }
 
 fn require_any_scope(
@@ -2300,7 +2332,10 @@ fn require_any_identity_scope(
         .then_some(())
         .ok_or_else(|| {
             McpError::invalid_request(
-                format!("one of scopes {} is required", required.join(", ")),
+                format!(
+                    "You don't have permission to make this request. It needs one of these scopes: {}.",
+                    required.join(", ")
+                ),
                 None,
             )
         })
@@ -2309,12 +2344,11 @@ fn require_any_identity_scope(
 fn authority_error(error: ControlAuthorityError) -> McpError {
     match error {
         ControlAuthorityError::Invalid(message) => McpError::invalid_params(message, None),
-        ControlAuthorityError::Forbidden => {
-            McpError::invalid_request("vehicle control is not authorized", None)
-        }
-        ControlAuthorityError::NotFound => {
-            McpError::resource_not_found("vehicle control record not found", None)
-        }
+        ControlAuthorityError::Forbidden => McpError::invalid_request(
+            "You don't have permission to control this vehicle. Check your grants with `list_active_vehicle_control_grants`.",
+            None,
+        ),
+        ControlAuthorityError::NotFound => McpError::resource_not_found(error.to_string(), None),
         ControlAuthorityError::Conflict | ControlAuthorityError::VehicleBusy(_) => {
             McpError::invalid_request(error.to_string(), None)
         }
@@ -2372,7 +2406,7 @@ fn live_view_error(error: LiveViewError) -> McpError {
         | LiveViewError::CameraNotFound(_)
         | LiveViewError::ViewNotFound(_) => McpError::resource_not_found(error.to_string(), None),
         LiveViewError::Ownership | LiveViewError::AuthorityRevoked | LiveViewError::Access => {
-            McpError::invalid_request("live-view access is not authorized", None)
+            McpError::invalid_request("You don't have permission to view this camera.", None)
         }
         LiveViewError::CameraUnavailable | LiveViewError::ViewUnavailable => {
             McpError::invalid_request(error.to_string(), None)

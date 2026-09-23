@@ -286,7 +286,7 @@ impl TaskFailure {
     pub fn interrupted_indeterminate() -> Self {
         Self::new(
             "interrupted_indeterminate",
-            "execution was interrupted; commit state is indeterminate and the task will not be replayed",
+            "This task was interrupted and may have partly completed. It won't be retried automatically. Check the result before running it again.",
         )
     }
 }
@@ -319,8 +319,8 @@ impl TaskTransition {
             | Self::Waiting { message, .. }
             | Self::Succeeded { message, .. } => message.clone(),
             Self::Failed(failure) => failure.message.clone(),
-            Self::CancelRequested => "cancellation requested".to_owned(),
-            Self::Cancelled => "cancelled".to_owned(),
+            Self::CancelRequested => "Cancelling".to_owned(),
+            Self::Cancelled => "Cancelled".to_owned(),
         }
     }
 

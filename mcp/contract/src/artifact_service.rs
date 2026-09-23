@@ -513,7 +513,7 @@ impl std::fmt::Display for ArtifactPlaneError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::NotFound => f.write_str("artifact not found"),
-            Self::Denied(d) => write!(f, "access denied: {d:?}"),
+            Self::Denied(d) => write!(f, "access denied: {}", denial_reason(*d)),
             Self::Unauthenticated => f.write_str("unauthenticated"),
             Self::InvalidRequest(m) => write!(f, "invalid request: {m}"),
             Self::Conflict(m) => write!(f, "conflict: {m}"),
@@ -523,6 +523,15 @@ impl std::fmt::Display for ArtifactPlaneError {
 }
 
 impl std::error::Error for ArtifactPlaneError {}
+
+fn denial_reason(decision: AccessDecision) -> &'static str {
+    match decision {
+        AccessDecision::Allow => "allowed",
+        AccessDecision::DenyTenant => "the artifact belongs to another tenant",
+        AccessDecision::DenyClearance => "the caller is not cleared for the artifact's data labels",
+        AccessDecision::DenyNeedToKnow => "no grant gives the caller access",
+    }
+}
 
 /// The interface every domain server programs against to reach the plane.
 ///

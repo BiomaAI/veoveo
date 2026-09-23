@@ -29,7 +29,7 @@ from veoveo_mcp.tasks import TaskError, TaskSnapshot
 
 from ..contract import ProfileDatasetRequest
 from .app_state import AppState
-from .ownership import request_scope, runtime_owner
+from .ownership import GATEWAY_ROUTING_REQUIRED, request_scope, runtime_owner
 from .profile_task import ProfileTaskError, start_profile_task
 
 Context = ServerRequestContext[Any, Any]
@@ -58,10 +58,10 @@ class DatasheetTaskExtension:
         scope = request_scope(ctx)
         identity = scope.get(IDENTITY_SCOPE_KEY)
         if identity is None:
-            raise MCPError(types.INVALID_REQUEST, "gateway identity missing")
+            raise MCPError(types.INVALID_REQUEST, GATEWAY_ROUTING_REQUIRED)
         bearer = scope.get(BEARER_SCOPE_KEY)
         if bearer is None:
-            raise MCPError(types.INVALID_REQUEST, "forwarded bearer missing")
+            raise MCPError(types.INVALID_REQUEST, GATEWAY_ROUTING_REQUIRED)
         return AuthenticatedCaller(
             identity=identity,
             plane=PlaneCaller.from_identity(identity, bearer),

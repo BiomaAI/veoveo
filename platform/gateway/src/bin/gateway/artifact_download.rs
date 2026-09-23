@@ -158,6 +158,9 @@ fn proxy_download_response(upstream: reqwest::Response) -> Response {
         );
         return StatusCode::BAD_GATEWAY.into_response();
     }
+    if status.is_client_error() || status.is_server_error() {
+        return (status, download_error_message(status)).into_response();
+    }
     let mut headers = HeaderMap::new();
     for name in [
         header::CONTENT_TYPE,
@@ -180,6 +183,21 @@ fn proxy_download_response(upstream: reqwest::Response) -> Response {
     *response.status_mut() = status;
     *response.headers_mut() = headers;
     response
+}
+
+/// Browser-facing text for a failed download. The upstream body is never
+/// forwarded, so backend detail cannot reach the browser.
+fn download_error_message(status: StatusCode) -> &'static str {
+    match status {
+        StatusCode::UNAUTHORIZED => "Sign in to download this file.",
+        StatusCode::FORBIDDEN => "You don't have access to this file.",
+        StatusCode::NOT_FOUND => "This file was not found. It may have been removed.",
+        StatusCode::RANGE_NOT_SATISFIABLE => "The requested byte range is outside this file.",
+        status if status.is_server_error() => {
+            "The file is temporarily unavailable. Try again shortly."
+        }
+        _ => "The download request was not accepted.",
+    }
 }
 
 #[cfg(test)]
@@ -219,5 +237,34 @@ mod tests {
         let response = proxy_download_response(upstream);
         assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
         assert!(!response.headers().contains_key(header::LOCATION));
+    }
+
+    #[tokio::test]
+    async fn artifact_error_body_is_not_forwarded() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let app = Router::new().route(
+            "/download",
+            get(|| async {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "transport error: s3 bucket veoveo-artifacts unreachable",
+                )
+            }),
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        let upstream = reqwest::get(format!("http://{address}/download"))
+            .await
+            .unwrap();
+
+        let response = proxy_download_response(upstream);
+        assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            body.as_ref(),
+            b"The file is temporarily unavailable. Try again shortly."
+        );
     }
 }

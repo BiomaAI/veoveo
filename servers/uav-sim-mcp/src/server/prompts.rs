@@ -62,7 +62,7 @@ impl UavSimPrompt {
                 args.objective.as_deref().unwrap_or("unspecified")
             ),
             Self::SessionReview => format!(
-                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, uav-sim://session/{0}/tiles, uav-sim://session/{0}/vehicles, and uav-sim://session/{0}/recordings. Report tile readiness, native sensor-stream health, frame identity, PX4 connectivity, flight states, collisions, recording availability, and relevant durable task evidence.",
+                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, uav-sim://session/{0}/tiles, uav-sim://session/{0}/vehicles, and uav-sim://session/{0}/recordings. Report tile readiness, native sensor-stream health, frame identity, PX4 connectivity, flight states, collisions, recording availability, and results of relevant Tasks.",
                 args.session_id
             ),
         };

@@ -2744,7 +2744,7 @@ async fn capture_console_map_workspace_app_inner(
                 && value
                     .get("inspectorText")
                     .and_then(Value::as_str)
-                    .is_some_and(|text| text.contains("Active governed release"))
+                    .is_some_and(|text| text.contains("Active release"))
                 && value.get("previewRows").and_then(Value::as_u64).unwrap_or(0) > 0
                 && !value
                     .get("previewText")
@@ -2980,7 +2980,7 @@ async fn capture_console_map_workspace_app_inner(
                 false,
             )
             .await?;
-            if value.get("inspectorTitle").and_then(Value::as_str) == Some("Governed data")
+            if value.get("inspectorTitle").and_then(Value::as_str) == Some("Data and releases")
                 && value
                     .get("inspectorText")
                     .and_then(Value::as_str)

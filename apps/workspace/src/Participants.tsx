@@ -22,7 +22,7 @@ export function Participants({ snapshot, personId, onChanged, close }: {
   async function act(action: () => Promise<unknown>, notice?: string) {
     setBusy(true); setError(undefined); setNotice(undefined);
     try { await action(); await onChanged(); if (notice) setNotice(notice); }
-    catch (error) { setError(error instanceof Error ? error.message : "Could not update this chat."); }
+    catch (error) { setError(error instanceof Error ? error.message : "Veoveo couldn't update this chat. Try again."); }
     finally { setBusy(false); }
   }
   const client = useQueryClient();
@@ -73,11 +73,11 @@ export function Participants({ snapshot, personId, onChanged, close }: {
         </select></label>
         {catalog.hasNextPage && <button disabled={catalog.isFetchingNextPage} onClick={() => void catalog.fetchNextPage()}>Load more agents</button>}
         {candidate && <div className="agent-disclosure"><p>{candidate.description}</p><p className="muted">{candidate.provider} · {candidate.model}. This agent receives the shared history when asked to respond.</p>
-          <p className="muted">{candidate.tools.length ? `Capabilities: ${candidate.tools.join(", ")}. Each use requires the requesting person's current permissions. Results stay in their private Activity.` : "This agent has no external capabilities."}</p>
+          <p className="muted">{candidate.tools.length ? `Tools: ${candidate.tools.join(", ")}. The agent uses each tool with the permissions of the person who asked, and results appear only in that person's Activity.` : "This agent doesn't use any tools."}</p>
           <button disabled={busy} onClick={() => void act(async () => { const fingerprint = `${candidate.id}:${candidate.revision}`; let request = addRequests.current.get(fingerprint);
             if (!request) { request = uuidV7(); addRequests.current.set(fingerprint, request); }
             await api.addAgent(chat.id, candidate.id, candidate.revision, request); addRequests.current.delete(fingerprint); setChoice(""); })}>Add {candidate.name}</button></div>}
-        {!catalog.isPending && choices.length === 0 && <p className="muted">No published agents are available in this Work Context.</p>}
+        {!catalog.isPending && choices.length === 0 && <p className="muted">No agents are published in this Work Context yet. Ask an administrator to publish one.</p>}
       </>}
     </section>
     {owner && <section className="settings"><h3>Owner controls</h3>

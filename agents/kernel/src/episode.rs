@@ -27,6 +27,11 @@ use crate::{
     summary,
 };
 
+/// Recorded when the gateway can't confirm a managed agent may keep running.
+/// The underlying error goes to the kernel log.
+const DISPATCH_UNCONFIRMED: &str =
+    "The run stopped because the gateway couldn't confirm this agent may keep running.";
+
 pub struct EpisodeDriver {
     manifest: AgentManifest,
     agent: Agent,
@@ -166,7 +171,13 @@ impl EpisodeDriver {
                 revoked = self.runtime.wait_for_managed_dispatch_revocation(binding) => {
                     Err(rig::completion::PromptError::PromptCancelled {
                         chat_history: vec![],
-                        reason: revoked.map_or_else(|error| error.to_string(), |_| "Managed dispatch authority was revoked.".into()),
+                        reason: match revoked {
+                            Ok(_) => "The run stopped because this agent's permission to run was revoked.".into(),
+                            Err(error) => {
+                                tracing::warn!(%error, "managed dispatch revocation check failed");
+                                DISPATCH_UNCONFIRMED.into()
+                            }
+                        },
                     })
                 }
             }
@@ -177,9 +188,10 @@ impl EpisodeDriver {
             && let Some(binding) = &episode.managed
             && let Err(error) = connection.managed_dispatch(binding).await
         {
+            tracing::warn!(%error, "managed dispatch confirmation failed");
             response = Err(rig::completion::PromptError::PromptCancelled {
                 chat_history: vec![],
-                reason: error.to_string(),
+                reason: DISPATCH_UNCONFIRMED.into(),
             });
         }
         if self.runtime.episode_record(episode.episode_id).await?.state

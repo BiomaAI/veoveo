@@ -140,6 +140,6 @@ export function FilesPanel({ computer, scope, snapshot, stale, artifacts, upload
     </fieldset></form>
     {!computer.canTransferFiles && !saved.value && <p>{computer.busy ? "Finish current work before starting another transfer."
       : computer.phase !== "ready" ? "Start the Computer before transferring files."
-        : "File transfers need current access and a qualified environment. Review Environment below for an available update."}</p>}
+        : "File transfers need current access and an up-to-date environment. Check Environment below for an available update."}</p>}
   </section>;
 }

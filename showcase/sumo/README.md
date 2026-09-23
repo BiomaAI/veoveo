@@ -1,14 +1,15 @@
 # SUMO traffic-world showcase
 
-This showcase connects a real [SUMO](https://eclipse.dev/sumo/) traffic world to
-Veoveo. A Rust MCP server owns the single serialized TraCI connection, publishes
-typed Rerun frames to the Recording Hub, and exposes governed traffic reads,
-actuation, durable tasks, resources, and subscriptions.
+This showcase connects a [SUMO](https://eclipse.dev/sumo/) traffic simulation to
+Veoveo. A Rust MCP server holds the single TraCI connection and sends every
+command through it in order. The server publishes typed Rerun frames to Recording
+Hub and exposes traffic reads, traffic control, durable tasks, resources, and
+subscriptions through the gateway.
 
 The bundled simulation is the MIT-licensed LuST Luxembourg scenario at a pinned
-source revision. TraCI stays inside the Kubernetes cluster. The loopback MCP
-projection requires the same gateway-signed Ed25519 identity assertion as every
-other hosted server.
+source revision. TraCI is reachable only inside the Kubernetes cluster. Like every
+hosted server, the MCP endpoint accepts only requests carrying a gateway-signed
+Ed25519 identity assertion.
 
 The upstream SUMO 1.27.1 image is published for `linux/amd64`. The showcase
 images declare that architecture explicitly.
@@ -27,7 +28,7 @@ images declare that architecture explicitly.
 - `sumo://state` and `sumo://scenario` are typed resources.
 - `sumo://congestion` supports subscriptions and resource-update notifications.
 - `/world/sumo/**` is pushed continuously through an authenticated recording
-  forwarder and retained by Recording Hub.
+  forwarder and stored by Recording Hub.
 
 Task state lives in the required SurrealDB 3.2.4 platform store. The server uses
 official MCP Tasks and Veoveo's shared task runtime.
@@ -47,9 +48,9 @@ durability boundary and queries the resulting RRD segments:
 cargo xtask smoke sumo-push
 ```
 
-The live verification targets the active k3d profile. It checks the unauthenticated
-boundary, reads the live world, changes an edge speed, advances a durable batch,
-and proves that Recording Hub retained the world:
+The live verification targets the active k3d profile. It checks that
+unauthenticated requests are rejected, reads the live world, changes an edge speed,
+advances a durable batch, and confirms that Recording Hub stored the world:
 
 ```bash
 cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
@@ -59,8 +60,8 @@ cargo xtask smoke sumo-verify --context k3d-veoveo-sumo
 
 Use the latest versions pinned in `deploy/local/k3d/versions.env`. The cluster
 profile requires a working NVIDIA container runtime even though SUMO itself does
-not request a GPU. This proves that later GPU simulators and renderers can use the
-same local cluster. Startup applies the profile's NVIDIA device-plugin manifest and
+not request a GPU, so the same local cluster can also run the GPU simulators and
+renderers. Startup applies the profile's NVIDIA device-plugin manifest and
 waits for allocatable GPU capacity before deployment.
 
 ```bash
@@ -77,9 +78,9 @@ cargo xtask smoke profile-up --profile "$PROFILE" --lock "$LOCK" \
   --all-components --receipt-output output/development/installation.receipt.json
 ```
 
-The profile derives the exact platform images and publishes the SUMO images through a
-separate `workload` source. Publication configures the managed builder from the
-profile's registry address and transport while retaining its existing cache.
+The profile selects the platform images and publishes the SUMO images through a
+separate `workload` source. Publishing configures the managed builder with the
+profile's registry address and transport and keeps the builder's existing cache.
 
 Normal clients use the `operator` gateway profile at
 `http://localhost:8780/mcp/operator`. They mint a scoped service token through
@@ -88,7 +89,7 @@ surface through that gateway. The direct
 authenticated verification endpoint is `http://127.0.0.1:8895/sumo/mcp`; it
 exists for the Rust acceptance harness.
 
-SUMO's TraCI server accepts one client. The chart deliberately has no TCP
+SUMO's TraCI server accepts one client. The chart has no TCP
 readiness probe on port 8813 because a probe would consume that connection and
 terminate the simulation. `sumo-mcp` owns connection readiness and retries while
 the LuST network loads.
@@ -98,11 +99,11 @@ does not install a collector. Set `telemetry.enabled=true` and configure its
 endpoint when a profile installs the collector.
 
 `sumo-mcp` sends native Rerun traffic only to the forwarder on pod loopback.
-The forwarder keeps its bounded durable queue on
-`sumo-recording-forwarder`, authenticates to the canonical gateway with the
-`sumo-recording-producer` private key, and uses the internal gateway Service as
-its transport route. The public OAuth issuer, protected-resource URI,
-assertion audience, and Host identity remain `http://localhost:8780`.
+The forwarder keeps its size-limited on-disk queue on
+`sumo-recording-forwarder`, authenticates to the gateway with the
+`sumo-recording-producer` private key, and connects through the internal
+gateway Service. The public OAuth issuer, protected-resource URI, assertion
+audience, and Host header stay `http://localhost:8780`.
 
 ## Layout
 
@@ -126,6 +127,6 @@ showcase/sumo/
 
 Remove the composed platform and showcase releases with
 `cargo xtask smoke profile-down --profile showcase/sumo/deploy/deployment.json`.
-The shared registry remains available for another profile. Local deployment mechanics
+The shared registry stays up for other profiles. Local deployment mechanics
 are documented in
 [`../../docs/LOCAL_DEPLOYMENT_PROFILES.md`](../../docs/LOCAL_DEPLOYMENT_PROFILES.md).

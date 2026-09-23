@@ -74,7 +74,7 @@ export function TerminalPanel({
           (next === "ready"
             ? "Connected. Input is ready."
             : next === "replaying"
-              ? "Restoring bounded terminal history…"
+              ? "Restoring recent terminal output…"
               : "Connecting…"),
       );
     };

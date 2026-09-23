@@ -242,7 +242,9 @@ impl CapturePolicy {
             limits,
         )?;
         if self.deadline_ms == 0 || self.deadline_ms > limits.max_deadline_ms {
-            return Err(ContractError::InvalidDeadline);
+            return Err(ContractError::InvalidDeadline {
+                max_deadline_ms: limits.max_deadline_ms,
+            });
         }
         Ok(())
     }
@@ -278,7 +280,11 @@ fn validate_render_policy(
         || height_px > limits.max_height_px
         || u64::from(width_px) * u64::from(height_px) > limits.max_pixels
     {
-        return Err(ContractError::InvalidViewport);
+        return Err(ContractError::InvalidViewport {
+            max_width_px: limits.max_width_px,
+            max_height_px: limits.max_height_px,
+            max_pixels: limits.max_pixels,
+        });
     }
     if !max_screen_error_px.is_finite() || !(0.25..=256.0).contains(&max_screen_error_px) {
         return Err(ContractError::InvalidScreenError);
@@ -437,13 +443,13 @@ pub struct PreviewSceneRecord {
 
 #[derive(Debug, thiserror::Error)]
 pub enum ContractError {
-    #[error("invalid identifier `{0}`")]
+    #[error("identifier `{0}` is invalid; use 1 to 128 ASCII letters, digits, `.`, `_`, or `-`")]
     InvalidIdentifier(String),
     #[error("latitude must be finite and between -90 and 90 degrees")]
     InvalidLatitude,
     #[error("longitude must be finite and between -180 and 180 degrees")]
     InvalidLongitude,
-    #[error("ellipsoidal height is outside the supported range")]
+    #[error("ellipsoidal height must be finite and between -20000 and 100000000 meters")]
     InvalidHeight,
     #[error("heading, pitch, and roll must be finite and pitch must be between -90 and 90")]
     InvalidOrientation,
@@ -451,16 +457,24 @@ pub enum ContractError {
     InvalidFieldOfView,
     #[error("camera eye and target must differ")]
     CoincidentEyeAndTarget,
-    #[error("orbit distance, azimuth, or elevation is invalid")]
+    #[error(
+        "orbit camera needs a finite azimuth, a distance between 0.1 and 100000000 meters, and an elevation between -89.9 and 89.9 degrees"
+    )]
     InvalidOrbit,
-    #[error("viewport exceeds configured capture limits")]
-    InvalidViewport,
+    #[error(
+        "viewport must be at least 1x1 and at most {max_width_px}x{max_height_px} pixels, with no more than {max_pixels} pixels in total"
+    )]
+    InvalidViewport {
+        max_width_px: u32,
+        max_height_px: u32,
+        max_pixels: u64,
+    },
     #[error("maximum screen error must be between 0.25 and 256 pixels")]
     InvalidScreenError,
-    #[error("preview scene resource URI is invalid")]
+    #[error("preview scene resource URI is invalid; read it again from the view scene resource")]
     InvalidPreviewSceneUri,
-    #[error("capture deadline exceeds configured limits")]
-    InvalidDeadline,
+    #[error("capture deadline must be between 1 and {max_deadline_ms} milliseconds")]
+    InvalidDeadline { max_deadline_ms: u32 },
 }
 
 #[cfg(test)]

@@ -26,6 +26,7 @@ import type {
 import { authenticationRequired, redirectToLogin } from "./auth";
 
 import { browserSession } from "./csrf";
+import { forbiddenMessage, httpErrorMessage, sessionNotReadyMessage, unexpectedResponseMessage } from "./httpMessages";
 
 export function initializeAppSession(token: string): void {
   browserSession.csrfToken = token;
@@ -35,9 +36,9 @@ export async function loadArtifact(artifactId: string): Promise<ArtifactSummary>
   const response = await fetch(`/console/api/artifacts/${encodeURIComponent(artifactId)}`, { credentials: "same-origin", headers: { Accept: "application/json" } });
   browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? browserSession.csrfToken;
   if (response.status === 401) authenticationRequired();
-  if (!response.ok) throw new Error("This artifact is not available with your current access.");
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "open this artifact", thing: "This artifact" }));
   const artifact = await response.json() as ArtifactSummary;
-  if (artifact.id !== artifactId || (artifact.byteLength !== null && (!Number.isSafeInteger(artifact.byteLength) || artifact.byteLength < 0))) throw new Error("Artifact details could not be verified.");
+  if (artifact.id !== artifactId || (artifact.byteLength !== null && (!Number.isSafeInteger(artifact.byteLength) || artifact.byteLength < 0))) throw new Error(unexpectedResponseMessage);
   return artifact;
 }
 
@@ -56,10 +57,10 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     authenticationRequired();
   }
   if (response.status === 403) {
-    throw new Error("Your account is authenticated but is not authorized to open this Console.");
+    throw new Error("You're signed in, but your account doesn't have access to this Console. Ask an administrator for access.");
   }
   if (!response.ok) {
-    throw new Error(`Console API returned ${response.status}`);
+    throw new Error(httpErrorMessage(response.status, { action: "load the Console" }));
   }
   return response.json() as Promise<InstallationSnapshot>;
 }
@@ -76,15 +77,15 @@ export async function loadCluster(signal?: AbortSignal): Promise<ClusterSnapshot
     authenticationRequired();
   }
   if (response.status === 403) {
-    throw new Error("Cluster inventory is not permitted for this console session.");
+    throw new Error(forbiddenMessage("view the cluster inventory"));
   }
-  if (!response.ok) throw new Error(`Cluster inventory returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the cluster inventory" }));
   return response.json() as Promise<ClusterSnapshot>;
 }
 
 export async function consoleMutation<T>(path: string, init: RequestInit): Promise<T> {
   if (!browserSession.csrfToken) {
-    throw new Error("Console session has not been initialized");
+    throw new Error(sessionNotReadyMessage);
   }
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
@@ -100,7 +101,7 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     authenticationRequired();
   }
   if (response.status === 403) {
-    throw new Error("This operation is not permitted by the active console scopes and policy.");
+    throw new Error(forbiddenMessage("make this change"));
   }
   if (!response.ok) {
     let detail: string | undefined;
@@ -109,7 +110,7 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
     } catch {
       detail = undefined;
     }
-    throw new Error(detail ?? `Console API returned ${response.status}`);
+    throw new Error(detail ?? httpErrorMessage(response.status, { action: "complete this request", thing: "This item" }));
   }
   const rotatedToken = response.headers.get("x-veoveo-csrf-token");
   if (rotatedToken) browserSession.csrfToken = rotatedToken;
@@ -119,7 +120,7 @@ export async function consoleMutation<T>(path: string, init: RequestInit): Promi
 
 export async function logoutConsole(): Promise<void> {
   if (!browserSession.csrfToken) {
-    throw new Error("Console session has not been initialized");
+    throw new Error(sessionNotReadyMessage);
   }
   const response = await fetch("/auth/logout", {
     method: "POST",
@@ -128,7 +129,7 @@ export async function logoutConsole(): Promise<void> {
     redirect: "manual"
   });
   if (!response.ok) {
-    throw new Error(`Console logout returned ${response.status}`);
+    throw new Error("Veoveo couldn't sign you out. Reload the page and try again.");
   }
   browserSession.csrfToken = undefined;
   redirectToLogin();
@@ -213,9 +214,9 @@ export async function loadAgentConversation(
   if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
-    throw new Error("Agent conversation is not permitted for this Console session.");
+    throw new Error(forbiddenMessage("view this agent's conversation"));
   }
-  if (!response.ok) throw new Error(`Agent conversation returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the conversation", thing: "This agent" }));
   const wire = (await response.json()) as AgentConversationWire;
   return {
     agentId: wire.agent_id,
@@ -250,9 +251,9 @@ export async function loadAgentInputRequests(
   if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
-    throw new Error("Agent input_requests are not permitted for this Console session.");
+    throw new Error(forbiddenMessage("view this agent's questions"));
   }
-  if (!response.ok) throw new Error(`Agent input_requests returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the agent's questions", thing: "This agent" }));
   const values = (await response.json()) as AgentInputRequestWire[];
   return values.map((wire) => ({
     inputRequestId: wire.input_request_id,
@@ -361,9 +362,9 @@ export async function loadArtifactAccessRequests(
     authenticationRequired();
   }
   if (response.status === 403) {
-    throw new Error("Access requests are not available to the active Work Context membership.");
+    throw new Error(forbiddenMessage("view access requests in this Work Context"));
   }
-  if (!response.ok) throw new Error(`Access requests returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load access requests" }));
   const page = (await response.json()) as ArtifactAccessRequestPageWire;
   return {
     requests: page.requests.map(artifactAccessRequest),
@@ -455,10 +456,10 @@ export async function loadRecordingPlayback(
     authenticationRequired();
   }
   if (response.status === 403) {
-    throw new Error("Playback is not permitted by the active recording policy.");
+    throw new Error(forbiddenMessage("play this recording"));
   }
   if (!response.ok) {
-    throw new Error(`Recording playback returned ${response.status}`);
+    throw new Error(httpErrorMessage(response.status, { action: "start playback", thing: "This recording" }));
   }
   return response.json() as Promise<RecordingPlaybackManifest>;
 }
@@ -494,9 +495,9 @@ export async function loadRecordingProjectionStream(
   if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
-    throw new Error("Recording projection is not permitted by the active policy.");
+    throw new Error(forbiddenMessage("read this recording data"));
   }
-  if (!response.ok) throw new Error(`Recording projection returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the recording data", thing: "This recording data" }));
   const byteLength = Number(response.headers.get("content-length"));
   const sha256 = response.headers.get("x-veoveo-payload-sha256") ?? "";
   if (
@@ -508,7 +509,7 @@ export async function loadRecordingProjectionStream(
     response.body === null
   ) {
     response.body?.cancel().catch(() => undefined);
-    throw new Error("Recording projection returned an invalid bounded Arrow stream.");
+    throw new Error("The recording data couldn't be read. Refresh the page and try again.");
   }
   return { stream: response.body, byteLength, sha256 };
 }
@@ -524,7 +525,7 @@ export async function loadApps(signal?: AbortSignal): Promise<AppCatalog> {
   if (response.status === 401) {
     authenticationRequired();
   }
-  if (!response.ok) throw new Error(`App catalog returned ${response.status}`);
+  if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the app catalog" }));
   return response.json() as Promise<AppCatalog>;
 }
 
@@ -601,7 +602,7 @@ export async function openAppResourceEvents(
   subscriptions: AppResourceEventSubscription[],
   signal?: AbortSignal | null,
 ): Promise<Response> {
-  if (!browserSession.csrfToken) throw new Error("Console session has not been initialized");
+  if (!browserSession.csrfToken) throw new Error(sessionNotReadyMessage);
   const response = await fetch("/console/api/apps/resource-events", {
     method: "POST",
     credentials: "same-origin",
@@ -617,7 +618,7 @@ export async function openAppResourceEvents(
   if (rotatedToken) browserSession.csrfToken = rotatedToken;
   if (response.status === 401) authenticationRequired();
   if (response.status === 403) {
-    throw new Error("This App resource subscription is not permitted by the active Console policy.");
+    throw new Error(forbiddenMessage("follow live updates in this App"));
   }
   return response;
 }

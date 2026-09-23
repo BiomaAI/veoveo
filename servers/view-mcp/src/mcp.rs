@@ -73,7 +73,7 @@ impl ViewMcp {
     ///
     #[tool(
         title = "Create scene composition",
-        description = "Create an immutable owner-scoped scene composition from one configured 3D Tiles base layer, exact governed inputs, an optional Frames revision binding, and bounded ordered overlays. Use an exact base_layer identifier advertised by this tool's runtime input schema; labels and source kinds are not identifiers. The credential-free catalog is also available at view://layers.",
+        description = "Create a scene from one 3D Tiles base layer, optional inputs, an optional Frames revision, and ordered overlays. Only you can change it. Use a base_layer id listed in this tool's input schema; labels and source kinds are not ids. The same list is at view://layers.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SceneComposition>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = true)
     )]
@@ -106,7 +106,7 @@ impl ViewMcp {
 
     #[tool(
         title = "Create map view",
-        description = "Create an owner-scoped point of view over one immutable scene composition. Pose, look-at, and orbit-target cameras all resolve to an exact geodetic pose.",
+        description = "Create a view (a camera) over one scene. Pose, look-at, and orbit-target cameras all resolve to an exact geodetic pose.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ViewRecord>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -136,7 +136,7 @@ impl ViewMcp {
 
     #[tool(
         title = "Set map view camera",
-        description = "Replace a view camera under optimistic revision control and return its resolved exact pose.",
+        description = "Replace a view's camera and return the resolved pose. Pass the view revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ViewRecord>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -166,7 +166,7 @@ impl ViewMcp {
 
     #[tool(
         title = "Capture map view frame",
-        description = "Render one hardware-accelerated offscreen image from a fixed view revision. This operation requires task-based invocation and returns image content plus typed frame metadata.",
+        description = "Render one image of a view revision on the GPU and return it with typed frame metadata. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<FrameRecord>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
@@ -176,14 +176,14 @@ impl ViewMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "capture_frame requires task-based invocation",
+            "`capture_frame` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Close map view",
-        description = "Close an owner-scoped view under optimistic revision control and cancel its unfinished captures.",
+        description = "Close a view you own and cancel its unfinished captures. Pass the view revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CloseViewResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -239,7 +239,7 @@ impl ServerHandler for ViewMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("view", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Create an immutable scene composition from a configured 3D Tiles base layer and exact governed overlay inputs, then create an owner-scoped view with an exact pose or target camera. Replace its camera under revision control and invoke capture_frame through the Task API with an explicit scene time. A successful capture returns a directly displayable hardware-rendered image plus view://frame provenance. The ui://view/preview.html app drives the same lifecycle interactively; its parameterized view-scene manifests reference view://tile/... draco GLB resources selected for the requested viewport and screen-space error."
+            "Render 3D Tiles scenes. Create a scene from a base layer and overlays, then create a view with a camera pose or target. Change the camera with `set_camera`, and call `capture_frame` as an MCP Task with an explicit scene time. A capture returns an image you can show directly, plus a view://frame record of how it was made. The ui://view/preview.html app does the same interactively."
                 .to_owned(),
         );
         info
@@ -672,7 +672,9 @@ fn internal_identity(
         .get::<axum::http::request::Parts>()
         .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 fn plane_caller(
@@ -684,7 +686,9 @@ fn plane_caller(
         .get::<axum::http::request::Parts>()
         .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
         .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let memberships = identity.actor.group_memberships();
     Ok(PlaneCaller {
         bearer_token,
@@ -700,7 +704,14 @@ fn require_scope(
     let identity = internal_identity(context)?;
     identity_has_scope(&identity, required)
         .then_some(identity)
-        .ok_or_else(|| McpError::invalid_request(format!("scope `{required}` is required"), None))
+        .ok_or_else(|| {
+            McpError::invalid_request(
+                format!(
+                    "You don't have permission to make this request. Missing scope `{required}`."
+                ),
+                None,
+            )
+        })
 }
 
 fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {

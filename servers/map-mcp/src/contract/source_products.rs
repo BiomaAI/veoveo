@@ -56,7 +56,7 @@ pub struct SourceFeature {
     pub source_element_version: String,
     pub representation: SourceFeatureRepresentation,
     /// Zero-based traversal path from the source element's root geometry to
-    /// this governed simple or multi-geometry. The root geometry uses an
+    /// this simple or multi-geometry. The root geometry uses an
     /// empty path. Relation GeometryCollections produce one feature per leaf.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub source_geometry_path: Vec<u32>,

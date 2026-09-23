@@ -268,10 +268,7 @@ impl GatewayMcp {
                 reason = ?decision.reason,
                 "gateway policy denied MCP request"
             );
-            Err(mcp_invalid_request(format!(
-                "gateway policy denied request: {:?}",
-                decision.reason
-            )))
+            Err(mcp_invalid_request(policy_denial_message(&decision)))
         }
     }
 
@@ -295,10 +292,7 @@ impl GatewayMcp {
                 reason = ?decision.reason,
                 "gateway policy denied MCP request"
             );
-            Err(mcp_invalid_request(format!(
-                "gateway policy denied request: {:?}",
-                decision.reason
-            )))
+            Err(mcp_invalid_request(policy_denial_message(&decision)))
         }
     }
 
@@ -339,7 +333,10 @@ impl GatewayMcp {
         self.state
             .record_audit_event(&event)
             .await
-            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+            .map_err(|err| {
+                tracing::error!("failed to record gateway audit event: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
+            })?;
         Ok((subject.clone(), event.decision))
     }
 
@@ -364,7 +361,8 @@ impl GatewayMcp {
             .record_audit_events(&events)
             .await
             .map_err(|err| {
-                mcp_internal(format!("failed to record discovery audit events: {err}"))
+                tracing::error!("failed to record discovery audit events: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
             })?;
         Ok(events
             .into_iter()
@@ -537,7 +535,10 @@ impl GatewayMcp {
                 metadata: principal_audit_metadata(&subject.principal),
             })
             .await
-            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+            .map_err(|err| {
+                tracing::error!("failed to record gateway audit event: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
+            })?;
         Ok(())
     }
 
@@ -621,11 +622,87 @@ fn client_surface_allows_task_projection(
     }
 }
 
+/// Caller-facing text for a policy denial. The reason code is mapped to words so
+/// callers never see a Rust variant name; the full decision stays in the audit log.
+fn policy_denial_message(decision: &PolicyDecision) -> String {
+    let action = match &decision.target {
+        PolicyTarget::Tool { server, tool } => format!("call `{server}__{tool}`"),
+        PolicyTarget::Resource { uri, .. } => format!("read `{uri}`"),
+        PolicyTarget::Prompt { server, prompt } => format!("use prompt `{prompt}` on `{server}`"),
+        PolicyTarget::Task { task_id, .. } => format!("access task `{task_id}`"),
+        PolicyTarget::Artifact { artifact_uri, .. } => format!("access `{artifact_uri}`"),
+        PolicyTarget::Usage { usage_uri, .. } => format!("read `{usage_uri}`"),
+        PolicyTarget::Server { server } => format!("use the `{server}` server"),
+        PolicyTarget::Gateway
+        | PolicyTarget::RecordingProducer { .. }
+        | PolicyTarget::RecordingStream { .. } => "make this request".to_owned(),
+    };
+    let detail = match decision.reason {
+        PolicyReasonCode::MissingScope | PolicyReasonCode::UnknownScope => {
+            " Your access token is missing a scope this profile requires. Ask an administrator \
+             to grant it, then sign in again."
+        }
+        PolicyReasonCode::MissingDataLabel | PolicyReasonCode::UnknownDataLabel => {
+            " Your account isn't cleared for the data labels this requires."
+        }
+        PolicyReasonCode::MissingRole | PolicyReasonCode::MissingGroup => {
+            " Your account doesn't have the role or group membership this requires."
+        }
+        PolicyReasonCode::MissingPrincipalAssurance => {
+            " Sign in again with the stronger authentication this profile requires."
+        }
+        PolicyReasonCode::MissingPrincipal
+        | PolicyReasonCode::UnknownPrincipal
+        | PolicyReasonCode::MissingTenant
+        | PolicyReasonCode::UnknownTenant
+        | PolicyReasonCode::UnknownTokenIssuer => {
+            " Your identity isn't recognized by this installation. Sign in again."
+        }
+        PolicyReasonCode::TokenExpired | PolicyReasonCode::TokenNotYetValid => {
+            " Your access token isn't currently valid. Sign in again."
+        }
+        PolicyReasonCode::TokenAudienceMismatch => {
+            " Your access token was issued for a different resource. Sign in to this profile."
+        }
+        PolicyReasonCode::ReplayDetected => " This request was already used. Send a new request.",
+        PolicyReasonCode::UnknownProfile
+        | PolicyReasonCode::UnknownServer
+        | PolicyReasonCode::UnknownTool
+        | PolicyReasonCode::UnknownResource
+        | PolicyReasonCode::UnknownPrompt
+        | PolicyReasonCode::UnknownTask
+        | PolicyReasonCode::UnknownArtifact => " It isn't available in this profile.",
+        PolicyReasonCode::PolicyDeny | PolicyReasonCode::PolicyAllow => "",
+    };
+    format!("You don't have permission to {action}.{detail}")
+}
+
 #[cfg(test)]
 mod tests {
-    use veoveo_mcp_contract::OAuthClientSurface;
+    use veoveo_mcp_contract::{
+        GatewayAction, GatewayProfileId, LocalToolName, OAuthClientSurface, PolicyDecision,
+        PolicyReasonCode, PolicyTarget, ServerSlug, TraceId,
+    };
 
-    use super::client_surface_allows_task_projection;
+    use super::{client_surface_allows_task_projection, policy_denial_message};
+
+    #[test]
+    fn policy_denial_names_the_tool_and_explains_the_reason() {
+        let decision = PolicyDecision::deny(
+            GatewayProfileId::new("operator").unwrap(),
+            GatewayAction::ToolsCall,
+            PolicyTarget::Tool {
+                server: ServerSlug::new("map").unwrap(),
+                tool: LocalToolName::new("route").unwrap(),
+            },
+            PolicyReasonCode::MissingScope,
+            TraceId::new("policy-denial-message").unwrap(),
+        );
+        let message = policy_denial_message(&decision);
+        assert!(message.starts_with("You don't have permission to call `map__route`."));
+        assert!(message.contains("missing a scope"));
+        assert!(!message.contains("MissingScope"));
+    }
 
     #[test]
     fn full_mcp_always_receives_canonical_tasks() {

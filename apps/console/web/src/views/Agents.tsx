@@ -131,10 +131,10 @@ function AgentCard({
     setSending(true);
     setError(undefined);
     try {
-      const receipt = await sendAgentMessage(agent.id, requestId, value);
+      await sendAgentMessage(agent.id, requestId, value);
       setMessage("");
       setMessageRequestId(undefined);
-      setNotice(`Accepted as wake ${receipt.wakeId}`);
+      setNotice("Message delivered. The agent will pick it up next.");
       await Promise.all([refreshInputRequests(), refreshConversation()]);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -190,8 +190,8 @@ function AgentCard({
       <span className="mono subdued">{agent.id}</span>
       <dl>
         <div><dt>Profile</dt><dd>{agent.profile}</dd></div>
-        <div><dt>Pending wakes</dt><dd>{agent.pendingWakes}</dd></div>
-        <div><dt>Last episode</dt><dd>{formatDate(agent.lastEpisodeAt)}</dd></div>
+        <div><dt>Pending events</dt><dd>{agent.pendingWakes}</dd></div>
+        <div><dt>Last run</dt><dd>{formatDate(agent.lastEpisodeAt)}</dd></div>
       </dl>
       <p className="agent-detail">{agent.detail}</p>
       <div className="agent-conversation">
@@ -251,7 +251,7 @@ function AgentCard({
         >
           <Send size={14} /> {sending ? "Sending…" : "Send now"}
         </button>
-        <p className="control-help">Accepted messages become durable, non-coalesced priority wakes even while an episode is running.</p>
+        <p className="control-help">Your message is saved and handled ahead of other pending events, even while the agent is busy with another run.</p>
       </div>
       <div className="agent-input-requests">
         <div className="agent-input-requests-head">
@@ -303,7 +303,7 @@ export function AgentsView({ snapshot }: { snapshot: InstallationSnapshot }) {
       <SectionHeader title="Running agents" count={snapshot.agents.length} />
       <p className="panel-intro">Agents stay addressable while idle, reasoning, waiting, or processing prior work. A new message does not stop the work already in flight.</p>
       {snapshot.agents.length === 0 ? (
-        <EmptyState>No agents are registered in this Work Context.</EmptyState>
+        <EmptyState>No agents are running in this Work Context. Create one under Agent definitions above, then deploy it.</EmptyState>
       ) : (
         <div className="item-grid agent-grid">
           {snapshot.agents.map((agent) => (

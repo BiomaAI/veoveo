@@ -19,10 +19,10 @@ const phases: Record<MaintenancePhase, string> = {
   recovery_required: "Update paused for recovery",
 };
 const recovery: Record<MaintenanceRecoveryReason, string> = {
-  observation_budget_exhausted: "The outcome could not be confirmed within the recovery window.",
+  observation_budget_exhausted: "Veoveo couldn't confirm the update's outcome in time.",
   authority_denied: "Current policy prevents continuing this update.",
   cancellation_requested: "Cancellation was requested after the update began.",
-  checkpoint_unavailable: "The saved access policy could not be opened or verified.",
+  checkpoint_unavailable: "The access settings saved with this update couldn't be read.",
 };
 export function MaintenancePanel({ computerId, scope, snapshot, stale }: {
   computerId: string; scope: string; snapshot: ComputerSnapshot; stale: boolean;

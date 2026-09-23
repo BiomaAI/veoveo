@@ -57,7 +57,9 @@ pub struct Acknowledgement {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SetSignalPhaseRequest {
+    /// Traffic-light ID from the `signals` list returned by `describe_scenario`.
     pub signal_id: String,
+    /// Zero-based phase index within that signal's program.
     #[schemars(range(min = 0))]
     pub phase: i32,
 }
@@ -65,14 +67,18 @@ pub struct SetSignalPhaseRequest {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RerouteVehicleRequest {
+    /// Vehicle ID from the `vehicles` list returned by `query_state`.
     pub vehicle_id: String,
+    /// Destination edge ID from the `edges` list returned by `describe_scenario`.
     pub target_edge_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SetEdgeSpeedRequest {
+    /// Edge ID from the `edges` list returned by `describe_scenario`.
     pub edge_id: String,
+    /// Speed limit in metres per second.
     #[schemars(range(min = 0.0, max = 60.0))]
     pub speed_mps: f64,
 }
@@ -80,12 +86,15 @@ pub struct SetEdgeSpeedRequest {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LaneRequest {
+    /// SUMO lane ID in `{edge_id}_{index}` form, where the edge ID comes from
+    /// `describe_scenario` and the index counts lanes from 0.
     pub lane_id: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RunBatchRequest {
+    /// Number of simulation steps to advance.
     #[schemars(range(min = 1, max = 100_000))]
     pub steps: u32,
 }

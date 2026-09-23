@@ -1,5 +1,6 @@
 import { EmptyState, ProgressBar, RowLink, StatusPill } from "./primitives";
 import { formatDate } from "../format";
+import { recoveryClassLabel } from "../labels";
 import type { TaskSummary } from "../types";
 
 export function TaskTable({
@@ -35,7 +36,7 @@ export function TaskTable({
               </td>
               <td><StatusPill value={task.state} /></td>
               <td><ProgressBar value={task.progress} /></td>
-              {!compact && <td><span className="code-label">{task.recoveryClass}</span></td>}
+              {!compact && <td>{recoveryClassLabel(task.recoveryClass)}</td>}
               <td>{task.owner}</td>
               <td>{formatDate(task.updatedAt)}</td>
               <td><RowLink /></td>
