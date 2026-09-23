@@ -81,6 +81,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | governed artifact discovery, access, publication and App surface |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
+| [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | speech inference boundary under implementation: persistent private CUDA worker, bounded file/live input and typed timestamped transcripts; public delivery tracked in `SPEECH_PLAN.md` |
 | [`servers/recording-mcp/DESIGN.md`](../servers/recording-mcp/DESIGN.md) | governed recording catalog, queries and the Recording Explorer App |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | shared gateway/worker policy decisions, indexed revision boundary and caller-owned current authority |
 | [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | retained-home journal/ext4 backend, private worker mTLS service and Docker plugin; native shared-mount restart and durable physical writer handoff |

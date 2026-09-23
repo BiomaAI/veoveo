@@ -1,0 +1,20 @@
+[project]
+name = "speech-runner"
+version = "0.1.0"
+description = "Private persistent NVIDIA speech inference for Veoveo"
+requires-python = "==3.13.*"
+dependencies = [
+    "moondream==2.4.1",
+    "torch==2.14.0",
+    "numpy==2.5.3",
+]
+
+[project.scripts]
+speech-runner = "speech_runner.main:main"
+
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speech_runner"]
