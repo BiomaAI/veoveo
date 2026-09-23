@@ -3,10 +3,12 @@ import { uuidV7 } from "../agentControl";
 import type { Authoring, Definition, InstanceChange, LifecycleOperation, ManagedInstance, PublishedRevision, UpdateInstance } from "../generated/agent-management";
 import { AgentApi, AgentApiError } from "./api";
 
-export function InstanceManager({ api, authoring, definitions, refreshVersion }: { api: AgentApi; authoring: Authoring; definitions: readonly Definition[]; refreshVersion: number }) {
+export function InstanceManager({ api, authoring, definitions, refreshVersion, openDefinition }: { api: AgentApi; authoring: Authoring; definitions: readonly Definition[]; refreshVersion: number; openDefinition: (id: string) => void }) {
   const [items, setItems] = useState<ManagedInstance[]>([]);
   const [next, setNext] = useState<string | null>();
   const [error, setError] = useState<string>();
+  const [loaded, setLoaded] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const active = useRef(true);
   const refreshing = useRef(false);
   const again = useRef(false);
@@ -20,20 +22,25 @@ export function InstanceManager({ api, authoring, definitions, refreshVersion }:
           const page = await api.instances();
           if (active.current) { setItems(page.items); setNext(page.next); setError(undefined); }
         } catch (e) { if (active.current) { setItems([]); setError(e instanceof Error ? e.message : String(e)); } }
+        finally { if (active.current) setLoaded(true); }
       } while (active.current && again.current);
     } finally { refreshing.current = false; }
   }, [api]);
   useEffect(() => { active.current = true; void refresh(); return () => { active.current = false; }; }, [refresh, refreshVersion]);
-  return <section className="am-instances" aria-label="Managed instances"><header className="am-heading"><div><h2>Managed instances</h2><p>Desired state is what you asked for. Current state shows what the instance is actually doing.</p></div><button onClick={() => void refresh()}>Refresh instances</button></header>
+  const visibleItems = items.filter(instance => showArchived || instance.desired !== "archived");
+  return <section className="am-instances" aria-label="Managed instances"><header className="am-heading"><div><h2>Managed instances</h2><p>Run several instances from one published definition. Control each instance independently.</p></div><button onClick={() => void refresh()}>Refresh instances</button></header>
+    <label className="am-check"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)}/>Show archived instances</label>
     <p>Context capacity: {authoring.instanceLimit} retained instances and {authoring.storageLimitGib} GiB. Archived storage remains counted.</p>
     {error && <p className="am-error" role="alert">{error}</p>}
-    {!items.length && !error && <p>No managed instances in this Work Context. Publish a managed definition, then deploy an instance from its detail view.</p>}
-    {items.map(instance => <InstanceCard key={instance.id} api={api} value={instance} authoring={authoring} publishedRevision={definitions.find(d => d.id === instance.definition)?.publishedDigest} changed={() => void refresh()}/>)}
+    {!loaded && <p role="status">Loading managed instances…</p>}
+    {loaded && !visibleItems.length && !error && <p>{next ? "No matching instances loaded yet. Load more to continue." : "No managed instances match this view. To create one, choose a published managed definition in Definitions and select Deploy instance."}</p>}
+    <div className="am-instance-grid">{visibleItems.map(instance => <InstanceCard key={instance.id} api={api} value={instance} authoring={authoring} definition={definitions.find(d => d.id === instance.definition)} openDefinition={() => openDefinition(instance.definition)} changed={() => void refresh()}/>)}</div>
     {next && <button onClick={() => void api.instances(next).then(page => { setItems(values => [...values, ...page.items.filter(v => !values.some(item => item.id === v.id))]); setNext(page.next); }).catch(e => setError(String(e.message ?? e)))}>Load more instances</button>}
   </section>;
 }
 
-function InstanceCard({ api, value, authoring, publishedRevision, changed }: { api: AgentApi; value: ManagedInstance; authoring: Authoring; publishedRevision?: string | null; changed: () => void }) {
+function InstanceCard({ api, value, authoring, definition, openDefinition, changed }: { api: AgentApi; value: ManagedInstance; authoring: Authoring; definition?: Definition; openDefinition: () => void; changed: () => void }) {
+  const publishedRevision = definition?.publishedDigest;
   const [operation, setOperation] = useState<LifecycleOperation>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -84,6 +91,7 @@ function InstanceCard({ api, value, authoring, publishedRevision, changed }: { a
   const proposed = history?.find(h => h.digest === revision);
   const fields = prior && proposed ? (["model", "instructions", "tools", "budgets", "execution"] as const).filter(key => JSON.stringify(prior.content[key]) !== JSON.stringify(proposed.content[key])) : undefined;
   return <article className="am-instance" aria-label={value.name}><header className="am-heading"><div><h3>{value.name}</h3><small>{value.id} · {value.workContext}</small></div><span role="status">{value.desired} requested · {value.observed}</span></header>
+    <p>Definition: <button className="am-definition-link" onClick={openDefinition}>{definition?.name ?? value.definition}</button></p>
     <dl><dt>Revision</dt><dd>{value.activeRevision?.slice(7, 19) ?? "Not active"}{value.activeRevision !== value.requestedRevision && ` → ${value.requestedRevision.slice(7, 19)} requested`}</dd><dt>Generation</dt><dd>{value.activeGeneration} active / {value.generation} requested</dd><dt>Service identity</dt><dd>{value.clientId}</dd><dt>Storage retained</dt><dd>{value.storageGib} GiB</dd></dl>
     {operation && <p role="status">Operation {operation.phase}{operation.message ? `: ${operation.message}` : ""}</p>}
     {error && <p className="am-error" role="alert">{error}</p>}

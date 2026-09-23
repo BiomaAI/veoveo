@@ -303,7 +303,7 @@ export function AgentsView({ snapshot }: { snapshot: InstallationSnapshot }) {
       <SectionHeader title="Running agents" count={snapshot.agents.length} />
       <p className="panel-intro">Agents stay addressable while idle, reasoning, waiting, or processing prior work. A new message does not stop the work already in flight.</p>
       {snapshot.agents.length === 0 ? (
-        <EmptyState>No agents are running in this Work Context. Create one under Agent definitions above, then deploy it.</EmptyState>
+        <EmptyState>No agents are running in this Work Context. Open Definitions to publish a managed definition, then deploy an instance.</EmptyState>
       ) : (
         <div className="item-grid agent-grid">
           {snapshot.agents.map((agent) => (

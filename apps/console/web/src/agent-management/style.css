@@ -38,5 +38,8 @@
 .am-authority dl, .am-instance dl { display:grid; grid-template-columns:max-content minmax(0,1fr); gap:8px 18px; }
 .am-authority dd, .am-instance dd { margin:0; overflow-wrap:anywhere; }
 .am-parameters { display:grid; gap:14px; }
-.am-instances { margin-top:32px; padding-top:22px; border-top:1px solid var(--border,#bcbcbc); }
-.am-instance { border:1px solid var(--border,#bcbcbc); border-radius:6px; padding:16px; margin:14px 0; }
+.am-views { display:flex; gap:8px; margin-bottom:24px; padding-bottom:16px; border-bottom:1px solid var(--border,#bcbcbc); }
+.am-views button[aria-pressed=true] { background:var(--text-strong,#262626); color:var(--canvas,#fff); }
+.am-instance-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,400px),1fr)); align-items:start; gap:16px; margin:16px 0; }
+.am-instance { min-width:0; border:1px solid var(--border,#bcbcbc); border-radius:6px; padding:16px; }
+.agent-management .am-definition-link { border:0; padding:0; text-decoration:underline; text-underline-offset:3px; }
