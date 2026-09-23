@@ -408,5 +408,5 @@ export interface AppCatalog {
 export interface AppCatalogDegradation {
   server: string;
   surface: "resources" | "resource_templates" | "tools";
-  code: "upstream_unavailable";
+  code: "discovery_pending" | "upstream_unavailable";
 }

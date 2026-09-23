@@ -1,3 +1,4 @@
+use futures::{StreamExt, TryStreamExt, stream};
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
@@ -8,9 +9,8 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayAction, GatewayDiscoveryDegradation,
-    GatewayDiscoveryFailure, GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
-    GatewayResourceProjection, GatewayTaskStatus, GatewayTaskStatusDocument, paginate,
-    parse_gateway_task_resource_uri,
+    GatewayDiscoveryFailure, GatewayDiscoverySurface, GatewayResourceProjection, GatewayTaskStatus,
+    GatewayTaskStatusDocument, paginate, parse_gateway_task_resource_uri,
 };
 
 use crate::mcp_support::{
@@ -22,7 +22,8 @@ use crate::mcp_support::{
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp, discovery::DiscoveryCacheKey,
+    GATEWAY_PAGE_SIZE, GatewayMcp,
+    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY},
     invocation_authorization_fingerprint,
 };
 
@@ -131,10 +132,14 @@ impl GatewayMcp {
             if let Some(mut cached) = self.discovery.resources(&key).await {
                 resources.append(&mut cached);
             } else {
+                let code = self
+                    .discovery
+                    .missing_code(GatewayDiscoverySurface::Resources, &key)
+                    .await;
                 failures.push(GatewayDiscoveryFailure {
                     server: key.server,
                     surface: GatewayDiscoverySurface::Resources,
-                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                    code,
                 });
             }
         }
@@ -160,39 +165,45 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_resources().await },
             )
             .await?;
-        let mut resources = Vec::new();
-        for mut resource in upstream_resources {
-            let projection = self.project_upstream_resource(server_slug, &resource.uri)?;
-            project_listed_resource_uri(manifest, &mut resource)?;
-            project_listed_resource(&mut resource, &projection);
-            project_app_resource_dependencies(
-                manifest,
-                &mut resource,
-                profile_servers,
-                &subject.actor.scopes,
-                &subject.actor.data_labels,
-            )?;
-            project_app_tool_dependencies(
-                manifest,
-                &mut resource,
-                profile_servers,
-                &subject.actor.scopes,
-                &subject.actor.data_labels,
-            )?;
-            if !self
-                .allows_resource(
-                    context,
-                    GatewayAction::ResourcesList,
-                    projection.server.clone(),
-                    &resource.uri,
-                )
-                .await?
-            {
-                continue;
-            }
-            resources.push(resource);
-        }
-        Ok(resources)
+        stream::iter(
+            upstream_resources
+                .into_iter()
+                .map(|mut resource| async move {
+                    let projection = self.project_upstream_resource(server_slug, &resource.uri)?;
+                    project_listed_resource_uri(manifest, &mut resource)?;
+                    project_listed_resource(&mut resource, &projection);
+                    project_app_resource_dependencies(
+                        manifest,
+                        &mut resource,
+                        profile_servers,
+                        &subject.actor.scopes,
+                        &subject.actor.data_labels,
+                    )?;
+                    project_app_tool_dependencies(
+                        manifest,
+                        &mut resource,
+                        profile_servers,
+                        &subject.actor.scopes,
+                        &subject.actor.data_labels,
+                    )?;
+                    if !self
+                        .allows_resource(
+                            context,
+                            GatewayAction::ResourcesList,
+                            projection.server.clone(),
+                            &resource.uri,
+                        )
+                        .await?
+                    {
+                        return Ok(None);
+                    }
+                    Ok(Some(resource))
+                }),
+        )
+        .buffered(MAX_CONCURRENT_DISCOVERY)
+        .try_filter_map(|resource| async { Ok(resource) })
+        .try_collect()
+        .await
     }
 
     pub(super) async fn handle_list_resource_templates(
@@ -303,10 +314,14 @@ impl GatewayMcp {
             if let Some(mut cached) = self.discovery.resource_templates(&key).await {
                 templates.append(&mut cached);
             } else {
+                let code = self
+                    .discovery
+                    .missing_code(GatewayDiscoverySurface::ResourceTemplates, &key)
+                    .await;
                 failures.push(GatewayDiscoveryFailure {
                     server: key.server,
                     surface: GatewayDiscoverySurface::ResourceTemplates,
-                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                    code,
                 });
             }
         }

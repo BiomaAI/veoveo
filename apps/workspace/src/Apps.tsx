@@ -41,7 +41,8 @@ export function Apps({ chat, close, activity }: { chat: string; close: () => voi
       <button onClick={activity}><Activity size={16}/> Activity</button>{selected && <button onClick={() => select(undefined)}><Grid2X2 size={16}/> All apps</button>}
     </header>
     {!connected && <p className="muted" role="status">Connecting to the current app catalog…</p>}
-    {!!catalog.data?.degradations.length && <p className="muted">Some services are unavailable. Available apps remain usable.</p>}
+    {catalog.data?.degradations.some(d => d.code === "upstream_unavailable") && <p className="muted">Some services are unavailable. Available apps remain usable.</p>}
+    {catalog.data?.degradations.some(d => d.code === "discovery_pending") && <p className="muted">Discovering more Apps…</p>}
     {catalog.error && <p role="alert" className="error">{catalog.error.message} <button onClick={() => void catalog.refetch()}><RefreshCw size={14}/> Retry</button></p>}
     {selected ? <Frame key={selected.resourceUri} serialized={JSON.stringify(selected)} chat={chat} changed={changed} navigate={navigate}/> : <div className="apps-grid">
       {catalog.data?.apps.map(app => <button className="app-choice" key={app.resourceUri} onClick={() => select(app.resourceUri)}><Grid2X2 size={20}/><strong>{app.title ?? app.name}</strong><span>{app.description}</span></button>)}

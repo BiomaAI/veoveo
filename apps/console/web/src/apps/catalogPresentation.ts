@@ -5,6 +5,7 @@ export interface AppServerGroup {
   title: string;
   apps: AppDescriptor[];
   unavailable: boolean;
+  discovering: boolean;
 }
 
 export function unavailableAppServers(
@@ -12,7 +13,7 @@ export function unavailableAppServers(
   degradations: AppCatalogDegradation[],
 ): string[] {
   const availableServers = new Set(apps.map((app) => app.server));
-  return [...new Set(degradations.map((failure) => failure.server))]
+  return [...new Set(degradations.filter(failure => failure.code !== "discovery_pending").map((failure) => failure.server))]
     .filter((server) => !availableServers.has(server))
     .sort();
 }
@@ -45,6 +46,7 @@ export function groupAppsByServer(
       title: appServerTitle(app.server),
       apps: [],
       unavailable: false,
+      discovering: false,
     };
     group.apps.push(app);
     groups.set(app.server, group);
@@ -55,7 +57,13 @@ export function groupAppsByServer(
       title: appServerTitle(server),
       apps: [],
       unavailable: true,
+      discovering: false,
     });
+  }
+  for (const failure of degradations) {
+    if (!groups.has(failure.server)) {
+      groups.set(failure.server, { server: failure.server, title: appServerTitle(failure.server), apps: [], unavailable: false, discovering: true });
+    }
   }
   return [...groups.values()]
     .map((group) => ({

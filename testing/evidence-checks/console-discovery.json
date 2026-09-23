@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--lib",
+        "mcp::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-gateway"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-console-bff",
+        "--bin",
+        "console-bff"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-console-bff"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-browser-smoke",
+        "--bin",
+        "browser-smoke",
+        "browser::tests::console_acceptance_url_bypasses_stale_entry_documents"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-browser-smoke"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

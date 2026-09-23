@@ -79,6 +79,7 @@ export function AppsView({
                   <span className="mono subdued">{group.server}</span>
                 </div>
                 {group.unavailable && <span className="app-unavailable-tag">Unavailable</span>}
+                {group.discovering && <span className="app-unavailable-tag">Discovering…</span>}
               </header>
               <div className="app-catalog">
                 {group.apps.map((app) => (
@@ -98,6 +99,7 @@ export function AppsView({
                     <p>App discovery from this MCP server is currently unavailable.</p>
                   </div>
                 )}
+                {group.discovering && <p>Discovering this service’s Apps…</p>}
               </div>
             </section>
           ))}

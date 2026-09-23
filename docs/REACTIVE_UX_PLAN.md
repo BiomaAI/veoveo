@@ -136,7 +136,7 @@ that patch. Rig `0.42.0` remains the latest stable release verified on September
 Installed acceptance found a cold-catalog race after the first rollout. Expired
 entries started background discovery while returning an empty successful snapshot;
 model preparation could consequently omit every configured tool. The gateway now
-shares one 500 ms settlement budget across parallel discoveries. Required tool
+shares one two-second settlement budget across parallel discoveries. Required tool
 surfaces must also be complete before Workspace submits a model request. The new
 regressions cover expiry, a hung optional source, failed discovery, and required
 versus unrelated server degradation.
@@ -175,7 +175,7 @@ are in [Development Iteration](DEVELOPMENT_ITERATION.md#september-17-reactive-de
 
 ## Remaining Performance Experiments
 
-Cold federated discovery can exceed the 500 ms settlement budget, particularly
+Cold federated discovery can exceed the two-second settlement budget, particularly
 for resource surfaces. The App feed converges, but transient missing surfaces still
 use the `upstream_unavailable` presentation and can briefly label a healthy source
 unavailable. Separate pending discovery from confirmed failure and measure

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAppLink } from "./apps/links.ts";
+import { appForRoute, consoleAppRoute, resolveAppLink } from "./apps/links.ts";
 import type { AppDescriptor } from "./types.ts";
 
 const app = {
@@ -13,6 +13,17 @@ const app = {
   toolDependencies: [],
   agentMessageTargets: [],
 } satisfies AppDescriptor;
+
+test("Console app navigation and reload resolve extension-free catalog routes", () => {
+  assert.equal(consoleAppRoute(app), "#/apps/view/preview");
+  assert.equal(appForRoute("view/preview", [app]), app);
+  assert.equal(appForRoute("view/preview.html", [app]), undefined);
+  assert.equal(appForRoute("view/missing", [app]), undefined);
+  assert.equal(appForRoute("view/preview", [app, { ...app, resourceUri: "ui://view/preview" }]), undefined);
+  const nested = { ...app, resourceUri: "ui://datasheet/admin/workbench.html" };
+  assert.equal(consoleAppRoute(nested), "#/apps/datasheet/admin/workbench");
+  assert.equal(appForRoute("datasheet/admin/workbench", [nested]), nested);
+});
 
 test("app links resolve only exact cataloged resources", () => {
   assert.deepEqual(resolveAppLink(app.resourceUri, [app]), { kind: "app", app });
