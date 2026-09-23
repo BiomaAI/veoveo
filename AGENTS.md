@@ -299,6 +299,9 @@ Avoid these patterns in both marketing and technical prose:
 - Change-log residue in design documents: migration numbers, incident fixes, and
   one-off asides belong in commits and plans.
 - Claims without evidence. Tie comparative or outcome claims to something checkable.
+- History in current-state docs. READMEs, guides, and designs describe what is true
+  now. Dated delivery status, migration stories, and "no longer" or "was replaced"
+  notes belong in plans, measurement records, and commit history.
 
 Established industry terms such as "agentic", "agentic apps", "software factory", and
 "AI factory" are fine. Readers recognize them, and a paraphrase is usually vaguer. The

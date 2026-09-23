@@ -187,9 +187,9 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
 ## Governed Cross-Server Resources
 
 Cross-server requirements are typed control-plane declarations, not
-App-authored metadata. An extension may declare them in
-`ServerManifest.app_resource_dependencies`; installation bindings still
-decide whether the owner and target are exposed and which policy applies.
+App-authored metadata. A server declares them in
+`ServerManifest.app_resource_dependencies`; the installation's gateway control
+plane decides whether the owner and target are exposed and which policy applies.
 Each declaration binds one projected `ui://{owner}/...` App resource to one
 registered target server and one non-root URI prefix under that server's
 canonical scheme. The initial operation profile is `read`.
@@ -206,7 +206,7 @@ Dependencies are sorted for deterministic projection.
 
 An App may build on another domain without copying that domain's data or
 embedding a private service client. The App owner declares the exact dependency
-in its server manifest, and the installation binding decides whether the owner
+in its server manifest, and the installation's gateway control plane decides whether the owner
 and target are exposed to the same caller. For Map integrations, the target is
 the registered Map server, the scheme is `map`, and the prefix names the
 smallest required `map://` resource family. A consumer should prefer immutable

@@ -19,7 +19,7 @@ limits the installation set.
 | [Kubernetes Pod Security Standards](https://kubernetes.io/docs/concepts/security/pod-security-standards/) and [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) | Workload hardening and network isolation on the installation-pinned Kubernetes release. The agent runtime must satisfy the Restricted profile. A workload-specific exception belongs outside the agent runtime and requires explicit operating evidence. |
 | OpenID Connect and OAuth 2.0 | Installation-owned identity, agent service principals, audience-bound access tokens, explicit scopes, and short-lived delegated authority. |
 | [Model Context Protocol](../mcp/contract/DESIGN.md) | Protocol version `2026-07-28` under Veoveo hosted-server contract revision 3. Every capability remains typed, discoverable, policy-checked, and attributable. |
-| JSON Schema 2020-12 | Closed schemas for controlled agent manifests, tool inputs, tool outputs, gateway configuration, extension fragments, and installation bindings. |
+| JSON Schema 2020-12 | Closed schemas for controlled agent manifests, tool inputs, tool outputs, and the gateway control plane. |
 | [Typed gateway control plane](../mcp/contract/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
 | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md) | Durable invocation authority, output ownership, membership, classification, data labels, and retained provenance. |
 | OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
@@ -37,7 +37,8 @@ The harness treats these inputs as untrusted:
 - model output, reasoning, generated code, and tool arguments;
 - prompts, operator messages, retrieved documents, recordings, and memory;
 - tool results, external provider responses, web content, and connector data;
-- extension servers and MCP Apps until their exact release and exposure are admitted.
+- fork-built servers and MCP Apps until the installation has deployed their exact
+  release and chosen their exposure.
 
 The trusted computing base contains the installation's Kubernetes control plane,
 nodes, container runtime, identity provider, secret manager, gateway signing boundary,
@@ -105,7 +106,7 @@ enforcement point the product lacks.
 | Delegation | Preserve the effective actor, initiator, delegation identifier, and invocation mode. | Define which humans and services may delegate, to which agents, for what duration and scope. | Delegated calls remain attributable and cannot outlive their authority. |
 | Gateway mediation | Route hosted capability calls through the gateway's authentication, policy, internal assertion, and audit path. | Deny agent network paths to private service endpoints that would bypass the gateway. | A direct service call fails while the equivalent authorized gateway call succeeds. |
 | Capability exposure | Validate profiles, server ownership, tool/resource exposure, scopes, policy targets, and URI projection. | Bind only mission-required capabilities and review every catalog or policy revision. | Discovery returns the approved surface for the agent and nothing broader. |
-| Extensions and connectors | Require typed fragments, installation bindings, conformance evidence, immutable releases, and ordinary gateway policy. | Review external data paths, credentials, provider terms, release evidence, and platform requirements before binding an extension. | Unknown, mismatched, overbroad, or colliding extensions fail composition or activation. |
+| Fork servers and connectors | Require registration in the typed control plane, conformance evidence, immutable releases, and ordinary gateway policy. | Review external data paths, credentials, provider terms, release evidence, and platform requirements before registering a server or connector. | Unknown, mismatched, overbroad, or colliding registrations fail control-plane validation or activation. |
 | Internal trust | Sign short-lived internal assertions and distribute only public verification keys to hosted services. | Protect gateway signing keys, rotate trust deliberately, and restrict Secret access. | Key rotation, expired assertion, wrong audience, and stolen old-key tests pass. |
 | Administrative authority | Keep administrative reads and mutations on explicit policy actions and the canonical owning service. | Restrict admin roles and separate agent profiles from installation administration. | The agent cannot read Secrets, change policy, register sources, or promote releases unless explicitly admitted. |
 | Secret use | Consume existing Secret references and redact typed secret values from logs and debug output. | Generate independent keys, store them in an approved manager, scope projections, rotate them, and prevent prompt or memory injection. | Pod inspection, log scanning, and negative filesystem tests reveal no unauthorized secret. |

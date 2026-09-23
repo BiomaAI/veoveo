@@ -1,7 +1,7 @@
 # Veoveo MCP Python SDK
 
-`veoveo-mcp` is the supported Python package for an independently owned MCP server
-hosted by a Veoveo installation. It provides the hosted-server contract, internal
+`veoveo-mcp` is the supported Python package for an MCP server hosted by a Veoveo
+installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, and the telemetry boundary.
 
@@ -73,4 +73,4 @@ constraints. Consumers never see an object-store URL or storage credential.
 
 `cargo xtask enforce python` runs the native SDK, template and fork-workload tests
 against local source and committed lockfiles. Image builds package these sources
-without editable paths. There is no separate Veoveo SDK release-publisher command.
+without editable paths.

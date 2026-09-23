@@ -48,8 +48,8 @@ uv run --locked --all-extras pytest -q
 ```
 
 The container builds from the repository root using the template Dockerfile and
-local SDK source. The root `datasheet-mcp` Bake target uses that same path; a separate
-SDK release or package-index credential is unnecessary.
+local SDK source. The root `datasheet-mcp` Bake target uses that same path, so the
+image build needs no package-index credentials.
 
 SurrealDB credentials and the internal trust JWKS come from the same
 `VEOVEO_SURREAL_*` and `VEOVEO_INTERNAL_TRUST_JWKS` variables the Rust servers
