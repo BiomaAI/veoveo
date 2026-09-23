@@ -252,8 +252,8 @@ class TaskFailure:
     def interrupted_indeterminate(cls) -> "TaskFailure":
         return cls(
             "interrupted_indeterminate",
-            "execution was interrupted; commit state is indeterminate and the task "
-            "will not be replayed",
+            "This task was interrupted and may have partly completed. It won't be "
+            "retried automatically. Check the result before running it again.",
         )
 
 
@@ -456,11 +456,11 @@ class TaskTransition:
 
     @classmethod
     def cancel_requested(cls) -> "TaskTransition":
-        return cls(TaskStatus.CANCEL_REQUESTED, "cancellation requested")
+        return cls(TaskStatus.CANCEL_REQUESTED, "Cancelling")
 
     @classmethod
     def cancelled(cls) -> "TaskTransition":
-        return cls(TaskStatus.CANCELLED, "cancelled")
+        return cls(TaskStatus.CANCELLED, "Cancelled")
 
     def status(self) -> TaskStatus:
         return self._status

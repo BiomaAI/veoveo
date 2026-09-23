@@ -83,7 +83,7 @@ impl CommandWorker {
             ContainmentReadAdmission::RecoveryRequired => {
                 self.waiting(
                     &operation.task_id().to_string(),
-                    "Recovery Required; original process termination is unconfirmed",
+                    "Needs recovery: we couldn't confirm the original process stopped. Open the Computer to check before retrying.",
                 )
                 .await?;
                 return Ok(WorkerStep::RecoveryRequired);
@@ -132,7 +132,7 @@ impl CommandWorker {
                 let (code, message) = match reason {
                     CommandRefusal::AuthorityDenied => (
                         "authority_denied",
-                        "Current authority does not permit this command",
+                        "You don't have permission to run this command.",
                     ),
                     CommandRefusal::RunChanged => (
                         "run_changed",

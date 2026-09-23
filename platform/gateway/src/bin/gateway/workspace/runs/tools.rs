@@ -114,7 +114,7 @@ impl RunTools {
         if !Arc::ptr_eq(&self.catalog, &self.state.catalog.current()) {
             self.permission_changed.cancel();
             return Err(ToolExecutionError::other(
-                "Capability permission changed. No new operation was admitted.",
+                "Your permissions changed during this response. The tool was not run.",
             ));
         }
         if self
@@ -131,20 +131,31 @@ impl RunTools {
         {
             self.permission_changed.cancel();
             return Err(ToolExecutionError::other(
-                "Agent admission changed. No new operation was admitted.",
+                "This agent's access changed during this response. The tool was not run.",
             ));
         }
-        if !arguments.is_object() || !validator.is_valid(&arguments) {
+        if !arguments.is_object() {
             return Err(ToolExecutionError::other(
-                "Arguments do not satisfy the capability schema.",
+                "Tool arguments must be a JSON object.",
             ));
+        }
+        if let Some(error) = validator.iter_errors(&arguments).next() {
+            let path = error.instance_path().to_string();
+            let location = if path.is_empty() {
+                "the arguments"
+            } else {
+                path.as_str()
+            };
+            return Err(ToolExecutionError::other(format!(
+                "The arguments don't match the tool's input schema at {location}: {error}. Fix that field and call the tool again."
+            )));
         }
         arguments.sort_all_objects();
         let encoded = serde_json::to_string(&arguments)
             .map_err(|_| ToolExecutionError::other("Arguments cannot be encoded."))?;
         if encoded.len() > 65_536 {
             return Err(ToolExecutionError::other(
-                "Arguments exceed the operation limit.",
+                "Tool arguments are larger than 64 KiB. Send a smaller request.",
             ));
         }
         let key = serde_json::to_vec(&(&name, &arguments))
@@ -154,12 +165,12 @@ impl RunTools {
             let mut budget = self
                 .budget
                 .lock()
-                .map_err(|_| ToolExecutionError::other("Operation budget is unavailable."))?;
+                .map_err(|_| ToolExecutionError::other("The tool-call limit for this response couldn't be checked. The tool was not run."))?;
             if !budget.contains(&id)
                 && budget.len() >= self.definition.budgets.max_tool_calls as usize
             {
                 return Err(ToolExecutionError::other(
-                    "This response has reached its operation limit.",
+                    "This response has reached its tool-call limit. Finish the response without more tool calls.",
                 ));
             }
             budget.insert(id)
@@ -169,7 +180,7 @@ impl RunTools {
             chat: self.claim.chat, run: Some((self.claim.run, self.claim.fence)), profile: self.caller.profile.to_string(), tool: name, arguments: encoded,
         }).await.map_err(|status| {
             if matches!(status.as_u16(), 401 | 403 | 404 | 409) { self.permission_changed.cancel(); }
-            ToolExecutionError::other("Operation admission was not confirmed. Check Activity; do not change arguments merely to retry.")
+            ToolExecutionError::other("The gateway did not confirm this tool call. Ask the person to check their Activity before retrying; if you retry, use the same arguments.")
         })?;
         if fresh {
             activity.admitted();
@@ -177,7 +188,7 @@ impl RunTools {
         // Returning private tool data would publish it through the shared
         // assistant response. A receipt establishes no completion claim.
         Ok(ToolOutput::text(
-            "The operation is recorded in the initiating person's private Activity. They can inspect its current status, provide requested input, and request cancellation there. This receipt does not establish completion or success; no result has been shared with this chat.",
+            "The tool call was started. Its progress, any input it needs, and its result appear only in the private Activity of the person who sent the message, where they can also cancel it. This reply does not mean the call succeeded, and no result has been shared with this chat.",
         ))
     }
 }
