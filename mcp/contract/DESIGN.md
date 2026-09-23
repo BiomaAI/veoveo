@@ -1,7 +1,7 @@
 # Veoveo MCP Server Contract
 
 This document is the normative contract for every hosted MCP server and every
-extension registered with a Veoveo installation. It consolidates the protocol,
+domain workload registered with a Veoveo installation. It consolidates the protocol,
 schema, runtime, packaging, documentation, and self-description requirements
 that were previously stated across `AGENTS.md`, `docs/TECH_DESIGN.md`, and
 `docs/ENTERPRISE_DEPLOYMENT.md`; those documents now point here. The crate in
@@ -21,7 +21,7 @@ complies with in its crate documents and in its contract resource.
 | MCP Tasks, SEP-2663 | official `tasks/get`, `tasks/update`, and `tasks/cancel`, optional task notifications, opaque task IDs, and typed terminal payloads |
 | MCP multi-round requests, SEP-2322 | `input_required`, protected opaque `requestState`, and retry `inputResponses`; server-initiated elicitation is excluded |
 | MCP subscriptions | request-scoped `subscriptions/listen` with an authorized accepted filter; resource subscribe and unsubscribe are excluded |
-| JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; controlled gateway, fragment, binding, and provenance schemas remain typed |
+| JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; gateway configuration, deployment and provenance schemas remain typed |
 | W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
 | OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with installation or governed managed-client registrations, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; OAuth Dynamic Client Registration is excluded |
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
@@ -66,7 +66,7 @@ defines its authority boundary. Browser models are generated with
 `cargo xtask release client-types`; Rust remains the wire source of truth.
 
 The contract governs the servers in `servers/*-mcp/` and any independently
-deployed extension whose gateway entry joins an installation's catalog.
+deployed domain server whose gateway entry joins an installation's catalog.
 
 Checks are generic over a discovered catalog and never enumerate servers by
 hand:
@@ -84,7 +84,7 @@ the caller-authorized declaration. This grants no direct storage, private HTTP,
 renderer, or credential access, and it does not authorize mutations.
 - Transport-invariant checks additionally name the known MCP endpoints that
   live outside `servers/`: the gateway itself, the bridges, and showcase
-  extensions such as `showcase/sumo/sumo-mcp`.
+  workloads such as `showcase/sumo/sumo-mcp`.
 
 Adding a server means the checks find it. No conformance manifest, Console
 page, or documentation index requires editing when a server is added.

@@ -6,10 +6,10 @@ RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
 `global.installationId` is the stable cross-chart identity for the installation.
-Separately installed extension releases carry the same
+Separately installed workload releases carry the same
 `veoveo.ai/installation` label but keep their own
 `app.kubernetes.io/instance`. NetworkPolicy selects on the installation label, so an
-extension release never has to pose as this chart's Helm release. `global.production=true` requires an immutable
+workload release never has to pose as this chart's Helm release. `global.production=true` requires an immutable
 digest for every rendered Veoveo-owned image.
 
 A pod restarts only when its runtime inputs change, so publishing a new chart version

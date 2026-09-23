@@ -311,7 +311,7 @@ applies the request through the same domain models and state that its MCP tools 
 Every catalog entry declares an explicit `health_url` next to its MCP endpoint. The
 gateway sends that URL an unauthenticated GET and treats only a success status as
 healthy. It never infers health from an MCP request, an authentication failure, or a
-rejected method. A fragment without a health endpoint fails control-plane validation.
+rejected method. A server definition without a health endpoint fails control-plane validation.
 
 An HTTP administration API adds to MCP; it never replaces it, invents other resource
 identities, or keeps its own copy of state. Generic server documentation under

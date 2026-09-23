@@ -5,7 +5,8 @@
 This is an exploratory document based on the repository state on 2026-08-26. It
 records current behavior, registration paths, gaps, and design choices. It is not a
 normative contract, an implementation plan, or authorization to change the artifact
-plane, Console, gateway, MCP Apps host, or extension boundary.
+plane, Console, gateway or MCP Apps host. The registration section below follows
+the current fork model; the product findings describe the investigation date.
 
 The investigation uses *artifact catalog* for the operator-facing collection in the
 Console. The repository also has an Artifact MCP resource catalog and an MCP App
@@ -17,7 +18,7 @@ catalog. They have different membership rules and must not be treated as one sur
 |---|---|
 | Model Context Protocol `2026-07-28` | Veoveo's pinned protocol for artifact resources, resource links, tools, tasks, discovery, and subscriptions. |
 | [MCP Apps SEP-1865 / `ext-apps` `2026-01-26`](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) | Stable UI-resource, tool-link, sandbox, and host-bridge contract used by Veoveo Apps. It does not define a generic artifact-handler registry or artifact launch payload. |
-| JSON Schema Draft 2020-12 | Controlled MCP tool schemas, extension manifests, gateway fragments, and installation bindings. Artifact producer metadata itself remains open JSON. |
+| JSON Schema Draft 2020-12 | Controlled MCP tool schemas, gateway configuration and deployment inputs. Artifact producer metadata itself remains open JSON. |
 | HTTP GET, HEAD, and single byte ranges | Governed artifact preview and download data plane through the installation origin. Object-store URLs are private implementation detail. |
 | [RFC 6838 media types](https://www.rfc-editor.org/rfc/rfc6838.html) and registered structured syntax suffixes | Portable starting point for format matching. A `+json` suffix carries more reliable generic meaning than a filename or a substring test. |
 | [RFC 8288 Web Linking](https://www.rfc-editor.org/rfc/rfc8288.html) and the [IANA Link Relation registry](https://www.iana.org/assignments/link-relations/) | Existing relation vocabulary includes `preview`, `edit`, `edit-media`, `alternate`, and `describedby`. Those relations name intent but do not provide App discovery, authorization, ranking, or launch semantics. |
@@ -31,7 +32,7 @@ MCP Apps are discovered independently from `ui://` resources and linked tools. N
 contract says which App can view, import, analyze, or edit a selected artifact.
 
 More artifact occurrences can enter Veoveo through first-party and external domain
-servers. More Apps can enter an installation through the external-extension contract.
+servers. Fork contributions can add Apps through gateway registration.
 Neither action makes a new viewer appear on an artifact automatically.
 
 The missing seam contains three separate questions:
@@ -214,20 +215,15 @@ The embedded Rerun artifact renderer is not an MCP App. It is compiled into the
 Console. The recording workspace is also a platform-plane view. Those two paths cannot
 be extended by installing another App.
 
-### External Installation Path
+### Installation Registration
 
-An installation owner can add a viewer or editor as an external extension today, but
-the unit of registration is a hosted MCP server, not an App-only URL or a user-local
-preference. The supported path is:
-
-1. package the server, App resource, linked tools, image, chart, conformance result,
-   gateway fragment, and extension release;
-2. declare `capabilities.apps: true`, `resources: true`, and
-   `resource_projection: server_owned` in the fragment;
-3. expose the projected `ui://{server}/` resource family and required tools in an
-   installation-owned binding;
-4. admit required artifact audiences and platform components;
-5. compose the control plane and deploy both platform and extension releases.
+An installation owner adds a viewer or editor as a hosted MCP server in the fork.
+The server owns the App resource and linked tools. The owner builds its image,
+qualifies conformance, and adds its definition to the complete gateway configuration.
+That definition declares App capabilities and server-owned resource projection.
+Installation policy exposes the required resource family and tools, admits artifact
+audiences, and selects the platform components the server uses. See
+[Fork Development](FORK_DEVELOPMENT.md) for packaging and upstream integration.
 
 There is no per-user runtime server registration, App marketplace record, uploaded HTML
 viewer, arbitrary external URL registration, or “open with” preference store. The
