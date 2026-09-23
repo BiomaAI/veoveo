@@ -67,7 +67,7 @@ survive a temporary model-provider outage.
 
 Containment evidence applies only to the runtime it was gathered on: installation
 revision, agent manifest and prompt, model and provider, gateway policy revision, MCP
-catalog, extension releases, cluster security baseline, and data classification. When
+catalog, workload images, cluster security baseline, and data classification. When
 any of these changes, the installation gathers new evidence. Autonomy has no global
 off switch to flip while it does.
 
@@ -174,7 +174,7 @@ enforcement point the product lacks.
 | Immutable release | Publish digest-addressed images, charts, schemas, compatibility material, and deployment-lock contracts. | Pin reviewed digests in desired state and prohibit mutable production resolution. | Running image IDs and rendered chart content match the approved release. |
 | Provenance and SBOM | Produce source identity, checksums, SBOMs, and release evidence through the supported publication path. | Verify signatures and hashes, retain evidence, enforce registry immutability, and approve exceptions. | Verification succeeds from a clean environment before promotion. |
 | Vulnerability management | Keep dependencies current when touched and publish fixed releases through the same immutable path. | Scan artifacts and nodes, monitor advisories, define severity SLAs, patch the cluster, and execute emergency promotion. | No unaccepted finding exceeds the installation's threshold or SLA. |
-| Extension release | Publish conformance tooling and typed contracts for independently owned servers. | Require extension image, chart, fragment, compatibility selection, conformance report, domain smoke, and provenance. | A clean external release passes composition, render, conformance, and least-privilege review. |
+| Fork contribution | Provide shared contracts and conformance tooling for domain servers. | Review upstream merges, qualify fork images and charts, and approve gateway registration and policy. | The fork passes protocol, domain, deployment and least-privilege checks. |
 | Configuration integrity | Validate gateway control data, server bootstrap documents, Helm values, and deterministic composition inputs. | Keep desired state in reviewed Git, separate secret bytes, and protect reconciliation credentials. | Drift is reconciled or alerted; an unreviewed policy change cannot reach the cluster. |
 | Readiness and health | Fail readiness when mandatory dependencies, GPU paths, storage, trust material, or protocol contracts are unavailable. Probe every hosted server through its declared health endpoint; never read an MCP request, an authentication failure, or a method rejection as a health signal. | Configure disruption, capacity, maintenance, and escalation around declared singleton and RWO boundaries. | Dependency-loss drills remove the workload from service without selecting an unsafe fallback; a degraded hosted server surfaces in the Console without poisoning discovery for isolating profiles. |
 | Audit export | Emit identity-attributed policy, task, artifact, agent, and administration evidence. | Operate the SIEM or WORM sink, alerts, retention, access review, and time synchronization. | End-to-end audit export preserves identity, order, timestamp quality, and tamper controls. |

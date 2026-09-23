@@ -1365,8 +1365,8 @@ A successful functional test with missing containment evidence does not pass the
   lifecycle and cost?
 - Which low-risk change classes, if any, may later merge automatically to an integration
   branch or protected main?
-- How does the factory coordinate independent extension repositories without making the
-  Veoveo repository their build owner?
+- How does the factory qualify upstream merges across maintained Veoveo forks and
+  their separate installation repositories?
 
 These decisions belong in the owning component design before implementation becomes
 normative.

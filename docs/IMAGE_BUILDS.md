@@ -556,41 +556,28 @@ cargo xtask image build --group showcase-uav-sim-overlay-acceptance
 
 It builds the canonical base, the first-party UAV overlay, and the anonymous overlay.
 It does not claim platform integration. A deployment profile that selects the
-simulation extension and Frames, Map, Media, Optimization, or RRD derives those
-platform targets from the typed selection. Extension and workload image groups cannot
+simulation workload and Frames, Map, Media, Optimization, or RRD derives those
+platform targets from the typed selection. Workload image groups cannot
 satisfy or enlarge platform closure.
 
-## External Repositories
+## Fork Ownership
 
-The repository boundary is intentional. A Veoveo-compatible extension keeps its
-language toolchain, workspace, image graph, tests, and release command in its own
-repository. It may adopt its own `xtask` when that repository has orchestration worth
-compiling, but it does not invoke `veoveo-xtask` or copy Veoveo's builder families.
+A fork builds its custom implementation through the repository's Cargo workspace,
+Python SDK and Bake graph. The [fork guide](FORK_DEVELOPMENT.md) describes code
+placement, upstream merges and downstream migrations. A separate installation
+repository may select immutable artifacts from that fork and own its configuration.
 
-| Consumer activity | External repository owner | Veoveo integration boundary |
+| Activity | Fork responsibility | Installation responsibility |
 |---|---|---|
-| Build | native Cargo, npm, uv, or other language build; repository-local OCI graph | published SDK and contract dependencies |
-| Test | unit, integration, schema, and policy tests in the extension repository | pinned compatibility manifest and schema revision |
-| Smoke | black-box lifecycle and domain scenarios owned beside the extension | standalone Veoveo conformance artifact and smoke descriptor |
-| Package | extension OCI image and consumer-owned chart | extension manifest, immutable image digest, chart API, and provenance |
-| Integrate | installation-owned binding, selected extension release, and digest-pinned values | validated gateway requirements and ordinary Helm or GitOps composition |
+| Build | maintain component code, local SDK consumers and image inputs | select qualified immutable images |
+| Test | run owning unit, integration, policy and protocol checks | qualify retained data and installed user journeys |
+| Package | publish images and application charts with their bundled helpers | retain digests, provenance and recovery inputs |
+| Integrate | register server definitions in the typed gateway configuration | admit tools, artifact audiences and workload privileges |
 
-Published describes an immutable distribution state, not public visibility. SDKs,
-images, charts, conformance artifacts, and provenance may resolve from an authenticated
-customer-operated registry, a Veoveo-operated private registry, another
-installation-configured package source, or a verified offline bundle. The
-installation's client-facing origin is separate configuration and may be reachable only
-through private DNS, an internal network, or a VPN.
-
-The current delivery includes the source-local planner, private Python SDK, standalone
-conformance distribution, gateway composer, Helm library, compatibility release
-generator, named-source deployment v5 coordination, exact platform-image closure
-enforcement, and paired hardware simulation-overlay certification.
-
-Multi-source composition passes an explicit source context and immutable artifact
-identity into the same typed planner model. It coordinates independently published
-graphs; it does not merge external packages into the core Cargo workspace or one
-universal builder command.
+Registry visibility is installation policy. Images, charts and provenance may use
+an authenticated private registry or a verified offline bundle. The client-facing
+origin may use private DNS, an internal network or a VPN. Ordinary remote MCP
+connections continue through gateway registration and authorization.
 
 ## Command Latency Evidence
 
