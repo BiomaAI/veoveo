@@ -66,6 +66,7 @@ impl GatewayMcp {
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
         let mut keys = Vec::new();
+        let mut cached_at_start = std::collections::BTreeMap::new();
         for server_slug in profile_server_list {
             let key = DiscoveryCacheKey {
                 catalog_generation,
@@ -74,11 +75,8 @@ impl GatewayMcp {
                 server: server_slug.clone(),
             };
             keys.push(key.clone());
-            if self
-                .discovery
-                .contains(GatewayDiscoverySurface::Resources, &key)
-                .await
-            {
+            if let Some(items) = self.discovery.resources(&key).await {
+                cached_at_start.insert(key, items);
                 continue;
             }
             let Some(fetch) = self
@@ -127,7 +125,11 @@ impl GatewayMcp {
         let mut resources = Vec::new();
         let mut failures = Vec::new();
         for key in keys {
-            if let Some(mut cached) = self.discovery.resources(&key).await {
+            let cached = match cached_at_start.remove(&key) {
+                Some(items) => Some(items),
+                None => self.discovery.resources(&key).await,
+            };
+            if let Some(mut cached) = cached {
                 resources.append(&mut cached);
             } else {
                 let code = self
@@ -239,6 +241,7 @@ impl GatewayMcp {
         let authorization_fingerprint =
             invocation_authorization_fingerprint(&subject.actor, &subject.authority)?;
         let mut keys = Vec::new();
+        let mut cached_at_start = std::collections::BTreeMap::new();
         for server_slug in self.profile_servers() {
             let key = DiscoveryCacheKey {
                 catalog_generation,
@@ -247,11 +250,8 @@ impl GatewayMcp {
                 server: server_slug.clone(),
             };
             keys.push(key.clone());
-            if self
-                .discovery
-                .contains(GatewayDiscoverySurface::ResourceTemplates, &key)
-                .await
-            {
+            if let Some(items) = self.discovery.resource_templates(&key).await {
+                cached_at_start.insert(key, items);
                 continue;
             }
             let Some(fetch) = self
@@ -301,7 +301,11 @@ impl GatewayMcp {
         let mut templates = Vec::new();
         let mut failures = Vec::new();
         for key in keys {
-            if let Some(mut cached) = self.discovery.resource_templates(&key).await {
+            let cached = match cached_at_start.remove(&key) {
+                Some(items) => Some(items),
+                None => self.discovery.resource_templates(&key).await,
+            };
+            if let Some(mut cached) = cached {
                 templates.append(&mut cached);
             } else {
                 let code = self

@@ -243,8 +243,10 @@ servers independently. A list call gives these shared operations one two-second
 settlement window across all selected servers, then returns the authorized
 per-server cache entries available at that point. Warm complete catalogs return
 immediately. This bounded window prevents routine cache expiry from producing an
-empty first snapshot while keeping slow optional servers isolated. The response
-attaches a typed
+empty first snapshot while keeping slow optional servers isolated. The gateway
+captures entries valid when the list request begins and includes them even if
+another server consumes the settlement window before response assembly. The
+response attaches a typed
 `veoveo.io/gateway-discovery-degradation` result metadata document naming only
 the missing server, surface, and bounded failure code. Each missing server starts
 one background discovery for the exact catalog generation and invocation
