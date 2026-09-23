@@ -19,9 +19,6 @@ RUN --mount=type=bind,source=tools/image-build/source-freshness.rs,target=/tmp/s
     rustc --edition=2024 -O /tmp/source-freshness.rs -o /usr/local/bin/veoveo-source-freshness
 ARG VEOVEO_CARGO_CACHE_ID
 ARG VEOVEO_TARGET_CACHE_ID
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=bind,source=.,target=/src,rw \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-registry-v1,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=${VEOVEO_CARGO_CACHE_ID}-git-v1,target=/usr/local/cargo/git,sharing=locked \

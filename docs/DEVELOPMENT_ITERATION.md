@@ -1380,3 +1380,19 @@ A downstream schema addition therefore rebuilds service consumers of that crate.
 An independently qualified extraction of bootstrap-owned migration execution could
 reduce that coupling without adding a service. These follow-ups do not expand the
 completed [fork development rollout](FORK_DEVELOPMENT_PLAN.md#installed-acceptance).
+
+## Rerun 0.38 Build Iteration — 2026-09-23
+
+The Rerun and Rust toolchain upgrade changed the workspace lock. The affected-image
+planner selected 30 targets, including services without a Rerun dependency. The first
+four-target stage compiled the shared optimized Rust graph in 713.7 seconds and
+finished in 844.1 seconds. Console packaging finished while Rust compiled. Recording
+Hub then downloaded the pinned 168 MB Rerun wheel in its final image layer.
+
+The next producer stage failed after 85.7 seconds because SUMO's Bullseye builder
+ran `apt-get install ca-certificates`. Its pinned base image already included that
+package, while the current Bullseye security index named an archive URL returning
+HTTP 404. Removing the redundant install removes that external package lookup from
+the builder. The failed Bake solve canceled unrelated target compilation; select the
+SUMO target separately when qualifying its image so a transient package-repository
+failure does not discard progress from the other producers.
