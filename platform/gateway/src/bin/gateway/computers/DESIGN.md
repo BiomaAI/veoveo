@@ -25,7 +25,7 @@ reduces the owner's existing access under current parent read authority. It acce
 only an empty JSON body; contributor and new-attachment permission are unnecessary.
 Returned parent/grant IDs and the bounded inventory are validated before forwarding.
 Revocation stays within the Computer domain and never issues a provider command.
-These are gateway-owned routes, independent of extension-owned route declarations.
+These are gateway-owned routes, separate from the admin routes hosted servers declare.
 
 Read uses ResourcesRead on the canonical collection or exact Computer resource.
 Lifecycle actions use ToolsCall on the corresponding Computer tool. Terminal access

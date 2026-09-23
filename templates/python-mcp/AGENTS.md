@@ -44,7 +44,7 @@ every change here must keep the template a complete, working reference.
 - The root Bake target uses `templates/python-mcp/Dockerfile` with the repository
   root as build context and the local SDK installed without editable paths.
 - Helm material is the `datasheet-mcp` domain service in
-  `deploy/helm/veoveo`; the gateway binding is the `datasheet` server entry
+  `deploy/helm/veoveo`; its gateway registration is the `datasheet` server entry
   in the typed catalog.
 
 ## Contract Compliance

@@ -54,8 +54,8 @@ serves the manual of exactly the version it runs.
 
 ## Deployment
 
-The server ships as an OCI image built from this directory's `Dockerfile`
-against the installation's private Python index, runs as UID 10001, and is
+The server ships as an OCI image built from this directory's `Dockerfile`, with the
+repository root as build context and the local SDK source, runs as UID 10001, and is
 deployed as the `datasheet-mcp` domain service of the versioned `veoveo` Helm
 chart with a `Recreate` replacement strategy. Durable tasks live in the shared
 SurrealDB platform store; schema migrations remain owned by `platform/store`.

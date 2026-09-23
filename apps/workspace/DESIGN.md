@@ -212,8 +212,7 @@ parsed server-side text, cross the HTTP boundary.
 
 One send carries the message and its explicit destinations. The store commits all
 response intents with the human message. A lost response retains the complete request
-for an exact retry. The browser no longer saves text and then starts runs in separate
-requests. A capacity failure appears on the affected response, while people can keep
+for an exact retry. A capacity failure appears on the affected response, while people can keep
 writing. Recovery fetches committed state without starting another response. If a selected
 agent leaves the chat, an explicit action clears unavailable selections. A pending
 ambiguous send retains its original destinations until its outcome is confirmed.

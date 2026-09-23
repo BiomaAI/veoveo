@@ -33,8 +33,8 @@ and 4,096 composition branches before meta-schema validation.
 
 A profile names the expected implementation slug, selected contract revision, allowed
 resource URI schemes, HTTP boundary checks, and required, optional, or forbidden MCP
-surfaces. Required tool, resource, template, and prompt identities are extension-owned
-inputs rather than compiled registry entries. A hosted-server certificate selects
+surfaces. Each profile lists its required tool, resource, template, and prompt
+identities; the conformance client has no compiled registry of them. A hosted-server certificate selects
 exactly `veoveo.io/hosted-mcp/v3`: resources are required, and the profile must name
 the administrative `llms.txt` URL. Unauthenticated Bearer rejection is required for
 the MCP endpoint. C18–C21 cannot be disabled by a profile.

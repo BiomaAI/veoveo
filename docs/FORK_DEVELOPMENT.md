@@ -79,18 +79,16 @@ installation selects endpoints, exposure and policies. A source change grants no
 runtime privileges: internal assertion verification, tool grants, task ownership,
 artifact audiences and audit rules apply to fork code as they do to upstream code.
 
-Remote MCP servers and protocol bridges continue to use their supported registration
-and authentication contracts. MCP protocol extensions such as Apps and Tasks remain
-part of the product. Fork development removes the separate Veoveo extension-package
-lifecycle, including fragments, bindings and compatibility manifests.
+Remote MCP servers and protocol bridges use their existing registration and
+authentication contracts. MCP Apps and Tasks work the same in fork code as in
+upstream code.
 
 ## Build And Deployment
 
 Use the root Bake graph and the existing `cargo xtask image` and `release` commands.
-Build affected targets and retain unchanged image digests. Logical source entries
-partition component ownership; selected local checkouts can hold the immutable
-revisions needed for a targeted publication. The publisher no longer clones remote
-extension source declarations. Unselected components do not require open worktrees.
+Build affected targets and keep unchanged image digests. Each source entry in a
+deployment profile owns a set of components. To publish only some components, check
+out the revisions they need; publication reads only the local checkouts you select.
 
 Publish application charts with their bundled library dependency. Pin images and
 charts in installation values, render the resulting resources, and commit desired
@@ -110,8 +108,8 @@ After the installation exposes the new template, save and publish the affected
 agent definition with its current `templateRevision`. Preserve its instructions,
 parameters, tools and audience. Apply the published revision to each existing
 instance with the lifecycle API's `revision` change and its expected generation.
-The image-only admission check requires every other installation authority,
-configuration and storage field to match the previous template. Wait for each
+The manager accepts the new template only if its image is the only change; every
+other authority, configuration, and storage field must match the previous template. Wait for each
 instance's active revision and generation to match the request and its phase to
 become `ready`.
 
@@ -133,16 +131,9 @@ against each upstream merge. When a change needs preparatory data conversion bef
 an upstream migration, perform that conversion in a coordinated maintenance step.
 Drain the previous migration owner before upgrading its catalog.
 
-## Coordinated Transition
+## Rollback
 
-The extension-package interface is retired in the coordinated Bioma upgrade. Move
-custom implementation into the fork, replace fragments and bindings with the complete
-gateway configuration, and rebuild application charts with the internal helpers.
-Regenerate development profiles and locks using v8; old profiles fail with an upgrade
-diagnostic. Preserve existing Helm release names, selectors, Secret references,
-agent identities and persistent volumes.
-
-Before promotion, retain the previous deployment's image/chart pins and installation
-commit. Deployment metadata conversion does not modify stored user data. Database
-changes require their own qualification and recovery plan; rolling back an image
-alone does not reverse a database migration.
+Before promoting a release, keep the previous deployment's image and chart pins and
+its installation commit. Rolling back to them restores the deployment, but not the
+database: an image rollback does not reverse a migration. Test and plan recovery for
+each database change separately.

@@ -44,8 +44,8 @@ depend on a published route and a bounded feature layer.
 
 ## Dependency shape
 
-The server-owned App resource declares the dependency in the gateway fragment or
-manifest. The installation still decides exposure and policy:
+The server-owned App resource declares the dependency in the server's entry in the
+gateway control plane. The installation still decides exposure and policy:
 
 ```json
 {

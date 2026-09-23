@@ -34,5 +34,4 @@ bounded Arrow projection implementation. `video.rs` owns encoded access-unit ins
 
 `cargo test -p veoveo-rrd --lib` exercises the file contracts. Hub integration tests cover
 video selection across a producer restart and verify the resulting MP4 sample table.
-The moved algorithms and file formats retain their existing behavior. Their canonical
-Rust paths now start at `veoveo_rrd`; Hub no longer exports these shared operations.
+These shared operations are exported only from `veoveo_rrd`.

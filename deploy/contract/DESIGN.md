@@ -390,8 +390,8 @@ those installation artifacts and builds no image.
 
 ## Version Transition
 
-Deployment v8 removes extension-release metadata, remote source declarations and the
-extension-specific Helm values contract. Unit and content digests use v3 encodings.
+Deployment v8 profiles describe local sources only, and workload charts use the
+ordinary Helm values contract. Unit and content digests use v3 encodings.
 The coordinated installation upgrade regenerates profiles and locks; v7 profile
 headers fail with a regeneration diagnostic before obsolete fields are decoded.
 Retained image/chart digests and the prior configuration commit provide deployment

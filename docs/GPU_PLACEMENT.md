@@ -86,9 +86,9 @@ Deployment v5 is a hard cut. A deployment v4 profile must add the complete
 and regenerate the deployment lock. No implicit allocator or mutable chart default is
 retained.
 
-The repository-managed K3s node image no longer embeds a device-plugin manifest. A
-local cluster created from the earlier node image must be deleted, the current pinned
-node image rebuilt, and the cluster recreated before its first DRA `profile-up`.
+The repository-managed K3s node image does not embed a device-plugin manifest. If a
+local cluster was created from a node image that did, delete it, rebuild the current
+pinned node image, and recreate the cluster before its first DRA `profile-up`.
 Stopping and starting that older cluster is insufficient because its static manifest
 remains on the node. A field cluster whose device plugin is an ordinary DaemonSet or
 Helm release uses the explicit `conflictingDevicePluginRemoval` authorization instead.
