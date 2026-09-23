@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 
 [package.metadata.veoveo]
-image-asset-inputs = ["servers/speech-mcp/runner"]
+image-asset-inputs = ["servers/speech-mcp/runner", "servers/speech-mcp/Dockerfile", "servers/speech-mcp/Dockerfile.dependencies"]
 
 [dependencies]
 veoveo-speech-contract = { path = "contract" }

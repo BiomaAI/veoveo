@@ -20,12 +20,12 @@ pub use quota::CpuQuotaLease;
 pub use resources::{BuilderResources, CpuSnapshot, RESOURCES, cpu_snapshot};
 
 pub const BUILDER_NAME: &str = "veoveo";
-pub const BUILDX_VERSION: &str = "v0.37.0";
+pub const BUILDX_VERSION: &str = "v0.37.1";
 pub const CERTIFICATION_CACHE_REPOSITORY: &str = "veoveo-simulation-certify-cache";
 const BUILDX_LINUX_AMD64_SHA256: &str =
-    "ae43fa08c796b44efc86d7a63c55f73f7c35f3101188dea7bf93bcd6f99577ba";
+    "9447199cdb435f25880548343c128a4b6650e8891ee598905d8d29d39a8e359b";
 const BUILDX_LINUX_ARM64_SHA256: &str =
-    "d263ce31bd2c9e9210aaa2c7537c67802bccabcd342e4c9fe4907085ddb41aa5";
+    "e5cc9fe3bbff5cbc91230981f7860e06076110730a2db997082652199042a1f2";
 const BUILDKIT_VERSION: &str = "v0.33.0";
 pub const BUILDKIT_IMAGE: &str = "docker.io/moby/buildkit:v0.33.0@sha256:6c2fa84a6b61ccd72899dde4239f8d5717f05f9a8ca6f3cad185fb1a95a94de3";
 const BUILDER_CONTAINER: &str = "buildx_buildkit_veoveo0";
@@ -384,8 +384,8 @@ struct ManagedBuildx {
 
 fn managed_buildx(repository: &Path) -> Result<ManagedBuildx> {
     let (release_name, sha256) = match (std::env::consts::OS, std::env::consts::ARCH) {
-        ("linux", "x86_64") => ("buildx-v0.37.0.linux-amd64", BUILDX_LINUX_AMD64_SHA256),
-        ("linux", "aarch64") => ("buildx-v0.37.0.linux-arm64", BUILDX_LINUX_ARM64_SHA256),
+        ("linux", "x86_64") => ("buildx-v0.37.1.linux-amd64", BUILDX_LINUX_AMD64_SHA256),
+        ("linux", "aarch64") => ("buildx-v0.37.1.linux-arm64", BUILDX_LINUX_ARM64_SHA256),
         _ => ("", ""),
     };
     let root = managed_root(repository)?.join("docker-config");
@@ -739,9 +739,9 @@ mod tests {
     fn reads_buildx_release() {
         assert_eq!(
             parse_buildx_version(
-                "github.com/docker/buildx v0.37.0 1707acde5c8b6a2e8b4b62c4613b1d7e5f4de154"
+                "github.com/docker/buildx v0.37.1 1707acde5c8b6a2e8b4b62c4613b1d7e5f4de154"
             ),
-            Some("v0.37.0".to_owned())
+            Some("v0.37.1".to_owned())
         );
     }
 
@@ -809,7 +809,7 @@ mod tests {
         assert_eq!(main.config, linked.config);
         assert_eq!(
             main.binary,
-            repository.join("target/veoveo-xtask/docker-config/cli-plugins/v0.37.0/docker-buildx")
+            repository.join("target/veoveo-xtask/docker-config/cli-plugins/v0.37.1/docker-buildx")
         );
     }
 

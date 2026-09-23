@@ -119,7 +119,7 @@ material they operate:
 | [`deploy/helm/veoveo/README.md`](../deploy/helm/veoveo/README.md) | Kubernetes installation contract |
 | [`deploy/helm/veoveo/DESIGN.md`](../deploy/helm/veoveo/DESIGN.md) | Workspace model admission and credential references; managed-agent namespace, admission policy and template wiring; Computers core/capacity selection, retained PVC and private host network policy |
 | [`deploy/offline/README.md`](../deploy/offline/README.md) | offline bundle construction and loading |
-| [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized dependency publication, and source identity |
+| [`tools/image-build/DESIGN.md`](../tools/image-build/DESIGN.md) | Cargo-derived compilation inputs, artifact reuse, normalized simulator/Speech dependency publication, protected compiler-cache retention, and source identity |
 | [`apps/console/web/README.md`](../apps/console/web/README.md) | local Console refresh loop, proxy routes, and authentication origin |
 | [`docs/IMAGE_BUILDS.md`](IMAGE_BUILDS.md) | typed Bake planning, managed builder, cache families, and immutable image publication |
 | [`docs/IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md) | image-graph baseline, cold and warm measurements, digest equality, and incremental-build acceptance |

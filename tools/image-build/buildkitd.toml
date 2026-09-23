@@ -14,6 +14,9 @@
 
 [[worker.oci.gcpolicy]]
   all = true
+  # The pressure sweep must not bypass the retention window above. Losing a
+  # just-used Cargo target mount turns every source edit into a cold rebuild.
+  filters = ["type!=exec.cachemount"]
   reservedSpace = "80GB"
   maxUsedSpace = "320GB"
   minFreeSpace = "22%"
