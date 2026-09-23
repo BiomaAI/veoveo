@@ -487,6 +487,7 @@ async fn resumed_pilots_retain_runtime_identity_and_memory() -> Result<()> {
         );
         let mut retained_resources = entry.instance.resources.clone();
         retained_resources.image = template.workload.image.clone();
+        retained_resources.template_config_map = template.workload.config_map.clone();
         ensure!(
             current.principal == entry.instance.principal
                 && current.identity == entry.instance.identity

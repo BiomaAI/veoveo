@@ -728,6 +728,116 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_consolidation",
+        "rehearse_shared_definition_cutover",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_consolidation",
+        "consolidate_drained_pilots",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--test",
+        "pilot_consolidation",
+        "consolidated_pilots_are_ready",
+        "--",
+        "--ignored",
+        "--nocapture"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-bioma-acceptance",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-bioma-acceptance"
+        ],
+        "roots": [
+          "examples/bioma",
+          "testing/fixtures",
+          "configs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

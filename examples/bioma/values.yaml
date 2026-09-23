@@ -57,7 +57,7 @@ gateway:
         key: api-key
     templates:
     - id: uav-pilot
-      name: Governed UAV pilot
+      name: UAV Pilot
       tenant: bioma
       work_contexts:
       - operations
@@ -97,10 +97,6 @@ gateway:
       resource_subscriptions:
       - uav-sim://control-grants
       - uav-sim://mission-plans
-      - uav-sim://session/uav-showcase/vehicle/uav-1
-      - uav-sim://session/uav-showcase/vehicle/uav-2
-      - uav-sim://session/uav-showcase/vehicle/uav-3
-      - uav-sim://session/uav-showcase/vehicle/uav-4
       parameters:
         session:
           label: Simulation session
@@ -109,20 +105,10 @@ gateway:
             values:
             - uav-showcase
           environment_variable: VEOVEO_PARAM_SESSION
-        vehicle:
-          label: Requested vehicle (requires a separate control grant)
-          shape:
-            kind: choice
-            values:
-            - uav-1
-            - uav-2
-            - uav-3
-            - uav-4
-          environment_variable: VEOVEO_PARAM_VEHICLE
       workload:
         namespace: veoveo-agents
-        config_map: uav-pilot-6bbd1508694f
-        config_digest: sha256:6bbd1508694f2b0fdd280a0e2ac8570c90f48fd7a3e15f175fe68432dab4d7dc
+        config_map: uav-pilot-01b19f5aa87b
+        config_digest: sha256:01b19f5aa87bd953be64f55f6c9acd91b6ec9439d3106d0f4547924ad15fa9f0
         image: k3d-veoveo-registry.localhost:5000/veoveo/agent-kernel@sha256:93027de5dd828746f47c1eabaa42bed0891f078466fd8be2db6cee2ad31c0385
         database_secret: veoveo-surreal-runtime
         storage_class: local-path

@@ -11,13 +11,13 @@ contracts. These files are installation inputs, not a public UAV protocol.
 ## Ownership
 
 [`manifest.json`](../deploy/helm/files/agent-template/manifest.json) declares trusted memory, context and gateway wiring.
-Closed session and vehicle parameters describe the requested assignment. Current
-UAV control grants determine actual authority. Published definition revisions own
+The session parameter selects the simulation. Each instance discovers its vehicle
+through its authenticated principal’s current UAV control grant. Published definition revisions own
 instructions, tools, subscriptions and episode budgets. The manager supplies each
 instance's identity, credentials and retained volume.
 
 `instructions.md` is seed content for explicit definition creation. It
-does not reconcile over edits made through the API or Console. The requested assignment comes from the reviewed runtime context. Authored content
+does not reconcile over edits made through the API or Console. The session comes from the reviewed runtime context. Authored content
 receives no environment interpolation in the kernel.
 
 ## Installation And Cutover
@@ -43,3 +43,18 @@ separate prerequisite to the registry adoption transaction.
 The check uses the existing `tar` parser at exactly 0.4.46, verified against its
 upstream release on September 19, 2026. Entry contents, links, ownership, mode and
 modification time are compared independently of filesystem enumeration order.
+
+## Shared Pilot Definition
+
+Bioma publishes one `uav-pilot` definition for four managed instances. Instance IDs,
+OAuth principals, signing keys and memory volumes remain distinct. A pilot requires
+one active control grant for its session and uses the returned vehicle and mobility
+profile. Vehicle assignment never appears in definition parameters or instructions.
+
+The shared revision subscribes to `uav-sim://control-grants` and
+`uav-sim://mission-plans`. These resources publish domain changes. Task completion
+also wakes its owning instance. Vehicle resources have no update publisher and are
+read on demand; telemetry does not cause periodic model calls.
+
+The installation-only consolidation procedure lives in
+[`examples/bioma/acceptance`](../../../examples/bioma/acceptance/DESIGN.md).
