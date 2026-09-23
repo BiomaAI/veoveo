@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": ["npm", "--prefix", "servers/map-mcp/app", "run", "build"],
+      "inputs": { "kind": "console", "roots": ["servers/map-mcp/app"] },
+      "toolchains": ["node"]
+    },
+    {
+      "arguments": ["cargo", "test", "--locked", "-p", "veoveo-map-mcp", "-p", "veoveo-frames-mcp", "--lib", "--bins"],
+      "inputs": {
+        "kind": "cargo",
+        "packages": ["veoveo-map-mcp", "veoveo-frames-mcp"],
+        "roots": ["servers/map-mcp/app", "servers/map-mcp/assets"]
+      },
+      "toolchains": ["rust"]
+    }
+  ]
+}

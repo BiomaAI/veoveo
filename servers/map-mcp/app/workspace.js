@@ -354,7 +354,7 @@ function renderCompositionOptions() {
   select.value = state.selectedCompositionId;
   el("composition-count").textContent = String(state.compositions.length);
   const selected = composition();
-  el("map-context-label").textContent = selected ? selected.title : "Live workspace";
+  el("map-context-label").textContent = selected ? selected.title : "Live map";
 }
 
 function setEntryVisibility(key, enabled) {
@@ -1772,7 +1772,7 @@ async function refreshSnapshot() {
   ]);
   await rebuildEntries();
   const failures = [...featureFailures, ...datasetFailures, ...adminFailures];
-  if (failures.length) setStatus(`Workspace updated with ${failures.length} unavailable resource${failures.length === 1 ? "" : "s"}.`, "warn");
+  if (failures.length) setStatus(`Map updated with ${failures.length} unavailable resource${failures.length === 1 ? "" : "s"}.`, "warn");
   else if (!state.mapReady) setStatus("Map resources loaded.", "good");
   reportSize();
 }
@@ -1799,7 +1799,7 @@ async function applyCompositionSelection() {
   state.selectedCompositionId = el("composition-select").value;
   await rebuildEntries();
   const selected = composition();
-  el("map-context-label").textContent = selected ? selected.title : "Live workspace";
+  el("map-context-label").textContent = selected ? selected.title : "Live map";
   if (selected) jumpToComposition(selected);
   else applyInitialView();
 }
@@ -1875,6 +1875,6 @@ bridge.on("ui/resource-teardown", (_params, id) => {
     void bridge.request("subscriptions/listen", { notifications: { resourceSubscriptions: subscriptions } })
       .catch((error) => { if (!state.closing) setStatus(`Live resource updates unavailable: ${error.message}`, "warn"); });
   } catch (error) {
-    setStatus(`Workspace initialization failed: ${error.message}`, "bad");
+    setStatus(`Map initialization failed: ${error.message}`, "bad");
   }
 })();

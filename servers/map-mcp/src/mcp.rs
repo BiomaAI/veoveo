@@ -1856,9 +1856,9 @@ fn discoverable_resources(
                     prefers_border: None,
                 },
             )
-            .with_title("Workspace")
+            .with_title("Map Explorer")
             .with_description(
-                "Permission-aware Map MCP workspace for map viewing, governed feature layers, compositions, sources, acquisitions, releases, and mobility profiles.",
+                "Explore maps and manage geographic layers, saved views, data sources, and releases.",
             )
             .with_icons(vec![rmcp::model::Icon::new(WORKSPACE_APP_ICON)]),
         );

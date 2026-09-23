@@ -9,8 +9,8 @@ Veoveo's Earth geography and logistics routing domain: places, facilities,
 borders, coordinates, transport restrictions, routes, matrices, reachable
 areas, cuOpt-ready travel models, governed source acquisition with immutable
 release activation, and Work Context owned feature authoring. Administration
-runs through the same typed MCP surface and its single permission-aware Map
-workspace App.
+runs through the same typed MCP surface and its single permission-aware
+Map Explorer App.
 
 ## Invariants
 

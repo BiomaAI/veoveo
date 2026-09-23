@@ -443,7 +443,7 @@ impl ServerHandler for FramesMcp {
         let mut resources = well_known_resources();
         resources.extend([
             veoveo_mcp_apps_extension::app_resource(uris::WORKSPACE_APP_URI, "workspace")
-                .with_title("Workspace")
+                .with_title("Frame Editor")
                 .with_description("Author frame worlds and run bounded coordinate transforms."),
             Resource::new(uris::WORLDS_URI, "worlds")
                 .with_title("Frame worlds")
@@ -587,7 +587,7 @@ impl ServerHandler for FramesMcp {
                 let html = veoveo_mcp_apps_extension::workbench_app_html(
                     &veoveo_mcp_apps_extension::WorkbenchApp {
                         app_id: "frames-workspace",
-                        title: "Workspace",
+                        title: "Frame Editor",
                         subtitle: "Author immutable frame worlds and perform governed transforms",
                         empty_message: "No frame worlds are visible to this identity.",
                         resources: &[
