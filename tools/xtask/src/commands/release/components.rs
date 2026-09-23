@@ -65,7 +65,7 @@ pub(crate) fn publish(repository: &RepositoryContext, args: &ReleaseComponentsAr
     );
     let base_path = absolute_output(repository, &args.base_lock);
     let base_bytes = fs::read(&base_path).context("reading base deployment lock")?;
-    let base: DeploymentLock = serde_json::from_slice(&base_bytes)?;
+    let base = DeploymentLock::decode(&base_bytes)?;
     base.validate()?;
     let mut requested = BTreeSet::new();
     for id in &args.component {

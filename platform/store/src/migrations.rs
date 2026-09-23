@@ -27,560 +27,10 @@ impl Migration {
     }
 }
 
-const MIGRATIONS: [Migration; 92] = [
-    Migration {
-        version: 0,
-        name: "schema_migrations",
-        filename: "0000_schema_migrations.surql",
-        sql: include_str!("../migrations/0000_schema_migrations.surql"),
-    },
-    Migration {
-        version: 1,
-        name: "identity_control",
-        filename: "0001_identity_control.surql",
-        sql: include_str!("../migrations/0001_identity_control.surql"),
-    },
-    Migration {
-        version: 2,
-        name: "work_artifacts",
-        filename: "0002_work_artifacts.surql",
-        sql: include_str!("../migrations/0002_work_artifacts.surql"),
-    },
-    Migration {
-        version: 3,
-        name: "recordings_agents",
-        filename: "0003_recordings_agents.surql",
-        sql: include_str!("../migrations/0003_recordings_agents.surql"),
-    },
-    Migration {
-        version: 4,
-        name: "graph_edges",
-        filename: "0004_graph_edges.surql",
-        sql: include_str!("../migrations/0004_graph_edges.surql"),
-    },
-    Migration {
-        version: 5,
-        name: "search_and_counts",
-        filename: "0005_search_and_counts.surql",
-        sql: include_str!("../migrations/0005_search_and_counts.surql"),
-    },
-    Migration {
-        version: 6,
-        name: "gateway_control_plane",
-        filename: "0006_gateway_control_plane.surql",
-        sql: include_str!("../migrations/0006_gateway_control_plane.surql"),
-    },
-    Migration {
-        version: 7,
-        name: "artifact_plane",
-        filename: "0007_artifact_plane.surql",
-        sql: include_str!("../migrations/0007_artifact_plane.surql"),
-    },
-    Migration {
-        version: 8,
-        name: "task_runtime",
-        filename: "0008_task_runtime.surql",
-        sql: include_str!("../migrations/0008_task_runtime.surql"),
-    },
-    Migration {
-        version: 9,
-        name: "task_inputs",
-        filename: "0009_task_inputs.surql",
-        sql: include_str!("../migrations/0009_task_inputs.surql"),
-    },
-    Migration {
-        version: 10,
-        name: "agent_runtime",
-        filename: "0010_agent_runtime.surql",
-        sql: include_str!("../migrations/0010_agent_runtime.surql"),
-    },
-    Migration {
-        version: 11,
-        name: "recording_plane",
-        filename: "0011_recording_plane.surql",
-        sql: include_str!("../migrations/0011_recording_plane.surql"),
-    },
-    Migration {
-        version: 12,
-        name: "task_retention_pins",
-        filename: "0012_task_retention_pins.surql",
-        sql: include_str!("../migrations/0012_task_retention_pins.surql"),
-    },
-    Migration {
-        version: 13,
-        name: "gateway_runtime",
-        filename: "0013_gateway_runtime.surql",
-        sql: include_str!("../migrations/0013_gateway_runtime.surql"),
-    },
-    Migration {
-        version: 14,
-        name: "media_artifact_completion",
-        filename: "0014_media_artifact_completion.surql",
-        sql: include_str!("../migrations/0014_media_artifact_completion.surql"),
-    },
-    Migration {
-        version: 15,
-        name: "domain_usage",
-        filename: "0015_domain_usage.surql",
-        sql: include_str!("../migrations/0015_domain_usage.surql"),
-    },
-    Migration {
-        version: 16,
-        name: "gateway_refresh_tokens",
-        filename: "0016_gateway_refresh_tokens.surql",
-        sql: include_str!("../migrations/0016_gateway_refresh_tokens.surql"),
-    },
-    Migration {
-        version: 17,
-        name: "coordinate_operations",
-        filename: "0017_coordinate_operations.surql",
-        sql: include_str!("../migrations/0017_coordinate_operations.surql"),
-    },
-    Migration {
-        version: 18,
-        name: "map_domain",
-        filename: "0018_map_domain.surql",
-        sql: include_str!("../migrations/0018_map_domain.surql"),
-    },
-    Migration {
-        version: 19,
-        name: "time_domain",
-        filename: "0019_time_domain.surql",
-        sql: include_str!("../migrations/0019_time_domain.surql"),
-    },
-    Migration {
-        version: 20,
-        name: "audit_write_path",
-        filename: "0020_audit_write_path.surql",
-        sql: include_str!("../migrations/0020_audit_write_path.surql"),
-    },
-    Migration {
-        version: 21,
-        name: "recording_ingest",
-        filename: "0021_recording_ingest.surql",
-        sql: include_str!("../migrations/0021_recording_ingest.surql"),
-    },
-    Migration {
-        version: 22,
-        name: "recording_ingest_quotas",
-        filename: "0022_recording_ingest_quotas.surql",
-        sql: include_str!("../migrations/0022_recording_ingest_quotas.surql"),
-    },
-    Migration {
-        version: 23,
-        name: "recording_lifecycle",
-        filename: "0023_recording_lifecycle.surql",
-        sql: include_str!("../migrations/0023_recording_lifecycle.surql"),
-    },
-    Migration {
-        version: 24,
-        name: "work_context_governance",
-        filename: "0024_work_context_governance.surql",
-        sql: include_str!("../migrations/0024_work_context_governance.surql"),
-    },
-    Migration {
-        version: 25,
-        name: "map_authoring",
-        filename: "0025_map_authoring.surql",
-        sql: include_str!("../migrations/0025_map_authoring.surql"),
-    },
-    Migration {
-        version: 26,
-        name: "map_authoring_products",
-        filename: "0026_map_authoring_products.surql",
-        sql: include_str!("../migrations/0026_map_authoring_products.surql"),
-    },
-    Migration {
-        version: 27,
-        name: "frame_world_graphs",
-        filename: "0027_frame_world_graphs.surql",
-        sql: include_str!("../migrations/0027_frame_world_graphs.surql"),
-    },
-    Migration {
-        version: 28,
-        name: "mcp_streamable_http",
-        filename: "0028_mcp_streamable_http.surql",
-        sql: include_str!("../migrations/0028_mcp_streamable_http.surql"),
-    },
-    Migration {
-        version: 29,
-        name: "recording_blueprints",
-        filename: "0029_recording_blueprints.surql",
-        sql: include_str!("../migrations/0029_recording_blueprints.surql"),
-    },
-    Migration {
-        version: 30,
-        name: "simulation_view_reconciliation",
-        filename: "0030_simulation_view_reconciliation.surql",
-        sql: include_str!("../migrations/0030_simulation_view_reconciliation.surql"),
-    },
-    Migration {
-        version: 31,
-        name: "simulation_view_desired_digest",
-        filename: "0031_simulation_view_desired_digest.surql",
-        sql: include_str!("../migrations/0031_simulation_view_desired_digest.surql"),
-    },
-    Migration {
-        version: 32,
-        name: "simulation_view_ephemeral_viewer_leases",
-        filename: "0032_simulation_view_ephemeral_viewer_leases.surql",
-        sql: include_str!("../migrations/0032_simulation_view_ephemeral_viewer_leases.surql"),
-    },
-    Migration {
-        version: 33,
-        name: "simulation_view_reject_durable_viewer_leases",
-        filename: "0033_simulation_view_reject_durable_viewer_leases.surql",
-        sql: include_str!("../migrations/0033_simulation_view_reject_durable_viewer_leases.surql"),
-    },
-    Migration {
-        version: 34,
-        name: "simulation_view_reconciliation_deadlines",
-        filename: "0034_simulation_view_reconciliation_deadlines.surql",
-        sql: include_str!("../migrations/0034_simulation_view_reconciliation_deadlines.surql"),
-    },
-    Migration {
-        version: 35,
-        name: "recording_ingest_quota_windows",
-        filename: "0035_recording_ingest_quota_windows.surql",
-        sql: include_str!("../migrations/0035_recording_ingest_quota_windows.surql"),
-    },
-    Migration {
-        version: 36,
-        name: "remove_simulation_view_mirror_state",
-        filename: "0036_remove_simulation_view_mirror_state.surql",
-        sql: include_str!("../migrations/0036_remove_simulation_view_mirror_state.surql"),
-    },
-    Migration {
-        version: 37,
-        name: "gateway_task_routes",
-        filename: "0037_gateway_task_routes.surql",
-        sql: include_str!("../migrations/0037_gateway_task_routes.surql"),
-    },
-    Migration {
-        version: 38,
-        name: "mcp_interactions",
-        filename: "0038_mcp_interactions.surql",
-        sql: include_str!("../migrations/0038_mcp_interactions.surql"),
-    },
-    Migration {
-        version: 39,
-        name: "agent_opaque_task_ids",
-        filename: "0039_agent_opaque_task_ids.surql",
-        sql: include_str!("../migrations/0039_agent_opaque_task_ids.surql"),
-    },
-    Migration {
-        version: 40,
-        name: "uav_vehicle_authority",
-        filename: "0040_uav_vehicle_authority.surql",
-        sql: include_str!("../migrations/0040_uav_vehicle_authority.surql"),
-    },
-    Migration {
-        version: 41,
-        name: "task_route_source_records",
-        filename: "0041_task_route_source_records.surql",
-        sql: include_str!("../migrations/0041_task_route_source_records.surql"),
-    },
-    Migration {
-        version: 42,
-        name: "optimization_task_indexes",
-        filename: "0042_optimization_task_indexes.surql",
-        sql: include_str!("../migrations/0042_optimization_task_indexes.surql"),
-    },
-    Migration {
-        version: 43,
-        name: "time_acquisition_release_index",
-        filename: "0043_time_acquisition_release_index.surql",
-        sql: include_str!("../migrations/0043_time_acquisition_release_index.surql"),
-    },
-    Migration {
-        version: 44,
-        name: "audit_operation_outcomes",
-        filename: "0044_audit_operation_outcomes.surql",
-        sql: include_str!("../migrations/0044_audit_operation_outcomes.surql"),
-    },
-    Migration {
-        version: 45,
-        name: "map_geopackage_products",
-        filename: "0045_map_geopackage_products.surql",
-        sql: include_str!("../migrations/0045_map_geopackage_products.surql"),
-    },
-    Migration {
-        version: 46,
-        name: "recording_catalog_hard_cut",
-        filename: "0046_recording_catalog_hard_cut.surql",
-        sql: include_str!("../migrations/0046_recording_catalog_hard_cut.surql"),
-    },
-    Migration {
-        version: 47,
-        name: "map_projection_sequence",
-        filename: "0047_map_projection_sequence.surql",
-        sql: include_str!("../migrations/0047_map_projection_sequence.surql"),
-    },
-    Migration {
-        version: 48,
-        name: "map_projection_head_backfill",
-        filename: "0048_map_projection_head_backfill.surql",
-        sql: include_str!("../migrations/0048_map_projection_head_backfill.surql"),
-    },
-    Migration {
-        version: 49,
-        name: "artifact_read_delegation",
-        filename: "0049_artifact_read_delegation.surql",
-        sql: include_str!("../migrations/0049_artifact_read_delegation.surql"),
-    },
-    Migration {
-        version: 50,
-        name: "artifact_uploads",
-        filename: "0050_artifact_uploads.surql",
-        sql: include_str!("../migrations/0050_artifact_uploads.surql"),
-    },
-    Migration {
-        version: 51,
-        name: "computers",
-        filename: "0051_computers.surql",
-        sql: include_str!("../migrations/0051_computers.surql"),
-    },
-    Migration {
-        version: 52,
-        name: "provider_wait",
-        filename: "0052_provider_wait.surql",
-        sql: include_str!("../migrations/0052_provider_wait.surql"),
-    },
-    Migration {
-        version: 53,
-        name: "computer_operations",
-        filename: "0053_computer_operations.surql",
-        sql: include_str!("../migrations/0053_computer_operations.surql"),
-    },
-    Migration {
-        version: 54,
-        name: "computer_observation_budget",
-        filename: "0054_computer_observation_budget.surql",
-        sql: include_str!("../migrations/0054_computer_observation_budget.surql"),
-    },
-    Migration {
-        version: 55,
-        name: "computer_worker_projection",
-        filename: "0055_computer_worker_projection.surql",
-        sql: include_str!("../migrations/0055_computer_worker_projection.surql"),
-    },
-    Migration {
-        version: 56,
-        name: "computer_execution_authority",
-        filename: "0056_computer_execution_authority.surql",
-        sql: include_str!("../migrations/0056_computer_execution_authority.surql"),
-    },
-    Migration {
-        version: 57,
-        name: "computer_dispatch_authority",
-        filename: "0057_computer_dispatch_authority.surql",
-        sql: include_str!("../migrations/0057_computer_dispatch_authority.surql"),
-    },
-    Migration {
-        version: 58,
-        name: "computer_session_grants",
-        filename: "0058_computer_session_grants.surql",
-        sql: include_str!("../migrations/0058_computer_session_grants.surql"),
-    },
-    Migration {
-        version: 59,
-        name: "computer_cli_grants",
-        filename: "0059_computer_cli_grants.surql",
-        sql: include_str!("../migrations/0059_computer_cli_grants.surql"),
-    },
-    Migration {
-        version: 60,
-        name: "computer_automation_grants",
-        filename: "0060_computer_automation_grants.surql",
-        sql: include_str!("../migrations/0060_computer_automation_grants.surql"),
-    },
-    Migration {
-        version: 61,
-        name: "computer_execution_admission",
-        filename: "0061_computer_execution_admission.surql",
-        sql: include_str!("../migrations/0061_computer_execution_admission.surql"),
-    },
-    Migration {
-        version: 62,
-        name: "computer_execution_dispatch",
-        filename: "0062_computer_execution_dispatch.surql",
-        sql: include_str!("../migrations/0062_computer_execution_dispatch.surql"),
-    },
-    Migration {
-        version: 63,
-        name: "computer_execution_containment",
-        filename: "0063_computer_execution_containment.surql",
-        sql: include_str!("../migrations/0063_computer_execution_containment.surql"),
-    },
-    Migration {
-        version: 64,
-        name: "computer_execution_output_access",
-        filename: "0064_computer_execution_output_access.surql",
-        sql: include_str!("../migrations/0064_computer_execution_output_access.surql"),
-    },
-    Migration {
-        version: 65,
-        name: "computer_execution_completion",
-        filename: "0065_computer_execution_completion.surql",
-        sql: include_str!("../migrations/0065_computer_execution_completion.surql"),
-    },
-    Migration {
-        version: 66,
-        name: "computer_execution_preparation",
-        filename: "0066_computer_execution_preparation.surql",
-        sql: include_str!("../migrations/0066_computer_execution_preparation.surql"),
-    },
-    Migration {
-        version: 67,
-        name: "computer_execution_result_uri",
-        filename: "0067_computer_execution_result_uri.surql",
-        sql: include_str!("../migrations/0067_computer_execution_result_uri.surql"),
-    },
-    Migration {
-        version: 68,
-        name: "computer_replacement_instances",
-        filename: "0068_computer_replacement_instances.surql",
-        sql: include_str!("../migrations/0068_computer_replacement_instances.surql"),
-    },
-    Migration {
-        version: 69,
-        name: "computer_maintenance_admission",
-        filename: "0069_computer_maintenance_admission.surql",
-        sql: include_str!("../migrations/0069_computer_maintenance_admission.surql"),
-    },
-    Migration {
-        version: 70,
-        name: "computer_maintenance_journal",
-        filename: "0070_computer_maintenance_journal.surql",
-        sql: include_str!("../migrations/0070_computer_maintenance_journal.surql"),
-    },
-    Migration {
-        version: 71,
-        name: "computer_maintenance_resumption",
-        filename: "0071_computer_maintenance_resumption.surql",
-        sql: include_str!("../migrations/0071_computer_maintenance_resumption.surql"),
-    },
-    Migration {
-        version: 72,
-        name: "gateway_audit_retention_index",
-        filename: "0072_gateway_audit_retention_index.surql",
-        sql: include_str!("../migrations/0072_gateway_audit_retention_index.surql"),
-    },
-    Migration {
-        version: 73,
-        name: "computer_file_transfer_admission",
-        filename: "0073_computer_file_transfer_admission.surql",
-        sql: include_str!("../migrations/0073_computer_file_transfer_admission.surql"),
-    },
-    Migration {
-        version: 74,
-        name: "computer_file_transfer_journal",
-        filename: "0074_computer_file_transfer_journal.surql",
-        sql: include_str!("../migrations/0074_computer_file_transfer_journal.surql"),
-    },
-    Migration {
-        version: 75,
-        name: "computer_file_transfer_preparation",
-        filename: "0075_computer_file_transfer_preparation.surql",
-        sql: include_str!("../migrations/0075_computer_file_transfer_preparation.surql"),
-    },
-    Migration {
-        version: 76,
-        name: "computer_lifecycle_delegation",
-        filename: "0076_computer_lifecycle_delegation.surql",
-        sql: include_str!("../migrations/0076_computer_lifecycle_delegation.surql"),
-    },
-    Migration {
-        version: 77,
-        name: "workspace_chats",
-        filename: "0077_workspace_chats.surql",
-        sql: include_str!("../migrations/0077_workspace_chats.surql"),
-    },
-    Migration {
-        version: 78,
-        name: "workspace_runs",
-        filename: "0078_workspace_runs.surql",
-        sql: include_str!("../migrations/0078_workspace_runs.surql"),
-    },
-    Migration {
-        version: 79,
-        name: "workspace_operations",
-        filename: "0079_workspace_operations.surql",
-        sql: include_str!("../migrations/0079_workspace_operations.surql"),
-    },
-    Migration {
-        version: 80,
-        name: "workspace_app_operations",
-        filename: "0080_workspace_app_operations.surql",
-        sql: include_str!("../migrations/0080_workspace_app_operations.surql"),
-    },
-    Migration {
-        version: 81,
-        name: "gateway_task_ownership",
-        filename: "0081_gateway_task_ownership.surql",
-        sql: include_str!("../migrations/0081_gateway_task_ownership.surql"),
-    },
-    Migration {
-        version: 82,
-        name: "computer_resource_ownership",
-        filename: "0082_computer_resource_ownership.surql",
-        sql: include_str!("../migrations/0082_computer_resource_ownership.surql"),
-    },
-    Migration {
-        version: 83,
-        name: "workspace_participation",
-        filename: "0083_workspace_participation.surql",
-        sql: include_str!("../migrations/0083_workspace_participation.surql"),
-    },
-    Migration {
-        version: 84,
-        name: "workspace_replies",
-        filename: "0084_workspace_replies.surql",
-        sql: include_str!("../migrations/0084_workspace_replies.surql"),
-    },
-    Migration {
-        version: 85,
-        name: "workspace_attachments",
-        filename: "0085_workspace_attachments.surql",
-        sql: include_str!("../migrations/0085_workspace_attachments.surql"),
-    },
-    Migration {
-        version: 86,
-        name: "workspace_run_feedback",
-        filename: "0086_workspace_run_feedback.surql",
-        sql: include_str!("../migrations/0086_workspace_run_feedback.surql"),
-    },
-    Migration {
-        version: 87,
-        name: "workspace_operation_progress",
-        filename: "0087_workspace_operation_progress.surql",
-        sql: include_str!("../migrations/0087_workspace_operation_progress.surql"),
-    },
-    Migration {
-        version: 88,
-        name: "agent_catalog",
-        filename: "0088_agent_catalog.surql",
-        sql: include_str!("../migrations/0088_agent_catalog.surql"),
-    },
-    Migration {
-        version: 89,
-        name: "agent_chat_admission",
-        filename: "0089_agent_chat_admission.surql",
-        sql: include_str!("../migrations/0089_agent_chat_admission.surql"),
-    },
-    Migration {
-        version: 90,
-        name: "managed_agents",
-        filename: "0090_managed_agents.surql",
-        sql: include_str!("../migrations/0090_managed_agents.surql"),
-    },
-    Migration {
-        version: 91,
-        name: "managed_agent_episodes",
-        filename: "0091_managed_agent_episodes.surql",
-        sql: include_str!("../migrations/0091_managed_agent_episodes.surql"),
-    },
-];
+mod catalog;
+mod downstream;
+use catalog::MIGRATIONS;
+pub use downstream::{DownstreamMigration, DownstreamMigrationError, DownstreamSchemaStatus};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct AppliedMigration {
@@ -596,17 +46,21 @@ pub struct SchemaStatus {
     pub current_version: Option<u32>,
     pub latest_version: u32,
     pub pending_versions: Vec<u32>,
+    pub downstream: DownstreamSchemaStatus,
 }
 
 impl SchemaStatus {
     pub fn is_current(&self) -> bool {
-        self.pending_versions.is_empty() && self.current_version == Some(self.latest_version)
+        self.pending_versions.is_empty()
+            && self.current_version == Some(self.latest_version)
+            && self.downstream.is_current()
     }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MigrationReport {
     pub applied_versions: Vec<u32>,
+    pub downstream_applied_versions: Vec<u32>,
     pub status: SchemaStatus,
 }
 
@@ -652,7 +106,14 @@ pub fn validate_catalog(catalog: &[Migration]) -> Result<(), MigrationError> {
 }
 
 fn validate_history(applied: &[AppliedMigration]) -> Result<SchemaStatus, MigrationError> {
-    validate_catalog(&MIGRATIONS)?;
+    validate_history_for(&MIGRATIONS, applied)
+}
+
+fn validate_history_for(
+    catalog: &[Migration],
+    applied: &[AppliedMigration],
+) -> Result<SchemaStatus, MigrationError> {
+    validate_catalog(catalog)?;
     let by_version: BTreeMap<u32, &AppliedMigration> = applied
         .iter()
         .map(|migration| (migration.version as u32, migration))
@@ -665,7 +126,7 @@ fn validate_history(applied: &[AppliedMigration]) -> Result<SchemaStatus, Migrat
             });
         }
         let version = migration.version as u32;
-        let Some(expected) = MIGRATIONS.get(version as usize) else {
+        let Some(expected) = catalog.get(version as usize) else {
             return Err(MigrationError::DatabaseAhead { version });
         };
         if migration.name != expected.name || migration.checksum != expected.checksum() {
@@ -682,15 +143,16 @@ fn validate_history(applied: &[AppliedMigration]) -> Result<SchemaStatus, Migrat
     }
 
     let current_version = by_version.keys().next_back().copied();
-    let pending_versions = MIGRATIONS
+    let pending_versions = catalog
         .iter()
         .filter(|migration| !by_version.contains_key(&migration.version))
         .map(|migration| migration.version)
         .collect();
     Ok(SchemaStatus {
         current_version,
-        latest_version: MIGRATIONS.last().expect("catalog is non-empty").version,
+        latest_version: catalog.last().expect("catalog is non-empty").version,
         pending_versions,
+        downstream: DownstreamSchemaStatus::default(),
     })
 }
 
@@ -706,20 +168,55 @@ impl PlatformStore {
 
     pub async fn schema_status(&self) -> Result<SchemaStatus, StoreError> {
         let applied = self.migration_history().await?;
-        Ok(validate_history(&applied)?)
+        let mut status = validate_history(&applied)?;
+        downstream::validate(downstream::MIGRATIONS, status.latest_version)?;
+        status.downstream = downstream::history_status(
+            downstream::MIGRATIONS,
+            &self
+                .downstream_history(
+                    status
+                        .current_version
+                        .is_none_or(|version| version < downstream::HISTORY_UPSTREAM_VERSION),
+                )
+                .await?,
+            status.current_version,
+        )?;
+        Ok(status)
     }
 
     pub async fn migrate(&self) -> Result<MigrationReport, StoreError> {
-        self.require_root("schema migration")?;
-        validate_catalog(&MIGRATIONS)?;
+        self.migrate_catalogs(&MIGRATIONS, downstream::MIGRATIONS)
+            .await
+    }
 
-        self.db.query(MIGRATIONS[0].sql).await?.check()?;
+    async fn migrate_catalogs(
+        &self,
+        upstream: &[Migration],
+        fork: &[DownstreamMigration],
+    ) -> Result<MigrationReport, StoreError> {
+        self.require_root("schema migration")?;
+        validate_catalog(upstream)?;
+        let latest = upstream.last().expect("validated catalog").version;
+        downstream::validate(fork, latest)?;
+
+        self.db.query(upstream[0].sql).await?.check()?;
         let mut history = self.migration_history().await?;
-        let status = validate_history(&history)?;
+        let status = validate_history_for(upstream, &history)?;
+        downstream::history_status(
+            fork,
+            &self
+                .downstream_history(
+                    status
+                        .current_version
+                        .is_none_or(|version| version < downstream::HISTORY_UPSTREAM_VERSION),
+                )
+                .await?,
+            status.current_version,
+        )?;
         let mut applied_versions = Vec::new();
 
         for version in status.pending_versions.clone() {
-            let migration = &MIGRATIONS[version as usize];
+            let migration = &upstream[version as usize];
             self.prepare_migration(version).await?;
             let statement = format!(
                 "BEGIN TRANSACTION;\n{}\nCREATE platform_schema_migration:{} CONTENT {{ version: {}, name: $migration_name, checksum: $migration_checksum, applied_at: time::now() }};\nCOMMIT TRANSACTION;",
@@ -743,7 +240,7 @@ impl PlatformStore {
                 // A second replica may have committed the same migration first.
                 // Only accept that race when the durable checksum matches exactly.
                 history = self.migration_history().await?;
-                match validate_history(&history) {
+                match validate_history_for(upstream, &history) {
                     Ok(current) if !current.pending_versions.contains(&version) => {
                         continue;
                     }
@@ -761,9 +258,22 @@ impl PlatformStore {
         }
 
         history = self.migration_history().await?;
-        let status = validate_history(&history)?;
+        let mut status = validate_history_for(upstream, &history)?;
+        let downstream_applied_versions = self.migrate_downstream(fork, latest).await?;
+        status.downstream = downstream::history_status(
+            fork,
+            &self
+                .downstream_history(
+                    status
+                        .current_version
+                        .is_none_or(|version| version < downstream::HISTORY_UPSTREAM_VERSION),
+                )
+                .await?,
+            status.current_version,
+        )?;
         Ok(MigrationReport {
             applied_versions,
+            downstream_applied_versions,
             status,
         })
     }

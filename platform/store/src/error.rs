@@ -69,6 +69,15 @@ pub enum MigrationError {
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error(transparent)]
+    DownstreamMigration(#[from] crate::DownstreamMigrationError),
+    #[error("downstream migration {version:04}_{name} statement {statement} failed: {source}")]
+    DownstreamMigrationExecution {
+        version: u32,
+        name: &'static str,
+        statement: usize,
+        source: Box<surrealdb::Error>,
+    },
     #[error("migration {version:04} preparation failed: {reason}")]
     MigrationPreparation { version: u32, reason: &'static str },
     #[error("the active gateway control-plane pointer and revision do not agree")]

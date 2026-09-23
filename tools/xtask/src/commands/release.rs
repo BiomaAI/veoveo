@@ -118,7 +118,7 @@ pub(crate) fn simulation_runtime(
     };
     let lock_bytes = fs::read(&lock_path)
         .with_context(|| format!("reading deployment lock {}", lock_path.display()))?;
-    let lock: DeploymentLock = serde_json::from_slice(&lock_bytes)
+    let lock = DeploymentLock::decode(&lock_bytes)
         .with_context(|| format!("decoding deployment lock {}", lock_path.display()))?;
     lock.validate()?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
@@ -319,7 +319,7 @@ pub(crate) fn development_image_lock(
     let base_path = absolute_output(repository, &args.base_lock);
     let base_bytes = fs::read(&base_path)
         .with_context(|| format!("reading qualified deployment lock {}", base_path.display()))?;
-    let base: DeploymentLock = serde_json::from_slice(&base_bytes)
+    let base = DeploymentLock::decode(&base_bytes)
         .with_context(|| format!("decoding qualified deployment lock {}", base_path.display()))?;
     base.validate()?;
 

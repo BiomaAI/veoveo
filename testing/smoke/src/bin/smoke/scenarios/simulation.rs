@@ -573,7 +573,7 @@ fn registry_access(
     };
     let bytes =
         fs::read(path).with_context(|| format!("reading deployment lock {}", path.display()))?;
-    let lock: DeploymentLock = serde_json::from_slice(&bytes)
+    let lock = DeploymentLock::decode(&bytes)
         .with_context(|| format!("decoding deployment lock {}", path.display()))?;
     lock.validate()?;
     for (field, image) in [("base image", base_image), ("overlay image", overlay_image)] {

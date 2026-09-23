@@ -90,8 +90,8 @@ pub use map_presentations::{
 };
 pub use map_projection::MapFeatureProjectionCommit;
 pub use migrations::{
-    AppliedMigration, Migration, MigrationReport, SchemaStatus, migrations, schema_sql,
-    validate_catalog,
+    AppliedMigration, DownstreamMigration, DownstreamMigrationError, DownstreamSchemaStatus,
+    Migration, MigrationReport, SchemaStatus, migrations, schema_sql, validate_catalog,
 };
 pub use models::*;
 pub use outbox::{OutboxDraft, OutboxPage};
