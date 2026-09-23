@@ -265,7 +265,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
                       <ChevronRight size={14} className="nav-app-chevron" />
                       <span>{group.title}</span>
                       {group.unavailable && <span className="nav-app-unavailable">Unavailable</span>}
-                      {group.discovering && <span className="nav-app-unavailable">Discovering…</span>}
+                      {group.discovering && <span className="nav-app-unavailable">Loading…</span>}
                     </summary>
                     {group.apps.map((app) => (
                       <button
