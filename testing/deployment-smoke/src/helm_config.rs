@@ -511,7 +511,7 @@ pub(crate) fn helm_config() -> Result<()> {
             .with_context(|| format!("finding rendered {component} deployment"))?;
         contains(
             deployment,
-            if matches!(component, "mcp-gateway" | "chart-mcp") {
+            if component == "mcp-gateway" {
                 "replicas: 2"
             } else {
                 "replicas: 1"

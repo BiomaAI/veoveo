@@ -1396,3 +1396,28 @@ HTTP 404. Removing the redundant install removes that external package lookup fr
 the builder. The failed Bake solve canceled unrelated target compilation; select the
 SUMO target separately when qualifying its image so a transient package-repository
 failure does not discard progress from the other producers.
+
+The Rerun 0.38 image rollout exposed a second cache-pressure problem. The seven
+producer images took 1,477.6 seconds to stage, and the UAV runtime took 2,298.3
+seconds. The qualified producer build then took another 1,501.3 seconds. Its
+BuildKit trace downloaded and expanded the 9.6 GB DeepStream 9.1 base again,
+although the stage had already used that digest. The worker asks for 22% free
+space on a host that had less than 16% free after cleanup. BuildKit therefore
+kept collecting reusable layers between these operations. Align the worker's
+ordinary cache collection threshold with the installation's explicit release
+reserve, and qualify a staged image promptly while its layers are warm.
+The UAV release repeated the 10.6 GB Isaac base transfer despite caching its
+source and dependency commands; that qualification took another 1,029.5 seconds.
+
+The first core qualification rejected a changed Console runnable digest relative
+to its stage. A direct qualified publication succeeded, but repeating the build
+cost 221.5 seconds before its 29.9-second cached retry. Package install steps
+that read moving apt indexes can produce different runtime layers after cache
+eviction. Pin those package inputs or use a fixed repository snapshot before
+relying on stage-to-release digest equality.
+
+During the UAV export, deleting Rust incremental directories last touched before
+September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
+reclaimed about 65 GiB of disk, and pruning unused dangling Docker images reclaimed
+2.5 GB. No host Cargo compile was active during that cleanup; today's Rust artifacts
+and the active BuildKit worker were left intact.

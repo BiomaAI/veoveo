@@ -12,6 +12,12 @@ objectStore:
       size: 10Gi
 artifactService:
   replicas: 1
+computers:
+  replicas: 1
+consoleBff:
+  replicas: 1
+domainServiceReplicas:
+  chart-mcp: 1
 recording:
   tenantKey: bioma
   # local-path does not enforce PVC capacity or support expansion. Keep the

@@ -2,6 +2,6 @@ global:
   veoveoRegistry: k3d-veoveo-registry.localhost:5000
   veoveoTag: ""
   imageDigests:
-    veoveo/recording-forwarder: sha256:c3a71d509c936dc153127551f099abdcc25fae4f4c5c37de86c821068ac9e99e
-    veoveo/uav-sim-mcp: sha256:473e62eae20cb20605b3bf006b31d10387dda704253e254e0bb03bc2096db580
-    veoveo/uav-sim-runtime: sha256:248a8f1f28ed1c37aa8bff37e0bb95798ad762acb5789adcc9d75be805130282
+    veoveo/recording-forwarder: sha256:25b478a6a34145e055cd59de4d47be5c28c883b8c44ce5ea1363a833ab76d853
+    veoveo/uav-sim-mcp: sha256:fb93d9e80aa9207aa7a31bfcd622cf364a30e9b18d25c625543ff081fda64f80
+    veoveo/uav-sim-runtime: sha256:e9e1e10102577efa6c88c0a60c4fd55ce01dca49c209ee0b96441c8093440d15
