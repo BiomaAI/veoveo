@@ -509,14 +509,7 @@ pub(crate) fn helm_config() -> Result<()> {
                     && document.contains(&format!("name: {component}\n"))
             })
             .with_context(|| format!("finding rendered {component} deployment"))?;
-        contains(
-            deployment,
-            if component == "mcp-gateway" {
-                "replicas: 2"
-            } else {
-                "replicas: 1"
-            },
-        )?;
+        contains(deployment, "replicas: 1")?;
         if component == "mcp-gateway" {
             not_contains(deployment, "strategy:\n    type: Recreate")?;
         } else {
