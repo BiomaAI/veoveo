@@ -1,7 +1,7 @@
 {{- define "veoveo.selectedComponents" -}}
 {{- if eq .Values.installationPreset "full" -}}
 {{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane" "simulation-runtime-support" "agent-runtime-support" "console" "telemetry" "ingress") -}}
-{{- else if eq .Values.installationPreset "extension-foundation" -}}
+{{- else if eq .Values.installationPreset "foundation" -}}
 {{- toYaml (list "gateway" "platform-store" "object-store" "artifact-service" "recording-data-plane") -}}
 {{- else -}}
 {{- toYaml .Values.components -}}
@@ -11,7 +11,7 @@
 {{- define "veoveo.selectedMcpServers" -}}
 {{- if eq .Values.installationPreset "full" -}}
 {{- toYaml (list "computers" "artifact" "media" "timeseries" "optimization" "frames" "map" "time" "view" "datasheet" "duckdb" "chart" "rerun" "recording" "stream" "reason" "speech") -}}
-{{- else if eq .Values.installationPreset "extension-foundation" -}}
+{{- else if eq .Values.installationPreset "foundation" -}}
 {{- toYaml (list "computers" "artifact" "frames" "recording") -}}
 {{- else -}}
 {{- toYaml .Values.mcpServers -}}

@@ -1,7 +1,7 @@
 //! Successful execution evidence; API request auditing remains a separate observer.
 use super::{AtomicTarget, ComponentId, ComponentMutationPlan, ObjectIdentity};
+use crate::ArtifactDigest;
 use serde::{Deserialize, Serialize};
-use veoveo_extension_contract::ArtifactDigest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ComponentSelection {

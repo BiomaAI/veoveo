@@ -22,8 +22,6 @@ pub const MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION: &str =
     "io.modelcontextprotocol/enterprise-managed-authorization";
 pub const MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION: &str =
     "io.modelcontextprotocol/oauth-client-credentials";
-mod composition;
-pub use composition::*;
 mod policy;
 mod validation;
 mod wire;

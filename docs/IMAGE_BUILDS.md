@@ -46,13 +46,9 @@ owns certification assertions, but both use this one implementation for the pinn
 Buildx binary, BuildKit configuration, registry transport, and shared lease. The crate
 does not plan targets or define another build graph.
 
-The Python Datasheet example has two deliberate package boundaries. Its template
-Dockerfile consumes an extension-owned lock and a released SDK from the configured
-private index. Veoveo's own `datasheet-mcp` Bake target instead uses the checked-in
-environment under `tools/image-build/datasheet/`. That environment locks the same
-template and SDK as non-editable path distributions from the exact source revision.
-First-party publication therefore remains reproducible without weakening the external
-template or requiring an operator's package-index configuration.
+The Python Datasheet template and its root Bake target use the same Dockerfile and
+lockfile. Both consume `sdk/python` from the fork checkout. Images install local
+packages without editable paths; no private SDK publication is required.
 
 ## Command Surface
 
@@ -539,12 +535,12 @@ build or push. The platform source declares no image group. Publication passes a
 required targets to one Bake invocation, rejects missing and unnecessary platform
 targets, and lets Bake share dependency and Rust-family work across the selection.
 
-The `external-extension-platform` group contains the platform-side Artifact, Frames,
+The `domain-platform` group contains the platform-side Artifact, Frames,
 Map, Media, Recording, and RRD transport images:
 
 ```bash
-cargo xtask image plan --group external-extension-platform
-cargo xtask image build --group external-extension-platform
+cargo xtask image plan --group domain-platform
+cargo xtask image build --group domain-platform
 ```
 
 RRD is a data format and transport capability, not a fourth recording service image.

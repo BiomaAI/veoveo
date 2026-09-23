@@ -6,7 +6,7 @@ use crate::{
     process::status_checked,
 };
 use veoveo_deploy_contract::components::*;
-use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 
 pub(crate) struct Namespace {
     pub(crate) context: String,
@@ -87,7 +87,6 @@ pub(crate) fn component(namespace: &str, name: &str, objects: &[&str]) -> Compil
             .collect(),
         inputs,
         dependencies: BTreeSet::new(),
-        extension_release: None,
     };
     let locked = lock_component(declaration, vec![prepared.clone()]).unwrap();
     let helm = CompiledHelmRelease::prepare(

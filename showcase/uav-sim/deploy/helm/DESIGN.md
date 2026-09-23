@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| Helm | Application chart with the repository `veoveo-extension` library API; JSON Schema draft 7 validates values |
+| Helm | Application chart with the repository `veoveo-common` library API; JSON Schema draft 7 validates values |
 | Kubernetes | Deployments, Services, networking policies and persistent claims for the simulator and recording forwarder; core/v1 immutable ConfigMap for the reviewed agent template |
 | Veoveo managed runtime | Kernel JSON manifest and DuckDB SQL memory migration; sorted-map SHA-256 binds exact ConfigMap data to an installation-approved runtime template |
 | Container delivery | Exact OCI runtime image digests in production; NVIDIA GPU allocation for the simulator |

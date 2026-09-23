@@ -251,7 +251,6 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
         "stream-compiler-startup" | "recording-fixture-finish" => &[],
         "helm-config"
-        | "external-simulation-fixture"
         | "profile-validate"
         | "profile-registry-up"
         | "profile-cluster-up"

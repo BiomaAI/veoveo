@@ -1,0 +1,84 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-deploy-contract",
+        "-p",
+        "veoveo-deploy-runtime",
+        "-p",
+        "veoveo-simulation-contract",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-mcp-contract",
+        "--locked"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-deploy-contract",
+          "veoveo-deploy-runtime",
+          "veoveo-simulation-contract",
+          "veoveo-xtask",
+          "veoveo-mcp-contract"
+        ],
+        "roots": [
+          "deploy",
+          "testing/fixtures",
+          "showcase",
+          "examples/bioma",
+          "configs",
+          "docker-bake.hcl",
+          "templates",
+          "sdk",
+          "tools/image-build",
+          "platform/runtimes/simulation"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "check",
+        "-p",
+        "veoveo-smoke",
+        "-p",
+        "veoveo-deployment-smoke",
+        "-p",
+        "veoveo-mcp-conformance",
+        "--all-targets",
+        "--locked"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-smoke",
+          "veoveo-deployment-smoke",
+          "veoveo-mcp-conformance"
+        ],
+        "roots": [
+          "deploy",
+          "testing/fixtures",
+          "showcase",
+          "examples/bioma",
+          "configs",
+          "docker-bake.hcl",
+          "templates",
+          "sdk",
+          "tools/image-build",
+          "platform/runtimes/simulation"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

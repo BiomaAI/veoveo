@@ -16881,12 +16881,13 @@ dependencies = [
  "anyhow",
  "jsonschema",
  "schemars 1.2.2",
+ "semver",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "tempfile",
+ "thiserror 2.0.20",
  "url",
- "veoveo-extension-contract",
 ]
 
 [[package]]
@@ -16904,7 +16905,6 @@ dependencies = [
  "tempfile",
  "url",
  "veoveo-deploy-contract",
- "veoveo-extension-contract",
  "veoveo-mcp-contract",
 ]
 
@@ -16922,10 +16922,10 @@ dependencies = [
  "tempfile",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
- "veoveo-extension-contract",
  "veoveo-image-build-control",
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
+ "veoveo-simulation-contract",
 ]
 
 [[package]]
@@ -16977,19 +16977,6 @@ dependencies = [
  "rustls",
  "serde_json",
  "tempfile",
-]
-
-[[package]]
-name = "veoveo-extension-contract"
-version = "0.1.0"
-dependencies = [
- "jsonschema",
- "schemars 1.2.2",
- "semver",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "url",
 ]
 
 [[package]]
@@ -17051,20 +17038,6 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-rrd",
  "veoveo-task-runtime",
-]
-
-[[package]]
-name = "veoveo-gateway-composer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "hex",
- "serde",
- "serde_json",
- "sha2 0.11.0",
- "tempfile",
- "veoveo-mcp-contract",
 ]
 
 [[package]]
@@ -17638,6 +17611,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-simulation-contract"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "veoveo-deploy-contract",
+]
+
+[[package]]
 name = "veoveo-smoke"
 version = "0.1.0"
 dependencies = [
@@ -17677,7 +17662,6 @@ dependencies = [
  "veoveo-agent-runtime",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
- "veoveo-extension-contract",
  "veoveo-image-build-control",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
@@ -17685,6 +17669,7 @@ dependencies = [
  "veoveo-recording-hub",
  "veoveo-recording-protocol",
  "veoveo-rrd",
+ "veoveo-simulation-contract",
  "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
 ]
@@ -18005,10 +17990,10 @@ dependencies = [
  "veoveo-computers-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
- "veoveo-extension-contract",
  "veoveo-image-build-control",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
+ "veoveo-simulation-contract",
  "veoveo-speech-contract",
 ]
 

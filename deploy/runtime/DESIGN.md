@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
+| `veoveo.io/deployment/v8` and `veoveo.io/deployment-lock/v8` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
 | `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
 | `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
 | `veoveo.io/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
@@ -142,7 +142,7 @@ These inputs contain public configuration and Secret names and keys, never Secre
 The installer consumes these compiled inputs directly. It does not reopen the current
 gateway document or substitute the current global GPU policy after rendering retained
 components. A native Git/Helm regression replaces and deletes a gateway configuration
-file, changes required Secret keys and rollout waits, refreshes only the extension's
+file, changes required Secret keys and rollout waits, refreshes only the workload's
 configuration, and verifies retained gateway requirements and owner-specific waits.
 This test performs no Kubernetes mutation or GPU execution.
 
@@ -190,7 +190,8 @@ records only the images consumed by each render. When candidates remain unused,
 publication renders again with the exact selection that installation will receive.
 That render must consume precisely the same images; template-dependent image expansion
 fails qualification. Platform and Veoveo-source values use
-their source's candidates; extension values can consume platform-owned images as well.
+their source's candidates. Other component images cannot enter through a separate
+values contract.
 Component publication accepts exact component IDs and a complete base lock through
 `cargo xtask release components`. At least one input must be supplied: an exact chart
 source commit, a configuration refresh, or qualified image evidence. Each omitted input
@@ -216,11 +217,11 @@ recorder captures command timing. Source association follows the declared eviden
 this does not add cryptographic publisher authentication. The receipt establishes lock
 composition, not live zero-write evidence. Development-lock promotion remains migration
 work. Native Git and Helm regressions cover chart-only, configuration-only, and combined
-updates in both directions between independent platform and extension repositories,
+updates in both directions between local component snapshots,
 with the unrequested repository absent. Retained configurations remain reproducible
 after current values files are replaced. These fixtures use synthetic image identities.
 The reserved source name `installation` identifies installation-owned inputs; a
-platform, workload, or extension source cannot use that name.
+platform or workload source cannot use that name.
 
 Raw resource application consumes the prepared objects. Helm receives a temporary
 chart whose only template emits the prepared manifests through `Files.Get`. The
@@ -427,3 +428,13 @@ This coordinates cooperating disposable profile commands across hosts and reposi
 It does not replace Kubernetes authorization, fence an administrator who deliberately
 removes the lock, or introduce an imperative owner for a Flux/Argo installation.
 Enterprise desired state retains its declared GitOps owner.
+
+## Working-Tree Configuration Checks
+
+The configuration smoke calls `profile_validate_working_tree` to inspect current
+source files before they are committed. It runs the same platform image selection,
+Bake and Helm checks against local paths without making snapshots or writing to a
+cluster. This result does not qualify a publication. `profile_validate`, release
+publication and installation still resolve immutable Git snapshots and check their
+input bytes. A source check must not silently validate the previous commit when the
+working tree contains a newly added workload.

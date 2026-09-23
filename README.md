@@ -628,7 +628,6 @@ current workflow and the planned GPU CI setup are described in
 | [`mcp/`](mcp/) | Shared MCP contracts, task and app extensions, and bridges. |
 | [`platform/`](platform/) | Gateway, persistence, task, artifact, recording, and query runtimes. |
 | [`servers/`](servers/) | Hosted MCP servers and their domain designs. |
-| [`extensions/`](extensions/) | Release, compatibility, and conformance contracts for externally owned extensions. |
 | [`sdk/`](sdk/) | Python SDK shared by showcase runtimes and external clients. |
 | [`templates/`](templates/) | Python MCP server template behind the datasheet server. |
 | [`showcase/uav-sim/`](showcase/uav-sim/) | Isaac, Cesium, Newton, CUDA Warp, and PX4 UAV workload. |

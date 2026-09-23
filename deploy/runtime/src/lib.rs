@@ -25,7 +25,9 @@ pub use cluster::{
     profile_cluster_delete, profile_cluster_stop, profile_cluster_up, profile_registry_up,
 };
 pub use compile::compile_component_lock;
-pub use profile::{profile_down, profile_gpu_verify, profile_up, profile_validate};
+pub use profile::{
+    profile_down, profile_gpu_verify, profile_up, profile_validate, profile_validate_working_tree,
+};
 pub use publication::{ComponentUpdates, update_components};
 
 #[cfg(test)]

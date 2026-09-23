@@ -54,7 +54,7 @@ pub(crate) fn validate_bake_selections(
                     platform_targets.iter().cloned().collect::<Vec<_>>(),
                 )]
             }
-            DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => source
+            DeploymentSourceRole::Workload => source
                 .definition
                 .image_groups
                 .iter()
@@ -96,7 +96,7 @@ pub(crate) fn validate_bake_selections(
             } else {
                 let group = bake_patterns
                     .first()
-                    .expect("extension and workload selections contain one group");
+                    .expect("workload selections contain one group");
                 definition
                     .group
                     .get(group)

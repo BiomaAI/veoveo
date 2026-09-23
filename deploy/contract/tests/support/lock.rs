@@ -3,8 +3,8 @@
 
 use std::collections::BTreeSet;
 
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 use veoveo_deploy_contract::{DeploymentSourceRole, LockedSource, components::*};
-use veoveo_extension_contract::{ArtifactDigest, ExtensionId, ReleaseVersion, SourceRevision};
 
 pub fn synthetic_catalog(
     sources: &[LockedSource],
@@ -77,7 +77,6 @@ pub fn synthetic_catalog(
         let role = match source.role {
             DeploymentSourceRole::Platform => ComponentRole::Platform,
             DeploymentSourceRole::Workload => ComponentRole::Workload,
-            DeploymentSourceRole::Extension => ComponentRole::Extension,
         };
         catalog.push(synthetic_component(owner, &installation, role, units));
     }
@@ -111,11 +110,6 @@ fn synthetic_component(
         } else {
             BTreeSet::from([INSTALLATION_SOURCE_NAME.to_owned().try_into().unwrap()])
         },
-        extension_release: (role == ComponentRole::Extension).then(|| ComponentExtensionRelease {
-            extension: ExtensionId::new("fixture.example").unwrap(),
-            version: ReleaseVersion::new("1.0.0").unwrap(),
-            manifest_digest: ArtifactDigest::new(format!("sha256:{}", "e".repeat(64))).unwrap(),
-        }),
     };
     let prepared = units
         .into_iter()

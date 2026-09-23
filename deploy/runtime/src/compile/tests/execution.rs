@@ -51,7 +51,7 @@ fn verify_retained_execution(
     activation.control_plane = "new-gateway.json".into();
     activation.confidential_secret = "new-credentials".into();
     activation.required_secret_keys = BTreeSet::from(["NEW_KEY".into()]);
-    definition.wait_for_deployments = vec!["extension".into()];
+    definition.wait_for_deployments = vec!["workload".into()];
     let mut control = control;
     control["metadata"]["fixture"] = json!("new");
     fs::remove_file(original.repository.join("old-gateway.json")).unwrap();
@@ -70,7 +70,7 @@ fn verify_retained_execution(
         "new configuration keeps retained gateway inputs",
     );
     let profile = LoadedProfile::load(&original.path, &original.repository).unwrap();
-    let extension = ComponentId::try_from("extension".to_owned()).unwrap();
+    let extension = ComponentId::try_from("workload".to_owned()).unwrap();
     let updated = crate::update_components(
         &profile,
         &base,

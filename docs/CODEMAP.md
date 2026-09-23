@@ -22,9 +22,8 @@ component:
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
-| [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, extensions, and acceptance |
-| [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) | contract for extensions built in separate private repositories: artifact ownership, compatibility manifests, and installation composition |
-| [`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md) | coding-agent runbook for native external build, conformance, private publication, gateway composition, and digest-pinned GitOps integration |
+| [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, fork workloads, and acceptance |
+| [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) | fork layout, reviewed upstream merges, local SDK development and installation ownership |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording datasets and layers, Artifact publication, Redap access, Arrow export, playback, disk safety, and the recording change checklist |
@@ -78,7 +77,6 @@ Component designs live beside the code whose contract they specify:
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
-| [`mcp/composer/DESIGN.md`](../mcp/composer/DESIGN.md) | offline external gateway fragment/binding composition, requirements, and deterministic provenance |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
@@ -90,7 +88,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | retained-home journal/ext4 backend, private worker mTLS service and Docker plugin; shared-mount restart and physical writer handoff |
 | [`platform/computers/host/DESIGN.md`](../platform/computers/host/DESIGN.md) | private compute-host container: daemon, provider and storage process order, retained local state and installation trust |
 | [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, cross-replica revocation and rollout into renewable Computer grants |
-| [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | shared hardware-GPU Isaac Sim and Isaac Lab runtime, selected extension profile, and conformance probes |
+| [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | shared hardware-GPU Isaac Sim and Isaac Lab runtime, pinned dependency profile, and conformance probes |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and data import/export |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
@@ -163,12 +161,12 @@ designs above.
 | `deploy/contract/src/components/bindings.rs` | full-catalog profile permissions and source/image/chart binding checks, including retained unselected inventories |
 | `deploy/contract/tests/fixtures/` and `tests/support/lock.rs` | explicitly synthetic deployment locks for schema and development-image transformation checks; real installation locks are generated outputs |
 | `deploy/contract/src/gateway_bundle.rs` | public gateway ConfigMap content digest shared by disposable gateway activation and GitOps acceptance |
-| `deploy/contract/src/image_release.rs` | image publication records shared by the publisher and compatibility generator, with build revisions and separate runnable and attested digests |
+| `deploy/contract/src/artifacts/` | validated source revisions, artifact coordinates, versions and SHA-256 digests |
+| `platform/runtimes/simulation/contract/` | typed simulation build locks, GPU results and release qualification |
+| `deploy/contract/src/image_release.rs` | image publication records used by component publication, with build revisions and separate runnable and attested digests |
 | `deploy/contract/src/locked_images.rs` | retained qualified image versions, unique source/target repository ownership, and unambiguous build provenance |
 | `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
-| `extensions/contract/` | typed external artifact, compatibility-manifest, extension-release, simulation build-lock/result/evidence, and schema contracts |
-| `extensions/examples/` | anonymous external fragment and installation-binding examples |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
 | `AGENTS.md` | contract evolution, provider recovery, dependency qualification, GPU evidence, type/module, and test-harness rules |
 | `docs/` | general architecture, code index, recording design, and rendered publications |
@@ -301,23 +299,23 @@ designs above.
 | `testing/browser-smoke/src/browser/artifact_upload/resume.rs` | continuation of an interrupted large-upload acceptance fixture with the same upload identity, independent SHA-256, and public HEAD/Range checks |
 | `testing/browser-smoke/src/browser/artifact_upload/ux.rs` | installed upload keyboard/clipboard actions, receipt recovery behind filters, narrow/desktop transfer/error states, and acknowledged cancellation |
 | `platform/gateway/src/bin/gateway/admin/console/artifact.rs` | direct artifact detail lookup outside the latest catalog window |
-| `deploy/helm/veoveo-extension/` | private reusable extension-chart helper API and immutable chart package source |
+| `deploy/helm/common/` | internal labels, image pins, security and GPU helpers bundled into application charts |
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
 | `examples/bioma/acceptance/src/pilot_consolidation.rs` | installation-only shared UAV definition cutover, with atomic drain checks and retained identity and memory acceptance |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | pinned Flux controller fixture for the local Bioma cluster; it is installed before the installation's desired state, and Veoveo's runtime does not own it |
-| `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |
+| `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and workload Helm releases, and installation-owned edge resources |
 | `examples/bioma/gateway.json` | the reference installation's complete control plane: 16-server MCP catalog, OAuth clients, policy rules, and routes |
 | [`examples/bioma/acceptance/`](../examples/bioma/acceptance/DESIGN.md) | owner-local compiled composition checks and the retained-pilot ownership migration; native record and volume recovery rehearsals |
 | `sdk/python/` | Python platform package for hosted MCP servers |
 | `templates/python-mcp/` | Python server template (`datasheet`) |
-| `testing/fixtures/extension-helm-consumer/` | anonymous cross-release Helm library acceptance fixture |
-| `testing/fixtures/external-extension-installation/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
-| `testing/fixtures/external-simulation-extension/` | isolated contract-only Python simulation extension with typed camera and render-product declarations; it is not visual GPU evidence |
-| `testing/fixtures/external-simulation-installation/` | independent platform/extension source composition, installation-owned gateway binding, and contract-only simulation deployment closure |
-| `deploy/contract/tests/multi_repository.rs` | anonymous acceptance using independent platform, extension, and installation Git histories with one combined deployment lock |
+| `testing/fixtures/chart-library-consumer/` | anonymous cross-release Helm library acceptance fixture |
+| `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
+| `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |
+| `testing/fixtures/fork-installation/` | local fork workload selection, complete gateway configuration and protocol-only deployment closure |
+| `deploy/contract/tests/fork_installation.rs` | downstream workload, reviewed upstream merge, retained image revision and separate installation configuration |
 | `deploy/contract/tests/component_ownership.rs` | pure component selection, unchanged dependencies, mixed-release rejection, previous Helm inventory checks, and immutable input ownership tests |
 | `deploy/contract/tests/component_reuse.rs` and `tests/support/components.rs` | independent Git-history input reuse, content-based upgrade decisions, and shared atomic component fixtures; these tests do not execute Kubernetes mutations |
 | `deploy/contract/tests/source_chart_content.rs` | real Git-history and separate-checkout chart identity tests, export-attribute coverage, executable modes, and source path boundaries |
@@ -337,7 +335,6 @@ crate belongs beside the system it implements; Rust is not an architectural boun
 |---|---|
 | `servers/` | a hosted MCP server with its own protocol surface, deployment image, and domain behavior |
 | `mcp/` | protocol contracts, transport extensions, or bridges shared by more than one server |
-| `extensions/` | cross-cutting contracts and reference material for independently owned extension repositories |
 | `platform/` | internal control/data-plane services, durable stores, and reusable execution runtimes |
 | `agents/` | autonomous agent behavior or durable agent scheduling |
 | `apps/` | a user-facing application and its application-specific backend |
@@ -410,13 +407,6 @@ even when that server is first-party.
 | `protocol.rs` | sole final MCP revision, shared cache lifetimes, and W3C trace metadata validation |
 | `transport.rs` | stateless Streamable HTTP configuration, no-session adapter, and the 8 MiB whole-response JSON limit |
 | `telemetry.rs` | tracing/log initialization and guards; explicit blocking OTLP/HTTP clients for OS-thread batch export |
-
-### `mcp/composer`
-
-Owns the offline `gateway-compose` native/OCI command. It reads matched anonymous or
-private extension fragments and installation bindings, calls the pure contract
-composer, and writes one ordinary validated control plane plus requirements and
-path-free content provenance.
 
 ### `platform/recordings/rrd`
 

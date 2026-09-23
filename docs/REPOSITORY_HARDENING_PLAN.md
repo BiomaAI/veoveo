@@ -1,5 +1,11 @@
 # Repository Hardening And Verification Plan
 
+The extension-release sections below record an earlier design. The accepted
+[Fork Development](FORK_DEVELOPMENT.md) model supersedes external source packages,
+compatibility manifests, gateway fragments/bindings and a separately published Helm
+library. Current removal and qualification work is in
+[FORK_DEVELOPMENT_PLAN.md](FORK_DEVELOPMENT_PLAN.md).
+
 Status: approved implementation direction.
 
 This document consolidates the repository hardening, compiled tooling, contract
@@ -29,8 +35,8 @@ profiles:
 | `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; Streamable HTTP verification uses protocol version `2026-07-28` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v7` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v7` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
+| `veoveo.io/deployment/v8` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v8` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
 | `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
 | `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
@@ -1066,7 +1072,7 @@ Deployment profiles add a second graph invariant. The typed platform selection a
 gateway requirements resolve the exact Veoveo-owned OCI image closure. Validation and
 profile publication derive that closure as one multi-target Bake invocation before
 building or pushing. The platform source has no handwritten image group, and validation
-rejects both omitted and unnecessary targets. `external-extension-platform` remains a
+rejects both omitted and unnecessary targets. `domain-platform` remains a
 convenient direct-build group for Artifact, Frames, Map, Media, Recording, and
 producer-side RRD transport. It is not a second profile-selection authority. These
 images remain separate services and are never copied into an extension or simulation

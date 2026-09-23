@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "global",
+    "image",
+    "service",
+    "liveView",
+    "resources",
+    "networkPolicy"
+  ],
+  "properties": {
+    "veoveo-common": {
+      "type": "object"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "tag",
+        "digest"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "const": "latest"
+          }
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        }
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "port"
+      ],
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        }
+      }
+    },
+    "liveView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publicStreamUrl",
+        "authorizationSeconds"
+      ],
+      "properties": {
+        "publicStreamUrl": {
+          "type": "string",
+          "pattern": "^wss?://[^@]+$"
+        },
+        "authorizationSeconds": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 86400
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "minLength": 1
+            },
+            "memory": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "minLength": 1
+            },
+            "memory": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dnsNamespaceSelector"
+      ],
+      "properties": {
+        "dnsNamespaceSelector": {
+          "type": "object",
+          "minProperties": 1
+        }
+      }
+    },
+    "global": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installationId",
+        "production",
+        "veoveoRegistry",
+        "veoveoTag",
+        "imageDigests",
+        "imagePullSecrets",
+        "existingSecret",
+        "gpuPlacement"
+      ],
+      "properties": {
+        "installationId": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "production": {
+          "type": "boolean"
+        },
+        "imageDigests": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        },
+        "imagePullSecrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "gpuPlacement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "enabled",
+            "claimName",
+            "runtimeClassName",
+            "evidenceDigest",
+            "workloadRequests",
+            "workloadReplicas"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "claimName": {
+              "type": "string"
+            },
+            "runtimeClassName": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "workloadRequests": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "workloadReplicas": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        "veoveoRegistry": {
+          "type": "string"
+        },
+        "veoveoTag": {
+          "type": "string",
+          "not": {
+            "const": "latest"
+          }
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

@@ -21,7 +21,6 @@ catalog. They have different membership rules and must not be treated as one sur
 | HTTP GET, HEAD, and single byte ranges | Governed artifact preview and download data plane through the installation origin. Object-store URLs are private implementation detail. |
 | [RFC 6838 media types](https://www.rfc-editor.org/rfc/rfc6838.html) and registered structured syntax suffixes | Portable starting point for format matching. A `+json` suffix carries more reliable generic meaning than a filename or a substring test. |
 | [RFC 8288 Web Linking](https://www.rfc-editor.org/rfc/rfc8288.html) and the [IANA Link Relation registry](https://www.iana.org/assignments/link-relations/) | Existing relation vocabulary includes `preview`, `edit`, `edit-media`, `alternate`, and `describedby`. Those relations name intent but do not provide App discovery, authorization, ranking, or launch semantics. |
-| `veoveo.io/gateway-server-fragment/v1` and `veoveo.io/gateway-binding/v1` | Current installation-owned path for adding an external hosted MCP server and its Apps. |
 
 ## Executive Finding
 
@@ -364,11 +363,11 @@ domain object, or perform a governed import whose result points back to the sour
 | F07 | Timeseries emits `application/vnd.veoveo.rerun-rrd`; the Console Rerun viewer requires exact `application/vnd.rerun.rrd`. | [`forecast.rs`](../servers/timeseries-mcp/src/forecast.rs), [`ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx) |
 | F08 | App descriptors contain presentation, tools, dependencies, and agent targets, but no accepted artifact formats or actions. | [`apps.rs`](../apps/console/bff/src/apps.rs), [`models.rs`](../mcp/apps-extension/src/models.rs) |
 | F09 | Console and standalone App routes identify only an App, with no artifact launch context. | [`App.tsx`](../apps/console/web/src/App.tsx), [`app_host.rs`](../apps/console/bff/src/app_host.rs) |
-| F10 | Installation owners can add Apps through external server fragments and bindings without changing Console source. | [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md), [`anonymous.gateway-fragment.json`](../extensions/examples/anonymous.gateway-fragment.json), [`anonymous.gateway-binding.json`](../extensions/examples/anonymous.gateway-binding.json) |
-| F11 | Console users cannot register arbitrary files or viewers. Artifact MCP has no put tool, and App registration is installation-owned. | [`DESIGN.md`](../servers/artifact-mcp/DESIGN.md), [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) |
+| F10 | Installation owners register Apps through the complete gateway control plane. | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md), [`gateway.rs`](../mcp/contract/src/gateway.rs) |
+| F11 | Console users cannot register arbitrary files or viewers. Artifact MCP has no put tool, and App registration is installation-owned. | [`DESIGN.md`](../servers/artifact-mcp/DESIGN.md), [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) |
 | F12 | The Map workspace can inspect and import a manually entered authorized artifact ID, proving an existing App-side artifact operation without catalog handoff. | [`workspace-app.html`](../servers/map-mcp/assets/workspace-app.html), [`transfers.rs`](../servers/map-mcp/src/contract/transfers.rs) |
 | F13 | The App resource bridge is capped at 2 MiB and cross-server dependencies require a non-root URI family, so it is not a generic large-artifact byte path. | [`apps.rs`](../apps/console/bff/src/apps.rs), [`validation.rs`](../mcp/contract/src/gateway/validation.rs) |
-| F14 | External producers can use the artifact plane only through installation-admitted platform capability and artifact audience. | [`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md), [`composition.rs`](../mcp/contract/src/gateway/composition.rs) |
+| F14 | External producers can use the artifact plane only through installation-admitted platform capability and artifact audience. | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md), [`composition.rs`](../mcp/contract/src/gateway/composition.rs) |
 | F15 | Stored MIME validation is too shallow to serve as the sole trusted handler key. | [`service.rs`](../platform/artifacts/service/src/service.rs) |
 | F16 | The embedded Rerun preview downloads the complete RRD before opening it, unlike recording-scoped lazy playback. | [`GovernedRerunArtifactViewer.tsx`](../apps/console/web/src/components/GovernedRerunArtifactViewer.tsx), [`GovernedRerunViewer.tsx`](../apps/console/web/src/components/GovernedRerunViewer.tsx) |
 | F17 | MCP Apps `2026-01-26` supplies UI and tool linkage but no generic artifact-handler declaration. | [`MCP Apps design`](../mcp/apps-extension/DESIGN.md), [SEP-1865](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) |
@@ -416,5 +415,4 @@ The shortest repository paths for continued investigation are:
   [`apps/console/bff/src/apps.rs`](../apps/console/bff/src/apps.rs),
   [`apps/console/web/src/apps/bridge.ts`](../apps/console/web/src/apps/bridge.ts),
   [`apps/console/web/src/App.tsx`](../apps/console/web/src/App.tsx);
-- external registration: [`EXTERNAL_EXTENSIONS.md`](EXTERNAL_EXTENSIONS.md) and
-  [`EXTERNAL_REPOSITORY_INTEGRATION.md`](EXTERNAL_REPOSITORY_INTEGRATION.md).
+- registration: [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md).

@@ -1,0 +1,6 @@
+dependencies:
+- name: veoveo-common
+  repository: file://../../../deploy/helm/common
+  version: 0.1.0
+digest: sha256:74f36009f1b57418963ed6ba21b28959cecf86203355db76f02f8e893ba5f079
+generated: "2026-09-23T11:50:54.631532144-06:00"

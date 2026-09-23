@@ -4,19 +4,18 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v7` | installation-repository profile with exact platform targets, independently versioned workload and extension sources, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v7` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
+| `veoveo.io/deployment/v8` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v8` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
 | `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
-| `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by publication and compatibility generation |
+| `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by component publication |
 | `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
 | `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
 | `veoveo.io/component-installation/v2` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
 | `veoveo.io/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
-| `veoveo.io/atomic-deployment-unit/v2` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
-| `veoveo.io/atomic-deployment-content/v2` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions and extension release provenance excluded; used only after exact lock validation |
+| `veoveo.io/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
+| `veoveo.io/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
 | `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
-| `veoveo.io/extension-release/v1` and Semantic Versioning 2.0.0 | component references retain the extension ID, exact release version, and manifest digest using the shared extension contract's validated types |
-| Docker Buildx Bake | one exact multi-target platform build plus source-owned workload and extension groups |
+| Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
 | Kubernetes Ingress `networking.k8s.io/v1` | TLS Secret references |
@@ -38,7 +37,7 @@ disposable profile installer. It consumes this crate's contracts and digest enco
 ## Atomic Ownership Planner
 
 `src/components/` implements the pure preflight boundary for `DEPLOY-SCOPE-023`.
-The disposable profile compiler and installer consume deployment v7 with mandatory
+The disposable profile compiler and installer consume deployment v8 with mandatory
 component ownership and compiled inventories. Installation requires explicit full or
 component selection and expands declared dependencies before source resolution. The
 runtime uses typed local receipts to verify reuse and feeds checked installed observations
@@ -47,8 +46,7 @@ The internal planner is not an alternative installer or an enterprise mutation o
 
 Each component declares its immutable source, role, dependencies, exact Helm release
 identities or explicit manifest sets, namespaces, permitted objects, and complete input
-closure. Extension components also carry an exact extension-release identity. Source
-revisions and artifact digests use the existing extension contract's validated types.
+closure. Source revisions and artifact digests use this crate's validated artifact types.
 The SHA-256 implementation uses `sha2 =0.11.0`, the latest stable version verified from
 the [upstream crate release metadata](https://crates.io/api/v1/crates/sha2) on September 7,
 2026. This adds no new algorithm or wire digest format.
@@ -75,8 +73,8 @@ files must belong to that snapshot. The runtime verifies the document and refere
 files against Git before rendering. A retained component can therefore use an older
 configuration even when the current profile has replaced a values file. Configuration
 revisions participate in exact provenance; unchanged configuration contents do not force
-a mutation. The v7 migration now requires this field and v2 unit digests. Earlier
-generated locks require regeneration; no omitted-field default is supported.
+a mutation. Deployment v8 requires this field and v3 unit digests. Earlier generated locks require
+regeneration; no omitted-field default is supported.
 
 The runtime resolves source charts by the component's complete source identity. The
 top-level source revision records publication resolution; it cannot replace a retained
@@ -88,7 +86,7 @@ source-qualified target owner. Repeating a build revision is ambiguous and fails
 validation. Each component input binds the exact version, including when two builds have
 identical runnable bytes. Runnable and attested publication digests remain distinct.
 
-Profile binding checks every owner's role, dependencies, extension identity, namespaces,
+Profile binding checks every owner's role, dependencies, namespaces,
 atomic operations, and cluster permissions. Namespaced permissions come from the complete
 locked inventory. These checks also cover unselected owners without evaluating their
 templates or cloning their repositories. Source origin and actual selected input bytes
@@ -111,14 +109,13 @@ prerequisites; otherwise the dependency must be reachable in the declared graph.
 Selection names exact component IDs and expands dependencies in deterministic order.
 The renderer supplies every expanded atomic target and must not render unselected
 targets. Preflight compares each complete rendering with the lock. Its unit digest binds
-source identity, extension identity, target, complete inputs, and sorted object digests.
+source identity, target, complete inputs, and sorted object digests.
 An omitted input or changed object cannot reuse a previous digest. Catalog validation
 also recomputes stored unit digests instead of trusting them.
 
 Each unit also records a content digest. This digest retains the component ID and role,
-source name and repository, atomic target, extension ID, complete input contents, and
-sorted object digests. It omits source revisions and the extension release version and
-manifest digest. Any release metadata that affects deployment must enter the actual
+source name and repository, atomic target, complete input contents, and
+sorted object digests. It omits source revisions. Any release metadata that affects deployment must enter the actual
 input closure or rendered objects. Input projections are sorted after removing revisions,
 and identical projections are deduplicated. The full unit digest preserves all exact
 provenance for lock validation and receipts. Both digests must match the desired render
@@ -152,8 +149,7 @@ does not prove that current objects match a unit digest.
 `ComponentMutationPlan` contains source identities, object digests, planned verbs, and
 unselected object identities. It contains no manifests or Secret values. Its unselected
 inventory describes the ownership boundary; it is not zero-write evidence. Focused tests
-prove selection and rejection rules. Independent temporary platform and extension Git
-histories exercise revision reuse and committed input reads in the pure planner. Actual
+prove selection and rejection rules. Temporary component Git checkouts exercise revision reuse and committed input reads in the pure planner. Actual
 execution receipts and the independent native request observer belong to the runtime
 and deployment smoke harness respectively.
 
@@ -197,8 +193,8 @@ The installation repository owns the profile, registry selection, Kubernetes
 destination, pre-Helm resources, and `installationValues` files. Each named source owns
 its repository, independently resolved revision, source chart, `sourceValues`, and
 non-platform Bake groups. Exactly one source has the `platform` role. Separately
-selected Veoveo applications use `workload`; independently owned integrations use
-`extension`. Their values contracts remain distinct.
+selected applications use `workload`. All source paths select local fork checkouts;
+publication does not fetch independently declared Git repositories.
 
 Profile loading validates declarations and installation-owned files. It defers source
 filesystem checks to immutable snapshot resolution. The selected source footprint
@@ -281,7 +277,7 @@ removal of a conflicting device plugin. Validation accepts only the qualified
 `registry.address` with `registry.pushAddress` and `registry.pullAddress`, then
 regenerates its lock.
 
-The platform resolver expands `full`, `extension-foundation`, or a typed custom
+The platform resolver expands `full`, `foundation`, or a typed custom
 selection. Gateway composition requirements fail closed against that graph. Artifact,
 Frames, Map, Media, Optimization, Recording, and RRD requirements select their actual
 hosted server and infrastructure dependencies; portable composition tools do not link
@@ -332,7 +328,7 @@ and MIG DeviceClasses are implementation details selected by the installation. M
 time slicing adds opaque driver configuration and requires its own evidence digest;
 exclusive groups permit one consumer only.
 
-Simulation applications are separate workload or extension sources. Each owns its
+Simulation applications are separate workload sources. Each owns its
 domain MCP server, authoritative simulator, logical cameras, one native GPU product per
 streamable camera, shared H.264 fanout, stream endpoint, and GPU request. The
 platform supplies only the selected shared services and canonical runtime support. It
@@ -361,7 +357,7 @@ topology, requires Computers control and contributes the `computer-host` and
 host/trust references and retained storage placement remain installation-owned values;
 the chart rejects incomplete references. Unconfigured control requires only its own
 service image. The additive selection field retains an explicit unconfigured default
-for existing v7 profiles and locks, without changing their installed capacity.
+for v8 profiles and locks, without changing their installed capacity.
 
 Operational tools derive the platform source targets from the exact typed selection and
 resolve them in one Bake invocation. Platform profiles do not repeat that set through a
@@ -369,7 +365,7 @@ named image group. Other sources retain ordered repository-owned groups. Pure co
 validation rejects a target selected twice by one source, an OCI reference claimed by
 two sources, an omitted platform target, or an unnecessary platform target. The
 immutable lock also rejects repositories and Helm release identities owned by more than
-one source. An extension cannot satisfy platform closure by copying a first-party
+one source. A workload cannot satisfy platform closure by copying a first-party
 target name.
 
 Local installation consumes that lock as an explicit input. The installer requires the
@@ -378,20 +374,25 @@ untracked profile inputs. It checks out each recorded source revision, confirms 
 normalized source origin, recomputes every source-chart content digest, and compares the
 locked image repositories with the exact Bake selection. Helm applies source values
 first and installation values second. Platform and Veoveo-source values contracts
-receive only their chart-owning source's digest map. An extension values contract
-receives the complete, collision-checked deployment image closure, which lets a separate
-release consume a platform-owned support image without copying or republishing it. The
-platform chart's closed image schema never receives extension image keys, and the lock
-retains one source owner for every repository. The installer does not resolve mutable
-source expressions during installation.
+receive only their chart-owning source's digest map. Cross-release image imports do
+not bypass source ownership. The installer does not resolve mutable source expressions
+during installation.
 
-The acceptance test creates independent platform, extension, and installation Git
-repositories, resolves distinct commits, loads installation-owned Helm values from the
-installation repository, validates the source-qualified exact image plan, and produces
-one combined lock. It does not introduce an installation coordinator or prescribe the
-extension's build system.
+The fork acceptance test creates a downstream workload, merges a subsequent upstream
+change and loads installation-owned values from a separate configuration repository.
+It validates a source-qualified image plan and preserves the earlier build revision
+of an unchanged platform image.
 
 `agent-runtime-support` includes the generic kernel and the separate lifecycle-manager
 image. A template installation contributes its isolated namespace, admission policies,
 RBAC and network policies to the owning Helm unit. Creating an agent changes none of
 those installation artifacts and builds no image.
+
+## Version Transition
+
+Deployment v8 removes extension-release metadata, remote source declarations and the
+extension-specific Helm values contract. Unit and content digests use v3 encodings.
+The coordinated installation upgrade regenerates profiles and locks; v7 profile
+headers fail with a regeneration diagnostic before obsolete fields are decoded.
+Retained image/chart digests and the prior configuration commit provide deployment
+recovery. This metadata cut does not convert application database contents.

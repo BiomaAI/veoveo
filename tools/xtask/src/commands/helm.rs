@@ -9,7 +9,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
-use veoveo_extension_contract::{EXTENSION_HELM_LIBRARY_API, ReleaseVersion};
+use veoveo_deploy_contract::ReleaseVersion;
 
 use crate::process;
 
@@ -19,7 +19,6 @@ mod rollout_tests;
 const EVIDENCE_SCHEMA: &str = "veoveo.io/helm-chart-release-evidence/v1";
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, clap::ValueEnum)]
 pub(crate) enum Chart {
-    VeoveoExtension,
     Veoveo,
     UavSim,
 }
@@ -27,7 +26,6 @@ pub(crate) enum Chart {
 impl Chart {
     fn definition(self) -> (&'static str, &'static str) {
         match self {
-            Self::VeoveoExtension => ("veoveo-extension", "deploy/helm/veoveo-extension"),
             Self::Veoveo => ("veoveo", "deploy/helm/veoveo"),
             Self::UavSim => ("uav-sim", "showcase/uav-sim/deploy/helm"),
         }
@@ -36,9 +34,7 @@ impl Chart {
 
 fn selected_charts(selection: &[Chart]) -> BTreeSet<Chart> {
     if selection.is_empty() {
-        [Chart::VeoveoExtension, Chart::Veoveo, Chart::UavSim]
-            .into_iter()
-            .collect()
+        [Chart::Veoveo, Chart::UavSim].into_iter().collect()
     } else {
         selection.iter().copied().collect()
     }
@@ -109,16 +105,6 @@ pub(crate) fn build(
 
     let workspace = TempDir::new().context("creating Helm release workspace")?;
     let selected = selected_charts(selection);
-    if selected.contains(&Chart::VeoveoExtension) {
-        let library_chart =
-            fs::read_to_string(source.join("deploy/helm/veoveo-extension/Chart.yaml"))?;
-        ensure!(
-            library_chart.contains(&format!(
-                "veoveo.ai/library-api: {EXTENSION_HELM_LIBRARY_API}"
-            )),
-            "extension Helm chart must declare library API {EXTENSION_HELM_LIBRARY_API}"
-        );
-    }
     let mut artifacts = Vec::with_capacity(selected.len());
     for selected in selected {
         let (name, relative) = selected.definition();

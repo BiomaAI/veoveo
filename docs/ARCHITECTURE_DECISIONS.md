@@ -5,6 +5,11 @@ implementation must follow. It is normative. Component designs may change, but
 changing one of these decisions requires an explicit replacement decision, not a
 quiet compatibility path.
 
+Developers customize Veoveo in a fork and integrate upstream changes through reviewed
+merges. The [fork development model](FORK_DEVELOPMENT.md) owns this workflow.
+Application images and charts can deploy independently; source customization uses
+the repository's ordinary component modules and existing runtime authorization.
+
 ## Standards And Protocols
 
 | Boundary | Profile |
@@ -101,7 +106,7 @@ repository credentials exist, and it cannot install, upgrade, or delete that
 controller. Direct Helm and other GitOps controllers use the same charts and
 configuration.
 
-The platform chart and each independently deployable MCP extension chart reconcile
+The platform chart and each independently deployable MCP workload chart reconcile
 as separate applications. Once a customer-authored extension's image and chart are
 published, it needs nothing from Veoveo's build system. Its gateway registration
 still uses the standard control-plane, internal-trust, policy, audit, task, artifact,

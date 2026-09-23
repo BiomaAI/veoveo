@@ -25,7 +25,7 @@ Job identity and avoids attempting to patch an immutable Pod template. The name 
 keeps its digest suffix, including when the Helm release name is long.
 
 `installationPreset` chooses which first-party components deploy. `full` selects every
-supported component, `extension-foundation` selects the platform foundation
+supported component, `foundation` selects the platform foundation
 with Artifact MCP, Frames MCP, and Recording MCP, and `custom` consumes the typed
 `components` and `mcpServers` arrays. The chart owns the concrete image, port, probe,
 argument, storage, and GPU definitions for every first-party server under
@@ -171,7 +171,7 @@ fails the mount when the ConfigMap or key is absent. The BFF fails startup when 
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
 store and the projected Kubernetes API root; certificate verification stays on.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
-bundle at startup. A deployment/v7 installation places these values in a file selected
+bundle at startup. A deployment/v8 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 ### Embedded Rerun maps

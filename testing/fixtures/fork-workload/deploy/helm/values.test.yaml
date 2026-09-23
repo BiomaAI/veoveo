@@ -1,0 +1,8 @@
+global:
+  production: true
+  veoveoRegistry: registry.example.internal
+  imageDigests:
+    veoveo/anonymous-simulation-mcp: sha256:1111111111111111111111111111111111111111111111111111111111111111
+
+liveView:
+  publicStreamUrl: wss://simulation.example/anonymous-simulation/live

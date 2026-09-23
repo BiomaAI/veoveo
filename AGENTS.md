@@ -9,15 +9,14 @@ document moves, a component is added, or an ownership boundary changes.
 
 A design document belongs beside the code it governs: an MCP server's at
 `servers/{server}-mcp/DESIGN.md`, and other contract-bearing components (the
-gateway composer, conformance, extensions, deploy contract, simulation runtime,
+gateway, conformance, deploy contract, simulation runtime,
 templates) keep a `DESIGN.md` in their own directory the same way.
 Repository-wide architecture stays under `docs/`.
 
 The active tree is wider than `servers/` and `docs/`: `platform/` holds the
 gateway and runtimes, `agents/` the kernel and durable runtime, `mcp/` shared
 contracts and bridges, `apps/console` the Console and shared browser edge,
-`apps/workspace` the productivity client, `extensions/` external
-extension contracts, `examples/bioma` the enterprise GitOps reference,
+`apps/workspace` the productivity client, `examples/bioma` the enterprise GitOps reference,
 `showcase/` the simulator workloads, `testing/` conformance and smoke,
 `sdk/` and `templates/` the Python surface, `tools/` xtask and screenshots,
 and `deploy/` installation material. `docs/CODEMAP.md` indexes all of it.
@@ -144,7 +143,7 @@ keep their documented mechanism until a replacement is implemented and qualified
 
 ## MCP Server Contract
 
-Every hosted MCP server and registered extension complies with the normative
+Every hosted MCP server complies with the normative
 server contract in [`mcp/contract/DESIGN.md`](mcp/contract/DESIGN.md): the full
 protocol surface for the domain, the canonical schema profile, the shared
 runtime boundary, packaging and registration, the well-known docs and contract

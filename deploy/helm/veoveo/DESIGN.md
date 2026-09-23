@@ -35,7 +35,7 @@ model ceilings. Provider execution and public browser acceptance remain separate
 
 ## Computers Control
 
-The `full` and `extension-foundation` presets include `computers`. A custom partial
+The `full` and `foundation` presets include `computers`. A custom partial
 installation selects it through `mcpServers` and must also select `gateway` and
 `platform-store`. The deployment contract expands the same selections and includes
 the `computers-mcp` image. Compute-host images belong to the selected capacity

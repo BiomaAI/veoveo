@@ -37,12 +37,12 @@ every change here must keep the template a complete, working reference.
 
 ## Build And Test
 
-- `uv sync --locked --all-extras` against the installation's configured
-  private index (`UV_DEFAULT_INDEX`), then `uv run pytest`.
+- Run `uv sync --locked --all-extras` and `uv run --locked --all-extras pytest`
+  from this directory. The SDK resolves from `../../sdk/python`.
 - Task-runtime integration tests use the SurrealDB container fixture from the
   `veoveo-mcp` SDK test suite; docs, engine, and schema tests run offline.
-- The container builds from `templates/python-mcp/Dockerfile`; the repository
-  image build with the workspace SDK lives in `tools/image-build/datasheet`.
+- The root Bake target uses `templates/python-mcp/Dockerfile` with the repository
+  root as build context and the local SDK installed without editable paths.
 - Helm material is the `datasheet-mcp` domain service in
   `deploy/helm/veoveo`; the gateway binding is the `datasheet` server entry
   in the typed catalog.

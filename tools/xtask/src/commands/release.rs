@@ -1,6 +1,5 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ffi::OsString,
     fs,
     io::Write,
     path::{Path, PathBuf},
@@ -13,7 +12,7 @@ use veoveo_deploy_contract::{
     DEPLOYMENT_LOCK_SCHEMA, DEVELOPMENT_IMAGE_LOCK_SCHEMA, DeploymentLock, DeploymentSource,
     DeploymentSourceRole, DevelopmentImageLock, DevelopmentImageOrigin, DevelopmentLockedImage,
     IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence, LoadedProfile, LockedChart, LockedImage,
-    LockedRegistry, LockedSource, PlannedImage, RegistryTransport, SourceRepository,
+    LockedRegistry, LockedSource, PlannedImage, RegistryTransport,
 };
 use veoveo_deploy_runtime::{compile_component_lock, lock_source_charts};
 
@@ -84,12 +83,12 @@ struct PreparedSourceRelease {
 }
 
 use crate::{
-    ImageDevelopmentLockArgs, ImageStageArgs, ReleaseCompatibilityArgs, ReleaseHelmChartsArgs,
-    ReleaseImagesArgs, ReleasePythonSdkArgs, ReleaseSimulationRuntimeArgs,
+    ImageDevelopmentLockArgs, ImageStageArgs, ReleaseHelmChartsArgs, ReleaseImagesArgs,
+    ReleaseSimulationRuntimeArgs,
     commands::{
-        builder, compatibility as compatibility_release, helm,
+        builder, helm,
         image::{self, OutputMode, Selection},
-        image_manifest, python, registry as registry_command, simulation,
+        image_manifest, registry as registry_command, simulation,
         source::PublicationSource,
     },
     context::RepositoryContext,
@@ -158,28 +157,6 @@ pub(crate) fn simulation_runtime(
     Ok(())
 }
 
-pub(crate) fn compatibility(
-    repository: &RepositoryContext,
-    args: &ReleaseCompatibilityArgs,
-) -> Result<()> {
-    let publication = PublicationSource::prepare(repository, &args.revision)?;
-    let output_root = if args.output_dir.is_absolute() {
-        args.output_dir.clone()
-    } else {
-        repository.root().join(&args.output_dir)
-    };
-    let output = output_root.join(publication.revision()).join(&args.release);
-    compatibility_release::generate(
-        repository.root(),
-        publication.path(),
-        publication.revision(),
-        args,
-        &output,
-    )?;
-    println!("Compatibility release bundle: {}", output.display());
-    Ok(())
-}
-
 pub(crate) fn helm_charts(
     repository: &RepositoryContext,
     args: &ReleaseHelmChartsArgs,
@@ -233,45 +210,6 @@ fn validate_helm_release_version(version: &str, revision: &str, tags: &str) -> R
         "untagged Helm revision {revision} cannot publish bare version {version}; use a revision-qualified pre-release such as {version}-{} or tag the release commit",
         revision.chars().take(12).collect::<String>()
     );
-    Ok(())
-}
-
-pub(crate) fn python_sdk(
-    repository: &RepositoryContext,
-    args: &ReleasePythonSdkArgs,
-) -> Result<()> {
-    let publication = PublicationSource::prepare(repository, &args.revision)?;
-    let artifacts = python::build_and_verify(publication.path())?;
-    let output_root = if args.output_dir.is_absolute() {
-        args.output_dir.clone()
-    } else {
-        repository.root().join(&args.output_dir)
-    };
-    let output = output_root.join(publication.revision());
-    let published = python::write_release_bundle(&artifacts, publication.revision(), &output)?;
-
-    if let Some(publish_url) = &args.publish_url {
-        python::validate_publish_url(publish_url)?;
-        if let Some(check_url) = &args.check_url {
-            python::validate_index_url(check_url)?;
-        }
-        let mut publish_args = vec![
-            OsString::from("publish"),
-            OsString::from("--publish-url"),
-            OsString::from(publish_url),
-        ];
-        if let Some(check_url) = &args.check_url {
-            publish_args.push(OsString::from("--check-url"));
-            publish_args.push(OsString::from(check_url));
-        }
-        if args.dry_run {
-            publish_args.push(OsString::from("--dry-run"));
-        }
-        publish_args.extend(published.distributions.iter().map(OsString::from));
-        crate::process::status("uv", publish_args, Some(repository.root()))?;
-    }
-
-    println!("Python SDK release bundle: {}", output.display());
     Ok(())
 }
 
@@ -576,7 +514,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
     });
     let evidence = ImageReleaseEvidence {
         schema_version: IMAGE_RELEASE_EVIDENCE_SCHEMA.into(),
-        source_revision: veoveo_extension_contract::SourceRevision::new(publication.revision())?,
+        source_revision: veoveo_deploy_contract::SourceRevision::new(publication.revision())?,
         registry: registry.clone(),
         images,
     };
@@ -741,10 +679,7 @@ fn prepare_profile_source(
     platform_targets: &BTreeSet<String>,
     publications: &mut BTreeMap<(PathBuf, String), Arc<PublicationSource>>,
 ) -> Result<PreparedSourceRelease> {
-    let source_root = match &source.repository {
-        SourceRepository::Local { .. } => working_profile.local_source_root(source)?,
-        SourceRepository::Git { url } => prepare_remote_repository(repository, url)?,
-    };
+    let source_root = working_profile.local_source_root(source)?;
     let source_repository = RepositoryContext::discover(&source_root).with_context(|| {
         format!(
             "discovering repository for deployment source {}",
@@ -785,7 +720,7 @@ fn prepare_profile_source(
             "exact-platform".to_owned(),
             Selection::exact("exact-platform", platform_targets.iter().cloned())?,
         )],
-        DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => source
+        DeploymentSourceRole::Workload => source
             .image_groups
             .iter()
             .map(|group| Ok((group.clone(), Selection::group(group)?)))
@@ -1015,7 +950,7 @@ fn lock_published_images(
             Ok(LockedImage {
                 name,
                 repository: translate_registry(&push_repository, push_registry, pull_registry)?,
-                source_revision: veoveo_extension_contract::SourceRevision::new(revision)?,
+                source_revision: veoveo_deploy_contract::SourceRevision::new(revision)?,
                 digest: digests.runtime,
                 publication_digest: digests.publication,
             })
@@ -1205,43 +1140,6 @@ fn profile_location(
     Ok((repository, candidate, relative))
 }
 
-fn prepare_remote_repository(repository: &RepositoryContext, url: &str) -> Result<PathBuf> {
-    let normalized = crate::commands::source::normalize_origin(url)?;
-    let identity = hex::encode(Sha256::digest(normalized.as_bytes()));
-    let directory = repository
-        .root()
-        .join("target/veoveo-xtask/remotes")
-        .join(identity);
-    let checkout = directory.join("repository");
-    fs::create_dir_all(&directory)
-        .with_context(|| format!("creating remote source cache {}", directory.display()))?;
-    if checkout.exists() {
-        ensure!(
-            checkout.join(".git").is_dir(),
-            "remote source cache {} is not a Git repository",
-            checkout.display()
-        );
-        let context = RepositoryContext::discover(&checkout)?;
-        ensure!(
-            context.origin()? == normalized,
-            "remote source cache origin differs from profile source {normalized}"
-        );
-        crate::process::status("git", ["fetch", "--prune", "origin"], Some(&checkout))?;
-    } else {
-        crate::process::status(
-            "git",
-            [
-                "clone",
-                "--no-checkout",
-                normalized.as_str(),
-                path_text(&checkout)?,
-            ],
-            Some(repository.root()),
-        )?;
-    }
-    Ok(checkout)
-}
-
 fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<()> {
     let _timing = image::operation::span(image::operation::Phase::ReceiptWrite);
     let parent = path
@@ -1277,11 +1175,6 @@ fn write_create_only_json(path: &Path, value: &impl serde::Serialize) -> Result<
     file.write_all(b"\n")?;
     file.sync_all()?;
     Ok(())
-}
-
-fn path_text(path: &Path) -> Result<&str> {
-    path.to_str()
-        .with_context(|| format!("path is not valid UTF-8: {}", path.display()))
 }
 
 fn absolute_output(repository: &RepositoryContext, path: &Path) -> PathBuf {
@@ -1399,8 +1292,7 @@ mod tests {
     fn committed_external_profile_does_not_revalidate_working_local_sources() {
         let repository = RepositoryContext::discover(Path::new(env!("CARGO_MANIFEST_DIR")))
             .expect("discover repository");
-        let relative =
-            Path::new("testing/fixtures/external-simulation-installation/deployment.json");
+        let relative = Path::new("testing/fixtures/fork-installation/deployment.json");
         let working_path = repository.root().join(relative);
         let working = veoveo_deploy_contract::LoadedProfile::load(&working_path, repository.root())
             .expect("load validated working profile");

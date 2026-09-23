@@ -27,7 +27,7 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/BiomaAI/veoveo/blob/main/docs/EXTERNAL_EXTENSIONS.md"
+Documentation = "https://github.com/BiomaAI/veoveo/blob/main/docs/FORK_DEVELOPMENT.md"
 Repository = "https://github.com/BiomaAI/veoveo"
 
 [project.optional-dependencies]

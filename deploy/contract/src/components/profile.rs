@@ -4,7 +4,7 @@ use anyhow::{Context, Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{ComponentExtensionRelease, ComponentId, ComponentRole, ObjectIdentity};
+use super::{ComponentId, ComponentRole, ObjectIdentity};
 use crate::{DeploymentProfile, DeploymentSourceRole};
 
 /// Repository whose immutable revision supplies the component declaration.
@@ -70,7 +70,6 @@ pub struct ProfileComponent {
     pub cluster_objects: BTreeSet<ObjectIdentity>,
     pub releases: BTreeSet<String>,
     pub installation_inputs: BTreeSet<InstallationInput>,
-    pub extension_release: Option<ComponentExtensionRelease>,
 }
 
 /// Exact release footprint of an already expanded selection. Installation-only
@@ -149,10 +148,6 @@ pub fn validate_profile_components(
             "component {} owns no deployment operation",
             component.id
         );
-        ensure!(
-            (component.role == ComponentRole::Extension) == component.extension_release.is_some(),
-            "exact extension release identity is required only for extension components"
-        );
         match &component.owner {
             ComponentOwner::Installation => {
                 ensure!(
@@ -171,7 +166,6 @@ pub fn validate_profile_components(
                 let role = match source.role {
                     DeploymentSourceRole::Platform => ComponentRole::Platform,
                     DeploymentSourceRole::Workload => ComponentRole::Workload,
-                    DeploymentSourceRole::Extension => ComponentRole::Extension,
                 };
                 ensure!(
                     component.role == role,

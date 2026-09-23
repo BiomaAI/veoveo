@@ -211,8 +211,8 @@ fn bioma_compute_host_admits_every_control_plane_template() {
 #[test]
 fn chart_publication_metadata_preserves_every_bioma_pod_template() {
     for (chart, name, extension, expected_pods) in [
-        ("deploy/helm/veoveo", "veoveo", false, 20),
-        ("showcase/uav-sim/deploy/helm", "uav-sim", true, 6),
+        ("deploy/helm/veoveo", "veoveo", false, 22),
+        ("showcase/uav-sim/deploy/helm", "uav-sim", true, 2),
     ] {
         let directory = tempfile::tempdir().unwrap();
         let mut renders = Vec::new();
@@ -376,6 +376,14 @@ fn each_release_receives_exactly_its_consumed_image_digests() {
         let mut consumed = std::collections::BTreeSet::new();
         for object in render(&repository().join(chart), extension, &[]) {
             images(&object, &mut consumed);
+            // The manager launches runtime images from its JSON template catalog.
+            // They are consumed at instance creation, outside this chart's Pod fields.
+            if object["kind"] == "ConfigMap" && object["metadata"]["name"] == "veoveo-agent-manager"
+            {
+                let config: Value =
+                    serde_json::from_str(object["data"]["manager.json"].as_str().unwrap()).unwrap();
+                images(&config, &mut consumed);
+            }
             // The private host pulls its default guest image from installation
             // configuration. It is a runnable dependency outside Pod image fields.
             if object["kind"] == "Deployment" && object["metadata"]["name"] == "computer-host" {

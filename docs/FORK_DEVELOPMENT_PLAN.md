@@ -23,19 +23,19 @@ selection and immutable image reuse remain part of the build and deploy system.
 
 ## Implementation
 
-- [ ] Move reusable artifact and simulation types out of the extension contract.
-- [ ] Convert the extension Helm library into internal shared chart helpers without
+- [x] Move reusable artifact and simulation types out of the extension contract.
+- [x] Convert the extension Helm library into internal shared chart helpers without
   changing resource names, selectors, ownership or security settings.
-- [ ] Remove extension compatibility/release manifests, their publication commands,
+- [x] Remove extension compatibility/release manifests, their publication commands,
   standalone gateway composition, and extension-only schemas and fixtures.
-- [ ] Simplify source publication around the fork checkout; keep installation
+- [x] Simplify source publication around the fork checkout; keep installation
   configuration and retained per-image build revisions explicit.
-- [ ] Make in-repository Python development and image builds the documented path.
+- [x] Make in-repository Python development and image builds the documented path.
 - [ ] Add downstream migration identities to the existing store runner, preserving
   upstream history and rejecting drift, missing dependencies and ambiguous ordering.
-- [ ] Qualify downstream customization followed by an upstream merge with native
+- [x] Qualify downstream customization followed by an upstream merge with native
   tooling and isolated fixtures.
-- [ ] Replace extension integration documentation and update component designs,
+- [x] Replace extension integration documentation and update component designs,
   the code map, architecture decisions and contributor instructions.
 - [ ] Record affected checks, build affected artifacts, deploy through Bioma GitOps
   and verify installed user journeys and workload health.
@@ -60,3 +60,31 @@ upstream change without producing an extension-specific release artifact. Protoc
 authorization and GPU tests qualify the behavior they own. An unrelated component
 deployment leaves pilot and simulator workloads untouched. Implementation and
 deployment measurements will be recorded as each stage completes.
+
+## Implementation Measurements
+
+The initial removal moves artifact identity types to `deploy/contract` and simulation
+qualification to `platform/runtimes/simulation/contract`. Application charts bundle
+`deploy/helm/common`. A comparison against the prior source commit rendered 90 platform
+objects and 10 UAV objects with identical resource bodies, including pod templates and
+selectors. The extension release and compatibility publishers, gateway composer and
+private-index fixture are removed. The Python template now owns its only image build.
+
+Native Python checks completed in 1.22 s for the protocol fixture and 3.46 s for the
+template. Deployment/runtime checks passed; eight tests require an explicit live-cluster
+profile and remain separate integration acceptance. Two release-tool tests had stale
+workload counts and omitted the managed-agent image inside the manager configuration;
+the checks now account for that deployment model.
+
+Disk inspection found 281 GiB free before testing and roughly 276 GiB afterward.
+Docker's age-filtered dangling-image prune reclaimed no bytes. Active build caches and
+running workloads were preserved. Python commands use `--directory`: `--project` alone
+leaves pytest in the repository root and caused an avoidable broad collection during
+this work. Stable commands are recorded only after implementation stops changing their
+inputs to avoid stale receipts and repeated recorder overhead.
+
+The full affected source suite passed 429 tests, with nine explicitly ignored
+integration checks. Repository Python enforcement passed 120 tests against the local
+SDK. Helm configuration smoke validates current working-tree files; immutable source
+publication remains a separate check. This removes temporary Git clones from that
+pre-commit smoke and avoids inspecting the previous commit's fixture paths.

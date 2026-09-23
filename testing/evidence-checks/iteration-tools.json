@@ -22,7 +22,7 @@
           "apps/console/bff",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -50,7 +50,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -78,7 +78,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -107,7 +107,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -134,7 +134,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -160,7 +160,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -186,7 +186,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -212,7 +212,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]
@@ -245,7 +245,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma"
         ]

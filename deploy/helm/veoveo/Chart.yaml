@@ -9,6 +9,6 @@ annotations:
   veoveo.ai/platform-store: surrealdb-3.2.4-single-node-rocksdb
   veoveo.ai/database-ha: out-of-scope
 dependencies:
-  - name: veoveo-extension
+  - name: veoveo-common
     version: 0.1.0
-    repository: file://../veoveo-extension
+    repository: file://../common

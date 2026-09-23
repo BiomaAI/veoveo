@@ -25,13 +25,13 @@
     "computerCapacity"
   ],
   "properties": {
-    "veoveo-extension": {
+    "veoveo-common": {
       "type": "object"
     },
     "installationPreset": {
       "enum": [
         "full",
-        "extension-foundation",
+        "foundation",
         "custom"
       ]
     },

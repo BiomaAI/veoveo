@@ -1,7 +1,7 @@
 //! Native Git and Helm checks for publication without rebuilding images.
 use super::*;
+use veoveo_deploy_contract::SourceRevision;
 use veoveo_deploy_contract::{DeploymentLock, components::*};
-use veoveo_extension_contract::SourceRevision;
 
 #[test]
 fn chart_and_configuration_publication_preserves_unrequested_owners_and_images() {
@@ -19,7 +19,7 @@ fn verify_publication(
         .into_iter()
         .enumerate()
     {
-        for (owner, other) in [("platform", "extension"), ("extension", "platform")] {
+        for (owner, other) in [("platform", "workload"), ("workload", "platform")] {
             let setting = format!("{step}-{owner}");
             if configuration {
                 for source in &mut definition.sources {
@@ -170,8 +170,8 @@ fn verify_publication(
     );
     let mut updates = crate::ComponentUpdates {
         source_revisions: BTreeMap::from([(
-            "extension".into(),
-            SourceRevision::new(git(&roots["extension"], &["rev-parse", "HEAD"])).unwrap(),
+            "workload".into(),
+            SourceRevision::new(git(&roots["workload"], &["rev-parse", "HEAD"])).unwrap(),
         )]),
         ..Default::default()
     };
@@ -185,7 +185,7 @@ fn verify_publication(
     let path = roots["platform"].join("chart/templates/workload.yaml");
     let text = fs::read_to_string(&path)
         .unwrap()
-        .replace("name: {{ .Release.Name }}", "name: extension");
+        .replace("name: {{ .Release.Name }}", "name: workload");
     fs::write(&path, text).unwrap();
     updates.source_revisions = BTreeMap::from([(
         "platform".into(),

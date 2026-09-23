@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, fs, path::Path, process::Command};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use veoveo_deploy_contract::components::*;
-use veoveo_extension_contract::{ArtifactDigest, ReleaseVersion, SourceRevision};
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 
 #[path = "support/components.rs"]
 mod support;
@@ -159,7 +159,7 @@ fn independent_git_revisions_reuse_unchanged_artifacts_and_dependencies() {
     let platform_repository = Repository::new("platform");
     let extension_repository = Repository::new("extension");
     let previous_platform = platform_repository.locked("platform", ComponentRole::Platform);
-    let previous_extension = extension_repository.locked("extension", ComponentRole::Extension);
+    let previous_extension = extension_repository.locked("extension", ComponentRole::Workload);
     assert_ne!(
         previous_platform.declaration.source.revision,
         previous_extension.declaration.source.revision
@@ -281,32 +281,13 @@ fn different_immutable_revisions_may_contain_different_versions_of_a_shared_inpu
         .collect();
     next.units[0].inputs = next.declaration.inputs.clone();
     let next = relock(&next);
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension
         .declaration
         .inputs
         .extend(previous.declaration.inputs);
     extension.units[0].inputs = extension.declaration.inputs.clone();
     validate_component_catalog(&[next, relock(&extension)]).unwrap();
-}
-
-#[test]
-fn extension_release_provenance_alone_does_not_force_an_upgrade() {
-    let previous = fixture("extension", ComponentRole::Extension);
-    let mut next = previous.clone();
-    let release = next.declaration.extension_release.as_mut().unwrap();
-    release.version = ReleaseVersion::new("1.0.1").unwrap();
-    release.manifest_digest = digest('f');
-    let next = relock(&next);
-    assert_ne!(next.units[0].digest, previous.units[0].digest);
-    let plan = component_mutation_plan(
-        std::slice::from_ref(&next),
-        &BTreeSet::from([id("extension")]),
-        &prepared(&next),
-        &observed(&previous),
-    )
-    .unwrap();
-    assert_eq!(plan.mutations[0].verb, ComponentMutationVerb::Unchanged);
 }
 
 #[test]

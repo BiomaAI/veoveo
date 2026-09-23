@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
+use veoveo_deploy_contract::SourceRevision;
 use veoveo_deploy_contract::{KubernetesObjectKey, components::*};
-use veoveo_extension_contract::SourceRevision;
 
 #[path = "support/components.rs"]
 mod support;
@@ -57,7 +57,7 @@ fn checked_inventory_without_reusable_provenance_requires_application() {
 #[test]
 fn stored_helm_inventory_keeps_retired_objects_inside_the_original_owner() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let extension = fixture("extension", ComponentRole::Extension);
+    let extension = fixture("extension", ComponentRole::Workload);
     let catalog = [platform.clone(), extension.clone()];
     let target = &platform.units[0].target;
     let mut retired = platform.units[0].objects[0].identity.clone();
@@ -114,7 +114,7 @@ fn stored_helm_inventory_keeps_retired_objects_inside_the_original_owner() {
 #[test]
 fn platform_only_image_update_has_no_extension_mutation() {
     let previous = fixture("platform", ComponentRole::Platform);
-    let extension = fixture("extension", ComponentRole::Extension);
+    let extension = fixture("extension", ComponentRole::Workload);
     let mut next = previous.clone();
     next.declaration.inputs = next
         .declaration
@@ -152,7 +152,7 @@ fn platform_only_image_update_has_no_extension_mutation() {
 #[test]
 fn extension_update_expands_platform_dependency_without_upgrading_it() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let previous = fixture("extension", ComponentRole::Extension);
+    let previous = fixture("extension", ComponentRole::Workload);
     let mut extension = previous.clone();
     extension.declaration.dependencies.insert(id("platform"));
     extension.units[0].objects[0].digest = digest('f');
@@ -184,7 +184,7 @@ fn extension_update_expands_platform_dependency_without_upgrading_it() {
 #[test]
 fn exact_selection_rejects_empty_unknown_and_unselected_renders() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let extension = fixture("extension", ComponentRole::Extension);
+    let extension = fixture("extension", ComponentRole::Workload);
     let catalog = [platform.clone(), extension.clone()];
     assert_error(
         select_components(&catalog, &BTreeSet::new()),
@@ -212,14 +212,14 @@ fn duplicate_component_release_and_reserved_object_ownership_fail_closed() {
         validate_component_catalog(&[platform.clone(), platform.clone()]),
         "duplicate component",
     );
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension.declaration.targets = platform.declaration.targets.clone();
     extension.units[0].target = platform.units[0].target.clone();
     assert_error(
         validate_component_catalog(&[platform.clone(), relock(&extension)]),
         "atomic target",
     );
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension
         .declaration
         .permitted_objects
@@ -242,7 +242,7 @@ fn served_api_versions_do_not_create_different_object_owners() {
     let mut later = object.clone();
     later.version = "v2".into();
     let mut platform = fixture("platform", ComponentRole::Platform);
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     platform
         .declaration
         .permitted_objects
@@ -265,7 +265,7 @@ fn missing_dependency_and_cycles_are_rejected_before_selection() {
         select_components(&[platform.clone()], &BTreeSet::from([id("platform")])),
         "missing dependency",
     );
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension.declaration.dependencies.insert(id("platform"));
     assert_error(
         select_components(&[platform, extension], &BTreeSet::from([id("platform")])),
@@ -369,7 +369,7 @@ fn matching_stored_digest_does_not_hide_object_drift() {
 #[test]
 fn previous_helm_inventory_cannot_delete_another_owners_object() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let extension = fixture("extension", ComponentRole::Extension);
+    let extension = fixture("extension", ComponentRole::Workload);
     let mut observations = observed(&platform);
     let ObservedUnitState::Present { objects, .. } = &mut observations[0].state else {
         unreachable!()
@@ -417,7 +417,7 @@ fn namespaces_cluster_objects_secrets_and_lists_require_explicit_ownership() {
 #[test]
 fn a_component_cannot_hide_mixed_ownership_inside_one_release() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let extension = fixture("extension", ComponentRole::Extension);
+    let extension = fixture("extension", ComponentRole::Workload);
     let mut renders = prepared(&platform);
     renders[0]
         .objects
@@ -485,13 +485,7 @@ fn raw_manifest_set_is_an_explicit_atomic_target() {
 }
 
 #[test]
-fn extension_identity_is_mandatory_and_typed() {
-    let mut extension = fixture("extension", ComponentRole::Extension);
-    extension.declaration.extension_release = None;
-    assert_error(
-        lock_component(extension.declaration.clone(), prepared(&extension)),
-        "extension release identity",
-    );
+fn component_identity_is_typed() {
     assert!(serde_json::from_str::<ComponentId>("\"ALL*\"").is_err());
     assert!(serde_json::from_str::<ComponentId>("\"\"").is_err());
     let schema = serde_json::to_value(schemars::schema_for!(ComponentId)).unwrap();
@@ -503,7 +497,7 @@ fn extension_identity_is_mandatory_and_typed() {
 #[test]
 fn source_identity_conflicts_are_rejected_without_exposing_credentials() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension.declaration.inputs.insert(ComponentInput::File {
         source: ComponentSource {
             repository: "https://example.invalid/different-source.git".into(),
@@ -531,7 +525,7 @@ fn source_identity_conflicts_are_rejected_without_exposing_credentials() {
 #[test]
 fn shared_inputs_retain_one_immutable_content_and_image_owner() {
     let platform = fixture("platform", ComponentRole::Platform);
-    let mut extension = fixture("extension", ComponentRole::Extension);
+    let mut extension = fixture("extension", ComponentRole::Workload);
     extension
         .declaration
         .inputs
@@ -564,7 +558,7 @@ fn shared_inputs_retain_one_immutable_content_and_image_owner() {
         "conflicting locked contents",
     );
 
-    let mut copied_owner = fixture("extension", ComponentRole::Extension);
+    let mut copied_owner = fixture("extension", ComponentRole::Workload);
     copied_owner.declaration.inputs = copied_owner
         .declaration
         .inputs

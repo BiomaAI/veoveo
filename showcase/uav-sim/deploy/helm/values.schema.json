@@ -21,7 +21,7 @@
     "networkPolicy"
   ],
   "properties": {
-    "veoveo-extension": {
+    "veoveo-common": {
       "type": "object"
     },
     "global": {

@@ -185,7 +185,7 @@ claims:
 {{- $config := $root.Values.stream.recordingOutput.forwarder -}}
 {{- $image := $config.image -}}
 {{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
-{{- include "veoveo-extension.recordingForwarder" (dict
+{{- include "veoveo-common.recordingForwarder" (dict
     "image" (dict
       "repository" $image.repository
       "tag" (default $image.tag $root.Values.global.veoveoTag)

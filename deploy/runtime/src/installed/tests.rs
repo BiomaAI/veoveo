@@ -6,7 +6,7 @@ use crate::{
     process::{output_checked, status_checked},
 };
 use serde_json::json;
-use veoveo_extension_contract::SourceRevision;
+use veoveo_deploy_contract::SourceRevision;
 
 mod planning;
 

@@ -24,14 +24,11 @@ complies with in its crate documents and in its contract resource.
 | JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; controlled gateway, fragment, binding, and provenance schemas remain typed |
 | W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
 | OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with installation or governed managed-client registrations, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; OAuth Dynamic Client Registration is excluded |
-| `veoveo.io/gateway-server-fragment/v1` | extension-owned server capabilities and platform requirements |
-| `veoveo.io/gateway-binding/v1` | installation-owned exposure, policy, artifact audience, and recording producer declarations |
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
 | Veoveo upload assertion | EdDSA JWT with `artifact-upload` audience and signed control-plane/context digests; restricted to the HTTP upload service |
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
 | Veoveo internal `request_context` | Signed source principal and verified access-token metadata, including OAuth client and optional session family; contains no bearer value and grants no independent renewal permission |
 | Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
-| `veoveo.io/gateway-composition-provenance/v1` | exact input/output SHA-256 identities and contributed-object summaries |
 | `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 
@@ -342,12 +339,11 @@ session locality is never a reason for singleton deployment.
 
 A server ships as an OCI image with a versioned Helm chart. Its gateway entry
 is registered in the typed control plane with its routes and capabilities, and
-states the contract revision the server complies with. An external server
-publishes a `gateway-server-fragment/v1`; an installation grants exposure and
-policy only through a separate `gateway-binding/v1`. The offline composer
-emits an ordinary validated control plane. Extensions follow this pattern
-without adopting Veoveo's source build; the mechanics are in
-[`docs/EXTERNAL_EXTENSIONS.md`](../../docs/EXTERNAL_EXTENSIONS.md).
+states the contract revision the server complies with. Developers add hosted servers
+inside their Veoveo fork and update the complete control-plane configuration.
+Installation policy controls exposure and authority. Remote MCP integrations continue
+through the supported gateway and bridge contracts. See
+[`docs/FORK_DEVELOPMENT.md`](../../docs/FORK_DEVELOPMENT.md).
 
 ## Well-Known Surface
 

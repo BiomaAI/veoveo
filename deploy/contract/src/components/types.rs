@@ -1,9 +1,9 @@
 use std::{collections::BTreeSet, fmt};
 
+use crate::{ArtifactDigest, SourceRevision};
 use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_extension_contract::{ArtifactDigest, ExtensionId, ReleaseVersion, SourceRevision};
 
 use crate::{KubernetesObjectKey, validate_name};
 
@@ -46,7 +46,6 @@ impl fmt::Display for ComponentId {
 pub enum ComponentRole {
     Platform,
     Workload,
-    Extension,
     Installation,
 }
 
@@ -125,14 +124,6 @@ pub enum ComponentInput {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct ComponentExtensionRelease {
-    pub extension: ExtensionId,
-    pub version: ReleaseVersion,
-    pub manifest_digest: ArtifactDigest,
-}
-
 /// Ownership declaration resolved from a deployment profile into its immutable lock.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -146,7 +137,6 @@ pub struct DeploymentComponent {
     pub permitted_objects: BTreeSet<ObjectIdentity>,
     pub inputs: BTreeSet<ComponentInput>,
     pub dependencies: BTreeSet<ComponentId>,
-    pub extension_release: Option<ComponentExtensionRelease>,
 }
 
 /// Object inventories are retained for unselected owners without rendering them.

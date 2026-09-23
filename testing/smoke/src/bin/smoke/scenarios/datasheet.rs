@@ -12,7 +12,7 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     if !template_dir.is_dir() {
         bail!("datasheet smoke must run from the repository root");
     }
-    let image_project_dir = Path::new("tools/image-build/datasheet");
+    let image_project_dir = template_dir;
     if !image_project_dir.is_dir() {
         bail!("datasheet image-build project is missing");
     }

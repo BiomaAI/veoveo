@@ -2,9 +2,9 @@
 
 use std::collections::BTreeMap;
 
+use crate::ArtifactDigest;
 use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
-use veoveo_extension_contract::ArtifactDigest;
 
 /// Hashes every public ConfigMap data key and its exact UTF-8 value using the
 /// length-prefixed `veoveo.io/gateway-activation/v1` encoding.

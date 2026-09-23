@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v7",
+  "schemaVersion": "veoveo.io/deployment/v8",
   "name": "sumo",
   "registry": {
     "pushAddress": "127.0.0.1:5001",
@@ -114,7 +114,7 @@
       "reason",
       "datasheet"
     ],
-    "externalWorkloads": [
+    "workloads": [
       "sumo-simulator"
     ],
     "gpuScheduling": null
@@ -152,8 +152,7 @@
         "namespace",
         "node-bootstrap",
         "gateway-activation"
-      ],
-      "extensionRelease": null
+      ]
     },
     {
       "id": "veoveo",
@@ -172,8 +171,7 @@
       "releases": [
         "veoveo"
       ],
-      "installationInputs": [],
-      "extensionRelease": null
+      "installationInputs": []
     },
     {
       "id": "sumo",
@@ -193,8 +191,7 @@
       "releases": [
         "sumo"
       ],
-      "installationInputs": [],
-      "extensionRelease": null
+      "installationInputs": []
     }
   ]
 }

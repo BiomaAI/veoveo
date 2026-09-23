@@ -12,6 +12,7 @@ name = "gitops_convergence"
 harness = false
 
 [dependencies]
+veoveo-simulation-contract.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 hex.workspace = true
@@ -22,7 +23,6 @@ sha2.workspace = true
 tempfile.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-deploy-runtime.workspace = true
-veoveo-extension-contract.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract.workspace = true
 

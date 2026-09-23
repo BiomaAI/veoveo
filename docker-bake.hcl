@@ -104,7 +104,7 @@ group "platform-full" {
   ]
 }
 
-group "external-extension-platform" {
+group "domain-platform" {
   targets = [
     "mcp-gateway",
     "artifact-service",
@@ -118,7 +118,7 @@ group "external-extension-platform" {
   ]
 }
 
-group "external-simulation-platform" {
+group "simulation-platform" {
   targets = [
     "mcp-gateway",
     "artifact-service",
@@ -128,7 +128,7 @@ group "external-simulation-platform" {
   ]
 }
 
-group "external-simulation-extension-fixture" {
+group "fork-workload-fixture" {
   targets = ["anonymous-simulation-mcp"]
 }
 
@@ -152,8 +152,8 @@ group "showcase-uav-sim-overlay-acceptance" {
   targets = ["uav-sim-runtime", "simulation-overlay-acceptance"]
 }
 
-group "extension-support" {
-  targets = ["mcp-conformance", "gateway-composer"]
+group "protocol-tools" {
+  targets = ["mcp-conformance"]
 }
 
 target "base" {
@@ -502,18 +502,6 @@ target "mcp-conformance" {
   }
 }
 
-target "gateway-composer" {
-  inherits   = ["_rust-trixie-runtime"]
-  dockerfile = "mcp/composer/Dockerfile"
-  tags       = [image_ref("gateway-composer")]
-  labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-gateway-composer"
-    "io.veoveo.build.binaries"  = "gateway-compose"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
-  }
-}
 
 target "agent-manager" {
   inherits   = ["_rust-trixie-runtime"]
@@ -641,7 +629,7 @@ target "speech-dependencies" {
 
 target "datasheet-mcp" {
   inherits   = ["base"]
-  dockerfile = "tools/image-build/datasheet/Dockerfile"
+  dockerfile = "templates/python-mcp/Dockerfile"
   tags       = [image_ref("datasheet-mcp")]
 }
 
@@ -713,18 +701,18 @@ target "simulation-runtime" {
 
 target "anonymous-simulation-mcp" {
   context    = "."
-  dockerfile = "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp"
+  dockerfile = "testing/fixtures/fork-installation/Dockerfile.anonymous-simulation-mcp"
   platforms  = ["linux/amd64"]
   tags = [
     format(
-      "%sextensions/anonymous-simulation-mcp:%s",
+      "%sveoveo/anonymous-simulation-mcp:%s",
       VEOVEO_REGISTRY != "" ? format("%s/", VEOVEO_REGISTRY) : "",
       VEOVEO_IMAGE_TAG,
     ),
   ]
   labels = {
     "org.opencontainers.image.title" = "Anonymous simulator-hosted live-view conformance fixture"
-    "io.veoveo.extension.role"       = "authoritative-simulation"
+    "io.veoveo.workload.role"       = "authoritative-simulation"
   }
 }
 

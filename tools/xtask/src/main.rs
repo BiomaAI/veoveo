@@ -85,7 +85,7 @@ struct TestReportVerifyArgs {
 enum EnforceScope {
     /// Run Rust formatting, linting, tests, and documentation checks.
     Rust,
-    /// Run the locked Python SDK and released-package template checks.
+    /// Run the locked local SDK and in-repository Python checks.
     Python,
 }
 
@@ -135,14 +135,10 @@ enum ReleaseCommand {
     Images(ReleaseImagesArgs),
     /// Compose exact component chart, configuration, and qualified image updates.
     Components(ReleaseComponentsArgs),
-    /// Build, verify, and optionally publish the Python SDK.
-    PythonSdk(ReleasePythonSdkArgs),
     /// Build, verify, and optionally publish the private Helm chart set.
     HelmCharts(ReleaseHelmChartsArgs),
     /// Publish paired hardware evidence for the canonical simulation runtime.
     SimulationRuntime(ReleaseSimulationRuntimeArgs),
-    /// Generate one compatibility release from immutable publication evidence.
-    Compatibility(ReleaseCompatibilityArgs),
 }
 
 #[derive(Debug, Args)]
@@ -406,25 +402,6 @@ struct ReleaseComponentsArgs {
 }
 
 #[derive(Debug, Args)]
-struct ReleasePythonSdkArgs {
-    /// Exact Git revision or ref to resolve.
-    #[arg(long)]
-    revision: String,
-    /// Parent directory for the revision-addressed release bundle.
-    #[arg(long, default_value = "output/releases/python-sdk")]
-    output_dir: PathBuf,
-    /// Private Python package upload endpoint. Credentials come from UV_PUBLISH_*.
-    #[arg(long)]
-    publish_url: Option<String>,
-    /// Private simple-index URL used to skip an artifact that already exists.
-    #[arg(long, requires = "publish_url")]
-    check_url: Option<String>,
-    /// Validate the upload without changing the package index.
-    #[arg(long, requires = "publish_url")]
-    dry_run: bool,
-}
-
-#[derive(Debug, Args)]
 struct ReleaseHelmChartsArgs {
     /// Chart to publish; repeat for an exact set. Omit to publish all charts.
     #[arg(long, value_enum)]
@@ -465,37 +442,6 @@ struct ReleaseSimulationRuntimeArgs {
     anonymous_result: PathBuf,
     /// Parent directory for revision- and version-addressed release bundles.
     #[arg(long, default_value = "output/releases/simulation-runtime")]
-    output_dir: PathBuf,
-}
-
-#[derive(Debug, Args)]
-struct ReleaseCompatibilityArgs {
-    /// Exact Veoveo source revision that owns the compatibility release.
-    #[arg(long)]
-    revision: String,
-    /// Semantic compatibility release identity.
-    #[arg(long)]
-    release: String,
-    /// Semantic Veoveo platform version.
-    #[arg(long)]
-    platform_version: String,
-    /// Python SDK release-evidence JSON.
-    #[arg(long)]
-    python_evidence: PathBuf,
-    /// Credential-free private Python artifact base using python://.
-    #[arg(long)]
-    python_artifact_base: String,
-    /// OCI Helm release-evidence JSON.
-    #[arg(long)]
-    helm_evidence: PathBuf,
-    /// Extension-support image release-evidence JSON.
-    #[arg(long)]
-    image_evidence: PathBuf,
-    /// Optional published simulation-runtime release evidence.
-    #[arg(long)]
-    simulation_evidence: Option<PathBuf>,
-    /// Revision-addressed compatibility release output parent.
-    #[arg(long, default_value = "output/releases/compatibility")]
     output_dir: PathBuf,
 }
 
@@ -569,12 +515,10 @@ fn main() -> Result<()> {
                     release::components::publish(&repository, &args)
                 })
             }
-            ReleaseCommand::PythonSdk(args) => release::python_sdk(&repository, &args),
             ReleaseCommand::HelmCharts(args) => release::helm_charts(&repository, &args),
             ReleaseCommand::SimulationRuntime(args) => {
                 release::simulation_runtime(&repository, &args)
             }
-            ReleaseCommand::Compatibility(args) => release::compatibility(&repository, &args),
         },
         Command::Smoke(args) => smoke::run(&repository, &args.arguments),
         Command::TestReport { command } => match command {

@@ -9,6 +9,7 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+veoveo-simulation-contract.workspace = true
 bytes.workspace = true
 futures.workspace = true
 anyhow.workspace = true
@@ -45,7 +46,6 @@ uuid.workspace = true
 veoveo-agent-runtime = { path = "../../agents/runtime" }
 veoveo-deploy-contract.workspace = true
 veoveo-deploy-runtime.workspace = true
-veoveo-extension-contract.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract = { path = "../../mcp/contract" }
 veoveo-platform-store = { path = "../../platform/store" }

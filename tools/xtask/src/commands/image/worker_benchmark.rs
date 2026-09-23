@@ -90,7 +90,7 @@ struct CacheIndex {
 }
 #[derive(Deserialize)]
 struct CacheManifest {
-    digest: veoveo_extension_contract::ArtifactDigest,
+    digest: veoveo_deploy_contract::ArtifactDigest,
 }
 
 pub(crate) fn run(repository: &RepositoryContext, args: &BuilderWorkerBenchmarkArgs) -> Result<()> {

@@ -36,8 +36,7 @@ pub fn validate_profile_component_bindings(
         ensure!(
             declaration.role == spec.role
                 && declaration.namespaces == spec.namespaces
-                && declaration.dependencies == spec.dependencies
-                && declaration.extension_release == spec.extension_release,
+                && declaration.dependencies == spec.dependencies,
             "component {} metadata differs from its profile declaration",
             spec.id
         );
@@ -125,7 +124,7 @@ pub(crate) fn validate_artifact_bindings(lock: &DeploymentLock) -> Result<()> {
                 .context("component owner is outside the locked sources")?;
             let role = match source.role {
                 DeploymentSourceRole::Platform => ComponentRole::Platform,
-                DeploymentSourceRole::Extension => ComponentRole::Extension,
+
                 DeploymentSourceRole::Workload => ComponentRole::Workload,
             };
             ensure!(

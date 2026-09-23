@@ -1,5 +1,11 @@
 # Platform Improvements Plan
 
+The extension-release sections below record an earlier design. The accepted
+[Fork Development](FORK_DEVELOPMENT.md) model supersedes external source packages,
+compatibility manifests, gateway fragments/bindings and a separately published Helm
+library. Current removal and qualification work is in
+[FORK_DEVELOPMENT_PLAN.md](FORK_DEVELOPMENT_PLAN.md).
+
 Status: canonical multi-cycle implementation plan and delivery record. The `001`–`013`
 cycle is closed. Nine requests are delivered, three unfinished themes have one explicit
 successor in the `014`–`023` cycle, and private build inputs closed without implementation
@@ -76,7 +82,7 @@ audit and final implementation record determine the cycle's final state.
 | Kubernetes server-side apply managed fields | optional read-only conflict diagnostics only if selected development scope passes its evidence gate. This plan does not transfer field ownership or replay Helm state |
 | NVIDIA DRA Driver for GPUs 0.5.0, `resource.nvidia.com/v1beta1`, CUDA, and NVML | exact GPU identity, full-device or MIG capacity, memory admission, and hardware evidence. The repository implements only its declared qualified DRA profile |
 | Docker Buildx 0.35.0, BuildKit 0.31.2, and Dockerfile frontend 1.25.0 | secret-mounted private Git credentials and trust inputs, cache isolation, SBOM, and maximum-mode provenance |
-| `veoveo.io/deployment/v7` and `veoveo.io/deployment-lock/v7` | component ownership and immutable catalog migration in progress; selected execution, installed-state receipts, and live acceptance remain pending |
+| `veoveo.io/deployment/v8` and `veoveo.io/deployment-lock/v8` | component ownership and immutable catalog migration in progress; selected execution, installed-state receipts, and live acceptance remain pending |
 | `veoveo.io/image-build-plan/v2` and `veoveo.io/image-build-run/v2` | current typed image plan and execution evidence. Credential source paths and bytes never enter either document |
 
 Every dependency or infrastructure component touched during implementation must be
@@ -1202,7 +1208,7 @@ Required documentation updates include:
 - `mcp/apps-extension/DESIGN.md` and Console documentation for the standalone host.
 - Map, Frames, Time, Reason, and Optimization `DESIGN.md` files for their owned
   contract changes.
-- `docs/IMAGE_BUILDS.md` and `docs/EXTERNAL_REPOSITORY_INTEGRATION.md` for private
+- `docs/IMAGE_BUILDS.md` and `docs/FORK_DEVELOPMENT.md` for private
   dependency inputs.
 - `docs/CODEMAP.md` whenever a module, document, component, or ownership boundary is
   added or moved.
@@ -1966,7 +1972,7 @@ five-user harness is parameterized around UAV routes, camera names, and DOM evid
 | browser client package | a focused package under `sdk/` selected after CODEMAP update | WebCodecs capability check, hardware/software decode label, Annex B keyframe handling, shared-product socket ownership, region crop, renewal, reconnect, teardown, cancellation, and typed evidence callbacks |
 | simulator adapter contract | Python SDK plus schema | logical camera inventory, source region, one stable stream-product identity, product health, and private stream endpoint binding |
 | generic headed acceptance | `testing/browser-smoke` or a focused Rust crate if responsibilities require it | manifest-driven App URI, camera set, evidence selectors, five users, hardware graphics proof, product/encoder invariance, renewal, close, restart, and screenshots |
-| external reference | `testing/fixtures/external-simulation-extension` | consume released SDK types, stop redeclaring the v4 contract, and remain independent of first-party vehicle or simulator source |
+| external reference | `testing/fixtures/fork-workload` | consume released SDK types, stop redeclaring the v4 contract, and remain independent of first-party vehicle or simulator source |
 
 The packages never include a renderer, encoder, simulator dependency tuple, vehicle schema, scene
 mirror, or physics state. External implementations retain their own GPU qualification.

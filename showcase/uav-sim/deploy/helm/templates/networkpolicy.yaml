@@ -21,7 +21,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "veoveo-extension.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
+              {{- include "veoveo-common.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
     - to:
         - namespaceSelector:
             matchLabels:
@@ -53,7 +53,7 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "veoveo-extension.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
+              {{- include "veoveo-common.componentSelector" (dict "installation" .Values.platform.installationId "component" "gateway") | nindent 14 }}
       ports:
         - {protocol: TCP, port: 8802}
     {{- if .Values.liveView.streamIngress.enabled }}
@@ -65,7 +65,7 @@ spec:
     - to:
         - podSelector:
             matchLabels:
-              {{- include "veoveo-extension.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
+              {{- include "veoveo-common.installationSelector" (dict "installation" .Values.platform.installationId) | nindent 14 }}
     - to:
         - namespaceSelector:
             matchLabels:

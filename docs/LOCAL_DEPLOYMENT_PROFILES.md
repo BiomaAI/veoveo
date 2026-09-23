@@ -9,7 +9,7 @@ installation-owned Secrets, and local Helm charts. Enterprise installations use 
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v7` | Repository-owned disposable installation profiles and locks; defined by the [deployment contract](../deploy/contract/DESIGN.md) |
+| `veoveo.io/deployment/v8` | Repository-owned disposable installation profiles and locks; defined by the [deployment contract](../deploy/contract/DESIGN.md) |
 | OCI images and registries | Exact runtime digests, separate host push and cluster pull addresses, explicit development-registry transport |
 | Docker Buildx Bake and BuildKit | Source-local image selection and publication under the [image-build contract](IMAGE_BUILDS.md) |
 | k3d, Kubernetes and Helm | Local cluster lifecycle and declarative component installation through the [deployment runtime](../deploy/runtime/DESIGN.md) |
@@ -25,7 +25,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v7` installation-repository JSON profile |
+| Development composition | A `veoveo.io/deployment/v8` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -72,7 +72,7 @@ registry-capable builder state and cache.
 
 The exact typed platform closure runs as one multi-target Bake invocation. Bake retains
 the shared dependency graph and Cargo family consolidation inside that invocation.
-Workload and extension sources publish their repository-owned groups as separate
+Workload sources publish their repository-owned groups as separate
 phases.
 
 Each compatible Rust family compiles its selected binaries in one Cargo invocation.
@@ -86,14 +86,14 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v7` |
+| schemaVersion | `veoveo.io/deployment/v8` |
 | name | Stable local environment identity |
 | registry.pushAddress | OCI host and port reachable from the publication host |
 | registry.pullAddress | OCI host and port reachable from Kubernetes nodes |
 | registry.transport | `tls` or explicitly admitted `insecure-http` |
 | registry.localConfig | Shared k3d registry definition |
-| sources | Named repositories with `platform`, `workload`, or `extension` ownership and independent revisions |
-| sources[].imageGroups | Ordered source-owned phases for workload and extension sources; prohibited on the platform source |
+| sources | Named repositories with `platform` or `workload` ownership and independent revisions |
+| sources[].imageGroups | Ordered source-owned phases for workload sources; prohibited on the platform source |
 | sources[].releases[].sourceValues | Helm values resolved from the exact source checkout |
 | sources[].releases[].installationValues | Later Helm overrides resolved from the installation repository |
 | components | Mandatory owners, atomic release or installation operations, dependency IDs, namespaces, and exact cluster object permissions |
@@ -118,8 +118,8 @@ commit, then resolves each source revision independently.
 
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
-platform set once. Workload and extension groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v7` document with the installation revision, registry
+platform set once. Workload groups remain source-owned. It writes one
+`veoveo.io/deployment-lock/v8` document with the installation revision, registry
 endpoints and transport, source repositories and revisions, image manifest digests, chart-content
 digests, expanded platform graph, and compiled component inventories. Every image records
 the commit that built it independently of the chart snapshot. Installation locks are
@@ -189,9 +189,9 @@ digest-named immutable ConfigMap and supplies that name and digest to the platfo
 release. A repeated application reuses the same revision, while a changed public input
 is fully installed before Helm starts the replacement gateway.
 
-The `extension-foundation` preset selects the gateway, platform store, object store,
+The `foundation` preset selects the gateway, platform store, object store,
 artifact service, Artifact MCP, Frames MCP, and Recording MCP/hub. A custom selection
-can add Map and Media. If a gateway fragment requires either capability and the
+can add Map and Media. If a gateway requirement requires either capability and the
 corresponding server is absent, profile validation fails before Helm runs.
 `optimization` requires Optimization MCP and the cuOpt GPU executor. `rrd`
 requires the Recording MCP and hub because that runtime owns governed RRD playback,

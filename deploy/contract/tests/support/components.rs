@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use veoveo_deploy_contract::components::*;
-use veoveo_extension_contract::{ArtifactDigest, ExtensionId, ReleaseVersion, SourceRevision};
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 
 pub fn id(name: &str) -> ComponentId {
     name.to_owned().try_into().unwrap()
@@ -65,11 +65,6 @@ pub fn fixture(name: &str, role: ComponentRole) -> LockedComponent {
         permitted_objects: BTreeSet::from([object.identity.clone()]),
         inputs: inputs.clone(),
         dependencies: BTreeSet::new(),
-        extension_release: (role == ComponentRole::Extension).then(|| ComponentExtensionRelease {
-            extension: ExtensionId::new(name).unwrap(),
-            version: ReleaseVersion::new("1.0.0").unwrap(),
-            manifest_digest: digest('e'),
-        }),
     };
     lock_component(
         declaration.clone(),

@@ -273,51 +273,6 @@ pub(crate) fn append_release_values(
                 }
             }
         }
-        ReleaseValuesContract::Extension => {
-            args.extend([
-                "--set-string".to_owned(),
-                format!(
-                    "veoveo.registry={}",
-                    profile.definition.registry.pull_address
-                ),
-                "--set-string".to_owned(),
-                format!("veoveo.sourceTag={revision}"),
-                "--set-string".to_owned(),
-                format!("veoveo.installationId={}", profile.definition.name),
-            ]);
-            if let Some(image_digests) = image_digests {
-                ensure!(
-                    !image_digests.is_empty(),
-                    "locked release {} has no image digests",
-                    release.name
-                );
-                args.extend([
-                    "--set".to_owned(),
-                    "veoveo.production=true".to_owned(),
-                    "--set-json".to_owned(),
-                    format!(
-                        "veoveo.imageDigests={}",
-                        serde_json::to_string(image_digests)?
-                    ),
-                ]);
-            }
-            if let Some(placement) = prepare_gpu_placement(profile)? {
-                args.extend([
-                    "--set-json".to_owned(),
-                    format!(
-                        "veoveo.gpuPlacement={}",
-                        serde_json::to_string(&serde_json::json!({
-                            "enabled": true,
-                            "claimName": placement.claim_name,
-                            "runtimeClassName": placement.runtime_class_name,
-                            "evidenceDigest": placement.evidence_digest,
-                            "workloadRequests": placement.workload_requests,
-                            "workloadReplicas": placement.workload_replicas
-                        }))?
-                    ),
-                ]);
-            }
-        }
     }
     Ok(())
 }
