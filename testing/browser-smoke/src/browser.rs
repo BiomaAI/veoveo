@@ -30,6 +30,9 @@ mod recording_acceptance;
 #[path = "browser/artifact_upload.rs"]
 pub(crate) mod artifact_upload;
 
+#[path = "browser/catalog_stability.rs"]
+mod catalog_stability;
+
 #[path = "browser/speech.rs"]
 pub(crate) mod speech;
 
@@ -84,7 +87,7 @@ struct ConsoleAppCatalogEntry {
     title: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[allow(dead_code, reason = "used by the focused browser-smoke binary")]
 struct ConsoleAppCatalogDegradation {
@@ -874,7 +877,6 @@ async fn capture_console_apps_catalog_inner(
                     .resource_uri
                     .strip_prefix("ui://")
                     .context("expected Console App URI must use ui://")?
-            .trim_end_matches(".html")
             );
             let app = probe
                 .apps
@@ -892,6 +894,9 @@ async fn capture_console_apps_catalog_inner(
         let screenshot_path = evidence_directory.join("catalog.png");
         let screenshot_sha256 =
             capture_screenshot(&mut cdp, &session_id, &screenshot_path).await?;
+        catalog_stability::verify(
+            &mut cdp, &target_id, &session_id, &expected_uris, evidence_directory,
+        ).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok((hardware, probe, screenshot_path, screenshot_sha256))
     }
@@ -2564,7 +2569,7 @@ async fn capture_console_map_workspace_app_inner(
             &target_id,
             &session_id,
             "map",
-            "Workspace",
+            "Map Explorer",
         )
         .await?;
 

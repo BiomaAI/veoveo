@@ -62,3 +62,11 @@ test("catalog groups local App names under a deterministic server namespace", ()
   );
   assert.equal(namespacedAppTitle(apps[0]), "View / Preview");
 });
+
+test("repeated resource pages cannot add duplicate navigation buttons", () => {
+  const routes = { server: "optimization", resourceUri: "ui://optimization/routes.html", title: "Routes" } as AppDescriptor;
+  const models = { server: "optimization", resourceUri: "ui://optimization/models.html", title: "Models" } as AppDescriptor;
+  const titles = (apps: AppDescriptor[]) => groupAppsByServer(apps, [])[0].apps.map((app) => app.title);
+  assert.deepEqual(titles([routes, routes, models, routes]), ["Models", "Routes"]);
+  assert.deepEqual(titles([routes, models]), ["Models", "Routes"]);
+});
