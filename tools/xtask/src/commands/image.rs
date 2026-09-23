@@ -1324,8 +1324,8 @@ mod tests {
             "target:rust-bookworm-control-artifacts"
         );
         assert_eq!(
-            resolved.target["rust-bookworm-control-artifacts"].contexts["veoveo-control-compiler"],
-            "target:rust-control-compiler"
+            resolved.target["rust-bookworm-control-artifacts"].args["RUST_IMAGE"],
+            resolved.target["rust-bookworm-artifacts"].args["RUST_IMAGE"]
         );
         assert_eq!(
             resolved.target["rust-bookworm-control-artifacts"].args["VEOVEO_CARGO_PACKAGES"],

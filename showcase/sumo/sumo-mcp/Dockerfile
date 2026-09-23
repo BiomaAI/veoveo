@@ -7,6 +7,13 @@ ARG SUMO_PLATFORM=linux/amd64
 ARG SUMO_BASE_IMAGE=sumo-base
 FROM --platform=${SUMO_PLATFORM} rust:1.97.1-slim-bullseye@sha256:dd159e8e44aaa84dffbb7f24a742a96b8d0a26920bd3b46ec2b1778be0da1cdf AS builder
 
+# Bullseye is no longer published for the current Rust patch release. Keep its
+# runtime ABI while selecting the repository toolchain for compilation.
+RUN rustup set auto-self-update disable \
+    && rustup toolchain install 1.98.1 --profile minimal --no-self-update \
+    && rustup default 1.98.1 \
+    && rustup toolchain uninstall 1.97.1
+
 WORKDIR /src
 RUN --mount=type=bind,source=tools/image-build/source-freshness.rs,target=/tmp/source-freshness.rs,readonly \
     rustc --edition=2024 -O /tmp/source-freshness.rs -o /usr/local/bin/veoveo-source-freshness

@@ -20,6 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install the repository Rust toolchain
-        run: rustup toolchain install 1.97.1 --profile minimal
+        run: rustup toolchain install 1.98.1 --profile minimal
       - name: Display the committed local test report
         run: cargo xtask test-report show --github-summary
