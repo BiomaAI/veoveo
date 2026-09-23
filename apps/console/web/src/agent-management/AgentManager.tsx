@@ -14,6 +14,8 @@ export function AgentManager({ app }: { app: "console" | "workspace" }) {
   const [definitions, setDefinitions] = useState<Definition[]>([]);
   const [next, setNext] = useState<string | null>();
   const [selected, setSelected] = useState<string>();
+  const [view, setView] = useState<"instances" | "definitions">("instances");
+  const [showArchived, setShowArchived] = useState(false);
   const [creating, setCreating] = useState(false);
   const [source, setSource] = useState<Definition>();
   const [error, setError] = useState<string>();
@@ -47,17 +49,28 @@ export function AgentManager({ app }: { app: "console" | "workspace" }) {
     } finally { loading.current = false; }
   }, [api]);
   useEffect(() => { active.current = true; void refresh(); const close = api.observe(() => void refresh()); return () => { active.current = false; close(); }; }, [api, refresh]);
-  const current = definitions.find(d => d.id === selected);
-  return <section className="agent-management" aria-label="Agent definitions"><header className="am-heading"><div><h2>Agent definitions</h2><p>Create, revise and publish agents for your Work Context.</p></div><div className="am-actions"><button onClick={() => void refresh()}>Refresh</button>{authoring?.permissions.create && <button className="am-primary" disabled={!authoring.models.length} onClick={() => { setSource(undefined); setCreating(true); }}>Create agent</button>}</div></header>
+  const visibleDefinitions = definitions.filter(d => showArchived || d.status !== "archived");
+  const current = visibleDefinitions.find(d => d.id === selected);
+  async function openDefinition(id: string) {
+    try {
+      const definition = definitions.find(d => d.id === id) ?? await api.read(id);
+      if (!active.current) return;
+      setDefinitions(values => values.some(d => d.id === id) ? values : [...values, definition]);
+      if (definition.status === "archived") setShowArchived(true);
+      setSelected(id); setView("definitions"); setError(undefined);
+    } catch (e) { if (active.current) setError(e instanceof Error ? e.message : String(e)); }
+  }
+  return <section className="agent-management" aria-label="Agent management"><header className="am-heading"><div><h2>Agents</h2><p>Definitions hold reusable instructions. Each managed instance has its own identity, memory and access.</p></div><div className="am-actions"><button onClick={() => void refresh()}>Refresh</button>{authoring?.permissions.create && <button className="am-primary" disabled={!authoring.models.length} onClick={() => { setSource(undefined); setCreating(true); }}>Create definition</button>}</div></header>
+    <nav className="am-views" aria-label="Agent views"><button aria-pressed={view === "instances"} onClick={() => setView("instances")}>Instances</button><button aria-pressed={view === "definitions"} onClick={() => setView("definitions")}>Definitions</button></nav>
     {error && <p className="am-error" role="alert">{error}</p>}
-    {!loaded && <p role="status">Loading agent definitions…</p>}
+    {!loaded && <p role="status">Loading agents…</p>}
     {authoring && !authoring.models.length && <p>No model is connected yet. Ask an installation operator to add a model connection before publishing agents.</p>}
-    {authoring && <div className="am-layout"><aside className="am-list" aria-label="Choose an agent">{definitions.length ? definitions.map(d => <button key={d.id} aria-pressed={d.id === selected} onClick={() => setSelected(d.id)}><strong>{d.name}</strong><small>{d.description}</small><span>{d.status} · {d.publishedDigest ? "Published" : "Draft"}</span></button>) : <p>No definitions are available for you to manage here.</p>}
+    {authoring && <section hidden={view !== "definitions"} aria-label="Agent definitions"><header className="am-heading"><div><h2>Definitions</h2><p>Publish a definition to use it in chats or deploy managed instances.</p></div><label className="am-check"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)}/>Show archived definitions</label></header><div className="am-layout"><aside className="am-list" aria-label="Choose a definition">{visibleDefinitions.length ? visibleDefinitions.map(d => <button key={d.id} aria-pressed={d.id === selected} onClick={() => setSelected(d.id)}><strong>{d.name}</strong><small>{d.description}</small><span>{d.status} · {d.publishedDigest ? "Published" : "Draft"}</span></button>) : <p>{next ? "No matching definitions loaded yet. Load more to continue." : "No definitions match this view."}</p>}
       {next && <button onClick={() => void api.list(next).then(page => { setDefinitions(values => [...values, ...page.items.filter(d => !values.some(v => v.id === d.id))]); setNext(page.next); }).catch(e => setError(e.message))}>Load more</button>}
-    </aside>{current ? <DefinitionEditor key={`${current.id}:${authoring.permissions.readContent}`} api={api} initial={current} authoring={authoring} templates={templates} changed={() => void refresh()} duplicate={value => { setSource(value); setCreating(true); }}/>
-      : <div className="am-empty"><h3>Give an agent a clear purpose.</h3><p>Choose a model, write instructions and select the capabilities it can use. Publishing makes it available to chat owners in its admitted contexts.</p></div>}</div>}
-    {authoring && <InstanceManager api={api} authoring={authoring} definitions={definitions} refreshVersion={catalogGeneration}/>}
-    {creating && authoring && <CreateAgent api={api} authoring={authoring} templates={templates} source={source} close={() => setCreating(false)} created={definition => { setDefinitions(values => [definition, ...values.filter(v => v.id !== definition.id)]); setSelected(definition.id); setCreating(false); void refresh(); }}/>}
+    </aside>{current ? <DefinitionEditor key={`${current.id}:${authoring.permissions.readContent}`} api={api} initial={current} authoring={authoring} templates={templates} changed={() => void refresh()} deployed={() => setView("instances")} duplicate={value => { setSource(value); setCreating(true); }}/>
+      : <div className="am-empty"><h3>Choose a definition to review or edit.</h3><p>A single managed definition can power several instances. Assign access to each instance separately.</p></div>}</div></section>}
+    {authoring && <div hidden={view !== "instances"}><InstanceManager api={api} authoring={authoring} definitions={definitions} refreshVersion={catalogGeneration} openDefinition={id => void openDefinition(id)}/></div>}
+    {creating && authoring && <CreateAgent api={api} authoring={authoring} templates={templates} source={source} close={() => setCreating(false)} created={definition => { setDefinitions(values => [definition, ...values.filter(v => v.id !== definition.id)]); setSelected(definition.id); setView("definitions"); setCreating(false); void refresh(); }}/>}
   </section>;
 }
 
@@ -84,7 +97,7 @@ function CreateAgent({ api, authoring, templates, source, close, created }: { ap
       setError(e instanceof Error ? e.message : String(e));
     } finally { setBusy(false); }
   }
-  return <dialog className="am-modal" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { if (busy || pending) event.preventDefault(); else close(); }} aria-labelledby="am-create-title"><form onSubmit={event => { event.preventDefault(); void create(); }}><h2 id="am-create-title">{source ? "Duplicate agent" : "Create agent"}</h2><p>{source ? "Copies the published configuration. Credentials, memory, participants and grants stay with their owners." : "Start with a private draft. You can review the configuration before publishing."}</p>
+  return <dialog className="am-modal" ref={node => { if (node && !node.open) node.showModal(); }} onCancel={event => { if (busy || pending) event.preventDefault(); else close(); }} aria-labelledby="am-create-title"><form onSubmit={event => { event.preventDefault(); void create(); }}><h2 id="am-create-title">{source ? "Duplicate definition" : "Create definition"}</h2><p>{source ? "Copies the published configuration. Credentials, memory, participants and grants stay with their owners." : "Start with a private draft. You can review the configuration before publishing."}</p>
     <fieldset disabled={busy || !!pending}>{!source && <><label>Execution<select value={mode} onChange={e => setMode(e.target.value)}><option value="chat">Chat assistant</option><option value="managed" disabled={!templates.length}>Managed agent</option></select></label>{mode === "managed" && <label>Runtime template<select value={templateId} onChange={e => setTemplateId(e.target.value)}>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select></label>}</>}<label>Name<input autoFocus required maxLength={200} value={name} onChange={e => { setName(e.target.value); if (!customId) setId(e.target.value.toLowerCase().replace(/[^a-z0-9_-]+/g, "-")); }}/></label><label>Agent ID<input required pattern="[a-z0-9_-]+" maxLength={128} value={id} onChange={e => { setCustomId(true); setId(e.target.value); }} placeholder="research-assistant"/></label><label>Description<textarea maxLength={2000} required rows={3} value={description} onChange={e => setDescription(e.target.value)}/></label></fieldset>
     {error && <p className="am-error" role="alert">{error}</p>}{pending && !busy && <p>The result is uncertain. Retry this request to recover its outcome before changing the form.</p>}
     <div className="am-actions"><button disabled={busy || !!pending} type="button" onClick={close}>Cancel</button><button className="am-primary" disabled={busy || !name.trim() || !id || !description.trim() || (mode === "managed" && !templateId)}>{busy ? "Creating…" : pending ? "Retry creation" : "Create draft"}</button></div>

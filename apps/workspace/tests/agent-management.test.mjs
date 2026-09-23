@@ -37,6 +37,8 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     const authoring = { workContext: "operations", definitionLimit: 100, instanceLimit: 32, storageLimitGib: 128, models: [{ reference: { id: "approved", revision: digest("a") }, name: "Approved model", provider: "Explicit fixture", model: "no-model-execution", limits }], permissions: { readContent: true, create: true, edit: true, publish: true, control: true, archive: true, transfer: false, deploy: true, instanceControl: true, manageContext: true } };
     let definition; let content; const history = [];
     let instance; let operation; let loseCreateReply = true;
+    const otherInstances = [];
+    const archivedDefinitions = () => definition ? Array.from({ length: 4 }, (_, i) => ({ ...definition, id: `retired-pilot-${i + 1}`, name: `Retired pilot ${i + 1}`, status: "archived", disabled: true })) : [];
     const creates = []; const controls = []; const errors = [];
     const notify = () => { sequence++; for (const response of streams) response.write(`event: change\nid: ${sequence}\ndata: {"sequence":${sequence}}\n\n`); };
     page.on("pageerror", error => errors.push(error.message));
@@ -49,7 +51,7 @@ test("managed authoring reviews authority, recovers lost creation and observes l
       if (path === "agent-authoring") return respond(authoring);
       if (path === "agent-templates") return respond([template]);
       if (path === "agent-capabilities") return respond([{ name: "time__resolve_time", title: "Resolve time", description: "Admitted tool" }, { name: "other__unselected", title: "Unadmitted tool", description: "Outside template" }]);
-      if (path === "agent-definitions" && !body) return respond({ items: definition ? [definition] : [], next: null });
+      if (path === "agent-definitions" && !body) return respond({ items: definition ? [...archivedDefinitions(), definition] : [], next: null });
       if (path === "agent-definitions" && body) {
         assert.equal(body.source.content.execution.kind, "managed");
         content = body.source.content;
@@ -68,19 +70,23 @@ test("managed authoring reviews authority, recovers lost creation and observes l
         history.unshift({ definition: definition.id, digest: body.digest, content: structuredClone(content), createdBy: owner, createdAt: now });
         return respond(definition);
       }
-      if (path === "agent-instances" && !body) return respond({ items: instance ? [instance] : [], next: null });
+      if (path === "agent-instances" && !body) return respond({ items: instance ? [instance, ...otherInstances] : [], next: null });
       if (path === "agent-instances" && body) {
         assert.deepEqual(Object.keys(body).sort(), ["definition", "id", "name", "requestId", "revision"]);
         creates.push(body);
         if (!instance) {
           operation = { id: crypto.randomUUID(), instance: body.id, generation: 1, phase: "queued", message: null, updatedAt: now };
           instance = { id: body.id, name: body.name, definition: body.definition, owner, workContext: "operations", template: template.id, requestedRevision: body.revision, activeRevision: null, generation: 1, activeGeneration: 0, desired: "running", observed: "queued", clientId: "fixture-client", principal: crypto.randomUUID(), storageGib: 2, operation: operation.id, updatedAt: now };
+          for (let n = 2; n <= 5; n++) otherInstances.push({ ...instance, id: `pilot-${n}`, name: `Field pilot ${n}`, clientId: `fixture-client-${n}`, principal: crypto.randomUUID(), operation: crypto.randomUUID(), desired: n === 5 ? "archived" : "running", observed: n === 5 ? "archived" : "ready", activeRevision: body.revision, activeGeneration: 1 });
         }
         if (loseCreateReply) { loseCreateReply = false; return route.abort("failed"); }
         assert.deepEqual(creates.at(-1), creates[0]);
         return respond(operation, 202);
       }
-      if (path.startsWith("agent-operations/")) return respond(operation);
+      if (path.startsWith("agent-operations/")) {
+        const other = otherInstances.find(item => path === `agent-operations/${item.operation}`);
+        return respond(other ? { id: other.operation, instance: other.id, generation: other.generation, phase: other.observed, message: null, updatedAt: now } : operation);
+      }
       if (path === `agent-instances/${instance?.id}` && body) {
         assert.equal(body.expectedGeneration, instance.generation); controls.push(body);
         instance.generation++; instance.updatedAt = new Date().toISOString();
@@ -94,7 +100,9 @@ test("managed authoring reviews authority, recovers lost creation and observes l
       errors.push(`Unhandled ${request.method()} ${path}`); return route.fulfill({ status: 404 });
     });
     await page.goto(`${origin}/workspace/tests/managed-agents.html`);
-    await page.getByRole("button", { name: "Create agent", exact: true }).click();
+    await page.getByRole("heading", { name: "Managed instances", exact: true }).waitFor();
+    assert.equal(await page.getByRole("region", { name: "Agent definitions", exact: true }).isVisible(), false);
+    await page.getByRole("button", { name: "Create definition", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByRole("combobox", { name: "Execution", exact: true }).selectOption("managed");
     await dialog.getByRole("textbox", { name: "Name", exact: true }).fill("Field pilot");
@@ -131,6 +139,24 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     await dialog.waitFor({ state: "hidden" });
     const card = page.getByRole("article", { name: "Field pilot", exact: true });
     await card.getByText("running requested · queued", { exact: true }).waitFor();
+    // Four independently controlled instances share one definition. Archived
+    // definitions and instances stay out of the default views, but remain inspectable.
+    assert.equal(await page.getByRole("article", { name: /^Field pilot/ }).count(), 4);
+    assert.equal(await page.getByRole("button", { name: "Field pilot", exact: true }).count(), 4);
+    await card.getByRole("button", { name: "Field pilot", exact: true }).click();
+    const definitions = page.getByRole("region", { name: "Agent definitions", exact: true });
+    assert.equal(await definitions.locator(".am-list > button").count(), 1);
+    await definitions.getByRole("checkbox", { name: "Show archived definitions", exact: true }).check();
+    assert.equal(await definitions.locator(".am-list > button").count(), 5);
+    await definitions.getByRole("checkbox", { name: "Show archived definitions", exact: true }).uncheck();
+    const instructions = definitions.getByRole("textbox", { name: "Instructions", exact: true });
+    const savedInstructions = await instructions.inputValue();
+    await instructions.fill("Unsaved instructions survive switching views.");
+    await page.getByRole("button", { name: "Instances", exact: true }).click();
+    await card.getByRole("button", { name: "Field pilot", exact: true }).click();
+    assert.equal(await instructions.inputValue(), "Unsaved instructions survive switching views.");
+    await instructions.fill(savedInstructions);
+    await page.getByRole("button", { name: "Instances", exact: true }).click();
     instance.observed = "ready"; instance.activeRevision = instance.requestedRevision; instance.activeGeneration = 1; operation.phase = "ready"; instance.updatedAt = new Date().toISOString(); notify();
     await card.getByText("running requested · ready", { exact: true }).waitFor();
     assert.equal(streams.size, 1, "Definition and instance views share one event stream");
@@ -162,7 +188,10 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     authoring.permissions.instanceControl = true; notify();
     await card.getByRole("button", { name: "Archive instance", exact: true }).click();
     await card.getByRole("button", { name: "Confirm archive", exact: true }).click();
+    await card.waitFor({ state: "hidden" });
+    await page.getByRole("checkbox", { name: "Show archived instances", exact: true }).check();
     await card.getByText("archived requested · draining", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("article", { name: /^Field pilot/ }).count(), 5);
     assert.deepEqual(controls.map(v => v.change.kind), ["state", "state", "revision", "stop", "state"]);
     assert.equal(creates.length, 2); assert.equal(instance.storageGib, 2);
     assert.equal(await card.getByRole("button", { name: "Resume", exact: true }).count(), 0);

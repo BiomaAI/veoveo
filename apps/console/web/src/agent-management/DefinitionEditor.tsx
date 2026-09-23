@@ -5,8 +5,8 @@ import { AgentApi } from "./api";
 import { DeployInstance } from "./DeployInstance";
 import { ContentEditor } from "./ContentEditor";
 
-export function DefinitionEditor({ api, initial, authoring, templates, changed, duplicate }: {
-  api: AgentApi; initial: Definition; authoring: Authoring; templates: TemplateChoice[]; changed: () => void; duplicate: (definition: Definition) => void;
+export function DefinitionEditor({ api, initial, authoring, templates, changed, deployed, duplicate }: {
+  api: AgentApi; initial: Definition; authoring: Authoring; templates: TemplateChoice[]; changed: () => void; deployed: () => void; duplicate: (definition: Definition) => void;
 }) {
   const [deploying, setDeploying] = useState(false);
   const [definition, setDefinition] = useState(initial);
@@ -118,7 +118,7 @@ export function DefinitionEditor({ api, initial, authoring, templates, changed, 
       await api.metadata(id, { requestId: requestId("transfer", owner), expectedRevision: definition.revision, change: { kind: "transfer", owner } });
       changed(); setNotice("Ownership transferred.");
     })}>Transfer</button></details>}
-    {deploying && published && <DeployInstance api={api} definition={definition} revision={published} templates={templates} close={() => setDeploying(false)} created={operation => { setDeploying(false); setNotice(`Instance ${operation.instance} accepted. Follow provisioning in Managed instances.`); changed(); }}/>}
+    {deploying && published && <DeployInstance api={api} definition={definition} revision={published} templates={templates} close={() => setDeploying(false)} created={operation => { setDeploying(false); setNotice(`Instance ${operation.instance} accepted. Follow provisioning in Instances.`); changed(); deployed(); }}/>}
     {busy && <p role="status">{busy}…</p>}
   </article>;
 }

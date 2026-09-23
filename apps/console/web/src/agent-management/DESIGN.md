@@ -22,6 +22,12 @@ into each client, so it does not share session state between browser application
 
 ## Managed Agents
 
+The Agents page opens on Instances. Definitions has its own view for authoring and
+publication. Both views hide archived entries until the user selects Show archived.
+Each instance names and links to its definition, making reuse visible when several
+instances share one configuration. Switching views preserves unsaved editor text and
+pending lifecycle requests. An accepted deployment opens Instances to show progress.
+
 Creation selects Chat assistant or an admitted Managed agent template. Closed parameter
 forms expose reviewed values; instructions stay literal. Model and capability choices
 respect the template ceiling. Publication retains its separate review step. Deploying
