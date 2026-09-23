@@ -147,7 +147,7 @@ struct ReleasePreflightArgs {
     #[arg(long, default_value_t = 320)]
     expected_growth_gib: u64,
     /// Free filesystem percentage retained after the estimated build growth.
-    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u8).range(1..=99))]
+    #[arg(long, default_value_t = 13, value_parser = clap::value_parser!(u8).range(1..=99))]
     reserve_free_percent: u8,
     /// Kubernetes node whose Ready and DiskPressure conditions must be healthy.
     #[arg(long)]
