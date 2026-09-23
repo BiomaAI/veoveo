@@ -40,8 +40,18 @@ async fn rehearse() -> Result<()> {
             .check()?;
     }
     let tenant = deterministic_tenant_id("bioma")?.record_id();
-    // Simulate the coordinated pause in the disposable copy, leaving live pilots alone.
-    db.a.client().query("UPDATE managed_agent SET desired = 'paused', observed = 'paused'; UPDATE agent_definition SET disabled = true, status = 'disabled'; UPDATE agent SET lease_expires_at = NONE, lease_owner = NONE, state = 'idle', last_episode = NONE;").await?.check()?;
+    // Reconstruct the source bindings in the disposable copy, including after the
+    // live cutover. Archived definitions preserve the required historical revisions.
+    db.a.client().query(r#"
+        FOR $instance IN (SELECT * FROM managed_agent) {
+            LET $old = array::first(SELECT * FROM agent_definition WHERE key = $instance.key);
+            UPDATE ONLY $instance.id SET definition = $old.id, requested_revision = $old.published,
+                active_revision = $old.published, desired = 'paused', observed = 'paused';
+        };
+        DELETE agent_definition WHERE key = 'uav-pilot';
+        UPDATE agent_definition SET disabled = true, status = 'disabled';
+        UPDATE agent SET lease_expires_at = NONE, lease_owner = NONE, state = 'idle', last_episode = NONE;
+    "#).await?.check()?;
     let mut definition: AgentDefinition =
         db.a.client()
             .select(agent_definition_record(&tenant, "uav-1-pilot")?)
@@ -78,6 +88,27 @@ async fn rehearse() -> Result<()> {
     definition.published = Some(revision.id.clone());
     db.a.client().query("CREATE ONLY $definition.id CONTENT $definition; CREATE ONLY $revision.id CONTENT $revision;")
         .bind(("definition", definition)).bind(("revision", revision)).await?.check()?;
+    // Runtime actors and OAuth clients can share a subject under distinct issuers.
+    // The retained principal is the instance's explicit reference, never its name.
+    let mut actor: veoveo_platform_store::PrincipalRecord =
+        db.a.client()
+            .query("SELECT * FROM principal WHERE subject = 'uav-1-pilot' LIMIT 1;")
+            .await?
+            .check()?
+            .take::<Vec<veoveo_platform_store::PrincipalRecord>>(0)?
+            .into_iter()
+            .next()
+            .context("fixture OAuth principal")?;
+    actor.id = RecordId::new(
+        "principal",
+        surrealdb::types::Uuid::from(uuid::Uuid::now_v7()),
+    );
+    actor.issuer = "veoveo://agent-runtime".into();
+    db.a.client()
+        .query("CREATE ONLY $actor.id CONTENT $actor;")
+        .bind(("actor", actor))
+        .await?
+        .check()?;
     let plan = prepare(&db.a, "uav-pilot-rehearsal").await?;
     let unchanged = protected_records(&db.a).await?;
     // Last-row failure must roll back all earlier rows, operations and outbox events.

@@ -30,7 +30,7 @@ management does not introduce provider status polling.
 
 ## Shared UAV Pilot Consolidation — September 23, 2026
 
-The active follow-up consolidates Bioma’s four vehicle-specific definitions into
+Delivered at `veoveo.bioma.ai`. This follow-up consolidates Bioma’s four vehicle-specific definitions into
 one `uav-pilot` definition and four existing managed instances. Runtime identities,
 control grants and memory stay with the instances. The current grant selects the
 vehicle; the shared definition supplies instructions, capabilities and budgets.
@@ -50,6 +50,40 @@ The installation template supplies only the common simulation session.
 The [installation acceptance design](../examples/bioma/acceptance/DESIGN.md)
 defines drain and recovery. This coordinated hard cut adds no migration adapter,
 new runtime service or general instance-configuration API.
+
+### Installed Consolidation Checkpoint
+
+The four retained instances are Ready at generation 8 under `uav-pilot`, revision
+`892d015aff27`. The approved template is `70f5b2d92d9e`; its immutable ConfigMap is
+`uav-pilot-01b19f5aa87b`. The four previous definitions are archived and disabled.
+
+The native installation check compared OAuth principals, public keys, Secret UIDs,
+PVC UIDs, physical volumes, runtime identities, memory database names and control
+grants with the frozen pre-cut records. Every comparison passed. The transaction
+preserved episode-admission counters as well as those identity and storage bindings.
+The rehearsal also covers principals that share a subject under different issuers.
+It can reconstruct the source bindings from archived definitions in a disposable
+database after the live cutover, without changing the installation.
+
+Authenticated grant discovery returned exactly one correct vehicle for each pilot.
+UAV 1 was denied control of UAV 2. Four operator status questions then produced four
+completed episodes, each reporting its own vehicle and granted permissions. Their
+replies appeared in the already-open Console without reload. A preceding 74-second
+idle observation produced no episodes. Task handling was unchanged; this check did
+not dispatch a flight or requalify simulator mission execution.
+
+Console acceptance used headed Chrome with NVIDIA RTX 4090 WebGL. The exposed
+SwiftShader WebGPU adapter was excluded from hardware proof. The shared definition
+and four Ready instance cards were inspected. Private installation artifacts live
+under `output/development/pilot-consolidation/`; committed native receipts cover
+`uav-shared-definition-rehearsal`, `uav-shared-definition-cutover` and
+`uav-shared-definition-installed`.
+
+No container image was built. The UAV chart publishes the updated ConfigMap, and
+Bioma’s approved values update the existing gateway and manager. Both Helm releases
+and the GitOps installation converged. The simulator and UAV MCP workloads continued
+running throughout the cut. Deployment costs and avoidable retries are recorded in
+[the iteration log](DEVELOPMENT_ITERATION.md#shared-uav-pilot-consolidation--september-23-2026).
 
 ## Outcome
 
