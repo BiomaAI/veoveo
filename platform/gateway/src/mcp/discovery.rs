@@ -76,6 +76,7 @@ impl<T> Default for SurfaceCache<T> {
     }
 }
 impl<T: Clone + PartialEq> SurfaceCache<T> {
+    #[cfg(test)]
     async fn contains(&self, key: &DiscoveryCacheKey) -> bool {
         self.0
             .lock()
@@ -182,6 +183,7 @@ impl Default for CatalogDiscoveryCache {
     }
 }
 impl CatalogDiscoveryCache {
+    #[cfg(test)]
     pub(super) async fn contains(
         &self,
         surface: GatewayDiscoverySurface,
