@@ -1,15 +1,15 @@
 # Autonomy Harness
 
-An Autonomy Harness is the enforced operational boundary that allows agents to wake,
-reason, and act without synchronous operator supervision. “Left loose” describes an
-agent's freedom to schedule work inside that boundary. It never means unrestricted
-credentials, network access, compute, data access, or authority.
+An Autonomy Harness is the set of enforced controls inside which agents wake, reason,
+and act without an operator approving each step. An agent “left loose” may schedule its
+own work within those controls. It still has only the credentials, network access,
+compute, data, and authority the installation granted it.
 
 The capability architecture appears in the
 [browser edition](autonomy-harness.html) and
-[print edition](autonomy-harness-print.html). This document defines the shared
-responsibility and operational proof that keep continuously autonomous agents inside
-their installation-owned containment boundary.
+[print edition](autonomy-harness-print.html). This document divides responsibility between Veoveo and
+the installation, and lists the tests that show an always-on agent stays within the
+limits the installation set.
 
 ## Standards And Protocols
 
@@ -29,8 +29,8 @@ their installation-owned containment boundary.
 
 A containment breach occurs when an agent, model, retrieved input, extension, or
 confused deputy causes a read, write, disclosure, execution, or network effect outside
-the authority resolved for that invocation. A rejected attempt is evidence of a
-working boundary, not a breach.
+the authority resolved for that invocation. An attempt the harness rejects is not a
+breach.
 
 The harness treats these inputs as untrusted:
 
@@ -57,25 +57,27 @@ Five properties define the target posture:
 
 ## Continuous Operation
 
-Agents remain autonomous throughout normal operation, dependency loss, policy denial,
-and recovery. The scheduler remains enabled, accepts durable wakes, and runs every
-episode whose required cognition path is available. Each capability independently
-verifies its prerequisites at the moment of use. Missing identity, policy, clearance,
-network, data, hardware, budget, or provider authority closes that path while the agent
-remains free to observe, reason, record the denial, and pursue work that still lies
-inside its envelope. Durable wakes survive a temporary cognition-provider outage.
+Agents keep running through dependency loss, policy denial, and recovery. The
+scheduler stays on, accepts durable wakes, and runs every episode whose model provider
+is reachable. Each capability checks its own prerequisites when it is called. If
+identity, policy, clearance, network, data, hardware, budget, or provider authority is
+missing, only that capability refuses. The agent can still observe, reason, record the
+denial, and continue with work it is allowed to do. Wakes are stored durably, so they
+survive a temporary model-provider outage.
 
-Containment proof belongs to one exact runtime tuple: installation revision, agent
-manifest and prompt, model and provider, gateway policy revision, MCP catalog,
-extension releases, cluster security baseline, and data classification. A changed
-tuple produces fresh proof without introducing a global autonomy switch.
+Containment evidence applies only to the runtime it was gathered on: installation
+revision, agent manifest and prompt, model and provider, gateway policy revision, MCP
+catalog, extension releases, cluster security baseline, and data classification. When
+any of these changes, the installation gathers new evidence. Autonomy has no global
+off switch to flip while it does.
 
 ## Shared Responsibility Matrix
 
 “Product” names the mechanisms and contracts Veoveo must deliver. “Installation” names
-the controls and decisions owned by the organization operating the harness. A product
-mechanism without installation configuration is not an effective control. An
-installation procedure cannot replace a missing product enforcement point.
+the controls and decisions owned by the organization operating the harness. A control
+works only when both columns are in place. A product mechanism does nothing until the
+installation configures it, and no installation procedure can stand in for an
+enforcement point the product lacks.
 
 ### Governance And Authority
 
@@ -185,8 +187,8 @@ installation procedure cannot replace a missing product enforcement point.
 
 ## Continuous Containment Proof
 
-The following end-to-end proofs run against the autonomous installation and demonstrate
-that freedom inside the harness does not create a path outside it:
+These end-to-end tests run against the live installation. Together they show that an
+agent cannot turn its freedom inside the harness into an effect outside it:
 
 1. The agent's effective catalog contains only the approved tools, resources, prompts,
    tasks, and cross-server dependencies.
@@ -234,11 +236,11 @@ pass before the old credential is retired.
 ## Industry Alignment
 
 NVIDIA's [agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack)
-reaches the boundary this harness already enforces: "The harness guides what an
+places the boundary where this harness puts it: "The harness guides what an
 agent tries. The infrastructure controls what an agent can do. Both are
 necessary; only one is authoritative." The guidance's first design rule,
-"above proposes; below decides," is the construction of properties 1 and 2 in
-the security objective. Model-selected calls are untrusted requests, and
+"above proposes; below decides," is what properties 1 and 2 of the security
+objective implement. Model-selected calls are untrusted requests, and
 schema, policy, budget, and audit enforcement applies after selection, below
 every harness.
 
@@ -251,7 +253,7 @@ The gateway is that layer, and this harness extends the rule past files,
 processes, and API calls to physical actuation behind command leases and an
 independent safety controller.
 
-Four items from the guidance sharpen existing open work:
+Four recommendations in the guidance match work that is still open:
 
 - Immutable audit export. Audit records should survive the installation's own
   administrators. The WORM export path remains open in the
@@ -281,9 +283,9 @@ Four items from the guidance sharpen existing open work:
   action being recorded.
 - Schema-valid output can still be factually wrong. Consequential domains retain their
   independent verification and approval gates.
-- Continuous monitoring and repeatable tests keep containment evidence aligned with the
-  exact runtime tuple as it changes.
+- Containment evidence goes stale when the runtime changes. Continuous monitoring and
+  repeatable tests keep it current.
 
 The [regulated-work gap analysis](REGULATED_READINESS.md) tracks broader assurance work
-that may be required by a particular installation. Regulatory authorization belongs to
-the operating organization and is not created by this harness contract.
+that may be required by a particular installation. The operating organization obtains any
+regulatory authorization; this contract does not grant one.

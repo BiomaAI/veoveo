@@ -1,43 +1,42 @@
 # Veoveo Helm installation
 
-This chart installs one autonomous enterprise Veoveo instance. Tenant ids are
-internal isolation boundaries; the chart has no connection to a vendor control
-plane. The platform store is exactly one SurrealDB 3.2.4 process backed by a
+This chart installs one self-contained Veoveo installation. Tenants partition data
+and authorization inside it, and the chart never connects to a vendor control plane. The platform store is exactly one SurrealDB 3.2.4 process backed by a
 RocksDB PVC. Database HA is out of scope. Back up the SurrealDB and object-store
 volumes according to the installation recovery objectives.
 
 `global.installationId` is the stable cross-chart identity for the installation.
-Separately installed extension releases use the same
-`veoveo.ai/installation` label while retaining their own
-`app.kubernetes.io/instance`. NetworkPolicy never requires an extension release to
-impersonate this chart's Helm release. `global.production=true` requires an immutable
+Separately installed extension releases carry the same
+`veoveo.ai/installation` label but keep their own
+`app.kubernetes.io/instance`. NetworkPolicy selects on the installation label, so an
+extension release never has to pose as this chart's Helm release. `global.production=true` requires an immutable
 digest for every rendered Veoveo-owned image.
 
-Pod templates depend on runtime inputs. Publishing a new chart version leaves an
-unchanged workload running. Stream and Reason hash their rendered runtime catalogs,
-and domain bootstrap configuration retains its own checksum. Installation-owned
-ConfigMaps and Secrets require an installation-managed content revision or immutable
-name when their consumers need a restart.
+A pod restarts only when its runtime inputs change, so publishing a new chart version
+leaves an unchanged workload running. Stream and Reason hash their rendered runtime
+catalogs, and domain bootstrap configuration carries its own checksum. To restart the
+consumers of an installation-owned ConfigMap or Secret, give it an installation-managed
+content revision or an immutable name.
 
 Initialization Jobs derive their names from their complete rendered specs. A chart or
 Helm revision change preserves both names when their inputs match. Changing a bucket,
 bootstrap image, database, resource limit, or service-account reference produces a new
 Job identity and avoids attempting to patch an immutable Pod template. The name always
-retains its digest suffix, including when the Helm release name is long.
+keeps its digest suffix, including when the Helm release name is long.
 
-`installationPreset` owns the first-party deployment graph. `full` selects the
-supported complete surface, `extension-foundation` selects the platform foundation
+`installationPreset` chooses which first-party components deploy. `full` selects every
+supported component, `extension-foundation` selects the platform foundation
 with Artifact MCP, Frames MCP, and Recording MCP, and `custom` consumes the typed
 `components` and `mcpServers` arrays. The chart owns the concrete image, port, probe,
 argument, storage, and GPU definitions for every first-party server under
-`definitions/domain-services.yaml`; an installation selects server identities instead
-of reproducing internal workload records.
+`definitions/domain-services.yaml`. An installation names the servers it wants and never
+copies those definitions.
 
 The typed components distinguish `recording-data-plane`,
 `simulation-runtime-support`, and `agent-runtime-support` from hosted MCP servers.
-Simulation applications and continuously scheduled agents ship their authoritative
-workloads in separate releases. Support components add the exact platform-owned runtime
-images to the deployment lock without rendering a duplicate platform workload. The Rust
+Simulation applications and continuously scheduled agents ship their own workloads in
+separate releases. A support component only adds the platform runtime images those
+releases need to the deployment lock; it renders no workload of its own. The Rust
 profile resolver accounts for independently owned GPU workloads and rejects an
 impossible exclusive placement before Helm.
 
@@ -48,8 +47,8 @@ graphs without Recording; Stream replay and Reason use Recording. Gateway compos
 requirements for Artifact, Frames, Map, Media,
 Recording, and RRD fail when their corresponding runtime is absent.
 
-The recording workload is one pod with Recording Hub and the governed MCP
-server sharing `recording.persistence`. The `recording-hub` ClusterIP carries
+The recording workload is one pod in which Recording Hub and the Recording MCP
+server share `recording.persistence`. The `recording-hub` ClusterIP carries
 only the authenticated gateway API on port 9878. Hub's native Rerun receiver
 binds to container loopback and has no Service, NodePort, or Ingress.
 
@@ -78,27 +77,25 @@ host-limited token and server-side recording session protect the route; the
 general Rerun catalog and mutation methods are unavailable.
 
 Simulation live views belong to each simulation application's release. The
-application owns one authoritative simulator GPU, its logical cameras, continuous
-camera-owned Hydra/NVENC products, authenticated H.264 WebSocket fan-out, cache,
-and MCP App. The platform chart does not
-install a shared renderer, pose ingress, mirror cache, or reconciliation controller.
-Viewer authorizations remain ephemeral in the domain server. A simulator restart
+application owns one simulator GPU, its logical cameras, a continuous Hydra/NVENC
+stream per camera, authenticated H.264 WebSocket fan-out, cache, and MCP App. The
+platform chart installs no shared renderer for them. The domain server keeps viewer
+authorizations in memory only. A simulator restart
 recreates its configured logical cameras and continuous products through ordinary runtime
 startup, and browsers open fresh authorizations.
 
 A deployment profile may bind an application-owned GPU container to a named DRA
 request. The allocator supplies the selected UUID; no chart may set
-`NVIDIA_VISIBLE_DEVICES`. Required driver capabilities remain explicit. Use
+`NVIDIA_VISIBLE_DEVICES`. Charts still declare required driver capabilities explicitly. Use
 `gpu-allocation-verify` to prove exclusive device-plugin isolation, and use the
 application's hardware acceptance to prove shared camera RTX/NVENC products and browser
 H.264 delivery.
 
 Every hosted MCP server workload has one active pod and uses `Recreate`. This
 includes domain servers, GPU servers, and the stdio bridge that owns its child
-process. The gateway can run multiple replicas because its durable authority
-lives in the platform store. Its Service uses client-IP affinity because each
-active MCP transport, subscription, and notification stream remains attached to
-one gateway process. Artifact byte delivery and the Console BFF are outside the
+process. The gateway can run multiple replicas because its state lives in the platform
+store. Its Service uses client-IP affinity because each active MCP transport,
+subscription, and notification stream stays attached to one gateway process. Artifact byte delivery and the Console BFF are outside the
 MCP boundary and keep independent replica settings.
 
 `duckdb-mcp` has a persistent `ReadWriteOnce` workspace. It provides
@@ -108,14 +105,14 @@ audit state still lives in SurrealDB; the PVC stores only the DuckDB database
 files.
 
 `map-mcp` has a persistent `ReadWriteOnce` volume. SurrealDB holds its
-canonical catalog, while the volume retains the
-tenant-scoped DuckDB Spatial projection and activated Valhalla routing builds.
-Release activation serializes projection changes within that process.
+catalog. The volume holds the tenant-scoped DuckDB Spatial data derived from that
+catalog and the activated Valhalla routing builds. The process applies release
+activations one at a time.
 
 `optimization-mcp` runs as a Rust control container beside the pinned NVIDIA
 cuOpt 26.08 executor. The executor alone requests one `nvidia.com/gpu`; both
-containers share a bounded Unix-socket volume, and the control container retains
-prepared governed problems on its `ReadWriteOnce` workspace. Startup, readiness,
+containers share a bounded Unix-socket volume, and the control container stores
+prepared problems on its `ReadWriteOnce` workspace. Startup, readiness,
 and liveness require the exact executor protocol, a CUDA 13.3-capable driver,
 and one visible hardware GPU. The pod uses the `nvidia` RuntimeClass and has no
 CPU solver or GPU-optional deployment mode.
@@ -125,19 +122,19 @@ Set `reason.modelCache.existingClaim` to an installation-owned PVC populated
 with a complete immutable checkpoint snapshot. The mounted path and SHA-256
 snapshot identity belong in `reason.model.path` and `reason.model.digest`. The
 chart writes that identity into the Reason catalog and its pod checksum. When
-`existingClaim` is empty, the chart creates `reason-model-cache`, but populating
-its bytes remains installation work.
+`existingClaim` is empty, the chart creates `reason-model-cache`, but the installation
+must still populate it.
 
 `serverBootstrap` delivers installation-time domain configuration to any MCP
 server component, keyed by domain-service name. Each entry renders a
-`{name}-bootstrap` ConfigMap mounted at the canonical
+`{name}-bootstrap` ConfigMap mounted at
 `/etc/veoveo/bootstrap/catalog.json` and passed via `--bootstrap-catalog`.
 The document is a generic envelope (`server`, `tenantKey`, `payload`); the
 payload schema is owned by the server crate, rejects unknown fields, and can
 be checked before install with the server binary's `bootstrap-validate` verb.
 Application is idempotent at startup (Map applies create-only: existing
-sources and mobility-profile versions are skipped). Bootstrap never performs
-governed operations such as downloading, validating, or activating releases.
+sources and mobility-profile versions are skipped). Bootstrap never downloads,
+validates, or activates releases.
 
 `clusterInspection.enabled` gives the console BFF a namespaced read-only Role
 for Kubernetes inventory. The Role lists workloads, pods, services, ingress,
@@ -149,14 +146,14 @@ NetworkPolicy is enabled, put the Kubernetes API endpoint ranges in
 
 ### Console BFF outbound routing and trust
 
-`consoleBff.oauthResource` is the public OAuth protected-resource identity. It remains
+`consoleBff.oauthResource` is the public OAuth protected-resource identity. It is
 the `resource` used during authorization and token operations, including audience and
 scope validation. `consoleBff.mcpTransportUrl` is the network endpoint used by the
 Console Apps MCP client. An in-cluster deployment normally selects
 `http://mcp-gateway:8788/mcp/<profile>` while keeping the public origin in
 `oauthResource`. The BFF sends the public deployment authority as the gateway `Host`
-header. Both URLs must select the same exact profile. A blank `mcpTransportUrl`
-preserves the previous behavior by using `oauthResource` for transport.
+header. Both URLs must select the same exact profile. When `mcpTransportUrl` is
+blank, the BFF uses `oauthResource` for transport as well.
 
 An installation may add public CA roots to every Console BFF outbound HTTPS client:
 
@@ -172,14 +169,14 @@ consoleBff:
 The ConfigMap owns a PEM bundle and must exist before the Deployment starts. Kubernetes
 fails the mount when the ConfigMap or key is absent. The BFF fails startup when the
 mounted file is unreadable, empty, or invalid. These roots augment the standard trust
-store and the projected Kubernetes API root; certificate verification remains enabled.
+store and the projected Kubernetes API root; certificate verification stays on.
 Changing the ConfigMap contents requires a Console BFF rollout because clients load the
 bundle at startup. A deployment/v7 installation places these values in a file selected
 through the platform release's `installationValues` array.
 
 ### Embedded Rerun maps
 
-`consoleBff.rerunMap.provider` selects the closed browser-map provider contract. The
+`consoleBff.rerunMap.provider` selects the browser map provider from a fixed set. The
 default `openStreetMap` path carries no credential. A functional `mapbox` background uses a
 browser-safe public token from an installation-owned Secret:
 
@@ -200,15 +197,15 @@ reports the missing or malformed installation token as a map-scoped diagnostic a
 supplies a valid token to the embedded Rerun application option;
 RRD data, MCP configuration, gateway responses, and repository values never contain the
 token. A fresh browser validates the token against the provider before opening the map.
-Authentication, scope, origin-restriction, and provider availability failures remain
-token-free diagnostics in the viewer overlay while recording data and 3D views continue.
+Authentication, scope, origin-restriction, and provider availability failures appear
+as diagnostics in the viewer overlay, never including the token, while recording data
+and 3D views keep working.
 The Console content security policy admits only the selected provider origin.
 
-`time-mcp` runs as one temporal authority process with a persistent
-`ReadWriteOnce` volume for staged and active TZDB and leap-second products.
-SurrealDB retains the release catalog, active authority pointers, calendars,
-mission epochs, clock policy, events, and durable Task API state. Authority
-activation remains serialized within the process.
+`time-mcp` runs as a single process with a persistent `ReadWriteOnce` volume for
+staged and active TZDB and leap-second data. SurrealDB stores the release catalog,
+pointers to the active releases, calendars, mission epochs, clock policy, events, and
+durable Task API state. The process activates releases one at a time.
 
 `view-mcp` runs as one stateful offscreen renderer and consumes one GPU claim request
 under a deployment profile. Direct Helm installations use `nvidia.com/gpu`. Install the
@@ -267,25 +264,23 @@ rewrites the confidential Secret.
 
 Generate `refresh-delivery-key-b64` independently from all signing and session
 keys with `openssl rand -base64 32`, then store that base64 text as the Secret
-value. It must decode to exactly 32 bytes. The gateway uses it only to encrypt a
-successor refresh token during the short duplicate-delivery window; plaintext
-successors are never persisted.
+value. It must decode to exactly 32 bytes. The gateway uses it only for the
+duplicate-delivery window described below.
 
 Generate `recording-playback-token-key` separately with
 `openssl rand -base64 32`. It must decode to exactly 32 bytes and signs only
 recording-scoped Redap read tokens. Do not reuse any other installation key.
 
 `gateway.refreshDeliveryWindowSeconds` defaults to `5` and accepts `1` through
-`30`. If two stateless console BFF requests concurrently present the same
-refresh token, the winner rotates it and a request arriving inside this window
-receives the identical successor recovered from the encrypted envelope. A later
-use is a replay and revokes the token family. The delivery envelope is
-authenticated against the authorization server, profile, OAuth client, family,
-and generation; it is never copied to logs, audit payloads, outbox events, or
-console snapshots. At the deadline it is
-immediately ineligible for delivery. The gateway clears it atomically if the
-successor is consumed, or physically removes the expired ciphertext on the next
-one-minute delivery-envelope GC pass.
+`30`. If two stateless console BFF requests present the same refresh token at once,
+the first rotates it and stores the new token encrypted under the delivery key. A
+request arriving inside the window receives that same new token. A later use is a
+replay and revokes the token family. The plaintext token is never persisted. The
+encrypted envelope is bound to the authorization server, profile, OAuth client,
+family, and generation, and is never copied to logs, audit payloads, outbox events,
+or console snapshots. It stops being deliverable at the deadline. The gateway deletes
+it in the same transaction that consumes the new token, or on the next one-minute GC
+pass once it expires.
 
 For an authenticated SIEM exporter, put exporter variables in a Kubernetes
 Secret and set `telemetry.credentialExistingSecret`. The collector imports that
@@ -308,8 +303,8 @@ stale authorization catalog.
 The Work Context governance schema uses a coordinated hard-cut rollout. Stop
 producers, preserve any externally required evidence, then clear SurrealDB,
 recording data, artifact objects, and durable forwarder queues together before
-installing the release. Bootstrap creates the canonical schema and materializes
-the configured contexts. Browser sessions and service tokens are reissued after
+installing the release. Bootstrap creates the schema and the configured
+contexts. Browser sessions and service tokens are reissued after
 the identity-provider role mapping is active.
 
 RustFS and external S3-compatible stores are private infrastructure. Configure only
@@ -348,7 +343,7 @@ Stream and Reason each mount a writable recording cache on a separate PVC. Their
 class, access modes, managed bytes, and minimum free bytes. Defaults allocate 10 GiB,
 manage up to 8 GiB, and reserve 1 GiB of filesystem headroom. Cache files survive pod
 replacement; every reuse still requires current Artifact authorization. The shared
-recording spool mount stays read-only and GPU resource requirements remain mandatory.
+recording spool mount stays read-only, and GPU resource requests are still required.
 
 Configured Computers command execution requires `computers` in
 `artifactService.allowedAudiences`. The chart rejects a configured profile without
@@ -369,8 +364,8 @@ in that namespace when the registry requires them. Configure exact API and model
 CIDRs/ports through `kubernetesApiEgress` and `modelEgress`. Managed namespace policy
 is enforced even when the main installation disables its general NetworkPolicy.
 
-The [chart design](DESIGN.md#managed-kernels) describes the admission and retained
-storage boundary. The native admission check creates and cleans a temporary fixture:
+The [chart design](DESIGN.md#managed-kernels) describes admission and retained
+storage. The native admission check creates and cleans a temporary fixture:
 
 ```sh
 cargo test -p veoveo-agent-manager installed_admission -- --ignored --nocapture

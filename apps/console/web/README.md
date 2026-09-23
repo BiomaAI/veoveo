@@ -70,9 +70,8 @@ compiled BFF when only frontend files change. Follow the
 ## Workspace
 
 The daily productivity client has its own source and build in
-[`apps/workspace`](../../workspace/DESIGN.md). It shares this Rust browser edge and
-selected governed UI components, while retaining a separate browser API, OAuth client
-and asset entrypoint. The local Console Vite proxy above does not configure Workspace.
+[`apps/workspace`](../../workspace/DESIGN.md). It shares this Rust browser edge and some
+UI components, but has its own browser API, OAuth client and asset entrypoint. The local Console Vite proxy above does not configure Workspace.
 Use Workspace's package scripts and [client design](../../workspace/DESIGN.md) for its
 checks rather than assuming a Console build verifies both applications.
 

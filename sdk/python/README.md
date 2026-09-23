@@ -5,22 +5,22 @@ hosted by a Veoveo installation. It provides the hosted-server contract, interna
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, and the telemetry boundary.
 
-Verified internal identities may carry `GatewayRequestContext`, which preserves the
-source principal and signed access-token metadata across delegated calls. Its session
-family is an identifier, and the context contains no bearer token. A consumer must
-require this context before admitting renewable access, then check current policy and
-grant state itself. The verifier rejects inconsistent context and an assertion that
-outlives its source token. Context omission does not supply renewal authority.
+A verified internal identity may carry a `GatewayRequestContext`. It records the source
+principal and the signed access-token metadata so they survive delegated calls. The
+session family it holds is only an identifier; the context never contains a bearer
+token. Before your server grants renewable access, require this context and then check
+current policy and grant state yourself. An identity that arrives without the context
+cannot be renewed. The verifier rejects an inconsistent context and any assertion that
+expires later than its source token.
 
-Simulation implementations own their authoritative world, camera products, and
-simulation-specific SDK integration. They conform to the provider-neutral live-view
-contract through their hosted MCP server rather than publishing a visualization-only
-scene or pose mirror through this package.
+A simulation server keeps its own world state, camera output, and simulator SDK
+integration. It meets the provider-neutral live-view contract through its hosted MCP
+server. This package has no API for mirroring scenes or poses into a separate viewer.
 
-Task output capabilities accept `required_data_labels` to preserve sensitivity
-inherited from domain inputs. The Artifact service adds these labels to every
-output and rejects a scope outside the caller's clearance. Work Context policy
-continues to select the owner and initial grants.
+Task output capabilities accept `required_data_labels` so that outputs keep the
+sensitivity labels of the inputs they came from. The Artifact service adds these labels
+to every output and rejects a scope outside the caller's clearance. Work Context policy
+still chooses the owner and initial grants.
 
 ## Supported release
 
@@ -78,12 +78,12 @@ async with plane.materialize(caller, artifact_uri, max_bytes=20 * 1024**3) as pa
     await consume_file(path)
 ```
 
-`get` and `resolve`, including their `ArtifactRepository` wrappers, accept an explicit
-`max_bytes` consumer ceiling. They remain in-memory convenience operations with an 8 MiB default
-consumer ceiling and streaming enforcement before allocation. Large inputs use
-`stream` or `materialize`. An upload's admitted size does not change a domain server's
-own input limits: Datasheet and pandas still impose their separate memory and format
-constraints. No object-store URL or storage credential reaches a consumer.
+`get` and `resolve`, including their `ArtifactRepository` wrappers, load the whole
+artifact into memory. They default to an 8 MiB ceiling, accept an explicit `max_bytes`,
+and enforce the ceiling while streaming, before allocating. Use `stream` or
+`materialize` for large inputs. The size an upload was admitted at does not raise a
+domain server's own input limits: Datasheet and pandas keep their own memory and format
+constraints. Consumers never see an object-store URL or storage credential.
 
 ## Development
 

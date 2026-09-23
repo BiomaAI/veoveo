@@ -1,8 +1,8 @@
 # Model import and validation
 
-`veoveo-uaf-sysml.xmi` is a tool-neutral exchange baseline. It carries the
-semantic model and stable identifiers used by the HTML, PDF, SVG views, and CSV
-catalogs. It does not contain vendor-specific diagram notation.
+`veoveo-uaf-sysml.xmi` is the tool-neutral model for exchange. It carries the
+semantic model and the stable identifiers used by the HTML, PDF, SVG views, and CSV
+catalogs, but no vendor-specific diagram notation.
 
 ## Required modeling capability
 
@@ -34,12 +34,12 @@ https://www.omg.org/spec/SysML/20181001/SysML.xmi#SysML
 7. Save the result in the tool's native format and record the tool, edition,
    version, plug-in version, import date, warnings, and model checksum.
 8. Export a fresh XMI copy, compare stable identifiers and relationships, and
-   retain the comparison as round-trip evidence.
+   keep the comparison as the round-trip record.
 
 ## Diagram handling
 
-The SVG files are controlled review layouts, not editable vendor diagram
-notation. Reconstruct native UAF/SysML views from the imported semantic model
+The SVG files are fixed review layouts and cannot be edited as vendor
+diagrams. Reconstruct native UAF/SysML views from the imported semantic model
 when the client requires model-native navigation. Keep each native view tied to
 its `VV-VIEW-*` identity and preserve the title, viewpoint, concern, and model
 element selection shown in the reference report.
@@ -63,5 +63,5 @@ Reviewer:
 Review date:
 ```
 
-The native project becomes a client exchange artifact only after this record is
-complete. The generic repository baseline remains tool-neutral.
+Do not deliver the native project to a client until this record is complete.
+The XMI in this repository stays tool-neutral.
