@@ -22,9 +22,11 @@ pub(super) async fn verify(
 ) -> Result<()> {
     cdp.evaluate::<bool>(session, r#"(()=>{
       window.__catalogChurn=[];
+      window.__catalogExpected=document.querySelectorAll('button.nav-app').length;
       window.__catalogObserver=new MutationObserver(()=>{
         const badges=[...document.querySelectorAll('.nav-app-unavailable')].map(e=>e.textContent);
-        if(badges.length)window.__catalogChurn.push(badges);
+        const count=document.querySelectorAll('button.nav-app').length;
+        if(badges.length||count!==window.__catalogExpected)window.__catalogChurn.push({badges,count});
       });
       window.__catalogObserver.observe(document.querySelector('.sidebar'),{subtree:true,childList:true,characterData:true});
       return true;
@@ -56,34 +58,56 @@ pub(super) async fn verify(
             directory.join("latest-catalog-sample.json"),
             serde_json::to_vec_pretty(&sample)?,
         )?;
+        // Gateway refresh may report a pending upstream discovery while the
+        // complete cached App set remains usable. It must not mark an App
+        // unavailable or lose any catalog member during that refresh.
         ensure!(
-            sample.status == 200 && sample.degradations.is_empty() && sample.badges.is_empty(),
+            sample.status == 200
+                && sample
+                    .degradations
+                    .iter()
+                    .all(|failure| failure.code == "discovery_pending")
+                && sample.badges.is_empty(),
             "App catalog became incomplete: {}",
             serde_json::to_string(&sample)?
         );
         ensure!(
-            sample.app_count == sample.uris.len() && sample.nav_buttons == sample.uris.len(),
-            "App catalog or sidebar has duplicate entries: {}",
+            sample.app_count == sample.uris.len(),
+            "App catalog has duplicate entries: {}",
             serde_json::to_string(&sample)?
         );
         ensure!(
-            expected.iter().all(|uri| sample.uris.contains(*uri)),
-            "App disappeared during refresh"
+            sample.nav_buttons == expected.len(),
+            "Sidebar changed during catalog refresh: {}",
+            serde_json::to_string(&sample)?
         );
-        if let Some(first) = samples.first() {
-            let first: &Sample = first;
-            ensure!(
-                first.uris == sample.uris,
-                "App catalog membership changed during refresh"
-            );
-        }
+        ensure!(
+            sample
+                .uris
+                .iter()
+                .all(|uri| expected.contains(uri.as_str()))
+                && expected
+                    .iter()
+                    .filter(|uri| !sample.uris.contains(**uri))
+                    .all(|uri| {
+                        uri.strip_prefix("ui://")
+                            .and_then(|rest| rest.split_once('/'))
+                            .is_some_and(|(server, _)| {
+                                sample.degradations.iter().any(|failure| {
+                                    failure.server == server && failure.code == "discovery_pending"
+                                })
+                            })
+                    }),
+            "App catalog changed beyond declared pending discoveries: {}",
+            serde_json::to_string(&sample)?
+        );
         samples.push(sample);
         if tokio::time::Instant::now() >= deadline {
             break;
         }
         tokio::time::sleep(Duration::from_secs(3)).await;
     }
-    let churn: Vec<Vec<String>> = cdp
+    let churn: Vec<serde_json::Value> = cdp
         .evaluate(
             session,
             "(()=>{window.__catalogObserver.disconnect();return window.__catalogChurn;})()",
