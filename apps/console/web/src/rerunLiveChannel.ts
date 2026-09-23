@@ -1,4 +1,5 @@
 import type { LogChannel } from "@rerun-io/web-viewer";
+import { httpErrorMessage } from "./httpMessages.ts";
 
 const UUID_V7 =
   "[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
@@ -33,7 +34,7 @@ export function validateConsoleRerunLiveRoute(
     url.hash !== "" ||
     !LIVE_RRD_STREAM_PATH.test(url.pathname)
   ) {
-    throw new Error("Live recording route is outside the governed Console boundary.");
+    throw new Error("Live recording routes must be the recording's same-origin Console stream.");
   }
   return url.toString();
 }
@@ -79,14 +80,14 @@ async function followFramedRrdStream(
     headers: liveRrdRequestHeaders(start),
   });
   if (!response.ok) {
-    throw new Error(`Live recording stream returned ${response.status}`);
+    throw new Error(httpErrorMessage(response.status, { action: "follow this live recording", thing: "This recording" }));
   }
   if (response.headers.get("content-type") !== LIVE_RRD_STREAM_CONTENT_TYPE) {
-    throw new Error("Live recording stream returned an unsupported media type.");
+    throw new Error("The live recording stream sent data this viewer can't read. Reload the page.");
   }
   const reader = response.body?.getReader();
   if (!reader) {
-    throw new Error("Live recording stream has no readable body.");
+    throw new Error("The live recording stream returned no data. Reload the page.");
   }
   events.onConnected?.();
   const decoder = new FramedRrdDecoder((rrd) => {

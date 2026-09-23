@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
+import { statusLabel } from "../labels";
 
 export function StatusPill({ value }: { value: string }) {
   const tone = ["healthy", "succeeded", "active", "live", "ready", "sealed", "released", "idle", "running", "bound", "completed"].includes(value)
@@ -12,7 +13,7 @@ export function StatusPill({ value }: { value: string }) {
   return (
     <span className={`status status-${tone}`}>
       <span className="status-dot" aria-hidden="true" />
-      {value.replaceAll("_", " ")}
+      {statusLabel(value)}
     </span>
   );
 }

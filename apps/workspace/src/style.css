@@ -234,6 +234,7 @@ p {
   font-size:9px;
   font-weight:600;
   letter-spacing:1.1px;
+  text-transform:uppercase;
   color:#7f8879;
   display:flex;
   justify-content:space-between;

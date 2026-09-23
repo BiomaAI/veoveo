@@ -57,7 +57,7 @@ test("accepts only the recording-scoped same-origin stream route", () => {
     path.replace("/rrd-stream", "/other-stream"),
     `https://other.example${path}`,
   ]) {
-    assert.throws(() => validateConsoleRerunLiveRoute(invalid, origin), /governed/);
+    assert.throws(() => validateConsoleRerunLiveRoute(invalid, origin), /same-origin/);
   }
 });
 

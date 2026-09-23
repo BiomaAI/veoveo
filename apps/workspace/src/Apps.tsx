@@ -37,18 +37,18 @@ export function Apps({ chat, close, activity }: { chat: string; close: () => voi
     void client.invalidateQueries({ queryKey: ["operation"] });
   }, [client]);
   return <section className="workspace-apps" aria-label="Apps">
-    <header className="apps-toolbar"><button autoFocus onClick={close}><ArrowLeft size={16}/> Back to chat</button><div><h2>{selected?.title ?? selected?.name ?? "Your apps"}</h2><p>Work you start here appears in your Activity. Chat members get no automatic access.</p></div>
+    <header className="apps-toolbar"><button autoFocus onClick={close}><ArrowLeft size={16}/> Back to chat</button><div><h2>{selected?.title ?? selected?.name ?? "Your apps"}</h2><p>Tasks you start here appear only in your Activity.</p></div>
       <button onClick={activity}><Activity size={16}/> Activity</button>{selected && <button onClick={() => select(undefined)}><Grid2X2 size={16}/> All apps</button>}
     </header>
-    {!connected && <p className="muted" role="status">Connecting to the current app catalog…</p>}
+    {!connected && <p className="muted" role="status">Connecting to live app updates…</p>}
     {catalog.data?.degradations.some(d => d.code === "upstream_unavailable") && <p className="muted">Some services are unavailable. Available apps remain usable.</p>}
-    {catalog.data?.degradations.some(d => d.code === "discovery_pending") && <p className="muted">Discovering more Apps…</p>}
+    {catalog.data?.degradations.some(d => d.code === "discovery_pending") && <p className="muted">Looking for more apps…</p>}
     {catalog.error && <p role="alert" className="error">{catalog.error.message} <button onClick={() => void catalog.refetch()}><RefreshCw size={14}/> Retry</button></p>}
     {selected ? <Frame key={selected.resourceUri} serialized={JSON.stringify(selected)} chat={chat} changed={changed} navigate={navigate}/> : <div className="apps-grid">
       {catalog.data?.apps.map(app => <button className="app-choice" key={app.resourceUri} onClick={() => select(app.resourceUri)}><Grid2X2 size={20}/><strong>{app.title ?? app.name}</strong><span>{app.description}</span></button>)}
       {catalog.isPending && <p role="status">Loading your apps…</p>}
-      {catalog.data?.apps.length === 0 && <p>No apps are available with your current access.</p>}
-      {uri && !selected && !catalog.isPending && <p>This app is no longer available with your access.</p>}
+      {catalog.data?.apps.length === 0 && <p>No apps are available to you here. Ask an administrator if you need one.</p>}
+      {uri && !selected && !catalog.isPending && <p>This app is no longer available to you.</p>}
     </div>}
   </section>;
 }

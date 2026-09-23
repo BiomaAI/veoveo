@@ -1,16 +1,13 @@
 import { browserApiRoot } from "./browserApp.ts";
 import { authenticationRequired } from "./auth.ts";
 import { acceptBrowserCsrfToken, browserCsrfToken } from "./csrf.ts";
+import { httpErrorMessage, sessionNotReadyMessage } from "./httpMessages.ts";
 
 export class BrowserHttpError extends Error {
   readonly status: number;
   readonly payload: unknown;
   constructor(status: number, payload: unknown) {
-    super(
-      status === 403
-        ? "This action is not permitted with your current access."
-        : `Request failed (${status}).`,
-    );
+    super(httpErrorMessage(status, { action: "complete this request" }));
     this.status = status;
     this.payload = payload;
   }
@@ -48,7 +45,7 @@ export async function browserJson(
 ): Promise<unknown> {
   const mutation = body !== undefined;
   const csrf = browserCsrfToken();
-  if (mutation && !csrf) throw new Error("Your session is not ready.");
+  if (mutation && !csrf) throw new Error(sessionNotReadyMessage);
   const headers = new Headers({ Accept: "application/json" });
   if (mutation) {
     headers.set("Content-Type", "application/json");

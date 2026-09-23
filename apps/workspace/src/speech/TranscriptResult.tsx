@@ -22,30 +22,30 @@ export function TranscriptResult({ value }: { value: unknown }) {
     void (async () => {
       const response = await fetch(artifactPath(transcript, "download"), { credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (response.status === 401) window.dispatchEvent(new Event("workspace-auth-expired"));
-      if (!response.ok) throw new Error("This transcript is unavailable with your current file access.");
+      if (!response.ok) throw new Error("You don't have access to this transcript file.");
       // HTTP compression may omit Content-Length or report encoded bytes.
       // Bound the decoded stream by the immutable Artifact's actual byte length.
       const length = output.transcript.byte_len;
-      if (!Number.isSafeInteger(length) || length <= 0 || length > 4 * 1024 * 1024) throw new Error("The transcript exceeds the preview limit.");
+      if (!Number.isSafeInteger(length) || length <= 0 || length > 4 * 1024 * 1024) throw new Error("This transcript is too large to preview (over 4 MiB). Use Download transcript.");
       const document = parseSpeech("TranscriptDocument", await boundedJson(response, length, length));
-      if (document.schema !== "veoveo.speech-transcript/v1" || artifactId(document.source_artifact_uri) !== source) throw new Error("The transcript source could not be verified.");
+      if (document.schema !== "veoveo.speech-transcript/v1" || artifactId(document.source_artifact_uri) !== source) throw new Error("This transcript doesn't match its recording, so it can't be shown.");
       if (!controller.signal.aborted) setDocument(document);
-    })().catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "The transcript could not be opened."); });
+    })().catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "The transcript couldn't be opened. Try Download transcript."); });
     return () => controller.abort();
   }, [open, transcript, source, output]);
-  if (!output || !source || !transcript || !captions) return <p className="error">The transcript result could not be verified.</p>;
+  if (!output || !source || !transcript || !captions) return <p className="error">This transcription result couldn't be read.</p>;
   return <section className="speech-result" aria-label="Recording transcript">
     <button onClick={() => setOpen(value => !value)}>{open ? "Close transcript" : "Open transcript"}</button>
     <a href={artifactPath(transcript, "download")}>Download transcript</a><a href={artifactPath(captions, "download")}>Download captions</a>
     {open && <>
-      <p className="muted">Playback and downloads require current file access. Timestamps are approximate; speaker identities are not assigned.</p>
-      <audio ref={audio} controls preload="metadata" src={artifactPath(source, "download")} onError={() => setError("Source playback is unavailable with current access or this browser’s audio support.")}/>
+      <p className="muted">Timestamps are approximate, and speakers are not identified.</p>
+      <audio ref={audio} controls preload="metadata" src={artifactPath(source, "download")} onError={() => setError("The recording can't be played here. You may not have access to it, or this browser can't play its format.")}/>
       {document ? <div className="speech-segments">{document.transcript.segments.map((segment, index) => <p key={index}><button aria-label={`Play from ${timestamp(segment.start)}`} onClick={() => {
         const player = audio.current;
-        if (player) { player.currentTime = segment.start; void player.play().catch(() => setError("Playback could not start. Open the recording with an audio player.")); }
+        if (player) { player.currentTime = segment.start; void player.play().catch(() => setError("Playback couldn't start. Use the player controls above.")); }
       }}>{timestamp(segment.start)}</button> {segment.text}</p>)}</div> : !error && <p role="status">Opening transcript…</p>}
       {error && <p role="alert" className="error">{error}</p>}
-      <details><summary>Share transcript link</summary><p>Sharing a link does not grant file access.</p><code>{output.transcript.artifact_uri}</code><button onClick={() => void navigator.clipboard.writeText(output.transcript.artifact_uri).catch(() => setError("The link could not be copied."))}>Copy transcript link</button></details>
+      <details><summary>Share transcript link</summary><p>People you share this link with still need access to the file.</p><code>{output.transcript.artifact_uri}</code><button onClick={() => void navigator.clipboard.writeText(output.transcript.artifact_uri).catch(() => setError("The link couldn't be copied. Select it and copy it manually."))}>Copy transcript link</button></details>
     </>}
   </section>;
 }

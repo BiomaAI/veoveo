@@ -61,7 +61,7 @@ export class TerminalSession {
   private valid() {
     if (this.stopped) return false;
     if (this.readyReceived && this.clock.monotonic() >= this.deadline) {
-      this.close("The terminal access lease expired. Connect again to request current access.");
+      this.close("Your terminal session expired. Connect again to continue.");
       return false;
     }
     return true;
@@ -74,7 +74,7 @@ export class TerminalSession {
     if (this.timer !== undefined) this.clock.clear(this.timer);
     this.timer = this.clock.timer(
       () =>
-        this.close("The terminal access lease expired. Connect again to request current access."),
+        this.close("Your terminal session expired. Connect again to continue."),
       remaining - 1000,
     );
   }

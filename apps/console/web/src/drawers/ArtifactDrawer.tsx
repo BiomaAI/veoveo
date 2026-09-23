@@ -5,6 +5,7 @@ import { StatusPill } from "../components/primitives";
 import { useConfirm } from "../components/confirm";
 import { artifactDownloadUrl } from "../artifactUrls";
 import { formatBytes, formatDate } from "../format";
+import { invocationModeLabel } from "../labels";
 import {
   useCreateShareLink,
   useGrantArtifact,
@@ -74,7 +75,7 @@ export function ArtifactDrawer({
   };
 
   const changeReleaseState = (releaseState: ReleaseState) =>
-    run(() => setReleaseState.mutateAsync({ artifactId: artifact.id, releaseState }), "Artifact operation failed");
+    run(() => setReleaseState.mutateAsync({ artifactId: artifact.id, releaseState }), "The release state wasn't changed. Try again.");
 
   const submitGrant = (event: FormEvent) => {
     event.preventDefault();
@@ -86,7 +87,7 @@ export function ArtifactDrawer({
         level: grantLevel,
       });
       setSubjectId("");
-    }, "Artifact operation failed");
+    }, "The grant wasn't added. Check the ID and try again.");
   };
 
   const removeGrant = async (subject: { kind: "principal" | "group"; id: string }) => {
@@ -105,7 +106,7 @@ export function ArtifactDrawer({
       tone: "danger",
     });
     if (confirmed) {
-      await run(() => revokeGrant.mutateAsync({ artifactId: artifact.id, subject }), "Artifact operation failed");
+      await run(() => revokeGrant.mutateAsync({ artifactId: artifact.id, subject }), "The grant wasn't removed. Try again.");
     }
   };
 
@@ -119,7 +120,7 @@ export function ArtifactDrawer({
         maxDownloads: max && max > 0 ? max : undefined,
       });
       setNewLink(created.url);
-    }, "Share link creation failed");
+    }, "The share link wasn't created. Try again.");
   };
 
   const removeLink = async (linkId: string) => {
@@ -130,7 +131,7 @@ export function ArtifactDrawer({
       tone: "danger",
     });
     if (confirmed) {
-      await run(() => revokeLink.mutateAsync({ artifactId: artifact.id, linkId }), "Artifact operation failed");
+      await run(() => revokeLink.mutateAsync({ artifactId: artifact.id, linkId }), "The share link wasn't revoked. Try again.");
     }
   };
 
@@ -148,7 +149,6 @@ export function ArtifactDrawer({
       <section className="artifact-preview-section">
         <div className="drawer-section-head">
           <h3>Preview</h3>
-          <span className="subdued">Governed by the active Console session</span>
         </div>
         <ArtifactPreview
           key={`${artifact.id}:${artifact.authorizedGrants}`}
@@ -184,12 +184,12 @@ export function ArtifactDrawer({
             <strong>{artifact.effectiveAccess.read ? `${artifact.effectiveAccess.level} access is effective` : "Read access is not effective"}</strong>
             <span>
               {artifact.effectiveAccess.read
-                ? `${artifact.effectiveAccess.sources.length} authority source${artifact.effectiveAccess.sources.length === 1 ? "" : "s"} contribute to this decision.`
+                ? `${artifact.effectiveAccess.sources.length} source${artifact.effectiveAccess.sources.length === 1 ? " gives" : "s give"} this access.`
                 : artifact.effectiveAccess.denialReason === "clearance"
-                  ? "Required data labels exceed this principal’s clearance."
+                  ? "This artifact has data labels your account isn't cleared for."
                   : artifact.effectiveAccess.denialReason === "need_to_know"
-                    ? "Clearance is satisfied, but no direct, group, or Work Context authority grants read access."
-                    : "The artifact belongs to another tenant boundary."}
+                    ? "Your clearance is sufficient, but no grant to you, your groups, or this Work Context gives read access."
+                    : "This artifact belongs to another tenant."}
             </span>
           </div>
         </div>
@@ -200,7 +200,7 @@ export function ArtifactDrawer({
         <dl className="definition-list compact">
           <div><dt>Work Context</dt><dd>{artifact.provenance.workContext}</dd></div>
           <div><dt>Producer</dt><dd><IdentityText identity={artifact.provenance.producer} directory={identityDirectory} /></dd></div>
-          <div><dt>Invocation</dt><dd>{artifact.provenance.invocationMode}</dd></div>
+          <div><dt>Invocation</dt><dd>{invocationModeLabel(artifact.provenance.invocationMode)}</dd></div>
           <div><dt>Initiator</dt><dd><IdentityText identity={artifact.provenance.initiator} directory={identityDirectory} /></dd></div>
           <div><dt>Delegation</dt><dd className="mono">{artifact.provenance.delegationId ?? "-"}</dd></div>
           <div><dt>Policy revision</dt><dd className="mono">{artifact.provenance.policyRevision}</dd></div>
@@ -216,13 +216,13 @@ export function ArtifactDrawer({
         <div className="drawer-section-head"><h3>Authorized access</h3><span className="subdued">{artifact.authorizedGrants} grants</span></div>
         {canAdminister && <form className="inline-form" onSubmit={submitGrant}>
           <select value={subjectKind} onChange={(event) => setSubjectKind(event.target.value as "principal" | "group")} aria-label="Grant subject type"><option value="principal">User</option><option value="group">Group</option></select>
-          <input value={subjectId} onChange={(event) => setSubjectId(event.target.value)} placeholder="Principal or group ID" aria-label="Grant subject ID" required />
+          <input value={subjectId} onChange={(event) => setSubjectId(event.target.value)} placeholder="User, service account, or group ID" aria-label="Grant subject ID" required />
           <select value={grantLevel} onChange={(event) => setGrantLevel(event.target.value as "read" | "write" | "admin")} aria-label="Grant permission"><option value="read">Read</option><option value="write">Write</option><option value="admin">Admin</option></select>
           <button className="icon-button" type="submit" title="Add grant" disabled={pending || !subjectId.trim()}><UserRound size={15} /></button>
         </form>}
         <div className="access-list">
           {artifact.grants.map((grant) => <div className="access-row" key={`${grant.subjectKind}:${grant.subject}`}><div><strong>{grant.subjectKind === "principal" ? <IdentityText identity={grant.subject} directory={identityDirectory} /> : grant.subject}</strong><span>{grant.subjectKind} · {grant.permission}</span></div>{canAdminister && <button className="icon-button icon-danger" title="Revoke grant" disabled={pending} onClick={() => void removeGrant({ kind: grant.subjectKind, id: grant.subject })}><Trash2 size={14} /></button>}</div>)}
-          {!artifact.grants.length && <div className="access-empty">No projected grants</div>}
+          {!artifact.grants.length && <div className="access-empty">No grants yet</div>}
         </div>
       </section>
       <section>

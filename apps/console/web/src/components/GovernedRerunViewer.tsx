@@ -34,7 +34,7 @@ interface LiveRuntime {
 }
 
 function errorMessage(cause: unknown): string {
-  return cause instanceof Error ? cause.message : "Rerun playback failed";
+  return cause instanceof Error ? cause.message : "The recording couldn't be played. Reload the page and try again.";
 }
 
 function closeLiveConnection(runtime: LiveRuntime): void {
@@ -410,8 +410,8 @@ export default function GovernedRerunViewer({
           </strong>
           <span>
             {source.receiver.kind === "live"
-              ? "Following the current Rerun stream through an incremental channel."
-              : "Opening the recording catalog; Rerun fetches chunks as the active view needs them."}
+              ? "Showing live data as it arrives."
+              : "Opening the recording. Data loads as you move through the timeline."}
           </span>
         </div>
       ) : null}

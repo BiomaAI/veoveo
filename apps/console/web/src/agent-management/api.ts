@@ -2,6 +2,7 @@ import { z } from "zod";
 import schema from "../generated/agent-management.schema.json" with { type: "json" };
 import type { Authoring, CapabilityChoice, Definition, DefinitionPage, Draft, RevisionPage, Validation, CreateDefinition, SaveDraft, UpdateMetadata, PublishDefinition, RevisionRequest, ValidateDefinition, TemplateChoice, InstancePage, ManagedInstance, LifecycleOperation, ProvisionInstance, UpdateInstance } from "../generated/agent-management";
 import { browserSession } from "../csrf.ts";
+import { unexpectedResponseMessage } from "../httpMessages.ts";
 
 interface Responses { Authoring: Authoring; CapabilityChoice: CapabilityChoice; Definition: Definition; DefinitionPage: DefinitionPage; Draft: Draft; RevisionPage: RevisionPage; Validation: Validation; TemplateChoice: TemplateChoice; InstancePage: InstancePage; ManagedInstance: ManagedInstance; LifecycleOperation: LifecycleOperation }
 const validators = new Map<keyof Responses, z.ZodType>();
@@ -20,11 +21,11 @@ export class AgentApiError extends Error {
   constructor(status: number, validation?: Validation) {
     super(validation ? validation.findings.map(f => f.message).join(" ")
       : status === 401 ? "Sign in to manage agents."
-      : status === 403 ? "Your current access does not permit this action."
-      : status === 404 ? "This agent is no longer available in your current Work Context."
+      : status === 403 ? "You don't have permission to do this. Ask an administrator for access."
+      : status === 404 ? "This agent was not found in your current Work Context. It may have been removed."
       : status === 409 ? "The agent changed. Reload its current version before applying your changes."
-      : status === 429 ? "The current capacity limit has been reached."
-      : "The result could not be confirmed. Retry to recover the same request.");
+      : status === 429 ? "Too many requests right now. Wait a moment and try again."
+      : "Veoveo couldn't confirm the result. Retry; the same request won't be applied twice.");
     this.status = status; this.validation = validation;
   }
 }
@@ -57,12 +58,12 @@ export class AgentApi {
   revisions = async (id: string, after?: string) => parse("RevisionPage", await this.request(`agent-definitions/${encodeURIComponent(id)}/revisions?limit=20${after ? `&after=${encodeURIComponent(after)}` : ""}`));
   capabilities = async () => {
     const values = await this.request("agent-capabilities");
-    if (!Array.isArray(values)) throw new Error("The capability list could not be verified.");
+    if (!Array.isArray(values)) throw new Error(unexpectedResponseMessage);
     return values.map(v => parse("CapabilityChoice", v));
   };
   templates = async () => {
     const values = await this.request("agent-templates");
-    if (!Array.isArray(values)) throw new Error("The runtime templates could not be verified.");
+    if (!Array.isArray(values)) throw new Error(unexpectedResponseMessage);
     return values.map(v => parse("TemplateChoice", v));
   };
   instances = async (after?: string) => parse("InstancePage", await this.request(`agent-instances?limit=50${after ? `&after=${encodeURIComponent(after)}` : ""}`));

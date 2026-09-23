@@ -3,6 +3,7 @@ import { Check, ShieldCheck, X } from "lucide-react";
 import { IdentityText } from "../components/IdentityText";
 import { SectionHeader, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
+import { invocationModeLabel } from "../labels";
 import {
   useArtifactAccessRequests,
   useCancelArtifactAccessRequest,
@@ -39,7 +40,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
         note: notes[requestId]?.trim() || undefined,
       });
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Access decision failed");
+      setActionError(cause instanceof Error ? cause.message : "The decision wasn't saved. Try again.");
     }
   };
 
@@ -48,7 +49,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
     try {
       await cancel.mutateAsync(requestId);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Access request cancellation failed");
+      setActionError(cause instanceof Error ? cause.message : "The request wasn't cancelled. Try again.");
     }
   };
 
@@ -62,7 +63,7 @@ export function AccessView({ snapshot }: { snapshot: InstallationSnapshot }) {
         </div>
         <dl>
           <div><dt>Membership</dt><dd><StatusPill value={snapshot.session.membership} /></dd></div>
-          <div><dt>Invocation</dt><dd>{snapshot.session.invocationMode}</dd></div>
+          <div><dt>Invocation</dt><dd>{invocationModeLabel(snapshot.session.invocationMode)}</dd></div>
           <div><dt>Actor</dt><dd><IdentityText identity={snapshot.session.actorId} directory={snapshot} /></dd></div>
         </dl>
       </section>
@@ -197,7 +198,7 @@ function AccessRequestPanel({
   return (
     <section className="panel">
       <SectionHeader title={title} count={requests?.length ?? 0} />
-      {loading && <p className="panel-intro">Loading governed requests…</p>}
+      {loading && <p className="panel-intro">Loading access requests…</p>}
       {error && <div className="action-error">{error.message}</div>}
       {!loading && !requests?.length && <div className="empty-panel">No access requests</div>}
       {!!requests?.length && (

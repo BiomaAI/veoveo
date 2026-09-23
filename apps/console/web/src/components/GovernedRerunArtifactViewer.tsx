@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { WebViewer } from "@rerun-io/web-viewer";
 import { loadRerunMapViewerOptions } from "../rerunMap";
+import { httpErrorMessage } from "../httpMessages";
 
 export default function GovernedRerunArtifactViewer({
   artifactId,
@@ -41,14 +42,14 @@ export default function GovernedRerunArtifactViewer({
           signal: controller.signal,
         });
         if (!response.ok) {
-          throw new Error(`Artifact RRD returned ${response.status}`);
+          throw new Error(httpErrorMessage(response.status, { action: "load this recording", thing: "This recording" }));
         }
         const channel = viewer.open_channel(`artifact ${artifactId}`);
         channel.send_rrd(new Uint8Array(await response.arrayBuffer()));
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return;
-        const message = cause instanceof Error ? cause.message : "Rerun artifact preview failed";
+        const message = cause instanceof Error ? cause.message : "The recording preview couldn't be loaded. Try downloading the file instead.";
         console.error("Governed Rerun artifact failed", cause);
         setError(message);
       });
