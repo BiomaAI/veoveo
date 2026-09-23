@@ -1248,3 +1248,6 @@ The combined contract and Recording check passed 183 tests after 4m 19s of compi
 Selecting the contract package also enabled its default analytics feature, creating
 another native dependency variant. Future focused subscription checks should select
 their required features explicitly instead of broadening the Recording test graph.
+The subsequent Recording image reused those container dependencies and completed in
+91.417 seconds, with a 66.925-second compilation window; its stage receipt is
+`output/development/workspace-uav/recording-notifications-stage.json` at `f105af2a`.
