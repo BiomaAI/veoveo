@@ -431,6 +431,20 @@ pub(crate) fn helm_config() -> Result<()> {
         "the manager must receive the same public catalog without gateway JWK files"
     );
     let bundle_digest = veoveo_deploy_contract::gateway_bundle_digest(&bundles[0])?;
+    for config in [
+        bundles[0]["gateway.json"].clone(),
+        fs::read_to_string("configs/gateway.local.json")?,
+    ] {
+        let config: Value = serde_json::from_str(&config)?;
+        let speech = config["servers"]
+            .as_array()
+            .and_then(|servers| servers.iter().find(|server| server["slug"] == "speech"))
+            .context("Speech registration missing")?;
+        ensure!(
+            speech["referenced_resource_schemes"] == serde_json::json!(["artifact"]),
+            "Speech must preserve source Artifact URIs through gateway projection"
+        );
+    }
     let control_plane_revision = bundle_digest
         .as_str()
         .strip_prefix("sha256:")
@@ -994,10 +1008,7 @@ pub(crate) fn helm_config() -> Result<()> {
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
-    contains(
-        &gateway_dockerfile,
-        "COPY --from=veoveo-rust-artifacts /bin/gateway /usr/local/bin/gateway",
-    )?;
+    not_contains(&gateway_dockerfile, "libduckdb")?;
     contains(
         &gateway_dockerfile,
         "COPY --from=veoveo-rust-artifacts /bin/gateway",

@@ -650,9 +650,10 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query(
-                "RETURN { cursor: array::first((SELECT VALUE sequence FROM outbox_event WHERE available_at <= $now ORDER BY sequence DESC LIMIT 1)), tasks: (SELECT * FROM task WHERE server = $server ORDER BY created_at ASC) };",
-            )
+            .query(format!(
+                "RETURN {{ cursor: array::first(({})), tasks: (SELECT * FROM task WHERE server = $server ORDER BY created_at ASC) }};",
+                subscriptions::AVAILABLE_OUTBOX_TAIL,
+            ))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .bind(("now", Utc::now()))
             .await?

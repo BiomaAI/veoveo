@@ -831,7 +831,10 @@
       "metadata": {
         "contract_revision": 3
       },
-      "resource_projection": "server_owned"
+      "resource_projection": "server_owned",
+      "referenced_resource_schemes": [
+        "artifact"
+      ]
     }
   ],
   "profiles": [

@@ -1,7 +1,7 @@
 use super::{DurableRequest, SpeechService};
 use crate::worker::{WorkerConnection, WorkerEvent, WorkerRequest};
 use anyhow::{Context, Result, bail, ensure};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use sha2::{Digest, Sha256};
 use std::{sync::Arc, time::Duration};
 use tokio::io::AsyncWriteExt;
@@ -42,14 +42,11 @@ impl SpeechService {
         request: DurableRequest,
         cancel: CancellationToken,
     ) {
-        let mut updates = match self
-            .tasks
-            .live_updates_for(std::slice::from_ref(&task))
-            .await
-        {
-            Ok(updates) => updates,
-            Err(_) => return, // Leave resumable work for a healthy lease owner.
-        };
+        let task_ids = [task.clone()];
+        // Subscription establishment participates in the same select as lease
+        // renewal and cancellation; a slow baseline cannot strand a live worker.
+        let mut updates =
+            Box::pin(futures::stream::once(self.tasks.live_updates_for(&task_ids)).try_flatten());
         let mut work = Box::pin(async {
             tokio::time::timeout(Duration::from_secs(900), self.execute(&task, request)).await?
         });

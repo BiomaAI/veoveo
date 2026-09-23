@@ -2,6 +2,10 @@
 use super::*;
 use surrealdb::Notification;
 
+// Read the committed tail in sequence order. The available-at index scans and
+// sorts the entire historical outbox before LIMIT, delaying leases and readers.
+pub(super) const AVAILABLE_OUTBOX_TAIL: &str = "SELECT VALUE sequence FROM outbox_event WITH INDEX outbox_event_sequence_unique WHERE available_at <= $now ORDER BY sequence DESC LIMIT 1";
+
 #[derive(Default)]
 pub(super) struct SharedWake {
     source: Mutex<Option<watch::Sender<u64>>>,
@@ -70,8 +74,8 @@ impl TaskRuntime {
             .subscription_wake
             .subscribe(self.store.clone(), self.server.clone())
             .await;
-        let mut response = self.store.client().query(
-            "RETURN { cursor: array::first((SELECT VALUE sequence FROM outbox_event WHERE available_at <= $now ORDER BY sequence DESC LIMIT 1)), tasks: (SELECT * FROM $records WHERE server = $server) };")
+        let mut response = self.store.client().query(format!(
+            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE server = $server) }};"))
             .bind(("records", records)).bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .bind(("now", Utc::now())).await?.check()?;
         let baseline: TaskUpdateBaseline = response
@@ -121,5 +125,38 @@ impl TaskRuntime {
         let mut response = self.store.client().query("SELECT * FROM outbox_event WHERE sequence > $cursor AND available_at <= $now AND aggregate_type = 'task' AND aggregate_id IN $ids AND payload.snapshot.server = $server ORDER BY sequence ASC LIMIT 256;")
             .bind(("cursor", cursor.sequence())).bind(("now", Utc::now())).bind(("ids", ids.to_vec())).bind(("server", self.server.clone())).await?.check()?;
         Ok(response.take(0)?)
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod fixture;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    #[ignore = "requires the pinned disposable SurrealDB Docker fixture"]
+    async fn available_tail_uses_reverse_index_and_excludes_future_events() {
+        let db = fixture::TestDb::new().await;
+        db.a.client().query("CREATE outbox_event SET aggregate_type = 'fixture', aggregate_id = 'past', event_type = 'fixture', schema_version = 1, payload = {}; CREATE outbox_event SET aggregate_type = 'fixture', aggregate_id = 'future', event_type = 'fixture', schema_version = 1, payload = {}, available_at = time::now() + 1d;")
+            .await.unwrap().check().unwrap();
+        let mut response = db.b.client().query(format!("{AVAILABLE_OUTBOX_TAIL} EXPLAIN; {AVAILABLE_OUTBOX_TAIL}; SELECT VALUE sequence FROM outbox_event WHERE aggregate_id = 'past';"))
+            .bind(("now", Utc::now())).await.unwrap().check().unwrap();
+        let plan: surrealdb::types::Value = response.take(0).unwrap();
+        let plan = format!("{plan:?}");
+        assert!(
+            plan.contains("outbox_event_sequence_unique") && plan.contains("Backward"),
+            "{plan}"
+        );
+        assert!(
+            !plan.contains("Sort") && !plan.contains("TableScan"),
+            "{plan}"
+        );
+        let tail: Vec<i64> = response.take(1).unwrap();
+        let past: Vec<i64> = response.take(2).unwrap();
+        assert_eq!(tail, past);
+        assert_eq!(tail.len(), 1);
     }
 }
