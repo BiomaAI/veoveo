@@ -100,10 +100,10 @@ Media generation, DuckDB export, Frames batch output, Map acquisition or publica
 Optimization output, recording sealing, Stream or Reason analysis, Timeseries
 forecasting, or an external server using the shared artifact plane.
 
-An external server can produce artifacts when its release declares the `artifact`
-platform capability and its artifact audience is admitted by the installation. The
-extension does not grant itself that audience. The installation binding and platform
-selection remain authoritative.
+A server outside the standard catalog can produce artifacts when its release declares
+the `artifact` platform capability and the installation allows its artifact audience.
+The server cannot grant itself that audience; the installation's gateway control
+plane and platform selection decide it.
 
 This gives three distinct meanings to “users can add more”:
 
@@ -111,7 +111,7 @@ This gives three distinct meanings to “users can add more”:
 |---|---|
 | Console operator | Invoke a domain tool that produces an artifact. There is no arbitrary file registration surface. |
 | Domain developer | Use the shared Artifact client or SDK and return the resulting domain-presented artifact resource link. |
-| Installation owner | Install an external hosted MCP server, admit its artifact audience, and expose its tools and resources through a gateway binding. |
+| Installation owner | Register a hosted MCP server, allow its artifact audience, and expose its tools and resources in the gateway control plane. |
 
 ## What The Console Actually Catalogs
 
@@ -363,7 +363,7 @@ domain object, or perform a governed import whose result points back to the sour
 | F11 | Console users cannot register arbitrary files or viewers. Artifact MCP has no put tool, and App registration is installation-owned. | [`DESIGN.md`](../servers/artifact-mcp/DESIGN.md), [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) |
 | F12 | The Map workspace can inspect and import a manually entered authorized artifact ID, proving an existing App-side artifact operation without catalog handoff. | [`workspace-app.html`](../servers/map-mcp/assets/workspace-app.html), [`transfers.rs`](../servers/map-mcp/src/contract/transfers.rs) |
 | F13 | The App resource bridge is capped at 2 MiB and cross-server dependencies require a non-root URI family, so it is not a generic large-artifact byte path. | [`apps.rs`](../apps/console/bff/src/apps.rs), [`validation.rs`](../mcp/contract/src/gateway/validation.rs) |
-| F14 | External producers can use the artifact plane only through installation-admitted platform capability and artifact audience. | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md), [`composition.rs`](../mcp/contract/src/gateway/composition.rs) |
+| F14 | External producers can use the artifact plane only through a platform capability and artifact audience the installation allows. | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md), [`ids.rs`](../mcp/contract/src/gateway/ids.rs) |
 | F15 | Stored MIME validation is too shallow to serve as the sole trusted handler key. | [`service.rs`](../platform/artifacts/service/src/service.rs) |
 | F16 | The embedded Rerun preview downloads the complete RRD before opening it, unlike recording-scoped lazy playback. | [`GovernedRerunArtifactViewer.tsx`](../apps/console/web/src/components/GovernedRerunArtifactViewer.tsx), [`GovernedRerunViewer.tsx`](../apps/console/web/src/components/GovernedRerunViewer.tsx) |
 | F17 | MCP Apps `2026-01-26` supplies UI and tool linkage but no generic artifact-handler declaration. | [`MCP Apps design`](../mcp/apps-extension/DESIGN.md), [SEP-1865](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) |

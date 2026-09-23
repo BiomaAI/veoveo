@@ -16,8 +16,8 @@ processes. The sibling runtime [design](../DESIGN.md) owns the actual GPU workfl
 
 The validators require the complete runtime tuple, hardware rendering and motion
 results, and matching base identities across the UAV and anonymous overlay probes.
-The anonymous overlay is a GPU test application; its historical profile label does
-not enable independently distributed Veoveo extensions. Existing qualified result
+The anonymous overlay is a GPU test application, despite its historical profile
+label. Existing qualified result
 formats stay valid when their Rust types move into this crate.
 
 ## Tests

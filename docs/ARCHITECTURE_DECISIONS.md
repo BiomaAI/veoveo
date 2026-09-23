@@ -107,10 +107,10 @@ controller. Direct Helm and other GitOps controllers use the same charts and
 configuration.
 
 The platform chart and each independently deployable MCP workload chart reconcile
-as separate applications. Once a customer-authored extension's image and chart are
-published, it needs nothing from Veoveo's build system. Its gateway registration
-still uses the standard control-plane, internal-trust, policy, audit, task, artifact,
-and URI contracts.
+as separate applications. A customer workload is built from the fork with the same
+image graph as upstream components and deploys as its own release. Its gateway
+registration uses the standard control-plane, internal-trust, policy, audit, task,
+artifact, and URI contracts.
 
 Typed deployment profiles exist only for disposable development environments in this
 repository. They are not an installation API for enterprises. The Rust smoke harness

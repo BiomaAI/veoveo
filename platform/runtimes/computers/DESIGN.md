@@ -375,7 +375,6 @@ Worker and guest transport certificates are distinct. The provider's mTLS user
 allowlist admits only the worker common name. A guest certificate alone must reach
 TLS and fail ListSandboxes with Unauthenticated; the real supervisor continues with
 its scoped sandbox JWT. This negative gate runs before every native provider fixture.
-The former fixture's shared certificate is retired from the selected profile.
 
 Run this ignored integration test explicitly with `VEOVEO_COMPUTERS_NATIVE_GATEWAY`,
 `VEOVEO_COMPUTERS_NATIVE_SUPERVISOR`, and `VEOVEO_COMPUTERS_NATIVE_OUTPUT` set to absolute
