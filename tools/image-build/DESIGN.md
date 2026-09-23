@@ -56,7 +56,8 @@ were not transported. The measurements distinguish these outcomes. They do not c
 network performance across hosts, a cold primary baseline, or GPU runtime acceptance.
 
 The command records cache export bytes, worker identity, CPU consumption, BuildKit phase
-windows, and command-entry timing. Storage preflight retains the existing 20% reserve.
+windows, and command-entry timing. Storage preflight retains a 13% reserve after
+the planned build's additional storage.
 The temporary worker, volume, and exported cache are removed on completion; ordinary
 builder caches and local binary evidence remain. Cleanup failure makes the comparison
 fail. Normal scope exit also attempts worker cleanup after an error. An externally
@@ -255,11 +256,13 @@ publication time. Local admission receipts live below
 
 ## Shared-Host Cache Capacity
 
-The managed worker retains an 80 GiB cache floor and targets at least 20% free space
-on its filesystem. Its configured collection trigger is 22%. BuildKit 0.33.0 divides by
-binary GiB and multiplies by decimal GB when resolving percentages, so an unadjusted
-20% setting undershoots an exact 20% reserve. The 22% trigger covers that reserve with
-additional headroom; a future upstream rounding correction only increases the headroom. Collection also begins above 320 GiB of worker cache. The aged-input and
+The managed worker retains an 80 GiB cache floor and targets at least 13% free space
+on its filesystem after projected build growth. Its configured collection trigger is
+15%. BuildKit 0.33.0 divides by binary GiB and multiplies by decimal GB when resolving
+percentages, so an unadjusted 13% setting undershoots an exact 13% reserve. The 15%
+trigger covers that reserve with headroom. On the Bioma host, the 13% reserve is about
+238 GiB, above Recording Hub's 200 GiB filesystem floor. Collection also begins above
+320 GiB of worker cache. The aged-input and
 broader pressure policies share these thresholds. The first policy gives old source
 and compiler-cache mounts a seven-day retention window. The broader pressure policy excludes execution cache mounts, preserving that
 seven-day window even under host pressure. Previously its unrestricted sweep could
@@ -267,7 +270,7 @@ remove Cargo targets immediately after a successful build. Other unused state re
 reclaimable, subject to the cache floor. Active cache mounts may prevent reaching the
 free-space target; the existing storage preflight remains authoritative.
 
-The effective threshold must cover release preflight's default 20% reserve. Each build must still
+The effective threshold must cover release preflight's default 13% reserve. Each build must still
 budget its peak additional storage. Garbage collection cannot guarantee that reserve
 when other host owners consume more space than the reclaimable cache can cover.
 Registry artifacts and Kubernetes persistent data belong to their own storage owners.
@@ -285,7 +288,7 @@ upstream release checksums. The worker and its retained state are unchanged.
 A final execution-cache policy bounds that retention: after ordinary source and image
 collection, it may reclaim recent mounts when total worker usage still exceeds
 320 GB or free space falls below 32 GB, subject to the existing 80-GB cache floor.
-The normal 22% pressure sweep cannot bypass retention. This emergency policy keeps
+The normal 15% pressure sweep cannot bypass retention. This emergency policy keeps
 active compiler caches from becoming an unlimited disk reservation; it does not
 replace installation storage preflight or guarantee space owned by other services.
 

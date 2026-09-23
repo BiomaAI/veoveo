@@ -114,12 +114,13 @@ configuration contains no registry hostname. An `insecure-http` profile adds onl
 selected registry stanza in a content-addressed generated file; a `tls` profile uses
 the base configuration and host trust roots. The configuration preserves source-local
 and Cargo cache mounts for seven days in its first collection policy. Both policies
-retain an 80 GiB cache floor, collect above 320 GiB of worker usage, and target at least 20%
+retain an 80 GiB cache floor, collect above 320 GiB of worker usage, and target at least 13%
 free space on the worker filesystem after accounting for the pinned daemon's rounding.
-The configured cleanup trigger is 22%: BuildKit 0.33.0's
+The configured cleanup trigger is 15%: BuildKit 0.33.0's
 [pinned percentage conversion](https://github.com/moby/buildkit/blob/v0.33.0/cmd/buildkitd/config/gcpolicy.go#L127)
 produces fewer bytes than an exact percentage calculation. On the qualified host this
-resolves to about 376 GiB, above release preflight's 366 GiB reserve. Build growth
+resolves to about 256 GiB, above release preflight's 238 GiB reserve and the Recording
+Hub's 200 GiB filesystem floor. Build growth
 remains an additional preflight requirement. The broader pressure policy excludes execution cache mounts, preserving their seven-day
 reuse window. It can reclaim other recently used cache when older candidates do not
 provide enough space; the cache floor still takes priority over free-space recovery.
@@ -666,6 +667,6 @@ change.
 A final execution-cache policy bounds that retention: after ordinary source and image
 collection, it may reclaim recent mounts when total worker usage still exceeds
 320 GB or free space falls below 32 GB, subject to the existing 80-GB cache floor.
-The normal 22% pressure sweep cannot bypass retention. This emergency policy keeps
+The normal 15% pressure sweep cannot bypass retention. This emergency policy keeps
 active compiler caches from becoming an unlimited disk reservation; it does not
 replace installation storage preflight or guarantee space owned by other services.

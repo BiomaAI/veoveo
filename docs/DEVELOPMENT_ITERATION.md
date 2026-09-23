@@ -1408,6 +1408,12 @@ ordinary cache collection threshold with the installation's explicit release
 reserve, and qualify a staged image promptly while its layers are warm.
 The UAV release repeated the 10.6 GB Isaac base transfer despite caching its
 source and dependency commands; that qualification took another 1,029.5 seconds.
+The worker's ordinary free-space trigger is now 15%, paired with a 13% release
+preflight reserve after each build's projected growth. On this host that leaves
+about 238 GiB of post-build free space, above the Recording Hub's 200 GiB floor.
+The worker still collects above 320 GB of cache use and retains its 32 GB
+emergency threshold. A later matched stage-and-qualification run must measure
+whether the new policy retains the DeepStream and Isaac parent layers.
 
 The first core qualification rejected a changed Console runnable digest relative
 to its stage. A direct qualified publication succeeded, but repeating the build
