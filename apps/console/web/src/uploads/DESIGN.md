@@ -29,6 +29,10 @@ descriptors. Restored metadata is validated before an authenticated status reque
 only the server can establish a completed receipt.
 
 Selection and drag/drop share validation and require an explicit start. The queue
+identifies `.md` and `.markdown` files as `text/markdown`, including when the browser
+reports an empty or generic MIME type. Installation policy must admit this media type.
+Markdown remains a governed Artifact attachment; uploading it does not execute its content.
+The queue
 suppresses accidental duplicate selection and offers an explicit additional copy.
 Each file has its own admission key. One active file uses the negotiated parallel
 part window, further bounded by the profile memory allowance. Files waiting for

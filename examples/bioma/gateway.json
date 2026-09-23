@@ -1413,6 +1413,7 @@
           "image/png",
           "image/webp",
           "text/csv",
+          "text/markdown",
           "text/plain",
           "video/mp4"
         ]
@@ -2118,6 +2119,7 @@
           "image/png",
           "image/webp",
           "text/csv",
+          "text/markdown",
           "text/plain",
           "video/mp4"
         ]
@@ -2755,6 +2757,7 @@
           "image/png",
           "image/webp",
           "text/csv",
+          "text/markdown",
           "text/plain",
           "video/mp4"
         ]

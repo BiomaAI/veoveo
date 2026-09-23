@@ -76,6 +76,7 @@ export function requestId(): string {
 const extensions: Record<string, string> = {
   csv: "text/csv", parquet: "application/vnd.apache.parquet", json: "application/json",
   jsonl: "application/x-ndjson", ndjson: "application/x-ndjson", txt: "text/plain",
+  md: "text/markdown", markdown: "text/markdown",
   png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", pdf: "application/pdf",
   mp4: "video/mp4", zip: "application/zip", bin: "application/octet-stream", rrd: "application/octet-stream",
 };

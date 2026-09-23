@@ -5,7 +5,7 @@ import test from "node:test";
 configureBrowserApplication("console");
 import { browserSession } from "./csrf.ts";
 import { UploadQueue } from "./uploads/queue.ts";
-import { requestId, type Policy, type Receipt, type Session } from "./uploads/model.ts";
+import { describe, invalidSelection, requestId, type Policy, type Receipt, type Session } from "./uploads/model.ts";
 
 const origin = "https://uploads.example";
 const storageKey = `veoveo.uploads.v1:${JSON.stringify([origin, "tenant", "alice", "operations"])}`;
@@ -14,6 +14,19 @@ const policy: Policy = {
   policy: { max_object_bytes: 1024, tenant_quota_bytes: 1024, max_active_uploads_per_tenant: 8, part_bytes: 8, max_part_bytes: 8, max_parts: 128, parallel_parts: 2, max_inflight_bytes: 16, inactivity_seconds: 60, lifetime_seconds: 3600, part_timeout_seconds: 30, allowed_mime_types: ["application/octet-stream"] },
 };
 const digest = async (blob: Blob) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())), (value) => value.toString(16).padStart(2, "0")).join("");
+
+test("Markdown selection uses its canonical media type and still requires policy admission", () => {
+  const admitted = structuredClone(policy);
+  admitted.policy!.allowed_mime_types.push("text/markdown");
+  for (const name of ["notes.md", "NOTES.MD", "notes.markdown"]) {
+    for (const type of ["", "text/plain", "application/octet-stream", "text/markdown"]) {
+      const descriptor = describe(new File(["# Notes\n"], name, { type }));
+      assert.equal(descriptor.mime_type, "text/markdown");
+      assert.equal(invalidSelection(descriptor, admitted), undefined);
+      assert.equal(invalidSelection(descriptor, policy), "This file type is not allowed here.");
+    }
+  }
+});
 
 class TestHashWorker {
   onmessage?: (event: { data: { id: number; sha: string } }) => void;
