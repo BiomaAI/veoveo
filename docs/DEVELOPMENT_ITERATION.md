@@ -1236,3 +1236,15 @@ Command-specific input declarations reduced the gateway check from 2,712 inputs 
 Deduplicating input manifests and declaring those commands are separate evidence-tooling
 work. The current delivery preserves immutable failed observations and subsequent
 passing observations rather than rewriting history.
+
+The identity-only Recording deployment still failed installed acceptance. Tracing its
+notifications identified the correctness defect: the September 17 shared-subscriptions
+change called resource-list invalidation for every Recording content write. Continuous
+ingest repeatedly invalidated discovery during traversal. Recording now advertises
+stable roots and templates, and its Store observer reconciles resource contents without
+announcing a discovery-list change. The intermediate identity-listing module was removed.
+
+The combined contract and Recording check passed 183 tests after 4m 19s of compilation.
+Selecting the contract package also enabled its default analytics feature, creating
+another native dependency variant. Future focused subscription checks should select
+their required features explicitly instead of broadening the Recording test graph.

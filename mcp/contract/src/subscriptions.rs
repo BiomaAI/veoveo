@@ -58,9 +58,15 @@ impl SubscriptionHub {
         let _ = self.updates.send(ResourceUpdate::Uri(uri.into()));
     }
 
-    /// Invalidate only each listener's already-authorized resource identities.
-    pub async fn notify_resources_changed(&self) {
+    /// Content changes affect only each listener's already-authorized identities.
+    /// They do not change the resource inventory or its discovery metadata.
+    pub async fn notify_resource_contents_changed(&self) {
         let _ = self.updates.send(ResourceUpdate::Reconcile);
+    }
+
+    /// Reconcile both resource contents and the discovery inventory.
+    pub async fn notify_resources_changed(&self) {
+        self.notify_resource_contents_changed().await;
         self.notify_resource_list_changed().await;
     }
 
@@ -187,6 +193,28 @@ pub async fn send_resource_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test]
+    async fn content_updates_do_not_invalidate_catalog_discovery() {
+        let hub = SubscriptionHub::new();
+        let mut updates = hub.listen();
+        let mut lists = hub.listen_resource_list_changes();
+        hub.notify_resource_contents_changed().await;
+        assert!(matches!(
+            updates.recv().await.unwrap(),
+            ResourceUpdate::Reconcile
+        ));
+        assert!(matches!(
+            lists.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
+        hub.notify_resources_changed().await;
+        assert!(matches!(
+            updates.recv().await.unwrap(),
+            ResourceUpdate::Reconcile
+        ));
+        lists.recv().await.unwrap();
+    }
+
     #[tokio::test]
     async fn slow_resource_listeners_reconcile_their_accepted_identities() {
         let hub = SubscriptionHub::new();

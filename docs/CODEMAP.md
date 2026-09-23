@@ -916,8 +916,8 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
-`src/service/catalog.rs` projects authorized resource identities without loading each
-recording’s dataset and layer inventory during MCP discovery.
+`src/bin/server.rs` advertises stable discovery roots and templates. Recording content
+changes notify accepted resource readers without invalidating App discovery.
 
 `contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
 descriptor types. `service.rs` resolves authorized MCP and playback plans and publishes

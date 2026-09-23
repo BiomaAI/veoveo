@@ -7,15 +7,18 @@
         "test",
         "--locked",
         "-p",
+        "veoveo-mcp-contract",
+        "-p",
         "veoveo-recording-mcp",
         "--features",
-        "redap",
+        "veoveo-recording-mcp/redap",
         "--lib",
         "--bins"
       ],
       "inputs": {
         "kind": "cargo",
         "packages": [
+          "veoveo-mcp-contract",
           "veoveo-recording-mcp"
         ],
         "roots": []
