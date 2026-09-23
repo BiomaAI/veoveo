@@ -1,0 +1,523 @@
+{
+  "$defs": {
+    "AccessSubject": {
+      "description": "A principal or group that can own governed data or receive access.",
+      "oneOf": [
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            "kind": {
+              "const": "principal",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/GroupId"
+            },
+            "kind": {
+              "const": "group",
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "id"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ArtifactId": {
+      "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+      "type": "string"
+    },
+    "ArtifactMetadata": {
+      "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+      "properties": {
+        "artifact_id": {
+          "$ref": "#/$defs/ArtifactId"
+        },
+        "artifact_uri": {
+          "type": "string"
+        },
+        "byte_len": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "compliance": {
+          "$ref": "#/$defs/ComplianceMetadata",
+          "default": {}
+        },
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "download_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "filename": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "default": null
+        },
+        "mime_type": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_state": {
+          "$ref": "#/$defs/ArtifactReleaseState",
+          "default": "private"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "byte_len",
+        "artifact_uri",
+        "created_at"
+      ],
+      "type": "object"
+    },
+    "ArtifactProvenance": {
+      "description": "Immutable explanation of how an artifact came into being.",
+      "properties": {
+        "delegation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DelegationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "initiator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PrincipalId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invocation_mode": {
+          "$ref": "#/$defs/InvocationMode"
+        },
+        "policy_revision": {
+          "$ref": "#/$defs/PolicyVersion"
+        },
+        "producer": {
+          "$ref": "#/$defs/PrincipalId"
+        }
+      },
+      "required": [
+        "producer",
+        "invocation_mode",
+        "policy_revision"
+      ],
+      "type": "object"
+    },
+    "ArtifactReleaseState": {
+      "enum": [
+        "private",
+        "releasable",
+        "released"
+      ],
+      "type": "string"
+    },
+    "ComplianceMetadata": {
+      "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+      "properties": {
+        "classification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data_labels": {
+          "items": {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AccessSubject"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "retention_expires_at": {
+          "format": "date-time",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tenant_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TenantId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "work_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/WorkContextId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DataLabelId": {
+      "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+      "type": "string"
+    },
+    "DelegationId": {
+      "description": "Auditable identity of authority delegated by an initiator to another actor.",
+      "type": "string"
+    },
+    "DictationId": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "DictationSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "max_duration_seconds": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "next_sequence": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/DictationStatus"
+        },
+        "transcript": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Transcript"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "result_uri",
+        "status",
+        "next_sequence",
+        "max_duration_seconds"
+      ],
+      "type": "object"
+    },
+    "DictationStatus": {
+      "enum": [
+        "listening",
+        "flushing",
+        "completed",
+        "cancelled",
+        "failed"
+      ],
+      "type": "string"
+    },
+    "GroupId": {
+      "description": "Identity-provider group identifier used by gateway policy.",
+      "type": "string"
+    },
+    "InvocationMode": {
+      "description": "How the current actor obtained authority to perform the work.",
+      "enum": [
+        "direct",
+        "delegated",
+        "automated"
+      ],
+      "type": "string"
+    },
+    "PolicyVersion": {
+      "description": "Immutable policy version identifier emitted with decisions and audit records.",
+      "type": "string"
+    },
+    "PrincipalId": {
+      "description": "Stable authenticated user or service-principal identity.",
+      "type": "string"
+    },
+    "Segment": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "double",
+          "type": "number"
+        },
+        "start": {
+          "format": "double",
+          "type": "number"
+        },
+        "text": {
+          "type": "string"
+        },
+        "words": {
+          "items": {
+            "$ref": "#/$defs/Word"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "text",
+        "start",
+        "end",
+        "words"
+      ],
+      "type": "object"
+    },
+    "StartDictation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sample_rate": {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "sample_rate"
+      ],
+      "type": "object"
+    },
+    "TenantId": {
+      "description": "Tenant, organization, or customer boundary identifier.",
+      "type": "string"
+    },
+    "TranscribeRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_uri": {
+          "description": "Governed uploaded audio or video, identified by its canonical Artifact URI.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_uri"
+      ],
+      "type": "object"
+    },
+    "Transcript": {
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": {
+          "format": "double",
+          "type": "number"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "type": "array"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "duration_seconds",
+        "segments"
+      ],
+      "type": "object"
+    },
+    "TranscriptDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "model_revision": {
+          "type": "string"
+        },
+        "schema": {
+          "type": "string"
+        },
+        "source_artifact_uri": {
+          "type": "string"
+        },
+        "source_sha256": {
+          "type": "string"
+        },
+        "transcript": {
+          "$ref": "#/$defs/Transcript"
+        }
+      },
+      "required": [
+        "schema",
+        "source_artifact_uri",
+        "source_sha256",
+        "model",
+        "model_revision",
+        "transcript"
+      ],
+      "type": "object"
+    },
+    "TranscriptionOutput": {
+      "additionalProperties": false,
+      "properties": {
+        "captions": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        },
+        "duration_seconds": {
+          "format": "double",
+          "type": "number"
+        },
+        "result_uri": {
+          "type": "string"
+        },
+        "source_artifact_uri": {
+          "type": "string"
+        },
+        "transcript": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        }
+      },
+      "required": [
+        "result_uri",
+        "source_artifact_uri",
+        "transcript",
+        "captions",
+        "duration_seconds"
+      ],
+      "type": "object"
+    },
+    "Word": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "format": "double",
+          "type": "number"
+        },
+        "start": {
+          "format": "double",
+          "type": "number"
+        },
+        "word": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "word",
+        "start",
+        "end"
+      ],
+      "type": "object"
+    },
+    "WorkContextId": {
+      "description": "Tenant-local boundary that governs related work and every output it produces.",
+      "type": "string"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "dictation": {
+      "$ref": "#/$defs/DictationSnapshot"
+    },
+    "dictation_id": {
+      "$ref": "#/$defs/DictationId"
+    },
+    "document": {
+      "$ref": "#/$defs/TranscriptDocument"
+    },
+    "output": {
+      "$ref": "#/$defs/TranscriptionOutput"
+    },
+    "start_dictation": {
+      "$ref": "#/$defs/StartDictation"
+    },
+    "transcribe": {
+      "$ref": "#/$defs/TranscribeRequest"
+    }
+  },
+  "required": [
+    "start_dictation",
+    "dictation_id",
+    "dictation",
+    "transcribe",
+    "output",
+    "document"
+  ],
+  "title": "SchemaBundle",
+  "type": "object"
+}

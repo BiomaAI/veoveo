@@ -52,10 +52,10 @@ impl SharedWake {
 }
 
 impl TaskRuntime {
-    pub(crate) async fn live_updates_for(
-        &self,
-        ids: &[String],
-    ) -> Result<TaskUpdateStream, TaskError> {
+    /// Observe exact Tasks within this runtime's server. Trusted domain workers use
+    /// this for cross-replica cancellation; public callers must pass through the
+    /// authorized `subscribe_durable_tasks` projection.
+    pub async fn live_updates_for(&self, ids: &[String]) -> Result<TaskUpdateStream, TaskError> {
         if ids.is_empty() {
             return Ok(Box::pin(futures::stream::pending()));
         }

@@ -44,6 +44,7 @@ members = [
     "servers/stream-mcp",
     "servers/reason-mcp",
     "servers/speech-mcp",
+    "servers/speech-mcp/contract",
     "servers/recording-mcp",
     "servers/timeseries-mcp",
     "servers/time-mcp",

@@ -1044,3 +1044,29 @@ a separate orchestration-efficiency investigation.
 
 Free disk remained about 274 GiB. No disk-pressure cleanup or unrelated image rebuild
 was needed for the final client activation.
+
+## Speech Delivery — September 22, 2026
+
+The Speech worker separates its locked Python/GPU dependencies from Rust and browser
+inputs. The lightweight `veoveo-speech-contract` carries public DTOs across the gateway
+and browser edge. Source edits preserve the persistent model and image dependency
+layers. No gateway image contains model weights.
+
+Observed local costs before packaging: the first expanded Speech unit build took
+114 seconds, the browser-edge test build 47 seconds, and the expanded GPU lifecycle
+test took 29 seconds after compilation. The next real Task/Artifact/GPU acceptance run
+took 10 seconds after a 4-second incremental compile. Workspace's Vite bundling phase
+took 1.6 seconds. These are functional-run measurements, not performance SLOs.
+
+Cargo rebuilt shared networking and SurrealDB crates when test package selections
+changed their unified feature sets. Consolidating stable package/check selections
+would reduce this churn. Avoid running concurrent Cargo commands against the same
+target directory. The test-evidence index and transitive input receipts also produce
+large diffs for a small crate; the first Speech checkpoint added about 28000 lines
+including locks and evidence. Receipt compaction and GPU environment qualification
+remain future tooling work and do not gate this delivery.
+
+The Bioma node advertises seven shared GPU slots, all allocated. Speech needs an
+eighth declared slot while preserving existing GPU workloads. At this checkpoint,
+the RTX 4090 used approximately 10.6 GiB of its 24 GiB. Scheduling admission and model
+residency are separate facts; installed concurrent acceptance must verify both.

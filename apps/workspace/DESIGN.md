@@ -279,3 +279,20 @@ through Workspace's own browser edge. Explicit authoring permissions govern crea
 private content and publication. Draft changes do not alter published executable
 revisions. Registry-backed chat admission and explicit participant updates remain
 part of the active agent-management delivery goal until their runtime checkpoint lands.
+
+## Speech
+
+The composer captures bounded private microphone audio through Speech. Provisional
+snapshots appear beside the draft. Stop releases the microphone, flushes the final
+transcript and appends text without overwriting typed edits. Send remains explicit
+and uses the existing message identity and agent selection. Cancel discards capture;
+a failure offers the available provisional text for review. Navigation and session
+expiry close capture. The native AudioWorklet emits bounded binary PCM without
+monitoring the microphone through speakers.
+
+Recording transcription starts an ordinary private Workspace operation backed by a
+native MCP Task. Activity retains cancellation, subscriptions and reload recovery.
+The result viewer reads governed transcript JSON and plays the authorized source
+through the existing Artifact route. Timestamp controls seek that source. Caption
+and transcript links grant no access by themselves. Artifact classification, labels
+and Work Context policy remain authoritative even when the operation is private.

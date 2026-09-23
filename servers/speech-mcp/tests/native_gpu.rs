@@ -1,4 +1,6 @@
 //! Real worker lifecycle, CUDA inference and bounded live audio. No mocked inference.
+mod support;
+
 use anyhow::{Context, Result, bail, ensure};
 use std::{
     path::{Path, PathBuf},
@@ -9,9 +11,9 @@ use tokio::{
     process::Command,
     time::{sleep, timeout},
 };
-use veoveo_speech_mcp::{
-    transcript::Transcript,
-    worker::{PROTOCOL, WorkerConnection, WorkerError, WorkerEvent, WorkerRequest},
+use veoveo_speech_contract::transcript::Transcript;
+use veoveo_speech_mcp::worker::{
+    PROTOCOL, WorkerConnection, WorkerError, WorkerEvent, WorkerRequest,
 };
 
 async fn completed(connection: &mut WorkerConnection) -> Result<Transcript> {
@@ -134,7 +136,7 @@ async fn cuda_file_live_cancel_and_input_bounds() -> Result<()> {
     let log = work.path().join("worker.log");
     let stderr = std::fs::File::create(&log)?;
     let started = Instant::now();
-    let mut child = Command::new(python)
+    let mut child = Command::new(&python)
         .arg("-m")
         .arg("speech_runner.main")
         .arg("--socket")
@@ -300,5 +302,106 @@ async fn cuda_file_live_cancel_and_input_bounds() -> Result<()> {
     std::fs::write(output, serde_json::to_vec_pretty(&evidence)?)?;
     child.kill().await?;
     child.wait().await?;
+    private_sessions(&python, &pcm).await?;
+    Ok(())
+}
+
+async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
+    use veoveo_mcp_contract::{PrincipalKind, WorkContextId};
+    use veoveo_speech_contract::dictation::{DictationStatus, StartDictation};
+    use veoveo_speech_mcp::{dictation::Dictations, process::WorkerProcess};
+    let worker = std::sync::Arc::new(WorkerProcess::start(python, 2).await?);
+    let sessions = Dictations::new(worker, 1);
+    let alice = support::identity(&support::owner("alice"));
+    let bob = support::identity(&support::owner("bob"));
+    let id = uuid::Uuid::now_v7();
+    let start = StartDictation {
+        id,
+        sample_rate: 16_000,
+    };
+    sessions.start(alice.clone(), start.clone()).await?;
+    ensure!(
+        sessions.start(alice.clone(), start).await?.id == id,
+        "start replay changed session"
+    );
+    ensure!(
+        sessions.read(&bob, id).await.is_err(),
+        "private draft leaked"
+    );
+    let mut other_context = alice.clone();
+    other_context.authority.work_context = WorkContextId::new("other-work-context")?;
+    ensure!(
+        sessions.read(&other_context, id).await.is_err(),
+        "Work Context boundary missing"
+    );
+    let mut other_session = alice.clone();
+    other_session
+        .request_context
+        .as_mut()
+        .unwrap()
+        .access_token
+        .session_family = bob
+        .request_context
+        .as_ref()
+        .unwrap()
+        .access_token
+        .session_family
+        .clone();
+    ensure!(
+        sessions.read(&other_session, id).await.is_err(),
+        "browser session boundary missing"
+    );
+    let mut automated = alice.clone();
+    automated.actor.kind = PrincipalKind::Service;
+    ensure!(
+        sessions.read(&automated, id).await.is_err(),
+        "service could access microphone draft"
+    );
+    for (sequence, chunk) in pcm.chunks(16_000).enumerate() {
+        let receipt = sessions
+            .chunk(&alice, id, sequence as u32, chunk.to_vec())
+            .await?;
+        ensure!(
+            receipt.next_sequence == sequence as u32 + 1,
+            "audio sequence not acknowledged"
+        );
+        if sequence == 0 {
+            let retry = sessions.chunk(&alice, id, 0, chunk.to_vec()).await?;
+            ensure!(retry.next_sequence == 1, "duplicate audio appended");
+        }
+        sleep(Duration::from_millis(250)).await;
+    }
+    let result = sessions.finish(&alice, id, false).await?;
+    ensure!(
+        result.status == DictationStatus::Completed
+            && result
+                .transcript
+                .as_ref()
+                .is_some_and(|t| t.text.to_lowercase().contains("old portrait")),
+        "private dictation final missing"
+    );
+    let repeated = sessions.finish(&alice, id, false).await?;
+    ensure!(
+        repeated.transcript.unwrap().text == result.transcript.unwrap().text,
+        "final replay changed text"
+    );
+    let cancelled_id = uuid::Uuid::now_v7();
+    sessions
+        .start(
+            alice.clone(),
+            StartDictation {
+                id: cancelled_id,
+                sample_rate: 16_000,
+            },
+        )
+        .await?;
+    sessions
+        .chunk(&alice, cancelled_id, 0, pcm[..16_000].to_vec())
+        .await?;
+    let cancelled = sessions.finish(&alice, cancelled_id, true).await?;
+    ensure!(
+        cancelled.status == DictationStatus::Cancelled && cancelled.transcript.is_none(),
+        "cancel retained private text"
+    );
     Ok(())
 }

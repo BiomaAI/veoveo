@@ -99,3 +99,22 @@ Moondream `2.4.1` and its exact Kestrel `0.8.1` dependency were verified from Py
 September 22. The upstream adapter pins Ultra revision
 `510e6f5a1c4619f39c72b083c091476935734e65`; weight provenance will be recorded with
 the packaged runtime. Model weights carry CC-BY-4.0 attribution.
+
+## September 22 Implementation Checkpoint
+
+The persistent worker passed actual CUDA qualification on the RTX 4090, including
+English and Spanish word timestamps, live finalization, no-GPU startup denial,
+workspace path confinement, capacity and disconnect cancellation. Private dictation
+also passed actor, Work Context and browser-session isolation checks, repeated-start
+and duplicate-chunk checks, final flush and discarded cancellation.
+
+The Rust domain and Workspace UI are implemented. Recording Tasks publish JSON and
+WebVTT through the real Artifact service and shared store. The native test verifies
+sensitive-source admission, output label inheritance, private Task access and
+cross-connection observation. A second runtime's cancellation is tested separately.
+The browser build and cookie/CSRF projection test pass. Packaging, MCP conformance,
+restart recovery and installed headed acceptance remain pending.
+
+Artifacts follow existing Work Context access policy. Private Activity refers to the
+operation and Task details; it does not redefine Artifact permissions. This distinction
+is preserved in the UI and qualification fixtures.

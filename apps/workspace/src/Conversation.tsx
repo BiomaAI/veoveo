@@ -10,6 +10,9 @@ import type { ChatAttachment, ReplyContext, SendMessage } from "./generated/work
 import type { QueueState } from "../../console/web/src/uploads/queue.ts";
 import { AttachmentComposer, MessageAttachments } from "./Attachments.tsx";
 
+import { Recording } from "./speech/Recording.tsx";
+import { Dictation } from "./speech/Dictation.tsx";
+
 const RunActions = createContext<(id: string) => void>(() => {});
 const ReplyActions = createContext<{ messages: PresentedMessage[]; disabled: boolean; select: (message: PresentedMessage) => void }>({ messages: [], disabled: true, select: () => {} });
 
@@ -56,6 +59,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
   // stable send identities; assistant-ui owns presentation and scroll behavior.
   const runtime = useExternalStoreRuntime({ messages: converted, isRunning: false, onNew: async () => {} });
   const [draft, setDraft] = useState("");
+  const [dictating, setDictating] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [selected, setSelected] = useState<string[]>([]);
@@ -72,7 +76,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
     catch (error) { setError(error instanceof Error ? error.message : "Could not stop this response."); }
   }, [snapshot.chat.id, onChanged]);
   const send = useCallback(async () => {
-    if (pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
+    if (dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute) return;
     const text = draft.trim();
     if (new TextEncoder().encode(text).length > 32768) { setError("Keep the message under 32 KB."); return; }
     if (attempt.current && attempt.current.text !== text) {
@@ -91,7 +95,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
       setError(error instanceof Error ? error.message : "The message could not be confirmed.");
     }
     finally { setPending(false); }
-  }, [pending, draft, reply, attachments, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
+  }, [dictating, pending, draft, reply, attachments, snapshot.chat, canContribute, onChanged, addressed, selectionError]);
   const selectReply = (message: PresentedMessage) => {
     if (pending || attempt.current || snapshot.chat.archived || !canContribute) return;
     setReply(message);
@@ -125,6 +129,9 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
           disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
         {reply && <div className="composer-reply" role="region" aria-label="Reply context"><ReplyQuote context={{ authorName: reply.authorName, text: [...reply.text].slice(0, 500).join("") }}/>
           <button className="icon-button" aria-label="Remove reply" disabled={pending || !!attempt.current} onClick={() => { setReply(undefined); composer.current?.focus(); }}><X size={16}/></button></div>}
+        <Recording chat={snapshot.chat.id} uploads={uploads} onUpload={onUpload} disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}/>
+        <Dictation disabled={pending || !!attempt.current || snapshot.chat.archived || !canContribute}
+          onActive={setDictating} onText={text => { if (text.trim()) setDraft(current => current ? `${current}\n${text}` : text); composer.current?.focus(); }}/>
         <form className="composer" onSubmit={event => { event.preventDefault(); void send(); }}>
           <textarea ref={composer} aria-label="Message" placeholder={snapshot.chat.archived ? "This chat is archived" : "Write to everyone in this chat…"}
             value={draft} disabled={!canContribute || snapshot.chat.archived} readOnly={pending || !!attempt.current}
@@ -132,7 +139,7 @@ export function Conversation({ snapshot, personId, canContribute, onChanged, onO
               if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); }
             }} />
           <div className="composer-footer"><span><CornerDownLeft size={12}/> Enter to send · Shift + Enter for a new line</span>
-            <button className="send" type="submit" disabled={pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
+            <button className="send" type="submit" disabled={dictating || pending || (!draft.trim() && !attachments.length) || snapshot.chat.archived || !canContribute || (!!selectionError && !attempt.current)} aria-label={attempt.current ? "Retry message" : "Send message"}><ArrowUp size={19}/></button>
           </div>
         </form>
         <p className="composer-note">Everyone in this chat can read its shared history.</p>

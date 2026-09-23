@@ -4,6 +4,7 @@ mod apps;
 mod events;
 mod operations;
 mod runs;
+pub(crate) mod speech;
 pub(crate) mod static_assets;
 #[cfg(test)]
 mod tests;

@@ -61,6 +61,132 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-speech-mcp",
+        "-p",
+        "veoveo-speech-contract",
+        "--lib"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-speech-mcp",
+          "veoveo-speech-contract"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-speech-mcp",
+        "-p",
+        "veoveo-speech-contract",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-speech-mcp",
+          "veoveo-speech-contract"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "clippy",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "--bins",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-gateway",
+          "veoveo-console-bff"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-console-bff",
+        "workspace::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-console-bff"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "fmt",
+        "-p",
+        "veoveo-speech-mcp",
+        "-p",
+        "veoveo-speech-contract",
+        "-p",
+        "veoveo-mcp-gateway",
+        "-p",
+        "veoveo-console-bff",
+        "-p",
+        "veoveo-xtask",
+        "-p",
+        "veoveo-task-runtime",
+        "--",
+        "--check"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-speech-mcp",
+          "veoveo-speech-contract",
+          "veoveo-mcp-gateway",
+          "veoveo-console-bff",
+          "veoveo-xtask",
+          "veoveo-task-runtime"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

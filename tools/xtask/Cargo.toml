@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-speech-contract = { path = "../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true

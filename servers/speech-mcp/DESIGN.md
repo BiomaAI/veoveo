@@ -1,14 +1,14 @@
 # Speech MCP
 
-Status: inference boundary under implementation. Public MCP, browser and deployment
+Status: domain and browser implementation complete; packaging in progress. Public MCP, browser and deployment
 acceptance remain tracked in [the delivery plan](../../docs/SPEECH_PLAN.md).
 
 ## Standards And Protocols
 
 | Boundary | Supported profile |
 |---|---|
-| MCP `2026-07-28` | Planned public transcription, official Tasks and authorized transcript resources using the shared runtime |
-| Veoveo Artifact plane | Planned source read capabilities and idempotent transcript publication |
+| MCP `2026-07-28` | Public transcription, official Tasks and authorized transcript resources using the shared runtime |
+| Veoveo Artifact plane | Source read capabilities and idempotent transcript publication |
 | `veoveo.speech-worker/v1` | Private Unix socket protocol: one bounded JSON request followed by length-prefixed little-endian float32 mono PCM for live input; NDJSON transcript snapshots in response |
 | Photon | Moondream `2.4.1`, Kestrel `0.8.1`, NVIDIA CUDA only; Parakeet Ultra weights SHA-256 `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
 | JSON / WebVTT | Typed transcripts with word/segment times in seconds and caption export |
@@ -47,9 +47,49 @@ objects are identical to Photon `0.8.1`'s pinned revision
 immutable pin and records the weight digest. Attribution: Moondream Parakeet Ultra,
 derived from NVIDIA Parakeet TDT 0.6B v3, CC-BY-4.0.
 
+## Recorded Transcription
+
+`transcribe` accepts one canonical Artifact URI and requires MCP Tasks. Admission
+validates current source access and issues bounded read and output capabilities.
+The shared Task runtime persists the request, progress, lease and result. Recovery
+reruns only accepted resumable work. Stable publication keys prevent duplicate
+transcript and caption Artifacts. Output inherits the current source classification,
+data labels and retention deadline under the Work Context output policy.
+
+`speech://transcript/{task_id}` resolves the authorized
+Task and its output metadata. Task subscriptions and transcript resource updates use
+the shared durable event source. Every observation rechecks the same actor, profile,
+Work Context and source access. Cancellation remains available to the owner after
+source access is lost. Static catalogs do not advertise list-change notifications.
+Completion returns no Artifact identifier guesses. The transcription prompt consumes
+a caller-supplied governed URI.
+
+## Private Dictation
+
+`start_dictation`, `finish_dictation` and `cancel_dictation` share the same application
+service as native HTTP below the Speech mount. `speech://dictation/{id}` reads a
+private receipt; these ephemeral receipts do not support MCP subscriptions. Chunk
+acknowledgements contain the latest provisional snapshot. Recorded Task subscriptions
+remain the durable observation boundary.
+
+POST `/dictation` accepts an idempotent UUID and sample rate. PUT
+`/dictation/{id}/chunks/{sequence}` accepts up to 192000 bytes of mono little-endian
+float32 PCM. Sequence numbers start at zero. Repeating the last identical chunk is
+safe; conflicting or out-of-order input closes inference. POST
+`/dictation/{id}/finish` flushes a final snapshot. DELETE `/dictation/{id}` cancels
+and discards text. GET reads its short-lived receipt. Every request carries a fresh
+verified gateway assertion. The owner includes actor, profile, tenant, Work Context
+and browser session family. Service principals cannot dictate.
+
+Audio remains in bounded memory. Idle sessions close after ten seconds. Input is
+limited to 120 seconds, and receipts expire within 165 seconds. Runtime restart
+interrupts capture; the browser keeps its last draft without resubmitting audio.
+Recording and dictation concurrency have separate quotas whose sum equals worker
+capacity. Timers perform cleanup and Task lease recovery, never initiate new work.
+The first deployment has one GPU replica because dictation state is ephemeral.
+
 ## Contract Compliance
 
-This first checkpoint implements only the private inference boundary. MCP discovery,
-tools, Tasks, resources, prompts, completions, subscriptions, well-known docs and
-registration are pending. This component must not be registered as a hosted MCP
-server before those surfaces and their qualification are complete.
+Rust domain, MCP and native HTTP adapters are implemented. Native GPU and protocol
+qualification, packaging, gateway registration and installed acceptance are in
+progress. The machine-readable declaration remains pending until those checks pass.

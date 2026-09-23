@@ -38,6 +38,8 @@ mod recording_playback;
 mod runtime;
 #[path = "gateway/server.rs"]
 mod server;
+#[path = "gateway/speech/mod.rs"]
+mod speech;
 #[path = "gateway/stream_limits.rs"]
 mod stream_limits;
 #[cfg(test)]
