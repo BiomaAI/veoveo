@@ -51,17 +51,23 @@ pub async fn retained_records(store: &PlatformStore) -> Result<Vec<Value>> {
         SELECT * FROM $ids;
         SELECT * FROM agent WHERE tenant = $tenant AND agent_key IN $keys;
         SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND principal_key IN $principals;
+        SELECT * FROM agent_definition WHERE tenant = $tenant AND key IN $keys;
+        SELECT * FROM agent_definition_revision WHERE definition.tenant = $tenant AND definition.key IN $keys;
     "#).bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))
         .bind(("keys", keys())).bind(("principals", principals())).await?.check()?;
     let mut records: Vec<Value> = result.take(2)?;
     records.extend(result.take::<Vec<Value>>(3)?);
     records.extend(result.take::<Vec<Value>>(4)?);
+    records.extend(result.take::<Vec<Value>>(5)?);
+    records.extend(result.take::<Vec<Value>>(6)?);
+    records.sort_by_key(ToSql::to_sql);
+    records.dedup();
     ensure!(records.len() >= 28, "incomplete pilot snapshot");
     Ok(records)
 }
 pub async fn protected_records(store: &PlatformStore) -> Result<Vec<Value>> {
     let mut result = store.client().query(r#"
-        SELECT * FROM principal WHERE tenant = $tenant AND subject IN $keys;
+        SELECT * FROM principal WHERE id IN (SELECT VALUE principal FROM managed_agent WHERE tenant = $tenant AND key IN $keys);
         SELECT * FROM agent WHERE tenant = $tenant AND agent_key IN $keys;
         SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND principal_key IN $principals;
     "#).bind(("tenant", deterministic_tenant_id("bioma")?.record_id()))

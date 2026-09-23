@@ -1301,3 +1301,41 @@ rejected the protocol's expected `discovery_pending` response. The harness now c
 that missing Apps are accounted for by pending discoveries and that the visible
 navigation never loses buttons or shows unavailable badges. Both failed attempts
 remain in the immutable receipt history.
+
+## Shared UAV Pilot Consolidation — September 23, 2026
+
+One shared definition now serves the four retained UAV pilots. The delivery changed
+template data, installation values and instance references. It reused every service
+image and kept the simulator and UAV MCP Pods running. The chart published from
+`be0150e5` has OCI digest `70fc109a3a90`; GitOps selected it at `7da51c90`.
+
+| Workload | Observed cost | Implication |
+|---|---:|---|
+| Initial acceptance test compilation | 1m 55s | The Bioma crate pulls the gateway dependency graph; a database-only migration still compiled gateway dependencies. |
+| Warm rehearsal | About 3 seconds, excluding compilation and receipt publication | Native disposable-database checks are cheap once the target is warm. |
+| Live four-instance transaction and retention check | 1.78 seconds | Most cutover time belonged to preparation, rollout and recording. |
+| Resumed-instance retention check | 0.54 seconds | Current identity and physical storage verification can stay focused. |
+| Four agent status replies | About 9–11 seconds each, overlapping | Each explicit query generated one episode; 74 idle seconds generated none. |
+| Receipt history | 311 MB at this checkpoint | Repeated full-history processing cost more than the warm checks. |
+
+The gateway/manager values upgrade took about 20 seconds. The UAV chart waited for
+that dependency before upgrading. A manual reconcile annotation overlapped an
+in-flight chart upgrade and canceled its health checks, causing rollback and retry.
+Flux converged at 07:57:13 UTC. Request reconciliation before an action starts, then
+observe that action through completion; repeated requests can add churn. One public
+`agent-templates` read returned HTTP 502 during the gateway rollout. Later reads
+succeeded; investigate connection draining separately from template admission.
+
+Rehearsal caught a full-record replacement that would have erased a store-owned
+admission counter. The transaction now writes only the intended fields. The first
+live precondition check also exposed a verification query that selected principals
+by subject alone. Runtime and OAuth principals share those names under different
+issuers; the check now follows the instance’s principal ID. No cutover occurred on
+the rejected attempt. Complete these installation-specific fixture checks before
+starting the next maintenance interval.
+
+Concurrent recording and source edits forced receipt recovery and repeat recording
+during this work. Finish test inputs before recording, and serialize publishers.
+The existing scoped receipts avoid rebuilding unchanged images, but their history
+still needs a measured indexing optimization. No receipt pruning or recorder format
+change was included in this delivery.

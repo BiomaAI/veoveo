@@ -74,7 +74,10 @@ continue to select each pilot’s vehicle. The template accepts only a session.
 The operator rehearses the transaction against a disposable SurrealDB 3.2.4 copy of
 the relevant installation records. The test rejects a stale fourth instance and a
 live runtime lease, checks transaction rollback, and verifies that replay cannot
-replace a subsequent generation. Exported records contain no private signing keys.
+replace a subsequent generation. After consolidation, the rehearsal reconstructs
+the old bindings from archived definition histories only inside its disposable
+database. It also tests identical principal subjects under different issuers;
+verification follows the instance’s principal record reference. Exported records contain no private signing keys.
 
 For the live cut, pause the instances through the API, wait for their episodes to
 finish, then disable the old definitions. The manager removes the workloads. Wait
