@@ -196,13 +196,10 @@ These internal packaging bytes must survive eviction and rebuilding of the runti
 assembly cache. Qualification compares the resulting runnable manifest with its
 staged digest after that eviction.
 
-`rust-control.Dockerfile` installs stable Rust 1.98.1 over the latest published
-official Bookworm Rust image, 1.98.0, then removes the bootstrap toolchain before any
-compilation. The [official image catalog](https://github.com/docker-library/official-images/blob/master/library/rust)
-has not published a 1.98.1 tag as of September 8, 2026, although the
-[Rust release](https://blog.rust-lang.org/2026/09/03/Rust-1.98.1/) and rustup distribution
-are available. Bookworm preserves a glibc baseline below DeepStream's Ubuntu 24.04
-runtime. The compiler image and target-cache epoch change together.
+The control family now uses the digest-pinned official Rust 1.98.1 Bookworm image
+directly. Bookworm preserves a glibc baseline below DeepStream's Ubuntu 24.04
+runtime. The separately cached control target still keeps its Cargo feature set
+independent of Map's analytics family.
 
 The standalone SUMO compiler family receives the same Cargo-derived source boundary.
 Its selected package includes its native inputs, image recipe and runtime assets.

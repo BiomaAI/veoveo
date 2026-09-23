@@ -378,9 +378,9 @@ graph. Workspace and Console asset-only edits reuse the same Rust artifact.
 
 | Family | Contract |
 |---|---|
-| `rust-trixie-v1` | shared Rust 1.97.1 trixie builder |
+| `rust-trixie-v1` | shared Rust 1.98.1 trixie builder |
 | `rust-trixie-browser-v1` | Rust 1.98.1 Trixie browser edge; stable package selection for Console and Workspace asset iteration |
-| `rust-bookworm-v1` | shared Rust 1.97.1 bookworm builder |
+| `rust-bookworm-v1` | shared Rust 1.98.1 bookworm builder |
 | `rust-bookworm-control-v1` | shared Rust 1.98.1 Bookworm control builder for Stream and Reason; DeepStream compiles Stream's C++ runner separately, while Reason packages its Python runner outside Cargo |
 | `rust-sumo-bullseye-v1` | standalone SUMO-compatible bullseye ABI |
 

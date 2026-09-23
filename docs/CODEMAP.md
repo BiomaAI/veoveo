@@ -322,7 +322,6 @@ designs above.
 | `deploy/contract/tests/source_chart_content.rs` | real Git-history and separate-checkout chart identity tests, export-attribute coverage, executable modes, and source path boundaries |
 | `testing/fixtures/simulation-overlay/` | repository-neutral overlay identity and CUDA probe for shared simulation-base acceptance |
 | `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
-| `tools/image-build/rust-control.Dockerfile` | pinned Bookworm Rust control compiler, consumed by the common artifact recipe independently of Stream's DeepStream C++ build |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/src/commands/image/browser_compilation_tests.rs` | real Bake and Cargo planning regression for a stable browser compiler action across standalone and platform selections |
 | `tools/xtask/` | compiled repository command, enforcement, local test reporting, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |

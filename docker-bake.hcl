@@ -11,7 +11,7 @@ variable "VEOVEO_IMAGE_TAG" {
 }
 
 variable "RUST_TRIXIE_IMAGE" {
-  default = "docker.io/library/rust:1.97.1-slim-trixie@sha256:5c6f46a6e4472ab1ca7ba7d494e6677f2f219ebc02f32025d3986f057635ec9c"
+  default = "docker.io/library/rust:1.98.1-slim-trixie@sha256:f47a8de237dcbb0b0ce1099901e60a89728e3d51f24e664b40e947171538ade7"
 }
 
 variable "RUST_TRIXIE_BROWSER_IMAGE" {
@@ -19,7 +19,7 @@ variable "RUST_TRIXIE_BROWSER_IMAGE" {
 }
 
 variable "RUST_BOOKWORM_IMAGE" {
-  default = "docker.io/library/rust:1.97.1-slim-bookworm@sha256:99e09cb2284e2ddbb73a995deee3e91783fd04d177602ccf6eab326d778ee777"
+  default = "docker.io/library/rust:1.98.1-slim-bookworm@sha256:ff521445a372125ed4f76e1453a1f8098f2d05332d1601d30db1c1f62757e730"
 }
 
 function "image_ref" {
@@ -200,20 +200,10 @@ target "rust-trixie-browser-artifacts" {
   }
 }
 
-target "rust-control-compiler" {
-  inherits   = ["base"]
-  dockerfile = "tools/image-build/rust-control.Dockerfile"
-}
-
 target "rust-bookworm-control-artifacts" {
-  inherits   = ["base"]
-  dockerfile = "tools/image-build/rust-workspace.Dockerfile"
-  target     = "artifacts"
-  contexts = {
-    veoveo-control-compiler = "target:rust-control-compiler"
-  }
+  inherits   = ["rust-bookworm-artifacts"]
   args = {
-    RUST_IMAGE            = "veoveo-control-compiler"
+    RUST_IMAGE            = RUST_BOOKWORM_IMAGE
     VEOVEO_CARGO_PACKAGES  = ""
     VEOVEO_CARGO_BINARIES  = ""
     VEOVEO_AUXILIARY       = ""
