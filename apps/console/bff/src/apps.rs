@@ -1,3 +1,4 @@
+mod catalog_admission;
 mod catalog_events;
 pub(crate) use catalog_events::app_catalog_events;
 
@@ -669,16 +670,20 @@ pub(crate) async fn read_app_resource(
                     && app_uri_server(&resource.uri) == Some(server.as_str())
             });
             let Some(app_resource) = app_resource else {
-                return Ok(None);
+                return Ok(Err(catalog_admission::missing_status(
+                    catalog.degradation(),
+                    &server,
+                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                )));
             };
             if !app_resource_uri_allowed(&server, uri)
                 && !app_dependency_allows_resource(app_resource, uri)
             {
-                return Ok(None);
+                return Ok(Err(StatusCode::FORBIDDEN));
             }
             mcp.read_resource(rmcp::model::ReadResourceRequestParams::new(uri))
                 .await
-                .map(Some)
+                .map(Ok)
         }
     })
     .await;
@@ -691,12 +696,16 @@ pub(crate) async fn read_app_resource(
         Err(response) => return response,
     };
     let result = match read {
-        Ok(Some(result)) => result,
-        Ok(None) => {
+        Ok(Ok(result)) => result,
+        Ok(Err(status)) => {
             return with_session_headers(
                 call_error(
-                    StatusCode::FORBIDDEN,
-                    "resource is not declared for this App",
+                    status,
+                    if status == StatusCode::SERVICE_UNAVAILABLE {
+                        "App discovery is still unavailable; retry when it recovers"
+                    } else {
+                        "resource is not declared for this App"
+                    },
                 ),
                 response_headers,
             );
@@ -813,7 +822,14 @@ pub(crate) async fn app_resource_events(
             && app_uri_server(&resource.uri) == Some(request.server.as_str())
     }) else {
         return with_session_headers(
-            call_error(StatusCode::FORBIDDEN, "App resource is not available"),
+            call_error(
+                catalog_admission::missing_status(
+                    catalog.degradation(),
+                    &request.server,
+                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                ),
+                "App resource is not available",
+            ),
             response_headers,
         );
     };
@@ -1117,7 +1133,14 @@ pub(crate) async fn call_app_tool(
         .find(|resource| resource.uri == request.app_uri && is_app_resource(resource))
     else {
         return with_session_headers(
-            call_error(StatusCode::NOT_FOUND, "unknown App"),
+            call_error(
+                catalog_admission::missing_status(
+                    catalog.degradation(),
+                    &request.server,
+                    veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
+                ),
+                "App resource is not available",
+            ),
             response_headers,
         );
     };
@@ -1126,7 +1149,14 @@ pub(crate) async fn call_app_tool(
     else {
         return with_session_headers(
             call_error(
-                StatusCode::FORBIDDEN,
+                catalog_admission::missing_status(
+                    catalog.degradation(),
+                    request
+                        .tool
+                        .split_once("__")
+                        .map_or(request.server.as_str(), |(server, _)| server),
+                    veoveo_mcp_contract::GatewayDiscoverySurface::Tools,
+                ),
                 "tool is not app-visible for this view",
             ),
             response_headers,

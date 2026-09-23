@@ -123,7 +123,7 @@ Prepared captures find an open tab by the URL substring recorded in the
 catalog. Override a match when a host changes its URL:
 
 ```bash
-SCREENSHOT_CONSOLE_APP_VIEW_URL_PATTERN=/console/#/apps/view/preview.html \
+SCREENSHOT_CONSOLE_APP_VIEW_URL_PATTERN=/console/#/apps/view/preview \
 npm run capture -- --ids console-app-view
 
 SCREENSHOT_MCP_APP_VIEW_CLAUDE_URL_PATTERN=claude.ai/ \

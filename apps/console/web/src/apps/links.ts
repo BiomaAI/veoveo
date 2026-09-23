@@ -11,6 +11,20 @@ const PLATFORM_LINKS: Readonly<Record<string, PlatformAppLink>> = {
   "veoveo-console://recordings": "recordings",
 };
 
+/** Browser navigation is a catalog projection, not an MCP resource URI. */
+export function appRouteKey(app: AppDescriptor): string {
+  return app.resourceUri.replace(/^ui:\/\//, "").replace(/\.html$/i, "");
+}
+
+export function consoleAppRoute(app: AppDescriptor): string {
+  return `#/apps/${appRouteKey(app)}`;
+}
+
+export function appForRoute(key: string | undefined, apps: readonly AppDescriptor[]): AppDescriptor | undefined {
+  const matches = apps.filter(app => appRouteKey(app) === key);
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 /** Resolve only exact discovered Apps or explicitly supported platform views. */
 export function resolveAppLink(
   value: string,

@@ -14,7 +14,7 @@ use veoveo_mcp_contract::{
 pub(super) const MAX_CONCURRENT_DISCOVERY: usize = 8;
 const MAX_CACHE_ENTRIES_PER_SURFACE: usize = 4_096;
 const DISCOVERY_CHANGE_BUFFER: usize = 256;
-const DISCOVERY_SETTLE_BUDGET: Duration = Duration::from_millis(500);
+const DISCOVERY_SETTLE_BUDGET: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct DiscoveryCacheKey {
@@ -54,6 +54,7 @@ pub(super) struct DiscoveryFetch {
 struct CachedItems<T> {
     items: Vec<T>,
     expires: Instant,
+    observed_expired: bool,
 }
 
 #[derive(Debug)]
@@ -74,7 +75,7 @@ impl<T> Default for SurfaceCache<T> {
         }))
     }
 }
-impl<T: Clone> SurfaceCache<T> {
+impl<T: Clone + PartialEq> SurfaceCache<T> {
     async fn contains(&self, key: &DiscoveryCacheKey) -> bool {
         self.0
             .lock()
@@ -90,15 +91,15 @@ impl<T: Clone> SurfaceCache<T> {
     }
 
     async fn get(&self, key: &DiscoveryCacheKey) -> Option<Vec<T>> {
+        // Retain the prior value only to compare refreshes. Expired authority
+        // must never be returned to a caller.
         let mut state = self.0.lock().await;
-        if state
-            .entries
-            .get(key)
-            .is_some_and(|entry| entry.expires <= Instant::now())
-        {
-            state.entries.remove(key);
+        let entry = state.entries.get_mut(key)?;
+        if entry.expires <= Instant::now() {
+            entry.observed_expired = true;
+            return None;
         }
-        state.entries.get(key).map(|entry| entry.items.clone())
+        Some(entry.items.clone())
     }
 
     async fn begin(&self, key: DiscoveryCacheKey, coalesce: bool) -> Option<DiscoveryFetch> {
@@ -128,6 +129,10 @@ impl<T: Clone> SurfaceCache<T> {
         }
         state.in_flight.remove(&fetch.key);
         if let Some(items) = items {
+            let changed = state
+                .entries
+                .get(&fetch.key)
+                .is_none_or(|previous| previous.items != items || previous.observed_expired);
             if state.entries.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
                 && !state.entries.contains_key(&fetch.key)
             {
@@ -139,9 +144,10 @@ impl<T: Clone> SurfaceCache<T> {
                     items,
                     expires: Instant::now()
                         + Duration::from_millis(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+                    observed_expired: false,
                 },
             );
-            true
+            changed
         } else {
             false
         }
@@ -222,6 +228,26 @@ impl CatalogDiscoveryCache {
         self.changes.subscribe()
     }
 
+    pub(super) async fn missing_code(
+        &self,
+        surface: GatewayDiscoverySurface,
+        key: &DiscoveryCacheKey,
+    ) -> GatewayDiscoveryFailureCode {
+        let keys = std::slice::from_ref(key);
+        let pending = match surface {
+            GatewayDiscoverySurface::Resources => self.resources.pending(keys).await,
+            GatewayDiscoverySurface::ResourceTemplates => {
+                self.resource_templates.pending(keys).await
+            }
+            GatewayDiscoverySurface::Tools => self.tools.pending(keys).await,
+        };
+        if pending {
+            GatewayDiscoveryFailureCode::DiscoveryPending
+        } else {
+            GatewayDiscoveryFailureCode::UpstreamUnavailable
+        }
+    }
+
     pub(super) async fn begin(
         &self,
         surface: GatewayDiscoverySurface,
@@ -274,6 +300,7 @@ impl CatalogDiscoveryCache {
         if self.resources.finish(&fetch, Some(items)).await {
             self.publish(GatewayDiscoverySurface::Resources, fetch);
         }
+        self.settled.notify_waiters();
     }
     pub(super) async fn finish_resource_templates(
         &self,
@@ -283,11 +310,13 @@ impl CatalogDiscoveryCache {
         if self.resource_templates.finish(&fetch, Some(items)).await {
             self.publish(GatewayDiscoverySurface::ResourceTemplates, fetch);
         }
+        self.settled.notify_waiters();
     }
     pub(super) async fn finish_tools(&self, fetch: DiscoveryFetch, items: Vec<Tool>) {
         if self.tools.finish(&fetch, Some(items)).await {
             self.publish(GatewayDiscoverySurface::Tools, fetch);
         }
+        self.settled.notify_waiters();
     }
     fn publish(&self, surface: GatewayDiscoverySurface, fetch: DiscoveryFetch) {
         self.settled.notify_waiters();
@@ -351,6 +380,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn unchanged_refresh_does_not_feed_back_but_recovery_and_invalidation_notify() {
+        let cache = CatalogDiscoveryCache::default();
+        let key = key(1, "stable");
+        let items = vec![Resource::new("stable://app", "app")];
+        let mut updates = cache.subscribe();
+        let first = begin(&cache, key.clone()).await;
+        cache.finish_resources(first, items.clone()).await;
+        assert!(updates.try_recv().is_ok());
+
+        cache
+            .resources
+            .0
+            .lock()
+            .await
+            .entries
+            .get_mut(&key)
+            .unwrap()
+            .expires = Instant::now();
+        let refresh = begin(&cache, key.clone()).await;
+        cache.finish_resources(refresh, items.clone()).await;
+        assert!(matches!(
+            updates.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
+        assert_eq!(cache.resources(&key).await, Some(items.clone()));
+
+        cache
+            .resources
+            .0
+            .lock()
+            .await
+            .entries
+            .get_mut(&key)
+            .unwrap()
+            .expires = Instant::now();
+        assert!(
+            cache.resources(&key).await.is_none(),
+            "expired permissions are never served"
+        );
+        let recovery = begin(&cache, key.clone()).await;
+        cache.finish_resources(recovery, items.clone()).await;
+        assert!(
+            updates.try_recv().is_ok(),
+            "an observed unavailable source must recover"
+        );
+
+        cache.invalidate_resource_surfaces(&key.server).await;
+        assert!(cache.resources(&key).await.is_none());
+        let refreshed = begin(&cache, key.clone()).await;
+        cache.finish_resources(refreshed, items).await;
+        assert!(updates.try_recv().is_ok());
+    }
+
+    #[tokio::test]
     async fn cold_and_expired_catalogs_settle_before_the_first_snapshot() {
         let cache = std::sync::Arc::new(CatalogDiscoveryCache::default());
         let cache_key = key(1, "ready");
@@ -366,7 +449,7 @@ mod tests {
             let fetch = begin(&cache, cache_key.clone()).await;
             let writer = cache.clone();
             let work = tokio::spawn(async move {
-                tokio::time::sleep(Duration::from_millis(10)).await;
+                tokio::time::sleep(Duration::from_millis(650)).await;
                 writer
                     .finish_resources(
                         fetch,
@@ -375,7 +458,7 @@ mod tests {
                     .await;
             });
             tokio::time::timeout(
-                Duration::from_millis(250),
+                Duration::from_secs(2),
                 cache.settle(
                     GatewayDiscoverySurface::Resources,
                     std::slice::from_ref(&cache_key),
@@ -418,7 +501,7 @@ mod tests {
             begin(&cache, key.clone()).await;
         }
         tokio::time::timeout(
-            Duration::from_secs(2),
+            Duration::from_secs(3),
             cache.settle(GatewayDiscoverySurface::Resources, &keys),
         )
         .await

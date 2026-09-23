@@ -75,3 +75,8 @@ selected governed UI components, while retaining a separate browser API, OAuth c
 and asset entrypoint. The local Console Vite proxy above does not configure Workspace.
 Use Workspace's package scripts and [client design](../../workspace/DESIGN.md) for its
 checks rather than assuming a Console build verifies both applications.
+
+Console App navigation uses extension-free catalog routes, such as
+`/console/#/apps/datasheet/workbench` and `/console/#/apps/uav-sim/live`.
+Reload resolves the route against the current authorized catalog. Internal MCP
+resource identities remain separate from browser navigation.

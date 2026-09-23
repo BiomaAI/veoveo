@@ -239,7 +239,7 @@ list changes because its authorized federated catalog grows as independent
 discoveries complete.
 
 Federated resource discovery and isolation-mode tool discovery start missing
-servers independently. A list call gives these shared operations one 500 ms
+servers independently. A list call gives these shared operations one two-second
 settlement window across all selected servers, then returns the authorized
 per-server cache entries available at that point. Warm complete catalogs return
 immediately. This bounded window prevents routine cache expiry from producing an
@@ -248,9 +248,11 @@ attaches a typed
 `veoveo.io/gateway-discovery-degradation` result metadata document naming only
 the missing server, surface, and bounded failure code. Each missing server starts
 one background discovery for the exact catalog generation and invocation
-authority. Repeated list calls share that single in-flight operation. A healthy
-server commits and publishes its matching MCP `listChanged` notification as soon
-as it responds, regardless of any other server. A failed operation is not cached
+authority. Repeated list calls share that single in-flight operation. An unfinished fetch reports `discovery_pending`; a failed fetch reports
+`upstream_unavailable`. A healthy server commits independently and publishes its
+matching MCP `listChanged` notification when content changes or a previously
+reported gap recovers. An identical refresh does not generate another catalog
+change. Bounded parallel policy checks retain per-item audit decisions. A failed operation is not cached
 and becomes eligible on the next explicit list call.
 
 A profile whose work requires a complete tool catalog sets

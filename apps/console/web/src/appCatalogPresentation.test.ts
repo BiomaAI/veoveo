@@ -9,6 +9,19 @@ import {
 } from "./apps/catalogPresentation.ts";
 import type { AppCatalogDegradation, AppDescriptor } from "./types.ts";
 
+test("pending discovery is distinct from failed services", () => {
+  const degradations: AppCatalogDegradation[] = [
+    { server: "map", surface: "resources", code: "discovery_pending" },
+    { server: "media", surface: "resources", code: "discovery_pending" },
+    { server: "media", surface: "tools", code: "upstream_unavailable" },
+  ];
+  assert.deepEqual(unavailableAppServers([], degradations), ["media"]);
+  assert.deepEqual(groupAppsByServer([], degradations).map(({ server, discovering, unavailable }) => ({ server, discovering, unavailable })), [
+    { server: "map", discovering: true, unavailable: false },
+    { server: "media", discovering: false, unavailable: true },
+  ]);
+});
+
 test("catalog represents only servers without a healthy App as unavailable", () => {
   const apps = [{ server: "map" }] as AppDescriptor[];
   const degradations = [

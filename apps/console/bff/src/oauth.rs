@@ -761,12 +761,12 @@ mod tests {
             state: "expected-state".to_owned(),
             code_verifier: "verifier".to_owned(),
             expires_at: 200,
-            return_path: BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live.html")),
+            return_path: BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live")),
         };
         assert_eq!(
             valid_callback_return_path(Some(&pending), Some("expected-state"), 100)
                 .map(BrowserReturnPath::as_str),
-            Some("/console/#/apps/map/live.html")
+            Some("/console/#/apps/map/live")
         );
         assert!(valid_callback_return_path(Some(&pending), Some("wrong-state"), 100).is_none());
         assert!(valid_callback_return_path(Some(&pending), Some("expected-state"), 201).is_none());
@@ -775,7 +775,7 @@ mod tests {
 
     #[tokio::test]
     async fn callback_error_is_recoverable_private_and_no_store() {
-        let return_path = BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live.html"));
+        let return_path = BrowserReturnPath::from_untrusted(Some("/console/#/apps/map/live"));
         let response = callback_error_response(
             true,
             StatusCode::BAD_GATEWAY,
@@ -818,7 +818,7 @@ mod tests {
         assert!(body.contains("Sign-in service unavailable"));
         assert!(body.contains("Retry sign-in"));
         assert!(body.contains("Return to Console"));
-        assert!(body.contains("/auth/login?return_to=%2Fconsole%2F%23%2Fapps%2Fmap%2Flive.html"));
+        assert!(body.contains("/auth/login?return_to=%2Fconsole%2F%23%2Fapps%2Fmap%2Flive"));
         assert!(body.contains("share reference"));
         assert!(!body.contains("identity provider token exchange failed"));
         assert!(!body.contains("provider-private-detail"));

@@ -46,6 +46,7 @@ import type { AppDescriptor, ArtifactSummary, InstallationSnapshot, TaskSummary 
 import { consoleThemes, useTheme, type ConsoleTheme } from "./theme";
 import { isFullBleedApp } from "./appPresentation";
 import { groupAppsByServer, namespacedAppTitle } from "./apps/catalogPresentation";
+import { appForRoute, appRouteKey, consoleAppRoute } from "./apps/links";
 
 // Core Computers has an accepted native projection. Other domain pages come from the MCP App catalog.
 const navItems = [
@@ -77,17 +78,13 @@ function storedOpenAppServers(): Set<string> {
 
 type ViewId = (typeof navItems)[number]["id"];
 
-function appRoute(resourceUri: string): string {
-  return `#/apps/${resourceUri.replace(/^ui:\/\//, "")}`;
-}
-
-function initialRoute(): { view: ViewId; recordingId?: string; appUri?: string } {
+function initialRoute(): { view: ViewId; recordingId?: string; appKey?: string } {
   const [value, ...rest] = window.location.hash.replace(/^#\/?/, "").split("/");
   const view = navItems.some((item) => item.id === value) ? (value as ViewId) : "computers";
   return {
     view,
     recordingId: view === "recordings" && rest[0] ? rest[0] : undefined,
-    appUri: view === "apps" && rest.length >= 2 ? `ui://${rest.join("/")}` : undefined,
+    appKey: view === "apps" && rest.length >= 2 ? rest.join("/") : undefined,
   };
 }
 
@@ -121,7 +118,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
   useAppCatalogLive(true);
   const [selectedView, setView] = useState<ViewId>(initial.view);
   const view = bootstrap.canReadInstallation || selectedView === "computers" || selectedView === "apps" ? selectedView : "computers";
-  const [selectedAppUri, setSelectedAppUri] = useState<string | undefined>(initial.appUri);
+  const [selectedAppKey, setSelectedAppKey] = useState<string | undefined>(initial.appKey);
   const [mobileNav, setMobileNav] = useState(false);
   const [artifactSelection, setArtifactSelection] = useState<{ artifact: ArtifactSummary; scope: string }>();
   const [uploadsOpen, setUploadsOpen] = useState(false);
@@ -161,14 +158,12 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     () => groupAppsByServer(apps, appsCatalog?.degradations ?? []),
     [apps, appsCatalog?.degradations],
   );
-  const selectedApp = selectedAppUri
-    ? apps.find((app) => app.resourceUri === selectedAppUri)
-    : undefined;
+  const selectedApp = appForRoute(selectedAppKey, apps);
 
   const navigate = useCallback((next: ViewId, recordingId?: string) => {
     setView(next);
     setSelectedRecordingId(recordingId);
-    setSelectedAppUri(undefined);
+    setSelectedAppKey(undefined);
     setMobileNav(false);
     window.history.replaceState(
       null,
@@ -179,10 +174,10 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
 
   const navigateApp = useCallback((app: AppDescriptor) => {
     setView("apps");
-    setSelectedAppUri(app.resourceUri);
+    setSelectedAppKey(appRouteKey(app));
     setSelectedRecordingId(undefined);
     setMobileNav(false);
-    window.history.replaceState(null, "", appRoute(app.resourceUri));
+    window.history.replaceState(null, "", consoleAppRoute(app));
   }, []);
 
   const retrySnapshot = () => void queryClient.invalidateQueries({ queryKey: queryKeys.snapshot });
@@ -270,6 +265,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
                       <ChevronRight size={14} className="nav-app-chevron" />
                       <span>{group.title}</span>
                       {group.unavailable && <span className="nav-app-unavailable">Unavailable</span>}
+                      {group.discovering && <span className="nav-app-unavailable">Discovering…</span>}
                     </summary>
                     {group.apps.map((app) => (
                       <button
@@ -378,7 +374,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           {snapshot && view === "mcp" && <McpView snapshot={snapshot} />}
           {view === "apps" && (
             <AppsView
-              selectedUri={selectedAppUri}
+              selectedUri={selectedApp?.resourceUri}
               onSelect={navigateApp}
               onPlatformSelect={navigate}
             />

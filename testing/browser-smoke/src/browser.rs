@@ -401,7 +401,7 @@ pub(crate) async fn send_console_uav_agent_instruction(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleAgentInstructionEvidence> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
         send_console_uav_agent_instruction_inner(
@@ -424,7 +424,7 @@ pub(crate) async fn capture_console_live_app(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleLiveCaptureEvidence> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
         capture_console_live_app_inner(
@@ -449,7 +449,7 @@ pub(crate) async fn capture_console_live_app_pair(
     second_screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<(ConsoleLiveCaptureEvidence, ConsoleLiveCaptureEvidence)> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     let simultaneous = Arc::new(tokio::sync::Barrier::new(2));
     let first = tokio::time::timeout(
         timeout,
@@ -489,7 +489,7 @@ pub(crate) async fn capture_console_live_app_grid(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleLiveGridEvidence> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
         capture_console_live_app_grid_inner(
@@ -517,7 +517,7 @@ pub(crate) async fn capture_console_live_app_five_user_grid(
         expected_camera_ids.len() == 5,
         "five-user acceptance requires the complete five-camera collection"
     );
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     let barrier = Arc::new(tokio::sync::Barrier::new(USER_COUNT));
     let screenshot_paths = (1..=USER_COUNT)
         .map(|user| screenshot_directory.join(format!("uav-live-view-user-{user}.png")))
@@ -562,7 +562,7 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<T>>,
 {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
         capture_console_live_app_restart_inner(
@@ -584,7 +584,7 @@ pub(crate) async fn preflight_console_live_app(
     public_base_url: &str,
     timeout: Duration,
 ) -> Result<()> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/uav-sim/live");
     tokio::time::timeout(
         timeout,
         preflight_console_live_app_inner(cdp_base, &page_url),
@@ -669,7 +669,7 @@ pub(crate) async fn capture_console_stream_app(
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleStreamCaptureEvidence> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/stream/live.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/stream/live");
     tokio::time::timeout(
         timeout,
         capture_console_stream_app_inner(cdp_base, &page_url, screenshot_path),
@@ -874,6 +874,7 @@ async fn capture_console_apps_catalog_inner(
                     .resource_uri
                     .strip_prefix("ui://")
                     .context("expected Console App URI must use ui://")?
+            .trim_end_matches(".html")
             );
             let app = probe
                 .apps
@@ -936,6 +937,7 @@ async fn capture_one_console_app(
             .resource_uri
             .strip_prefix("ui://")
             .context("expected Console App URI must use ui://")?
+            .trim_end_matches(".html")
     );
     let page_url = console_acceptance_url(public_base_url, &route);
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, &page_url).await?;
@@ -2526,7 +2528,7 @@ pub(crate) async fn capture_console_map_workspace_app(
     screenshot_directory: &Path,
     timeout: Duration,
 ) -> Result<ConsoleMapWorkspaceCaptureEvidence> {
-    let page_url = console_acceptance_url(public_base_url, "/apps/map/workspace.html");
+    let page_url = console_acceptance_url(public_base_url, "/apps/map/workspace");
     tokio::time::timeout(
         timeout,
         capture_console_map_workspace_app_inner(
@@ -5532,7 +5534,7 @@ mod tests {
     fn console_acceptance_url_bypasses_stale_entry_documents() {
         let page = Url::parse(&console_acceptance_url(
             "https://installation.example/",
-            "/apps/uav-sim/live.html",
+            "/apps/uav-sim/live",
         ))
         .unwrap();
         let nonce = page
@@ -5541,7 +5543,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(page.path(), "/console/");
-        assert_eq!(page.fragment(), Some("/apps/uav-sim/live.html"));
+        assert_eq!(page.fragment(), Some("/apps/uav-sim/live"));
         assert!(uuid::Uuid::parse_str(&nonce).is_ok());
     }
 

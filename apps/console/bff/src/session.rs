@@ -359,8 +359,8 @@ mod tests {
     #[test]
     fn console_return_path_preserves_local_routes_and_rejects_redirects() {
         assert_eq!(
-            BrowserReturnPath::from_untrusted(Some("/console/#/apps/uav-sim/live.html")).as_str(),
-            "/console/#/apps/uav-sim/live.html"
+            BrowserReturnPath::from_untrusted(Some("/console/#/apps/uav-sim/live")).as_str(),
+            "/console/#/apps/uav-sim/live"
         );
         assert_eq!(
             BrowserReturnPath::from_untrusted(Some("/console/?theme=dark#/recordings/019fa8b0"))

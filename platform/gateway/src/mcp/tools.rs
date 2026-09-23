@@ -1,7 +1,7 @@
 use std::{borrow::Cow, time::Instant};
 
 use chrono::Utc;
-use futures::{StreamExt, stream};
+use futures::{StreamExt, TryStreamExt, stream};
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParams, CallToolResponse, CallToolResult, ClientRequest,
@@ -13,8 +13,8 @@ use rmcp::{
 use serde_json::Value;
 use veoveo_mcp_contract::{
     DiscoveryFailureMode, GatewayAction, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
-    GatewayDiscoveryFailureCode, GatewayDiscoverySurface, LocalToolName, PrincipalAuditAttributes,
-    TaskExposure, TraceId, paginate, related_task_meta, sanitized_request_meta,
+    GatewayDiscoverySurface, LocalToolName, PrincipalAuditAttributes, TaskExposure, TraceId,
+    paginate, related_task_meta, sanitized_request_meta,
 };
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 
@@ -231,10 +231,14 @@ impl GatewayMcp {
             if let Some(mut cached) = self.discovery.tools(&key).await {
                 tools.append(&mut cached);
             } else {
+                let code = self
+                    .discovery
+                    .missing_code(GatewayDiscoverySurface::Tools, &key)
+                    .await;
                 failures.push(GatewayDiscoveryFailure {
                     server: key.server,
                     surface: GatewayDiscoverySurface::Tools,
-                    code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                    code,
                 });
             }
         }
@@ -259,8 +263,7 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_tools().await },
             )
             .await?;
-        let mut tools = Vec::new();
-        for mut tool in upstream_tools {
+        stream::iter(upstream_tools.into_iter().map(|mut tool| async move {
             let local_tool = LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
                 mcp_internal(format!("upstream exposed invalid tool name: {err}"))
             })?;
@@ -268,7 +271,7 @@ impl GatewayMcp {
                 .client_allows_compatibility_helper(subject, server_slug, &local_tool)
                 .await?
             {
-                continue;
+                return Ok(None);
             }
             if !self
                 .allows_tool(
@@ -279,16 +282,19 @@ impl GatewayMcp {
                 )
                 .await?
             {
-                continue;
+                return Ok(None);
             }
             project_tool_resource_metadata(manifest, &mut tool)?;
             let gateway_name = catalog
                 .project_tool_name(server_slug, &local_tool)
                 .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
             tool.name = Cow::Owned(gateway_name.to_string());
-            tools.push(tool);
-        }
-        Ok(tools)
+            Ok(Some(tool))
+        }))
+        .buffered(MAX_CONCURRENT_DISCOVERY)
+        .try_filter_map(|tool| async { Ok(tool) })
+        .try_collect()
+        .await
     }
 
     pub(super) async fn handle_call_tool(
