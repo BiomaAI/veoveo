@@ -20,7 +20,7 @@ global:
     veoveo/optimization-mcp: sha256:15c57435a7219508299917b7e4f3735b289306c97220df3f497686cd78111dac
     veoveo/reason-mcp: sha256:708f46b9c59798b68676c07fa20c3a504b013a33003ca3b9e5d8c43f481ddd63
     veoveo/recording-hub: sha256:15009b5d47fa3654181bf271b5b569a5d985092d209a5f74b6cfeadb90c98601
-    veoveo/recording-mcp: sha256:630edce8bd087fb96a7bc9d23943f4d81367abe4259d180b61c35d5674d9f75c
+    veoveo/recording-mcp: sha256:1ab890d630a3a6a732c9829bec0d837ab8f34de72da42cb11b36fa60b2be0e2b
     veoveo/stream-mcp: sha256:465fe4c55a9c37e6b943682e3a523e6045288f9ac231976c1cc3419773a3c129
     veoveo/time-mcp: sha256:7bdcb6ac4521169dd8bc75a393fa1b68e7a8a187c2e26165a059a405bde4b3ce
     veoveo/timeseries-mcp: sha256:ecabd642f4a00d3b4b77e9ebd90983966f9cef7bada69281c72c8deba616c3c7
