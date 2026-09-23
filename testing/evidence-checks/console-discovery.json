@@ -64,6 +64,29 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-platform-store",
+        "--test",
+        "gateway_audit"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store"
+        ],
+        "roots": [
+          "testing/fixtures/store.rs"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }

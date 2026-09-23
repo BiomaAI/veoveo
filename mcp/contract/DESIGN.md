@@ -252,7 +252,9 @@ authority. Repeated list calls share that single in-flight operation. An unfinis
 `upstream_unavailable`. A healthy server commits independently and publishes its
 matching MCP `listChanged` notification when content changes or a previously
 reported gap recovers. An identical refresh does not generate another catalog
-change. Bounded parallel policy checks retain per-item audit decisions. A failed operation is not cached
+change. Discovery retains one policy decision and durable audit/outbox record per item.
+Audit writes commit in batches of at most 64 items to reduce contention on the
+shared event sequence. Results are released only after all audit batches commit. A failed operation is not cached
 and becomes eligible on the next explicit list call.
 
 A profile whose work requires a complete tool catalog sets
