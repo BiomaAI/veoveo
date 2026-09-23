@@ -41,7 +41,7 @@ fn object<'a>(objects: &'a [Value], kind: &str, name: &str) -> Result<&'a Value>
 
 #[test]
 fn core_presets_render_stable_unconfigured_control_without_privileged_capacity() -> Result<()> {
-    for preset in ["full", "extension-foundation"] {
+    for preset in ["full", "foundation"] {
         let option = format!("installationPreset={preset}");
         let first = objects(render(&["--set", &option]))?;
         let second = objects(render(&["--set", &option]))?;

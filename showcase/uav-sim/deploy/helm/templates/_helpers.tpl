@@ -1,5 +1,5 @@
 {{- define "uav-sim.labels" -}}
-{{ include "veoveo-extension.labels" (dict
+{{ include "veoveo-common.labels" (dict
     "name" "uav-sim"
     "releaseName" .Release.Name
     "managedBy" .Release.Service
@@ -11,7 +11,7 @@
 
 {{- define "uav-sim.componentLabels" -}}
 {{- $root := .root -}}
-{{ include "veoveo-extension.labels" (dict
+{{ include "veoveo-common.labels" (dict
     "name" .name
     "releaseName" $root.Release.Name
     "managedBy" $root.Release.Service
@@ -26,7 +26,7 @@
 {{- end }}
 
 {{- define "uav-sim.runtimeSelectorLabels" -}}
-{{ include "veoveo-extension.selectorLabels" (dict
+{{ include "veoveo-common.selectorLabels" (dict
     "name" "uav-sim"
     "releaseName" .Release.Name
     "installation" .Values.platform.installationId
@@ -35,7 +35,7 @@
 {{- end }}
 
 {{- define "uav-sim.mcpLabels" -}}
-{{ include "veoveo-extension.labels" (dict
+{{ include "veoveo-common.labels" (dict
     "name" "uav-sim-mcp"
     "releaseName" .Release.Name
     "managedBy" .Release.Service
@@ -46,7 +46,7 @@
 {{- end }}
 
 {{- define "uav-sim.mcpSelectorLabels" -}}
-{{ include "veoveo-extension.selectorLabels" (dict
+{{ include "veoveo-common.selectorLabels" (dict
     "name" "uav-sim-mcp"
     "releaseName" .Release.Name
     "installation" .Values.platform.installationId
@@ -60,7 +60,7 @@
 {{- $lockedDigest := get $root.Values.global.imageDigests $image.repository | default "" -}}
 {{- $digest := $image.digest | default $lockedDigest -}}
 {{- $tag := default $image.tag $root.Values.global.veoveoTag -}}
-{{- include "veoveo-extension.image" (dict
+{{- include "veoveo-common.image" (dict
     "registry" $root.Values.global.veoveoRegistry
     "production" $root.Values.global.production
     "image" (dict "repository" $image.repository "tag" $tag "digest" $digest)
@@ -68,11 +68,11 @@
 {{- end }}
 
 {{- define "uav-sim.podSecurityContext" -}}
-{{ include "veoveo-extension.podSecurityContext" . }}
+{{ include "veoveo-common.podSecurityContext" . }}
 {{- end }}
 
 {{- define "uav-sim.containerSecurityContext" -}}
-{{ include "veoveo-extension.containerSecurityContext" . }}
+{{ include "veoveo-common.containerSecurityContext" . }}
 {{- end }}
 
 {{- define "uav-sim.runtimeEnv" -}}
@@ -229,7 +229,7 @@
 {{- define "uav-sim.recordingForwarder" -}}
 {{- $image := .root.Values.images.forwarder -}}
 {{- $lockedDigest := get .root.Values.global.imageDigests $image.repository | default "" -}}
-{{- include "veoveo-extension.recordingForwarder" (dict
+{{- include "veoveo-common.recordingForwarder" (dict
     "image" (dict
       "repository" $image.repository
       "tag" (default $image.tag .root.Values.global.veoveoTag)

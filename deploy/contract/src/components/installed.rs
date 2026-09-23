@@ -1,10 +1,10 @@
 //! Non-secret evidence of one completed atomic installation.
 use std::collections::BTreeSet;
 
+use crate::ArtifactDigest;
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_extension_contract::ArtifactDigest;
 
 use super::*;
 

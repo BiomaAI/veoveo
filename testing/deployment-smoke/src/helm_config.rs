@@ -5,7 +5,7 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Deserialize;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use veoveo_extension_contract::SimulationRuntimeBuildLock;
+use veoveo_simulation_contract::SimulationRuntimeBuildLock;
 
 #[path = "helm_config/agent_template.rs"]
 mod agent_template;
@@ -50,30 +50,30 @@ pub(crate) fn helm_config() -> Result<()> {
     gitops::check()?;
     jobs::check()?;
     for chart in [
-        "deploy/helm/veoveo-extension",
+        "deploy/helm/common",
         "deploy/helm/veoveo",
         "showcase/sumo/deploy/helm",
         "showcase/uav-sim/deploy/helm",
-        "testing/fixtures/extension-helm-consumer",
-        "testing/fixtures/external-simulation-extension/deploy/helm",
+        "testing/fixtures/chart-library-consumer",
+        "testing/fixtures/fork-workload/deploy/helm",
     ] {
         run_checked(Path::new("helm"), ["lint".into(), chart.into()], [])
             .with_context(|| format!("linting Helm chart {chart}"))?;
     }
 
-    let extension = run_checked(
+    let workload = run_checked(
         Path::new("helm"),
         [
             "template".into(),
-            "separate-extension-release".into(),
-            "testing/fixtures/extension-helm-consumer".into(),
+            "separate-workload-release".into(),
+            "testing/fixtures/chart-library-consumer".into(),
             "--namespace".into(),
             "veoveo".into(),
         ],
         [],
     )?;
     for expected in [
-        "app.kubernetes.io/instance: \"separate-extension-release\"",
+        "app.kubernetes.io/instance: \"separate-workload-release\"",
         "veoveo.ai/installation: \"veoveo\"",
         "app.kubernetes.io/component: \"anonymous-mcp\"",
         "app.kubernetes.io/component: \"gateway\"",
@@ -83,40 +83,40 @@ pub(crate) fn helm_config() -> Result<()> {
         "readOnlyRootFilesystem: true",
         "name: VEOVEO_INTERNAL_TRUST_JWKS",
     ] {
-        contains(&extension, expected)?;
+        contains(&workload, expected)?;
     }
-    not_contains(&extension, "app.kubernetes.io/instance: \"veoveo\"")?;
-    let production_extension = Command::new("helm")
+    not_contains(&workload, "app.kubernetes.io/instance: \"veoveo\"")?;
+    let production_workload = Command::new("helm")
         .args([
             "template",
-            "separate-extension-release",
-            "testing/fixtures/extension-helm-consumer",
+            "separate-workload-release",
+            "testing/fixtures/chart-library-consumer",
             "--set",
             "veoveo.production=true",
         ])
         .output()
-        .context("rendering the production extension fixture without an image digest")?;
+        .context("rendering the production workload fixture without an image digest")?;
     ensure!(
-        !production_extension.status.success(),
-        "production extension render must reject mutable image tags"
+        !production_workload.status.success(),
+        "production workload render must reject mutable image tags"
     );
 
-    let external_simulation = run_checked(
+    let fork_simulation = run_checked(
         Path::new("helm"),
         [
             "template".into(),
             "anonymous-simulation".into(),
-            "testing/fixtures/external-simulation-extension/deploy/helm".into(),
+            "testing/fixtures/fork-workload/deploy/helm".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-simulation-extension/deploy/helm/values.test.yaml".into(),
+            "testing/fixtures/fork-workload/deploy/helm/values.test.yaml".into(),
         ],
         [],
     )?;
     for expected in [
         "name: anonymous-simulation-mcp",
-        "registry.example.internal/extensions/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "registry.example.internal/veoveo/anonymous-simulation-mcp@sha256:1111111111111111111111111111111111111111111111111111111111111111",
         "veoveo.ai/simulator-hosted-live-view: \"true\"",
         "name: ANONYMOUS_SIMULATION_PUBLIC_STREAM_URL",
         "value: \"wss://simulation.example/anonymous-simulation/live\"",
@@ -124,7 +124,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "readOnlyRootFilesystem: true",
         "port: 8812",
     ] {
-        contains(&external_simulation, expected)?;
+        contains(&fork_simulation, expected)?;
     }
     for forbidden in [
         "nvidia.com/gpu",
@@ -135,21 +135,21 @@ pub(crate) fn helm_config() -> Result<()> {
         "stream-signal",
         "name: camera",
     ] {
-        not_contains(&external_simulation, forbidden)?;
+        not_contains(&fork_simulation, forbidden)?;
     }
-    let external_simulation_without_digest = Command::new("helm")
+    let fork_simulation_without_digest = Command::new("helm")
         .args([
             "template",
             "anonymous-simulation",
-            "testing/fixtures/external-simulation-extension/deploy/helm",
+            "testing/fixtures/fork-workload/deploy/helm",
             "--set",
-            "veoveo.production=true",
+            "global.production=true",
         ])
         .output()
-        .context("rendering the external simulation chart without an image digest")?;
+        .context("rendering the fork simulation chart without an image digest")?;
     ensure!(
-        !external_simulation_without_digest.status.success(),
-        "production external simulation render must reject mutable image tags"
+        !fork_simulation_without_digest.status.success(),
+        "production fork simulation render must reject mutable image tags"
     );
 
     let platform = run_checked(
@@ -159,7 +159,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -238,7 +238,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -299,7 +299,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--set".into(),
             "consoleBff.rerunMap.provider=mapbox".into(),
             "--set".into(),
@@ -334,7 +334,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "veoveo".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--set".into(),
             "consoleBff.rerunMap.provider=mapbox".into(),
         ],
@@ -356,7 +356,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "bioma".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -547,7 +547,7 @@ pub(crate) fn helm_config() -> Result<()> {
             "bioma".into(),
             "deploy/helm/veoveo".into(),
             "--values".into(),
-            "testing/fixtures/external-extension-installation/platform-values.yaml".into(),
+            "testing/fixtures/platform-selection/platform-values.yaml".into(),
             "--namespace".into(),
             "veoveo".into(),
             "--values".into(),
@@ -779,13 +779,9 @@ pub(crate) fn helm_config() -> Result<()> {
     )?)?;
     ensure!(
         uav_dependencies
-            .pointer("/components/simulation_runtime/compatibility_release")
+            .pointer("/components/simulation_runtime/build_target")
             .and_then(Value::as_str)
-            == Some("2026.08.0")
-            && uav_dependencies
-                .pointer("/components/simulation_runtime/build_target")
-                .and_then(Value::as_str)
-                == Some("simulation-runtime")
+            == Some("simulation-runtime")
             && uav_dependencies
                 .pointer("/components/cesium_for_omniverse/version")
                 .and_then(Value::as_str)
@@ -1028,16 +1024,15 @@ pub(crate) fn helm_config() -> Result<()> {
     )?;
     not_contains(&view_mcp_dockerfile, "NVIDIA_VISIBLE_DEVICES")?;
     let anonymous_simulation_adapter = fs::read_to_string(
-        "testing/fixtures/external-simulation-installation/Dockerfile.anonymous-simulation-mcp",
+        "testing/fixtures/fork-installation/Dockerfile.anonymous-simulation-mcp",
     )?;
     for expected in [
         "--locked",
-        "--no-emit-package veoveo-mcp",
-        "--require-hashes",
-        "sdk/python/src/veoveo_mcp",
-        "external-simulation-extension/src/anonymous_simulation_mcp",
-        "external-simulation-extension/AGENTS.md",
-        "external-simulation-extension/DESIGN.md",
+        "--no-editable",
+        "COPY sdk/python /src/sdk/python",
+        "fork-workload/src src",
+        "fork-workload/AGENTS.md",
+        "fork-workload/DESIGN.md",
     ] {
         contains(&anonymous_simulation_adapter, expected)?;
     }
@@ -1050,9 +1045,9 @@ pub(crate) fn helm_config() -> Result<()> {
     for expected in [
         "group \"platform-core\"",
         "group \"platform-full\"",
-        "group \"external-extension-platform\"",
-        "group \"external-simulation-platform\"",
-        "group \"external-simulation-extension-fixture\"",
+        "group \"domain-platform\"",
+        "group \"simulation-platform\"",
+        "group \"fork-workload-fixture\"",
         "group \"showcase-sumo-base\"",
         "group \"showcase-sumo\"",
         "group \"simulation-runtime\"",
@@ -1137,9 +1132,11 @@ pub(crate) fn helm_config() -> Result<()> {
         !Path::new("examples/bioma/deployment.json").exists(),
         "Bioma must use its enterprise GitOps contract rather than a deployment profile"
     );
-    veoveo_deploy_runtime::profile_validate(Path::new("showcase/sumo/deploy/deployment.json"))?;
-    veoveo_deploy_runtime::profile_validate(Path::new(
-        "testing/fixtures/external-simulation-installation/deployment.json",
+    veoveo_deploy_runtime::profile_validate_working_tree(Path::new(
+        "showcase/sumo/deploy/deployment.json",
+    ))?;
+    veoveo_deploy_runtime::profile_validate_working_tree(Path::new(
+        "testing/fixtures/fork-installation/deployment.json",
     ))?;
     let bioma_root = fs::read_to_string("examples/bioma/gitops/bootstrap.yaml")?;
     for expected in [

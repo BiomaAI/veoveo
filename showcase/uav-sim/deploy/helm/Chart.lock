@@ -1,6 +1,6 @@
 dependencies:
-- name: veoveo-extension
-  repository: file://../../../../deploy/helm/veoveo-extension
+- name: veoveo-common
+  repository: file://../../../../deploy/helm/common
   version: 0.1.0
-digest: sha256:9d4b46d82259af7c6b794940f8fab37c5ffed81921209fd1dbe6c499c534fda3
-generated: "2026-07-26T13:32:36.601677556-06:00"
+digest: sha256:dcd10e4b7bc22a9130dff43b0598a5b18a70d54dc41ade8fe50a48fb834cff83
+generated: "2026-09-23T11:50:54.581095444-06:00"

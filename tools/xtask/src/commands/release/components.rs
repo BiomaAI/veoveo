@@ -7,12 +7,12 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
+use veoveo_deploy_contract::SourceRevision;
 use veoveo_deploy_contract::{
     DeploymentLock, ImageReleaseEvidence, LoadedProfile, LockedImage,
     components::{ComponentId, select_components},
 };
 use veoveo_deploy_runtime::ComponentUpdates;
-use veoveo_extension_contract::SourceRevision;
 
 use super::{absolute_output, profile_location, translate_registry, write_create_only_json};
 use crate::{

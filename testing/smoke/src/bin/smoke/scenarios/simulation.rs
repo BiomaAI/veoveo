@@ -11,12 +11,12 @@ use chrono::Utc;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};
+use veoveo_deploy_contract::{ArtifactCoordinate, ArtifactDigest, SourceRevision};
 use veoveo_deploy_contract::{DeploymentLock, RegistryTransport};
-use veoveo_extension_contract::{
-    ArtifactCoordinate, ArtifactDigest, SimulationAttestationEvidence, SimulationConformanceResult,
-    SimulationConformanceResultSchema, SimulationHardwareEvidence,
-    SimulationNewtonDynamicsEvidence, SimulationOverlayKind, SimulationProbeKind,
-    SimulationProbeResult, SimulationRuntimeBuildLock, SourceRevision,
+use veoveo_simulation_contract::{
+    SimulationAttestationEvidence, SimulationConformanceResult, SimulationConformanceResultSchema,
+    SimulationHardwareEvidence, SimulationNewtonDynamicsEvidence, SimulationOverlayKind,
+    SimulationProbeKind, SimulationProbeResult, SimulationRuntimeBuildLock,
 };
 
 use super::*;

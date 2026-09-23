@@ -73,7 +73,10 @@ fn source(root: &Path, name: &str) -> String {
             ".Values.global.imageDigests",
         )
     } else {
-        (".Values.veoveo.registry", ".Values.veoveo.imageDigests")
+        (
+            ".Values.global.veoveoRegistry",
+            ".Values.global.imageDigests",
+        )
     };
     let target = image_target(name);
     fs::write(
@@ -135,10 +138,10 @@ fn verify_image_publication(
     base: &veoveo_deploy_contract::DeploymentLock,
     roots: &BTreeMap<String, PathBuf>,
 ) {
+    use veoveo_deploy_contract::SourceRevision;
     use veoveo_deploy_contract::components::{ComponentId, ComponentInput};
-    use veoveo_extension_contract::SourceRevision;
     let mut lock = base.clone();
-    for (owner, other) in [("platform", "extension"), ("extension", "platform")] {
+    for (owner, other) in [("platform", "workload"), ("workload", "platform")] {
         let source = lock
             .sources
             .iter()
@@ -282,31 +285,30 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     // render selection and provenance, not image publication or live zero writes.
     let workspace = tempfile::tempdir().unwrap();
     let platform = workspace.path().join("platform");
-    let extension = workspace.path().join("extension");
+    let extension = workspace.path().join("workload");
     let installation = workspace.path().join("installation");
     let platform_revision = source(&platform, "platform");
-    let extension_revision = source(&extension, "extension");
+    let extension_revision = source(&extension, "workload");
     assert_ne!(platform_revision, extension_revision);
     initialize(&installation);
     let namespace = json!({"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"});
     let profile_value = json!({
-        "schemaVersion":"veoveo.io/deployment/v7", "name":"compiler-fixture",
+        "schemaVersion":"veoveo.io/deployment/v8", "name":"compiler-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[
             {"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
                 "revision":"HEAD", "imageGroups":[], "releases":[{"name":"platform", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"platform", "timeoutSeconds":60}]},
-            {"name":"extension", "role":"extension", "repository":{"kind":"local", "path":"../extension"},
-                "revision":"HEAD", "imageGroups":["extension"], "releases":[{"name":"extension", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"extension", "timeoutSeconds":60}]}
+            {"name":"workload", "role":"workload", "repository":{"kind":"local", "path":"../workload"},
+                "revision":"HEAD", "imageGroups":["workload"], "releases":[{"name":"workload", "chart":"chart", "sourceValues":[], "installationValues":[], "valuesContract":"veoveo-source", "timeoutSeconds":60}]}
         ],
         "components":[
-            {"id":"installation", "owner":{"kind":"installation"}, "role":"installation", "dependencies":[], "namespaces":["veoveo"], "clusterObjects":[namespace], "releases":[], "installationInputs":["namespace"], "extensionRelease":null},
-            {"id":"platform", "owner":{"kind":"source", "name":"platform"}, "role":"platform", "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[], "releases":["platform"], "installationInputs":[], "extensionRelease":null},
-            {"id":"extension", "owner":{"kind":"source", "name":"extension"}, "role":"extension", "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[], "releases":["extension"], "installationInputs":[],
-                "extensionRelease":{"extension":"compiler.example", "version":"1.0.0", "manifestDigest":format!("sha256:{}", "c".repeat(64))}}
+            {"id":"installation", "owner":{"kind":"installation"}, "role":"installation", "dependencies":[], "namespaces":["veoveo"], "clusterObjects":[namespace], "releases":[], "installationInputs":["namespace"]},
+            {"id":"platform", "owner":{"kind":"source", "name":"platform"}, "role":"platform", "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[], "releases":["platform"], "installationInputs":[]},
+            {"id":"workload", "owner":{"kind":"source", "name":"workload"}, "role":"workload", "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[], "releases":["workload"], "installationInputs":[]}
         ],
         "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},
         "namespace":"veoveo", "resources":{"manifests":[], "configMaps":[]},
-        "platform":{"installationPreset":"custom", "components":["platform-store", "object-store", "artifact-service"], "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
+        "platform":{"installationPreset":"custom", "components":["platform-store", "object-store", "artifact-service"], "mcpServers":[], "artifactAudiences":[], "workloads":[]},
         "gatewayRequirements":[], "waitForDeployments":[]
     });
     let path = installation.join("deployment.json");
@@ -315,7 +317,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     let profile = LoadedProfile::load(&path, &installation).unwrap();
     let roots = BTreeMap::from([
         ("platform".into(), platform.clone()),
-        ("extension".into(), extension.clone()),
+        ("workload".into(), extension.clone()),
     ]);
     let mut sources = profile
         .definition
@@ -329,7 +331,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
             images: vec![LockedImage {
                 name: image_target(&source.name).into(),
                 repository: format!("registry.example.invalid/{}", image_target(&source.name)),
-                source_revision: veoveo_extension_contract::SourceRevision::new(git(
+                source_revision: veoveo_deploy_contract::SourceRevision::new(git(
                     &roots[&source.name],
                     &["rev-parse", "HEAD"],
                 ))
@@ -381,7 +383,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     );
     let extension_render = prepared
         .iter()
-        .find(|component| component.locked.declaration.id.as_str() == "extension")
+        .find(|component| component.locked.declaration.id.as_str() == "workload")
         .unwrap();
     assert_eq!(
         extension_render.units[0].objects[0]["metadata"]["annotations"]["test.example/selectedImages"],
@@ -440,7 +442,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     assert_ne!(retained_image.revision.as_str(), sources[0].revision);
 
     sources[0].images[0].source_revision =
-        veoveo_extension_contract::SourceRevision::new(&sources[0].revision).unwrap();
+        veoveo_deploy_contract::SourceRevision::new(&sources[0].revision).unwrap();
     sources[0].images[0].digest = format!("sha256:{}", "d".repeat(64));
     let compiled = compile_components(
         &profile,
@@ -454,7 +456,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     assert!(
         compiled
             .iter()
-            .all(|component| component.locked.declaration.id.as_str() != "extension")
+            .all(|component| component.locked.declaration.id.as_str() != "workload")
     );
     let new_platform = compiled
         .iter()
@@ -476,10 +478,10 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     assert_eq!(
         merged
             .iter()
-            .find(|component| component.declaration.id.as_str() == "extension"),
+            .find(|component| component.declaration.id.as_str() == "workload"),
         initial
             .iter()
-            .find(|component| component.declaration.id.as_str() == "extension")
+            .find(|component| component.declaration.id.as_str() == "workload")
     );
     let lock = veoveo_deploy_contract::DeploymentLock {
         schema_version: veoveo_deploy_contract::DEPLOYMENT_LOCK_SCHEMA.into(),
@@ -524,7 +526,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     }
     let extension_selection = BTreeSet::from([
         "installation".to_owned().try_into().unwrap(),
-        "extension".to_owned().try_into().unwrap(),
+        "workload".to_owned().try_into().unwrap(),
     ]);
     assert!(crate::sources::resolve_locked_sources(&loaded, &lock, &extension_selection).is_err());
 }
@@ -558,8 +560,8 @@ enum InputChange {
 }
 
 fn retained_component_inputs(change: InputChange) {
+    use veoveo_deploy_contract::SourceRevision;
     use veoveo_deploy_contract::{DeploymentLock, components::ComponentId};
-    use veoveo_extension_contract::SourceRevision;
 
     // Synthetic image identities isolate real Git/Helm preparation from publication.
     let workspace = tempfile::tempdir().unwrap();
@@ -585,18 +587,18 @@ fn retained_component_inputs(change: InputChange) {
         "id":"installation", "owner":{"kind":"installation"}, "role":"installation",
         "dependencies":[], "namespaces":["veoveo"],
         "clusterObjects":[{"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"}],
-        "releases":[], "installationInputs":["namespace"], "extensionRelease":null
+        "releases":[], "installationInputs":["namespace"]
     })];
     for name in ["current", "retained"] {
         components.push(json!({
             "id":name, "owner":{"kind":"source", "name":"platform"}, "role":"platform",
             "dependencies":["installation"], "namespaces":["veoveo"], "clusterObjects":[],
-            "releases":[name], "installationInputs":[], "extensionRelease":null
+            "releases":[name], "installationInputs":[]
         }));
     }
     let path = installation.join("deployment.json");
     fs::write(&path, serde_json::to_vec_pretty(&json!({
-        "schemaVersion":"veoveo.io/deployment/v7", "name":"revision-fixture",
+        "schemaVersion":"veoveo.io/deployment/v8", "name":"revision-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[{"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
             "revision":"HEAD", "imageGroups":[], "releases":releases}],
@@ -604,7 +606,7 @@ fn retained_component_inputs(change: InputChange) {
         "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},
         "namespace":"veoveo", "resources":{"manifests":[], "configMaps":[]},
         "platform":{"installationPreset":"custom", "components":["platform-store", "object-store", "artifact-service"],
-            "mcpServers":[], "artifactAudiences":[], "externalWorkloads":[]},
+            "mcpServers":[], "artifactAudiences":[], "workloads":[]},
         "gatewayRequirements":[], "waitForDeployments":[]
     })).unwrap()).unwrap();
     let mut profile_revision = commit(&installation, "two components from one repository");

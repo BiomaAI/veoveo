@@ -84,7 +84,6 @@ pub(super) fn publication(
                 ImageInputs::publication(
                     &profile.definition.registry.pull_address,
                     &snapshot.definition.name,
-                    release.values_contract,
                     sources,
                 )?,
             );
@@ -300,7 +299,7 @@ fn prepare(
                 definition,
                 repository: root.clone(),
                 revision: owner.revision.as_str().to_owned(),
-                _checkout: SourceCheckout::Publication,
+                _checkout: SourceCheckout::Borrowed,
             },
         );
     }

@@ -136,18 +136,6 @@ pub(crate) fn contract_schemas(conformance: &Path) -> Result<()> {
         }
     }
     assert_schema_title(
-        &schemas.join("gateway-server-fragment.schema.json"),
-        "GatewayServerFragment",
-    )?;
-    assert_schema_title(
-        &schemas.join("gateway-binding.schema.json"),
-        "GatewayBinding",
-    )?;
-    assert_schema_title(
-        &schemas.join("gateway-composition-provenance.schema.json"),
-        "GatewayCompositionProvenance",
-    )?;
-    assert_schema_title(
         &schemas.join("resource-authorization-server.schema.json"),
         "ResourceAuthorizationServer",
     )?;

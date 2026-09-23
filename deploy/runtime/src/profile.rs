@@ -34,13 +34,41 @@ use execution::ExecutionScope;
 
 pub fn profile_validate(path: &Path) -> Result<()> {
     let profile = load_profile(path)?;
-    validate_node_bootstrap_secret_boundary(&profile)?;
-    let _gateway_activation = prepare_gateway_activation(&profile)?;
-    let _gpu_placement = prepare_gpu_placement(&profile)?;
     let sources = resolve_sources(&profile)?;
-    let selected_images = validate_bake_selections(&profile, &sources)?;
+    validate_profile_sources(&profile, &sources)
+}
+
+/// Checks the current local files for source checks before a commit. This does not
+/// qualify an immutable publication or authorize installation.
+pub fn profile_validate_working_tree(path: &Path) -> Result<()> {
+    let profile = load_profile(path)?;
+    let sources = profile
+        .definition
+        .sources
+        .iter()
+        .map(|source| {
+            Ok(crate::sources::ResolvedSource {
+                repository: profile.local_source_root(source)?,
+                definition: source.clone(),
+                revision: "working-tree".into(),
+                _checkout: crate::sources::SourceCheckout::Borrowed,
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    println!("Checking working-tree configuration; immutable publication is checked separately");
+    validate_profile_sources(&profile, &sources)
+}
+
+fn validate_profile_sources(
+    profile: &veoveo_deploy_contract::LoadedProfile,
+    sources: &[crate::sources::ResolvedSource],
+) -> Result<()> {
+    validate_node_bootstrap_secret_boundary(profile)?;
+    let _gateway_activation = prepare_gateway_activation(profile)?;
+    let _gpu_placement = prepare_gpu_placement(profile)?;
+    let selected_images = validate_bake_selections(profile, sources)?;
     profile.validate_image_plan(&selected_images)?;
-    validate_helm_releases(&profile, &sources)?;
+    validate_helm_releases(profile, sources)?;
     let platform = profile.resolved_platform()?;
     println!(
         "Deployment profile {} is valid: {} sources, {} image publication phases, {} Helm releases, {} platform components, and {} MCP servers",
@@ -50,7 +78,7 @@ pub fn profile_validate(path: &Path) -> Result<()> {
             .iter()
             .map(|source| match source.definition.role {
                 DeploymentSourceRole::Platform => 1,
-                DeploymentSourceRole::Extension | DeploymentSourceRole::Workload => {
+                DeploymentSourceRole::Workload => {
                     source.definition.image_groups.len()
                 }
             })

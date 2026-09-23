@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use super::wire::{
     validate_claim_text, validate_compatibility_helper_id, validate_gateway_name,
     validate_oauth_authorization_code, validate_oauth_state_value, validate_path_id,
-    validate_pkce_code_token, validate_principal_display_name, validate_sha256_digest,
-    validate_token_text, validate_uri_scheme,
+    validate_pkce_code_token, validate_principal_display_name, validate_token_text,
+    validate_uri_scheme,
 };
 
 macro_rules! typed_id {
@@ -219,11 +219,6 @@ typed_id!(
     PlatformCapabilityId,
     validate_path_id,
     "Installation platform capability required by one hosted server."
-);
-typed_id!(
-    CompositionDigest,
-    validate_sha256_digest,
-    "SHA-256 identity of exact gateway composition input or output bytes."
 );
 typed_id!(
     ScopeName,

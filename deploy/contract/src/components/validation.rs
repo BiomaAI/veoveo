@@ -264,10 +264,6 @@ pub(super) fn validate_declaration(component: &DeploymentComponent) -> Result<()
         !component.permitted_objects.is_empty(),
         "component must declare object ownership"
     );
-    ensure!(
-        (component.role == ComponentRole::Extension) == component.extension_release.is_some(),
-        "exact extension release identity is required only for extension components"
-    );
     for namespace in &component.namespaces {
         validate_name("namespace", namespace)?;
     }

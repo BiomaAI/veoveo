@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use veoveo_deploy_contract::ArtifactDigest;
 use veoveo_deploy_contract::components::{ObjectIdentity, RenderedObject};
-use veoveo_extension_contract::ArtifactDigest;
 
 /// Offline scope declaration. Built-in API kinds have fixed scope; custom kinds
 /// require a rendered CRD, an explicit namespace, or an exact cluster permission.

@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
+use crate::ArtifactDigest;
 use anyhow::Result;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use veoveo_extension_contract::{ArtifactDigest, ExtensionId};
 
 use super::{
     types::*,
@@ -26,18 +26,18 @@ pub fn atomic_unit_digest(
         role: ComponentRole,
         source: &'a ComponentSource,
         configuration: &'a InstallationSnapshot,
-        extension_release: &'a Option<ComponentExtensionRelease>,
+
         target: &'a AtomicTarget,
         inputs: &'a BTreeSet<ComponentInput>,
         objects: Vec<&'a RenderedObject>,
     }
     hash(&Identity {
-        format: "veoveo.io/atomic-deployment-unit/v2",
+        format: "veoveo.io/atomic-deployment-unit/v3",
         component: &component.id,
         role: component.role,
         source: &component.source,
         configuration: &component.configuration,
-        extension_release: &component.extension_release,
+
         target: &unit.target,
         inputs: &unit.inputs,
         objects: sorted_objects(unit),
@@ -61,13 +61,13 @@ pub fn atomic_unit_content_digest(
         role: ComponentRole,
         source: ContentSource<'a>,
         configuration: (ContentSource<'a>, &'a str),
-        extension: Option<&'a ExtensionId>,
+
         target: &'a AtomicTarget,
         inputs: BTreeSet<ContentInput<'a>>,
         objects: Vec<&'a RenderedObject>,
     }
     hash(&Identity {
-        format: "veoveo.io/atomic-deployment-content/v2",
+        format: "veoveo.io/atomic-deployment-content/v3",
         component: &component.id,
         role: component.role,
         source: (&component.source).into(),
@@ -75,7 +75,7 @@ pub fn atomic_unit_content_digest(
             (&component.configuration.source).into(),
             &component.configuration.profile,
         ),
-        extension: component.extension_release.as_ref().map(|r| &r.extension),
+
         target: &unit.target,
         inputs: unit.inputs.iter().map(ContentInput::from).collect(),
         objects: sorted_objects(unit),

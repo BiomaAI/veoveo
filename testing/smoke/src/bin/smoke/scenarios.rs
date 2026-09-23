@@ -17,8 +17,6 @@ pub(crate) use artifact_consumers::artifact_upload_consumers;
 mod candidate;
 #[path = "scenarios/datasheet.rs"]
 mod datasheet;
-#[path = "scenarios/external_simulation.rs"]
-mod external_simulation;
 #[path = "scenarios/frames.rs"]
 mod frames;
 #[path = "scenarios/gateway.rs"]
@@ -51,7 +49,6 @@ pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
 pub(crate) use bioma::*;
 pub(crate) use datasheet::*;
-pub(crate) use external_simulation::*;
 pub(crate) use frames::*;
 pub(crate) use gateway::*;
 pub(crate) use gpu_allocation::*;

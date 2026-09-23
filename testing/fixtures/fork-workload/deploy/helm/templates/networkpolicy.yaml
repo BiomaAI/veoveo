@@ -1,0 +1,17 @@
+{{- $labels := dict
+    "name" "anonymous-simulation"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.global.installationId
+    "component" "anonymous-simulation-mcp"
+-}}
+{{- include "veoveo-common.networkPolicy" (dict
+    "name" "anonymous-simulation-mcp"
+    "installation" .Values.global.installationId
+    "component" "anonymous-simulation-mcp"
+    "mcpPort" .Values.service.port
+    "dnsNamespaceSelector" .Values.networkPolicy.dnsNamespaceSelector
+    "egress" (list)
+    "labels" $labels
+  ) -}}

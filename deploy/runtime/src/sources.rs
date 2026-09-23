@@ -22,8 +22,9 @@ pub(crate) enum SourceCheckout {
     Temporary {
         _directory: tempfile::TempDir,
     },
-    /// The synchronous lock compiler borrows a publisher-owned immutable snapshot.
-    Publication,
+    /// A synchronous caller owns the source lifetime. Publication uses immutable
+    /// snapshots; working-tree checks only validate configuration, never install it.
+    Borrowed,
 }
 
 #[derive(Debug)]
@@ -58,10 +59,7 @@ pub(crate) fn load_deployment_lock(path: &Path) -> Result<DeploymentLock> {
 pub(crate) fn resolve_sources(profile: &LoadedProfile) -> Result<Vec<ResolvedSource>> {
     let mut resolved = Vec::with_capacity(profile.definition.sources.len());
     for source in &profile.definition.sources {
-        let origin = match &source.repository {
-            SourceRepository::Local { .. } => profile.local_source_root(source)?,
-            SourceRepository::Git { url } => PathBuf::from(url),
-        };
+        let origin = profile.local_source_root(source)?;
         let checkout = tempfile::Builder::new()
             .prefix(&format!("veoveo-deployment-{}-", source.name))
             .tempdir()
@@ -177,7 +175,7 @@ pub(crate) fn resolve_component_sources(
     profile: &LoadedProfile,
     lock: &DeploymentLock,
     selected: &BTreeSet<ComponentId>,
-    revisions: &BTreeMap<String, veoveo_extension_contract::SourceRevision>,
+    revisions: &BTreeMap<String, veoveo_deploy_contract::SourceRevision>,
 ) -> Result<BTreeMap<ComponentSource, ResolvedSource>> {
     let mut selected_releases = BTreeMap::<ComponentSource, BTreeSet<String>>::new();
     for spec in profile
@@ -237,7 +235,6 @@ pub(crate) fn resolve_component_sources(
                     normalize_origin(String::from_utf8(origin)?.trim())?,
                 )
             }
-            SourceRepository::Git { url } => (url.clone(), normalize_origin(url)?),
         };
         ensure!(
             source_origin == locked.repository && source_origin == identity.repository,

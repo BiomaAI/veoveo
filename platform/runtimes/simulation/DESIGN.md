@@ -2,8 +2,7 @@
 
 The simulation runtime is Veoveo's one reusable GPU compatibility lineage for
 Isaac-based simulators and renderer workloads. It contains no vehicle, dynamics,
-controller, scenario, mission, customer asset, or domain entrypoint. First-party and
-external repositories derive thin overlays from its immutable OCI digest.
+controller, scenario, mission, customer asset, or domain entrypoint. Applications in the fork derive thin overlays from its immutable OCI digest.
 
 ## Standards And Protocols
 
@@ -19,12 +18,12 @@ external repositories derive thin overlays from its immutable OCI digest.
 | SHA-256 | image, archive, wheel, lock, SBOM, provenance, and conformance identity |
 
 Isaac, Kit, CUDA, and NVIDIA live-stream interfaces are implementation dependencies.
-They are not a provider-neutral public simulation protocol. The public extension
-boundary is the compatibility profile and immutable image digest.
+The dependency lock and immutable image digest identify the supported runtime.
+Domain-facing simulation protocols belong to the hosted server.
 
-## Compatibility Release
+## Dependency Profile
 
-`2026.08.0` selects one tuple:
+The runtime lock selects this tuple:
 
 | Component | Selected identity |
 |---|---|
@@ -135,8 +134,8 @@ The Bake target publishes `veoveo/simulation-runtime`. A release records:
 - the qualified node identity and driver;
 - the hardware conformance result tied to the final image digest.
 
-An external extension selects the runtime from the Veoveo compatibility manifest and
-uses its digest in `FROM`. Replacing an `ARG` default with a mutable tag is not a
+A simulator workload selects the runtime build target or a qualified image digest
+in `FROM`. Replacing an `ARG` default with a mutable tag is not a
 supported release workflow.
 
 ## Hardware Conformance

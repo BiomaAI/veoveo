@@ -1,7 +1,7 @@
+use crate::SourceRevision;
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_extension_contract::SourceRevision;
 
 use crate::{LockedImage, LockedRegistry, ensure_unique, validate_digest, validate_name};
 

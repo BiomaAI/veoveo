@@ -3,10 +3,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result};
 use serde_json::Value;
+use veoveo_deploy_contract::ArtifactDigest;
 use veoveo_deploy_contract::components::{
     InstalledObjectObservation, InstalledObjectState, ObjectIdentity,
 };
-use veoveo_extension_contract::ArtifactDigest;
 
 use crate::{compile::objects::object_digest, ownership::validate_manager_value};
 

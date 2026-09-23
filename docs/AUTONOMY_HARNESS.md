@@ -20,9 +20,9 @@ limits the installation set.
 | OpenID Connect and OAuth 2.0 | Installation-owned identity, agent service principals, audience-bound access tokens, explicit scopes, and short-lived delegated authority. |
 | [Model Context Protocol](../mcp/contract/DESIGN.md) | Protocol version `2026-07-28` under Veoveo hosted-server contract revision 3. Every capability remains typed, discoverable, policy-checked, and attributable. |
 | JSON Schema 2020-12 | Closed schemas for controlled agent manifests, tool inputs, tool outputs, gateway configuration, extension fragments, and installation bindings. |
-| [`veoveo.io/gateway-binding/v1`](../mcp/composer/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
+| [Typed gateway control plane](../mcp/contract/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
 | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md) | Durable invocation authority, output ownership, membership, classification, data labels, and retained provenance. |
-| OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v7`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
+| OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
 | [NVIDIA agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack) | Independent corroboration of the boundary placement this harness enforces, and the lens for the open work recorded under Industry Alignment. |
 
 ## Security Objective

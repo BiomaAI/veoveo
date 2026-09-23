@@ -28,11 +28,11 @@ use rmcp::{
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
-use veoveo_extension_contract::SimulationOverlayKind;
 use veoveo_mcp_contract::{
     GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
     parse_artifact_plane_uri,
 };
+use veoveo_simulation_contract::SimulationOverlayKind;
 
 #[path = "smoke/scenarios.rs"]
 mod scenarios;
@@ -66,8 +66,6 @@ enum Cmd {
     },
     /// Smoke-test Helm and k3d local deployment rendering.
     HelmConfig,
-    /// Build and test the external simulation fixture from an authenticated published SDK wheel.
-    ExternalSimulationFixture,
     /// Prove exclusive NVIDIA device-plugin allocation with two one-GPU pods on one node.
     GpuAllocationVerify {
         /// Kubernetes context containing the exclusive multi-GPU node.
@@ -578,7 +576,6 @@ async fn main() -> Result<()> {
             smoke_control_plane,
         } => gateway_suite(&control_plane, &smoke_control_plane).await,
         Cmd::HelmConfig => helm_config(),
-        Cmd::ExternalSimulationFixture => external_simulation_fixture(),
         Cmd::GpuAllocationVerify {
             context,
             node,

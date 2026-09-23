@@ -2,8 +2,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, ensure};
+use veoveo_deploy_contract::SourceRevision;
 use veoveo_deploy_contract::{DeploymentLock, LoadedProfile, LockedImage, components::*};
-use veoveo_extension_contract::SourceRevision;
 
 use crate::{
     compile::{compile_component_update, configuration},

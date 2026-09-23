@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 use veoveo_deploy_contract::{
     DeploymentLock, LoadedProfile, LockedImage, LockedSource, RegistryTransport,
     components::ComponentId,
@@ -15,7 +16,6 @@ use veoveo_deploy_contract::{
 use veoveo_deploy_runtime::{
     ComponentUpdates, compile_component_lock, lock_source_charts, update_components,
 };
-use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
 pub(super) struct Fixture {
     pub profile: LoadedProfile,
@@ -81,7 +81,7 @@ fn target(source: &str) -> &str {
     if source == "platform" {
         "artifact-service"
     } else {
-        "extension"
+        "workload"
     }
 }
 
@@ -105,7 +105,7 @@ impl Fixture {
             RegistryTransport::InsecureHttp,
         )?;
         let mut roots = BTreeMap::new();
-        for name in ["platform", "extension"] {
+        for name in ["platform", "workload"] {
             let root = directory.join(name);
             initialize(&root)?;
             fs::create_dir_all(root.join("chart/templates"))?;
@@ -128,7 +128,10 @@ impl Fixture {
                     ".Values.global.imageDigests",
                 )
             } else {
-                (".Values.veoveo.registry", ".Values.veoveo.imageDigests")
+                (
+                    ".Values.global.veoveoRegistry",
+                    ".Values.global.imageDigests",
+                )
             };
             fs::write(
                 root.join("chart/templates/deployment.yaml"),
@@ -155,32 +158,32 @@ spec:
                     target(name)
                 ),
             )?;
-            commit(&root, "initial independent fixture source")?;
+            commit(&root, "initial retained component checkout")?;
             roots.insert(name.into(), root);
         }
         let installation = directory.join("installation");
         initialize(&installation)?;
         let profile_path = installation.join("deployment.json");
         let definition = json!({
-            "schemaVersion":"veoveo.io/deployment/v7", "name":"scope-fixture",
+            "schemaVersion":"veoveo.io/deployment/v8", "name":"scope-fixture",
             "registry":{"pushAddress":args.push_registry,"pullAddress":args.pull_registry,"transport":"insecure-http"},
             "namespace":namespace,"kubernetes":{"context":context,"localCluster":null},
             "sources":[
                 {"name":"platform","role":"platform","repository":{"kind":"local","path":"../platform"},"revision":"HEAD","imageGroups":[],
                     "releases":[{"name":"platform","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"platform","timeoutSeconds":60}]},
-                {"name":"extension","role":"extension","repository":{"kind":"local","path":"../extension"},"revision":"HEAD","imageGroups":["extension"],
-                    "releases":[{"name":"extension","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"extension","timeoutSeconds":60}]}
+                {"name":"workload","role":"workload","repository":{"kind":"local","path":"../workload"},"revision":"HEAD","imageGroups":["workload"],
+                    "releases":[{"name":"workload","chart":"chart","sourceValues":[],"installationValues":[],"valuesContract":"veoveo-source","timeoutSeconds":60}]}
             ],
             "components":[
                 {"id":"installation","owner":{"kind":"installation"},"role":"installation","dependencies":[],"namespaces":[namespace],
-                    "clusterObjects":[{"group":"","kind":"Namespace","namespace":null,"name":namespace}],"releases":[],"installationInputs":["namespace"],"extensionRelease":null},
+                    "clusterObjects":[{"group":"","kind":"Namespace","namespace":null,"name":namespace}],"releases":[],"installationInputs":["namespace"]},
                 {"id":"platform","owner":{"kind":"source","name":"platform"},"role":"platform","dependencies":["installation"],"namespaces":[namespace],
-                    "clusterObjects":[],"releases":["platform"],"installationInputs":[],"extensionRelease":null},
-                {"id":"extension","owner":{"kind":"source","name":"extension"},"role":"extension","dependencies":["installation"],"namespaces":[namespace],
-                    "clusterObjects":[],"releases":["extension"],"installationInputs":[],"extensionRelease":{"extension":"scope.example","version":"1.0.0","manifestDigest":format!("sha256:{}", "a".repeat(64))}}
+                    "clusterObjects":[],"releases":["platform"],"installationInputs":[]},
+                {"id":"workload","owner":{"kind":"source","name":"workload"},"role":"workload","dependencies":["installation"],"namespaces":[namespace],
+                    "clusterObjects":[],"releases":["workload"],"installationInputs":[]}
             ],
-            "platform":{"installationPreset":"custom","components":["platform-store","object-store","artifact-service"],"mcpServers":[],"artifactAudiences":[],"externalWorkloads":[]},
-            "resources":{"manifests":[],"configMaps":[]},"gatewayRequirements":[],"waitForDeployments":["platform","extension"]
+            "platform":{"installationPreset":"custom","components":["platform-store","object-store","artifact-service"],"mcpServers":[],"artifactAudiences":[],"workloads":[]},
+            "resources":{"manifests":[],"configMaps":[]},"gatewayRequirements":[],"waitForDeployments":["platform","workload"]
         });
         fs::write(&profile_path, serde_json::to_vec_pretty(&definition)?)?;
         let revision = commit(&installation, "installation ownership and configuration")?;
@@ -198,7 +201,7 @@ spec:
             });
         }
         let lock = DeploymentLock {
-            schema_version: "veoveo.io/deployment-lock/v7".into(),
+            schema_version: "veoveo.io/deployment-lock/v8".into(),
             profile: profile.definition.name.clone(),
             profile_revision: revision,
             registry: profile.definition.registry.locked(),
@@ -216,7 +219,7 @@ spec:
             push_registry: args.push_registry.clone(),
             _builder: builder,
         };
-        for name in ["platform", "extension"] {
+        for name in ["platform", "workload"] {
             let targets = if name == "platform" {
                 fixture.profile.required_platform_images()?
             } else {

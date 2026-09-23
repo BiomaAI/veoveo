@@ -7,10 +7,10 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 use veoveo_deploy_contract::{
     DeploymentLock, LoadedProfile, LockedImage, LockedSource, components::*,
 };
-use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
 use crate::{
     charts::helm_render_locked,
@@ -368,7 +368,6 @@ fn compile_with_inputs(
             permitted_objects,
             inputs,
             dependencies: spec.dependencies.clone(),
-            extension_release: spec.extension_release.clone(),
         };
         catalog.push(CompiledComponent {
             execution: execution::ExecutionInputs::prepare(

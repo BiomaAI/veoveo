@@ -1,5 +1,5 @@
+use veoveo_deploy_contract::{ArtifactDigest, SourceRevision};
 use veoveo_deploy_contract::{DeploymentLock, DeploymentProfile, components::*};
-use veoveo_extension_contract::{ArtifactDigest, SourceRevision};
 
 fn fixture() -> DeploymentLock {
     serde_json::from_str(include_str!("fixtures/deployment-lock.json")).unwrap()
@@ -43,18 +43,17 @@ fn profile(lock: &DeploymentLock) -> DeploymentProfile {
                 AtomicTarget::HelmRelease { name, .. } => Some(name), _ => None,
             }).collect::<Vec<_>>(),
             "installationInputs":if installation { vec![InstallationInput::Namespace] } else { vec![] },
-            "extensionRelease":declaration.extension_release
         })
     }).collect::<Vec<_>>();
     serde_json::from_value(serde_json::json!({
         "schemaVersion":veoveo_deploy_contract::PROFILE_SCHEMA, "name":lock.profile,
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":lock.sources.iter().map(|source| serde_json::json!({
-            "name":source.name, "role":source.role, "repository":{"kind":"git", "url":source.repository},
+            "name":source.name, "role":source.role, "repository":{"kind":"local", "path":"."},
             "revision":source.revision, "imageGroups":[],
             "releases":source.charts.iter().map(|chart| serde_json::json!({
                 "name":chart.release, "chart":"chart", "sourceValues":[], "installationValues":[],
-                "valuesContract":if source.name == "platform" { "platform" } else { "extension" }, "timeoutSeconds":60,
+                "valuesContract":if source.name == "platform" { "platform" } else { "veoveo-source" }, "timeoutSeconds":60,
             })).collect::<Vec<_>>()
         })).collect::<Vec<_>>(),
         "components":components, "kubernetes":{"context":"must-not-contact-a-cluster", "localCluster":null},

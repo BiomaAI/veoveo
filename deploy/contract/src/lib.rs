@@ -1,5 +1,8 @@
 //! Typed repository deployment profiles and local registry declarations.
 
+pub mod artifacts;
+pub use artifacts::*;
+
 pub mod components;
 mod gateway_bundle;
 mod image_release;
@@ -30,9 +33,9 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v7";
+pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v8";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v7";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v8";
 /// Canonical non-release image closure used by development GitOps deployments.
 pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
@@ -200,8 +203,6 @@ pub struct DeploymentSource {
 pub enum DeploymentSourceRole {
     /// The sole Veoveo platform source in this deployment.
     Platform,
-    /// An independently owned extension source.
-    Extension,
     /// A separately selected Veoveo-owned showcase or application source.
     Workload,
 }
@@ -212,8 +213,6 @@ pub enum DeploymentSourceRole {
 pub enum SourceRepository {
     /// Repository path relative to the deployment profile.
     Local { path: PathBuf },
-    /// Git repository fetched into an isolated deployment cache.
-    Git { url: String },
 }
 
 /// Repository-local OCI registry lifecycle settings.
@@ -326,8 +325,6 @@ pub enum ReleaseValuesContract {
     Platform,
     /// Veoveo-owned application chart using the global image source fields.
     VeoveoSource,
-    /// External chart consuming the private extension Helm library contract.
-    Extension,
 }
 
 /// A chart-level installation preset.
@@ -338,8 +335,8 @@ pub enum ReleaseValuesContract {
 pub enum InstallationPreset {
     /// Complete first-party platform surface.
     Full,
-    /// Gateway, storage, Artifact, Frames, and Recording for extension installations.
-    ExtensionFoundation,
+    /// Gateway, storage, Artifact, Frames, and Recording foundation.
+    Foundation,
     /// An explicit component and server selection.
     Custom,
 }
@@ -626,9 +623,9 @@ pub struct PlatformSelection {
     /// Installation-admitted artifact audiences.
     #[serde(default)]
     pub artifact_audiences: BTreeSet<String>,
-    /// Independently owned extension workloads included in the installation lock.
+    /// Additional repository-owned workloads included in the installation lock.
     #[serde(default)]
-    pub external_workloads: BTreeSet<String>,
+    pub workloads: BTreeSet<String>,
     /// Optional explicit GPU placement. Production GPU selections provide this field.
     pub gpu_scheduling: Option<GpuSchedulingProfile>,
 }
@@ -643,7 +640,7 @@ pub struct ResolvedPlatformSelection {
     pub mcp_servers: BTreeSet<FirstPartyMcpServer>,
     pub artifact_audiences: BTreeSet<String>,
     #[serde(default)]
-    pub external_workloads: BTreeSet<String>,
+    pub workloads: BTreeSet<String>,
     pub gpu_scheduling: Option<GpuSchedulingProfile>,
 }
 
@@ -737,7 +734,7 @@ pub struct LockedImage {
     pub name: String,
     pub repository: String,
     /// Commit that produced this image, independent of the current chart snapshot.
-    pub source_revision: veoveo_extension_contract::SourceRevision,
+    pub source_revision: crate::SourceRevision,
     /// Stable runnable platform-manifest digest consumed by Helm.
     pub digest: String,
     /// Attested OCI image-index digest emitted when this image was published.
@@ -785,10 +782,20 @@ impl LoadedProfile {
             .parent()
             .context("deployment profile path has no parent directory")?
             .to_path_buf();
-        let definition = serde_json::from_slice::<DeploymentProfile>(
-            &fs::read(&path).with_context(|| format!("reading {}", path.display()))?,
-        )
-        .with_context(|| format!("decoding {}", path.display()))?;
+        let bytes = fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
+        #[derive(Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ProfileHeader {
+            schema_version: String,
+        }
+        let header: ProfileHeader = serde_json::from_slice(&bytes)
+            .with_context(|| format!("decoding profile header {}", path.display()))?;
+        ensure!(
+            header.schema_version == PROFILE_SCHEMA,
+            "schemaVersion must be {PROFILE_SCHEMA}; regenerate this profile and its lock for the fork checkout, remove extension release metadata, and use repository-local workloads"
+        );
+        let definition = serde_json::from_slice::<DeploymentProfile>(&bytes)
+            .with_context(|| format!("decoding {}", path.display()))?;
         let profile = Self {
             definition,
             path,
@@ -874,9 +881,7 @@ impl LoadedProfile {
 
     /// Resolves a local source repository selected by the profile.
     pub fn local_source_root(&self, source: &DeploymentSource) -> Result<PathBuf> {
-        let SourceRepository::Local { path } = &source.repository else {
-            anyhow::bail!("deployment source {} is a Git source", source.name);
-        };
+        let SourceRepository::Local { path } = &source.repository;
         let candidate = if path.is_absolute() {
             path.clone()
         } else {
@@ -949,7 +954,7 @@ impl LoadedProfile {
         let profile = &self.definition;
         ensure!(
             profile.schema_version == PROFILE_SCHEMA,
-            "schemaVersion must be {PROFILE_SCHEMA}"
+            "schemaVersion must be {PROFILE_SCHEMA}; regenerate the profile for the fork checkout, remove extension release metadata, and use repository-local workloads"
         );
         validate_name("profile", &profile.name)?;
         validate_name("namespace", &profile.namespace)?;
@@ -998,9 +1003,6 @@ impl LoadedProfile {
                         !path.as_os_str().is_empty(),
                         "local source repository path cannot be empty"
                     );
-                }
-                SourceRepository::Git { url } => {
-                    validate_git_url(url)?;
                 }
             }
             validate_release_metadata(source, &mut release_names)?;
@@ -1244,10 +1246,10 @@ impl PlatformSelection {
                     FirstPartyMcpServer::all_supported(),
                 )
             }
-            InstallationPreset::ExtensionFoundation => {
+            InstallationPreset::Foundation => {
                 ensure!(
                     self.components.is_empty() && self.mcp_servers.is_empty(),
-                    "extension-foundation preset does not accept explicit components or mcpServers"
+                    "foundation preset does not accept explicit components or mcpServers"
                 );
                 (
                     BTreeSet::from([
@@ -1278,7 +1280,7 @@ impl PlatformSelection {
             components,
             mcp_servers,
             artifact_audiences: self.artifact_audiences.clone(),
-            external_workloads: self.external_workloads.clone(),
+            workloads: self.workloads.clone(),
             gpu_scheduling: self.gpu_scheduling.clone(),
         };
         resolved.validate_dependencies()?;
@@ -1360,7 +1362,7 @@ impl ResolvedPlatformSelection {
         for audience in &self.artifact_audiences {
             validate_name("artifact audience", audience)?;
         }
-        for workload in &self.external_workloads {
+        for workload in &self.workloads {
             validate_name("external workload", workload)?;
         }
         if !self.mcp_servers.is_empty() {
@@ -1709,7 +1711,7 @@ impl ResolvedPlatformSelection {
         }
         for workload in &declared {
             ensure!(
-                required.contains(*workload) || self.external_workloads.contains(*workload),
+                required.contains(*workload) || self.workloads.contains(*workload),
                 "gpuScheduling declares unselected workload {workload}"
             );
         }
@@ -2061,12 +2063,6 @@ fn validate_release_metadata(
                 source.name,
                 release.name
             ),
-            DeploymentSourceRole::Extension => ensure!(
-                release.values_contract == ReleaseValuesContract::Extension,
-                "extension source {} must use the extension values contract for Helm release {}",
-                source.name,
-                release.name
-            ),
             DeploymentSourceRole::Workload => ensure!(
                 release.values_contract == ReleaseValuesContract::VeoveoSource,
                 "workload source {} must use the Veoveo source values contract for Helm release {}",
@@ -2189,23 +2185,6 @@ fn validate_managed_gpu_allocator(installation: &ManagedGpuAllocatorInstallation
     ensure!(
         (60..=1_800).contains(&installation.timeout_seconds),
         "GPU allocator timeoutSeconds must be between 60 and 1800"
-    );
-    Ok(())
-}
-
-fn validate_git_url(value: &str) -> Result<()> {
-    let url = Url::parse(value).with_context(|| format!("invalid Git source URL {value}"))?;
-    ensure!(
-        matches!(url.scheme(), "https" | "ssh"),
-        "Git source URL must use https or ssh"
-    );
-    ensure!(
-        url.host_str().is_some() && url.password().is_none(),
-        "Git source URL must have a host and contain no password"
-    );
-    ensure!(
-        url.query().is_none() && url.fragment().is_none(),
-        "Git source URL must not contain a query or fragment"
     );
     Ok(())
 }
@@ -2497,8 +2476,7 @@ mod tests {
     #[test]
     fn loads_anonymous_external_extension_installation() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile =
-            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let profile = repository.join("testing/fixtures/platform-selection/deployment.json");
         let loaded =
             LoadedProfile::load(&profile, &repository).expect("load external extension profile");
         assert_eq!(
@@ -2539,8 +2517,7 @@ mod tests {
     #[test]
     fn extension_targets_cannot_satisfy_platform_image_closure() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile =
-            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let profile = repository.join("testing/fixtures/platform-selection/deployment.json");
         let loaded =
             LoadedProfile::load(&profile, &repository).expect("load external extension profile");
         let required = loaded
@@ -2549,7 +2526,7 @@ mod tests {
         let mut definition = loaded.definition.clone();
         let mut extension = definition.sources[0].clone();
         extension.name = "anonymous-extension".to_owned();
-        extension.role = DeploymentSourceRole::Extension;
+        extension.role = DeploymentSourceRole::Workload;
         definition.sources.push(extension);
         let images = required
             .iter()
@@ -2575,8 +2552,7 @@ mod tests {
     #[test]
     fn image_plan_rejects_duplicate_targets_and_references() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let profile =
-            repository.join("testing/fixtures/external-extension-installation/deployment.json");
+        let profile = repository.join("testing/fixtures/platform-selection/deployment.json");
         let loaded =
             LoadedProfile::load(&profile, &repository).expect("load external extension profile");
         let required = loaded
@@ -2648,7 +2624,7 @@ mod tests {
                 FirstPartyMcpServer::Recording,
             ]),
             artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
-            external_workloads: BTreeSet::new(),
+            workloads: BTreeSet::new(),
             gpu_scheduling: None,
         }
         .resolve()
@@ -2688,7 +2664,7 @@ mod tests {
                 FirstPartyMcpServer::Recording,
             ]),
             artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
-            external_workloads: BTreeSet::new(),
+            workloads: BTreeSet::new(),
             gpu_scheduling: None,
         }
         .resolve()
@@ -2728,7 +2704,7 @@ mod tests {
                 FirstPartyMcpServer::Recording,
             ]),
             artifact_audiences: BTreeSet::from(["anonymous".to_owned()]),
-            external_workloads: BTreeSet::new(),
+            workloads: BTreeSet::new(),
             gpu_scheduling: None,
         }
         .resolve()
@@ -2774,7 +2750,7 @@ mod tests {
             ]),
             mcp_servers: BTreeSet::new(),
             artifact_audiences: BTreeSet::new(),
-            external_workloads: BTreeSet::new(),
+            workloads: BTreeSet::new(),
             gpu_scheduling: None,
         }
         .resolve()
@@ -2812,7 +2788,7 @@ mod tests {
             ]),
             mcp_servers: BTreeSet::from([FirstPartyMcpServer::Optimization]),
             artifact_audiences: BTreeSet::from(["optimization".to_owned()]),
-            external_workloads: BTreeSet::new(),
+            workloads: BTreeSet::new(),
             gpu_scheduling: Some(exclusive_gpu_scheduling(["cuopt-executor"], 1)),
         }
         .resolve()
@@ -2844,7 +2820,7 @@ mod tests {
             ]),
             mcp_servers: BTreeSet::new(),
             artifact_audiences: BTreeSet::new(),
-            external_workloads: BTreeSet::from([
+            workloads: BTreeSet::from([
                 "external-simulator".to_owned(),
                 "external-view".to_owned(),
             ]),
@@ -2923,7 +2899,7 @@ mod tests {
             ]),
             mcp_servers: BTreeSet::new(),
             artifact_audiences: BTreeSet::new(),
-            external_workloads: BTreeSet::from([
+            workloads: BTreeSet::from([
                 "external-live-view".to_owned(),
                 "external-optimizer".to_owned(),
                 "external-simulator".to_owned(),

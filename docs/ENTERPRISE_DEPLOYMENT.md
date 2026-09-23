@@ -14,14 +14,10 @@ changing the chart, image, configuration, or Secret contracts.
 | Standard or protocol | Supported profile |
 |---|---|
 | OCI Distribution Specification | authenticated private image, chart, SBOM, provenance, schema, and evidence distribution |
-| Helm and Kubernetes | separately reconciled platform and extension application charts |
+| Helm and Kubernetes | separately reconciled platform and workload application charts |
 | Flux 2.9.5 / GitOps Toolkit | maintained reference using `source.toolkit.fluxcd.io/v1`, `kustomize.toolkit.fluxcd.io/v1`, and `helm.toolkit.fluxcd.io/v2`; other controllers consume the same Helm and configuration contract |
-| `veoveo.io/extension-release/v1` | independently published extension image, chart, fragment, conformance, and source identity |
-| `veoveo.io/deployment/v7` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v7` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
-| `veoveo.io/gateway-server-fragment/v1` | extension-owned hosted-server contribution |
-| `veoveo.io/gateway-binding/v1` | installation-owned exposure, tenant, producer, and authorization policy |
-| `veoveo.io/compatibility-manifest/v1` | supported SDK, chart library, standalone tools, schemas, and optional simulation tuple |
+| `veoveo.io/deployment/v8` | optional repository-development publication profile with exact platform selection, installation-owned Helm values, and managed GPU allocator closure |
+| `veoveo.io/deployment-lock/v8` | immutable installation, source, and managed allocator evidence from the repository-development publication flow |
 | SHA-256 | production image, chart, schema, source-input, and evidence identity |
 | OpenID Connect and OAuth 2.0 | installation-owned identity and protected-resource boundary |
 
@@ -29,9 +25,9 @@ changing the chart, image, configuration, or Secret contracts.
 
 | Concern | Owner | Durable source |
 |---|---|---|
-| Source compilation and image construction | Each source repository | Independent Git revision and repository-local image graph |
+| Source compilation and image construction | The Veoveo fork | Git revision and repository-local image graph |
 | Runtime images | OCI publisher | Registry manifests addressed by digest |
-| Platform and extension packages | OCI publisher | Versioned Helm chart artifacts |
+| Platform and workload packages | OCI publisher | Versioned Helm chart artifacts |
 | Installation configuration | Installation owner | Private Git repository |
 | Credentials and private keys | Installation owner | Secret manager and Kubernetes Secret projections |
 | Cluster prerequisites | Installation platform team | Cluster platform repository |
@@ -68,21 +64,17 @@ contract.
 
 ## Release artifacts
 
-One installation release may combine several independently published sources.
-Production Helm values address images by digest; a mutable tag is not a production
-identity. Each source builds, tests, certifies, and publishes its own image, chart,
-gateway fragment, and release manifest.
+An installation release selects independently deployable components built from its
+Veoveo fork. Production Helm values address images by digest; unchanged components
+can retain images built at earlier revisions. The [fork workflow](FORK_DEVELOPMENT.md)
+keeps code and upstream integration in the repository.
 
-The installation release procedure follows the
-[external-repository runbook](EXTERNAL_REPOSITORY_INTEGRATION.md):
-
-1. Verify the selected Veoveo compatibility manifest and extension-release manifests.
-2. Check that every extension selects the installed compatibility release.
-3. Pin image and chart digests in the installation's ordinary Helm values and GitOps
-   release objects.
-4. Compose installation-owned bindings with the selected gateway fragments.
-5. Satisfy the generated typed platform requirements and render every chart.
-6. Commit the complete desired-state change for normal reconciliation.
+1. Qualify the selected fork revision and affected components.
+2. Publish the required images and application charts.
+3. Pin their digests in installation values and GitOps release objects.
+4. Update the complete gateway control plane and its installation-owned policies.
+5. Render each selected chart and validate its required services and Secrets.
+6. Commit desired state for reconciliation and verify installed behavior.
 
 The Veoveo source provides a conventional private chart publisher:
 
@@ -105,15 +97,13 @@ Veoveo's profile publisher is for development and source-publication acceptance.
 [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) and is not required in an
 installation repository.
 
-Veoveo release pipelines can also publish image groups directly. A Veoveo-backed
-extension platform uses `external-extension-platform`; the simulation base and
+Veoveo release pipelines can also publish image groups directly. A partial domain platform uses `domain-platform`; the simulation base and
 overlays use their dedicated groups. The simulation image group certifies ABI and GPU
 compatibility. It does not show that Frames, Map, Media, Optimization, or RRD services
-were installed; the installation's typed chart selection and composed gateway
-requirements show that.
+were installed; the installation's typed chart selection and gateway requirements show that.
 
 The simulation runtime is a separate build dependency because UAV and
-external simulator overlays consume it as a named build context. The deployment
+simulator overlays consume it as a named build context. The deployment
 profile derives the exact required platform targets and records their combined
 immutable closure.
 
@@ -129,24 +119,18 @@ clusters/
     applications/             root and child reconciliation objects
     values/
       veoveo.yaml             installation identity, capacity, storage, ingress
-      extension.yaml          independently deployed domain extension values
+      workload.yaml           independently deployed domain workload values
       images.yaml             reviewed image repositories and manifest digests
-    releases/
-      extension.json          selected immutable extension-release manifest
     gateway/
-      base.json               installation-owned platform control plane
-      bindings/               installation-owned extension exposure and policy
-      fragments.lock.json     immutable extension fragment selection
-      control-plane.json      deterministic composed output
+      control-plane.json      complete gateway registration and policy
       public-jwks.json
 ~~~
 
 Helm values own chart inputs. Kubernetes manifests own resources outside a chart.
-The gateway base and bindings own platform exposure and authorization. Extensions own
-server fragments in their release artifacts. `gateway-compose` produces the complete
-validated control plane and content provenance offline. The GitOps controller may
-generate ConfigMaps from committed non-secret outputs. There is no second installation
-document that repeats releases, values files, Secret keys, and apply order.
+The complete gateway configuration owns server registration, exposure and
+authorization. The GitOps controller generates ConfigMaps from committed non-secret
+inputs. There is no second installation document repeating releases, values files,
+Secret keys and apply order.
 
 Environment overlays use the native composition mechanism chosen by the enterprise:
 Helm values, Kustomize, or the GitOps controller's generator. Each setting has one
@@ -157,7 +141,7 @@ The Console's public OAuth identity and its network route are configured separat
 `consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
 belong in a non-secret installation ConfigMap selected by
 `consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
-the BFF adds those roots to the standard verifier. A deployment/v7 source lists the
+the BFF adds those roots to the standard verifier. A deployment/v8 source lists the
 owning values file under the platform release's `installationValues`. Missing ConfigMap
 data blocks the pod mount, while malformed trust material blocks BFF startup.
 
@@ -176,7 +160,7 @@ The platform chart expects these Secret contracts by default:
 | veoveo-surreal-runtime | username, password |
 | veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret |
 
-An extension declares its own least-privilege Secret references. Its provider
+A workload declares its own least-privilege Secret references. Its provider
 credentials stay out of the platform Secret. Registry
 credentials use a Kubernetes image pull Secret selected through Helm values.
 
@@ -196,7 +180,7 @@ Kustomization begins only after the controller and its repository credentials ex
 
 A root Kustomization may create the installation namespace, non-secret ConfigMaps,
 ingress connectors, OCI sources, and HelmReleases. The platform chart is one release.
-Each optional private MCP extension is another release with its own chart version,
+Each separately deployed MCP workload is another release with its own chart version,
 values, health, rollback, and lifecycle.
 
 A HelmRelease selects immutable input objects. Its OCIRepository name includes the
@@ -209,41 +193,28 @@ source instead of combining its previous artifact with new values.
 The pattern matters when a chart changes its values schema. Updating a stable values
 ConfigMap and a stable OCIRepository separately can trigger an upgrade before the new
 chart artifact is available. The Bioma reference exercises the immutable-input pattern
-for Veoveo and its UAV extension. Other installation repositories use the same pattern.
+for Veoveo and its UAV workload. Other installation repositories use the same pattern.
 [Flux documents generated values references](https://fluxcd.io/flux/guides/helmreleases/#refer-to-values-in-configmaps-generated-with-kustomize).
 
 The controller reconciles drift continuously. Routine releases change Git and let the
 controller converge. Use kubectl apply and helm upgrade only for bootstrap and recovery, never to manage
 application resources alongside the controller.
 
-## Independently deployed MCP extensions
+## Independently Deployed MCP Workloads
 
-An extension packages its Kubernetes workload in its own Helm chart. The installation
-adds a HelmRelease for that chart, selects its immutable release manifest, and
-binds its gateway fragment through installation-owned policy. The deterministic
-composer registers routes and capabilities in the complete control plane. The
-extension schedules and rolls out on its own, while every MCP call still passes
-through the one gateway and its authorization.
+A fork can package a domain workload in its own Helm chart. The installation pins
+its chart and image, declares required Secrets and registers the server in the typed
+gateway control plane. Separate releases preserve independent rollout and failure
+isolation. MCP requests still pass through installation authentication, grants and audit.
 
-An extension release normally selects two artifacts:
+Every upstream declares an MCP endpoint and a required non-MCP `health_url`. The
+gateway treats only a successful health response as healthy. It does not infer
+health from an MCP authorization failure or method rejection.
 
-- the immutable OCI chart version;
-- the installation Git repository containing values, bindings, and digest pins.
-
-Every fragment's upstream declares two typed URLs: the MCP endpoint and a required
-`health_url`. The gateway probes the health endpoint with an unauthenticated GET and
-treats only a success status as healthy; it never reads an MCP request, an
-authentication failure, or a method rejection as a health signal. A fragment without
-`health_url` fails control-plane validation before it can deploy.
-
-Private MCP servers follow the same pattern. They use their repository's native build
-system and do not join the Veoveo workspace. Their chart consumes the versioned
-`veoveo-extension` library from the configured private OCI registry or verified offline
-bundle. Their gateway fragment still uses the typed control-plane model,
-internal assertion trust, policy checks, audit path, and URI identities. The complete
-normative server requirements, including the well-known docs and contract resources,
-are in
-[`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
+Fork charts use the internal `deploy/helm/common` helpers through a local dependency
+and publish the resulting application chart. Remote MCP integrations use their
+supported transport and authentication contracts. The hosted-server requirements are
+in [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md).
 
 ## Direct Helm
 

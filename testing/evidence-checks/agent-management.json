@@ -414,10 +414,16 @@
           "veoveo-deployment-smoke"
         ],
         "roots": [
-          "deploy/helm",
-          "showcase/uav-sim/deploy/helm",
+          "deploy",
+          "showcase",
           "examples/bioma",
-          "configs"
+          "configs",
+          "docker-bake.hcl",
+          "testing/fixtures",
+          "tools/image-build",
+          "platform/runtimes/simulation",
+          "platform/gateway/Dockerfile",
+          "servers"
         ]
       },
       "toolchains": [

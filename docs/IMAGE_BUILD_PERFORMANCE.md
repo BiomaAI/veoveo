@@ -347,9 +347,9 @@ the registry cache protects both paths.
 | Release output timestamps are reproducible | epoch input and timestamp-rewriting registry exporter | pass |
 | Revision-only metadata preserves simulation payload cache | trailing build arguments, identical payload layers, and cross-revision publications | pass |
 
-## Extension Platform Closure
+## Domain Platform Closure
 
-The `external-extension-platform` plan resolves nine runtime targets. Eight use one
+The `domain-platform` plan resolves nine runtime targets. Eight use one
 `rust-trixie-v1` Cargo action; Map uses the distinct `rust-bookworm-v1` family. The
 typed deployment resolver requires the same target set when gateway composition selects
 Artifact, Frames, Map, Media, Recording, and RRD:

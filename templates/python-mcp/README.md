@@ -5,8 +5,7 @@ a Veoveo installation. It ships as a complete working server, `datasheet`, a
 dataset profiling service built on pandas. Each platform requirement in the table
 below points to the code that meets it.
 
-Shared platform code comes from the `veoveo-mcp` release pinned in the Veoveo
-compatibility manifest. The template itself holds only its domain contract, its
+Shared platform code comes from `sdk/python` in the same Veoveo fork. The template itself holds only its domain contract, its
 computation, and one durable task type.
 
 ## What the platform contract requires
@@ -31,51 +30,26 @@ listed next to each obligation is where this template satisfies it.
 
 ## Creating a new server from this template
 
-1. Copy `templates/python-mcp` to a working directory and rename the package
-   (`datasheet_mcp` → `yourdomain_mcp`), the slug, the URI scheme in `uris.py`,
-   and the default port.
-2. Configure the installation's authenticated Python index outside source control.
-   Keep the exact supported `veoveo-mcp` version, then run `uv lock`. The resulting
-   lock belongs to the extension repository.
-3. Replace `contract.py` and `engine.py` with your domain types and
-   computation. Publish complete JSON Schema 2020-12 request models with
-   `mcp_input_schema`. Keep the engine pure; it runs inside worker threads.
-4. Keep `server/` structurally intact: config, ownership, the official Tasks
-   handler, and the durable task module change names, not shape.
-5. Package the workload with the private `veoveo-extension` Helm library. Publish an
-   extension-owned gateway server fragment, image, application chart, domain smoke
-   evidence, and extension release manifest. The installation repository owns the
-   gateway binding, authorization, registry coordinates, selected release, and
-   digest-pinned Helm or GitOps values.
+1. Copy this template to `servers/<domain>-mcp` in the fork. Rename the package,
+   slug, URI scheme and default port.
+2. Point `tool.uv.sources.veoveo-mcp` at `../../sdk/python` and update the lockfile.
+3. Replace the domain contract and computation while preserving auth, Tasks,
+   subscriptions, artifact handling and embedded server documentation.
+4. Add a root Bake target and Helm workload using the existing domain patterns.
+5. Register the server and Apps in the complete gateway control plane. Installation
+   policy continues to own exposure, scopes, endpoints and Secret references.
 
-The extension never edits the Veoveo chart or a complete Veoveo gateway document.
-Follow the coding-agent runbook in
-[`docs/EXTERNAL_REPOSITORY_INTEGRATION.md`](../../docs/EXTERNAL_REPOSITORY_INTEGRATION.md)
-when publishing and integrating a repository created from this template.
-
-## Running locally
+Follow [`Fork Development`](../../docs/FORK_DEVELOPMENT.md) for upstream merges and
+publication. Run local commands from this directory:
 
 ```sh
-export UV_DEFAULT_INDEX=https://packages.example.internal/simple
-uv lock
 uv sync --locked --all-extras
-uv run pytest
-uv run datasheet-mcp --port 8798 --public-base-url https://veoveo.example \
-    --allow-loopback-hosts --artifact-service-url http://127.0.0.1:8790
+uv run --locked --all-extras pytest -q
 ```
 
-For an image build, pass the index URL as a BuildKit secret. The URL may refer to a
-customer-operated or Veoveo-operated private service and may be reachable only over
-the installation network or VPN:
-
-```sh
-printf '%s' "$UV_DEFAULT_INDEX" | docker build \
-  --secret id=veoveo-python-index,src=/dev/stdin \
-  -t registry.example.internal/extensions/datasheet:0.1.0 .
-```
-
-The private index must provide the complete locked dependency set. The build does not
-fall through to a public index.
+The container builds from the repository root using the template Dockerfile and
+local SDK source. The root `datasheet-mcp` Bake target uses that same path; a separate
+SDK release or package-index credential is unnecessary.
 
 SurrealDB credentials and the internal trust JWKS come from the same
 `VEOVEO_SURREAL_*` and `VEOVEO_INTERNAL_TRUST_JWKS` variables the Rust servers

@@ -7,11 +7,13 @@ use std::{
 
 use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
-use veoveo_extension_contract::{
+use veoveo_deploy_contract::{
     ArtifactCoordinate, ArtifactDescriptor, ArtifactDigest, ArtifactKind, ArtifactName,
-    ArtifactPlatform, CpuArchitecture, OperatingSystem, ReleaseVersion,
+    ArtifactPlatform, CpuArchitecture, OperatingSystem, ReleaseVersion, SourceRevision,
+};
+use veoveo_simulation_contract::{
     SimulationConformanceResult, SimulationOverlayKind, SimulationRuntimeBuildLock,
-    SimulationRuntimeReleaseEvidence, SimulationRuntimeReleaseEvidenceSchema, SourceRevision,
+    SimulationRuntimeReleaseEvidence, SimulationRuntimeReleaseEvidenceSchema,
     simulation_conformance_result_schema, simulation_runtime_build_lock_schema,
 };
 
@@ -182,7 +184,7 @@ pub(crate) fn publish(
     write_json(&output.join("release-evidence.json"), &evidence)?;
     write_json(
         &output.join("simulation-runtime-release-evidence.schema.json"),
-        &veoveo_extension_contract::simulation_runtime_release_evidence_schema(),
+        &veoveo_simulation_contract::simulation_runtime_release_evidence_schema(),
     )?;
     fs::write(
         output.join("simulation-runtime.lock.json"),

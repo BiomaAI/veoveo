@@ -1,0 +1,111 @@
+{
+  "schemaVersion": "veoveo.io/deployment/v8",
+  "name": "domain-selection",
+  "registry": {
+    "pushAddress": "registry.example.internal:5002",
+    "pullAddress": "registry.example.internal:5002",
+    "transport": "tls",
+    "localConfig": null
+  },
+  "sources": [
+    {
+      "name": "veoveo",
+      "role": "platform",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [],
+      "releases": [
+        {
+          "name": "veoveo",
+          "chart": "deploy/helm/veoveo",
+          "sourceValues": [],
+          "installationValues": [
+            "platform-values.yaml"
+          ],
+          "valuesContract": "platform",
+          "timeoutSeconds": 720
+        }
+      ]
+    }
+  ],
+  "kubernetes": {
+    "context": "domain-selection",
+    "localCluster": null
+  },
+  "namespace": "veoveo",
+  "resources": {
+    "manifests": [],
+    "configMaps": []
+  },
+  "platform": {
+    "installationPreset": "custom",
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service",
+      "recording-data-plane"
+    ],
+    "mcpServers": [
+      "artifact",
+      "frames",
+      "map",
+      "media",
+      "recording"
+    ],
+    "artifactAudiences": [
+      "anonymous"
+    ]
+  },
+  "gatewayRequirements": [
+    "gateway-requirements.json"
+  ],
+  "waitForDeployments": [],
+  "components": [
+    {
+      "id": "installation",
+      "owner": {
+        "kind": "installation"
+      },
+      "role": "installation",
+      "dependencies": [],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [
+        {
+          "group": "",
+          "kind": "Namespace",
+          "namespace": null,
+          "name": "veoveo"
+        }
+      ],
+      "releases": [],
+      "installationInputs": [
+        "namespace"
+      ]
+    },
+    {
+      "id": "veoveo",
+      "owner": {
+        "kind": "source",
+        "name": "veoveo"
+      },
+      "role": "platform",
+      "dependencies": [
+        "installation"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "veoveo"
+      ],
+      "installationInputs": []
+    }
+  ]
+}

@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-simulation-contract.workspace = true
 veoveo-speech-contract = { path = "../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 base64.workspace = true
@@ -23,7 +24,6 @@ uuid.workspace = true
 veoveo-deploy-contract.workspace = true
 veoveo-computers-contract = { path = "../../platform/computers/contract" }
 veoveo-deploy-runtime.workspace = true
-veoveo-extension-contract.workspace = true
 veoveo-image-build-control.workspace = true
 veoveo-mcp-contract = { workspace = true, default-features = false }
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }

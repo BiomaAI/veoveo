@@ -17,7 +17,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma",
           "apps/console/web"
@@ -45,7 +45,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma",
           "apps/console/web"
@@ -73,7 +73,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma",
           "apps/console/web"
@@ -101,7 +101,7 @@
           "tools/image-build",
           "configs",
           "deploy",
-          "extensions",
+          "platform/runtimes/simulation/contract",
           "testing",
           "examples/bioma",
           "apps/console/web",

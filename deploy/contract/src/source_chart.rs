@@ -4,9 +4,9 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
+use crate::ArtifactDigest;
 use anyhow::{Context, Result, ensure};
 use sha2::{Digest, Sha256};
-use veoveo_extension_contract::ArtifactDigest;
 
 /// Hashes the actual chart files in a verified immutable source checkout.
 ///

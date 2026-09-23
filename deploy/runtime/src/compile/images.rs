@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, ensure};
 use serde_json::Value;
-use veoveo_deploy_contract::{LockedImage, LockedSource, ReleaseValuesContract, components::*};
-use veoveo_extension_contract::ArtifactDigest;
+use veoveo_deploy_contract::ArtifactDigest;
+use veoveo_deploy_contract::{LockedImage, LockedSource, components::*};
 
 use super::objects::container_images;
 
@@ -15,15 +15,10 @@ pub(super) struct ImageInputs {
 }
 
 impl ImageInputs {
-    pub fn publication(
-        registry: &str,
-        owner: &str,
-        contract: ReleaseValuesContract,
-        sources: &[LockedSource],
-    ) -> Result<Self> {
+    pub fn publication(registry: &str, owner: &str, sources: &[LockedSource]) -> Result<Self> {
         let inputs = sources
             .iter()
-            .filter(|source| contract == ReleaseValuesContract::Extension || source.name == owner)
+            .filter(|source| source.name == owner)
             .flat_map(|source| source.images.iter().map(move |image| (source, image)))
             .map(|(source, image)| {
                 Ok(ComponentInput::Image {
@@ -169,8 +164,8 @@ impl ImageInputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_deploy_contract::SourceRevision;
     use veoveo_deploy_contract::{DeploymentSourceRole, LockedImage};
-    use veoveo_extension_contract::SourceRevision;
 
     fn source(name: &str, revision: char) -> LockedSource {
         LockedSource {
@@ -196,61 +191,42 @@ mod tests {
     }
 
     #[test]
-    fn publication_candidates_follow_the_release_values_contract() {
-        let sources = [source("platform", 'a'), source("extension", 'b')];
-        for contract in [
-            ReleaseValuesContract::Platform,
-            ReleaseValuesContract::VeoveoSource,
-        ] {
-            let selected =
-                ImageInputs::publication("registry.example", "platform", contract, &sources)
-                    .unwrap();
+    fn publication_images_belong_to_the_selected_owner() {
+        let sources = [source("platform", 'a'), source("workload", 'b')];
+        for owner in ["platform", "workload"] {
+            let selected = ImageInputs::publication("registry.example", owner, &sources).unwrap();
             assert_eq!(
                 selected
                     .digests
                     .keys()
                     .map(String::as_str)
                     .collect::<Vec<_>>(),
-                ["platform"]
+                [owner]
+            );
+            let other = if owner == "platform" {
+                "workload"
+            } else {
+                "platform"
+            };
+            assert!(
+                selected
+                    .rendered(
+                        "registry.example",
+                        &workload(&format!(
+                            "registry.example/{other}@{}",
+                            sources[0].images[0].digest
+                        ))
+                    )
+                    .is_err()
             );
         }
-        let selected = ImageInputs::publication(
-            "registry.example",
-            "extension",
-            ReleaseValuesContract::Extension,
-            &sources,
-        )
-        .unwrap();
-        assert_eq!(
-            selected
-                .digests
-                .keys()
-                .map(String::as_str)
-                .collect::<Vec<_>>(),
-            ["extension", "platform"]
-        );
-        let used = selected
-            .rendered(
-                "registry.example",
-                &workload(&format!(
-                    "registry.example/platform@{}",
-                    sources[0].images[0].digest
-                )),
-            )
-            .unwrap();
-        assert_eq!(used.len(), 1);
     }
 
     #[test]
     fn locked_selection_rejects_unused_foreign_changed_and_ambiguous_inputs() {
         let sources = [source("platform", 'a')];
-        let publication = ImageInputs::publication(
-            "registry.example",
-            "platform",
-            ReleaseValuesContract::Platform,
-            &sources,
-        )
-        .unwrap();
+        let publication =
+            ImageInputs::publication("registry.example", "platform", &sources).unwrap();
         let input = publication.by_repository.values().next().unwrap().clone();
         let locked = ImageInputs::new("registry.example", [input.clone()], true).unwrap();
         let exact = format!("registry.example/platform@{}", sources[0].images[0].digest);

@@ -22,32 +22,16 @@ sensitivity labels of the inputs they came from. The Artifact service adds these
 to every output and rejects a scope outside the caller's clearance. Work Context policy
 still chooses the owner and initial grants.
 
-## Supported release
+## Development In A Fork
 
-The package is distributed as an immutable wheel and source distribution through a
-configured private Python package index. The compatibility manifest names the exact
-package version, SHA-256 digests, supported Python range, and contract revisions.
+Python hosted servers import this package from the same checkout through a uv path
+source. `templates/python-mcp/pyproject.toml` shows the supported layout. Its committed
+lockfile pins third-party dependencies; the image build installs both local packages
+without editable paths. See [Fork Development](../../docs/FORK_DEVELOPMENT.md).
 
-An extension repository pins the supported version:
-
-```toml
-[project]
-dependencies = ["veoveo-mcp==0.1.0"]
-```
-
-The installation operator provides an authenticated PEP 503-compatible index. With
-uv, configure the index URL outside source control and then generate the extension's
-own lock:
-
-```sh
-export UV_DEFAULT_INDEX=https://packages.example.internal/simple
-uv lock
-uv sync --locked
-```
-
-Credentials belong in the package manager's credential provider or its documented
-environment variables. They do not belong in `pyproject.toml`, a lockfile, a
-Dockerfile, or an extension release manifest.
+Run the SDK checks from this directory with `uv run --locked --all-extras pytest`.
+Integration tests declare their SurrealDB fixture requirements. Credentials stay in
+the installation environment and never enter source files or image layers.
 
 ## Streaming Artifact Consumption
 
@@ -85,22 +69,8 @@ and enforce the ceiling while streaming, before allocating. Use `stream` or
 domain server's own input limits: Datasheet and pandas keep their own memory and format
 constraints. Consumers never see an object-store URL or storage credential.
 
-## Development
+## Repository Checks
 
-The Veoveo repository tests the source workspace and then rebuilds the template in an
-isolated directory against the produced wheel:
-
-```sh
-cargo xtask enforce python
-```
-
-Release artifacts come from an exact committed revision:
-
-```sh
-cargo xtask release python-sdk \
-  --revision <commit> \
-  --output-dir output/releases/python-sdk
-```
-
-Add `--publish-url` and optionally `--check-url` to upload to a private index. The
-command accepts credentials only through `UV_PUBLISH_*` or the configured keyring.
+`cargo xtask enforce python` runs the native SDK, template and fork-workload tests
+against local source and committed lockfiles. Image builds package these sources
+without editable paths. There is no separate Veoveo SDK release-publisher command.

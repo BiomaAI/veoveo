@@ -277,7 +277,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                 "observer missed a canary write"
             );
         }
-        for (selected, unselected) in [("platform", "extension"), ("extension", "platform")] {
+        for (selected, unselected) in [("platform", "workload"), ("workload", "platform")] {
             fixture.advance(selected)?;
             let lock = fixture.lock_file(selected)?;
             let before = snapshot(&proxy, &namespace, unselected)?;
@@ -395,7 +395,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
         let extra = overlap
             .components
             .iter()
-            .find(|component| component.declaration.id.as_str() == "extension")
+            .find(|component| component.declaration.id.as_str() == "workload")
             .unwrap()
             .declaration
             .permitted_objects

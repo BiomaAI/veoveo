@@ -268,7 +268,7 @@ fn resolve(repository: &RepositoryContext, since: &str) -> Result<AffectedPlan> 
     let generated_contracts_changed = changed_paths.iter().any(|path| {
         path.starts_with("mcp/contract/")
             || path.starts_with("deploy/contract/")
-            || path.starts_with("extensions/contract/")
+            || path.starts_with("platform/runtimes/simulation/contract/")
     });
     let lock_inputs_changed = changed_paths.iter().any(|path| is_lock_input(path));
     Ok(AffectedPlan {

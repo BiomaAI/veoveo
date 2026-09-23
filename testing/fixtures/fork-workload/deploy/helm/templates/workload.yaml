@@ -1,0 +1,90 @@
+{{- $labels := dict
+    "name" "anonymous-simulation"
+    "releaseName" .Release.Name
+    "managedBy" .Release.Service
+    "chart" (printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_")
+    "installation" .Values.global.installationId
+    "component" "anonymous-simulation-mcp"
+-}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: anonymous-simulation-mcp
+  labels:
+    {{- include "veoveo-common.labels" $labels | nindent 4 }}
+spec:
+  selector:
+    {{- include "veoveo-common.selectorLabels" $labels | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anonymous-simulation-mcp
+  labels:
+    {{- include "veoveo-common.labels" $labels | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "veoveo-common.selectorLabels" $labels | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "veoveo-common.selectorLabels" $labels | nindent 8 }}
+        veoveo.ai/simulator-hosted-live-view: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "veoveo-common.podSecurityContext" . | nindent 8 }}
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecrets | nindent 8 }}
+      containers:
+        - name: anonymous-simulation-mcp
+          image: {{ include "veoveo-common.image" (dict
+              "image" .Values.image
+              "registry" .Values.global.veoveoRegistry
+              "production" .Values.global.production
+              "sourceTag" .Values.global.veoveoTag
+              "imageDigests" .Values.global.imageDigests
+            ) }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --allowed-host
+            - {{ printf "anonymous-simulation-mcp:%d" (int .Values.service.port) | quote }}
+          env:
+            - name: VEOVEO_INTERNAL_TRUST_JWKS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.existingSecret | quote }}
+                  key: internal-trust-jwks
+            - name: ANONYMOUS_SIMULATION_PUBLIC_STREAM_URL
+              value: {{ .Values.liveView.publicStreamUrl | quote }}
+            - name: ANONYMOUS_SIMULATION_AUTHORIZATION_SECONDS
+              value: {{ .Values.liveView.authorizationSeconds | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          {{- include "veoveo-common.httpProbes" (dict
+              "startupPath" "/anonymous-simulation/healthz"
+              "readinessPath" "/anonymous-simulation/readyz"
+              "livenessPath" "/anonymous-simulation/healthz"
+              "host" (printf "anonymous-simulation-mcp:%d" (int .Values.service.port))
+            ) | nindent 10 }}
+          securityContext:
+            {{- include "veoveo-common.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

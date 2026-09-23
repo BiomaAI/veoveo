@@ -78,7 +78,7 @@ fn live_quiesce_restores_a_planned_helm_workload() {
     let context = std::env::var("VEOVEO_OWNERSHIP_TEST_CONTEXT").expect("explicit live context");
     let image =
         std::env::var("VEOVEO_SCOPE_TEST_IMAGE").expect("explicit qualified CPU fixture image");
-    veoveo_extension_contract::ArtifactDigest::new(
+    veoveo_deploy_contract::ArtifactDigest::new(
         image
             .split_once('@')
             .expect("image must be digest-pinned")

@@ -19,7 +19,7 @@ services, and its agents. Computers is part of every standard release.
 | Iterate on code and deploy a change | [Development iteration](DEVELOPMENT_ITERATION.md), [image builds](IMAGE_BUILDS.md), [local deployment profiles](LOCAL_DEPLOYMENT_PROFILES.md) |
 | Run checks and understand GitHub status | [Local evidence workflow](CONTINUOUS_INTEGRATION.md#local-evidence-workflow) |
 | Find implementation ownership | [Code map](CODEMAP.md), [contributor instructions](../AGENTS.md) |
-| Implement or integrate an MCP server | [Server contract](../mcp/contract/DESIGN.md), [external extensions](EXTERNAL_EXTENSIONS.md), [integration runbook](EXTERNAL_REPOSITORY_INTEGRATION.md), [Python template](../templates/python-mcp/README.md) |
+| Implement or integrate an MCP server | [Server contract](../mcp/contract/DESIGN.md), [fork development](FORK_DEVELOPMENT.md), [Python template](../templates/python-mcp/README.md) |
 | Build or host a capability UI | [MCP Apps contract](../mcp/apps-extension/DESIGN.md), [Map integration](MAP_APP_INTEGRATION.md), [Console development](../apps/console/web/README.md) |
 | Understand access and output ownership | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md), [shared policy](../platform/policy/DESIGN.md) |
 | Upload and consume files | [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md), [Artifact service](../platform/artifacts/service/DESIGN.md), [Python SDK](../sdk/python/README.md) |

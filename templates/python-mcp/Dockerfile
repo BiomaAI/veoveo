@@ -3,17 +3,15 @@ FROM ghcr.io/astral-sh/uv:0.11.32@sha256:df4cae8f3a96d175e2e5f992e597550000edbe7
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64 AS builder
 
 COPY --from=uv /uv /uvx /bin/
-WORKDIR /opt/extension
-COPY pyproject.toml uv.lock ./
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+WORKDIR /src/templates/python-mcp
+COPY sdk/python /src/sdk/python
+COPY templates/python-mcp/pyproject.toml templates/python-mcp/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=secret,id=veoveo-python-index,required=true \
-    UV_DEFAULT_INDEX="$(cat /run/secrets/veoveo-python-index)" \
-    uv sync --locked --no-dev --no-install-project
-COPY AGENTS.md DESIGN.md ./
-COPY src src
+    uv sync --locked --no-dev --no-install-project --no-editable
+COPY templates/python-mcp/AGENTS.md templates/python-mcp/DESIGN.md ./
+COPY templates/python-mcp/src src
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=secret,id=veoveo-python-index,required=true \
-    UV_DEFAULT_INDEX="$(cat /run/secrets/veoveo-python-index)" \
     uv sync --locked --no-dev --no-editable --compile-bytecode
 
 FROM python:3.13.14-slim-bookworm@sha256:9d7f287598e1a5a978c015ee176d8216435aaf335ed69ac3c38dd1bbb10e8d64
@@ -24,10 +22,8 @@ RUN apt-get update \
 
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo
 
-COPY --from=builder --chown=10001:10001 /opt/extension/.venv /opt/extension/.venv
-
-ENV PATH="/opt/extension/.venv/bin:${PATH}"
-
+COPY --from=builder --chown=10001:10001 /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
 USER veoveo
 EXPOSE 8798
 ENTRYPOINT ["datasheet-mcp"]
