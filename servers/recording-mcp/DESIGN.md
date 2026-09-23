@@ -36,6 +36,11 @@ require a fresh Artifact-read caller. Writing layers may use the confined Hub sp
 the live receiver only. A missing credential never falls back to an old local archive
 path.
 
+`service/catalog.rs` lists resource identities from the tenant's recording inventory
+and applies the same classification and label visibility rules as recording reads.
+MCP discovery does not load a dataset or its layer inventory for each recording.
+Full recording views are assembled when the client requests the catalog content.
+
 A producer Blueprint remains confined staging while its recording is live. The
 idempotent seal path validates its application, Blueprint identity, message count,
 length, and digest, publishes an occurrence reserved from the durable Blueprint record,

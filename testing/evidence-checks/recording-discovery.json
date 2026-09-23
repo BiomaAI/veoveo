@@ -1,0 +1,28 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-recording-mcp",
+        "--features",
+        "redap",
+        "--lib",
+        "--bins"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-recording-mcp"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}
