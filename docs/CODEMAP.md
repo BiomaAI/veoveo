@@ -52,6 +52,7 @@ planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
+| [`FORK_DEVELOPMENT_PLAN.md`](FORK_DEVELOPMENT_PLAN.md) | active removal of independent extension releases; fork development, upstream merges, downstream migrations and Bioma qualification |
 | [`SPEECH_PLAN.md`](SPEECH_PLAN.md) | deployed GPU speech: private Workspace dictation, recording transcription as Tasks, timestamp playback, and JSON/WebVTT output; installed acceptance passed, with physical-microphone, scale, and C31 qualification limits recorded |
 | [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | delivered API and Console/Workspace authoring, revision adoption and managed lifecycle, verified with four UAV pilots; simulator flight, managed Computer templates and broader qualification are open follow-ups |
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat client: owner-controlled membership, isolated agent context, concurrent runs, acceptance evidence, and pending installed follow-ups |
