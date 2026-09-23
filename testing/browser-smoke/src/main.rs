@@ -205,6 +205,17 @@ struct Args {
 // browser binary; the shared prefix is part of the CLI rather than Rust type noise.
 #[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
+    /// Exercise deployed private dictation and recording Tasks with actual CUDA inference.
+    SpeechWorkspaceVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/speech")]
+        evidence_root: PathBuf,
+        #[arg(long, default_value = "servers/speech-mcp/testdata/english.wav")]
+        audio_fixture: PathBuf,
+    },
     /// Render the generated Map workspace App with a hardware GPU and bounded fixture bridge.
     MapWorkspaceBrowserVerify {
         #[arg(long, default_value = "http://127.0.0.1:9222")]
@@ -551,6 +562,20 @@ impl OperatorClient<'_> {
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::SpeechWorkspaceVerify {
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+            audio_fixture,
+        } => {
+            browser::speech::verify(
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+                &audio_fixture,
+            )
+            .await
+        }
         SmokeCommand::MapWorkspaceBrowserVerify {
             chrome_cdp_url,
             app_html,

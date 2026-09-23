@@ -40,7 +40,7 @@ export function Recording({ chat, uploads, disabled, onUpload }: { chat: string;
       {!!files.length && <label>Completed uploads<select aria-label="Recording to transcribe" value={uri} disabled={busy || !!attempt.current} onChange={event => { setUri(event.target.value); setAccepted(false); }}><option value="">Choose a recording</option>{files.map(entry => <option key={entry.key} value={entry.receipt!.artifact_uri}>{entry.receipt!.filename}</option>)}</select></label>}
       <label>Recording Artifact link<input value={uri} readOnly={busy || !!attempt.current} placeholder="artifact://…" onChange={event => { setUri(event.target.value); setAccepted(false); }}/></label>
       <button type="button" disabled={disabled || busy || !artifactId(uri.trim()) || accepted} onClick={() => void start()}>{busy ? "Starting transcription…" : attempt.current ? "Confirm transcription request" : "Transcribe"}</button>
-      {notice && <p role="status">{notice} {accepted && <a href={`/workspace/?chat=${chat}&panel=activity`}>Open Activity</a>}</p>}
+      {notice && <p role="status">{notice} {accepted && <a href={"/workspace/?view=activity"}>Open Activity</a>}</p>}
     </div>}
   </div>;
 }

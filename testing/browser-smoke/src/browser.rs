@@ -30,6 +30,9 @@ mod recording_acceptance;
 #[path = "browser/artifact_upload.rs"]
 pub(crate) mod artifact_upload;
 
+#[path = "browser/speech.rs"]
+pub(crate) mod speech;
+
 const SIMULTANEOUS_VIEW_BARRIER_TIMEOUT: Duration = Duration::from_secs(15);
 const MINIMUM_DELIVERED_FRAME_RATE_HZ: f64 = 12.0;
 const MAXIMUM_SOURCE_TO_RENDER_P95_MS: f64 = 85.0;

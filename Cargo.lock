@@ -17728,6 +17728,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-service",
+ "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-speech-contract",
