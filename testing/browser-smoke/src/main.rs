@@ -103,7 +103,7 @@ const FIRST_PARTY_CONSOLE_APPS: [ConsoleAppExpectation; 16] = [
     ConsoleAppExpectation {
         server: "frames",
         resource_uri: "ui://frames/workspace.html",
-        marker: "Workspace",
+        marker: "Frame Editor",
         settled_state: ConsoleAppSettledState::Exact(&["ready"]),
         required_selector: None,
     },
@@ -124,7 +124,7 @@ const FIRST_PARTY_CONSOLE_APPS: [ConsoleAppExpectation; 16] = [
     ConsoleAppExpectation {
         server: "map",
         resource_uri: "ui://map/workspace.html",
-        marker: "Workspace",
+        marker: "Map Explorer",
         settled_state: ConsoleAppSettledState::MapViewport,
         required_selector: Some(".maplibregl-canvas"),
     },
@@ -205,6 +205,15 @@ struct Args {
 // browser binary; the shared prefix is part of the CLI rather than Rust type noise.
 #[allow(clippy::enum_variant_names)]
 enum SmokeCommand {
+    /// Upload Markdown in Workspace and verify its governed download and restored receipt.
+    WorkspaceMarkdownVerify {
+        #[arg(long)]
+        public_base_url: String,
+        #[arg(long, default_value = "http://127.0.0.1:9222")]
+        chrome_cdp_url: String,
+        #[arg(long, default_value = "output/acceptance/workspace-markdown")]
+        evidence_root: PathBuf,
+    },
     /// Exercise deployed private dictation and recording Tasks with actual CUDA inference.
     SpeechWorkspaceVerify {
         #[arg(long)]
@@ -562,6 +571,18 @@ impl OperatorClient<'_> {
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::WorkspaceMarkdownVerify {
+            public_base_url,
+            chrome_cdp_url,
+            evidence_root,
+        } => {
+            browser::artifact_upload::workspace::verify(
+                &public_base_url,
+                &chrome_cdp_url,
+                &evidence_root,
+            )
+            .await
+        }
         SmokeCommand::SpeechWorkspaceVerify {
             public_base_url,
             chrome_cdp_url,

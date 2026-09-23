@@ -40,7 +40,12 @@ export function groupAppsByServer(
   degradations: AppCatalogDegradation[],
 ): AppServerGroup[] {
   const groups = new Map<string, AppServerGroup>();
+  const seen = new Set<string>();
   for (const app of apps) {
+    // A paged catalog can briefly repeat a resource while discovery changes.
+    // React keys must be unique even during that intermediate snapshot.
+    if (seen.has(app.resourceUri)) continue;
+    seen.add(app.resourceUri);
     const group = groups.get(app.server) ?? {
       server: app.server,
       title: appServerTitle(app.server),

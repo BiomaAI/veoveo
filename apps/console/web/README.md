@@ -79,3 +79,7 @@ Console App navigation uses extension-free catalog routes, such as
 `/console/#/apps/datasheet/workbench` and `/console/#/apps/uav-sim/live`.
 Reload resolves the route against the current authorized catalog. Browser
 routes never expose internal MCP resource URIs.
+The sidebar renders each discovered `ui://` resource once, including when a catalog
+refresh repeats an entry across pages. Installed browser acceptance checks that the
+catalog and the rendered navigation have the same number of distinct Apps over
+successive refreshes.
