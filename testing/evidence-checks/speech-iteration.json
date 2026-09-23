@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-mcp-gateway",
+        "--bin",
+        "gateway",
+        "speech_routes_enter_the_same_profile_authentication_boundary"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-mcp-gateway"
+        ],
+        "roots": []
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-image-build-control"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-image-build-control"
+        ],
+        "roots": [
+          "tools/image-build/buildkitd.toml"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "normalized::tests"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "docker-bake.hcl",
+          ".dockerignore",
+          "tools/image-build",
+          "servers/speech-mcp"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    }
+  ]
+}

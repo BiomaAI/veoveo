@@ -1116,3 +1116,10 @@ Recording recovered automatically after free space again exceeded its existing
 200-GiB spool reserve. No retained workload data or running container was deleted.
 The chart publication command also waited behind the build's repository-source lock;
 independent source-materialization leases remain a separate coordination improvement.
+
+The new routing, worker-control and normalized-parent regression commands now have
+owner-declared Cargo input scopes in `testing/evidence-checks/speech-iteration.json`.
+They include their actual package dependencies and external build recipes. Unrelated
+repository documentation no longer invalidates those checks. GPU and installed browser
+runs retain their explicit runtime qualification limits; source scoping does not grant
+installed evidence or hide a failed attempt.
