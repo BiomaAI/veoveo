@@ -81,7 +81,7 @@ pub fn optimize_live_rrd_messages(
 /// Remove producer-authored and compaction-authored keyframe columns from the
 /// browser live projection.
 ///
-/// Rerun 0.36 discovers H.264 sync samples from the encoded access units. Its
+/// Rerun 0.38 discovers H.264 sync samples from the encoded access units. Its
 /// viewer cache also assumes every `VideoStream:sample` value is dense within
 /// the physical chunk. A sparse keyframe marker can otherwise become the
 /// compaction key that co-locates samples from different batches and violates
@@ -142,7 +142,18 @@ mod tests {
         }
         let input_chunks = messages
             .iter()
-            .filter(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .filter(|message| match message {
+                LogMsg::ArrowMsg(_, arrow) => {
+                    arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value")
+                }
+                _ => false,
+            })
             .count();
         assert_eq!(input_chunks, 32);
 
@@ -151,7 +162,17 @@ mod tests {
         let chunks = optimized
             .iter()
             .filter_map(|message| match message {
-                LogMsg::ArrowMsg(_, arrow) => Some(re_chunk::Chunk::from_arrow_msg(arrow).unwrap()),
+                LogMsg::ArrowMsg(_, arrow)
+                    if arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value") =>
+                {
+                    Some(re_chunk::Chunk::from_arrow_msg(arrow).unwrap())
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();

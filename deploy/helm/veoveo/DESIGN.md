@@ -8,10 +8,22 @@
 | Kubernetes apps/v1 and core/v1 | Deployments, Services, ConfigMaps and references to installation-owned Secrets |
 | Kubernetes admissionregistration.k8s.io/v1 and CEL | Fail-closed managed kernel and controller resource validation; requires Kubernetes 1.30 or newer |
 | Kubernetes networking.k8s.io/v1 | Namespace-isolated managed ingress/egress and fixed destination admission |
+| Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
 | `veoveo.io/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
+
+## Redap Ingress
+
+The chart places `/rerun.cloud.v1alpha1.RerunCloudService` on a dedicated Ingress.
+Traefik uses the `recording-mcp` Service's `serversscheme: h2c` annotation to speak
+HTTP/2 to the Rust gRPC listener. Other ingress controllers must configure their
+gRPC upstream protocol through `ingress.redapAnnotations` and qualify native gRPC
+and browser gRPC-Web independently. A Cloudflare Tunnel public-hostname route does
+not carry native gRPC; Bioma's direct k3d ingress or service route is the native
+client qualification path. The [Rerun client guide](../../../docs/RERUN_RECORDINGS.md)
+describes grants and token renewal.
 
 ## Workspace Models
 

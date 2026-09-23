@@ -523,6 +523,7 @@ ingress:
   enabled: true
   className: ""
   annotations: {}
+  redapAnnotations: {}
   # The /s path is rendered as a separate Ingress so bearer URLs never enter
   # ingress access logs. Replace this annotation for non-ingress-nginx classes.
   publicShareAnnotations:

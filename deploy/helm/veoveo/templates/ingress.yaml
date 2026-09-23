@@ -65,15 +65,6 @@ spec:
                 name: console-bff
                 port:
                   number: 8786
-          {{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
-          - path: /rerun.cloud.v1alpha1.RerunCloudService
-            pathType: Prefix
-            backend:
-              service:
-                name: recording-mcp
-                port:
-                  number: 8796
-          {{- end }}
           - path: /media/webhooks
             pathType: Prefix
             backend:
@@ -96,6 +87,42 @@ spec:
                 port:
                   number: 8788
 ---
+{{- if include "veoveo.mcpServerEnabled" (list . "recording") }}
+# Redap uses native HTTP/2 gRPC. Keep its controller protocol settings separate
+# from the ordinary HTTP and browser routes on this host.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ printf "%s-redap" (include "veoveo.fullname" .) | trunc 63 | trimSuffix "-" }}
+  labels:
+    {{- include "veoveo.labels" . | nindent 4 }}
+  {{- with .Values.ingress.redapAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host }}
+      http:
+        paths:
+          - path: /rerun.cloud.v1alpha1.RerunCloudService
+            pathType: Prefix
+            backend:
+              service:
+                name: recording-mcp
+                port:
+                  number: 8796
+---
+{{- end }}
 # Bearer share URLs use a dedicated Ingress so its controller can suppress the
 # request path without disabling access logs for the rest of the installation.
 apiVersion: networking.k8s.io/v1

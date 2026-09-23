@@ -28,7 +28,7 @@ use re_protos::{
     headers::RerunHeadersInjectorExt as _,
 };
 use re_server::{RerunCloudHandler, RerunCloudHandlerBuilder};
-use re_uri::{DatasetSegmentUri, EntryUri, Fragment, Origin};
+use re_uri::{DatasetResource, DatasetUri, EntryUri, Fragment, Origin};
 use tokio::sync::Mutex as AsyncMutex;
 use tonic::{Request, Response, Status};
 use url::Url;
@@ -324,10 +324,11 @@ impl PlaybackManager {
                 Some(build_catalog(plans, expected_recordings, revision.clone(), byte_len).await?);
         }
         let catalog = state.as_ref().expect("catalog was initialized");
-        let uri = DatasetSegmentUri {
+        let uri = DatasetUri {
             origin: self.inner.public_origin.clone(),
             dataset_id: catalog.dataset_id.id,
-            segment_id: plan.recording_id.to_string().into(),
+            resource: DatasetResource::Segments,
+            segment_id: Some(plan.recording_id.to_string().into()),
             fragment: Fragment::default(),
         }
         .to_string();
@@ -338,7 +339,7 @@ impl PlaybackManager {
             dataset_id: plan.dataset_id.to_string(),
             recording_segment_id: plan.recording_id.to_string(),
             catalog_revision: catalog.revision.clone(),
-            rrd_version: "0.36.3".to_owned(),
+            rrd_version: "0.38.1".to_owned(),
             optimization_profile: "object-store".to_owned(),
             byte_len: catalog.byte_len,
             layer_count: plan.archive_layers.len(),
@@ -745,6 +746,9 @@ macro_rules! impl_scoped_redap_service {
                     user_id: Some(authorized.subject),
                     can_read: true,
                     can_write: false,
+                    capabilities: Some(proto::ServerCapabilities {
+                        capabilities: Vec::new(),
+                    }),
                 }))
             }
 
@@ -820,6 +824,7 @@ impl_scoped_redap_service! {
         cancel_tasks: proto::CancelTasksRequest => proto::CancelTasksResponse,
         do_maintenance: proto::DoMaintenanceRequest => proto::DoMaintenanceResponse,
         do_global_maintenance: proto::DoGlobalMaintenanceRequest => proto::DoGlobalMaintenanceResponse,
+        get_write_access_grant: proto::GetWriteAccessGrantRequest => proto::GetWriteAccessGrantResponse,
     }
     deny_stream {
         unregister_from_dataset / UnregisterFromDatasetStream: proto::UnregisterFromDatasetRequest => proto::UnregisterFromDatasetResponse,

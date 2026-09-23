@@ -187,6 +187,25 @@ pub(crate) fn helm_config() -> Result<()> {
             document.contains("kind: Deployment") && document.contains("name: recording\n")
         })
         .context("finding rendered recording deployment")?;
+    let recording_service = platform
+        .split("\n---\n")
+        .find(|document| {
+            document.contains("kind: Service") && document.contains("name: recording-mcp\n")
+        })
+        .context("finding rendered recording service")?;
+    contains(
+        recording_service,
+        "traefik.ingress.kubernetes.io/service.serversscheme: h2c",
+    )?;
+    let redap_ingresses = platform
+        .split("\n---\n")
+        .filter(|document| document.contains("path: /rerun.cloud.v1alpha1.RerunCloudService"))
+        .collect::<Vec<_>>();
+    ensure!(
+        redap_ingresses.len() == 1 && redap_ingresses[0].contains("kind: Ingress"),
+        "native Redap must have one dedicated Ingress"
+    );
+    contains(redap_ingresses[0], "name: recording-mcp")?;
     contains(gateway_service, "sessionAffinity: ClientIP")?;
     contains(gateway_service, "timeoutSeconds: 10800")?;
     contains(gateway_deployment, "startupProbe:")?;
@@ -809,11 +828,11 @@ pub(crate) fn helm_config() -> Result<()> {
             && uav_dependencies
                 .pointer("/components/rerun/version")
                 .and_then(Value::as_str)
-                == Some("0.36.3")
+                == Some("0.38.1")
             && uav_dependencies
                 .pointer("/components/python_runtime/rerun_sdk")
                 .and_then(Value::as_str)
-                == Some("0.36.3"),
+                == Some("0.38.1"),
         "UAV dependency lock omitted a canonical release or Google tiles identity"
     );
     let simulation_lock_bytes =
@@ -908,7 +927,7 @@ pub(crate) fn helm_config() -> Result<()> {
         "PX4_COMMIT=d6f12ad1c4f70ad3230afd7d86e971421e02fef4",
         "cesium-0.29.0-preinstalled-vendor.patch",
         "lxml-6.0.2-cp312-cp312",
-        "ARG RERUN_SDK_VERSION=0.36.3",
+        "ARG RERUN_SDK_VERSION=0.38.1",
         "rerun-sdk==${RERUN_SDK_VERSION}",
         "FROM --platform=${TARGETPLATFORM} ${SIMULATION_RUNTIME_IMAGE} AS uav-overlay",
         "FROM uav-sim-dependencies AS runtime",
@@ -956,10 +975,10 @@ pub(crate) fn helm_config() -> Result<()> {
     }
     contains(
         &fs::read_to_string("platform/recordings/hub/Dockerfile")?,
-        "ARG RERUN_VERSION=0.36.3",
+        "ARG RERUN_VERSION=0.38.1",
     )?;
     let stdio_bridge_dockerfile = fs::read_to_string("mcp/bridges/stdio/Dockerfile")?;
-    contains(&stdio_bridge_dockerfile, "ARG RERUN_VERSION=0.36.3")?;
+    contains(&stdio_bridge_dockerfile, "ARG RERUN_VERSION=0.38.1")?;
     contains(&stdio_bridge_dockerfile, r#""rerun-sdk==${RERUN_VERSION}""#)?;
     contains(&stdio_bridge_dockerfile, "ARG PYARROW_VERSION=25.0.1")?;
     contains(&stdio_bridge_dockerfile, "rerun analytics disable")?;

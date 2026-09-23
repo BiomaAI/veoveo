@@ -126,7 +126,7 @@ fn encode_split(
     if encoded_rrd.len() as u64 <= maximum_batch_bytes {
         return Ok(vec![RecordingBatch {
             sequence: 0,
-            payload_format: RerunPayloadFormat::Rrd0350.into(),
+            payload_format: RerunPayloadFormat::Rrd0381.into(),
             sha256: Sha256::digest(&encoded_rrd).to_vec(),
             encoded_rrd,
             message_count: u64::try_from(messages.len() + 1)?,
@@ -276,7 +276,17 @@ mod tests {
         let mut arrow_messages = messages
             .iter_mut()
             .filter_map(|message| match message {
-                LogMsg::ArrowMsg(_, message) => Some(message),
+                LogMsg::ArrowMsg(_, message)
+                    if message
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value") =>
+                {
+                    Some(message)
+                }
                 _ => None,
             })
             .collect::<Vec<_>>();
@@ -292,7 +302,18 @@ mod tests {
             .clone();
         let arrow_messages = messages
             .iter()
-            .filter(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .filter(|message| match message {
+                LogMsg::ArrowMsg(_, arrow) => {
+                    arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value")
+                }
+                _ => false,
+            })
             .cloned()
             .collect::<Vec<_>>();
         let store_id = store_info.store_id().clone();

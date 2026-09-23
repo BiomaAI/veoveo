@@ -5,7 +5,7 @@
 | Boundary | Profile |
 |---|---|
 | Recording resources | Canonical UUIDv7 recording URI and typed reader authority |
-| Rerun RRD | Existing repository 0.36.3 VideoStream profile |
+| Rerun RRD | Existing repository 0.38.1 VideoStream profile |
 | H.264 and MP4 | Bounded Annex B access-unit selection and remux without re-encoding |
 | Source identity | Ordered captured layer identities and SHA-256 |
 

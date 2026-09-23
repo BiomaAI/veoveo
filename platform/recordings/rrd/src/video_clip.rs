@@ -23,7 +23,7 @@ use re_log_types::{LogMsg, TimeType};
 use re_sdk_types::archetypes::VideoStream;
 use re_sdk_types::components::{IsKeyframe, VideoCodec, VideoSample};
 use re_sdk_types::external::arrow::array::{Array as _, ListArray};
-use re_sdk_types::external::re_types_core::Loggable;
+use re_sdk_types::external::re_types_core::FromArrow;
 
 const NANOSECONDS_PER_SECOND: u128 = 1_000_000_000;
 const H264_MP4_TIMESCALE: u32 = 90_000;
@@ -399,7 +399,7 @@ fn column_index(
         .with_context(|| format!("video query did not return column `{name}`"))
 }
 
-fn component_at<T: Loggable>(
+fn component_at<T: FromArrow>(
     column: &dyn re_sdk_types::external::arrow::array::Array,
     row: usize,
 ) -> Result<Option<T>> {

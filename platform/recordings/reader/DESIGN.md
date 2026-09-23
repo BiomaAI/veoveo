@@ -7,7 +7,7 @@
 | Veoveo recording identity | Canonical `recording://recordings/{UUIDv7}` resources |
 | Gateway internal identity | Typed actor, tenant and data-label authority; no retained bearer |
 | Artifact plane | Existing caller or bounded task-read capability, immutable occurrence UUID, expected length and SHA-256 |
-| Rerun RRD | Existing repository profile 0.36.3, canonical dataset/recording Store IDs |
+| Rerun RRD | Existing repository profile 0.38.1, canonical dataset/recording Store IDs |
 | Local filesystem | Confined complete live parts and a bounded, verified, pinned Artifact cache |
 | `RrdIdentityValidator` | Trusted internal Rust extension for server-owned RRD kinds; no public wire protocol |
 

@@ -27,6 +27,8 @@ component:
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording datasets and layers, Artifact publication, Redap access, Arrow export, playback, disk safety, and the recording change checklist |
+| [`RERUN_RECORDINGS.md`](RERUN_RECORDINGS.md) | service catalog grants, native Rerun clients, token renewal, live following, and ingress transport requirements |
+| [`INSTALLATION_NEUTRALITY_FOLLOWUP.md`](INSTALLATION_NEUTRALITY_FOLLOWUP.md) | deferred register of Bioma-specific test and guide assumptions that should become installation profile inputs |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
 | [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | temporary host-local test reporting, informational GitHub presentation, and the future full GPU CI architecture |
@@ -1114,6 +1116,7 @@ dispatch preflights and budgeted execution.
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |
+| `testing/smoke/src/bin/smoke/scenarios/recording_catalog_sdk.rs`, `testing/recording-catalog-sdk/` | installed service-token grant and native Rerun Python Catalog SDK query against k3d, including fresh-grant reconnect |
 | `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
 | `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |

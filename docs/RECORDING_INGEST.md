@@ -11,7 +11,7 @@ and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 |---|---|
 | OAuth 2.0 client credentials and `private_key_jwt` | machine producer authentication at the installation gateway |
 | Protocol Buffers | versioned Recording ingest envelopes with the repository-owned media type |
-| Rerun RRD 0.36.3 | complete bounded recording and Blueprint store payloads |
+| Rerun RRD 0.38.1 | complete bounded recording and Blueprint store payloads |
 | SHA-256 | immutable batch and Blueprint content identity |
 | `veoveo.io/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
 
@@ -22,8 +22,8 @@ Network location never changes producer authority.
 
 ## Protocol
 
-`platform/recordings/protocol` owns version `2026-08-06` of the wire schema and media
-type. A batch declares its monotonic sequence, exact Rerun 0.36.3 RRD encoding release,
+`platform/recordings/protocol` owns version `2026-09-23` of the wire schema and media
+type. A batch declares its monotonic sequence, exact Rerun 0.38.1 RRD encoding release,
 message count, payload bytes, and SHA-256 digest. Stream creation is idempotent under the
 producer's `source_stream_id`.
 Repeating an accepted sequence with the same digest succeeds without another append.
@@ -268,6 +268,16 @@ The same command works on the local network when split-horizon DNS resolves
 unchanged.
 
 ## Acceptance
+
+An installation changing the Rerun RRD release drains producer queues and stops
+producers before replacing the forwarder, gateway, Hub, Recording MCP, and viewer
+together. Their supported payload format is `RERUN_PAYLOAD_FORMAT_RRD_0_38_1`;
+the previous enum value is reserved and mixed-version ingest fails with an
+unsupported-payload diagnostic. Before removing any older recording, the operator
+retains a snapshot of its database records and Artifact bytes. The operator can
+validate retained RRDs with the new reader or remove incompatible recordings
+through the recording API. Rollback restores that snapshot and the previous component images
+as one installation unit.
 
 The Rust smoke harness starts an isolated SurrealDB with Recording Hub and the gateway.
 The producer forwarder client executes the complete contract against those services. The

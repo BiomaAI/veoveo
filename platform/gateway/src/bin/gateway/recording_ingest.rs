@@ -104,7 +104,7 @@ async fn discovery(State(state): State<RecordingIngestGatewayState>) -> Response
                 STREAMS_PATH
             ),
             maximum_batch_bytes: resource.maximum_batch_bytes,
-            payload_formats: vec![RerunPayloadFormat::Rrd0350.into()],
+            payload_formats: vec![RerunPayloadFormat::Rrd0381.into()],
             maximum_blueprint_bytes: resource
                 .producers
                 .iter()

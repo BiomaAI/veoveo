@@ -9,12 +9,12 @@ the manifest that binds those bytes.
 
 | Standard or protocol | Recording profile |
 |---|---|
-| Rerun `0.36.3` RRD | Canonical recording bytes. Every committed layer uses the dataset UUID as its Rerun application ID and the recording UUID as its Rerun recording and segment ID. |
+| Rerun `0.38.1` RRD | Canonical recording bytes. Every committed layer uses the dataset UUID as its Rerun application ID and the recording UUID as its Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Governed read-only profile for WebViewer and Catalog SDK reads. Veoveo does not claim mutation, table administration, task, maintenance, or complete Redap conformance. |
 | Apache Arrow IPC stream | Deterministic bounded App projections over admitted RRD layers. Arrow is a response format, not durable recording authority. |
 | MCP `2026-07-28` | Recording discovery, seal control, and projection creation. Bulk Redap, RRD, and Arrow bytes stay outside MCP content blocks. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The Recording Explorer is the sole App admitted to the recording projection stream extension. |
-| Veoveo recording ingest `2026-08-06` | Authenticated protobuf batches and Blueprint publications from a producer-local forwarder to Recording Hub. |
+| Veoveo recording ingest `2026-09-23` | Authenticated protobuf batches and Blueprint publications from a producer-local forwarder to Recording Hub. |
 | Veoveo framed RRD stream v2 | Same-origin live transport. Each frame is a four-byte big-endian length followed by one complete RRD payload. |
 | Veoveo playback manifest v9 | `veoveo.io/recording-playback/v9` binds the durable dataset, recording segment, catalog revision, governed archive grant, optional live receiver, and Blueprint. No version negotiation exists. |
 | OAuth metadata, client credentials, and `private_key_jwt` | Recording Hub and Recording MCP publish with separate service identities. Producer and browser bearers are not retained for background work. |
@@ -131,12 +131,16 @@ admitted-set digest, and expiry. A replica can reconstruct an unexpired grant af
 restart. Redap tokens are host-limited and map to the grant ID. They are never placed in
 MCP tool output or exposed to an App frame.
 
+The client procedure, five-minute renewal, live playback distinction, and native
+HTTP/2 ingress requirements are in [Use recordings with Rerun](RERUN_RECORDINGS.md).
+
 The selected Redap read profile contains `Version`, `WhoAmI`, `FindEntries`,
 `ReadDatasetEntry`, dataset and manifest schema reads, recording segment table schema and
 scan, dataset manifest scan, RRD manifest and segment asset reads, `QueryDataset`,
 `FetchChunks`, bounded event watch, and the bandwidth probe used by the pinned client.
+`WhoAmI` advertises no server registration capabilities and reports `can_write=false`.
 Mutation and administrative methods return permission denied. Selected assertion-based
-tests from `re_redap_tests 0.36.3` cover query filters, manifest scans, chunk completeness,
+tests from `re_redap_tests 0.38.1` cover query filters, manifest scans, chunk completeness,
 and missing-segment behavior. The scoped grant and cross-recording rules are Veoveo
 authorization tests, not a claim of complete upstream conformance.
 
@@ -183,7 +187,7 @@ durable parts. Reconnect on the existing channel starts at the durable head. It 
 replays the bootstrap. Rollover stays event-driven, preserves Blueprint state, and does
 not poll a manifest or provider.
 
-Rerun `0.36.3` derives H.264 sync samples from access-unit bytes. The live adapter removes
+Rerun `0.38.1` derives H.264 sync samples from access-unit bytes. The live adapter removes
 sparse `VideoStream:is_keyframe` columns after compaction because the viewer requires a
 dense sample column. Archive normalization validates canonical keyframe identity from
 the same encoded bytes.

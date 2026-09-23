@@ -10,7 +10,7 @@ pub mod v1 {
     include!(concat!(env!("OUT_DIR"), "/veoveo.recording.ingest.v1.rs"));
 }
 
-pub const PROTOCOL_VERSION: &str = "2026-08-06";
+pub const PROTOCOL_VERSION: &str = "2026-09-23";
 pub const REQUIRED_SCOPE: &str = "recording:ingest";
 pub const DEFAULT_MAXIMUM_BATCH_BYTES: u64 = 8 * 1024 * 1024;
 pub const DEFAULT_MAXIMUM_BLUEPRINT_BYTES: u64 = 2 * 1024 * 1024;
@@ -46,7 +46,7 @@ impl v1::RecordingBatch {
             return Err(BatchValidationError::ZeroSequence);
         }
         if v1::RerunPayloadFormat::try_from(self.payload_format)
-            != Ok(v1::RerunPayloadFormat::Rrd0350)
+            != Ok(v1::RerunPayloadFormat::Rrd0381)
         {
             return Err(BatchValidationError::UnsupportedPayloadFormat);
         }
@@ -99,7 +99,7 @@ fn validate_payload(
     message_count: u64,
     maximum_bytes: u64,
 ) -> Result<(), BatchValidationError> {
-    if v1::RerunPayloadFormat::try_from(payload_format) != Ok(v1::RerunPayloadFormat::Rrd0350) {
+    if v1::RerunPayloadFormat::try_from(payload_format) != Ok(v1::RerunPayloadFormat::Rrd0381) {
         return Err(BatchValidationError::UnsupportedPayloadFormat);
     }
     if encoded_rrd.is_empty() {
@@ -127,7 +127,7 @@ mod tests {
     fn batch(payload: &[u8]) -> v1::RecordingBatch {
         v1::RecordingBatch {
             sequence: 1,
-            payload_format: v1::RerunPayloadFormat::Rrd0350.into(),
+            payload_format: v1::RerunPayloadFormat::Rrd0381.into(),
             encoded_rrd: payload.to_vec(),
             sha256: Sha256::digest(payload).to_vec(),
             message_count: 1,
@@ -163,7 +163,7 @@ mod tests {
     fn validates_blueprint_revision_digest_and_message_budget() {
         let mut blueprint = v1::RecordingBlueprint {
             revision: 1,
-            payload_format: v1::RerunPayloadFormat::Rrd0350.into(),
+            payload_format: v1::RerunPayloadFormat::Rrd0381.into(),
             encoded_rrd: b"blueprint".to_vec(),
             sha256: Sha256::digest(b"blueprint").to_vec(),
             message_count: 3,

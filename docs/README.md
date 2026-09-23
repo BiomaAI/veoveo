@@ -23,7 +23,7 @@ services, and its agents. Computers is part of every standard release.
 | Build or host a capability UI | [MCP Apps contract](../mcp/apps-extension/DESIGN.md), [Map integration](MAP_APP_INTEGRATION.md), [Console development](../apps/console/web/README.md) |
 | Understand access and output ownership | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md), [shared policy](../platform/policy/DESIGN.md) |
 | Upload and consume files | [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md), [Artifact service](../platform/artifacts/service/DESIGN.md), [Python SDK](../sdk/python/README.md) |
-| Ingest and use recordings | [Recording model](RECORDINGS.md), [producer ingest](RECORDING_INGEST.md), [Recording MCP](../servers/recording-mcp/DESIGN.md) |
+| Ingest and use recordings | [Recording model](RECORDINGS.md), [Rerun client guide](RERUN_RECORDINGS.md), [producer ingest](RECORDING_INGEST.md), [Recording MCP](../servers/recording-mcp/DESIGN.md) |
 | Configure GPU placement | [GPU placement](GPU_PLACEMENT.md), [simulation runtime](../platform/runtimes/simulation/DESIGN.md) |
 | Run a showcase or inspect the UI | [Showcases](../showcase/README.md), [screenshot gallery](screenshots/GALLERY.md), [architecture views](architecture/README.md) |
 | Connect a third-party system | [Connector catalog](connectors/README.md) |

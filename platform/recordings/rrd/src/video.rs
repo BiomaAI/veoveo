@@ -9,7 +9,7 @@ use re_log_types::LogMsg;
 use re_sdk_types::archetypes::VideoStream;
 use re_sdk_types::components::VideoSample;
 use re_sdk_types::external::arrow::array::{Array as _, ListArray};
-use re_sdk_types::external::re_types_core::Loggable;
+use re_sdk_types::external::re_types_core::FromArrow;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct RrdVideoBoundary {
@@ -103,7 +103,7 @@ pub fn annex_b_nals(bytes: &[u8]) -> Result<Vec<&[u8]>> {
     Ok(nals)
 }
 
-fn component_at<T: Loggable>(
+fn component_at<T: FromArrow>(
     array: &dyn re_sdk_types::external::arrow::array::Array,
     row: usize,
 ) -> Result<Option<T>> {

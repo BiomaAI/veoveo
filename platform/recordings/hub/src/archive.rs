@@ -9,7 +9,7 @@
 use std::{
     collections::BTreeMap,
     fs::{File, OpenOptions},
-    io::{BufReader, Write as _},
+    io::BufReader,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -17,7 +17,7 @@ use std::{
 use anyhow::{Context, Result, ensure};
 use re_chunk_store::{CompactionOptions, IsStartOfGop, OptimizationProfile};
 use re_entity_db::EntityDb;
-use re_log_encoding::{DecoderApp, Encoder};
+use re_log_encoding::{DecoderApp, Encoder, EncodingOptions};
 use re_log_types::StoreId;
 
 /// Statistics from one archive materialization.
@@ -104,38 +104,58 @@ pub fn materialize_archive_shard(
         .values()
         .filter(|database| database.store_id().is_recording())
         .flat_map(|database| database.to_messages(None));
-    let bytes =
-        Encoder::encode(blueprints.chain(recordings)).context("encoding optimized archive RRD")?;
-    publish_atomic(destination, &bytes)?;
+    let output_bytes = publish_atomic(destination, blueprints.chain(recordings))?;
     Ok(ArchiveMaterialization {
         input_messages,
-        output_bytes: u64::try_from(bytes.len()).context("archive output exceeds u64")?,
+        output_bytes,
     })
 }
 
-fn publish_atomic(destination: &Path, bytes: &[u8]) -> Result<()> {
+fn publish_atomic(
+    destination: &Path,
+    messages: impl IntoIterator<Item = re_chunk::ChunkResult<re_log_types::LogMsg>>,
+) -> Result<u64> {
     let parent = destination
         .parent()
         .with_context(|| format!("archive path {} has no parent", destination.display()))?;
     std::fs::create_dir_all(parent)?;
     let temporary =
         destination.with_extension(format!("rrd.{}.materializing", uuid::Uuid::now_v7()));
-    let mut file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary)
-        .with_context(|| format!("creating archive temporary {}", temporary.display()))?;
-    file.write_all(bytes)?;
-    file.sync_all()?;
-    std::fs::rename(&temporary, destination).with_context(|| {
-        format!(
-            "publishing archive shard {} over {}",
-            temporary.display(),
-            destination.display()
+    let result = (|| {
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&temporary)
+            .with_context(|| format!("creating archive temporary {}", temporary.display()))?;
+        let mut encoder = Encoder::new_eager(
+            re_build_info::CrateVersion::LOCAL,
+            EncodingOptions::PROTOBUF_COMPRESSED,
+            file,
         )
-    })?;
-    File::open(parent)?.sync_all()?;
-    Ok(())
+        .context("starting archive RRD encoding")?;
+        encoder
+            .extend(messages)
+            .context("encoding optimized archive RRD")?;
+        encoder.finish().context("writing archive RRD footer")?;
+        let file = encoder
+            .into_inner()
+            .context("closing archive RRD encoder")?;
+        file.sync_all()?;
+        let output_bytes = file.metadata()?.len();
+        std::fs::rename(&temporary, destination).with_context(|| {
+            format!(
+                "publishing archive shard {} over {}",
+                temporary.display(),
+                destination.display()
+            )
+        })?;
+        File::open(parent)?.sync_all()?;
+        Ok(output_bytes)
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temporary);
+    }
+    result
 }
 
 #[cfg(test)]

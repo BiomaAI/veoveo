@@ -4,7 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
-| Rerun RRD and SDK types | Existing repository wire profile 0.36.3; this extraction preserves its pinned ABI |
+| Rerun RRD and SDK types | Existing repository wire profile 0.38.1; this extraction preserves its pinned ABI |
 | H.264 Annex B | Decoder-reentrant access units with SPS/PPS, IDR frames, and no B-frames |
 | ISO Base Media File Format | Bounded H.264 MP4 remux through mp4 0.14.0, without decoding or encoding |
 | SHA-256 | Complete immutable segment and layer byte identity |
