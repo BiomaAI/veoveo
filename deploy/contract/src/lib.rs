@@ -387,6 +387,7 @@ pub enum FirstPartyMcpServer {
     Recording,
     Stream,
     Reason,
+    Speech,
 }
 
 /// Platform capability names accepted from gateway composition requirements.
@@ -1321,6 +1322,7 @@ impl FirstPartyMcpServer {
             Self::Recording,
             Self::Stream,
             Self::Reason,
+            Self::Speech,
         ])
     }
 }
@@ -1429,6 +1431,7 @@ impl ResolvedPlatformSelection {
             FirstPartyMcpServer::Recording,
             FirstPartyMcpServer::Stream,
             FirstPartyMcpServer::Reason,
+            FirstPartyMcpServer::Speech,
         ];
         if platform_store_servers
             .iter()
@@ -1452,6 +1455,7 @@ impl ResolvedPlatformSelection {
             FirstPartyMcpServer::Recording,
             FirstPartyMcpServer::Stream,
             FirstPartyMcpServer::Reason,
+            FirstPartyMcpServer::Speech,
         ];
         if artifact_servers
             .iter()
@@ -1540,6 +1544,9 @@ impl ResolvedPlatformSelection {
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Reason) {
             required.insert("reason");
+        }
+        if self.mcp_servers.contains(&FirstPartyMcpServer::Speech) {
+            required.insert("speech");
         }
         if self.mcp_servers.contains(&FirstPartyMcpServer::Rerun) {
             required.insert("rerun-bridge");
@@ -1794,6 +1801,7 @@ impl FirstPartyMcpServer {
             Self::Recording => &["recording-mcp"],
             Self::Stream => &["stream-mcp"],
             Self::Reason => &["reason-mcp"],
+            Self::Speech => &["speech-mcp"],
         }
     }
 }

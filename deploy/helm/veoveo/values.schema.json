@@ -73,6 +73,7 @@
           "recording",
           "stream",
           "reason",
+          "speech",
           "computers"
         ]
       }

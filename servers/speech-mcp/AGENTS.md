@@ -30,7 +30,7 @@ the actual GPU, model revision and package pins.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: pending — hosted contract qualification is in progress; see DESIGN.md.
 - C02: pending — hosted contract qualification is in progress; see DESIGN.md.

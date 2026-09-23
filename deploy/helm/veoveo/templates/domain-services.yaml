@@ -3,6 +3,7 @@
 {{- $serverIds := dict
   "artifact-mcp" "artifact"
   "media-mcp" "media"
+  "speech-mcp" "speech"
   "timeseries-mcp" "timeseries"
   "optimization-mcp" "optimization"
   "frames-mcp" "frames"
@@ -17,6 +18,7 @@
 {{- $gpuWorkloads := dict
   "optimization-mcp" "cuopt-executor"
   "view-mcp" "view-renderer"
+  "speech-mcp" "speech"
   "rerun-bridge" "rerun-bridge"
 -}}
 {{- range $service := $serviceDefinitions }}
@@ -28,6 +30,16 @@
 {{- $baseResources := default $.Values.gateway.resources $service.resources -}}
 {{- $serviceResources := default $baseResources (index $.Values.domainServiceResources $service.name) -}}
 {{- $serviceReplicas := get $.Values.domainServiceReplicas $service.name | default 1 -}}
+{{- if eq $service.name "speech-mcp" }}
+{{- if ne (int $serviceReplicas) 1 }}
+{{- fail "speech-mcp requires exactly one replica for private dictation ownership" }}
+{{- end }}
+{{- if not $.Values.global.gpuPlacement.enabled }}
+{{- if or (ne (int (index $serviceResources.requests "nvidia.com/gpu" | default 0)) 1) (ne (int (index $serviceResources.limits "nvidia.com/gpu" | default 0)) 1) }}
+{{- fail "speech-mcp requires one NVIDIA GPU request and limit" }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if $service.persistence }}
 ---
 apiVersion: v1
@@ -194,7 +206,7 @@ spec:
           {{- end }}
           readinessProbe:
             httpGet:
-              path: {{ $service.healthPath }}
+              path: {{ default $service.healthPath $service.readinessPath }}
               port: http
               httpHeaders:
                 - name: Host
@@ -294,7 +306,12 @@ spec:
           emptyDir:
             sizeLimit: 1Gi
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            {{- if $service.tmpSizeLimit }}
+            sizeLimit: {{ $service.tmpSizeLimit }}
+            {{- else }}
+            {}
+            {{- end }}
         {{- with $service.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

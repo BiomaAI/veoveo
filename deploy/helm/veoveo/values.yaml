@@ -155,6 +155,7 @@ artifactService:
     - recording
     - stream
     - reason
+    - speech
     - datasheet
   resources:
     requests:

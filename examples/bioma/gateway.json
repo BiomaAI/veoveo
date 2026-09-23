@@ -793,6 +793,45 @@
         "contract_revision": 3
       },
       "resource_projection": "server_owned"
+    },
+    {
+      "slug": "speech",
+      "uri_scheme": "speech",
+      "mount_path": "/speech",
+      "mcp_path": "/speech/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://speech-mcp:8811/speech/mcp",
+        "health_url": "http://speech-mcp:8811/speech/readyz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": true,
+        "resources_list_changed": false,
+        "apps": false
+      },
+      "tools": [
+        "transcribe",
+        "start_dictation",
+        "finish_dictation",
+        "cancel_dictation"
+      ],
+      "prompts": [
+        "transcribe_recording"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "contract_revision": 3
+      },
+      "resource_projection": "server_owned"
     }
   ],
   "profiles": [
@@ -1314,6 +1353,32 @@
           },
           "completions": "enabled",
           "tasks": "enabled"
+        },
+        {
+          "server": "speech",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "transcribe",
+              "start_dictation",
+              "finish_dictation",
+              "cancel_dictation"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "speech"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
         }
       ],
       "metadata": {
@@ -1487,6 +1552,29 @@
             "items": [
               "develop"
             ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "speech",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "transcribe"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "speech"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
           },
           "completions": "enabled",
           "tasks": "enabled"
@@ -1967,6 +2055,32 @@
             "items": [
               "develop"
             ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "speech",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "transcribe",
+              "start_dictation",
+              "finish_dictation",
+              "cancel_dictation"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "speech"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
           },
           "completions": "enabled",
           "tasks": "enabled"
@@ -2578,6 +2692,32 @@
             "items": [
               "develop"
             ]
+          },
+          "completions": "enabled",
+          "tasks": "enabled"
+        },
+        {
+          "server": "speech",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "transcribe",
+              "start_dictation",
+              "finish_dictation",
+              "cancel_dictation"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "speech"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "all"
           },
           "completions": "enabled",
           "tasks": "enabled"
@@ -5915,6 +6055,148 @@
           ],
           "required_scopes": [
             "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_speech_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "workspace"
+          ],
+          "servers": [
+            "speech"
+          ],
+          "tools": [
+            "transcribe",
+            "start_dictation",
+            "finish_dictation",
+            "cancel_dictation"
+          ],
+          "resource_schemes": [
+            "speech"
+          ],
+          "prompts": [
+            "transcribe_recording"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_service_speech_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "operator",
+            "admin",
+            "agent"
+          ],
+          "servers": [
+            "speech"
+          ],
+          "tools": [
+            "transcribe"
+          ],
+          "resource_schemes": [
+            "speech"
+          ],
+          "prompts": [
+            "transcribe_recording"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#operator-service",
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_agent_speech",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "tasks_get",
+            "tasks_update",
+            "tasks_cancel",
+            "artifact_read",
+            "usage_read"
+          ],
+          "profiles": [
+            "agent"
+          ],
+          "servers": [
+            "speech"
+          ],
+          "tools": [
+            "transcribe"
+          ],
+          "resource_schemes": [
+            "speech"
+          ],
+          "prompts": [
+            "transcribe_recording"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "operator",
+            "administrator"
           ],
           "metadata": {}
         }
