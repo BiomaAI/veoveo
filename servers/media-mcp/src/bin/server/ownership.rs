@@ -10,12 +10,16 @@ pub(super) fn internal_identity(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 pub(super) fn internal_caller(
@@ -24,17 +28,23 @@ pub(super) fn internal_caller(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let identity = parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let bearer = parts
         .extensions
         .get::<super::internal_auth::ForwardedBearer>()
         .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     Ok(caller_from(identity, bearer))
 }
 
@@ -91,13 +101,14 @@ pub(super) async fn require_task_owner(
     task_id: &str,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
+    let not_found = || McpError::invalid_params(format!("Task `{task_id}` was not found."), None);
     let owner = optional_task_owner(state, task_id)
         .await?
-        .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
+        .ok_or_else(not_found)?;
     if task_owner_allows(&owner, &identity) {
         Ok(identity)
     } else {
-        Err(McpError::invalid_params("unknown task id", None))
+        Err(not_found())
     }
 }
 

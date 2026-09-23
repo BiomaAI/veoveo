@@ -1201,7 +1201,7 @@ fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {
             .scopes
             .iter()
             .any(|scope| scope.as_str() == "admin:manage"),
-        "admin:manage scope is required to seal recordings"
+        "You don't have permission to seal recordings. Missing scope `admin:manage`."
     );
     Ok(())
 }

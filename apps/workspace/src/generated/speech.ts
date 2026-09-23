@@ -235,7 +235,7 @@ export interface StartDictation {
  */
 export interface TranscribeRequest {
   /**
-   * Governed uploaded audio or video, identified by its canonical Artifact URI.
+   * `artifact://` URI of an uploaded audio or video file you can read.
    */
   artifact_uri: string;
 }

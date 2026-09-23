@@ -131,7 +131,7 @@ impl TimeseriesMcp {
 
     #[tool(
         title = "Forecast timeseries",
-        description = "Ingest a DuckDB-readable time-series source, compute a forecast, and return one timeseries://artifact/{artifact_id} Rerun RRD artifact.",
+        description = "Read a time series from any source DuckDB can read, compute a forecast, and return one timeseries://artifact/{artifact_id} Rerun RRD artifact.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TimeseriesForecastOutput>(),
         annotations(
             read_only_hint = false,

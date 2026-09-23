@@ -65,7 +65,7 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
     def scope(ctx: Context) -> dict[str, Any]:
         request = ctx.request
         if request is None:
-            raise _invalid("authenticated HTTP context missing")
+            raise _invalid("This server only accepts requests routed through the Veoveo gateway.")
         return request.scope
 
     async def list_tools(
@@ -232,13 +232,13 @@ def build_mcp_server(runtime: FixtureRuntime) -> Server:
 def _identity(scope: dict[str, Any]) -> GatewayInternalIdentity:
     identity = scope.get(IDENTITY_SCOPE_KEY)
     if not isinstance(identity, GatewayInternalIdentity):
-        raise _invalid("gateway identity missing")
+        raise _invalid("This server only accepts requests routed through the Veoveo gateway.")
     return identity
 
 
 def _require_operator_scope(identity: GatewayInternalIdentity) -> None:
     if "operator:use" not in identity.actor.scopes:
-        raise _invalid("operator:use scope is required")
+        raise _invalid("You don't have permission to make this request. Missing scope `operator:use`.")
 
 
 def _owner(identity: GatewayInternalIdentity) -> str:

@@ -349,7 +349,10 @@ async function readJsonResource(uri) {
   const result = await bridge.request("resources/read", { uri });
   const contents = (result && result.contents) || [];
   const text = contents.length ? contents[0].text : undefined;
-  if (typeof text !== "string") throw new Error(`resource ${uri} returned no text`);
+  if (typeof text !== "string") {
+    console.error(`resource ${uri} returned no text`);
+    throw new Error("The View server returned data this app couldn't read. Reload to try again.");
+  }
   return JSON.parse(text);
 }
 
@@ -357,7 +360,10 @@ async function readBlobResource(uri) {
   const result = await bridge.request("resources/read", { uri });
   const contents = (result && result.contents) || [];
   const blob = contents.length ? contents[0].blob : undefined;
-  if (typeof blob !== "string") throw new Error(`resource ${uri} returned no blob`);
+  if (typeof blob !== "string") {
+    console.error(`resource ${uri} returned no blob`);
+    throw new Error("The View server returned data this app couldn't read. Reload to try again.");
+  }
   const binary = atob(blob);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
@@ -367,7 +373,9 @@ async function readBlobResource(uri) {
 function toolFailureText(result, name) {
   const content = Array.isArray(result && result.content) ? result.content : [];
   const text = content.find((entry) => entry && entry.type === "text" && typeof entry.text === "string");
-  return text ? text.text : `MCP tool ${name} failed`;
+  if (text) return text.text;
+  console.error(`MCP tool ${name} failed`, result);
+  return "The View server didn't complete that request. Try again.";
 }
 
 /* Full CallToolResult (content blocks included); throws on isError. */
@@ -1476,7 +1484,8 @@ function configureToolProjection(hostContext) {
 
 function projectedToolName(localName) {
   if (!APP_TOOL_NAMES.has(localName)) {
-    throw new Error(`tool ${localName} is not available to this app`);
+    console.error(`tool ${localName} is not available to this app`);
+    throw new Error("This app isn't allowed to use that tool.");
   }
   return `${app.toolPrefix}${localName}`;
 }
@@ -1662,7 +1671,7 @@ async function createView() {
     await refreshScene();
   } catch (cause) {
     setStatus("idle", false);
-    showError("action-error", `create_view failed: ${cause.message}`);
+    showError("action-error", `Couldn't create the view: ${cause.message}`);
   }
 }
 
@@ -1680,7 +1689,7 @@ async function applyCamera() {
     await refreshScene();
   } catch (cause) {
     setStatus("idle", false);
-    showError("action-error", `set_camera failed: ${cause.message}`);
+    showError("action-error", `Couldn't apply the camera: ${cause.message}`);
     void resyncView();
   }
 }
@@ -1730,8 +1739,8 @@ async function refreshScene() {
     );
   } catch (cause) {
     setStatus("idle", false);
-    el("tile-chip").textContent = "scene failed";
-    showError("action-error", `scene load failed: ${cause.message}`);
+    el("tile-chip").textContent = "scene unavailable";
+    showError("action-error", `Couldn't load the scene: ${cause.message}`);
   }
 }
 
@@ -1769,7 +1778,7 @@ async function captureFrame() {
     );
     const task = created && (created.task || created);
     const taskId = task && (task.taskId || task.task_id);
-    if (!taskId) throw new Error("host did not return a task for capture_frame");
+    if (!taskId) throw new Error("The host didn't start the capture. Try again.");
     app.captureTaskId = taskId;
     const pollInterval = Math.min(Math.max(task.pollIntervalMs || 500, 250), 5000);
     setStatus(`capture task ${taskId.slice(0, 8)}… queued`, true);
@@ -1784,7 +1793,7 @@ async function captureFrame() {
       statusMessage = snapshot.statusMessage || snapshot.status_message || "";
       setStatus(`capture ${status}${statusMessage ? ` — ${statusMessage}` : ""}`, true);
     }
-    if (status === "failed") throw new Error(statusMessage || "capture task failed");
+    if (status === "failed") throw new Error(statusMessage || "The capture failed.");
     if (status === "cancelled") {
       setStatus("capture cancelled", false);
       return;
@@ -1795,7 +1804,7 @@ async function captureFrame() {
     setStatus("frame captured", false);
   } catch (cause) {
     setStatus("idle", false);
-    showError("action-error", `capture_frame failed: ${cause.message}`);
+    showError("action-error", `Couldn't capture a frame: ${cause.message}`);
     void resyncView();
   } finally {
     app.captureTaskId = null;
@@ -1811,7 +1820,7 @@ async function cancelCapture() {
     await tasks.cancel(app.captureTaskId);
     setStatus("cancel requested…", true);
   } catch (cause) {
-    showError("action-error", `cancel failed: ${cause.message}`);
+    showError("action-error", `Couldn't cancel the capture: ${cause.message}`);
   }
 }
 
@@ -1863,7 +1872,7 @@ async function closeView(silent) {
     await callTool("close_view", request);
     if (!silent) setStatus("view closed", false);
   } catch (cause) {
-    if (!silent) showError("action-error", `close_view failed: ${cause.message}`);
+    if (!silent) showError("action-error", `Couldn't close the view: ${cause.message}`);
   }
 }
 
@@ -1992,7 +2001,7 @@ bridge.on("ui/resource-teardown", (_params, id) => {
     reportSize();
   } catch (cause) {
     el("boot").hidden = true;
-    showError("boot-error", `Host initialization failed: ${cause.message}`);
+    showError("boot-error", `The View app couldn't connect to its host. Reload to try again. (${cause.message})`);
   }
 })();
 </script>

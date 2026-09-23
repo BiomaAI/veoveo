@@ -59,7 +59,7 @@ impl MapPrompt {
             ),
             Self::PrepareMatrix => (
                 "Prepare logistics matrix",
-                "Prepare a bounded many-to-many matrix for Optimization MCP.",
+                "Prepare a many-to-many route matrix for Optimization MCP.",
                 vec![
                     required("mobility_profile_id", "Visible mobility profile id."),
                     required("origins", "Comma-separated origin ids or positions."),
@@ -91,7 +91,7 @@ impl MapPrompt {
             ),
             Self::AuthorFeatureLayer => (
                 "Author feature layer",
-                "Prepare a governed feature-layer change, validation, commit, and optional publication.",
+                "Plan a feature-layer change: validate it, commit it, and optionally publish it.",
                 vec![
                     required(
                         "objective",
@@ -134,7 +134,7 @@ impl MapPrompt {
                 .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::PrepareRoute => format!(
-                "Read map://mobility-profile/{profile}/{{profile_version}} and inspect the endpoint resources for {origin} and {destination}. Confirm profile validity at {departure}. Invoke route as a durable task with an explicit objective, constraints, required map families, and whether planning-advisory output is acceptable. Do not replace unavailable coverage with straight-line geometry.",
+                "Read map://mobility-profile/{profile}/{{profile_version}} and inspect the endpoint resources for {origin} and {destination}. Confirm profile validity at {departure}. Invoke route as an MCP Task with an explicit objective, constraints, required map families, and whether planning-advisory output is acceptable. Do not replace unavailable coverage with straight-line geometry.",
                 profile = required_value(arguments.mobility_profile_id, "mobility_profile_id")?,
                 origin = required_value(arguments.origin, "origin")?,
                 destination = required_value(arguments.destination, "destination")?,
@@ -148,13 +148,13 @@ impl MapPrompt {
                 route = required_value(arguments.route_id, "route_id")?,
             ),
             Self::PrepareMatrix => format!(
-                "Read the profile {profile}, resolve origins [{origins}] and destinations [{destinations}], and keep the request within 20 by 20 and 400 total cells. Invoke route_matrix as a durable task. Pass the resulting map://matrix/{{matrix_id}} resource to Optimization MCP without recomputing GIS costs.",
+                "Read the profile {profile}, resolve origins [{origins}] and destinations [{destinations}], and keep the request within 20 by 20 and 400 total cells. Invoke route_matrix as an MCP Task. Pass the resulting map://matrix/{{matrix_id}} resource to Optimization MCP without recomputing GIS costs.",
                 profile = required_value(arguments.mobility_profile_id, "mobility_profile_id")?,
                 origins = required_value(arguments.origins, "origins")?,
                 destinations = required_value(arguments.destinations, "destinations")?,
             ),
             Self::PrepareOptimizationTravelModel => format!(
-                "Prepare governed travel costs for this routing decision: {decision}. Resolve the shared locations [{locations}] once and assign stable ids that the Optimization routing problem will reuse in the same order. Resolve these vehicle types and exact Map mobility profile versions: {vehicle_types}. Use departure time {departure} and cost metric {metric}; declare route constraints, data policy, and either the static or invariant-local-departure time model explicitly. Keep the model within 128 locations, 64 vehicle types, and 1,048,576 total matrix cells. Invoke build_travel_model as a durable task, then read map://travel-model/{{travel_model_id}} and retain its artifact:// manifest_uri. Pass both to optimize_routes or every optimize_route_scenarios case as a map_resource travel model. Preserve unavailable cells and never substitute straight-line or route_matrix costs.",
+                "Prepare travel costs for this routing decision: {decision}. Resolve the shared locations [{locations}] once and assign stable ids that the Optimization routing problem will reuse in the same order. Resolve these vehicle types and exact Map mobility profile versions: {vehicle_types}. Use departure time {departure} and cost metric {metric}; declare route constraints, data policy, and either the static or invariant-local-departure time model explicitly. Keep the model within 128 locations, 64 vehicle types, and 1,048,576 total matrix cells. Invoke build_travel_model as an MCP Task, then read map://travel-model/{{travel_model_id}} and retain its artifact:// manifest_uri. Pass both to optimize_routes or every optimize_route_scenarios case as a map_resource travel model. Preserve unavailable cells and never substitute straight-line or route_matrix costs.",
                 decision = required_value(arguments.decision, "decision")?,
                 locations = required_value(arguments.locations, "locations")?,
                 vehicle_types = required_value(arguments.vehicle_types, "vehicle_types")?,
@@ -165,7 +165,7 @@ impl MapPrompt {
                 metric = arguments.cost_metric.as_deref().unwrap_or("duration"),
             ),
             Self::AuthorFeatureLayer => format!(
-                "Author this map content: {objective}. {layer} Read the layer, schema, and style resources before changing existing content. Use validate_feature_changes before commit_feature_changes, keep the returned base revisions unchanged, and resolve every conflict explicitly rather than overwriting it. Use import_feature_layer as a durable task for {input}; use direct changesets only for bounded interactive edits. Query the committed head and inspect its changeset resource. Publish only when an immutable release is required, then use export_feature_layer or build_vector_tiles as durable tasks for derived artifacts. Never treat generic authored features as routing restrictions or routable network data.",
+                "Author this map content: {objective}. {layer} Read the layer, schema, and style resources before changing existing content. Use validate_feature_changes before commit_feature_changes, keep the returned base revisions unchanged, and resolve every conflict explicitly rather than overwriting it. Use import_feature_layer as an MCP Task for {input}; use direct changesets only for bounded interactive edits. Query the committed head and inspect its changeset resource. Publish only when an immutable release is required, then use export_feature_layer or build_vector_tiles as MCP Tasks for derived artifacts. Never treat generic authored features as routing restrictions or routable network data.",
                 objective = required_value(arguments.objective, "objective")?,
                 layer = arguments.layer_id.as_deref().map_or_else(
                     || "Create a layer with an explicit content class, JSON Schema 2020-12 property contract, and safe style.".to_owned(),

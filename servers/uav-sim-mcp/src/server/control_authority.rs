@@ -48,13 +48,19 @@ struct CommandLease {
 pub(super) enum ControlAuthorityError {
     #[error("{0}")]
     Invalid(String),
-    #[error("vehicle control is not authorized for this principal")]
+    #[error("You don't have permission to control this vehicle.")]
     Forbidden,
-    #[error("vehicle control record was not found")]
+    #[error(
+        "vehicle grant was not found; list current grants with `list_active_vehicle_control_grants`"
+    )]
     NotFound,
-    #[error("vehicle control state changed concurrently")]
+    #[error(
+        "vehicle grant changed since you read it; read it again with `list_active_vehicle_control_grants` and retry with its current revision"
+    )]
     Conflict,
-    #[error("vehicle `{0}` already has an active command lease")]
+    #[error(
+        "vehicle `{0}` is already flying a mission; wait for that mission to finish or cancel its Task, then retry"
+    )]
     VehicleBusy(String),
     #[error(transparent)]
     Store(#[from] veoveo_platform_store::StoreError),

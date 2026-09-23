@@ -79,8 +79,8 @@ pub enum DecodePolicy {
     },
 }
 
-/// Reference to the governed results artifact of a completed perception
-/// analysis over the same recording.
+/// The results artifact of a completed Stream perception run over the same
+/// recording. Pass it so detected events can cite track IDs.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GroundingReference {

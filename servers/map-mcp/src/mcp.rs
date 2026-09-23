@@ -155,7 +155,7 @@ impl MapMcp {
 
     #[tool(
         title = "List active dataset releases",
-        description = "Resolve bounded immutable release identities and active-pointer revisions for an optional stable source or dataset identity.",
+        description = "List Map dataset releases and show which one is active, optionally for one source or dataset.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ListActiveDatasetReleasesOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -217,7 +217,7 @@ impl MapMcp {
 
     #[tool(
         title = "Query immutable source features",
-        description = "Query complete normalized point, line, polygon, and relation features from one immutable Map release by source identity, exact or existing tags, normalized text, and bounded spatial predicates. Geographic distance uses WGS84 longitude/latitude meters. Results use deterministic feature order or materialized distance-then-feature order, and only current cursor-domain values are accepted.",
+        description = "Query point, line, polygon, and relation features in one Map release. Filter by source, exact or present tags, text, and spatial predicates; distances are in WGS84 meters. Results come in a stable order, by feature or by distance. To get the next page, pass the `cursor` from the previous response.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<QuerySourceFeaturesOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -262,7 +262,7 @@ impl MapMcp {
 
     #[tool(
         title = "Derive a governed raster product",
-        description = "Run one bounded sample, terrain-corridor maximum, window, class-mask, contour, polygonize, skeletonize, or line-derivation operation against an immutable raster product. This operation requires durable task invocation.",
+        description = "Run one operation on a Map raster product: sample, terrain-corridor maximum, window, class mask, contour, polygonize, skeletonize, or line derivation. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RasterDerivation>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -272,14 +272,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "derive_raster requires task-based invocation",
+            "`derive_raster` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Derive governed spatial geometry",
-        description = "Derive bounded resampling, tours, boundaries, standoffs, corridors, parallel lanes, racetracks, stations, coverage tracks, connected components, ingress geometry, or a complete-route validation. The result is pinned to one mobility profile, exact source releases, restrictions, terrain classes, algorithm revision, principal, and Work Context.",
+        description = "Derive mission geometry for one mobility profile: resampling, tours, boundaries, standoffs, corridors, parallel lanes, racetracks, stations, coverage tracks, connected components, ingress geometry, or a full-route check. The result records the source releases, restrictions, terrain classes, and algorithm revision it used.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SpatialDerivation>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -291,7 +291,7 @@ impl MapMcp {
         let identity = require_scope(&context, "map:spatial:derive")?;
         if !identity_has_scope(&identity, "map:dataset:read") {
             return Err(McpError::invalid_request(
-                "scope `map:dataset:read` is required",
+                "You don't have permission to make this request. Missing scope `map:dataset:read`.",
                 None,
             ));
         }
@@ -346,7 +346,7 @@ impl MapMcp {
 
     #[tool(
         title = "Inspect map position",
-        description = "Resolve one WGS84 position against active governed map releases in a single call. Returns distance-ordered nearby named locations and facilities, containing boundaries, active release identities, and explicit coverage gaps. Nearby search defaults to a 10 km radius and five results per entity class.",
+        description = "Look up what is at a WGS84 position in the active Map releases: nearby named locations and facilities by distance, containing boundaries, the releases used, and any coverage gaps. By default it searches a 10 km radius and returns five results per entity class.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<InspectPositionOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -374,7 +374,7 @@ impl MapMcp {
 
     #[tool(
         title = "Transform coordinate reference system",
-        description = "Transform bounded two-dimensional coordinates between explicit CRS ids through PROJ. Vertical coordinates are rejected rather than copied.",
+        description = "Convert two-dimensional coordinates between CRS ids with PROJ. Inputs with a vertical coordinate are rejected.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TransformCrsOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -441,7 +441,7 @@ impl MapMcp {
 
     #[tool(
         title = "Calculate logistics route",
-        description = "Calculate a governed route for one versioned human or vehicle mobility profile through durable task invocation. The result pins releases, restrictions, a snapshot, costs, and validation state; unavailable coverage is never replaced by a straight line.",
+        description = "Calculate a route for one human or vehicle mobility profile. The result records the releases, restrictions, and snapshot it used, with costs and validation state. Where map coverage is missing, the route fails instead of drawing a straight line. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RoutePlan>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -451,14 +451,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "route requires task-based invocation",
+            "`route` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Calculate logistics route matrix",
-        description = "Calculate a bounded many-to-many route matrix for one versioned mobility profile. Task-capable clients should invoke this as a durable task.",
+        description = "Calculate a many-to-many route matrix for one mobility profile. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RouteMatrix>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -468,14 +468,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "route_matrix requires task-based invocation",
+            "`route_matrix` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Build optimization travel model",
-        description = "Build immutable square cost and transit-time matrices for up to 128 shared locations and multiple cuOpt vehicle types. Each vehicle type binds a versioned Map mobility profile; the implementation uses one governed Valhalla many-to-many request per requested vehicle type, preserves unreachable arcs, and publishes a canonical artifact manifest for Optimization MCP. This operation requires durable task invocation.",
+        description = "Build square cost and transit-time matrices for up to 128 locations and several cuOpt vehicle types, each tied to a Map mobility profile. Unreachable pairs stay marked as unreachable. The result is an artifact that Optimization MCP reads directly. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TravelModelRecord>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -485,14 +485,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "build_travel_model requires task-based invocation",
+            "`build_travel_model` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Calculate land reachable area",
-        description = "Calculate a governed Valhalla network isochrone for a human or road-vehicle profile. This operation requires durable task invocation.",
+        description = "Calculate the area reachable over the road or path network (an isochrone) for a human or road-vehicle profile. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReachableArea>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -502,14 +502,14 @@ impl MapMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "reachable_area requires task-based invocation",
+            "`reachable_area` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Validate logistics route",
-        description = "Validate supplied route geometry, pinned release availability, profile availability, and active prohibitions.",
+        description = "Check route geometry you supply: that its releases and mobility profile are still available and that no active prohibition blocks it.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RouteValidation>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -531,7 +531,7 @@ impl MapMcp {
 
     #[tool(
         title = "Prepare Map route handoff",
-        description = "Read one persisted Map route, reject stale or invalidated state, perform current complete mobility and restriction validation, and return a versioned execution-neutral handoff for a consuming domain.",
+        description = "Re-check a saved Map route against current mobility rules and restrictions, and return a handoff that another server, such as UAV Simulation, can execute. Fails if the route is stale or has been invalidated.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MapRouteHandoff>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -556,7 +556,7 @@ impl MapMcp {
 
     #[tool(
         title = "Inspect logistics corridor",
-        description = "Inspect a WGS84 corridor for effective restrictions, facilities, boundaries, and explicit data gaps.",
+        description = "Inspect a WGS84 corridor for active restrictions, facilities, boundaries, and data gaps.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CorridorInspectionOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -584,7 +584,7 @@ impl MapMcp {
 
     #[tool(
         title = "Publish operational restriction",
-        description = "Publish a governed, effective, versioned transport restriction. Authority and validity are explicit.",
+        description = "Publish a transport restriction with an explicit issuing authority and validity period. Each change creates a new version.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RestrictionMutationOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -618,7 +618,7 @@ impl MapMcp {
 
     #[tool(
         title = "Withdraw operational restriction",
-        description = "End an existing restriction under optimistic concurrency and record its cancellation identity.",
+        description = "End an existing restriction and record the cancellation. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RestrictionMutationOutput>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -652,7 +652,7 @@ impl MapMcp {
 
     #[tool(
         title = "Register map source",
-        description = "Register a governed authoritative map source. Requires the map:admin scope; idempotent on identical re-registration.",
+        description = "Register a map data source. Requires the map:admin scope. Registering an identical source again has no effect.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -670,7 +670,7 @@ impl MapMcp {
 
     #[tool(
         title = "Replace map source",
-        description = "Replace a registered map source under optimistic concurrency. Requires the map:admin scope.",
+        description = "Replace a registered map source. Requires the map:admin scope. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -688,7 +688,7 @@ impl MapMcp {
 
     #[tool(
         title = "Disable map source",
-        description = "Disable a registered map source under optimistic concurrency so no new acquisitions can start from it. Requires the map:admin scope.",
+        description = "Disable a registered map source so no new acquisitions start from it. Requires the map:admin scope. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RegisteredSource>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -706,7 +706,7 @@ impl MapMcp {
 
     #[tool(
         title = "Start map acquisition",
-        description = "Start a governed acquisition job that stages a dataset release for an explicit WGS84 coverage box. Requires the map:admin scope. Poll map://acquisition/{acquisition_id} for progress.",
+        description = "Start an acquisition job that stages a dataset release for a WGS84 bounding box. Requires the map:admin scope. Poll map://acquisition/{acquisition_id} for progress.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<AcquisitionJob>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = true)
     )]
@@ -746,7 +746,7 @@ impl MapMcp {
 
     #[tool(
         title = "Register mobility profile",
-        description = "Register a new versioned human or vehicle mobility profile. Requires the map:admin scope; idempotent on identical re-registration.",
+        description = "Register a new versioned human or vehicle mobility profile. Requires the map:admin scope. Registering an identical profile again has no effect.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<MobilityProfile>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -771,7 +771,7 @@ impl MapMcp {
 
     #[tool(
         title = "Activate dataset release",
-        description = "Activate a staged dataset release (or reconcile the current active release) under optimistic concurrency, rebuilding routing products. Requires the map:admin scope.",
+        description = "Activate a staged dataset release, or reconcile the active one, and rebuild routing data. Requires the map:admin scope. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -792,7 +792,7 @@ impl MapMcp {
 
     #[tool(
         title = "Roll back dataset release",
-        description = "Roll the active pointer back to an earlier release under optimistic concurrency, rebuilding routing products. Requires the map:admin scope.",
+        description = "Roll back to an earlier dataset release and rebuild routing data. Requires the map:admin scope. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -813,7 +813,7 @@ impl MapMcp {
 
     #[tool(
         title = "Quarantine dataset release",
-        description = "Quarantine a non-active dataset release and invalidate routes derived from it. Quarantined releases can never be activated. Requires the map:admin scope.",
+        description = "Quarantine a dataset release that is not active and invalidate routes built from it. A quarantined release can never be activated. Requires the map:admin scope.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ReleaseMutationResponse>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -867,7 +867,7 @@ impl ServerHandler for MapMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("map", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Earth geography, governed authored feature layers, and logistics planning for human, road, off-road, rail, maritime, and aviation mobility. Create and revise Work Context-owned GeoJSON/JSON-FG features with optimistic changesets, query their DuckDB Spatial projection through bounded CQL2 JSON, and publish immutable layer revisions. Use durable tasks to inspect or import an authorized OGC GeoPackage 1.4 vector artifact, import GeoJSON, export a publication as GeoJSON Sequence, GeoParquet 1.0, or GeoPackage 1.4, or build an MVT 2.1 bundle. Compose and inspect immutable publication pins through map://composition resources or the permission-aware ui://map/workspace.html MCP App. Generic authored features never affect routing until a separate governed promotion validates them into a routing dataset release. Read versioned map:// resources, invoke route or route_matrix through the Task API with an explicit profile and departure time, and use build_travel_model to publish heterogeneous cuOpt-ready cost and transit-time matrices for Optimization MCP. Treat planning_advisory status as non-certified guidance. Source, acquisition, release, and mobility-profile administration uses the same workspace and remains gated by map:admin."
+            "Geography, your own feature layers, and route planning for people, road and off-road vehicles, rail, maritime, and aviation. For routes, call `route` or `route_matrix` as MCP Tasks with an explicit mobility profile and departure time. To feed Optimization MCP, call `build_travel_model`. A route with `planning_advisory` status is guidance, not a certified plan. For your own data, create GeoJSON/JSON-FG feature layers in your Work Context, edit them with changesets, query them with CQL2 JSON, and publish fixed versions. Import, export, GeoPackage inspection, and vector-tile builds run as MCP Tasks. Your features never affect routing. The ui://map/workspace.html app shows compositions and layers interactively. Managing sources, acquisitions, releases, and mobility profiles requires the map:admin scope."
                 .to_owned(),
         );
         info
@@ -972,7 +972,7 @@ impl ServerHandler for MapMcp {
             && !identity_has_scope(&identity, "map:admin")
         {
             return Err(McpError::invalid_request(
-                "scope `map:dataset:read` or `map:feature:read` is required",
+                "You don't have permission to make this request. It needs scope `map:dataset:read` or `map:feature:read`.",
                 None,
             ));
         }
@@ -1481,7 +1481,7 @@ impl ServerHandler for MapMcp {
                 uris::SPATIAL_DERIVATIONS_URI => {
                     if !identity_has_scope(&identity, "map:spatial:derive") {
                         return Err(McpError::invalid_request(
-                            "scope `map:spatial:derive` is required",
+                            "You don't have permission to make this request. Missing scope `map:spatial:derive`.",
                             None,
                         ));
                     }
@@ -1614,7 +1614,7 @@ impl ServerHandler for MapMcp {
             if let Some(value) = uris::parse_single(uri, "map://spatial-derivation/") {
                 if !identity_has_scope(&identity, "map:spatial:derive") {
                     return Err(McpError::invalid_request(
-                        "scope `map:spatial:derive` is required",
+                        "You don't have permission to make this request. Missing scope `map:spatial:derive`.",
                         None,
                     ));
                 }
@@ -2077,7 +2077,9 @@ fn internal_identity(
         .get::<axum::http::request::Parts>()
         .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, McpError> {
@@ -2087,7 +2089,9 @@ fn internal_caller(context: &RequestContext<RoleServer>) -> Result<PlaneCaller, 
         .get::<axum::http::request::Parts>()
         .and_then(|parts| parts.extensions.get::<ForwardedBearer>())
         .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let memberships = identity.actor.group_memberships();
     Ok(PlaneCaller {
         identity,
@@ -2123,7 +2127,7 @@ fn require_scope(
     let identity = internal_identity(context)?;
     if !identity_has_scope(&identity, required) {
         return Err(McpError::invalid_request(
-            format!("scope `{required}` is required"),
+            format!("You don't have permission to make this request. Missing scope `{required}`."),
             None,
         ));
     }
@@ -2140,7 +2144,10 @@ fn require_any_scope(
         .any(|required| identity_has_scope(&identity, required))
     {
         return Err(McpError::invalid_request(
-            format!("one of scopes [{}] is required", required.join(", ")),
+            format!(
+                "You don't have permission to make this request. It needs one of these scopes: {}.",
+                required.join(", ")
+            ),
             None,
         ));
     }

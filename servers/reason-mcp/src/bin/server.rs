@@ -108,7 +108,7 @@ impl ReasonMcp {
 
     #[tool(
         title = "Reason over recorded video",
-        description = "Resolve an authorized Rerun VideoStream range, run a configured world-model reasoning pipeline to describe the segment, detect events, or answer a question, and publish typed results plus an immutable Rerun annotation layer.",
+        description = "Describe a video range from a recording you can read, detect events in it, or answer a question about it, using a configured world-model reasoning pipeline. Publishes typed results and a Rerun annotation layer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<AnalyzeRecordingOutput>(),
         annotations(
             read_only_hint = false,
@@ -167,7 +167,7 @@ impl ServerHandler for ReasonMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Governed reasoning over Rerun recordings. Discover immutable model and pipeline identities through reason://models and reason://pipelines. Pass recording:// references, bounded timeline ranges, and one typed reasoning task to analyze_recording; pass a completed perception results artifact as grounding when events should cite track identities. Analyses are durable MCP tasks and publish reason://analysis resources plus governed artifacts. Results are model-reported reasoning, not calibrated detector output."
+            "Reasoning over Rerun recordings. Find models and pipelines at reason://models and reason://pipelines. Call `analyze_recording` as an MCP Task with recording:// references, a timeline range, and one reasoning task. To have events cite track IDs, also pass a completed Stream results artifact. Each analysis publishes a reason://analysis resource and artifacts. Results are the model's own reasoning, not calibrated detector output."
                 .to_owned(),
         );
         info
@@ -405,7 +405,7 @@ impl ServerHandler for ReasonMcp {
                     &veoveo_mcp_apps_extension::WorkbenchApp {
                         app_id: "reason-analyses",
                         title: "Analyses",
-                        subtitle: "Reason over governed recording ranges and inspect model-grounded results",
+                        subtitle: "Ask questions about recording ranges and review the model's answers",
                         empty_message: "No reasoning analyses are visible to this identity.",
                         resources: &[
                             veoveo_mcp_apps_extension::WorkbenchResource {
@@ -445,7 +445,7 @@ impl ServerHandler for ReasonMcp {
                     .catalog
                     .pipeline(id)
                     .map(pipeline_view)
-                    .ok_or_else(|| McpError::resource_not_found("pipeline not found", None))?;
+                    .ok_or_else(|| McpError::resource_not_found(format!("Pipeline `{id}` was not found."), None))?;
                 return json_resource(uri, &pipeline);
             }
             if let Some(id) = uris::parse_model_uri(uri) {
@@ -454,7 +454,7 @@ impl ServerHandler for ReasonMcp {
                     .catalog
                     .model(id)
                     .map(model_view)
-                    .ok_or_else(|| McpError::resource_not_found("model not found", None))?;
+                    .ok_or_else(|| McpError::resource_not_found(format!("Model `{id}` was not found."), None))?;
                 return json_resource(uri, &model);
             }
             let identity = internal_identity(&context)?;
@@ -639,9 +639,14 @@ async fn analysis_snapshot(state: &AppState, task_id: &str) -> Result<TaskSnapsh
         .get(task_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("analysis not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Analysis `{task_id}` was not found."), None)
+        })?;
     if snapshot.task_type != "analyze_recording" {
-        return Err(McpError::resource_not_found("analysis not found", None));
+        return Err(McpError::resource_not_found(
+            format!("Analysis `{task_id}` was not found."),
+            None,
+        ));
     }
     Ok(snapshot)
 }
@@ -723,11 +728,13 @@ async fn inline_artifact(
         .head(caller, artifact_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("artifact not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
+        })?;
     if metadata.byte_len > state.max_inline_resource_bytes {
         return Err(McpError::invalid_request(
             format!(
-                "artifact is {} bytes and exceeds the {}-byte inline MCP resource limit; use its governed artifact download path",
+                "Artifact `{artifact_id}` is {} bytes, over the {}-byte limit for inline MCP resources. Download it through the artifact download route instead.",
                 metadata.byte_len, state.max_inline_resource_bytes
             ),
             None,
@@ -738,7 +745,9 @@ async fn inline_artifact(
         .get(caller, artifact_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("artifact not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
+        })?;
     if artifact.bytes.len() as u64 != metadata.byte_len
         || artifact.bytes.len() as u64 > state.max_inline_resource_bytes
     {

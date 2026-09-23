@@ -85,7 +85,7 @@ impl OptimizationMcp {
 
     #[rmcp::tool(
         title = "Optimize vehicle routes",
-        description = "Solve one service-routing or pickup-delivery problem with heterogeneous vehicles, cost and transit-time matrices, windows, breaks, capacities, order-vehicle restrictions, optional orders, fixed costs, and weighted cuOpt routing objectives. Inline, immutable Optimization problem, artifact, and Map travel-model sources are accepted. This operation requires durable task invocation.",
+        description = "Solve a vehicle-routing or pickup-and-delivery problem with cuOpt: mixed vehicle types, cost and transit-time matrices, time windows, breaks, capacities, order-vehicle restrictions, optional orders, fixed costs, and weighted objectives. The problem can be inline, a saved Optimization problem, an artifact, or a Map travel model. The solution is checked independently of the solver. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -99,7 +99,7 @@ impl OptimizationMcp {
 
     #[rmcp::tool(
         title = "Optimize route scenarios",
-        description = "Solve two to sixty-four independent routing cases as one cuOpt GPU batch and return case-addressed, independently verified alternatives. This operation requires durable task invocation.",
+        description = "Solve 2 to 64 independent routing cases as one cuOpt GPU batch and return a checked solution for each case. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -113,7 +113,7 @@ impl OptimizationMcp {
 
     #[rmcp::tool(
         title = "Solve a convex model",
-        description = "Solve a typed continuous LP, QP, QCQP, or SOCP formulation through cuOpt's GPU mathematical solver, then independently check variables, bounds, constraints, and objective. This operation requires durable task invocation.",
+        description = "Solve a continuous LP, QP, QCQP, or SOCP problem with cuOpt on the GPU, then check variables, bounds, constraints, and objective independently of the solver. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -127,7 +127,7 @@ impl OptimizationMcp {
 
     #[rmcp::tool(
         title = "Solve a mixed-integer model",
-        description = "Solve a typed linear MILP with continuous, integer, and semi-continuous variables, optional MIP start, bounded quality target, and retained incumbent history. The result is independently checked for bounds, integrality, constraints, and objective. This operation requires durable task invocation.",
+        description = "Solve a linear MILP with continuous, integer, and semi-continuous variables, an optional MIP start, an optional quality target, and a history of incumbent solutions. The result is checked for bounds, integrality, constraints, and objective independently of the solver. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -141,7 +141,7 @@ impl OptimizationMcp {
 
     #[rmcp::tool(
         title = "Verify an optimization solution",
-        description = "Re-run the server's independent route, bound, integrality, constraint, and objective checks against an immutable Optimization solution with caller-selected finite tolerances. This operation requires durable task invocation.",
+        description = "Re-check a saved Optimization solution for route feasibility, bounds, integrality, constraints, and objective, using tolerances you choose. Does not rerun cuOpt. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<VerifySolutionOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -1171,7 +1171,7 @@ fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
 
 fn task_required<T>(name: &str) -> Result<T, McpError> {
     Err(McpError::invalid_request(
-        format!("{name} requires task-based invocation"),
+        format!("`{name}` must be called as an MCP Task. Resend the call with task parameters."),
         None,
     ))
 }
