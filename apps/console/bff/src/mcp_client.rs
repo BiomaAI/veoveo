@@ -234,8 +234,8 @@ impl AuthScopedMcpClient {
         if !self.resources_current() {
             return Err(rmcp::ServiceError::TransportClosed);
         }
-        let revision = self.catalog_revision.load(Ordering::Acquire);
         let mut cached = self.app_catalog.lock().await;
+        let revision = self.catalog_revision.load(Ordering::Acquire);
         if let Some(cached) = cached.as_ref()
             && cached.revision == revision
             && cached.expires > tokio::time::Instant::now()
@@ -373,6 +373,12 @@ impl AuthScopedMcpClientPool {
                 .await
                 .context("starting auth-scoped Console MCP client")?,
         );
+        // The BFF caches complete, notification-fenced catalogs. A second SDK
+        // cache of individual pages can mix discovery revisions after expiry;
+        // resource reads must also reach current gateway authorization.
+        service
+            .set_response_cache_config(rmcp::service::ClientCacheConfig::disabled())
+            .await;
         let client = Arc::new(AuthScopedMcpClient {
             service,
             app_catalog: Mutex::new(None),
@@ -728,7 +734,6 @@ mod tests {
         // Expiry must stop our successful snapshot from hiding a fresh list.
         handler.version.store(2, Ordering::SeqCst);
         client.app_catalog.lock().await.as_mut().unwrap().expires = tokio::time::Instant::now();
-        client.service.clear_response_cache().await;
         assert_eq!(
             client.app_catalog().await.unwrap().resources()[0].uri,
             "ui://test/2"
