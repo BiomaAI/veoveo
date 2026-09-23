@@ -1,0 +1,13 @@
+{
+  "dataset": "google/fleurs",
+  "revision": "70bb2e84b976b7e960aa89f1c648e09c59f894dd",
+  "config": "es_419",
+  "split": "test",
+  "file": "1001146817223348054.wav",
+  "reference": "Se recomienda enfáticamente a los viajeros que se informen sobre cualquier riesgo de clima extremo en el área que visitan, dado que ello puede afectar sus planes de viaje.",
+  "sha256": "861ceedc4d50fbe52fc89b6d0c0fa740b9cd6fa668388e754064847386af0faf",
+  "bytes": 821818,
+  "license": [
+    "cc-by-4.0"
+  ]
+}

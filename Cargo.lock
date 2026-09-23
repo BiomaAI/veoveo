@@ -17688,6 +17688,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-speech-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "veoveo-stream-mcp"
 version = "0.1.0"
 dependencies = [
