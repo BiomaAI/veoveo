@@ -465,6 +465,9 @@ those two surfaces without copying observations into the contract resource.
 
 `SubscriptionHub` carries either an exact changed URI or a reconciliation signal.
 A listener projects reconciliation only onto its accepted resource identities.
+Content-only reconciliation does not emit a resource-list change. Servers emit list
+changes when discovery membership or descriptor metadata changes, independently of
+updates to an existing resource's contents.
 Broadcast lag requests reconciliation instead of silently discarding the gap.
 Resource-list lag likewise emits an invalidation. These notifications contain no
 resource content and never grant read authority. Time and Recording share projected

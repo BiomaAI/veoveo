@@ -25,9 +25,7 @@ use crate::contract::{
 };
 use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
-mod catalog;
 mod projection;
-pub use catalog::RecordingResourceIdentity;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
 
 use veoveo_recording_reader::{

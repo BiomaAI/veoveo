@@ -36,10 +36,10 @@ require a fresh Artifact-read caller. Writing layers may use the confined Hub sp
 the live receiver only. A missing credential never falls back to an old local archive
 path.
 
-`service/catalog.rs` lists resource identities from the tenant's recording inventory
-and applies the same classification and label visibility rules as recording reads.
-MCP discovery does not load a dataset or its layer inventory for each recording.
-Full recording views are assembled when the client requests the catalog content.
+MCP resource discovery lists stable roots and documents. Templates describe individual
+recordings and layers; the governed catalog content discovers their exact identities.
+Recording writes do not alter these discovery descriptors. Full recording views are
+assembled when the client requests the catalog content.
 
 A producer Blueprint remains confined staging while its recording is live. The
 idempotent seal path validates its application, Blueprint identity, message count,
@@ -173,6 +173,7 @@ captured image before the result qualifies.
 ## Replica Resource Observation
 
 Each replica opens one shared group of projected Store LIVE queries for datasets, recordings, layers and Blueprints.
-Committed changes invalidate only each listener's accepted resource identities and
-requested catalog. Writes coalesce over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
+Committed changes invalidate only each listener's accepted resource contents, including
+the recording catalog resource. They do not emit resource-list changes. Writes coalesce
+over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
 current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.

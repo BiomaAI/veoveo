@@ -126,7 +126,10 @@ impl RecordingMcp {
             .subscribers
             .notify_resource_updated(uris::layers_uri(&request.recording_id))
             .await;
-        self.state.subscribers.notify_resource_list_changed().await;
+        self.state
+            .subscribers
+            .notify_resource_updated(uris::CATALOG_URI)
+            .await;
         structured_result("recording sealed".to_owned(), &output)
     }
 
@@ -236,7 +239,7 @@ impl ServerHandler for RecordingMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = identity(&context)?;
+        identity(&context)?;
         let mut resources = vec![
             veoveo_mcp_apps_extension::app_resource(uris::EXPLORER_APP_URI, "explorer")
                 .with_title("Explorer")
@@ -264,33 +267,6 @@ impl ServerHandler for RecordingMcp {
                     .with_title(doc.title)
                     .with_description("Crate document embedded at build time.")
                     .with_mime_type("text/markdown"),
-            );
-        }
-        for recording in self
-            .state
-            .recordings
-            .list_resource_identities(&identity)
-            .await
-            .map_err(internal)?
-        {
-            let recording_id = recording.recording_id.to_string();
-            resources.push(
-                Resource::new(
-                    uris::recording_uri(&recording_id),
-                    format!("recording {}", recording.recording_key),
-                )
-                .with_title(format!("Recording {}", recording.recording_key))
-                .with_description("Governed recording metadata and seal state.")
-                .with_mime_type("application/json"),
-            );
-            resources.push(
-                Resource::new(
-                    uris::layers_uri(&recording_id),
-                    format!("layers for {}", recording.recording_key),
-                )
-                .with_title(format!("Layers for {}", recording.recording_key))
-                .with_description("Immutable layer publication and Artifact state.")
-                .with_mime_type("application/json"),
             );
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
@@ -1097,7 +1073,10 @@ async fn main() -> anyhow::Result<()> {
                 RecordingBlueprint,
             ]);
         while changes.next().await.is_some() {
-            resource_state.subscribers.notify_resources_changed().await;
+            resource_state
+                .subscribers
+                .notify_resource_contents_changed()
+                .await;
         }
     });
     let cancellation = CancellationToken::new();
