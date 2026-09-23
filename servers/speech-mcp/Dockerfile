@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e
 FROM ghcr.io/astral-sh/uv:0.12.18-python3.13-trixie-slim@sha256:8891323e7ddaddc86d08c91f8af845ac5774a07d6f98e6765883030e1ad16fbc
 
+ARG SOURCE_DATE_EPOCH
 ENV UV_PROJECT_ENVIRONMENT=/opt/speech UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 # Runtime dependencies and weights are independent of Rust and application edits.
 RUN --mount=type=bind,from=veoveo-image-assets,source=servers/speech-mcp/runner/pyproject.toml,target=/tmp/speech-package/pyproject.toml,readonly \
@@ -16,7 +17,6 @@ RUN --mount=type=bind,from=veoveo-image-assets,source=servers/speech-mcp/runner/
 COPY --from=veoveo-image-assets /servers/speech-mcp/runner/src /opt/speech-source
 COPY --from=veoveo-image-assets /servers/speech-mcp/runner/ATTRIBUTION.md /usr/share/doc/speech/ATTRIBUTION.md
 COPY --from=veoveo-rust-artifacts /bin/speech-mcp /usr/local/bin/speech-mcp
-ARG SOURCE_DATE_EPOCH
 RUN useradd --system --uid 10001 --no-create-home --home-dir /tmp veoveo \
     && chage --lastday "$(date -u --date=@${SOURCE_DATE_EPOCH} +%F)" veoveo \
     && chmod -R a+rX /opt/speech-models
