@@ -11,7 +11,7 @@ spec:
   storageNamespace: veoveo
   chartRef:
     kind: OCIRepository
-    name: veoveo-chart-6f5c010065ece8d36a7b33928e0959467d00fbffb60f30442647ff80b1ecc486
+    name: veoveo-chart-c54ace1cecbba91c66e5334044c00085ba17ad1692d501d2201632c6c1edd315
   valuesFrom:
     - kind: ConfigMap
       name: bioma-veoveo-values

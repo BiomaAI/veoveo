@@ -10,6 +10,8 @@ objectStore:
   rustfs:
     persistence:
       size: 10Gi
+gateway:
+  replicas: 1
 artifactService:
   replicas: 1
 computers:
