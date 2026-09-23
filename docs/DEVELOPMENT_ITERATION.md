@@ -1199,3 +1199,40 @@ start at observation; Flux may already have begun applying the push. Test receip
 GPU results and browser artifacts retain their recorded scope. Physical microphone
 and larger performance runs remain listed in `SPEECH_PLAN.md` without blocking this
 installed delivery.
+
+## Console Discovery And Markdown Delivery — September 22, 2026
+
+Installed checks exposed a discovery failure that package tests did not reproduce.
+An incomplete catalog was presented as unavailable, and App admission could turn its
+missing entries into permission denials. Repeated refresh notifications amplified the
+churn. The first deployed correction still failed the installed stability check.
+Per-item audit transactions and Recording's full-view expansion during resource listing
+then required separate corrections. Future catalog changes must exercise repeated
+refreshes against populated services before acceptance.
+
+| Workload | Observed cost | Evidence |
+|---|---:|---|
+| Workspace Markdown frontend stage | 15.520 s; Rust reused | `output/development/workspace-uav/` |
+| Initial gateway and Console correction | 163.141 s; compilation window 147.597 s | same delivery directory |
+| Gateway catalog audit batching | 96.401 s; compilation window 87.046 s | `output/development/workspace-uav/catalog-audit-stage.json` |
+| Native Store audit regression | 2m 05s compilation; 13.28 s tests | committed test receipt |
+| Native Recording discovery tests | 4m 25s compilation; under 1 s tests | receipt `69463dd5-91e2-4390-b591-7c7b4dbd1e5d` |
+| Recording discovery image | 594.801 s; compilation window 580.104 s | `output/development/workspace-uav/recording-discovery-stage.json`, source `adfa841a` |
+
+These workloads have different dependency selections; their timings are not a cache
+speedup comparison. The Recording test compiled another Rerun and Arrow feature variant
+after other Rust checks were already warm. Its release image also compiled that graph
+in the container build environment. Retaining compatible feature selections is a
+follow-up; deleting compiler caches would increase this cost.
+
+The Cargo alias for `xtask` waited on the host target lock while Recording tests
+compiled, delaying an otherwise independent installed-browser check. The browser check
+itself took 17.8 seconds. Independent recorder execution should avoid that lock while
+preserving the repository's evidence contract.
+
+Immutable test receipts reached about 274 MiB and dominated source diff line counts.
+Command-specific input declarations reduced the gateway check from 2,712 inputs to
+603, but unclassified installed-browser commands still record the repository boundary.
+Deduplicating input manifests and declaring those commands are separate evidence-tooling
+work. The current delivery preserves immutable failed observations and subsequent
+passing observations rather than rewriting history.
