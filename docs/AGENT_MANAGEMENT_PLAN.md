@@ -36,7 +36,7 @@ control grants and memory stay with the instances. The current grant selects the
 vehicle; the shared definition supplies instructions, capabilities and budgets.
 The installation template supplies only the common simulation session.
 
-1. Remove the vehicle parameter and unpublished per-vehicle subscription URIs from
+1. Remove the vehicle parameter and per-vehicle acknowledgement subscriptions from
    the template. Keep control-grant and mission-plan notifications and Task wakes.
 2. Rehearse a typed installation transaction against the pinned database. Check
    atomic failure, live-writer rejection, replay and retained identity constraints.

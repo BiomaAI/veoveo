@@ -52,9 +52,13 @@ one active control grant for its session and uses the returned vehicle and mobil
 profile. Vehicle assignment never appears in definition parameters or instructions.
 
 The shared revision subscribes to `uav-sim://control-grants` and
-`uav-sim://mission-plans`. These resources publish domain changes. Task completion
-also wakes its owning instance. Vehicle resources have no update publisher and are
-read on demand; telemetry does not cause periodic model calls.
+`uav-sim://mission-plans`. Task completion also wakes its owning instance. The
+pilot receives command acknowledgements directly in tool results. The server also
+publishes those acknowledgements on vehicle resource URIs through `apply_command`;
+the shared definition omits those subscriptions to avoid duplicate result wakes.
+A vehicle change made by another controller becomes visible on the pilot’s next
+domain read. Continuous vehicle telemetry does not drive model episodes. Grant
+changes and mission-plan events keep their existing subscriptions.
 
 The installation-only consolidation procedure lives in
 [`examples/bioma/acceptance`](../../../examples/bioma/acceptance/DESIGN.md).
