@@ -133,7 +133,7 @@ gateway:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: d6c238481a6fdcf5e07ecc2f8ae50613091173e68d6f6377a7003e92d2269ab1
+  controlPlaneRevision: 5e4db1a529937d787e65b0bb71d35a418cad9a12038f69f2384040af0b493726
 consoleBff:
   workspace:
     oauthScopes:

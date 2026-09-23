@@ -24,6 +24,11 @@ the owning domain.
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
 
+Subscription baselines read the newest available outbox sequence through the
+sequence index in reverse order. The available-time index would scan and sort
+historical events before applying the limit. A native query-plan regression checks
+the reverse scan and exclusion of future events against the pinned database.
+
 ## Provider Observation
 
 A `provider_wait` Task requires `claim_observation`. The ordinary execution claim
