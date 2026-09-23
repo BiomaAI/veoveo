@@ -138,7 +138,7 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     await dialog.getByRole("button", { name: "Retry deployment", exact: true }).click();
     await dialog.waitFor({ state: "hidden" });
     const card = page.getByRole("article", { name: "Field pilot", exact: true });
-    await card.getByText("running requested · queued", { exact: true }).waitFor();
+    await card.getByText("Target: Running · Queued", { exact: true }).waitFor();
     // Four independently controlled instances share one definition. Archived
     // definitions and instances stay out of the default views, but remain inspectable.
     assert.equal(await page.getByRole("article", { name: /^Field pilot/ }).count(), 4);
@@ -158,14 +158,14 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     await instructions.fill(savedInstructions);
     await page.getByRole("button", { name: "Instances", exact: true }).click();
     instance.observed = "ready"; instance.activeRevision = instance.requestedRevision; instance.activeGeneration = 1; operation.phase = "ready"; instance.updatedAt = new Date().toISOString(); notify();
-    await card.getByText("running requested · ready", { exact: true }).waitFor();
+    await card.getByText("Target: Running · Ready", { exact: true }).waitFor();
     assert.equal(streams.size, 1, "Definition and instance views share one event stream");
     await card.getByRole("button", { name: "Pause", exact: true }).click();
-    await card.getByText("paused requested · draining", { exact: true }).waitFor();
+    await card.getByText("Target: Paused · Finishing current run", { exact: true }).waitFor();
     instance.observed = "paused"; operation.phase = "paused"; instance.updatedAt = new Date().toISOString(); notify();
-    await card.getByText("paused requested · paused", { exact: true }).waitFor();
+    await card.getByText("Target: Paused · Paused", { exact: true }).waitFor();
     await card.getByRole("button", { name: "Resume", exact: true }).click();
-    await card.getByText("running requested · draining", { exact: true }).waitFor();
+    await card.getByText("Target: Running · Finishing current run", { exact: true }).waitFor();
     history.unshift({ ...history[0], digest: digest("e"), content: { ...content, instructions: "Updated reviewed instructions." } });
     await card.getByText("Review a revision update", { exact: true }).click();
     await card.getByText("Changed: instructions.", { exact: true }).waitFor();
@@ -190,7 +190,7 @@ test("managed authoring reviews authority, recovers lost creation and observes l
     await card.getByRole("button", { name: "Confirm archive", exact: true }).click();
     await card.waitFor({ state: "hidden" });
     await page.getByRole("checkbox", { name: "Show archived instances", exact: true }).check();
-    await card.getByText("archived requested · draining", { exact: true }).waitFor();
+    await card.getByText("Target: Archived · Finishing current run", { exact: true }).waitFor();
     assert.equal(await page.getByRole("article", { name: /^Field pilot/ }).count(), 5);
     assert.deepEqual(controls.map(v => v.change.kind), ["state", "state", "revision", "stop", "state"]);
     assert.equal(creates.length, 2); assert.equal(instance.storageGib, 2);

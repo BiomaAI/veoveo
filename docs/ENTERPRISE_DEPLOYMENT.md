@@ -69,7 +69,7 @@ Veoveo fork. Production Helm values address images by digest; unchanged componen
 can retain images built at earlier revisions. The [fork workflow](FORK_DEVELOPMENT.md)
 keeps code and upstream integration in the repository.
 
-1. Qualify the selected fork revision and affected components.
+1. Test the selected fork revision and the components it affects.
 2. Publish the required images and application charts.
 3. Pin their digests in installation values and GitOps release objects.
 4. Update the complete gateway control plane and its installation-owned policies.

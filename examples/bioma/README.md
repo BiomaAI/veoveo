@@ -81,13 +81,13 @@ examples/bioma/
     registry/                   cluster-local loopback OCI registry address
   gitops/
     bootstrap.yaml              Git source and root Kustomization, applied once
-    sources/                    exact platform and extension OCI charts
-    releases/                   platform and extension Helm releases
+    sources/                    exact platform and UAV OCI charts
+    releases/                   platform and UAV Helm releases
     cloudflared.yaml            installation edge connector
   kustomization.yaml            root desired-state composition
   values.yaml                   public identity and platform values
   k3d-values.yaml               local capacity and storage values
-  uav-sim-values.yaml           UAV extension values
+  uav-sim-values.yaml           UAV workload values
   images/veoveo.lock.yaml        platform image digests
   images/uav-sim.lock.yaml       UAV and pilot image digests
   gateway.json                  MCP catalog, OAuth, policy, and routes
@@ -103,10 +103,10 @@ cluster has no enterprise platform team. A fielded installation uses its existin
 GitOps controller and secure OCI registry, then begins at the root Kustomization.
 Veoveo application desired state never owns the controller that reconciles it.
 
-The platform and UAV extension charts are separate OCI packages. Removing or
-upgrading the UAV HelmRelease does not replace the core platform release. A customer
-MCP server follows the same independent-release pattern after its image and chart are
-published and its server contract is registered in the gateway control plane.
+The platform and UAV charts are separate OCI packages. Removing or upgrading the
+UAV HelmRelease does not replace the core platform release. A customer MCP server
+built in the installation's fork deploys the same way: publish its image and chart,
+then register it in the gateway control plane.
 
 The UAV world bootstrap pairs `uav-sim-world.json` with its exact SHA-256 in
 `uav-sim-values.yaml` at `world.bootstrap.contentSha256`. Update both in the same

@@ -133,8 +133,8 @@ ships its interface.
 ## Product Tour
 
 An installation starts with the standard server catalog and can add its own
-extension servers. Extensions go through the same gateway as the built-in
-servers.
+servers in its fork of this repository. Those servers go through the same gateway
+as the built-in ones.
 
 | Capability | What it provides |
 |---|---|
@@ -313,11 +313,12 @@ without changing the servers behind them.
 The agent runtime adds episodes that survive restarts, detach and resume,
 wakes, budgets, analytical memory, and Rerun recording.
 
-Your own agentic apps and domain extensions join the gateway without building
-from Veoveo's source.
-Publish an image and Helm chart, register the server in the gateway control
-plane, and apply the installation's trust and policy configuration. An existing
-system of record joins the same way, behind an MCP server.
+Your own agentic apps and domain servers live in your fork, next to the built-in
+servers, and build with the same image graph. Register each server in the gateway
+control plane and apply the installation's trust and policy configuration.
+[Fork development](docs/FORK_DEVELOPMENT.md) covers where code goes and how to take
+upstream changes. An existing system of record joins the same way, behind an MCP
+server.
 
 <a href="docs/images/agent-loop.png">
   <picture>
@@ -569,7 +570,8 @@ authentication, policy scopes, budgets, and audit.
 
 In a typical engagement, a forward-deployed engineer sets up an installation
 in the customer's environment. Working with coding agents, the engineer encodes
-the customer's domain into policies, profiles, and extensions. When the
+the customer's domain into policies, profiles, and servers in the installation's
+fork. When the
 engagement ends, the customer keeps the factory itself and runs all of it,
 including the cluster, identity, models, policies, and release process.
 

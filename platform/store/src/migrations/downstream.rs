@@ -38,17 +38,32 @@ impl DownstreamSchemaStatus {
 pub enum DownstreamMigrationError {
     #[error("invalid downstream catalog: {0}")]
     Catalog(#[from] MigrationError),
-    #[error("downstream migration {version} requires missing upstream version {required}")]
+    #[error(
+        "downstream migration {version} needs upstream migration {required}, which this \
+         revision does not include; merge the upstream change that adds it"
+    )]
     MissingUpstream { version: u32, required: u32 },
-    #[error("downstream migration {version} moves its upstream dependency backward")]
+    #[error(
+        "downstream migration {version} depends on an earlier upstream version than the \
+         migration before it; each step must depend on the same or a later upstream version"
+    )]
     DependencyOrder { version: u32 },
-    #[error("downstream migration {version} has an invalid history identity or duplicate version")]
+    #[error(
+        "the database history for downstream migration {version} is malformed or repeats a \
+         version; restore the history from backup before running migrations"
+    )]
     InvalidHistory { version: i64 },
-    #[error("database has downstream migration {version} absent from this fork catalog")]
+    #[error(
+        "the database has downstream migration {version}, which this fork revision does not \
+         include; deploy the fork revision that added it"
+    )]
     DatabaseAhead { version: i64 },
-    #[error("downstream migration {version} differs from its deployed declaration")]
+    #[error(
+        "downstream migration {version} changed after it was deployed; restore the original \
+         migration and add a new one for the correction"
+    )]
     Drift { version: u32 },
-    #[error("downstream history has a gap before version {version}")]
+    #[error("downstream migration history is missing versions before {version}")]
     HistoryGap { version: u32 },
     #[error(
         "downstream migration {version} records an upstream dependency that has not been applied"
