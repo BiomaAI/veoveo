@@ -916,6 +916,9 @@ instead of a private video path.
 
 ### `servers/recording-mcp`
 
+`src/service/catalog.rs` projects authorized resource identities without loading each
+recording’s dataset and layer inventory during MCP discovery.
+
 `contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
 descriptor types. `service.rs` resolves authorized MCP and playback plans and publishes
 properties layers. `service/projection.rs` owns projection receipts, concurrency,

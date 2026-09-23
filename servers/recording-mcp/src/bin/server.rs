@@ -269,13 +269,14 @@ impl ServerHandler for RecordingMcp {
         for recording in self
             .state
             .recordings
-            .list_visible(&identity)
+            .list_resource_identities(&identity)
             .await
             .map_err(internal)?
         {
+            let recording_id = recording.recording_id.to_string();
             resources.push(
                 Resource::new(
-                    uris::recording_uri(&recording.recording_id),
+                    uris::recording_uri(&recording_id),
                     format!("recording {}", recording.recording_key),
                 )
                 .with_title(format!("Recording {}", recording.recording_key))
@@ -284,7 +285,7 @@ impl ServerHandler for RecordingMcp {
             );
             resources.push(
                 Resource::new(
-                    uris::layers_uri(&recording.recording_id),
+                    uris::layers_uri(&recording_id),
                     format!("layers for {}", recording.recording_key),
                 )
                 .with_title(format!("Layers for {}", recording.recording_key))
