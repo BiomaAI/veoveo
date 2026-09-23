@@ -1274,3 +1274,30 @@ Map's runtime package download added 1m 50s for 50.2 MB from the Ubuntu mirror.
 The immutable image receipt is `output/development/workspace-uav/app-names-cache-stage.json`.
 Retained dependency layers and consistent compiler selections are the next measured
 targets for this path; the delivery did not change dependency pins or build recipes.
+
+## Console App Navigation And Gateway Snapshots — September 23, 2026
+
+The installed Console showed repeated Routes buttons after a transient duplicate
+catalog entry. The sidebar now renders each App resource URI once. A separate
+gateway race let cached entries expire while another server consumed the two-second
+discovery window. The gateway now captures entries valid at request start before
+waiting for other servers. The installed browser check passed with 16 rendered Apps,
+two clean-route click and reload checks, and no sidebar count or unavailable-badge
+changes over 30 seconds. One API sample during that run returned an empty set with
+every source marked `discovery_pending`; the already loaded sidebar stayed at 16.
+Cold discovery latency remains a separate performance measurement.
+
+| Workload | Observed cost | Evidence |
+|---|---:|---|
+| Console image stage | 74.790 s; 54.738 s compiler window | `output/development/workspace-uav/console-nav-stage.json` |
+| Gateway image stage | 74.737 s; 65.734 s compiler window | `output/development/workspace-uav/gateway-catalog-stage.json` |
+| Installed 16-App browser acceptance | 84.9 s | `output/acceptance/console-apps/36e83e7da7fbb760958dee323b0c2b5d0d47055c/` and receipt `79b56f2d` |
+| Test report display | 21.7 s for 1,133 indexed receipts | `cargo xtask test-report show` |
+
+The first gateway image build was interrupted after compilation exposed an unused
+runtime cache probe. A test-only change and a second build resolved it; the extra
+cycle is avoidable with a pre-stage warning check. Browser acceptance initially
+rejected the protocol's expected `discovery_pending` response. The harness now checks
+that missing Apps are accounted for by pending discoveries and that the visible
+navigation never loses buttons or shows unavailable badges. Both failed attempts
+remain in the immutable receipt history.
