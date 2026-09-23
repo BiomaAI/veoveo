@@ -99,6 +99,26 @@ unrequested releases and their image provenance intact. See
 [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md) and
 [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md).
 
+## Managed Kernel Upgrades
+
+Changing a managed-kernel image changes its approved runtime-template revision.
+Coordinate that change as a drained upgrade: the manager retires workloads whose
+previous template approval no longer matches the installation. Helm readiness alone
+does not complete the agent upgrade.
+
+After the installation exposes the new template, save and publish the affected
+agent definition with its current `templateRevision`. Preserve its instructions,
+parameters, tools and audience. Apply the published revision to each existing
+instance with the lifecycle API's `revision` change and its expected generation.
+The image-only admission check requires every other installation authority,
+configuration and storage field to match the previous template. Wait for each
+instance's active revision and generation to match the request and its phase to
+become `ready`.
+
+The controller replaces Kubernetes Deployments during this transition. Instance IDs,
+OAuth identities, signing Secrets and memory claims stay attached to the existing
+instances. Creating replacement instances or deleting retained memory is unnecessary.
+
 ## Downstream Data Migrations
 
 Append fork SQL and entries to `platform/store/downstream/catalog.rs`. That catalog
