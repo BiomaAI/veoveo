@@ -368,7 +368,7 @@
       "additionalProperties": false,
       "properties": {
         "artifact_uri": {
-          "description": "Governed uploaded audio or video, identified by its canonical Artifact URI.",
+          "description": "`artifact://` URI of an uploaded audio or video file you can read.",
           "type": "string"
         }
       },

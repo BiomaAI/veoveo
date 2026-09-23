@@ -346,8 +346,8 @@ pub struct FeatureProvenance {
     pub delegation_id: Option<DelegationId>,
 }
 
-/// Canonical authored map feature. Its core fields remain valid GeoJSON and
-/// its temporal and feature-type members follow JSON-FG vocabulary.
+/// A map feature in a feature layer. Its core fields are valid GeoJSON, and
+/// its time and feature-type members use JSON-FG vocabulary.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct MapFeature {
     #[serde(rename = "type")]

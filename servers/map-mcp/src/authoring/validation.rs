@@ -244,7 +244,9 @@ fn validate_resource_uris(values: &[String]) -> Result<()> {
             uri.scheme(),
             "map" | "artifact" | "recording" | "stream" | "reason" | "time" | "frames" | "view"
         ) {
-            bail!("feature resource identities must use a governed Veoveo URI scheme");
+            bail!(
+                "feature resource URIs must use one of these schemes: map, artifact, recording, stream, reason, time, frames, view"
+            );
         }
     }
     Ok(())

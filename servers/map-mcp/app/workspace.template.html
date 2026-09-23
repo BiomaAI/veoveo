@@ -228,7 +228,7 @@ tbody tr.selected { background:var(--accent-soft); }
     <button class="choice" data-action="create-layer" data-feature-write><strong>New layer</strong><span>Create an authored feature layer.</span></button>
     <button class="choice" data-action="add-feature" data-feature-write><strong>Draw feature</strong><span>Add a point, line, or polygon.</span></button>
     <button class="choice" data-action="import-artifact" data-feature-write><strong>Import artifact</strong><span>GeoJSON, RFC 8142, or GeoPackage.</span></button>
-    <button class="choice" data-action="acquire-source" data-admin><strong>Acquire source</strong><span>Draw coverage for a governed source.</span></button>
+    <button class="choice" data-action="acquire-source" data-admin><strong>Acquire source</strong><span>Draw the area to acquire from a data source.</span></button>
   </div>
   <details data-admin><summary>Advanced administration</summary>
     <div class="actions"><button data-action="manage-data">Manage releases</button><button data-action="register-source">Register source</button><button data-action="register-profile">Register mobility profile</button></div>
@@ -266,7 +266,7 @@ tbody tr.selected { background:var(--accent-soft); }
 
 <template id="import-artifact-template">
   <form id="import-artifact-form">
-    <div class="inspector-section"><div class="eyebrow">Bulk transfer</div><h2>Import artifact</h2><p class="muted">Use an artifact already authorized in this Work Context. Import is atomic and task-backed.</p></div>
+    <div class="inspector-section"><div class="eyebrow">Bulk transfer</div><h2>Import artifact</h2><p class="muted">Choose an artifact you can access in this Work Context. The import runs as a Task and adds all features or none.</p></div>
     <label>Destination layer<select id="import-layer"></select></label>
     <label>Artifact ID<input id="import-artifact-id" required placeholder="UUIDv7 artifact id"></label>
     <label>Format<select id="import-format"><option value="geo_json_feature_collection">GeoJSON FeatureCollection · RFC 7946</option><option value="geo_json_text_sequence">GeoJSON Text Sequence · RFC 8142</option><option value="geo_package">GeoPackage · OGC 1.4</option></select></label>
@@ -288,7 +288,7 @@ tbody tr.selected { background:var(--accent-soft); }
 
 <template id="acquire-source-template">
   <form id="acquire-source-form">
-    <div class="inspector-section"><div class="eyebrow">Governed source</div><h2>Acquire source</h2><p class="muted">Select a source, then draw two corners of its requested WGS84 extent.</p></div>
+    <div class="inspector-section"><div class="eyebrow">Data source</div><h2>Acquire source</h2><p class="muted">Select a source, then draw two corners of its requested WGS84 extent.</p></div>
     <label>Source<select id="acquire-source"></select></label>
     <button id="draw-coverage" type="button">Draw extent on map</button>
     <div id="coverage-status" class="finding">No requested extent drawn.</div>
@@ -304,7 +304,7 @@ tbody tr.selected { background:var(--accent-soft); }
 
 <template id="save-view-template">
   <form id="save-view-form">
-    <div class="inspector-section"><div class="eyebrow">Immutable presentation</div><h2>Save view</h2><p class="muted">The current camera and visible authored publications become a governed composition. Active source releases remain live workspace context.</p></div>
+    <div class="inspector-section"><div class="eyebrow">Saved view</div><h2>Save view</h2><p class="muted">Saves the current camera and the published version of each visible layer. Source layers stay live.</p></div>
     <label>View title<input id="save-view-title" required maxlength="256" placeholder="Operational picture"></label>
     <div id="save-view-summary" class="finding"></div>
     <div class="actions"><button type="submit" class="primary">Save composition</button><button type="button" data-action="close">Cancel</button></div>
@@ -313,14 +313,14 @@ tbody tr.selected { background:var(--accent-soft); }
 
 <template id="raw-admin-template">
   <form id="raw-admin-form">
-    <div class="inspector-section"><div class="eyebrow">Advanced administration</div><h2 id="raw-admin-title">Canonical record</h2><p class="muted">This editor exposes the complete typed contract. It is intended for operators who already have a canonical record.</p></div>
-    <label>Canonical JSON<textarea id="raw-admin-json" rows="16" spellcheck="false" required></textarea></label>
+    <div class="inspector-section"><div class="eyebrow">Advanced administration</div><h2 id="raw-admin-title">Raw record</h2><p class="muted">Edit the full JSON record directly. Use this only if you already have a complete record to paste.</p></div>
+    <label>Record JSON<textarea id="raw-admin-json" rows="16" spellcheck="false" required></textarea></label>
     <div class="actions"><button type="submit" class="primary">Submit</button><button type="button" data-action="picker">Back</button></div>
   </form>
 </template>
 
 <template id="manage-data-template">
-  <div class="inspector-section"><div class="eyebrow">Governed data</div><h2>Acquisitions and releases</h2><p class="muted">Review source progress and promote or quarantine immutable releases.</p></div>
+  <div class="inspector-section"><div class="eyebrow">Data</div><h2>Acquisitions and releases</h2><p class="muted">Review source progress and promote or quarantine immutable releases.</p></div>
   <div class="inspector-section"><div class="eyebrow">Acquisitions</div><div id="manage-acquisitions"></div></div>
   <div class="inspector-section"><div class="eyebrow">Dataset releases</div><div id="manage-releases"></div></div>
   <div class="actions"><button data-action="picker">Back</button></div>

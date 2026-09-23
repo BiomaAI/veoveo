@@ -37,16 +37,16 @@ impl FramesTaskService {
         caller: &AuthenticatedCaller,
         task_id: &str,
     ) -> Result<TaskSnapshot, McpError> {
-        let task_id = task_id
-            .parse::<TaskId>()
-            .map_err(|_| McpError::invalid_params("unknown task id", None))?;
+        let not_found =
+            || McpError::invalid_params(format!("Task `{task_id}` was not found."), None);
+        let task_id = task_id.parse::<TaskId>().map_err(|_| not_found())?;
         let snapshot = self
             .state
             .tasks
             .get(&task_id.to_string())
             .await
             .map_err(|error| McpError::internal_error(error.to_string(), None))?
-            .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
+            .ok_or_else(not_found)?;
         let caller_owner = runtime_owner(&caller.identity);
         if snapshot.owner.allows(
             &caller_owner.principal_key,
@@ -56,7 +56,7 @@ impl FramesTaskService {
         ) {
             Ok(snapshot)
         } else {
-            Err(McpError::invalid_params("unknown task id", None))
+            Err(not_found())
         }
     }
 }
@@ -74,17 +74,23 @@ impl DurableTaskService for FramesTaskService {
         let parts = context
             .extensions
             .get::<axum::http::request::Parts>()
-            .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+            .ok_or_else(|| {
+                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+            })?;
         let identity = parts
             .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+            .ok_or_else(|| {
+                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+            })?;
         let bearer = parts
             .extensions
             .get::<ForwardedBearer>()
             .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+            .ok_or_else(|| {
+                McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+            })?;
         Ok(AuthenticatedCaller {
             plane: caller_from(identity.clone(), bearer),
             identity,

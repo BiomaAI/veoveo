@@ -402,14 +402,14 @@ function selectFeature(key, featureId, zoom = false) {
 function rendererFingerprint() {
   const canvas = document.createElement("canvas");
   const gl = canvas.getContext("webgl2", { antialias: true, failIfMajorPerformanceCaveat: true });
-  if (!gl) throw new Error("A hardware-backed WebGL2 context is required; WebGL2 initialization failed.");
+  if (!gl) throw new Error("The map needs hardware-backed WebGL2. Turn on hardware acceleration in your browser settings and reload.");
   const debug = gl.getExtension("WEBGL_debug_renderer_info");
-  if (!debug) throw new Error("Hardware WebGL2 cannot be proven because renderer diagnostics are unavailable.");
+  if (!debug) throw new Error("The browser didn't report its graphics hardware, so the map can't confirm hardware acceleration. Turn on hardware acceleration in your browser settings and reload.");
   const vendor = String(gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) || "");
   const renderer = String(gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) || "");
   const fingerprint = `${vendor} ${renderer}`.toLowerCase();
   if (!renderer || /swiftshader|llvmpipe|lavapipe|softpipe|software rasterizer|microsoft basic render|mesa offscreen/.test(fingerprint)) {
-    throw new Error(`Software graphics are not accepted: ${renderer || "unknown renderer"}.`);
+    throw new Error(`This browser is using software graphics (${renderer || "unknown renderer"}), which the map doesn't support. Turn on hardware acceleration in your browser settings and reload.`);
   }
   gl.getExtension("WEBGL_lose_context")?.loseContext();
   return { vendor, renderer };
@@ -445,7 +445,7 @@ function waitForMapEvent(eventName, timeoutMs = 10000) {
     };
     const timeout = setTimeout(() => {
       state.map.off(eventName, onEvent);
-      reject(new Error(`MapLibre ${eventName} did not complete within ${timeoutMs / 1000} seconds.`));
+      reject(new Error(`The map didn't finish loading within ${timeoutMs / 1000} seconds (${eventName}). Reload to try again.`));
     }, timeoutMs);
     state.map.on(eventName, onEvent);
   });
@@ -468,7 +468,7 @@ async function loadReplacementStyle(style, theme) {
     await ready;
     return true;
   } catch (error) {
-    setStatus(`The ${theme} basemap is unavailable; governed layers remain interactive.`, "warn");
+    setStatus(`The ${theme} basemap is unavailable. Your layers still work.`, "warn");
     ready = waitForMapEvent("style.load");
     state.map.setStyle(fallbackStyle(theme));
     await ready;
@@ -508,7 +508,8 @@ async function applyBasemapTheme(theme) {
       await refreshViewport();
     }
   })().catch((error) => {
-    setStatus(`Basemap theme switch failed: ${error.message}`, "bad");
+    console.error("Basemap theme switch failed", error);
+    setStatus("Couldn't switch the basemap theme. Try again.", "bad");
   }).finally(() => {
     state.basemapSwitchPromise = null;
     const requestedUrl = basemapStyleUrl(state.desiredBasemapTheme) || null;
@@ -555,14 +556,14 @@ async function initializeMap() {
     const message = String(event?.error?.message || "");
     if (!basemapWarningShown && /style|sprite|glyph|tile|network|fetch|image/i.test(message)) {
       basemapWarningShown = true;
-      setStatus("Basemap geography is unavailable; governed layers remain interactive.", "warn");
+      setStatus("Basemap geography is unavailable. Your layers still work.", "warn");
     }
   });
   try {
     await waitForMapEvent("load");
     el("map").dataset.basemapAvailable = String(Boolean(styleUrl));
   } catch (_error) {
-    setStatus(`The ${theme} basemap is unavailable; governed layers remain interactive.`, "warn");
+    setStatus(`The ${theme} basemap is unavailable. Your layers still work.`, "warn");
     const ready = waitForMapEvent("style.load");
     state.map.setStyle(fallbackStyle(theme));
     await ready;
@@ -842,7 +843,8 @@ async function refreshViewport() {
     el("map").dataset.renderedFeatureCount = String(renderedFeatureCount);
     const expectedFeatureCount = results.reduce((sum, result) => sum + (result.features?.length || 0), 0);
     if (expectedFeatureCount && !renderedFeatureCount) {
-      throw new Error("MapLibre completed the viewport update without painting any returned feature.");
+      console.error("MapLibre completed the viewport update without painting any returned feature", { expectedFeatureCount });
+      throw new Error("The map received this layer's features but couldn't draw them. Reload to try again.");
     }
     renderCatalog();
     renderSelection();
@@ -852,7 +854,7 @@ async function refreshViewport() {
     const failed = results.filter((result) => result.error).length;
     setStatus(`${expectedFeatureCount} feature${expectedFeatureCount === 1 ? "" : "s"} visible across ${visible.length - failed} layer${visible.length - failed === 1 ? "" : "s"}${failed ? ` · ${failed} layer preview${failed === 1 ? "" : "s"} unavailable` : ""}${truncated ? " · preview cap reached" : ""}.`, failed || truncated ? "warn" : "good");
   } catch (error) {
-    if (generation === state.queryGeneration) setStatus(`Layer preview failed: ${error.message}`, "bad");
+    if (generation === state.queryGeneration) setStatus(`Couldn't show this layer: ${error.message}`, "bad");
   }
 }
 
@@ -860,7 +862,7 @@ function waitForMapPaint() {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error("MapLibre did not finish painting the viewport within 5 seconds."));
+      reject(new Error("The map didn't finish drawing within 5 seconds. Reload to try again."));
     }, 5000);
     const idle = () => { cleanup(); resolve(); };
     const cleanup = () => {
@@ -960,7 +962,7 @@ function renderEntryInspector(entry) {
   const body = el("inspector-body");
   body.replaceChildren();
   const heading = node("div", undefined, "inspector-section");
-  heading.append(node("div", entry.kind === "authored" ? "Authored feature layer" : "Active governed release", "eyebrow"), node("h2", entry.title), node("div", entry.subtitle, "muted"));
+  heading.append(node("div", entry.kind === "authored" ? "Authored feature layer" : "Active release", "eyebrow"), node("h2", entry.title), node("div", entry.subtitle, "muted"));
   const actions = node("div", undefined, "actions");
   const zoom = node("button", "Zoom to data");
   zoom.addEventListener("click", () => zoomToEntry(entry));
@@ -1078,7 +1080,7 @@ function showAction(action, preferredId = null) {
   if (action === "import-artifact") return bindImportArtifact(mountTemplate("import-artifact-template", "Import artifact"), preferredId);
   if (action === "acquire-source") return bindAcquireSource(mountTemplate("acquire-source-template", "Acquire source"), preferredId);
   if (action === "save-view") return bindSaveView(mountTemplate("save-view-template", "Save view"));
-  if (action === "manage-data") return bindManageData(mountTemplate("manage-data-template", "Governed data"));
+  if (action === "manage-data") return bindManageData(mountTemplate("manage-data-template", "Data and releases"));
   if (action === "register-source" || action === "register-profile") return bindRawAdmin(mountTemplate("raw-admin-template", "Advanced administration"), action);
 }
 
@@ -1293,7 +1295,7 @@ function bindImportArtifact(root, preferredId) {
 async function inspectGeoPackage() {
   await runAction(async () => {
     const artifactId = el("import-artifact-id").value.trim();
-    if (!artifactId) throw new Error("Enter an authorized artifact ID first.");
+    if (!artifactId) throw new Error("Enter an artifact ID first.");
     el("import-progress").textContent = "Inspecting GeoPackage…";
     const output = await taskTool("inspect_geopackage", { source_artifact_id: artifactId }, (status, message) => {
       el("import-progress").textContent = `GeoPackage inspection ${status}${message ? ` · ${message}` : ""}`;
@@ -1378,14 +1380,14 @@ function bindAcquireSource(root, preferredId) {
     event.preventDefault();
     void runAction(async () => {
       const sourceId = select.value;
-      if (!sourceId) throw new Error("Choose an enabled governed source.");
+      if (!sourceId) throw new Error("Choose an enabled data source.");
       await tool("start_acquisition", {
         source_id: sourceId,
         requested_coverage: requestedCoverage(),
         idempotency_key: uuid(),
       });
       await refreshAll();
-      setStatus("Source acquisition started. Updates will arrive reactively.", "good");
+      setStatus("Source acquisition started. Progress appears here as it updates.", "good");
       closeAction();
     });
   });
@@ -1418,7 +1420,7 @@ function bindSaveView(root) {
     event.preventDefault();
     void runAction(async () => {
       const current = compositionLayersForSave();
-      if (!current.layers.length) throw new Error("At least one visible authored layer must have a publication.");
+      if (!current.layers.length) throw new Error("Publish at least one visible authored layer before saving a view.");
       const center = state.map.getCenter();
       const request = {
         title: el("save-view-title").value.trim(),
@@ -1625,7 +1627,7 @@ function finishDrawing() {
   if (!drawing) return;
   const minimum = drawing.kind === "line" ? 2 : drawing.kind === "polygon" ? 3 : drawing.kind === "bbox" ? 2 : 1;
   if (drawing.coordinates.length < minimum) {
-    setStatus(`${drawing.kind} requires at least ${minimum} map clicks.`, "warn");
+    setStatus(`Click at least ${minimum} points on the map to draw this ${drawing.kind}.`, "warn");
     return;
   }
   const result = drawingGeometry(drawing, true);
@@ -1764,7 +1766,7 @@ async function loadAdminData() {
 }
 
 async function refreshSnapshot() {
-  setStatus("Refreshing authorized map resources…");
+  setStatus("Refreshing map data…");
   const [featureFailures, datasetFailures, adminFailures] = await Promise.all([
     loadFeatureData(),
     loadDatasetData(),
@@ -1873,8 +1875,12 @@ bridge.on("ui/resource-teardown", (_params, id) => {
     if (state.access.dataset_read) subscriptions.push(
       "map://datasets", "map://active-releases", "map://mobility-profiles");
     void bridge.request("subscriptions/listen", { notifications: { resourceSubscriptions: subscriptions } })
-      .catch((error) => { if (!state.closing) setStatus(`Live resource updates unavailable: ${error.message}`, "warn"); });
+      .catch((error) => {
+        if (state.closing) return;
+        console.error("Live resource updates unavailable", error);
+        setStatus("Live updates are unavailable, so the map won't refresh on its own. Reload to see changes.", "warn");
+      });
   } catch (error) {
-    setStatus(`Workspace initialization failed: ${error.message}`, "bad");
+    setStatus(`The map couldn't start. ${error.message}`, "bad");
   }
 })();

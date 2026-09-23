@@ -154,7 +154,10 @@ def build_mcp_server(state: AppState) -> Server:
                 output = engine.column_stats(frame, request.column)
                 return _structured_result(f"column {output.column} statistics", output)
             if name == "profile_dataset":
-                return _error_result("profile_dataset requires task-based invocation")
+                return _error_result(
+                    "`profile_dataset` must be called as an MCP Task. "
+                    "Resend the call with task parameters."
+                )
             return _error_result(f"unknown tool `{name}`")
         except MCPError as error:
             return _error_result(error.message)

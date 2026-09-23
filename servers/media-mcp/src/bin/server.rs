@@ -159,7 +159,7 @@ impl MediaMcp {
     /// Direct synchronous invocation is intentionally unsupported.
     #[tool(
         title = "Run media model",
-        description = "Run any media model as a durable asynchronous task. Read tasks/get for status and the terminal typed result. Discover models through media://models, schemas through media://model/{model_id}, and billing through media://usage/task/{task_id}.",
+        description = "Run any media model. Run as an MCP Task and read tasks/get for status and the typed result. Find models at media://models, input schemas at media://model/{model_id}, and billing at media://usage/task/{task_id}.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
         annotations(
             read_only_hint = false,
@@ -173,7 +173,7 @@ impl MediaMcp {
         Parameters(_args): Parameters<RunArgs>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "run requires task-based invocation",
+            "`run` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
@@ -235,7 +235,7 @@ impl MediaMcp {
 
     #[tool(
         title = "Get media artifact",
-        description = "Return an authorized media artifact as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{artifact_id} resources.",
+        description = "Return a media artifact you can read as MCP image content when possible. Use this when the MCP client cannot read media://artifact/{artifact_id} resources.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<artifact_tools::ArtifactOutput>(),
         annotations(
             read_only_hint = true,
@@ -643,7 +643,7 @@ impl ServerHandler for MediaMcp {
                     &veoveo_mcp_apps_extension::WorkbenchApp {
                         app_id: "media-studio",
                         title: "Studio",
-                        subtitle: "Choose a governed model, submit generation work, and inspect usage",
+                        subtitle: "Choose a model, run generation, and check usage",
                         empty_message: "No media models are available.",
                         resources: &[
                             veoveo_mcp_apps_extension::WorkbenchResource {
@@ -731,7 +731,7 @@ impl ServerHandler for MediaMcp {
                 let owner = prediction_owner(&self.state, id).await?;
                 if !task_owner_allows(&owner, &identity) {
                     return Err(McpError::invalid_request(
-                        "media prediction policy denied request",
+                        "You don't have permission to read this prediction.",
                         None,
                     ));
                 }
@@ -815,7 +815,7 @@ impl ServerHandler for MediaMcp {
             let owner = prediction_owner(&self.state, prediction_id).await?;
             if !task_owner_allows(&owner, &identity) {
                 return Err(McpError::invalid_request(
-                    "media subscription policy denied request",
+                    "You don't have permission to subscribe to this prediction.",
                     None,
                 ));
             }

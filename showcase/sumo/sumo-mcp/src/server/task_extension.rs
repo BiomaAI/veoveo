@@ -35,17 +35,32 @@ impl veoveo_task_runtime::DurableTaskService for SumoTaskExtension {
         let parts = context
             .extensions
             .get::<axum::http::request::Parts>()
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_request(
+                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
+                    None,
+                )
+            })?;
         let identity = parts
             .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_request(
+                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
+                    None,
+                )
+            })?;
         let bearer = parts
             .extensions
             .get::<super::auth::ForwardedBearer>()
             .map(|bearer| bearer.0.clone())
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("forwarded bearer missing", None))?;
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_request(
+                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
+                    None,
+                )
+            })?;
         Ok(AuthenticatedCaller {
             plane: plane_caller(identity.clone(), bearer),
             identity,

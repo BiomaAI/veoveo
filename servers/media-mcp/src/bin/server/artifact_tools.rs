@@ -14,7 +14,7 @@ const MAX_INLINE_ARTIFACT_BYTES: u64 = 3 * 1024 * 1024;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub(super) struct ArtifactArgs {
-    /// Canonical artifact resource URI, e.g. media://artifact/{artifact_id}.
+    /// Media artifact resource URI, for example media://artifact/{artifact_id}.
     pub(super) artifact_uri: String,
 }
 

@@ -137,7 +137,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Query a DuckDB database",
-        description = "Run one read-only SQL statement against a database you own. DuckDB Spatial is preloaded by the server. Read-only is enforced by the connection, and SQL cannot touch files, the network, additional extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query another principal's data, have them export a snapshot to the artifact plane and grant it, then ingest it here with an artifact:// source.",
+        description = "Run one read-only SQL statement against a database you own. DuckDB Spatial is preloaded by the server. Read-only is enforced by the connection, and SQL cannot touch files, the network, additional extensions, or engine settings. Inline output is capped; pass output = {mode: \"artifact\", format: \"parquet\"} for large results, which returns one duckdb://artifact/{artifact_id} link. To query someone else's data, have them export a snapshot as an artifact and grant you access, then ingest it here with an artifact:// source.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbQueryOutput>(),
         annotations(
             read_only_hint = true,
@@ -182,7 +182,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Ingest data into a DuckDB table",
-        description = "Load a typed source into one table: inline CSV, allowlisted HTTPS URIs, or an authorized artifact:// reference. The server resolves sources itself and SQL never reaches the network. Invoke through official Tasks; the completed task carries the result.",
+        description = "Load a source into one table: inline CSV, an allowlisted HTTPS URI, or an artifact:// reference you can read. The server fetches the source itself, so SQL never reaches the network. Run as an MCP Task; the completed task carries the result.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbIngestOutput>(),
         annotations(
             read_only_hint = false,
@@ -203,7 +203,7 @@ impl DuckdbMcp {
 
     #[tool(
         title = "Export DuckDB data to an artifact",
-        description = "Export a table, a read-only SQL result, or a full owned-database snapshot to one immutable duckdb://artifact/{artifact_id} artifact (parquet, csv, or duck_db snapshot). Invoke through official Tasks; the completed task carries the artifact link.",
+        description = "Export a table, a read-only SQL result, or a snapshot of a database you own as one duckdb://artifact/{artifact_id} artifact (parquet, csv, or duck_db snapshot). Run as an MCP Task; the completed task carries the artifact link.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<DuckDbExportOutput>(),
         annotations(
             read_only_hint = true,

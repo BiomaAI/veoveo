@@ -269,7 +269,7 @@ impl SumoMcp {
 
     #[tool(
         title = "Run simulation batch",
-        description = "Advance SUMO through a durable non-replayable task.",
+        description = "Advance the SUMO simulation. Run as an MCP Task; an interrupted run is not retried.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::RunBatchResult>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -284,7 +284,7 @@ impl SumoMcp {
 
     #[tool(
         title = "Generate SUMO network",
-        description = "Generate a SUMO network through a durable resumable task. Missing SUMO binaries fail explicitly.",
+        description = "Generate a SUMO network. Run as an MCP Task; an interrupted run resumes. Fails with an error if the SUMO binaries are missing.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::OfflineOperationResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -299,7 +299,7 @@ impl SumoMcp {
 
     #[tool(
         title = "Compute SUMO routes",
-        description = "Compute routes through a durable resumable task. Missing SUMO binaries fail explicitly.",
+        description = "Compute vehicle routes with SUMO. Run as an MCP Task; an interrupted run resumes. Fails with an error if the SUMO binaries are missing.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::OfflineOperationResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -314,7 +314,7 @@ impl SumoMcp {
 
     #[tool(
         title = "Optimize SUMO signals",
-        description = "Run SUMO signal coordination through a durable resumable task. Missing binaries fail explicitly.",
+        description = "Run SUMO signal coordination. Run as an MCP Task; an interrupted run resumes. Fails with an error if the SUMO binaries are missing.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::OfflineOperationResult>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -350,7 +350,7 @@ impl ServerHandler for SumoMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("sumo", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "SUMO traffic-world controls. Long operations use the final durable task extension; subscribe to sumo://congestion for condition changes."
+            "Read and control a live SUMO traffic simulation. Call `describe_scenario` for signal, edge, and lane IDs. Long operations run as MCP Tasks. Subscribe to sumo://congestion to hear about congestion changes."
                 .into(),
         );
         info

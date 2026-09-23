@@ -57,16 +57,25 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         let parts = context
             .extensions
             .get::<axum::http::request::Parts>()
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_request(
+                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
+                    None,
+                )
+            })?;
         let identity = parts
             .extensions
             .get::<GatewayInternalIdentity>()
             .cloned()
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("gateway identity missing", None))?;
-        parts
-            .extensions
-            .get::<ForwardedBearer>()
-            .ok_or_else(|| rmcp::ErrorData::invalid_request("forwarded bearer missing", None))?;
+            .ok_or_else(|| {
+                rmcp::ErrorData::invalid_request(
+                    veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED,
+                    None,
+                )
+            })?;
+        parts.extensions.get::<ForwardedBearer>().ok_or_else(|| {
+            rmcp::ErrorData::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
         Ok(AuthenticatedCaller { identity })
     }
 
@@ -369,7 +378,12 @@ fn require_scope(
         .any(|scope| scope.as_str() == required)
         .then_some(())
         .ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(format!("required scope `{required}` missing"), None)
+            rmcp::ErrorData::invalid_request(
+                format!(
+                    "You don't have permission to make this request. Missing scope `{required}`."
+                ),
+                None,
+            )
         })
 }
 

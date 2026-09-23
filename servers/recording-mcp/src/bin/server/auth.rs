@@ -43,12 +43,16 @@ pub(super) fn identity(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 pub(super) fn artifact_caller(
@@ -70,9 +74,11 @@ pub(super) fn artifact_caller_from_context(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     artifact_caller(identity, &parts.headers)
-        .map_err(|_| McpError::invalid_request("Artifact read authority missing", None))
+        .map_err(|_| McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None))
 }
 
 fn bearer(headers: &HeaderMap) -> Result<&str, &'static str> {

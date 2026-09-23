@@ -7,12 +7,16 @@ pub(super) fn internal_identity(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 pub(super) fn internal_caller(
@@ -21,17 +25,23 @@ pub(super) fn internal_caller(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let identity = parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let bearer_token = parts
         .extensions
         .get::<super::auth::ForwardedBearer>()
         .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     Ok(plane_caller(identity, bearer_token))
 }
 

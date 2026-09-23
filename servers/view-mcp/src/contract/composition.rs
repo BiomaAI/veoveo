@@ -104,9 +104,7 @@ impl SceneCompositionId {
             .strip_prefix(Self::PREFIX)
             .and_then(|suffix| uuid::Uuid::parse_str(suffix).ok())
             .filter(|uuid| uuid.get_version_num() == 5)
-            .ok_or(SceneCompositionError::InvalidIdentifier(
-                "scene composition id",
-            ))?;
+            .ok_or(SceneCompositionError::InvalidCompositionId)?;
         Ok(Self(format!("{}{}", Self::PREFIX, uuid)))
     }
 
@@ -872,61 +870,83 @@ fn validate_media_type(value: &str) -> Result<(), SceneCompositionError> {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SceneCompositionError {
-    #[error("invalid {0}")]
+    #[error("{0} is invalid; use 1 to 128 ASCII letters, digits, `.`, `_`, `-`, or `:`")]
     InvalidIdentifier(&'static str),
+    #[error("scene composition id is invalid; use an id returned by `create_scene_composition`")]
+    InvalidCompositionId,
     #[error("SHA-256 digest must contain 64 lowercase hexadecimal characters")]
     InvalidSha256,
-    #[error("governed resource must be one exact Map, Frames, Artifact, or Recording identity")]
+    #[error("input resource must be one Map, Frames, Artifact, or Recording URI")]
     InvalidGovernedResourceUri,
     #[error("Map release URI must use map://dataset/{{dataset}}/release/{{release}}")]
     InvalidMapReleaseUri,
-    #[error("governed Map inputs require at least one immutable Map release identity")]
+    #[error("Map inputs need at least one Map release URI")]
     MapReleaseRequired,
     #[error("unsupported scene-composition schema version")]
     UnsupportedSchemaVersion,
-    #[error("composition exceeds its governed-input limit")]
+    #[error("a composition can have at most 256 inputs")]
     InputLimit,
-    #[error("composition exceeds its overlay limit")]
+    #[error("a composition can have at most 256 overlays")]
     OverlayLimit,
-    #[error("duplicate governed input id")]
+    #[error("two inputs use the same id; input ids must be unique")]
     DuplicateInput,
-    #[error("duplicate overlay id")]
+    #[error("two overlays use the same id; overlay ids must be unique")]
     DuplicateOverlay,
-    #[error("overlay references an unknown governed input")]
+    #[error("overlay refers to an input id that is not in `inputs`")]
     UnknownGovernedInput,
-    #[error("inline overlay geometry exceeds the point limit")]
+    #[error(
+        "inline overlays can have at most 4096 points in total; publish larger geometry as an artifact"
+    )]
     InlinePointLimit,
-    #[error("inline overlay geometry exceeds the byte limit; publish it as an artifact")]
+    #[error(
+        "inline overlays can be at most 262144 bytes in total; publish larger geometry as an artifact"
+    )]
     InlineByteLimit,
-    #[error("overlay geometry exceeds its point limit")]
+    #[error(
+        "overlay geometry needs at least 1 point and at most 4096 inline or 100000 artifact points"
+    )]
     GeometryPointLimit,
-    #[error("artifact geometry input must be an exact artifact with the View overlay media type")]
+    #[error(
+        "geometry input must be an artifact with media type application/vnd.veoveo.view-overlay-geometry+json"
+    )]
     InvalidOverlayArtifactInput,
-    #[error("mesh input must be an exact artifact with model/gltf-binary media type")]
+    #[error("mesh input must be an artifact with media type model/gltf-binary")]
     InvalidMeshArtifactInput,
-    #[error("local positions require one valid Frames binding")]
+    #[error("local positions need a Frames binding in the composition")]
     LocalFrameRequired,
-    #[error("local Frames binding is invalid")]
+    #[error(
+        "Frames binding is invalid; its frame must belong to its world revision, its operation input must be a frames://operation/ URI, and ecef_from_frame must be a finite affine 4x4 matrix"
+    )]
     InvalidLocalFrame,
-    #[error("scene position is invalid")]
+    #[error(
+        "scene position is invalid; WGS84 positions need a valid latitude, longitude, and height, and local positions need finite coordinates within 10000000 meters"
+    )]
     InvalidPosition,
     #[error("polyline needs at least two points and a closed line needs at least three")]
     InvalidPolyline,
-    #[error("polygon needs bounded vertices and explicit triangle indices")]
+    #[error("polygon needs vertices and explicit triangle indices")]
     InvalidPolygon,
-    #[error("oriented mesh instance is invalid")]
+    #[error(
+        "mesh instance is invalid; orientation angles must be finite with pitch between -90 and 90, and each scale factor must be between 0.000001 and 1000000"
+    )]
     InvalidMeshInstance,
     #[error("label must contain 1 to 64 printable ASCII bytes")]
     InvalidLabel,
-    #[error("overlay style is outside configured contract bounds")]
+    #[error(
+        "overlay style is invalid; color channels must be between 0 and 1, and line width, marker size, and label height must be between 0.01 and 100000 meters"
+    )]
     InvalidStyle,
-    #[error("overlay visibility distance is invalid")]
+    #[error(
+        "overlay visibility distances must be between 0 and 100000000 meters, with the maximum not below the minimum"
+    )]
     InvalidVisibility,
-    #[error("overlay validity interval is invalid")]
+    #[error("overlay validity interval must end after it starts")]
     InvalidValidity,
-    #[error("license or attribution text is invalid")]
+    #[error(
+        "license (up to 256 bytes) and attribution (up to 1024 bytes) must be non-empty, with no control characters or surrounding spaces"
+    )]
     InvalidText,
-    #[error("media type is invalid")]
+    #[error("media type must look like `type/subtype`")]
     InvalidMediaType,
     #[error("composition serialization failed")]
     Serialization,
