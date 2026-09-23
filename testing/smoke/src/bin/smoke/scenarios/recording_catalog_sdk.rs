@@ -36,7 +36,7 @@ pub(crate) async fn recording_catalog_sdk(
         public_base.trim_end_matches('/'),
         "operator-service",
         "operator",
-        &["operator:use"],
+        super::bioma::OPERATOR_PROFILE_SCOPES,
         "operations",
     )
     .await?;

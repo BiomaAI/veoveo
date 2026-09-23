@@ -143,7 +143,7 @@ consoleBff:
     - view:capture
     - view:read
     - view:write
-  replicas: 2
+  replicas: 1
   oauthResource: https://veoveo.bioma.ai/mcp/admin
   mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
   oauthScopes:
@@ -173,7 +173,7 @@ ingress:
     enabled: false
 computerCapacity: openshell-docker
 computers:
-  replicas: 2
+  replicas: 1
   existingConfigMap: bioma-computers-configuration
   configurationRevision: 88acb4794f7f81e0ffde6463e00b4a2052d8ec988373e4c5eaa59283c69b59dd
   existingTrustSecret: bioma-computers-worker-trust

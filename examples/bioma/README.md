@@ -145,7 +145,7 @@ JSON files pin one provider identity and retain the previous template beside the
 new command-capable default. Existing Computers keep their original template. This initial development template
 has Python, Git and shell tools, an 8 GiB retained home, two CPUs and 2 GiB memory.
 It grants no outbound network access. Admission allows two Computers per owner and
-four for this installation. Console and Computers control each use two replicas;
+four for this installation. Console and Computers control each use one replica;
 the private compute host owns a retained 100 GiB PVC. Host maintenance requires
 explicit lifecycle coordination before its single replica is replaced.
 
