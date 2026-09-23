@@ -37,7 +37,7 @@ selection and immutable image reuse remain part of the build and deploy system.
   tooling and isolated fixtures.
 - [x] Replace extension integration documentation and update component designs,
   the code map, architecture decisions and contributor instructions.
-- [ ] Record affected checks, build affected artifacts, deploy through Bioma GitOps
+- [x] Record affected checks, build affected artifacts, deploy through Bioma GitOps
   and verify installed user journeys and workload health.
 
 ## Transition
@@ -131,3 +131,37 @@ The image-consumption check caught a second kernel digest in the agent manager's
 runtime template. Promotion updates that template together with the image lock.
 The check passes with both pins aligned; future kernel publication should update
 both consumers in one operation.
+
+## Installed Acceptance
+
+The coordinated upgrade is deployed at `https://veoveo.bioma.ai` from installation
+commit `30f054683492bb7489d088138d45962fcf87d986`. Both Helm releases report Ready.
+All 29 platform and managed-agent Deployments reached their requested replica counts,
+and the installed workloads use all 23 promoted image digests. The bootstrap Job
+completed schema migration and verified database runtime authentication. Existing
+control-plane content was unchanged.
+
+The kernel image update required publishing the existing UAV Pilot definition against
+the current runtime template, then updating its four instances through the lifecycle
+API. The manager replaced their Kubernetes Deployments as designed. All four original
+instance IDs, OAuth client IDs and principals survived. Their original vehicle grants
+remain at revision zero. All 15 existing PVC identities and volume bindings survived;
+the simulator's pod template is identical to its pre-upgrade template.
+
+Headed Chrome acceptance proved RTX 4090 WebGL in both Console and Workspace. WebGPU
+reported SwiftShader and was excluded from hardware evidence. Both clients show four
+ready instances using one enabled UAV Pilot definition. Console discovers 16 Apps
+without catalog degradation. Datasheet's local-SDK service previews two CSV rows at
+`/console/#/apps/datasheet/workbench`. Screenshots were inspected after hardware proof.
+
+GitHub run `35909095508` passed for the deployment commit. Local qualification includes
+431 contract/tool tests, 50 store tests, Helm configuration checks, the all-target
+workspace check and 120 Python checks. The post-upgrade GitOps observation succeeded.
+Evidence and browser captures are under `output/development/fork-development/`.
+
+A resource read briefly returned “Apps are still loading” after the rollout and passed
+on the next browser run. Console emitted the same opaque `Object` page error observed
+before this deployment while opening Datasheet; preview and navigation completed.
+Workspace had no page errors. This pre-existing diagnostic remains a follow-up; the
+rollout does not claim to resolve it. Build and coordination follow-ups are recorded
+in [Development Iteration](DEVELOPMENT_ITERATION.md#fork-development-rollout).

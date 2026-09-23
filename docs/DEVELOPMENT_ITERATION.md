@@ -1353,3 +1353,30 @@ The four recorded checks passed: managed browser behavior, both frontend builds 
 Console lint. Their commands took 3.6, 4.9, 6.1 and 7.3 seconds respectively. Recording
 and presenting these checks still processes the accumulated receipt index; the
 receipt-history cost recorded above remains a separate iteration bottleneck.
+
+
+## Fork Development Rollout
+
+On September 23, 2026, removing the external-extension release model required rebuilding
+shared contract consumers. A reviewed selection reduced the conservative 39-image
+closure to 24 built images. GitOps promoted 23 and retained the simulator's recording
+forwarder because its implementation and wire format were unchanged. The simulator
+pod template stayed identical.
+
+| Observation | Result or next action |
+|---|---|
+| Image batch | 47 min 44 s elapsed; one Bake selection reused common family compilation |
+| SurrealDB compilation | Remote consumers already disable optional embedded engines; SDK 3.2.4 unconditionally includes `surrealdb-core`. Evaluate a supported upstream split separately. |
+| Runtime packaging | Large image extraction and package installation competed with the live node's filesystem I/O. Keep warm runtime layers when tuning cache retention. |
+| Shared publication checkout | Chart publication queued behind the image build's source lock. Separate source snapshots could permit independent chart work; preserve revision isolation and source freshness. |
+| Host cache cleanup | The scoped Cargo command removed 60 executable copies older than 24 hours, reclaiming 29.34 GiB without deleting dependency libraries. |
+| Test scheduling | Disposable Docker startup timed out during heavy layer extraction. The same 50 store tests passed afterward; avoid scheduling fixture startup during that phase. |
+| Receipt scope | Four unrelated LFS media files made broad inputs differ on GitHub. Narrowed descriptors passed in a pointer-only checkout and CI. |
+| Kernel promotion | Both the image lock and manager template contain the digest. The consumption test caught a missed template update before deployment. |
+| Managed agents | New kernel approval requires definition publication and instance revision updates. Record this coordinated transition in deployment automation; Helm Ready does not establish agent readiness. |
+
+The migration SQL catalog currently compiles into the shared platform-store crate.
+A downstream schema addition therefore rebuilds service consumers of that crate.
+An independently qualified extraction of bootstrap-owned migration execution could
+reduce that coupling without adding a service. These follow-ups do not expand the
+completed [fork development rollout](FORK_DEVELOPMENT_PLAN.md#installed-acceptance).
