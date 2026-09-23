@@ -1,5 +1,6 @@
 import { browserJson } from "../browserHttp.ts";
 import { parseComputer } from "../generatedContracts.ts";
+import { unexpectedResponseMessage } from "../httpMessages.ts";
 import type { TransferFileInput } from "../generated/computers.ts";
 
 function receipt(value: unknown, computerId: string, taskId?: string) {
@@ -7,13 +8,13 @@ function receipt(value: unknown, computerId: string, taskId?: string) {
   if (view.computerId !== computerId || (taskId && view.taskId !== taskId)
     || (view.result && (view.result.computerId !== computerId || view.result.transferId !== view.taskId
       || view.result.result_uri !== `computer://transfers/${view.taskId}` || view.result.direction !== view.direction)))
-    throw new Error("The file transfer response could not be verified.");
+    throw new Error(unexpectedResponseMessage);
   return view;
 }
 export async function transferFile(input: TransferFileInput) {
   parseComputer("transfer_file_input", input);
   const view = receipt(await browserJson(`computers/${encodeURIComponent(input.computerId)}/files`, input), input.computerId);
-  if (view.direction !== input.transfer.kind) throw new Error("The file transfer direction could not be verified.");
+  if (view.direction !== input.transfer.kind) throw new Error(unexpectedResponseMessage);
   return view;
 }
 export async function readFileTransfer(computerId: string, taskId: string, signal?: AbortSignal) {

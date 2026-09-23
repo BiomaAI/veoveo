@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { artifactDownloadUrl, artifactPreviewUrl } from "../artifactUrls";
 import { redirectToLogin } from "../auth";
+import { forbiddenMessage, httpErrorMessage } from "../httpMessages";
 import { useArtifactAccessRequests, useRequestArtifactAccess } from "../queries";
 import type { ArtifactSummary } from "../types";
 
@@ -33,8 +34,8 @@ export function ArtifactPreview({
       <div className="artifact-preview artifact-preview-unsupported">
         <FileQuestion size={24} />
         <div>
-          <strong>No inline renderer for {artifact.mediaType}</strong>
-          <span>The governed file remains available for download.</span>
+          <strong>No preview for {artifact.mediaType}</strong>
+          <span>You can still download the file.</span>
         </div>
         <a className="button button-secondary" href={artifactDownloadUrl(artifact.id)}>
           <Download size={14} /> Download
@@ -85,7 +86,7 @@ function AuthorizedArtifactPreview({
       });
       setJustification("");
     } catch (cause) {
-      setRequestError(cause instanceof Error ? cause.message : "Access request failed");
+      setRequestError(cause instanceof Error ? cause.message : "Your access request wasn't sent. Try again.");
     }
   };
   useEffect(() => {
@@ -106,7 +107,7 @@ function AuthorizedArtifactPreview({
           return;
         }
         if (!response.ok) {
-          setAccessDetail(`Preview authorization returned ${response.status}.`);
+          setAccessDetail(httpErrorMessage(response.status, { action: "check preview access", thing: "This artifact" }));
           setAccess("unavailable");
           return;
         }
@@ -115,7 +116,7 @@ function AuthorizedArtifactPreview({
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
           setAccessDetail(
-            cause instanceof Error ? cause.message : "Preview authorization failed."
+            cause instanceof Error ? cause.message : "Veoveo couldn't check preview access. Try again."
           );
           setAccess("unavailable");
         }
@@ -126,7 +127,7 @@ function AuthorizedArtifactPreview({
   if (access === "checking") {
     return (
       <div className="artifact-preview artifact-preview-loading artifact-preview-checking">
-        <div className="loading-mark" /> Checking governed preview access…
+        <div className="loading-mark" /> Checking preview access…
       </div>
     );
   }
@@ -137,8 +138,8 @@ function AuthorizedArtifactPreview({
         <div>
           <strong>Preview access required</strong>
           <span>
-            This private artifact is owned by <code>{artifact.owner}</code>. The active Console
-            principal <code>{principalDisplayName}</code> does not have a read grant.
+            This private artifact is owned by <code>{artifact.owner}</code>. Your account,
+            <code>{principalDisplayName}</code>, doesn't have read access.
           </span>
           {pendingRequest ? (
             <span>
@@ -169,8 +170,8 @@ function AuthorizedArtifactPreview({
           ) : (
             <span>
               {artifact.effectiveAccess.denialReason === "clearance"
-                ? "The active principal does not hold every data label required by this artifact. A discretionary grant cannot change clearance."
-                : "This artifact is outside the active tenant boundary."}
+                ? "This artifact has data labels your account isn't cleared for. A grant can't override clearance; ask an administrator about your clearance."
+                : "This artifact belongs to another tenant."}
             </span>
           )}
         </div>
@@ -182,8 +183,8 @@ function AuthorizedArtifactPreview({
       <div className="artifact-preview artifact-preview-denied">
         <FileQuestion size={25} />
         <div>
-          <strong>Preview service unavailable</strong>
-          <span>{accessDetail ?? "The governed preview could not be authorized."}</span>
+          <strong>Preview unavailable</strong>
+          <span>{accessDetail ?? "Veoveo couldn't check preview access. Try again, or download the file instead."}</span>
         </div>
       </div>
     );
@@ -211,7 +212,7 @@ function AuthorizedArtifactPreview({
       <div className="artifact-preview artifact-preview-media">
         {mediaError
           ? <span className="artifact-preview-error">{mediaError}</span>
-          : <img src={url} alt={`Preview of ${artifact.filename}`} onError={() => setMediaError("The image preview could not be loaded with this session's access.")} />}
+          : <img src={url} alt={`Preview of ${artifact.filename}`} onError={() => setMediaError("The image preview couldn't be loaded. Try downloading the file instead.")} />}
         <span><ImageIcon size={13} /> Image preview</span>
       </div>
     );
@@ -221,7 +222,7 @@ function AuthorizedArtifactPreview({
       <div className="artifact-preview artifact-preview-media">
         {mediaError
           ? <span className="artifact-preview-error">{mediaError}</span>
-          : <video src={url} controls preload="metadata" onError={() => setMediaError("The video preview could not be loaded with this session's access.")} />}
+          : <video src={url} controls preload="metadata" onError={() => setMediaError("The video preview couldn't be loaded. Try downloading the file instead.")} />}
         <span><Video size={13} /> Video preview</span>
       </div>
     );
@@ -232,7 +233,7 @@ function AuthorizedArtifactPreview({
         <Music2 size={24} />
         {mediaError
           ? <span className="artifact-preview-error">{mediaError}</span>
-          : <audio src={url} controls preload="metadata" onError={() => setMediaError("The audio preview could not be loaded with this session's access.")} />}
+          : <audio src={url} controls preload="metadata" onError={() => setMediaError("The audio preview couldn't be loaded. Try downloading the file instead.")} />}
       </div>
     );
   }
@@ -268,9 +269,9 @@ function TextPreview({ url }: { url: string }) {
     })
       .then(async (response) => {
         if (response.status === 403) {
-          throw new Error("Preview access is not granted to this console session.");
+          throw new Error(forbiddenMessage("preview this artifact"));
         }
-        if (!response.ok) throw new Error(`Preview returned ${response.status}`);
+        if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "load the preview", thing: "This artifact" }));
         setTruncated(
           response.status === 206 ||
             Number(response.headers.get("content-length") ?? 0) >= TEXT_PREVIEW_BYTES
@@ -279,7 +280,7 @@ function TextPreview({ url }: { url: string }) {
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
-          setError(cause instanceof Error ? cause.message : "Preview failed");
+          setError(cause instanceof Error ? cause.message : "The preview couldn't be loaded. Try downloading the file instead.");
         }
       });
     return () => controller.abort();

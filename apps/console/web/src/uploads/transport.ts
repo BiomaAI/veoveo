@@ -1,5 +1,6 @@
 import { browserApiRoot } from "../browserApp.ts";
 import { acceptBrowserCsrfToken, browserCsrfToken } from "../csrf.ts";
+import { httpErrorMessage } from "../httpMessages.ts";
 import type { z } from "zod";
 import { partSchema, type Part } from "./model.ts";
 
@@ -11,7 +12,7 @@ export class UploadError extends Error {
   constructor(status: number, message: string, retryAfter = 2, quotaExceeded = false) { super(message); this.status = status; this.retryAfter = retryAfter; this.quotaExceeded = quotaExceeded; }
 }
 function failure(status: number, value: unknown, retryAfter?: string | null): UploadError {
-  const message = value && typeof value === "object" && "message" in value && typeof value.message === "string" ? value.message : status === 401 ? "Sign in to continue this upload." : `Upload request failed (${status || "connection interrupted"}).`;
+  const message = value && typeof value === "object" && "message" in value && typeof value.message === "string" ? value.message : status === 401 ? "Sign in to continue this upload." : status === 0 ? "The connection was interrupted. The upload will resume when you're back online." : httpErrorMessage(status, { action: "continue this upload" });
   const quota = Boolean(value && typeof value === "object" && "code" in value && value.code === "quota_exceeded");
   return new UploadError(status, message, Math.min(60, Math.max(1, Number(retryAfter) || 2)), quota);
 }

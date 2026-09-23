@@ -28,7 +28,7 @@ export function DeployInstance({ api, definition, revision, templates, close, cr
   }
   return <dialog className="am-modal" ref={node => { if (node && !node.open) node.showModal(); }} aria-labelledby="am-deploy-title" onCancel={e => { if (busy || pending) e.preventDefault(); else close(); }}><form onSubmit={e => { e.preventDefault(); void deploy(); }}>
     <h2 id="am-deploy-title">Deploy {definition.name}</h2><p>This creates a persistent agent using published revision {revision.digest.slice(7, 19)}. Its memory and service identity belong to this instance.</p>
-    {template ? <TemplateAuthority template={template}/> : <p role="alert">The published runtime template is unavailable. Publish an admitted configuration before deploying.</p>}
+    {template ? <TemplateAuthority template={template}/> : <p role="alert">The runtime template for this revision isn't available. Publish a revision that uses an available runtime template, then deploy.</p>}
     {execution.kind === "managed" && <dl>{Object.entries(execution.parameters).map(([key, value]) => <div key={key}><dt>{template?.parameters.find(p => p.name === key)?.label ?? key}</dt><dd>{String(value)}</dd></div>)}</dl>}
     <fieldset disabled={busy || !!pending}><label>Instance name<input autoFocus required maxLength={200} value={name} onChange={e => setName(e.target.value)}/></label><label>Instance ID<input required pattern="[a-z0-9_-]+" maxLength={128} placeholder="field-pilot-one" value={id} onChange={e => setId(e.target.value)}/></label></fieldset>
     {error && <p className="am-error" role="alert">{error}</p>}{pending && !busy && <p>The result is uncertain. Retry to recover the same deployment.</p>}

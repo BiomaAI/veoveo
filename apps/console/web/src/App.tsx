@@ -205,7 +205,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     try {
       await logoutConsole();
     } catch (cause) {
-      setSignOutError(cause instanceof Error ? cause.message : "Sign out failed");
+      setSignOutError(cause instanceof Error ? cause.message : "Veoveo couldn't sign you out. Reload the page and try again.");
       setSigningOut(false);
     }
   };

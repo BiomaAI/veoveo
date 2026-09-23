@@ -56,7 +56,7 @@ export function useConversation(chat: string, changed: () => void) {
       if (error instanceof ApiError && [401, 403, 404].includes(error.status)) {
         current.current = undefined; setSnapshot(undefined);
       }
-      setError(error instanceof Error ? error.message : "Could not load the conversation.");
+      setError(error instanceof Error ? error.message : "Veoveo couldn't load this chat. Try again.");
     }).finally(() => { pending.current = undefined; });
     return pending.current;
   }, [chat, commit]);
@@ -90,7 +90,7 @@ export function useConversation(chat: string, changed: () => void) {
       if (!latest || controller.current.signal.aborted) return;
       commit({ ...latest, messages: mergeMessages(page.messages, latest.messages) });
       setHasOlder(page.messages.length === 100);
-    } catch (error) { if (!controller.current.signal.aborted) setError(error instanceof Error ? error.message : "Could not load history."); }
+    } catch (error) { if (!controller.current.signal.aborted) setError(error instanceof Error ? error.message : "Veoveo couldn't load earlier messages. Try again."); }
     finally { setLoadingOlder(false); }
   }, [chat, commit, loadingOlder]);
   return { snapshot, error, connected, refresh, older, hasOlder, loadingOlder };

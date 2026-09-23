@@ -30,7 +30,7 @@ export function formFields(schema: unknown): FormField[] {
     const options = choices(value);
     const multi = field.type === "array" ? choices(field.items) : undefined;
     const kind = multi ? "multi" : options ? "select" : field.type === "string" ? "text" : field.type;
-    if (!kind || kind === "array") throw new Error("This form uses a field this client cannot display.");
+    if (!kind || kind === "array") throw new Error("This form has a field Workspace can't display.");
     const initial = z.union([z.string(), z.number(), z.boolean(), z.array(z.string())]).safeParse(field.default);
     return { ...field, key, label: field.title ?? key.replaceAll("_", " "), required: object.required?.includes(key) ?? false,
       kind, choices: multi ?? options, default: initial.success ? initial.data : undefined };

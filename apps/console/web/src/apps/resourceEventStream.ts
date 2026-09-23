@@ -1,3 +1,5 @@
+import { httpErrorMessage } from "../httpMessages.ts";
+
 export interface ServerSentEvent {
   type: string;
   data: string;
@@ -124,8 +126,8 @@ export function openResourceEventStream(
           cache: "no-store",
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error(`resource event stream returned ${response.status}`);
-        if (!response.body) throw new Error("resource event stream returned no body");
+        if (!response.ok) throw new Error(httpErrorMessage(response.status, { action: "start live updates for this App" }));
+        if (!response.body) throw new Error("Live updates for this App couldn't start. Reload the page.");
         opened = true;
         retryMilliseconds = INITIAL_RETRY_MILLISECONDS;
         handlers.onOpen();

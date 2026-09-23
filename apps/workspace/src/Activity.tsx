@@ -21,12 +21,12 @@ function interval(view?: OperationView): number | false {
 function label(view: OperationView): string {
   if (view.result?.isError) return "Completed with an error";
   switch (view.task?.state ?? view.operation.phase) {
-    case "dispatching": return "Starting operation";
+    case "dispatching": return "Starting";
     case "input_required": return "Needs your input";
     case "completed": return "Completed";
     case "failed": return "Failed";
     case "cancelled": return "Cancelled";
-    case "unconfirmed": return "Outcome unconfirmed";
+    case "unconfirmed": return "Result unknown";
     default: return "Working";
   }
 }
@@ -87,13 +87,13 @@ function TaskCard({ operation, observed, chatTitle, showOrigin }: { operation: O
   async function cancel() {
     if (busy) return; setBusy(true); setError(undefined);
     try { await api.cancelOperation(operation.id); setCancelAsked(true); }
-    catch { setError("Cancellation could not be confirmed. Refresh the task to check its current state."); }
+    catch { setError("Veoveo couldn't tell whether the task was cancelled. Refresh it to see its current state."); }
     finally { await query.refetch(); setBusy(false); }
   }
   async function answer(answers: InputAnswer[]) {
     if (busy || !view) return; setBusy(true); setError(undefined);
     try { await api.answerOperation(operation.id, { revision: view.operation.revision, answers }); }
-    catch (error) { setError(error instanceof ApiError && error.status === 409 ? "This input request changed. Review the current request below." : "Your answer could not be confirmed. The current request has been refreshed."); }
+    catch (error) { setError(error instanceof ApiError && error.status === 409 ? "This input request changed. Review the current request below." : "Veoveo couldn't tell whether your answer was received. The request below has been refreshed; answer again if it is still waiting."); }
     finally { await query.refetch(); setBusy(false); }
   }
   const state = view?.task?.state ?? view?.operation.phase;
@@ -102,15 +102,15 @@ function TaskCard({ operation, observed, chatTitle, showOrigin }: { operation: O
     <div className="task-heading"><span className={`task-icon ${completed ? "settled" : ""}`}>{state === "completed" && !view?.result?.isError ? <Check size={16}/> : state === "input_required" || state === "failed" || state === "unconfirmed" || view?.result?.isError ? <CircleAlert size={16}/> : <Clock3 size={16}/>}</span>
       <div><h3>{operation.tool.replaceAll("__", " · ").replaceAll("_", " ")}</h3><time dateTime={operation.createdAt}>{new Date(operation.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</time></div>
       <button className="icon-button" aria-label="Refresh task" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14}/></button></div>
-    <p className="task-origin muted">{operation.runId ? `${operation.agent?.name ?? "Agent"} · Requested for you` : "Requested by you"}{showOrigin && <> · <a href={`/workspace/?chat=${operation.chatId}&panel=activity`}>{chatTitle ?? "Open originating chat"}</a></>}</p>
+    <p className="task-origin muted">{operation.runId ? `${operation.agent?.name ?? "Agent"} · Requested for you` : "Requested by you"}{showOrigin && <> · <a href={`/workspace/?chat=${operation.chatId}&panel=activity`}>{chatTitle ?? "Open the chat"}</a></>}</p>
     {query.isPending && <p role="status">Loading current status…</p>}
-    {query.error ? <p className="error" role="alert">{query.error instanceof ApiError && [403, 404].includes(query.error.status) ? "This activity is no longer available with your access, or its retention period has ended." : "Current status is unavailable. The operation has not been restarted."}</p> : view && <>
+    {query.error ? <p className="error" role="alert">{query.error instanceof ApiError && [403, 404].includes(query.error.status) ? "This task is no longer available. You may have lost access, or it was removed after its retention period." : "Couldn't load the current status. The task was not restarted; refresh to try again."}</p> : view && <>
       <div className="task-state" role="status">{label(view)}</div>
       {view.task?.message && <p>{view.task.message}</p>}
       {active(view) && state !== "input_required" && <MeasuredProgress progress={view.progress}/> }
-      {state === "unconfirmed" && <p>The connection ended before the outcome was recorded. This operation will not be submitted again automatically.</p>}
+      {state === "unconfirmed" && <p>The connection dropped before the result was recorded, so the outcome is unknown. Veoveo won't run this task again on its own. Check its effects before starting it again.</p>}
       {view.inputs.length > 0 && <TaskInput independent={!!view.task} inputs={view.inputs} busy={busy} onAnswer={answers => void answer(answers)} onError={setError}/>}
-      {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue operation</button>}
+      {view.operation.phase === "input_required" && view.inputs.length === 0 && <button className="primary" disabled={busy} onClick={() => void answer([])}>Continue task</button>}
       {view.result && <div className="task-result">{view.result.text.map((text, index) => <p key={index}>{text}</p>)}
         {operation.tool === "speech__transcribe" && view.result.structured != null && <TranscriptResult value={view.result.structured}/>}
         <ResultImages images={view.result.images} omitted={view.result.omittedImages}/>
@@ -128,7 +128,7 @@ function MeasuredProgress({ progress }: { progress?: OperationProgress | null })
   const measured = !!progress && typeof total === "number" && total > 0 && progress.completed <= total;
   return <>
     {progress?.message && <p>{progress.message}</p>}
-    <div className={`task-progress${measured ? " measured" : ""}`} role="progressbar" aria-label="Operation progress"
+    <div className={`task-progress${measured ? " measured" : ""}`} role="progressbar" aria-label="Task progress"
       aria-valuemin={measured ? 0 : undefined} aria-valuemax={measured ? total : undefined} aria-valuenow={measured ? progress.completed : undefined}>
       <span style={measured ? { width: `${100 * progress.completed / total}%` } : undefined}/>
     </div>

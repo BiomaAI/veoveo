@@ -33,7 +33,7 @@ function RequestForm({ inputs, busy, onAnswer, onError }: InputProps) {
   const prefix = useId();
   let fields: FormField[][];
   try { fields = inputs.map(input => input.kind === "form" ? formFields(input.schema) : []); }
-  catch { return <section className="task-input" aria-label={inputs.map(input => input.message).join(" ")}><p>This form uses fields the client cannot display. You can decline the request or cancel the task.</p><button disabled={busy} onClick={() => onAnswer(inputs.map(input => ({ id: input.id, digest: input.digest, decision: "decline", content: null })))}>Decline request</button></section>; }
+  catch { return <section className="task-input" aria-label={inputs.map(input => input.message).join(" ")}><p>This form has fields Workspace can't display. You can decline the request or cancel the task.</p><button disabled={busy} onClick={() => onAnswer(inputs.map(input => ({ id: input.id, digest: input.digest, decision: "decline", content: null })))}>Decline request</button></section>; }
   const unsupported = inputs.some(input => input.kind === "unsupported");
   function submit(form: HTMLFormElement, decision: InputDecision) {
     try {

@@ -19,7 +19,7 @@ export function Dictation({ disabled, onText, onActive }: { disabled: boolean; o
       callbacks.current.onText(text); setPartial(""); setPhase("idle");
     } catch (error) {
       if (current.current !== capture) return;
-      setError(error instanceof Error ? error.message : "Dictation could not finish."); setPhase("failed");
+      setError(error instanceof Error ? error.message : "Dictation couldn't finish. Your draft is preserved."); setPhase("failed");
     } finally {
       if (current.current === capture) { current.current = undefined; callbacks.current.onActive(false); }
     }
@@ -43,7 +43,7 @@ export function Dictation({ disabled, onText, onActive }: { disabled: boolean; o
       limit: () => { if (current.current === capture) void stop(); } });
     current.current = capture;
     try { await capture.start(); if (current.current === capture) setPhase("listening"); }
-    catch (error) { await capture.cancel(); if (current.current !== capture) return; current.current = undefined; callbacks.current.onActive(false); setPhase("failed"); setError(error instanceof Error ? error.message : "Microphone access was not available."); }
+    catch (error) { await capture.cancel(); if (current.current !== capture) return; current.current = undefined; callbacks.current.onActive(false); setPhase("failed"); setError(error instanceof Error ? error.message : "Veoveo couldn't use the microphone. Check that this site is allowed to use it in your browser settings."); }
   };
   return <div className="dictation" aria-label="Private dictation">
     <div className="dictation-controls">

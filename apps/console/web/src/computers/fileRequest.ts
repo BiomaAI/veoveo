@@ -33,12 +33,12 @@ export function readSavedFile(storage: Storage, key: string, computerId: string)
   if (text === null) return undefined;
   const value: unknown = JSON.parse(text);
   if (!value || typeof value !== "object" || Array.isArray(value) || !("input" in value)
-    || Object.keys(value).some(key => key !== "input" && key !== "receipt")) throw new Error("Invalid saved file transfer");
+    || Object.keys(value).some(key => key !== "input" && key !== "receipt")) throw new Error("The transfer saved in this browser can't be read. Clear it and start again.");
   const input = parseComputer("transfer_file_input", value.input);
   const receipt = "receipt" in value ? parseComputer("file_transfer_view", value.receipt) : undefined;
   retainedPath(input.transfer.path);
   if (input.computerId !== computerId || (receipt && (receipt.computerId !== computerId
-    || receipt.direction !== input.transfer.kind))) throw new Error("Saved file transfer identity mismatch");
+    || receipt.direction !== input.transfer.kind))) throw new Error("The transfer saved in this browser belongs to a different Computer. Clear it and start again.");
   return { input, receipt };
 }
 export function rememberFile(storage: Storage, key: string, input: TransferFileInput): void {

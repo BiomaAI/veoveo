@@ -44,9 +44,9 @@ const RECORDING_GRANT_RENEWAL_FRACTION = 0.8;
 const lifecycleDetail: Record<RecordingSummary["state"], string> = {
   live: "Receiving data",
   ready: "Capture complete",
-  sealing: "Publishing governed artifacts",
+  sealing: "Publishing",
   sealed: "Published and immutable",
-  interrupted: "Producer stopped without a clean boundary",
+  interrupted: "The source stopped unexpectedly",
   failed: "Recording processing failed",
 };
 
@@ -170,7 +170,7 @@ export function RecordingsView({
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
-          setPlaybackError(cause instanceof Error ? cause.message : "Playback failed");
+          setPlaybackError(cause instanceof Error ? cause.message : "Playback couldn't start. Try again.");
           setManifest(undefined);
         }
       })
@@ -353,7 +353,7 @@ export function RecordingsView({
                   type="button"
                   className="recording-uri"
                   onClick={() => void copyRecordingUri()}
-                  title="Copy canonical recording URI"
+                  title="Copy recording URI"
                 >
                   <span className="mono">recording://recordings/{selected.id}</span>
                   {copied ? <Check size={13} /> : <Copy size={13} />}
@@ -508,7 +508,7 @@ export function RecordingsView({
           <div className="recording-empty-player">
             <FileStack size={34} />
             <h2>Select a recording</h2>
-            <p>Inspect lifecycle details and open its governed recording in the embedded Rerun viewer.</p>
+            <p>Inspect lifecycle details and open the recording in the embedded Rerun viewer.</p>
           </div>
         )}
       </section>
