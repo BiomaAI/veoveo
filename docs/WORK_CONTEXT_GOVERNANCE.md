@@ -1,7 +1,8 @@
 # Work Context governance
 
-A Work Context is the durable business boundary for related tasks, recordings,
-agents, and artifacts. It answers four questions at the point work begins:
+A Work Context groups related tasks, recordings, agents, and artifacts under one
+business owner and one set of access rules. When work begins, it answers four
+questions:
 
 - Which tenant and body of work authorize this invocation?
 - Who is acting, and how did that actor receive authority?
@@ -10,9 +11,9 @@ agents, and artifacts. It answers four questions at the point work begins:
 
 The gateway resolves those answers from authenticated identity and the active
 control-plane revision. It signs the resolved authority into a short-lived
-internal assertion. Hosted services consume that assertion and persist its
-typed authority with durable work; callers do not supply ownership or
-provenance fields.
+internal assertion. Hosted services read that assertion and store its authority
+with the work they create. Callers cannot supply ownership or provenance
+fields themselves.
 
 ## Standards And Protocols
 
@@ -120,16 +121,15 @@ forwarding, and agent wake cycles.
 
 ### Agent control
 
-Agent control is its own authority surface, distinct from the membership
-table above. Reading agent state, sending an agent a message, and answering a
+Agent control is authorized separately from the membership table above. Reading agent state, sending an agent a message, and answering a
 pending input request are gateway actions (`agents_read`, `agents_message`,
 `agents_input_request_answer`) authorized by the selected profile's action
 policy rules (action, profile, principals, and required scopes), while
 Work Context membership scopes only which agents the caller can address.
-Both authenticated users and service principals are admissible responders;
-an installation that wants human-only control expresses it as policy rather
-than relying on a principal-kind restriction. Messages never carry implicit
-authority and remain actor-attributed, idempotent, and audited.
+Both signed-in users and service principals can respond. An installation that
+wants only humans to control agents writes that rule as policy. A message grants
+no authority by itself; each one records its sender, is idempotent, and is
+audited.
 
 ## Output ownership and access
 
@@ -179,7 +179,7 @@ does not alter those controls.
 
 ## Enterprise identity mapping
 
-The starter platform vocabulary is deliberately small:
+The platform ships a small starting vocabulary:
 
 - `operator` identifies ordinary interactive or service use.
 - `administrator` identifies installation administration.
@@ -201,7 +201,7 @@ constants.
 Use stable directory IDs for group selectors. Treat an identity-provider
 application-role UUID as part of the role identity. When replacing a role
 value, migrate assignments to a newly created role definition and require a
-fresh login so newly issued tokens carry the canonical claim.
+fresh login so newly issued tokens carry the new claim.
 
 ## Hard-cut rollout
 
@@ -222,8 +222,8 @@ start with a fresh platform dataset and object store. The rollout sequence is:
 
 Migration files are immutable after a release. A development cluster carrying
 an earlier hash for an unreleased migration is reset before the next bootstrap.
-The complete k3d example can use its profile delete/create recipes, which also
-guarantee that database and object-store state begin at the same boundary.
+The complete k3d example can use its profile delete/create recipes, which reset
+database and object-store state together.
 
 ## Adoption checklist
 

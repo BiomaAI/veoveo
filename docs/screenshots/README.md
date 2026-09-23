@@ -1,12 +1,12 @@
 # Screenshot catalog
 
-This directory records the current product gallery and the procedure used to
-rebuild it. The catalog declares the publication state shared by the gallery.
-Every replacement must have its composition, data, and identity surface
-reviewed before it enters the published set.
+This directory holds the current product gallery and the procedure used to
+rebuild it. The catalog records which images are published. Before a replacement
+image is published, review its composition, the data it shows, and any identities
+visible in it.
 
 The [visual gallery](GALLERY.md) presents the current set as a contact sheet.
-The canonical inventory is [`catalog.json`](catalog.json). It names each
+The inventory is [`catalog.json`](catalog.json). It names each
 picture, states what it demonstrates, declares its live prerequisites, and
 records whether the recipe invokes a tool or injects deterministic display
 data. Generated PNG files live under [`gallery/`](gallery/).
@@ -39,11 +39,11 @@ that window. The local development workstation uses the existing
 `CHROME_PROFILE_DIR` to an existing authenticated user-data directory; the
 directory guard prevents Chrome from silently creating a logged-out profile.
 Do not force ANGLE, Vulkan, or WebGPU flags because hardware-backed WebGL is a
-complete accepted graphics path. Every Console and Rerun recipe performs a fail-closed browser
-preflight before navigation and again before capture. The preflight requires
-hardware-backed high-performance WebGPU or WebGL. It probes both APIs when
-available and aborts if neither reaches NVIDIA hardware; API reachability does
-not substitute for visual verification. Install the pinned capture dependency
+complete accepted graphics path. Every Console and Rerun recipe checks the browser
+before navigation and again before capture, and stops if the check fails. The
+check requires hardware-backed high-performance WebGPU or WebGL. It probes both
+APIs when available and aborts if neither reaches NVIDIA hardware. Passing the
+check does not replace looking at the captured image. Install the pinned capture dependency
 without downloading another browser, then list or run the recipes:
 
 ```bash
@@ -79,18 +79,18 @@ domain data that an automatic rule cannot classify.
 
 The chart recipe makes a real, stateless `create_chart_view` call through the
 authenticated Console MCP App bridge. The forecast recipe uses a deterministic
-structured-content fixture because a durable forecast run creates governed
-work and an artifact. Its catalog entry makes that distinction explicit.
+structured-content fixture because a real forecast run creates a durable task
+and an artifact. Its catalog entry makes that distinction explicit.
 
 ## Prepared MCP App captures
 
-The 3D View images preserve a live state that an operator composes before the
+The 3D View images show a live scene that an operator sets up before the
 capture. The screenshot tool still owns the browser viewport, identity
 redaction, hardware-renderer check, and PNG output. It never fabricates a view
 or substitutes fixture data for a scene.
 
 For the Console image, open **Apps → 3D view preview** in the GPU-enabled Chrome
-profile. Select the Google Photorealistic 3D Tiles layer, create a governed
+profile. Select the Google Photorealistic 3D Tiles layer, create a
 view, position the camera, and wait for the visible tile counter to settle.
 Capture a rendered frame, confirm that the app reports `frame captured`, then
 run:
@@ -131,8 +131,8 @@ npm run capture -- --ids mcp-app-view-claude
 ```
 
 The tool aborts only when the tab has neither a hardware WebGPU path nor a
-hardware WebGL path. Either API is sufficient; WebGL-only browser environments
-remain valid when their renderer is hardware-backed.
+hardware WebGL path. Either API is enough, so a WebGL-only browser works when
+its renderer is hardware-backed.
 Publication review must also verify that the external conversation contains no
 account identity, private prompt content, or unrelated history.
 
@@ -141,7 +141,7 @@ account identity, private prompt content, or unrelated history.
 The Isaac runtime can write a full-resolution showcase camera directly from its
 headless RTX viewport. Enable `session.screenshot` in the UAV chart and deploy
 the values through the installation owner. The Bioma installation uses its
-canonical Times Square origin at `40.7580`, `-73.9855`, and `-17` meters. The
+Times Square origin at `40.7580`, `-73.9855`, and `-17` meters. The
 New York capture uses the following values:
 
 ```yaml
@@ -168,7 +168,7 @@ session:
       z: 0.2
 ```
 
-Prove that the pod reports an active NVIDIA Vulkan device before flight. Call
+Confirm that the pod reports an active NVIDIA Vulkan device before flight.
 Call `uav-sim__takeoff_vehicle` for `uav-1` with `relative_altitude_m` set to
 `197`. Takeoff owns the PX4 arm-and-launch sequence atomically.
 The capture waits for the altitude threshold, resident tiles, visible camera
@@ -188,16 +188,16 @@ kubectl --context <context> -n <namespace> cp -c isaac-sim \
   docs/screenshots/gallery/isaac-uav-new-york.png
 ```
 
-The runtime restores the canonical sensor camera after the one-shot capture.
+The runtime restores the normal sensor camera after the one-shot capture.
 Inspect the 1920×1080 output before accepting it into the gallery.
 
 ## Rerun captures
 
-The UAV recipe opens a complete governed recording from the authenticated
+The UAV recipe opens a complete recording from the authenticated
 Console, promotes its embedded Rerun viewer to browser fullscreen, pauses
 playback, and seeks to the showcase camera interval. The recording must contain
-camera, telemetry, pose, and world data. This path captures stable camera
-content without exposing archive segments as manual playback partitions.
+camera, telemetry, pose, and world data. The Console plays the recording as one
+timeline, so the capture does not depend on how the archive is segmented.
 
 The SUMO recipe targets a browser-hosted viewer backed by the simulation pod's
 loopback Rerun server. Project that server to the workstation, then open a
@@ -242,8 +242,7 @@ npm run capture -- --ids rerun-uav,rerun-sumo
 
 The SUMO gallery expects the live showcase recording with `/world/sumo/**`
 selected. Record the exact launch and port-forward commands in the catalog
-whenever a profile changes; the image is not a substitute for a repeatable
-runbook.
+whenever a profile changes, so that anyone can reproduce the image.
 
 Every capture probes the browser's high-performance WebGPU adapter and WebGL
 renderer, then requires at least one NVIDIA-backed result. It rejects headless

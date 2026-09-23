@@ -1,7 +1,8 @@
 # Veoveo Extension Helm Library
 
-This library chart supplies the stable Kubernetes integration boundary for an
-independently released Veoveo extension chart. It is packaged as a versioned private
+This library chart gives an independently released extension chart the labels,
+security contexts, GPU placement, probes, and network policy it needs to run inside a
+Veoveo installation. It is packaged as a versioned private
 OCI artifact or included in a verified offline bundle. It is not installed as a Helm
 release.
 
@@ -52,18 +53,18 @@ The exported named templates are:
 | `veoveo-extension.gpuReplicas` | installation-declared replica count for a GPU workload |
 | `veoveo-extension.platformEnv` | typed platform-store and trust environment |
 | `veoveo-extension.httpProbes` | startup, readiness, and liveness probes |
-| `veoveo-extension.bootstrapVolumeMount` | canonical bootstrap mount |
-| `veoveo-extension.bootstrapVolume` | canonical bootstrap ConfigMap volume |
+| `veoveo-extension.bootstrapVolumeMount` | platform bootstrap mount |
+| `veoveo-extension.bootstrapVolume` | platform bootstrap ConfigMap volume |
 | `veoveo-extension.recordingForwarder` | recording producer sidecar; `finishSupersededRecordings` selects a single-recording application slot |
 | `veoveo-extension.networkPolicy` | default-deny, DNS, gateway, platform, and declared egress policy |
 
-Each template accepts a dictionary. Required keys fail rendering with a direct error;
-unknown values remain owned by the consumer chart.
+Each template accepts a dictionary. A missing required key fails rendering with a
+direct error. The templates ignore any other values, which belong to the consumer chart.
 
 Deployment v4 injects the installation GPU placement under
 `veoveo.gpuPlacement` for extension releases. A GPU extension passes that object and
-its canonical workload identifier to the GPU helpers. Non-GPU extensions retain the
-disabled object in their closed values schema and render no claim fields.
+its workload identifier to the GPU helpers. A non-GPU extension keeps the disabled
+object in its closed values schema and renders no claim fields.
 
 The image helper accepts installation-owned `registry`, source-owned `sourceTag`, and
 an `imageDigests` map keyed by the image's declared repository. A literal image digest

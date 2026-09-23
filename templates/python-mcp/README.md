@@ -1,13 +1,13 @@
 # Python MCP server template
 
-This directory is the canonical template for a Python MCP server hosted inside
-a Veoveo installation. It ships as a complete working server — `datasheet`, a
-dataset profiling service built on pandas — so every platform obligation has a
-running reference implementation rather than a description.
+This directory is the template to copy for a Python MCP server hosted inside
+a Veoveo installation. It ships as a complete working server, `datasheet`, a
+dataset profiling service built on pandas. Each platform requirement in the table
+below points to the code that meets it.
 
-The shared platform surface comes from the exact `veoveo-mcp` release selected by the
-Veoveo compatibility manifest. The template stays thin: it owns its domain contract,
-its computation, and one durable task type.
+Shared platform code comes from the `veoveo-mcp` release pinned in the Veoveo
+compatibility manifest. The template itself holds only its domain contract, its
+computation, and one durable task type.
 
 ## What the platform contract requires
 
@@ -79,8 +79,8 @@ fall through to a public index.
 
 SurrealDB credentials and the internal trust JWKS come from the same
 `VEOVEO_SURREAL_*` and `VEOVEO_INTERNAL_TRUST_JWKS` variables the Rust servers
-use. Schema migrations remain owned by `platform/store`; this server
-never applies them.
+use. `platform/store` owns schema migrations; this
+server never applies them.
 
 ## The example domain
 

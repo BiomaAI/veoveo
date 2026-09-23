@@ -1,9 +1,10 @@
 # Veoveo Documentation
 
-Start with the guide for the work you need to do. Veoveo is the platform;
-[Bioma](../examples/bioma/README.md) is one installation configuration and acceptance
-environment. Workspace is the daily productivity client. Console administers the
-installation, its services and agents. Computers is a core platform capability.
+Find the guide for the work you need to do in the table below. Veoveo is the
+platform. [Bioma](../examples/bioma/README.md) is one installation of it and also
+serves as the acceptance environment. People use Workspace for daily chat with each
+other and with agents, and administrators use Console to manage the installation, its
+services, and its agents. Computers is part of every standard release.
 
 ## Find A Guide
 
@@ -29,35 +30,36 @@ installation, its services and agents. Computers is a core platform capability.
 
 ## Current Guidance And Historical Records
 
-Repository-wide requirements live in [Architecture Decisions](ARCHITECTURE_DECISIONS.md)
+Repository-wide requirements are in [Architecture Decisions](ARCHITECTURE_DECISIONS.md)
 and the accepted [Contract Evolution](CONTRACT_EVOLUTION.md) decisions. The
-[MCP server contract](../mcp/contract/DESIGN.md) governs the hosted protocol.
-Each component's adjacent `DESIGN.md` describes its implemented boundary and declared
-gaps. [CODEMAP.md](CODEMAP.md) routes a change to those owners.
+[MCP server contract](../mcp/contract/DESIGN.md) defines what every hosted server must
+implement. Each component keeps a `DESIGN.md` beside its code that describes what it
+does today and what is still missing. [CODEMAP.md](CODEMAP.md) tells you which
+component owns a change.
 
-Plans retain their original design and dated delivery evidence. Their status and
-current checkpoint take precedence over an older future-tense passage in the same
-file. Approval of a plan does not establish implementation or release qualification.
-An installed acceptance result proves the revision and installation it names.
+Plans keep their original design and their dated delivery records. When a plan's
+status line disagrees with an older future-tense passage in the same file, trust the
+status line. An approved plan may not be implemented or released yet. An acceptance
+result applies only to the revision and installation it names.
 
 ### Delivery And Remaining Work
 
-Delivery checkpoints were reviewed against the repository on September 18, 2026.
-Later proposals carry their own dates. Follow the linked record for precise acceptance
-limits.
+This table was last checked against the repository on September 18, 2026. Later
+proposals carry their own dates. Each linked record states exactly what its acceptance
+covered.
 
 | Record | State |
 |---|---|
-| [Speech](SPEECH_PLAN.md) | Deployed September 22; CUDA dictation, recording Tasks, reload recovery, playback and downloads passed installed browser acceptance. Physical microphone, scale and broader readiness qualification remain recorded. |
-| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19; registry and authoring API/UI checkpoints implemented. Registry-backed execution, managed provisioning and installed acceptance remain in progress. |
-| [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16; later reactive behavior is recorded separately below. Distinct-person and production Task-input follow-ups remain documented. |
-| [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Cold-catalog status presentation and large-scale performance experiments remain. |
-| [Computers](COMPUTERS_PLAN.md) | Core capability deployed with the Bioma configuration; browser, stock CLI, retained files and named agent authority have installed evidence. Clean/offline release closure and broader performance qualification remain separate gates. |
-| [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md) | First release deployed and verified September 9, including a resumed 10 GiB browser upload. Larger-capacity and comparative transfer measurements remain. |
+| [Speech](SPEECH_PLAN.md) | Deployed September 22. CUDA dictation, recording Tasks, reload recovery, playback, and downloads passed installed browser acceptance. Physical-microphone, scale, and broader readiness testing are still open. |
+| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19. The registry and the authoring API and UI are implemented. Registry-backed execution, managed provisioning, and acceptance on an installation are in progress. |
+| [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16. Later reactive behavior is tracked in the Reactive UX row. The plan lists follow-ups for distinct-person testing and production Task input. |
+| [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Status display for a cold catalog and large-scale performance experiments are still open. |
+| [Computers](COMPUTERS_PLAN.md) | Deployed on Bioma, where browser access, the stock CLI, retained files, and named agent authority are verified. A clean offline release and broader performance testing are still open. |
+| [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md) | First release deployed and verified September 9, including a resumed 10 GiB browser upload. Larger uploads and comparative transfer measurements are still open. |
 | [MCP migration](RMCP_3_MIGRATION.md) | Migration delivered. September 17 qualification uses the RMCP 3.4.0 and Rig 0.42.0 forks pinned in Cargo; older pin tables preserve migration history. |
 | [Recording catalog](RECORDING_CATALOG_HARD_CUT_PLAN.md) | Request 016 implemented, activated and accepted. |
 | [Platform improvements](PLATFORM_IMPROVEMENTS_PLAN.md) | Requests 001–013 closed; requests 014–023 have mixed delivery states and phase-specific gates. |
-| [Repository hardening](REPOSITORY_HARDENING_PLAN.md) | Partially delivered; use its delivery table for implemented tooling and remaining governance work. |
+| [Repository hardening](REPOSITORY_HARDENING_PLAN.md) | Partially delivered. Its delivery table lists the implemented tooling and the remaining governance work. |
 | [Capability adoption](CAPABILITY_ADOPTION_PLAN.md) | Weather, tabular prediction and skills tracks are recorded proposals; none is approved or started. |
 
 ### Measurements And Investigations
@@ -73,26 +75,26 @@ limits.
 [Software-factory isolation](FACTORY_ISOLATION.md),
 [self-improving harnesses](SELF_IMPROVING_HARNESS.md),
 [model post-training](HARNESS_MEDIATED_MODEL_POST_TRAINING.md), and
-[regulated readiness](REGULATED_READINESS.md) are explorations. They do not advertise
-shipped capabilities or certify an installation.
+[regulated readiness](REGULATED_READINESS.md) are explorations. They describe ideas,
+not shipped features, and they do not certify an installation.
 
-The publication sources and their PDF-generation instructions are indexed in
+The publication sources and their PDF-generation instructions are listed in
 [the code map](CODEMAP.md#documentation-index). Published figures and PDFs are
-snapshots; component designs govern current implementation details.
+snapshots. For current behavior, read the component designs.
 
 ## Keep Documentation Current
 
 Keep a component's design beside its code. Put cross-component architecture and
 operating guides here, and update this index and CODEMAP when ownership or locations
-change. Link to the authoritative command or contract instead of copying a second
+change. Link to the command or contract that defines a behavior instead of copying a second
 version of it into a plan.
 
-When a feature lands, update the plan's status, its current implementation map and
-the documentation index together. Preserve dated evidence with its revision and
-qualification limits. Future work should identify what remains without reopening
-completed delivery.
+When a feature lands, update the plan's status, its implementation map, and the
+documentation index in the same change. Keep dated results together with the revision
+they were measured on and the limits of what they tested. When describing future work,
+say what remains rather than rewriting the record of what was delivered.
 
-Check local links, section anchors and example paths after editing. Check command
-examples against the owning CLI source. Ordinary documentation edits do not require
-rebuilding or deploying Veoveo; a document embedded in a binary or served resource
-also participates in that component's build inputs.
+Check local links, section anchors, and example paths after editing. Check command
+examples against the source of the CLI that runs them. Documentation edits do not
+require rebuilding or deploying Veoveo, except for documents embedded in a binary or
+served as a resource, which are build inputs of their component.
