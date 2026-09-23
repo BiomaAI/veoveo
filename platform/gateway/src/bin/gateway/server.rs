@@ -569,6 +569,21 @@ mod tests {
     use super::*;
 
     #[test]
+    fn speech_routes_enter_the_same_profile_authentication_boundary() {
+        for path in [
+            "/speech/workspace/dictation",
+            "/speech/workspace/dictation/123/chunks/0",
+            "/speech/workspace/dictation/123/finish",
+        ] {
+            assert_eq!(
+                profile_id_from_gateway_path(path).unwrap().as_str(),
+                "workspace"
+            );
+        }
+        assert!(profile_id_from_gateway_path("/speech//dictation").is_none());
+    }
+
+    #[test]
     fn production_allowed_hosts_use_public_authority_only() {
         let deployment = PublicDeployment::new("https://veoveo.example").expect("valid URL");
 

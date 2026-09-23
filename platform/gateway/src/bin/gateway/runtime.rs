@@ -143,7 +143,7 @@ pub(super) fn profile_id_from_gateway_path(path: &str) -> Option<GatewayProfileI
     let mut segments = path.trim_start_matches('/').split('/');
     match segments.next()? {
         "mcp" | "admin" | "artifacts" | "recordings" | "computers" | "console-api"
-        | "workspace-api" => {}
+        | "workspace-api" | "speech" => {}
         _ => return None,
     }
     let profile = segments.next()?;

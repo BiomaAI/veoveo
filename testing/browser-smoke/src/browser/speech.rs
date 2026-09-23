@@ -43,10 +43,11 @@ async fn wait(cdp: &mut Cdp, session: &str, expression: &str) -> Result<()> {
         if cdp.evaluate::<bool>(session, expression, true).await? {
             return Ok(());
         }
-        ensure!(
-            Instant::now() < deadline,
-            "Workspace did not settle: {expression}"
-        );
+        if Instant::now() >= deadline {
+            let diagnostic: serde_json::Value = cdp.evaluate(session,
+                "({alerts:[...document.querySelectorAll('[role=alert]')].map(e=>e.textContent),dictation:document.querySelector('.dictation')?.textContent,requests:window.speechAcceptance?.requests?.slice(-12)})", false).await?;
+            anyhow::bail!("Workspace did not settle: {expression}; {diagnostic}");
+        }
         tokio::time::sleep(Duration::from_millis(250)).await;
     }
 }

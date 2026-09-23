@@ -134,6 +134,14 @@ class Worker:
 
 
 async def serve(args):
+    os.umask(0o077)
+    # EmptyDir mounts hide image directories. Establish writable NVIDIA/PyTorch
+    # caches before importing the GPU stack, preserving its compilation reuse.
+    for variable in ("XDG_CACHE_HOME", "TORCHINDUCTOR_CACHE_DIR", "TRITON_CACHE_DIR"):
+        if directory := os.environ.get(variable):
+            Path(directory).mkdir(parents=True, exist_ok=True)
+    if directory := os.environ.get("XDG_CACHE_HOME"):
+        (Path(directory) / "torch" / "kernels").mkdir(parents=True, exist_ok=True)
     import numpy as np
     import torch
     import moondream as md

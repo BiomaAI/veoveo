@@ -4,7 +4,7 @@
 
 | Boundary | Supported profile |
 |---|---|
-| Docker Buildx 0.37.0 | canonical Bake execution client |
+| Docker Buildx 0.37.1 | canonical Bake execution client |
 | Docker BuildKit 0.33.0 | digest-pinned `docker-container` worker |
 | Dockerfile frontend 1.25.0 and 1.27.0 | Existing Rust recipes retain their pins; the managed-agent controller uses the current 1.27.0 parser |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
@@ -105,7 +105,7 @@ Cache deletion requires the separate destructive command:
 cargo xtask image builder recreate --confirm veoveo
 ```
 
-Buildx 0.37.0 is exact. An exact host plugin is accepted. On Linux amd64 and arm64,
+Buildx 0.37.1 is exact. An exact host plugin is accepted. On Linux amd64 and arm64,
 `ensure` can instead download the matching official binary into the main Git
 worktree's ignored `target` directory and verifies its checked-in SHA-256 before use. Managed binaries live in version-specific directories, allowing a
 verified upgrade without replacing another worktree’s executable.
@@ -124,7 +124,8 @@ The configured cleanup trigger is 22%: BuildKit 0.33.0's
 [pinned percentage conversion](https://github.com/moby/buildkit/blob/v0.33.0/cmd/buildkitd/config/gcpolicy.go#L127)
 produces fewer bytes than an exact percentage calculation. On the qualified host this
 resolves to about 376 GiB, above release preflight's 366 GiB reserve. Build growth
-remains an additional preflight requirement. The broader pressure policy can reclaim recently used cache when older candidates do not
+remains an additional preflight requirement. The broader pressure policy excludes execution cache mounts, preserving their seven-day
+reuse window. It can reclaim other recently used cache when older candidates do not
 provide enough space; the cache floor still takes priority over free-space recovery.
 A filtered policy's space trigger applies to total worker usage, so both policies use
 the same thresholds. These settings follow BuildKit's
@@ -139,7 +140,7 @@ volume. The status command prints effective cgroup v2 limits and lifetime CPU co
 subtract snapshots around a measured build to assess quota pressure. Throttled CPU
 time is aggregated across execution threads and is not elapsed build time.
 The current pins were verified against the official
-[Buildx release](https://github.com/docker/buildx/releases/tag/v0.37.0) and
+[Buildx release](https://github.com/docker/buildx/releases/tag/v0.37.1) and
 [BuildKit release](https://github.com/moby/buildkit/releases/tag/v0.33.0). Image operations hold one
 shared builder lease across configuration and execution, preventing linked worktrees
 from changing the daemon underneath another build.
@@ -666,3 +667,15 @@ The development profile optimizes SHA-256 because image commands verify the comp
 managed Buildx executable on every invocation and hash source closures. Every tool
 call retains its full checksum check; filesystem timestamps cannot stand in for the
 content digest. Other development crates keep their normal optimization settings.
+
+Recent execution cache mounts retain seven days of reuse even when the worker's
+pressure sweep runs. That broader sweep excludes `exec.cachemount`; the aged policy
+still reclaims mounts after their retention window. This avoids repeatedly discarding
+a just-built Cargo target when unrelated host storage falls below the free-space
+target. Storage preflight still rejects builds that cannot fit their reserve.
+
+Speech's large CUDA/model dependency image uses the same normalized-parent receipt as
+the simulator. Its runtime overlay contains only independently linked application
+layers. Warm staging resolves the existing immutable parent instead of repeatedly
+rewriting its timestamps. The parent changes only when its admitted dependency inputs
+change.

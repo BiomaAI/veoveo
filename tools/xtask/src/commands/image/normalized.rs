@@ -427,6 +427,45 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn speech_normalized_parent_excludes_application_and_rust_inputs() {
+        let repository =
+            RepositoryContext::discover(Path::new(env!("CARGO_MANIFEST_DIR"))).unwrap();
+        let definition = super::super::bake_print(
+            &repository,
+            repository.root(),
+            &super::super::Selection::target("speech-mcp").unwrap(),
+            &BTreeMap::new(),
+            &[],
+        )
+        .unwrap();
+        let parents = prepare(repository.root(), &definition, &["speech-mcp".into()]).unwrap();
+        assert_eq!(parents.len(), 1);
+        let parent = &parents[0];
+        assert_eq!(parent.plan.target, "speech-dependencies");
+        let root = parent.contexts["speech-dependencies"].path();
+        for path in [
+            "Dockerfile.dependencies",
+            "runner/uv.lock",
+            "runner/pyproject.toml",
+            "runner/src/speech_runner/cache_model.py",
+            "runner/src/speech_runner/protocol.py",
+        ] {
+            assert!(root.join(path).is_file(), "missing dependency input {path}");
+        }
+        for path in [
+            "Dockerfile",
+            "src/lib.rs",
+            "runner/src/speech_runner/main.py",
+            "runner/ATTRIBUTION.md",
+        ] {
+            assert!(
+                !root.join(path).exists(),
+                "application input leaked into parent: {path}"
+            );
+        }
+    }
+
+    #[test]
     fn auxiliary_target_metadata_does_not_require_an_exported_image() {
         let metadata: BTreeMap<String, BuildMetadata> = serde_json::from_value(json!({
             "parent": {"containerimage.digest":"sha256:parent"},

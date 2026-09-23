@@ -617,14 +617,25 @@ target "speech-mcp" {
   dockerfile = "servers/speech-mcp/Dockerfile"
   tags       = [image_ref("speech-mcp")]
   contexts = {
+    speech-dependencies = "target:speech-dependencies"
     veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
+    "io.veoveo.build.normalized-parent" = "speech-dependencies"
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-speech-mcp"
     "io.veoveo.build.binaries"  = "speech-mcp"
     "io.veoveo.build.family"    = "rust-bookworm-control-v1"
     "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "speech-dependencies" {
+  context = "servers/speech-mcp"
+  dockerfile = "Dockerfile.dependencies"
+  platforms = ["linux/amd64"]
+  labels = {
+    "io.veoveo.build.input-paths" = "Dockerfile.dependencies,runner/pyproject.toml,runner/uv.lock,runner/src/speech_runner/protocol.py,runner/src/speech_runner/cache_model.py"
   }
 }
 

@@ -115,3 +115,12 @@ Artifact IDs. C31 remains pending until installed catalog readiness is observed.
 The application router is shared by the executable and native conformance fixture.
 The fixture uses the actual CUDA worker, disposable database, internal assertions
 and governed Artifact HTTP service. It does not mock inference or protocol handlers.
+
+## Image Iteration
+
+The normalized dependency parent contains the pinned CUDA Python packages and model
+weights. Registry publication normalizes this parent once. Independent linked layers
+supply the Rust executable, Python worker and attribution; ordinary application edits
+reuse the parent by immutable digest without unpacking its filesystem. Image recipes
+are runtime assets, outside the Rust compiler source context. Worker startup creates
+private writable PyTorch and Triton cache directories on the temporary volume.

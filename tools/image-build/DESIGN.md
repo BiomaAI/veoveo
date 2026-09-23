@@ -264,10 +264,23 @@ binary GiB and multiplies by decimal GB when resolving percentages, so an unadju
 20% setting undershoots an exact 20% reserve. The 22% trigger covers that reserve with
 additional headroom; a future upstream rounding correction only increases the headroom. Collection also begins above 320 GiB of worker cache. The aged-input and
 broader pressure policies share these thresholds. The first policy gives old source
-and compiler-cache mounts a seven-day retention window. The broader policy can reclaim
-other unused state when the host needs space, subject to the cache floor.
+and compiler-cache mounts a seven-day retention window. The broader pressure policy excludes execution cache mounts, preserving that
+seven-day window even under host pressure. Previously its unrestricted sweep could
+remove Cargo targets immediately after a successful build. Other unused state remains
+reclaimable, subject to the cache floor. Active cache mounts may prevent reaching the
+free-space target; the existing storage preflight remains authoritative.
 
 The effective threshold must cover release preflight's default 20% reserve. Each build must still
 budget its peak additional storage. Garbage collection cannot guarantee that reserve
 when other host owners consume more space than the reclaimable cache can cover.
 Registry artifacts and Kubernetes persistent data belong to their own storage owners.
+
+Speech uses the same normalized-parent publication boundary as the simulator. Its
+parent admits the exact Python lock, model-download verifier and model protocol pins.
+Rust binaries and the Python service implementation remain independent linked layers.
+The final assembly has no RUN action and does not unpack the CUDA parent. Package
+asset declarations exclude both image recipes from Rust compilation inputs.
+
+Buildx 0.37.1 and BuildKit 0.33.0 were verified against their upstream release APIs on
+September 22, 2026. Buildx's Linux amd64 and arm64 binaries are SHA-256 pinned to the
+upstream release checksums. The worker and its retained state are unchanged.

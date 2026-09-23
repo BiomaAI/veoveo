@@ -1086,3 +1086,33 @@ Task runtime change only exposes its existing durable observation method publicl
 its persisted representation and runtime behavior are unchanged. Existing consumers
 therefore retain their installed images. Deployment contract changes affect build
 coordination and chart selection, not other server binaries.
+
+### Speech rollout and build corrections, September 22
+
+The first three-image Speech build took 1,072,912 ms. Its two-image follow-up took
+752,958 ms even though the CUDA dependency steps were cached. The follow-up spent a
+215,100 ms phase window rewriting timestamps. Phase windows overlap and must not be
+summed. Both control and browser Rust compilers also started with empty target mounts.
+After the build, `buildctl du -v` showed registry and Git caches but no Cargo target
+mounts. The unrestricted pressure policy could collect fresh execution mounts while
+the host remained below its 22% free-space trigger.
+
+The correction preserves the existing seven-day retention for execution mounts by
+excluding them from the unrestricted sweep. Dependency-image normalization now covers
+Speech through the existing immutable parent publication machinery. Linked application
+layers avoid unpacking or rewriting that parent on a Rust or worker-source edit.
+Buildx is updated to the current stable 0.37.1 release with exact upstream checksums;
+BuildKit remains on current stable 0.33.0.
+
+The initial installation converged at `52af738466450b69687958a495d4070557440119`.
+The requested reconciliation observed all three deployments ready in 8,059 ms; Flux
+had already begun applying the pushed revision before that observation. This number
+is not push-to-ready latency. Installed browser acceptance found a missing Speech
+prefix in the gateway authentication path parser. Its regression test and correction
+retain the existing profile authentication policy.
+
+Host cleanup reclaimed rebuildable Cargo artifacts and unused old Docker images.
+Recording recovered automatically after free space again exceeded its existing
+200-GiB spool reserve. No retained workload data or running container was deleted.
+The chart publication command also waited behind the build's repository-source lock;
+independent source-materialization leases remain a separate coordination improvement.
