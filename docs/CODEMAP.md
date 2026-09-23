@@ -304,6 +304,7 @@ designs above.
 | `deploy/offline/` | pinned image manifest, bundle builder/loader, offline values |
 | `showcase/sumo/` | real SUMO/TraCI domain showcase |
 | `showcase/uav-sim/` | Google 3D Tiles UAV simulation showcase over Isaac, Cesium, Newton, Warp, and PX4 |
+| `examples/bioma/acceptance/src/pilot_consolidation.rs` | installation-only shared UAV definition cutover, with atomic drain checks and retained identity and memory acceptance |
 | `examples/bioma/` | executable enterprise GitOps reference with Bioma-owned desired state |
 | `examples/bioma/platform/flux/` | pinned Flux controller fixture for the local Bioma cluster; it is installed before the installation's desired state, and Veoveo's runtime does not own it |
 | `examples/bioma/gitops/` | Flux Git source, OCI chart sources, platform and extension Helm releases, and installation-owned edge resources |

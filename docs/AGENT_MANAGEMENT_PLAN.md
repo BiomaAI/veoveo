@@ -28,6 +28,29 @@ touched dependency pin must satisfy the repository's upstream verification and
 qualification rules. Provider job completion retains its existing contract; agent
 management does not introduce provider status polling.
 
+## Shared UAV Pilot Consolidation — September 23, 2026
+
+The active follow-up consolidates Bioma’s four vehicle-specific definitions into
+one `uav-pilot` definition and four existing managed instances. Runtime identities,
+control grants and memory stay with the instances. The current grant selects the
+vehicle; the shared definition supplies instructions, capabilities and budgets.
+The installation template supplies only the common simulation session.
+
+1. Remove the vehicle parameter and unpublished per-vehicle subscription URIs from
+   the template. Keep control-grant and mission-plan notifications and Task wakes.
+2. Rehearse a typed installation transaction against the pinned database. Check
+   atomic failure, live-writer rejection, replay and retained identity constraints.
+3. Pause and drain the pilots, publish the new template and shared definition,
+   then switch all four instance references in one transaction.
+4. Resume the retained instances. Verify four Ready pilots, current grants,
+   retained storage and keys, Console presentation and event-driven execution.
+5. Archive the obsolete definitions, record deployment costs and commit passing
+   build and installed acceptance receipts.
+
+The [installation acceptance design](../examples/bioma/acceptance/DESIGN.md)
+defines drain and recovery. This coordinated hard cut adds no migration adapter,
+new runtime service or general instance-configuration API.
+
 ## Outcome
 
 A permitted person can create an agent, choose an approved model, write its

@@ -8,6 +8,7 @@
 | SurrealDB 3.2.4 | Native Rust SDK, parameterized SurrealQL transactions and the platform-store schema; recovery exports use native SQL values |
 | Kubernetes | Existing Deployment, Secret, PersistentVolume and PersistentVolumeClaim APIs; retained local-path storage is installation-owned |
 | Pilot migration | Private `bioma-pilot-cutover/v1` evidence and four explicit adoption records; this is an installation procedure, not a public API |
+| Definition consolidation | Private `bioma-pilot-consolidation/v1` transaction for four paused, drained instances; no compatibility adapter or public rebinding API |
 | Archive recovery | POSIX tar contents and file metadata, checked by the Rust recovery test |
 
 ## Ownership
@@ -62,3 +63,38 @@ the private export directory and database connection through environment variabl
 credentials are never written to the source tree or printed as command arguments.
 Record each installed command through `cargo xtask test-report run` before committing
 its implementation and evidence.
+
+## Definition Consolidation
+
+`pilot_consolidation` replaces the four vehicle-specific definitions with the shared
+`uav-pilot` publication. The four existing managed instances keep their identities,
+public keys, signing Secrets and physical memory volumes. Vehicle control grants
+continue to select each pilot’s vehicle. The template accepts only a session.
+
+The operator rehearses the transaction against a disposable SurrealDB 3.2.4 copy of
+the relevant installation records. The test rejects a stale fourth instance and a
+live runtime lease, checks transaction rollback, and verifies that replay cannot
+replace a subsequent generation. Exported records contain no private signing keys.
+
+For the live cut, pause the instances through the API, wait for their episodes to
+finish, then disable the old definitions. The manager removes the workloads. Wait
+until no Deployment, Pod using a retained claim, or runtime lease survives. Install
+the new immutable template and approve it in the gateway and manager. Publish the
+shared definition through the ordinary API. The consolidation test records private
+before-images and Kubernetes resource UIDs, then changes all four references in one
+transaction. It advances generation and dispatch epoch and supersedes controller
+claims. The retained active-generation marker prevents recreation of missing memory.
+
+Resume through the ordinary API and verify all four instances are Ready on the
+shared revision. Compare the original Secret UID, PVC UID, physical volume, public
+key and principal. Archive the old definitions after verification; historical
+revisions remain available to recorded episodes.
+
+Recovery before resume uses the saved before-images to restore the old definition,
+requested revision and template references under another drained transaction. Keep
+generation and dispatch epoch increasing, supersede the consolidation operation and
+create a fresh paused operation. Reinstall the prior approved template before
+enabling the old definitions and resuming. Never restore an entire stale instance
+or reduce its generation. After resume, repair forward under the usual pause/drain
+procedure; memory and new work are never rolled back. This cut does not copy or
+convert memory data and introduces no archive or backup service.

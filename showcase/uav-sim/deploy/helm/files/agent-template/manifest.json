@@ -44,9 +44,9 @@
     "max_context_tokens": 24000,
     "sections": [
       {
-        "name": "Requested assignment; the current domain grant determines authority",
+        "name": "Simulation session; current control grants select the vehicle",
         "priority": 0,
-        "sql": "SELECT '${VEOVEO_PARAM_SESSION}' AS requested_session, '${VEOVEO_PARAM_VEHICLE}' AS requested_vehicle"
+        "sql": "SELECT '${VEOVEO_PARAM_SESSION}' AS requested_session"
       },
       {
         "name": "Open mission intents",
