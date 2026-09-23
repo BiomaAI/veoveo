@@ -1123,3 +1123,9 @@ They include their actual package dependencies and external build recipes. Unrel
 repository documentation no longer invalidates those checks. GPU and installed browser
 runs retain their explicit runtime qualification limits; source scoping does not grant
 installed evidence or hide a failed attempt.
+
+The cold gateway build exposed an obsolete `libduckdb.so` packaging requirement after
+successful compilation. The gateway no longer links DuckDB; earlier warm builds could
+copy a leftover library. The requirement and runtime copy are removed, and a Cargo
+production-graph/Bake regression protects that boundary. Successful compiler output
+from the failed packaging attempt remains reusable.

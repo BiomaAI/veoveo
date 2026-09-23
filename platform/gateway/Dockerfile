@@ -1,5 +1,5 @@
-# syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
-FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
+# syntax=docker/dockerfile:1.27.0@sha256:bde3983e9c939224420ddaf6b784cc30e09b035a4dea01f581230c50809f372e
+FROM debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl libstdc++6 \
@@ -8,9 +8,6 @@ RUN apt-get update \
 RUN useradd --system --uid 10001 --create-home --home-dir /var/lib/veoveo veoveo \
     && mkdir -p /etc/veoveo \
     && chown -R veoveo:veoveo /etc/veoveo /var/lib/veoveo
-
-COPY --from=veoveo-rust-artifacts /lib/libduckdb.so /usr/local/lib/libduckdb.so
-RUN ldconfig
 
 COPY --from=veoveo-rust-artifacts /bin/gateway /usr/local/bin/gateway
 

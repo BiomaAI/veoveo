@@ -307,7 +307,7 @@ target "mcp-gateway" {
     "io.veoveo.build.package"   = "veoveo-mcp-gateway"
     "io.veoveo.build.binaries"  = "gateway"
     "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb"
+    "io.veoveo.build.auxiliary" = ""
   }
 }
 

@@ -26,6 +26,8 @@ mod buildkit;
 pub(crate) mod cache_benchmark;
 mod normalized;
 pub(crate) mod operation;
+#[cfg(test)]
+mod packaging_tests;
 mod run_evidence;
 mod selection;
 mod source_context;

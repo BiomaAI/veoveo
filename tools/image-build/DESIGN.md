@@ -291,3 +291,9 @@ collection, it may reclaim recent mounts when total worker usage still exceeds
 The normal 22% pressure sweep cannot bypass retention. This emergency policy keeps
 active compiler caches from becoming an unlimited disk reservation; it does not
 replace installation storage preflight or guarantee space owned by other services.
+
+The gateway has no production DuckDB dependency. Its image declares no analytical
+auxiliary library and copies only its executable. A native regression compares the
+resolved Bake plan with Cargo's production graph. This prevents a stale cache file
+from concealing a missing or obsolete packaging dependency. The gateway runtime's
+Debian Trixie image and Dockerfile frontend were verified and pinned on September 22.
