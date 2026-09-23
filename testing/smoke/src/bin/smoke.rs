@@ -531,6 +531,19 @@ enum Cmd {
         #[arg(long = "stream-id", required = true)]
         stream_ids: Vec<uuid::Uuid>,
     },
+    /// Query an installed recording through the native Rerun Python Catalog SDK.
+    RecordingCatalogSdk {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(long, default_value = "https://veoveo.bioma.ai")]
+        public_base_url: String,
+        #[arg(long, default_value = "k3d-veoveo-bioma")]
+        context: String,
+        #[arg(long)]
+        dataset_id: uuid::Uuid,
+        #[arg(long)]
+        recording_id: uuid::Uuid,
+    },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
     ReasonGpu {
         /// Environment file used by the active k3d profile and direct assertion signer.
@@ -876,6 +889,22 @@ async fn main() -> Result<()> {
             producer_key_secret,
             stream_ids,
         } => recording_fixture_finish(&env_file, &producer_key_secret, &stream_ids).await,
+        Cmd::RecordingCatalogSdk {
+            conformance_bin,
+            public_base_url,
+            context,
+            dataset_id,
+            recording_id,
+        } => {
+            recording_catalog_sdk(
+                &conformance_bin,
+                &public_base_url,
+                &context,
+                dataset_id,
+                recording_id,
+            )
+            .await
+        }
         Cmd::ReasonGpu {
             env_file,
             work_dir,

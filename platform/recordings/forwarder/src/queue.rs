@@ -612,7 +612,7 @@ mod tests {
         let payload = b"complete-rrd".to_vec();
         RecordingBatch {
             sequence: 0,
-            payload_format: RerunPayloadFormat::Rrd0350.into(),
+            payload_format: RerunPayloadFormat::Rrd0381.into(),
             sha256: Sha256::digest(&payload).to_vec(),
             encoded_rrd: payload,
             message_count: 1,
@@ -623,7 +623,7 @@ mod tests {
         let payload = b"complete-blueprint-rrd".to_vec();
         RecordingBlueprint {
             revision: 0,
-            payload_format: RerunPayloadFormat::Rrd0350.into(),
+            payload_format: RerunPayloadFormat::Rrd0381.into(),
             sha256: Sha256::digest(&payload).to_vec(),
             encoded_rrd: payload,
             message_count: 3,

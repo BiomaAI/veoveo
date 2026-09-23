@@ -102,7 +102,7 @@ impl BlueprintAccumulator {
         );
         Ok(RecordingBlueprint {
             revision: 0,
-            payload_format: RerunPayloadFormat::Rrd0350.into(),
+            payload_format: RerunPayloadFormat::Rrd0381.into(),
             sha256: Sha256::digest(&encoded_rrd).to_vec(),
             encoded_rrd,
             message_count,

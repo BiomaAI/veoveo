@@ -1444,7 +1444,7 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
                 128,
                 10,
                 &"c".repeat(64),
-                Some("0.36.3"),
+                Some("0.38.1"),
                 Some(&"a".repeat(64)),
                 Some(Utc::now())
             )
@@ -1460,7 +1460,7 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
             128,
             20,
             &"d".repeat(64),
-            Some("0.36.3"),
+            Some("0.38.1"),
             Some(&"b".repeat(64)),
             Some(Utc::now()),
         )
@@ -1552,7 +1552,7 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
             128,
             1,
             &"f".repeat(64),
-            Some("0.36.3"),
+            Some("0.38.1"),
             Some(&"9".repeat(64)),
             None,
         )

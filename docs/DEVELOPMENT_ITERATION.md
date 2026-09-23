@@ -9,7 +9,7 @@
 | Git commit identity | exact source revision and reproducible source timestamp |
 | Helm values | complete registry and image-digest map consumed by GitOps |
 | Chrome DevTools Protocol | headed hardware-browser acceptance and request cancellation evidence |
-| Rerun 0.36.3 RRD | bounded live history and governed archive playback |
+| Rerun 0.38.1 RRD | bounded live history and governed archive playback |
 | `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
 | `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
 | `veoveo.io/component-publication/v1` | exact component lock composition with retained artifact inputs; no cluster mutation claim |

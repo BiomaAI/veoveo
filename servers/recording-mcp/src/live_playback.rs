@@ -582,7 +582,18 @@ mod tests {
             .unwrap();
         let initial_data = initial
             .iter()
-            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .find(|message| match message {
+                LogMsg::ArrowMsg(_, arrow) => {
+                    arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value")
+                }
+                _ => false,
+            })
             .unwrap();
 
         let directory = tempfile::tempdir().unwrap();
@@ -718,7 +729,18 @@ mod tests {
             .unwrap();
         let data = messages
             .iter()
-            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .find(|message| match message {
+                LogMsg::ArrowMsg(_, arrow) => {
+                    arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value")
+                }
+                _ => false,
+            })
             .unwrap();
         let directory = tempfile::tempdir().unwrap();
         let day_directory = directory.path().join("dataset").join("2026-08-04");
@@ -767,7 +789,18 @@ mod tests {
             .unwrap();
         let data = messages
             .iter()
-            .find(|message| matches!(message, LogMsg::ArrowMsg(_, _)))
+            .find(|message| match message {
+                LogMsg::ArrowMsg(_, arrow) => {
+                    arrow
+                        .batch
+                        .schema()
+                        .metadata()
+                        .get("rerun:entity_path")
+                        .map(String::as_str)
+                        == Some("/sensor/value")
+                }
+                _ => false,
+            })
             .unwrap();
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("old.rrd");

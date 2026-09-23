@@ -1612,6 +1612,7 @@
         "enabled",
         "className",
         "annotations",
+        "redapAnnotations",
         "publicShareAnnotations",
         "host",
         "tls"
@@ -1624,6 +1625,12 @@
           "type": "string"
         },
         "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "redapAnnotations": {
           "type": "object",
           "additionalProperties": {
             "type": "string"

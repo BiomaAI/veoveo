@@ -195,7 +195,7 @@ function AuthorizedArtifactPreview({
       <div className="artifact-preview artifact-preview-rerun">
         <div className="artifact-preview-label"><Box size={13} /> Interactive Rerun preview</div>
         <div className="artifact-rerun-viewer">
-          <Suspense fallback={<div className="artifact-preview-loading"><div className="loading-mark" /> Loading Rerun 0.36.3…</div>}>
+          <Suspense fallback={<div className="artifact-preview-loading"><div className="loading-mark" /> Loading Rerun 0.38.1…</div>}>
             <GovernedRerunArtifactViewer
               key={artifact.id}
               artifactId={artifact.id}

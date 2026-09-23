@@ -249,7 +249,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         ],
         "agent-gateway" => &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE],
         "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
-        "stream-compiler-startup" | "recording-fixture-finish" => &[],
+        "stream-compiler-startup" | "recording-fixture-finish" | "recording-catalog-sdk" => &[],
         "helm-config"
         | "profile-validate"
         | "profile-registry-up"

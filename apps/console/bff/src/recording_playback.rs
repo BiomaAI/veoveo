@@ -489,7 +489,7 @@ mod tests {
                 "dataset_id": dataset_id,
                 "recording_segment_id": recording_id,
                 "catalog_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-                "rrd_version": "0.36.3",
+                "rrd_version": "0.38.1",
                 "optimization_profile": "object-store",
                 "byte_len": 42,
                 "layer_count": 1

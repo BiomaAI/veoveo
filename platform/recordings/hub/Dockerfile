@@ -3,7 +3,7 @@
 # ingest caller; native Rerun remains a container-loopback implementation port.
 FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 
-ARG RERUN_VERSION=0.36.3
+ARG RERUN_VERSION=0.38.1
 ARG ATTRS_VERSION=26.1.0
 ARG NUMPY_VERSION=2.5.2
 ARG PILLOW_VERSION=12.3.0

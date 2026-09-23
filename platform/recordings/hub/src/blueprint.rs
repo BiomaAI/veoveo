@@ -9,7 +9,7 @@ use re_entity_db::EntityDb;
 use re_log_encoding::Decoder;
 use re_log_types::{LogMsg, StoreId, StoreKind};
 use re_sdk_types::blueprint::components::MapProvider;
-use re_types_core::{Component as _, Loggable as _};
+use re_types_core::{Component as _, FromArrow as _};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum BlueprintMapProviderSelection {
@@ -81,10 +81,9 @@ pub fn validate_blueprint_rrd(
                     .values()
                     .filter(|column| column.descriptor.component_type == Some(MapProvider::name()))
                 {
-                    for provider in MapProvider::from_arrow_opt(column.list_array.values().as_ref())
+                    for provider in MapProvider::from_arrow(column.list_array.values().as_ref())
                         .context("decoding recording Blueprint map provider")?
                         .into_iter()
-                        .flatten()
                     {
                         match provider {
                             MapProvider::OpenStreetMap => open_street_map = true,

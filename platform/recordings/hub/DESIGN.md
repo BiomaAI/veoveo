@@ -9,6 +9,14 @@ journals use synchronized writes and atomic publication on the same filesystem.
 `veoveo.io/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
 owned by Hub; it is not a producer protocol or an accepted recording batch.
 
+## Archive Materialization
+
+Hub applies Rerun's `OBJECT_STORE` chunk-compaction profile to a complete archive
+shard. It writes the result through the RRD encoder directly to a staged file, then
+finishes the footer, synchronizes the file, and publishes it by rename. The archive
+test reopens the footer and checks that compaction reduced chunk count. Live playback
+uses the separate `LIVE` profile to keep updates responsive.
+
 ## Terminal Journal Recovery
 
 Startup replays accepted duplicate batches even when their stream is finished.

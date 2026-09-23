@@ -11,7 +11,7 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 | Model Context Protocol `2026-07-28` | JSON-RPC 2.0 over Streamable HTTP for recording discovery, layer inspection, sealing, projection control, resources, prompts, subscriptions, and notifications. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | `ui://recording/explorer.html` is the server-owned Recording Explorer. |
 | JSON Schema Draft 2020-12 | Closed tool inputs, views, playback manifest, grants, projection handles, and storage diagnostics. |
-| Rerun `0.36.3` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
+| Rerun `0.38.1` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
 | Apache Arrow IPC stream | Deterministic bounded projection payload produced from exact admitted RRD layers. |
 | Veoveo playback manifest v9 | `veoveo.io/recording-playback/v9` is the only accepted manifest. |
@@ -99,7 +99,9 @@ The scoped Redap service implements these read methods:
 
 The handler returns permission denied for entry, dataset, table, registration, task,
 maintenance, and streaming mutations. `WriteChunks` and `WriteTable` are explicitly
-denied. Selected `re_redap_tests 0.36.3` assertions cover query filters, manifest scans,
+denied. Rerun 0.38's `WhoAmI` response advertises an explicit empty capability set,
+because this read-only endpoint cannot register `file://` sources. Selected
+`re_redap_tests 0.38.1` assertions cover query filters, manifest scans,
 chunk completeness, and missing recording segments. Veoveo tests own grant isolation,
 scope, expiry, and direct-fetch authorization.
 

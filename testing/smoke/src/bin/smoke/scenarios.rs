@@ -29,10 +29,13 @@ mod map;
 mod media;
 #[path = "scenarios/reason.rs"]
 mod reason;
+#[path = "scenarios/recording_catalog_sdk.rs"]
+mod recording_catalog_sdk;
 #[path = "scenarios/recording_fixture.rs"]
 mod recording_fixture;
 #[path = "scenarios/recording_ingest.rs"]
 mod recording_ingest;
+pub(crate) use recording_catalog_sdk::recording_catalog_sdk;
 pub(crate) use recording_fixture::recording_fixture_finish;
 #[path = "scenarios/secrets.rs"]
 mod secrets;
