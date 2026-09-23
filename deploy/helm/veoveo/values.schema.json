@@ -2244,7 +2244,7 @@
         },
         "replicas": {
           "type": "integer",
-          "minimum": 2
+          "minimum": 1
         },
         "resources": {
           "type": "object"
