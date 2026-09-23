@@ -3,5 +3,5 @@ global:
   veoveoTag: ""
   imageDigests:
     veoveo/recording-forwarder: sha256:c3a71d509c936dc153127551f099abdcc25fae4f4c5c37de86c821068ac9e99e
-    veoveo/uav-sim-mcp: sha256:01453120f24bbd482f9b73506c27ef699321186fcd081c80594ebb20af2392af
+    veoveo/uav-sim-mcp: sha256:473e62eae20cb20605b3bf006b31d10387dda704253e254e0bb03bc2096db580
     veoveo/uav-sim-runtime: sha256:248a8f1f28ed1c37aa8bff37e0bb95798ad762acb5789adcc9d75be805130282

@@ -6,7 +6,9 @@ SurrealDB 3.2.4 executes SurrealQL transactions over the existing authenticated
 WebSocket client. SHA-256 binds applied migration SQL to compiled source. Migration
 catalogs are internal Rust values, with no runtime package or registration protocol.
 The upstream history format keeps its existing numeric identity and SQL checksums.
-The downstream history uses a separate schemafull table with root-only access.
+The downstream history uses a separate schemafull table with `PERMISSIONS NONE`.
+The migration API requires root credentials. SurrealDB system-user roles keep their
+existing database authority; table permissions do not revoke that authority.
 
 ## Catalogs And Ordering
 

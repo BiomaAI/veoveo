@@ -13,7 +13,7 @@ spec:
     - name: veoveo
   chartRef:
     kind: OCIRepository
-    name: uav-sim-chart-70fc109a3a906d53dbb8635f2ff1805351607b8907811ade083fba6a1422171c
+    name: uav-sim-chart-5675699d93eb238d3c41e14c284ccdd32349cc4cec022826e3d3d5d63cefb8e9
   valuesFrom:
     - kind: ConfigMap
       name: bioma-uav-sim-values
