@@ -77,5 +77,5 @@ checks rather than assuming a Console build verifies both applications.
 
 Console App navigation uses extension-free catalog routes, such as
 `/console/#/apps/datasheet/workbench` and `/console/#/apps/uav-sim/live`.
-Reload resolves the route against the current authorized catalog. Internal MCP
-resource identities remain separate from browser navigation.
+Reload resolves the route against the current authorized catalog. Browser
+routes never expose internal MCP resource URIs.

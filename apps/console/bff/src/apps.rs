@@ -702,9 +702,9 @@ pub(crate) async fn read_app_resource(
                 call_error(
                     status,
                     if status == StatusCode::SERVICE_UNAVAILABLE {
-                        "App discovery is still unavailable; retry when it recovers"
+                        "Apps are still loading. Try again in a moment."
                     } else {
-                        "resource is not declared for this App"
+                        "This App can't read that resource."
                     },
                 ),
                 response_headers,
@@ -828,7 +828,7 @@ pub(crate) async fn app_resource_events(
                     &request.server,
                     veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
                 ),
-                "App resource is not available",
+                "This App's resource isn't available. It may have been removed, or you may not have access.",
             ),
             response_headers,
         );
@@ -1139,7 +1139,7 @@ pub(crate) async fn call_app_tool(
                     &request.server,
                     veoveo_mcp_contract::GatewayDiscoverySurface::Resources,
                 ),
-                "App resource is not available",
+                "This App's resource isn't available. It may have been removed, or you may not have access.",
             ),
             response_headers,
         );

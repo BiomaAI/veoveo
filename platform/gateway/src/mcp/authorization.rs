@@ -333,7 +333,10 @@ impl GatewayMcp {
         self.state
             .record_audit_event(&event)
             .await
-            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+            .map_err(|err| {
+                tracing::error!("failed to record gateway audit event: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
+            })?;
         Ok((subject.clone(), event.decision))
     }
 
@@ -358,7 +361,8 @@ impl GatewayMcp {
             .record_audit_events(&events)
             .await
             .map_err(|err| {
-                mcp_internal(format!("failed to record discovery audit events: {err}"))
+                tracing::error!("failed to record discovery audit events: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
             })?;
         Ok(events
             .into_iter()
@@ -531,7 +535,10 @@ impl GatewayMcp {
                 metadata: principal_audit_metadata(&subject.principal),
             })
             .await
-            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+            .map_err(|err| {
+                tracing::error!("failed to record gateway audit event: {err}");
+                mcp_internal("The gateway couldn't record this request in the audit log, so it was not completed. Try again shortly.")
+            })?;
         Ok(())
     }
 
