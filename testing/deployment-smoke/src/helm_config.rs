@@ -376,9 +376,10 @@ pub(crate) fn helm_config() -> Result<()> {
         "name: view-mcp",
         "name: stream-mcp",
         "name: reason-mcp",
+        "name: speech-mcp",
         "--expected-control-plane",
         "/etc/veoveo/gateway/gateway.json",
-        "value: \"computers,artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,datasheet,uav-sim\"",
+        "value: \"computers,artifact,media,timeseries,optimization,duckdb,frames,map,recording,stream,reason,speech,datasheet,uav-sim\"",
         "checksum/reason-runtime:",
     ] {
         contains(&bioma, expected)?;
@@ -986,10 +987,10 @@ pub(crate) fn helm_config() -> Result<()> {
         contains(&px4_commander, expected)?;
     }
     let gpu_device_plugin = fs::read_to_string("deploy/local/k3d/node/nvidia-device-plugin.yaml")?;
-    contains(&gpu_device_plugin, "replicas: 6")?;
+    contains(&gpu_device_plugin, "replicas: 8")?;
     contains(
         &gpu_device_plugin,
-        "veoveo.ai/device-plugin-config: time-slicing-7",
+        "veoveo.ai/device-plugin-config: time-slicing-8",
     )?;
 
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
