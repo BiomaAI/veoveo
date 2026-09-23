@@ -20,7 +20,7 @@ data:
         failRequestsGreaterThanOne: true
         resources:
           - name: nvidia.com/gpu
-            replicas: 6
+            replicas: 8
 ---
 apiVersion: apps/v1
 kind: DaemonSet
@@ -36,7 +36,7 @@ spec:
       labels:
         app.kubernetes.io/name: nvidia-device-plugin
       annotations:
-        veoveo.ai/device-plugin-config: time-slicing-7
+        veoveo.ai/device-plugin-config: time-slicing-8
     spec:
       runtimeClassName: nvidia
       priorityClassName: system-node-critical
@@ -44,7 +44,7 @@ spec:
         - operator: Exists
       containers:
         - name: nvidia-device-plugin
-          image: nvcr.io/nvidia/k8s-device-plugin:v0.19.3
+          image: nvcr.io/nvidia/k8s-device-plugin:v0.20.1@sha256:27c1b2553a690ca3d29889dcd61df97525d46f58272c0be8dc63c2b18f120075
           args:
             - --config-file=/config/config.yaml
           securityContext:

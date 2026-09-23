@@ -87,6 +87,7 @@ group "platform-full" {
     "media-mcp",
     "stream-mcp",
     "reason-mcp",
+    "speech-mcp",
     "timeseries-mcp",
     "duckdb-mcp",
     "optimization-mcp",
@@ -606,6 +607,22 @@ target "reason-mcp" {
     "io.veoveo.build.mode"      = "rust-shared"
     "io.veoveo.build.package"   = "veoveo-reason-mcp"
     "io.veoveo.build.binaries"  = "reason-mcp"
+    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
+    "io.veoveo.build.auxiliary" = ""
+  }
+}
+
+target "speech-mcp" {
+  inherits   = ["base"]
+  dockerfile = "servers/speech-mcp/Dockerfile"
+  tags       = [image_ref("speech-mcp")]
+  contexts = {
+    veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
+  }
+  labels = {
+    "io.veoveo.build.mode"      = "rust-shared"
+    "io.veoveo.build.package"   = "veoveo-speech-mcp"
+    "io.veoveo.build.binaries"  = "speech-mcp"
     "io.veoveo.build.family"    = "rust-bookworm-control-v1"
     "io.veoveo.build.auxiliary" = ""
   }

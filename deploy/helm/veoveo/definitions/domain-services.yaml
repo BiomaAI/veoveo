@@ -335,3 +335,35 @@
       cpu: "4"
       memory: 8Gi
       nvidia.com/gpu: "1"
+- name: speech-mcp
+  runtimeClassName: nvidia
+  image:
+    repository: veoveo/speech-mcp
+    tag: 0.1.0
+    digest: ""
+  port: 8811
+  healthPath: /speech/healthz
+  readinessPath: /speech/readyz
+  startupProbe:
+    failureThreshold: 30
+    periodSeconds: 5
+    timeoutSeconds: 3
+  args:
+    - --port
+    - "8811"
+    - --allowed-host
+    - speech-mcp:8811
+    - --artifact-service-url
+    - http://artifact-service:8790
+  tmpSizeLimit: 6Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+      ephemeral-storage: 6Gi
+      nvidia.com/gpu: "1"
+    limits:
+      cpu: "4"
+      memory: 8Gi
+      ephemeral-storage: 8Gi
+      nvidia.com/gpu: "1"

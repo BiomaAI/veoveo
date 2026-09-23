@@ -40,6 +40,22 @@ inputs. Its GPU runtime and model cache belong to the Speech image. This release
 boundary permits model updates without rebuilding the gateway and browser edge.
 The model remains loaded between requests; idle residency does not initiate inference.
 
+The runtime base pins uv `0.12.18` with CPython 3.13 and Debian Trixie at OCI
+index `sha256:8891323e7ddaddc86d08c91f8af845ac5774a07d6f98e6765883030e1ad16fbc`.
+Python 3.13 is the qualified native Photon wheel boundary. Build-only Hatchling
+is pinned at `1.32.4`. Build-time cache admission verifies the model's SHA-256;
+installed pods run offline against read-only image weights. The image includes
+model attribution. No CUDA model initialization occurs during image assembly.
+
+Helm selects Speech in the full installation. A pod requests one NVIDIA GPU,
+reserves two inference slots for recordings and two for private dictation, and
+admits one replica. Its six-GiB temporary volume accommodates two bounded source
+files. Liveness probes the resident worker; readiness additionally checks storage.
+The Bioma local node advertises eight shared GPU slots using NVIDIA device plugin
+`0.20.1`, pinned by OCI digest. Time slicing provides admission slots on the existing
+GPU, not memory isolation or additional hardware capacity.
+
+
 The latest model repository revision on September 22, 2026 is
 `4cd0e9998a84defad3b47e6a698b699c3d3de274`. Its configuration, tokenizer and weight
 objects are identical to Photon `0.8.1`'s pinned revision

@@ -1070,3 +1070,19 @@ The Bioma node advertises seven shared GPU slots, all allocated. Speech needs an
 eighth declared slot while preserving existing GPU workloads. At this checkpoint,
 the RTX 4090 used approximately 10.6 GiB of its 24 GiB. Scheduling admission and model
 residency are separate facts; installed concurrent acceptance must verify both.
+
+
+### Speech packaging checkpoint, September 22
+
+The domain/browser checkpoint added 96,214 lines across 78 files, dominated by
+recorded input snapshots and generated schemas. Unclassified native GPU checks
+snapshot the whole tree, so a gateway lint fix invalidated GPU evidence and required
+a repeat. A future recorder change should qualify the GPU command and deduplicate
+its input manifest. This bookkeeping does not justify repeating unrelated workloads.
+
+Speech's runtime dependencies and pinned model weights have independent cached image
+layers. The selected build contains Speech, gateway and browser edge. The shared
+Task runtime change only exposes its existing durable observation method publicly;
+its persisted representation and runtime behavior are unchanged. Existing consumers
+therefore retain their installed images. Deployment contract changes affect build
+coordination and chart selection, not other server binaries.
