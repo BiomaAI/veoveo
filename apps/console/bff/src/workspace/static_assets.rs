@@ -34,7 +34,13 @@ pub(crate) fn routes<S: Clone + Send + Sync + 'static>(
                 let index = index.clone();
                 async move {
                     (
-                        [(CACHE_CONTROL, "no-store")],
+                        [
+                            (CACHE_CONTROL, "no-store"),
+                            (
+                                axum::http::header::HeaderName::from_static("permissions-policy"),
+                                "camera=(), microphone=(self), geolocation=(), payment=()",
+                            ),
+                        ],
                         Html(index.as_str().to_owned()),
                     )
                 }
@@ -79,6 +85,12 @@ mod tests {
                 .unwrap();
             assert_eq!(response.status(), status);
             assert_eq!(response.headers()[CACHE_CONTROL], cache);
+            if path == "/workspace/" {
+                assert_eq!(
+                    response.headers()["permissions-policy"],
+                    "camera=(), microphone=(self), geolocation=(), payment=()"
+                );
+            }
         }
         std::fs::remove_dir_all(directory).unwrap();
     }

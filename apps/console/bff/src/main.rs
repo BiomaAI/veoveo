@@ -105,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
         ..state.clone()
     };
     let workspace_router = workspace::router()
+        .merge(workspace::speech::router())
         .merge(agent_management::router(browser::BrowserApp::Workspace))
         .merge(artifact_upload::router(browser::BrowserApp::Workspace))
         .merge(computers::control_router(browser::BrowserApp::Workspace))

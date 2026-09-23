@@ -16871,6 +16871,7 @@ dependencies = [
  "veoveo-computers-transport",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-speech-contract",
 ]
 
 [[package]]
@@ -17251,6 +17252,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-recording-protocol",
+ "veoveo-speech-contract",
  "veoveo-task-runtime",
 ]
 
@@ -17688,16 +17690,48 @@ dependencies = [
 ]
 
 [[package]]
-name = "veoveo-speech-mcp"
+name = "veoveo-speech-contract"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "uuid",
+ "veoveo-mcp-contract",
+]
+
+[[package]]
+name = "veoveo-speech-mcp"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64 0.23.1",
+ "chrono",
+ "clap",
+ "futures",
+ "hex",
+ "rcgen",
+ "rmcp",
+ "rustls",
+ "schemars 1.2.2",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "tokio-util",
+ "tower",
+ "tracing",
+ "uuid",
+ "veoveo-artifact-client",
+ "veoveo-artifact-service",
+ "veoveo-mcp-contract",
+ "veoveo-platform-store",
+ "veoveo-speech-contract",
+ "veoveo-task-runtime",
 ]
 
 [[package]]
@@ -17974,6 +18008,7 @@ dependencies = [
  "veoveo-image-build-control",
  "veoveo-mcp-conformance",
  "veoveo-mcp-contract",
+ "veoveo-speech-contract",
 ]
 
 [[package]]

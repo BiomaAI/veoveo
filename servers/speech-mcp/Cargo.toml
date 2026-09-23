@@ -7,13 +7,36 @@ edition.workspace = true
 image-asset-inputs = ["servers/speech-mcp/runner"]
 
 [dependencies]
+veoveo-speech-contract = { path = "contract" }
 anyhow.workspace = true
+axum.workspace = true
+chrono.workspace = true
+clap.workspace = true
+futures.workspace = true
+hex.workspace = true
+rustls.workspace = true
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
+secrecy.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["io-util", "net", "process", "macros", "rt-multi-thread", "time", "sync"] }
+sha2.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["full"] }
 tokio-util.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+veoveo-artifact-client = { path = "../../platform/artifacts/client" }
+veoveo-mcp-contract.workspace = true
+veoveo-platform-store.workspace = true
+veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
-tempfile.workspace = true
+base64.workspace = true
+rcgen.workspace = true
+veoveo-artifact-service = { path = "../../platform/artifacts/service" }
+tower = { workspace = true, features = ["util"] }
 
+[[bin]]
+name = "speech-mcp"
+path = "src/bin/speech-mcp.rs"

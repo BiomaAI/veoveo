@@ -317,6 +317,12 @@ impl Config {
     }
 
     /// Paths are assembled from the Workspace router's typed identifiers.
+    pub(crate) fn speech_url(&self, path: &str) -> Url {
+        self.gateway_url
+            .join(&format!("/speech/{}{path}", self.profile))
+            .expect("validated profile and Speech path")
+    }
+
     pub(crate) fn workspace_url(&self, path: &str) -> Url {
         self.gateway_url
             .join(&format!("/workspace-api/{}{path}", self.profile))

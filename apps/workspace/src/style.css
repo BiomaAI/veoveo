@@ -965,3 +965,18 @@ p {
 .attachment-choices button { overflow-wrap: anywhere; text-align: left; }
 
 .task-progress.measured span { animation:none; transition:width .2s ease; }
+
+.dictation { margin: 8px 0; font-size: 13px; }
+.dictation-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dictation-controls button { display: inline-flex; align-items: center; gap: 6px; }
+.dictation-controls span { color: var(--muted, #687078); }
+.dictation-preview { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--border, #d8dfe5); border-radius: 10px; max-height: 180px; overflow: auto; white-space: pre-wrap; }
+
+.recording-transcription { margin-top: 8px; font-size: 13px; }
+.recording-transcription > button { display: inline-flex; align-items: center; gap: 6px; }
+.recording-picker { border: 1px solid var(--border, #d8dfe5); border-radius: 10px; padding: 12px; margin-top: 8px; }
+.recording-picker label { display: grid; gap: 5px; margin: 10px 0; }
+.speech-result { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.speech-result audio, .speech-result .speech-segments, .speech-result details { width: 100%; }
+.speech-segments { max-height: 400px; overflow: auto; }
+.speech-segments button { font-variant-numeric: tabular-nums; margin-right: 6px; }

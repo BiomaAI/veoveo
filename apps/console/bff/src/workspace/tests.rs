@@ -79,6 +79,7 @@ impl Edge {
             computers: crate::computers::Transport::new(&Default::default()).unwrap(),
         };
         let app = super::router()
+            .merge(super::speech::router())
             .merge(crate::agent_management::router(
                 crate::browser::BrowserApp::Workspace,
             ))
@@ -125,6 +126,68 @@ impl Edge {
             .await
             .unwrap()
     }
+}
+
+#[tokio::test]
+async fn speech_uses_workspace_cookie_csrf_and_fixed_profile() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = calls.clone();
+    let upstream = Router::new().route(
+        "/speech/workspace/dictation",
+        post(
+            move |headers: HeaderMap,
+                  Json(body): Json<veoveo_speech_contract::dictation::StartDictation>| {
+                let calls = observed.clone();
+                async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    assert_eq!(headers["authorization"], "Bearer cookie-access");
+                    assert!(!headers.contains_key("cookie"));
+                    Json(veoveo_speech_contract::dictation::DictationSnapshot {
+                        id: body.id,
+                        result_uri: format!("speech://dictation/{}", body.id),
+                        status: veoveo_speech_contract::dictation::DictationStatus::Listening,
+                        next_sequence: 0,
+                        max_duration_seconds: 120,
+                        transcript: None,
+                    })
+                }
+            },
+        ),
+    );
+    let edge = Edge::new(upstream).await;
+    let id = uuid::Uuid::now_v7();
+    let body = serde_json::to_string(&json!({"id":id,"sample_rate":48000})).unwrap();
+    let path = "/workspace/api/speech/dictation";
+    assert_eq!(
+        edge.request("POST", path, false, true, &body)
+            .await
+            .status(),
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        edge.request("POST", path, true, false, &body)
+            .await
+            .status(),
+        StatusCode::FORBIDDEN
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let response = edge.request("POST", path, true, true, &body).await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()["cache-control"], "no-store");
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert_eq!(
+        edge.request(
+            "POST",
+            "/workspace/api/speech/dictation?profile=admin",
+            true,
+            true,
+            &body
+        )
+        .await
+        .status(),
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]

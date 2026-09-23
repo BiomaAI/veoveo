@@ -8,6 +8,7 @@ name = "console-bff"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-speech-contract = { path = "../../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 axum = { workspace = true, features = ["ws"] }
 base64.workspace = true

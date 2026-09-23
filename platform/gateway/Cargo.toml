@@ -12,6 +12,7 @@ name = "gateway"
 path = "src/bin/gateway.rs"
 
 [dependencies]
+veoveo-speech-contract = { path = "../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 async-stream = "0.3.6"
 axum = { workspace = true, features = ["ws"] }

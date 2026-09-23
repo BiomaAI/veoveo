@@ -167,6 +167,20 @@ pub(super) async fn serve(config: ServeConfig) -> anyhow::Result<()> {
         ));
     router = router.merge(mcp_router);
 
+    router = router.merge(
+        crate::speech::router(crate::speech::SpeechState {
+            catalog: catalog.clone(),
+            gateway_state: gateway_state.clone(),
+            issuer: internal_token_issuer.clone(),
+            upstream: upstream_http.clone(),
+            slots: Arc::new(tokio::sync::Semaphore::new(32)),
+        })
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            authenticate_mcp,
+        )),
+    );
+
     let computers_origin = url::Url::parse(deployment.base_url())?
         .origin()
         .ascii_serialization();

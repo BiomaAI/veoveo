@@ -1,5 +1,4 @@
 //! Private Unix-socket inference protocol. Credentials never enter this boundary.
-use crate::transcript::Transcript;
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -13,6 +12,7 @@ use tokio::{
         unix::{OwnedReadHalf, OwnedWriteHalf},
     },
 };
+use veoveo_speech_contract::transcript::Transcript;
 
 pub const PROTOCOL: &str = "veoveo.speech-worker/v1";
 pub const MAX_FRAME_BYTES: usize = 192_000;
@@ -65,7 +65,10 @@ pub struct WorkerConnection {
     writer: PcmWriter,
 }
 
-pub struct WorkerEvents(BufReader<OwnedReadHalf>);
+pub struct WorkerEvents {
+    reader: BufReader<OwnedReadHalf>,
+    pending: Vec<u8>,
+}
 pub struct PcmWriter(OwnedWriteHalf);
 
 impl WorkerConnection {
@@ -79,7 +82,10 @@ impl WorkerConnection {
         bytes.push(b'\n');
         writer.write_all(&bytes).await?;
         Ok(Self {
-            reader: WorkerEvents(BufReader::new(reader)),
+            reader: WorkerEvents {
+                reader: BufReader::new(reader),
+                pending: Vec::new(),
+            },
             writer: PcmWriter(writer),
         })
     }
@@ -112,15 +118,17 @@ impl PcmWriter {
 
 impl WorkerEvents {
     pub async fn event(&mut self) -> Result<WorkerEvent> {
-        let mut bytes = Vec::new();
-        let length = (&mut self.0)
-            .take((MAX_RESPONSE_BYTES + 1) as u64)
-            .read_until(b'\n', &mut bytes)
+        let length = (&mut self.reader)
+            .take((MAX_RESPONSE_BYTES + 1 - self.pending.len()) as u64)
+            .read_until(b'\n', &mut self.pending)
             .await?;
         ensure!(
-            length > 0 && length <= MAX_RESPONSE_BYTES && bytes.last() == Some(&b'\n'),
+            length > 0
+                && self.pending.len() <= MAX_RESPONSE_BYTES
+                && self.pending.last() == Some(&b'\n'),
             "speech worker returned a missing or oversized response"
         );
+        let bytes = std::mem::take(&mut self.pending);
         serde_json::from_slice(&bytes).context("invalid speech worker response")
     }
 }
