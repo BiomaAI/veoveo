@@ -30,6 +30,30 @@ export function invocationModeLabel(value: string): string {
   return invocationModeLabels[value] ?? humanize(value);
 }
 
+const instanceTargetLabels: Record<string, string> = {
+  running: "Running",
+  paused: "Paused",
+  archived: "Archived",
+};
+
+const instancePhaseLabels: Record<string, string> = {
+  queued: "Queued",
+  credentials: "Preparing credentials",
+  storage: "Preparing storage",
+  draining: "Finishing current run",
+  workload: "Starting",
+  ready: "Ready",
+  paused: "Paused",
+  archived: "Archived",
+  failed: "Failed",
+  superseded: "Replaced by a newer request",
+};
+
+/** "Target: Running · Finishing current run" for a managed agent instance. */
+export function instanceStatusLabel(target: string, phase: string): string {
+  return `Target: ${instanceTargetLabels[target] ?? humanize(target)} · ${instancePhaseLabels[phase] ?? humanize(phase)}`;
+}
+
 function humanize(value: string): string {
   return value.replaceAll("_", " ");
 }
