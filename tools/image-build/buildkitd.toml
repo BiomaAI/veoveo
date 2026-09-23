@@ -20,3 +20,14 @@
   reservedSpace = "80GB"
   maxUsedSpace = "320GB"
   minFreeSpace = "22%"
+
+# Retention is not an unlimited disk reservation. After ordinary image/source
+# collection, compiler mounts remain reclaimable above the worker's hard budget
+# or at critically low free space. Routine shared-host pressure uses the policy
+# above; this final policy must not continuously evict a just-built target.
+[[worker.oci.gcpolicy]]
+  filters = ["type==exec.cachemount"]
+  all = true
+  reservedSpace = "80GB"
+  maxUsedSpace = "320GB"
+  minFreeSpace = "32GB"
