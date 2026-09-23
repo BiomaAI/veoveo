@@ -240,6 +240,11 @@ MCP server crates use `*-mcp`, not `*-mcp-server`.
 The media MCP server may use provider-specific implementation internally, but user-facing
 names should stay provider-neutral.
 
+App titles describe the domain view or action, such as Map Explorer or Frame Editor.
+Reserve Workspace as a product name for the daily productivity client; do not use it
+as an MCP App title. Keep each App's discovery title, page heading, and document title
+consistent.
+
 ## Documentation Image Generation
 
 Documentation raster images use one canonical generation path: WaveSpeed through

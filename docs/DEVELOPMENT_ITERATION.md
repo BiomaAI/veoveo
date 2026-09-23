@@ -1251,3 +1251,26 @@ their required features explicitly instead of broadening the Recording test grap
 The subsequent Recording image reused those container dependencies and completed in
 91.417 seconds, with a 66.925-second compilation window; its stage receipt is
 `output/development/workspace-uav/recording-notifications-stage.json` at `f105af2a`.
+
+The subsequent installed check held all 16 Apps stable across six catalog TTLs and
+verified real sidebar clicks and reloads without `.html` in the Console URL. Rendering
+then failed during Map initialization because an App resource read encountered partial
+discovery. The BFF now owns the complete-snapshot cache and disables the SDK's separate
+page cache. Its 104 tests passed in 29.6 seconds. Installed acceptance must also pass;
+catalog stability alone does not establish that every App initializes.
+
+Renaming the Map and Frames Apps passed 123 native tests after 4m 10s of compilation;
+test execution took under one second. This selection rebuilt PROJ and another shared
+analytics dependency variant. The Map HTML bundle rebuilt in 0.5 seconds, and the
+browser harness compiled in 5.25 seconds. App metadata embedded in Rust still requires
+a server binary rebuild for a title change. Measure a stable metadata or packaging
+boundary before changing that contract; a frontend-only timing does not describe this
+delivery's total cost.
+
+Staging Console, Map and Frames at `f340a601` took 847.599 seconds, with no source or
+builder lock wait. The three compiler invocations took 2m 26s, 8m 17s and 9m 32s in
+their separate browser, Trixie and Bookworm environments. Their work overlapped.
+Map's runtime package download added 1m 50s for 50.2 MB from the Ubuntu mirror.
+The immutable image receipt is `output/development/workspace-uav/app-names-cache-stage.json`.
+Retained dependency layers and consistent compiler selections are the next measured
+targets for this path; the delivery did not change dependency pins or build recipes.
