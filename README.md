@@ -595,7 +595,7 @@ cargo xtask smoke helm-config
 cargo xtask smoke sumo-push
 cargo test -p veoveo-uav-sim-mcp --all-targets
 PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
-  uv run --with numpy==2.5.1 --with aiohttp==3.14.1 \
+  uv run --with numpy==2.3.1 --with aiohttp==3.14.1 \
   --with pymavlink==2.4.49 --with fastcrc==0.3.6 --python 3.13 \
   python -m unittest discover -s showcase/uav-sim/runtime/tests -v
 ```
