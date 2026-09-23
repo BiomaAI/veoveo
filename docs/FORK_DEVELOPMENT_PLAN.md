@@ -105,3 +105,29 @@ reference directly. Release preflight passed with 262 GiB free, a 40 GiB build-g
 budget and a 183 GiB reserve. Kubernetes reports no disk pressure. The shared Bake and
 lockfile changes conservatively select every image; deployment selection will retain
 unchanged GPU payloads after reviewing their actual input diff.
+
+The affected image batch built 24 targets in 47 min 44 s. Deployment promotes 23;
+the recording forwarder keeps its previous digest because it shares the simulator
+pod and its implementation and wire formats did not change. The new UAV chart
+renders an identical simulator pod template. The heavier Rust families compiled
+SurrealDB's remote SDK and its unconditional database-core dependency, while runtime
+layer extraction and installation later saturated filesystem I/O. The official
+3.2.4 SDK already disables optional embedded engines here. A separate SDK patch was
+not added to this deployment.
+
+The final chart publication waited behind the image command's shared source lock.
+That delay and the dependency rebuild costs are recorded for subsequent build work.
+Host Cargo maintenance reclaimed 29.34 GiB from 60 superseded executable copies older
+than 24 hours, preserving dependency libraries and current binaries. A migration-test
+rerun hit its Docker startup deadline during heavy image extraction; all 50 tests
+passed when repeated after packaging settled.
+
+GitHub's first report rejected broad receipt inputs because four unrelated LFS media
+files differed between local materialized files and the checkout's pointers. Scoped
+fork-check descriptors now exclude those assets. The corrected report passed in a
+fresh pointer-only checkout and on GitHub.
+
+The image-consumption check caught a second kernel digest in the agent manager's
+runtime template. Promotion updates that template together with the image lock.
+The check passes with both pins aligned; future kernel publication should update
+both consumers in one operation.
