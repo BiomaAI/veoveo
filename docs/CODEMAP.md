@@ -52,7 +52,7 @@ authoritative until each planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`SPEECH_PLAN.md`](SPEECH_PLAN.md) | active GPU speech delivery: private Workspace dictation, governed recording transcription, durable Tasks and timestamped Artifacts; qualification and installed acceptance pending |
+| [`SPEECH_PLAN.md`](SPEECH_PLAN.md) | deployed GPU Speech: private Workspace dictation, governed recording Tasks, timestamp playback and JSON/WebVTT; installed acceptance passed, with physical microphone, scale and C31 qualification limits recorded |
 | [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | delivered API and Console/Workspace authoring, explicit revision adoption and managed lifecycle; four retained UAV pilots, zero-call idle renewal, native Task recovery, Computer grant revocation and archived credential denial verified; simulator flight, managed Computer-template admission and broader qualification follow-ups stated explicitly |
 | [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat productivity client: owner-controlled membership, isolated agent context, concurrent runs, governed capabilities, acceptance evidence and pending installed follow-ups |
 | [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |

@@ -1146,6 +1146,8 @@ cost 433,094 ms to publish. Application builds reuse its immutable digest.
 | Real shared Task-runtime and Speech Rust edit | 88,672 ms | `output/development/speech/task-observation-stage.json`, source `2d1536a6`; 78,901 ms compilation window |
 | First BFF rebuild after its old cache had already been evicted | 218,903 ms | `output/development/speech/workspace-final-stage.json`, source `74da312e` |
 | Unchanged BFF repeat | 5,729 ms | `output/development/speech/workspace-warm-stage.json`; runtime digest unchanged |
+| Actual Workspace capture/transport edit | 12,631 ms | `output/development/speech/batching-stage.json`, source `bfeff7f8`; Rust artifact fully cached |
+| Shared browser reader and transcript viewer edit | 20,009 ms | `output/development/speech/transcript-stream-stage.json`, source `9bc448ea`; both frontends rebuilt, Rust artifact cached |
 
 These are distinct workloads, not a cold-versus-warm speedup ratio. The Speech-specific
 BuildKit timestamp rewrite fell from 215.100 seconds to 1.115 seconds on the first
@@ -1179,5 +1181,21 @@ The installed dictation check also exposed a network constraint: 250-ms PCM batc
 required four serial HTTP round trips per second and failed after a brief backlog.
 One-second batches stay within the existing 192,000-byte frame ceiling, with at most
 four outstanding batches. The browser harness injects a 2.5-second request delay while
-retaining real transport and inference. Native capture tests check exact PCM ordering,
+retaining real transport and inference. Capture unit tests check exact PCM ordering,
 the wire ceiling and the partial Stop flush. No retry or automatic message send is added.
+
+
+The final installed browser run passed at revision `3736331b` with evidence under
+`output/acceptance/speech/01a0cc55-5295-7c30-b546-52a084ff27da/`. It includes the
+injected network delay, exact newly uploaded recording, reload, timestamp playback
+and both downloads. The public Artifact route returned zstd-compressed JSON without
+Content-Length. The viewer now uses the shared bounded reader and checks decoded bytes
+against Artifact metadata, with a 4-MiB preview ceiling. This installed-only defect
+required a 20-second frontend image build, not another Rust compilation.
+
+The final requested GitOps observation is recorded in
+`output/development/speech/transcript-convergence.json`. These convergence clocks
+start at observation; Flux may already have begun applying the push. Test receipts,
+GPU results and browser artifacts retain their recorded scope. Physical microphone
+and larger performance runs remain listed in `SPEECH_PLAN.md` without blocking this
+installed delivery.
