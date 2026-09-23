@@ -220,6 +220,60 @@ async fn exercise() -> Result<()> {
         captions.bytes.starts_with(b"WEBVTT\n"),
         "caption export missing"
     );
+    // Fault injection represents a process dying after Artifact publication but
+    // before its terminal Task transition. A fresh owner must reuse the output IDs.
+    runtime.reap_workers().await;
+    let record_id = finished.task_id.record_id();
+    let mut record: veoveo_platform_store::TaskRecord =
+        db.a.client()
+            .select(record_id.clone())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Task record"))?;
+    record.status = TaskStatus::Running;
+    record.result = None;
+    record.result_artifact = None;
+    record.completed_at = None;
+    record.lease_owner = Some("terminated-worker".into());
+    record.lease_expires_at = Some(chrono::Utc::now() - chrono::TimeDelta::seconds(1));
+    let _: Option<veoveo_platform_store::TaskRecord> =
+        db.a.client().update(record_id).content(record).await?;
+    let recovered = reader
+        .recover()
+        .await?
+        .resumable
+        .into_iter()
+        .find(|task| task.task_id.to_string() == id)
+        .ok_or_else(|| anyhow::anyhow!("expired work not recovered"))?;
+    let restarted = Arc::new(SpeechService::new(
+        reader.clone(),
+        plane.clone(),
+        worker.clone(),
+        1,
+        1,
+    ));
+    restarted.resume(recovered).await?;
+    tokio::time::timeout(Duration::from_secs(15), async {
+        loop {
+            let snapshot = reader.get(&id).await?.unwrap();
+            if snapshot.is_terminal() {
+                ensure!(
+                    snapshot.status == TaskStatus::Succeeded,
+                    "recovery failed: {:?}",
+                    snapshot.error
+                );
+                let again = SpeechService::output(&snapshot)?.unwrap();
+                ensure!(
+                    again.transcript.artifact_id == output.transcript.artifact_id
+                        && again.captions.artifact_id == output.captions.artifact_id,
+                    "recovery duplicated output"
+                );
+                break Ok::<_, anyhow::Error>(());
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await??;
+    qualify_hosted(restarted, &signing, &alice).await?;
     // Zero recording slots models a queued recording, allowing cancellation to be
     // tested without racing a 0.1-second GPU inference or inventing a slow provider.
     let waiting = Arc::new(SpeechService::new(runtime.clone(), plane, worker, 0, 1));
@@ -240,5 +294,56 @@ async fn exercise() -> Result<()> {
     })
     .await??;
     runtime.reap_workers().await;
+    Ok(())
+}
+
+async fn qualify_hosted(
+    service: Arc<SpeechService>,
+    signing: &signing::Signing,
+    caller: &PlaneCaller,
+) -> Result<()> {
+    use veoveo_mcp_conformance::{
+        ConformanceCredentials, HostedServerConformanceProfile, run_hosted_server_conformance,
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let address = listener.local_addr()?;
+    let base = format!("http://{address}/speech");
+    let router = veoveo_speech_mcp::server::router(
+        service,
+        signing.verifier.clone(),
+        vec![address.to_string()],
+        "/speech",
+        tokio_util::sync::CancellationToken::new(),
+    );
+    let _server = Server(tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    }));
+    let profile: HostedServerConformanceProfile = serde_json::from_value(serde_json::json!({
+        "schemaVersion":"veoveo.io/mcp-conformance-profile/v1", "profileId":"speech-native",
+        "contractRevision":"veoveo.io/hosted-mcp/v3", "endpoint":format!("{base}/mcp"),
+        "serverSlug":"speech", "ownedResourceSchemes":["speech"],
+        "http":{"requireAuthenticationRejection":true,"rejectedHost":"untrusted.invalid", "healthUrl":format!("{base}/healthz"),"readinessUrl":format!("{base}/readyz"),"docsLlmsUrl":format!("{base}/admin/docs/llms.txt")},
+        "surfaces":{"tools":"required","resources":"required","resourceTemplates":"required","prompts":"required","completions":"required","tasks":"required","subscriptions":"required","requiredTools":["transcribe","start_dictation","finish_dictation","cancel_dictation"],"requiredResources":["speech://docs","speech://contract"],"requiredResourceTemplates":["speech://transcript/{task_id}","speech://dictation/{id}"],"requiredPrompts":["transcribe_recording"]}
+    }))?;
+    let report = run_hosted_server_conformance(
+        &profile,
+        &ConformanceCredentials::bearer(caller.bearer_token.clone()),
+    )
+    .await?;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../output/development/speech");
+    std::fs::create_dir_all(&root)?;
+    std::fs::write(
+        root.join("native-conformance.json"),
+        serde_json::to_vec_pretty(&report)?,
+    )?;
+    ensure!(
+        report.passed(),
+        "hosted Speech conformance failed: {:?}",
+        report
+            .checks
+            .iter()
+            .filter(|check| check.status != veoveo_mcp_conformance::CheckStatus::Passed)
+            .collect::<Vec<_>>()
+    );
     Ok(())
 }

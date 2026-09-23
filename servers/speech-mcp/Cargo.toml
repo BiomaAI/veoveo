@@ -32,6 +32,7 @@ veoveo-platform-store.workspace = true
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-mcp-conformance = { path = "../../mcp/conformance" }
 base64.workspace = true
 rcgen.workspace = true
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }

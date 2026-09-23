@@ -1,6 +1,6 @@
 # Speech MCP
 
-Status: domain and browser implementation complete; packaging in progress. Public MCP, browser and deployment
+Status: native CUDA, recovery and hosted MCP qualification passed; image assembly and installed browser acceptance in progress. Public MCP, browser and deployment
 acceptance remain tracked in [the delivery plan](../../docs/SPEECH_PLAN.md).
 
 ## Standards And Protocols
@@ -106,6 +106,12 @@ The first deployment has one GPU replica because dictation state is ephemeral.
 
 ## Contract Compliance
 
-Rust domain, MCP and native HTTP adapters are implemented. Native GPU and protocol
-qualification, packaging, gateway registration and installed acceptance are in
-progress. The machine-readable declaration remains pending until those checks pass.
+Native qualification passed all 26 hosted conformance checks, including declared
+schemas, authenticated documentation, stateless transport, Tasks and subscriptions.
+The native fixture also qualified current source/output authority, independent-runtime
+cancellation, and recovery after publication but before Task settlement with identical
+Artifact IDs. C31 remains pending until installed catalog readiness is observed.
+
+The application router is shared by the executable and native conformance fixture.
+The fixture uses the actual CUDA worker, disposable database, internal assertions
+and governed Artifact HTTP service. It does not mock inference or protocol handlers.

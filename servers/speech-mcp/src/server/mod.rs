@@ -94,6 +94,40 @@ pub async fn run() -> anyhow::Result<()> {
         );
         hosts.push(host);
     }
+    let router = router(
+        service,
+        verifier,
+        hosts,
+        endpoint.mount_path(),
+        stop.clone(),
+    );
+    let listener =
+        tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
+    axum::serve(listener, router)
+        .with_graceful_shutdown({
+            let stop = stop.clone();
+            async move {
+                let mut terminate =
+                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                        .expect("install SIGTERM handler");
+                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
+                stop.cancel();
+            }
+        })
+        .await?;
+    stop.cancel();
+    recovery.abort();
+    Ok(())
+}
+
+/// Wire the same authenticated hosted boundary for the executable and native qualification.
+pub fn router(
+    service: Arc<SpeechService>,
+    verifier: GatewayInternalTokenVerifier,
+    hosts: Vec<String>,
+    mount_path: &str,
+    stop: CancellationToken,
+) -> Router {
     let hosts = Arc::new(hosts.into_iter().collect::<Vec<_>>());
     let transport = StreamableHttpService::new(
         {
@@ -131,26 +165,9 @@ pub async fn run() -> anyhow::Result<()> {
         .with_state(service)
         .nest("/mcp", mcp)
         .nest("/admin", admin);
-    let router = Router::new()
-        .nest(endpoint.mount_path(), routes)
-        .layer(middleware::from_fn_with_state(hosts, host::validate_host));
-    let listener =
-        tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, args.port)).await?;
-    axum::serve(listener, router)
-        .with_graceful_shutdown({
-            let stop = stop.clone();
-            async move {
-                let mut terminate =
-                    tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
-                        .expect("install SIGTERM handler");
-                tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = terminate.recv() => {} }
-                stop.cancel();
-            }
-        })
-        .await?;
-    stop.cancel();
-    recovery.abort();
-    Ok(())
+    Router::new()
+        .nest(mount_path, routes)
+        .layer(middleware::from_fn_with_state(hosts, host::validate_host))
 }
 
 async fn ready(State(state): State<Arc<SpeechService>>) -> StatusCode {

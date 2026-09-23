@@ -32,34 +32,34 @@ the actual GPU, model revision and package pins.
 
 Contract revision: 3
 
-- C01: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C02: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C03: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C04: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C05: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C06: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C07: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C08: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C09: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C10: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C11: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C12: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C13: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C14: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C15: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C16: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C17: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C18: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C19: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C20: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C21: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C22: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C23: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C24: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C25: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C26: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C27: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C28: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C29: pending — hosted contract qualification is in progress; see DESIGN.md.
-- C30: pending — hosted contract qualification is in progress; see DESIGN.md.
+- C01: met — native hosted certification and domain qualification; see DESIGN.md.
+- C02: met — native hosted certification and domain qualification; see DESIGN.md.
+- C03: met — native hosted certification and domain qualification; see DESIGN.md.
+- C04: met — native hosted certification and domain qualification; see DESIGN.md.
+- C05: met — native hosted certification and domain qualification; see DESIGN.md.
+- C06: met — native hosted certification and domain qualification; see DESIGN.md.
+- C07: met — native hosted certification and domain qualification; see DESIGN.md.
+- C08: met — native hosted certification and domain qualification; see DESIGN.md.
+- C09: met — native hosted certification and domain qualification; see DESIGN.md.
+- C10: met — native hosted certification and domain qualification; see DESIGN.md.
+- C11: met — native hosted certification and domain qualification; see DESIGN.md.
+- C12: met — native hosted certification and domain qualification; see DESIGN.md.
+- C13: met — native hosted certification and domain qualification; see DESIGN.md.
+- C14: met — native hosted certification and domain qualification; see DESIGN.md.
+- C15: met — native hosted certification and domain qualification; see DESIGN.md.
+- C16: met — native hosted certification and domain qualification; see DESIGN.md.
+- C17: met — native hosted certification and domain qualification; see DESIGN.md.
+- C18: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C19: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C20: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C21: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C22: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C23: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C24: met — embedded crate documents and shared documentation projection are covered by native tests.
+- C25: met — native hosted certification and domain qualification; see DESIGN.md.
+- C26: met — native hosted certification and domain qualification; see DESIGN.md.
+- C27: met — native hosted certification and domain qualification; see DESIGN.md.
+- C28: met — native hosted certification and domain qualification; see DESIGN.md.
+- C29: met — native hosted certification and domain qualification; see DESIGN.md.
+- C30: met — native hosted certification and domain qualification; see DESIGN.md.
 - C31: pending — installed protocol readiness qualification is in progress.
