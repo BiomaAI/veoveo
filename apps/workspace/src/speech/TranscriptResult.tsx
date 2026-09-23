@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseSpeech } from "./api.ts";
 import { artifactId, artifactPath } from "../resources.ts";
 import type { TranscriptDocument } from "../generated/speech.ts";
+import { boundedJson } from "../../../console/web/src/browserHttp.ts";
 
 function timestamp(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${Math.floor(seconds % 60).toString().padStart(2, "0")}`;
@@ -22,9 +23,11 @@ export function TranscriptResult({ value }: { value: unknown }) {
       const response = await fetch(artifactPath(transcript, "download"), { credentials: "same-origin", cache: "no-store", redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (response.status === 401) window.dispatchEvent(new Event("workspace-auth-expired"));
       if (!response.ok) throw new Error("This transcript is unavailable with your current file access.");
-      const length = Number(response.headers.get("content-length"));
+      // HTTP compression may omit Content-Length or report encoded bytes.
+      // Bound the decoded stream by the immutable Artifact's actual byte length.
+      const length = output.transcript.byte_len;
       if (!Number.isSafeInteger(length) || length <= 0 || length > 4 * 1024 * 1024) throw new Error("The transcript exceeds the preview limit.");
-      const document = parseSpeech("TranscriptDocument", await response.json());
+      const document = parseSpeech("TranscriptDocument", await boundedJson(response, length, length));
       if (document.schema !== "veoveo.speech-transcript/v1" || artifactId(document.source_artifact_uri) !== source) throw new Error("The transcript source could not be verified.");
       if (!controller.signal.aborted) setDocument(document);
     })().catch(error => { if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "The transcript could not be opened."); });

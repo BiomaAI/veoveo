@@ -299,3 +299,5 @@ The result viewer reads governed transcript JSON and plays the authorized source
 through the existing Artifact route. Timestamp controls seek that source. Caption
 and transcript links grant no access by themselves. Artifact classification, labels
 and Work Context policy remain authoritative even when the operation is private.
+Transcript previews bound the decoded response by the Artifact's declared size, capped
+at 4 MiB. The browser does not require HTTP Content-Length, which compression can omit.

@@ -15,7 +15,7 @@ export class BrowserHttpError extends Error {
     this.payload = payload;
   }
 }
-export async function boundedJson(response: Response, limit: number): Promise<unknown> {
+export async function boundedJson(response: Response, limit: number, expectedByteLength?: number): Promise<unknown> {
   if (!response.body) throw new Error("The response is empty.");
   const reader = response.body.getReader();
   let size = 0;
@@ -28,6 +28,7 @@ export async function boundedJson(response: Response, limit: number): Promise<un
       if (size > limit) throw new Error("The response exceeded its size limit.");
       chunks.push(value);
     }
+    if (expectedByteLength !== undefined && size !== expectedByteLength) throw new Error("The response did not match its declared size.");
     const bytes = new Uint8Array(size);
     let offset = 0;
     for (const chunk of chunks) {
