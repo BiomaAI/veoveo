@@ -40,7 +40,7 @@ export class Capture {
       if (message.type === "limit") { this.callbacks.limit(); return; }
       if (message.type !== "pcm" || !(message.bytes instanceof ArrayBuffer) || this.closed) return;
       const bytes = message.bytes;
-      if (++this.queued > 8) { this.fail("Speech cannot keep up with the microphone connection. Your draft is preserved."); return; }
+      if (++this.queued > 4) { this.fail("Speech cannot keep up with the microphone connection. Your draft is preserved."); return; }
       const sequence = this.sequence++;
       this.writes = this.writes.then(async () => {
         if (this.closed) return;

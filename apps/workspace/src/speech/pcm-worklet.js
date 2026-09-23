@@ -2,7 +2,9 @@
 class PcmCapture extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.buffer = new Float32Array(Math.round(sampleRate / 4));
+    // One second fits the 192,000-byte Speech frame ceiling at 48 kHz and
+    // avoids making capture throughput depend on four HTTP round trips/second.
+    this.buffer = new Float32Array(sampleRate);
     this.used = 0;
     this.total = 0;
     this.stopped = false;

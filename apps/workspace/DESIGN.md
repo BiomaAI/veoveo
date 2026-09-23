@@ -288,7 +288,10 @@ transcript and appends text without overwriting typed edits. Send remains explic
 and uses the existing message identity and agent selection. Cancel discards capture;
 a failure offers the available provisional text for review. Navigation and session
 expiry close capture. The native AudioWorklet emits bounded binary PCM without
-monitoring the microphone through speakers.
+monitoring the microphone through speakers. One-second batches fit the 192,000-byte
+frame limit at 48 kHz. At most four batches may await acknowledgement, including the
+active request. This bounds retained audio while allowing a short network stall to
+clear without requiring four HTTP round trips per second. Stop flushes a partial batch.
 
 Recording transcription starts an ordinary private Workspace operation backed by a
 native MCP Task. Activity retains cancellation, subscriptions and reload recovery.

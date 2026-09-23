@@ -16,11 +16,16 @@ pub(crate) async fn verify(
     let fixture = fixture.canonicalize()?;
     let directory = output.join(uuid::Uuid::now_v7().to_string());
     fs::create_dir_all(&directory)?;
+    // Persistent queues reject duplicate files. Give this run its own fixture
+    // without clearing another person's upload history.
+    let upload = directory.join(format!("speech-{}.wav", uuid::Uuid::now_v7()));
+    fs::copy(&fixture, &upload)?;
+    let upload = upload.canonicalize()?;
     let page = format!("{}/workspace/", base.trim_end_matches('/'));
     let (mut cdp, target, session) = open_headed_target(endpoint, &page).await?;
     let result = tokio::time::timeout(
         Duration::from_secs(180),
-        run(&mut cdp, &target, &session, &directory, &fixture),
+        run(&mut cdp, &target, &session, &directory, &upload),
     )
     .await;
     let close = close_target(&mut cdp, &target).await;
@@ -132,7 +137,7 @@ async fn run(
       const decoder=new AudioContext();const audio=await decoder.decodeAudioData(bytes.buffer);await decoder.close();
       window.speechAcceptance={{streams:[],contexts:[],requests:[]}};
       const originalFetch=window.fetch.bind(window);
-      window.fetch=async(input,init)=>{{const url=typeof input==='string'?input:input.url;const response=await originalFetch(input,init);if(url.includes('/workspace/api/'))window.speechAcceptance.requests.push({{path:new URL(url,location.href).pathname,method:init?.method??'GET',status:response.status}});return response;}};
+      window.fetch=async(input,init)=>{{const url=typeof input==='string'?input:input.url;if(url.includes('/speech/dictation/')&&url.endsWith('/chunks/2')&&!window.speechAcceptance.delayed){{window.speechAcceptance.delayed=true;await new Promise(resolve=>setTimeout(resolve,2500));}}const response=await originalFetch(input,init);if(url.includes('/workspace/api/'))window.speechAcceptance.requests.push({{path:new URL(url,location.href).pathname,method:init?.method??'GET',status:response.status}});return response;}};
       navigator.mediaDevices.getUserMedia=async()=>{{const context=new AudioContext();await context.resume();const destination=context.createMediaStreamDestination();const source=context.createBufferSource();source.buffer=audio;source.connect(destination);source.start(context.currentTime+0.3);window.speechAcceptance.streams.push(destination.stream);window.speechAcceptance.contexts.push(context);return destination.stream;}};
       return true;
     }})()"#
@@ -170,7 +175,7 @@ async fn run(
         reviewed.starts_with("Review first."),
         "dictation replaced typed edits"
     );
-    ensure!(cdp.evaluate::<bool>(session, "window.speechAcceptance.streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')) && !window.speechAcceptance.requests.some(r=>r.method==='POST' && ['messages','runs','operations'].some(p=>r.path.endsWith('/'+p)))", false).await?, "dictation sent a message, invoked an agent, or kept capture alive");
+    ensure!(cdp.evaluate::<bool>(session, "window.speechAcceptance.delayed && window.speechAcceptance.streams.every(s=>s.getTracks().every(t=>t.readyState==='ended')) && !window.speechAcceptance.requests.some(r=>r.method==='POST' && ['messages','runs','operations'].some(p=>r.path.endsWith('/'+p)))", false).await?, "dictation sent a message, invoked an agent, or kept capture alive");
     let draft_shot = capture_screenshot(cdp, session, &output.join("review.png")).await?;
     click(cdp, session, "Dictate").await?;
     wait(
@@ -212,10 +217,10 @@ async fn run(
     wait(
         cdp,
         session,
-        "Boolean(document.querySelector('input[type=file]'))",
+        "Boolean(document.querySelector('#upload-files'))",
     )
     .await?;
-    let node = cdp.command("Runtime.evaluate", serde_json::json!({"expression":"document.querySelector('input[type=file]')","returnByValue":false}), Some(session)).await?;
+    let node = cdp.command("Runtime.evaluate", serde_json::json!({"expression":"document.querySelector('#upload-files')","returnByValue":false}), Some(session)).await?;
     let object = value_string(&node, "/result/objectId")?;
     cdp.command(
         "DOM.setFileInputFiles",
@@ -224,7 +229,20 @@ async fn run(
     )
     .await?;
     click(cdp, session, "Upload 1 file").await?;
-    wait(cdp, session, "document.body.innerText.includes('Ready') && document.body.innerText.includes('english.wav')").await?;
+    wait(
+        cdp,
+        session,
+        &format!(
+            "document.body.innerText.includes('Ready') && document.body.innerText.includes({})",
+            serde_json::to_string(
+                &fixture
+                    .file_name()
+                    .context("fixture filename")?
+                    .to_string_lossy()
+            )?
+        ),
+    )
+    .await?;
     ensure!(cdp.evaluate::<bool>(session, "(()=>{const b=document.querySelector('button[aria-label=\"Close uploads; transfers continue\"]');if(!b)return false;b.click();return true})()", false).await?);
     wait(cdp, session, "(document.querySelector('select[aria-label=\"Recording to transcribe\"]')?.options.length??0)>1").await?;
     let select_upload = format!(
@@ -239,6 +257,15 @@ async fn run(
             false,
         )
         .await?;
+    let source_uri = format!(
+        "artifact://{}",
+        uuid::Uuid::parse_str(
+            source_uri
+                .rsplit('/')
+                .next()
+                .context("uploaded Artifact ID")?
+        )?
+    );
     let recording_started = Instant::now();
     click(cdp, session, "Transcribe").await?;
     click(cdp, session, "Open Activity").await?;
@@ -270,7 +297,7 @@ async fn run(
     ensure!(cdp.evaluate::<bool>(session, &format!("(async()=>{{const links=[...{card}.querySelectorAll('.speech-result>a')];if(links.length!==2)return false;const [json,vtt]=await Promise.all(links.map(a=>fetch(a.href)));if(!json.ok||!vtt.ok)return false;const doc=await json.json();return doc.schema==='veoveo.speech-transcript/v1' && doc.source_artifact_uri==={} && (await vtt.text()).startsWith('WEBVTT')}})()", serde_json::to_string(&source_uri)?), true).await?, "transcript/caption downloads did not match the new recording");
     let final_hardware = hardware(cdp, session).await?;
     let transcript_shot = capture_screenshot(cdp, session, &output.join("transcript.png")).await?;
-    let evidence = serde_json::json!({"schema":"veoveo.io/speech-browser-acceptance/v1","createdAt":Utc::now(),"chatUrl":chat_url,"microphone":"synthetic fixture MediaStream through real AudioWorklet and CUDA; hardware microphone not qualified","initialHardware":initial_hardware,"finalHardware":final_hardware,"reviewedDraft":reviewed,"cancelPreservedDraft":true,"explicitSend":true,"taskObservedAfterReload":true,"sourceArtifactUri":source_uri,"recordingElapsedMillis":recording_elapsed,"downloadsVerified":true,"result":result,"screenshots":{"review":draft_shot,"transcript":transcript_shot}});
+    let evidence = serde_json::json!({"schema":"veoveo.io/speech-browser-acceptance/v1","createdAt":Utc::now(),"chatUrl":chat_url,"microphone":"synthetic fixture MediaStream through real AudioWorklet and CUDA; hardware microphone not qualified","initialHardware":initial_hardware,"finalHardware":final_hardware,"reviewedDraft":reviewed,"cancelPreservedDraft":true,"explicitSend":true,"taskObservedAfterReload":true,"sourceArtifactUri":source_uri,"recordingElapsedMillis":recording_elapsed,"downloadsVerified":true,"injectedChunkDelayMillis":2500,"result":result,"screenshots":{"review":draft_shot,"transcript":transcript_shot}});
     fs::write(
         output.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,
