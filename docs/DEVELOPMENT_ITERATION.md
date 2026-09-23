@@ -1339,3 +1339,17 @@ during this work. Finish test inputs before recording, and serialize publishers.
 The existing scoped receipts avoid rebuilding unchanged images, but their history
 still needs a measured indexing optimization. No receipt pruning or recorder format
 change was included in this delivery.
+
+## Agent Views Iteration — 2026-09-23
+
+The shared Console/Workspace agent view now separates instances from definitions.
+The affected-image planner selected only `console-bff`. Staging source `55caa0cb` took
+22.027 seconds, including a 3.335-second compiler window. The existing Rust artifact
+was reused. The deployment changes one image digest and leaves pilot and simulator
+workloads in place. The stage receipt is
+`output/development/agent-instance-navigation/console-stage.json`.
+
+The four recorded checks passed: managed browser behavior, both frontend builds and
+Console lint. Their commands took 3.6, 4.9, 6.1 and 7.3 seconds respectively. Recording
+and presenting these checks still processes the accumulated receipt index; the
+receipt-history cost recorded above remains a separate iteration bottleneck.
