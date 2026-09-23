@@ -875,18 +875,16 @@ quarantine and restart recovery.
 | File | Responsibility |
 |---|---|
 | `ingest_http.rs` | cluster-internal authenticated protobuf routes and typed error responses |
-| `ingest.rs` | producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, capture-layer rollover, publication recovery, and restart reconciliation |
+| `ingest.rs` | authenticated batch journal and materializer: producer authorization, atomic no-clobber journal and Blueprint publication, quota-bound append, ordered live parts, static-context snapshots, decoder-reentrant capture-layer rollover, publication recovery, and restart reconciliation |
 | `ingest/recovery.rs` | preserves unaccepted terminal-stream journal bytes and their immutable recovery receipt without changing stream acceptance |
 | `diagnostics.rs` | counters for authenticated-ingest acceptance, duplication, publication backlog, spool reservations, free-space headroom, and last success |
 | `blueprint.rs` | complete Blueprint-store validation, application association, and confined immutable paths |
-| `spool.rs` | capture-layer encode, flush, fsync, freeze, idle completion, and recovery |
+| `spool.rs` | segment writer for `LogMsg` streams: capture-layer encode, flush, fsync, size/age freeze, idle completion, decoder-reentrant rollover, and crash recovery into a fresh `.rN` file |
 | `catalog.rs` | dataset and recording identity, capture timestamps, layer verification, and catalog transitions |
 | `layer_files.rs` | confined discovery of writing and committed capture-layer files |
 | `publication.rs` | scoped Gateway streaming publication, occurrence verification, and local recovery cleanup |
 | `config.rs` | validated raw gRPC spool and capture-layer limits |
 | `archive.rs` | one-time object-store compaction, GoP rebatching, footer encoding, and atomic archive publication |
-| `ingest.rs` | authenticated durable-part journal projection, compact static-context snapshots, and decoder-reentrant rollover |
-| `spool.rs` | direct loopback writer, decoder-reentrant rollover, and archive freeze |
 | `bin/spooler.rs` | thin composition of authenticated ingest, loopback Rerun receiver, catalog, and shutdown |
 | `bin/hub_smoke.rs` | Rust crash/restart/rollover/catalog smoke scenarios |
 
@@ -904,11 +902,9 @@ quarantine and restart recovery.
 
 ### `platform/recordings/video`
 
-Shared recorded-video access. `src/lib.rs` owns the
-`RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind` selection contract,
-`VideoSourceLimits`, clip materialization authorized by a read plan with MP4 remux
-and no transcoding, and recording-URI validation. Stream replay and Reason, the two
-servers that consume `VideoStream` recordings, both read video through this crate.
+`src/lib.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
+selection contract, `VideoSourceLimits`, clip materialization authorized by a read plan
+with MP4 remux and no transcoding, and recording-URI validation.
 
 ### `servers/recording-mcp`
 
@@ -1100,13 +1096,12 @@ dispatch preflights and budgeted execution.
 | `browserApp.ts`, `browserHttp.ts`, `artifactUrls.ts` | Console/Workspace entrypoint selection, shared cookie/CSRF transport and fixed file URLs; shared capability components do not choose their own profile |
 | `appHost.tsx`, `StandaloneAppHost.tsx`, `standaloneBootstrap.ts` | minimal standalone App entry, authorized same-path bootstrap, shared OAuth/CSRF settlement, authorized title, and Console return link |
 | `views/Recordings.tsx` | searchable lifecycle browser and lazy Rerun playback workspace |
-| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
+| `components/GovernedRerunViewer.tsx`, `rerunSources.ts`, `rerunLiveChannel.ts`, `recordingRrdFetch.ts`, `rerunMap.ts` | recording-scoped Redap archive or recent-history live playback, persistent WebViewer lifecycle, producer Blueprint-first opening, one native incremental-RRD or lazy-archive receiver, same-origin RRD authorization, duplicate-free current-head reconnect, event-driven rollover without cursor forcing, archive-only credential renewal, and installation-owned browser map-provider activation |
 | `views/Agents.tsx`, `agentControl.ts` | reactive agent state, actor-attributed conversation, idempotent message submission, pending input-request decisions, and client-owned UUIDv7 retry identity |
 | `views/` | platform-plane views (overview, work, artifacts, MCP, apps, access, audit, cluster); Computers has a native view in `computers/`, and other domain views ship as MCP Apps |
 | `drawers/ArtifactDrawer.tsx` | artifact preview, recording provenance, download, release, grant, and share-link workflows |
 | `drawers/` | remaining detail drawers with mutation workflows |
 | `components/ArtifactPreview.tsx` | size-limited text and inline image/audio/video/PDF previews with explicit access-denied states |
-| `components/GovernedRerunViewer.tsx` | recording-scoped exclusive Redap archive or recent-history live delivery with a separate producer Blueprint presentation store |
 | `identity.ts`, `components/IdentityText.tsx` | trusted display-name resolution for arbitrary principal ids with UUID-compacting fallback, rendered across access, agents, and artifact views |
 | `components/` | reusable primitives, tables, toolbar, and the promise-based confirm dialog |
 | `queries.ts`, `queryClient.ts` | TanStack Query keys, snapshot/apps/cluster queries, mutation hooks with targeted cache patches |
