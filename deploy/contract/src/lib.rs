@@ -4,6 +4,7 @@ pub mod artifacts;
 pub use artifacts::*;
 
 pub mod components;
+mod decoding;
 mod gateway_bundle;
 mod image_release;
 mod locked_images;

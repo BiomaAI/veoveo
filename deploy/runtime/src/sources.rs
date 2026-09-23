@@ -49,7 +49,7 @@ pub(crate) fn load_profile(path: &Path) -> Result<LoadedProfile> {
 pub(crate) fn load_deployment_lock(path: &Path) -> Result<DeploymentLock> {
     let bytes =
         fs::read(path).with_context(|| format!("reading deployment lock {}", path.display()))?;
-    let lock = serde_json::from_slice::<DeploymentLock>(&bytes)
+    let lock = DeploymentLock::decode(&bytes)
         .with_context(|| format!("decoding deployment lock {}", path.display()))?;
     lock.validate()
         .with_context(|| format!("validating deployment lock {}", path.display()))?;

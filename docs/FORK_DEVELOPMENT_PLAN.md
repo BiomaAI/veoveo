@@ -31,7 +31,7 @@ selection and immutable image reuse remain part of the build and deploy system.
 - [x] Simplify source publication around the fork checkout; keep installation
   configuration and retained per-image build revisions explicit.
 - [x] Make in-repository Python development and image builds the documented path.
-- [ ] Add downstream migration identities to the existing store runner, preserving
+- [x] Add downstream migration identities to the existing store runner, preserving
   upstream history and rejecting drift, missing dependencies and ambiguous ordering.
 - [x] Qualify downstream customization followed by an upstream merge with native
   tooling and isolated fixtures.
@@ -88,3 +88,20 @@ integration checks. Repository Python enforcement passed 120 tests against the l
 SDK. Helm configuration smoke validates current working-tree files; immutable source
 publication remains a separate check. This removes temporary Git clones from that
 pre-commit smoke and avoids inspecting the previous commit's fixture paths.
+
+
+SurrealDB 3.2.4 qualification now covers a fork migration followed by an upstream
+advance, equal numeric versions in both histories, concurrent runners, rollback of
+failed fork SQL, and drift rejection before pending upstream changes. The production
+upgrade applies only migration 92 and preserves every earlier history row and checksum.
+Disposable containers own their databases and cleanup; production data is untouched
+by these tests. A missing downstream history table is accepted only before its
+introducing upstream migration. After that point, absence fails validation.
+
+
+The all-target workspace check found an existing missing `Utc` import in the speech
+browser harness when reused by flight smoke. The shared module now qualifies that
+reference directly. Release preflight passed with 262 GiB free, a 40 GiB build-growth
+budget and a 183 GiB reserve. Kubernetes reports no disk pressure. The shared Bake and
+lockfile changes conservatively select every image; deployment selection will retain
+unchanged GPU payloads after reviewing their actual input diff.
