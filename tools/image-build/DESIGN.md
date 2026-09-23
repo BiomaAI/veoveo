@@ -284,3 +284,10 @@ asset declarations exclude both image recipes from Rust compilation inputs.
 Buildx 0.37.1 and BuildKit 0.33.0 were verified against their upstream release APIs on
 September 22, 2026. Buildx's Linux amd64 and arm64 binaries are SHA-256 pinned to the
 upstream release checksums. The worker and its retained state are unchanged.
+
+A final execution-cache policy bounds that retention: after ordinary source and image
+collection, it may reclaim recent mounts when total worker usage still exceeds
+320 GB or free space falls below 32 GB, subject to the existing 80-GB cache floor.
+The normal 22% pressure sweep cannot bypass retention. This emergency policy keeps
+active compiler caches from becoming an unlimited disk reservation; it does not
+replace installation storage preflight or guarantee space owned by other services.

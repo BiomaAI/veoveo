@@ -679,3 +679,10 @@ the simulator. Its runtime overlay contains only independently linked applicatio
 layers. Warm staging resolves the existing immutable parent instead of repeatedly
 rewriting its timestamps. The parent changes only when its admitted dependency inputs
 change.
+
+A final execution-cache policy bounds that retention: after ordinary source and image
+collection, it may reclaim recent mounts when total worker usage still exceeds
+320 GB or free space falls below 32 GB, subject to the existing 80-GB cache floor.
+The normal 22% pressure sweep cannot bypass retention. This emergency policy keeps
+active compiler caches from becoming an unlimited disk reservation; it does not
+replace installation storage preflight or guarantee space owned by other services.
