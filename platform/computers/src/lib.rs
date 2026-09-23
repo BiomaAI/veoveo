@@ -42,27 +42,35 @@ pub use worker_queue::UndispatchedOutcome;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, thiserror::Error)]
 pub enum ComputerError {
-    #[error("Computer not found")]
+    #[error("Computer was not found")]
     NotFound,
-    #[error("Computer input is invalid")]
+    #[error(
+        "The Computer request has a missing or invalid field; check it against the tool's input schema"
+    )]
     InvalidInput,
-    #[error("Current Work Context authority does not permit this Computer action")]
+    #[error("You don't have permission to perform this Computer action")]
     Forbidden,
-    #[error("Computer capacity is full")]
+    #[error(
+        "No Computer capacity is available right now; try again later or ask an operator to add capacity"
+    )]
     CapacityFull,
     #[error("Computer access limit reached; close an existing connection before connecting again")]
     AccessLimit,
     #[error("Request ID was already used with different inputs")]
     RequestConflict,
-    #[error("Computer capacity policy changed")]
+    #[error("The installation's Computer capacity settings changed during this request; retry it")]
     PolicyConflict,
-    #[error("Computer already has an active operation")]
+    #[error(
+        "This Computer is already running another operation; wait for it to finish, then retry"
+    )]
     OperationBusy,
-    #[error("Computer state changed")]
+    #[error("The Computer changed during this request; read its current state and retry")]
     StateConflict,
-    #[error("Computer action requires a different lifecycle state")]
+    #[error(
+        "The Computer isn't in a state that allows this action; read its current state to see which actions are available"
+    )]
     InvalidState,
-    #[error("Computer state is unavailable")]
+    #[error("Computers is temporarily unavailable. Try again shortly")]
     Unavailable,
 }
 pub type Result<T> = std::result::Result<T, ComputerError>;

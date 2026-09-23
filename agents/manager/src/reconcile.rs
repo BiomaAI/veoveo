@@ -12,6 +12,24 @@ use crate::{
     resources,
 };
 
+/// A failure message written for the operator who sees the instance in Console.
+#[derive(Debug)]
+struct OperatorMessage(&'static str);
+
+impl std::fmt::Display for OperatorMessage {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+
+impl std::error::Error for OperatorMessage {}
+
+const MEMORY_MISSING: OperatorMessage = OperatorMessage(
+    "This agent's memory volume is missing. Restore the volume claim before retrying; the manager won't replace the memory of an agent that has already run.",
+);
+
+const UNEXPECTED_FAILURE: &str = "The agent manager couldn't apply this change. The agent-manager log has the cause; retry after fixing it.";
+
 #[derive(Clone)]
 pub struct Manager {
     pub store: PlatformStore,
@@ -38,7 +56,14 @@ impl Manager {
             if kubernetes::retryable(&error) {
                 tracing::warn!(generation = claim.generation, %error, "managed operation will recover from inventory");
             } else {
-                let message: String = error.to_string().chars().take(480).collect();
+                // Console shows this message to operators. Known causes carry
+                // written guidance; anything else points at the manager log,
+                // which keeps the full error chain.
+                tracing::error!(generation = claim.generation, error = ?error, "managed operation failed");
+                let message = error
+                    .downcast_ref::<OperatorMessage>()
+                    .map_or(UNEXPECTED_FAILURE, |message| message.0)
+                    .to_owned();
                 if let Err(observation) = self
                     .store
                     .observe_managed_agent(&claim, ManagedAgentPhase::Failed, Some(message))
@@ -60,7 +85,9 @@ impl Manager {
             let instance = &snapshot.instance;
             ensure!(
                 instance.resources.namespace == self.config.namespace,
-                "instance namespace is not owned by this manager"
+                OperatorMessage(
+                    "This agent's namespace isn't managed by this agent manager. Check the manager's namespace configuration."
+                )
             );
             if instance.desired != ManagedAgentDesired::Running {
                 return self.negative(claim, &snapshot).await;
@@ -71,9 +98,10 @@ impl Manager {
                 if !self.drained(&snapshot).await? {
                     return Ok(());
                 }
-                anyhow::bail!(
-                    "instance authority or approved configuration changed; review and retry"
-                );
+                return Err(OperatorMessage(
+                    "This agent's permissions or approved configuration changed while it was starting. Review the instance, then retry.",
+                )
+                .into());
             }
             let (template, model) = execution?;
             let items = match &verified_config {
@@ -83,7 +111,9 @@ impl Manager {
                         .kube
                         .get::<ConfigMap>(Resource::ConfigMaps, &template.workload.config_map)
                         .await?
-                        .context("approved template ConfigMap is missing")?;
+                        .context(OperatorMessage(
+                            "The runtime template's ConfigMap is missing from the agent namespace. Reinstall the runtime template, then retry.",
+                        ))?;
                     let items = resources::configuration_items(&config, template)?;
                     verified_config = Some(items.clone());
                     items
@@ -106,10 +136,7 @@ impl Manager {
                     {
                         Some(pvc) => pvc,
                         None => {
-                            ensure!(
-                                instance.active_generation == 0,
-                                "retained memory is missing; operator storage recovery is required"
-                            );
+                            ensure!(instance.active_generation == 0, MEMORY_MISSING);
                             self.store.renew_managed_agent_claim(claim).await?;
                             self.kube
                                 .create::<_, Pvc>(
@@ -125,11 +152,15 @@ impl Manager {
                             && pvc.spec.resources.requests.storage
                                 == format!("{}Gi", instance.resources.storage_gib)
                             && pvc.spec.access_modes == ["ReadWriteOnce"],
-                        "retained volume differs from the approved template"
+                        OperatorMessage(
+                            "This agent's memory volume doesn't match its runtime template (storage class, size, or access mode). Fix or restore the volume claim, then retry."
+                        )
                     );
                     ensure!(
                         pvc.status.phase != "Lost" && pvc.metadata.deletion_timestamp.is_none(),
-                        "retained memory requires operator recovery"
+                        OperatorMessage(
+                            "This agent's memory volume is lost or being deleted. Restore the volume claim, then retry."
+                        )
                     );
                     // WaitForFirstConsumer classes bind only after scheduling.
                     self.observe(claim, ManagedAgentPhase::Draining).await?;
@@ -144,9 +175,10 @@ impl Manager {
                 ManagedAgentPhase::Workload => {
                     if (Utc::now() - instance.updated_at).num_seconds() > 600 {
                         self.retire_workload(claim, instance).await?;
-                        anyhow::bail!(
-                            "kernel was not ready within 10 minutes; inspect scheduling, image availability, template and credentials, then retry"
-                        );
+                        return Err(OperatorMessage(
+                            "The agent didn't become ready within 10 minutes. Check pod scheduling, image availability, the runtime template, and credentials, then retry.",
+                        )
+                        .into());
                     }
                     let mut desired =
                         resources::deployment(&self.config, &snapshot, template, model, items)?;
@@ -170,7 +202,9 @@ impl Manager {
                             {
                                 ensure!(
                                     existing.metadata.deletion_timestamp.is_none(),
-                                    "prior workload is still being deleted"
+                                    OperatorMessage(
+                                        "The agent's previous deployment is still being deleted. Retry once it's gone."
+                                    )
                                 );
                                 desired.metadata.resource_version =
                                     existing.metadata.resource_version;
@@ -206,7 +240,7 @@ impl Manager {
                         .kube
                         .get::<Pvc>(Resource::Claims, &instance.resources.volume_claim)
                         .await?
-                        .context("retained memory is missing; operator recovery is required")?;
+                        .context(MEMORY_MISSING)?;
                     owned(&pvc.metadata, &instance.resources.workload)?;
                     self.observe(claim, ManagedAgentPhase::Workload).await?;
                 }
@@ -293,7 +327,7 @@ impl Manager {
             .kube
             .get::<Pvc>(Resource::Claims, &instance.resources.volume_claim)
             .await?
-            .context("retained memory is missing")?;
+            .context(MEMORY_MISSING)?;
         owned(&pvc.metadata, &instance.resources.workload)?;
         Ok(ready && pvc.status.phase == "Bound")
     }
@@ -415,5 +449,28 @@ mod tests {
         assert!(owned_generation(&metadata, 2).is_err());
         metadata.annotations.insert(GENERATION.into(), "1".into());
         assert_eq!(owned_generation(&metadata, 2).unwrap(), 1);
+    }
+
+    #[test]
+    fn operator_messages_survive_context_and_ensure() {
+        let missing: anyhow::Result<()> = None::<()>.context(MEMORY_MISSING).map(|_| ());
+        let error = missing.unwrap_err().context("while reconciling");
+        assert_eq!(
+            error.downcast_ref::<OperatorMessage>().map(|m| m.0),
+            Some(MEMORY_MISSING.0)
+        );
+
+        let ensured = (|| -> anyhow::Result<()> {
+            ensure!(false, OperatorMessage("fixed operator text"));
+            Ok(())
+        })()
+        .unwrap_err();
+        assert_eq!(
+            ensured.downcast_ref::<OperatorMessage>().map(|m| m.0),
+            Some("fixed operator text")
+        );
+
+        let raw = anyhow::anyhow!("owned resource has no UID");
+        assert!(raw.downcast_ref::<OperatorMessage>().is_none());
     }
 }

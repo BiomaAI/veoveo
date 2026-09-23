@@ -12,11 +12,11 @@ enum GrantOutput {
 }
 pub(super) fn tools() -> Vec<Tool> {
     vec![
-        Tool::new("grant_automation", "Grant a named principal and OAuth client bounded actions on your Computer. Execute requires explicit whole-run Stop consent for interruption. Reuse requestId with identical scope when retrying.", rmcp::handler::server::tool::schema_for_type::<IssueAutomationGrantInput>())
+        Tool::new("grant_automation", "Let a named user or agent, through a specific OAuth client, perform selected actions on your Computer. Granting Execute also requires allowing Stop, so a cancelled command can stop its run. Reuse requestId with the same scope when retrying.", rmcp::handler::server::tool::schema_for_type::<IssueAutomationGrantInput>())
             .with_title("Grant Computer automation")
             .with_output_schema::<GrantOutput>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(false).idempotent(true).open_world(false)),
-        Tool::new("revoke_automation", "Revoke a named Computer automation grant. Active command interruption follows its whole-run Stop scope and preserves retained files. Repeating revocation is safe.", rmcp::handler::server::tool::schema_for_type::<RevokeAutomationGrantInput>())
+        Tool::new("revoke_automation", "Revoke an automation grant on your Computer. Commands running under it are stopped as its Stop permission allows; files in the home directory are kept. Revoking twice is safe.", rmcp::handler::server::tool::schema_for_type::<RevokeAutomationGrantInput>())
             .with_title("Revoke Computer automation")
             .with_output_schema::<GrantOutput>()
             .with_annotations(ToolAnnotations::new().read_only(false).destructive(true).idempotent(true).open_world(false)),

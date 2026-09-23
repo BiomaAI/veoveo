@@ -76,7 +76,7 @@ impl FileWorker {
             ContainmentReadAdmission::RecoveryRequired => {
                 self.waiting(
                     &operation.task_id().to_string(),
-                    "Recovery Required; original process termination is unconfirmed",
+                    "Needs recovery: we couldn't confirm the original process stopped. Open the Computer to check before retrying.",
                 )
                 .await?;
                 return Ok(WorkerStep::RecoveryRequired);
@@ -128,7 +128,7 @@ impl FileWorker {
                     ),
                     FileRefusal::AuthorityDenied => (
                         "authority_denied",
-                        "Current authority does not permit this file",
+                        "You don't have permission to transfer this file.",
                     ),
                     FileRefusal::RunChanged => (
                         "run_changed",

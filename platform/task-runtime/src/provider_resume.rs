@@ -40,7 +40,7 @@ impl TaskRuntime {
         let now = Utc::now();
         let mut resumed = current.clone();
         resumed.status = TaskStatus::Waiting;
-        resumed.status_message = Some("Recovery explicitly resumed".into());
+        resumed.status_message = Some("Resumed".into());
         resumed.updated_at = now;
         // The old cancellation remains historical evidence. Pending intent is
         // represented by Task status, and a new cancellation records a new epoch.

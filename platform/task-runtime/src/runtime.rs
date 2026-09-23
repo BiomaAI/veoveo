@@ -197,7 +197,7 @@ impl TaskRuntime {
         let envelope = RequestEnvelope {
             input: draft.request.clone(),
             owner: draft.owner.clone(),
-            status_message: Some("accepted; queued".to_owned()),
+            status_message: Some("Queued".to_owned()),
             ttl_ms: draft.ttl_ms,
             poll_interval_ms: draft.poll_interval_ms,
         };
@@ -251,7 +251,7 @@ impl TaskRuntime {
             request: draft.request.clone(),
             recovery_class: draft.recovery_class,
             status: StoreTaskStatus::Queued,
-            status_message: Some("accepted; queued".to_owned()),
+            status_message: Some("Queued".to_owned()),
             progress: 0.0,
             result: None,
             error: None,
@@ -490,13 +490,13 @@ impl TaskRuntime {
         let envelope = RequestEnvelope {
             input: current.request.clone(),
             owner: current.owner.clone(),
-            status_message: Some("input required".to_owned()),
+            status_message: Some("Waiting for input".to_owned()),
             ttl_ms: current.ttl_ms,
             poll_interval_ms: current.poll_interval_ms,
         };
         let mut event_snapshot = current.clone();
         event_snapshot.status = StoreTaskStatus::Waiting;
-        event_snapshot.status_message = Some("input required".to_owned());
+        event_snapshot.status_message = Some("Waiting for input".to_owned());
         event_snapshot.updated_at = now;
         let event = task_event(&event_snapshot, "task.input_requested")?;
         let result = self

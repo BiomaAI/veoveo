@@ -106,7 +106,7 @@ impl FileWorker {
             FileTransferStage::RecoveryRequired => {
                 self.waiting(
                     &id,
-                    "Recovery Required; the original transfer remains protected",
+                    "Needs recovery: this file transfer's outcome is uncertain, so it won't run again automatically. Check the destination before retrying.",
                 )
                 .await?;
                 WorkerStep::RecoveryRequired
