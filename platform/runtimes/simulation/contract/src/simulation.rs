@@ -209,7 +209,7 @@ impl SimulationRuntimeBuildLock {
             .collect::<BTreeSet<_>>();
         if roots != BTreeSet::from(["newton", "torch", "warp"]) {
             return Err(SimulationContractError::Empty {
-                field: "authoritative Torch, Warp, and Newton package roots",
+                field: "Torch, Warp, and Newton package roots (all three required)",
             });
         }
         if self.gpu.runtime.count == 0

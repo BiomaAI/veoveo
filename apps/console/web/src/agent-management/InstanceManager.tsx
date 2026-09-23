@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { uuidV7 } from "../agentControl";
 import type { Authoring, Definition, InstanceChange, LifecycleOperation, ManagedInstance, PublishedRevision, UpdateInstance } from "../generated/agent-management";
 import { AgentApi, AgentApiError } from "./api";
+import { instanceStatusLabel } from "../labels";
 
 export function InstanceManager({ api, authoring, definitions, refreshVersion, openDefinition }: { api: AgentApi; authoring: Authoring; definitions: readonly Definition[]; refreshVersion: number; openDefinition: (id: string) => void }) {
   const [items, setItems] = useState<ManagedInstance[]>([]);
@@ -90,7 +91,7 @@ function InstanceCard({ api, value, authoring, definition, openDefinition, chang
   const prior = history?.find(h => h.digest === value.requestedRevision);
   const proposed = history?.find(h => h.digest === revision);
   const fields = prior && proposed ? (["model", "instructions", "tools", "budgets", "execution"] as const).filter(key => JSON.stringify(prior.content[key]) !== JSON.stringify(proposed.content[key])) : undefined;
-  return <article className="am-instance" aria-label={value.name}><header className="am-heading"><div><h3>{value.name}</h3><small>{value.id} · {value.workContext}</small></div><span role="status">{value.desired} requested · {value.observed}</span></header>
+  return <article className="am-instance" aria-label={value.name}><header className="am-heading"><div><h3>{value.name}</h3><small>{value.id} · {value.workContext}</small></div><span role="status">{instanceStatusLabel(value.desired, value.observed)}</span></header>
     <p>Definition: <button className="am-definition-link" onClick={openDefinition}>{definition?.name ?? value.definition}</button></p>
     <dl><dt>Revision</dt><dd>{value.activeRevision?.slice(7, 19) ?? "Not active"}{value.activeRevision !== value.requestedRevision && ` → ${value.requestedRevision.slice(7, 19)} requested`}</dd><dt>Generation</dt><dd>{value.activeGeneration} active / {value.generation} requested</dd><dt>Service identity</dt><dd>{value.clientId}</dd><dt>Storage retained</dt><dd>{value.storageGib} GiB</dd></dl>
     {operation && <p role="status">Operation {operation.phase}{operation.message ? `: ${operation.message}` : ""}</p>}
