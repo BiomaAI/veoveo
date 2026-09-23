@@ -1,0 +1,6056 @@
+{
+  "schemaVersion": "veoveo.io/test-receipt/v1",
+  "runId": "43747275-a9a7-44fe-8713-11e4deaa38d0",
+  "name": "fork-development-contracts",
+  "checkId": "sha256:c4140c6a40aed7db403e18d3b3b5e1c2d7a71beb5aa91fe03a97be712e723b4f",
+  "command": {
+    "kind": "admitted",
+    "arguments": [
+      "cargo",
+      "test",
+      "-p",
+      "veoveo-deploy-contract",
+      "-p",
+      "veoveo-deploy-runtime",
+      "-p",
+      "veoveo-simulation-contract",
+      "-p",
+      "veoveo-xtask",
+      "-p",
+      "veoveo-mcp-contract",
+      "--locked"
+    ]
+  },
+  "provenance": {
+    "revision": "624e6fa935eed2dbcddf644f75ce572d14f64c01",
+    "dirty": true
+  },
+  "inputs": {
+    "plannerVersion": 3,
+    "scope": {
+      "kind": "cargo",
+      "packages": [
+        "veoveo-deploy-contract",
+        "veoveo-deploy-runtime",
+        "veoveo-simulation-contract",
+        "veoveo-xtask",
+        "veoveo-mcp-contract"
+      ],
+      "roots": [
+        "deploy",
+        "testing/fixtures",
+        "showcase/sumo",
+        "showcase/uav-sim/deploy",
+        "showcase/uav-sim/runtime",
+        "showcase/uav-sim/dependencies.lock.json",
+        "examples/bioma",
+        "configs",
+        "docker-bake.hcl",
+        "templates",
+        "sdk",
+        "tools/image-build",
+        "platform/runtimes/simulation",
+        "testing/evidence-checks/fork-development.json"
+      ]
+    },
+    "digest": "sha256:a3911d75a707571a135d06ab0cf1286e4588a132a64ad17ae908924b70dd0b21",
+    "files": [
+      {
+        "path": ".cargo/config.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9143bae8195b97148e52880a97fa655a00cbc38871016384ec259799ff2f7a25",
+          "bytes": 89,
+          "mode": 420
+        }
+      },
+      {
+        "path": "AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e8b338f4bbf046e7fee277bf7df3eba2325201a1be102b28994f0a660b380203",
+          "bytes": 18378,
+          "mode": 420
+        }
+      },
+      {
+        "path": "Cargo.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8f02dc1e4260024c80a23571e2bea7496ac3a1fc81a6ccd559dd1392bf00dafa",
+          "bytes": 432949,
+          "mode": 420
+        }
+      },
+      {
+        "path": "Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e4169ebc72ca984a72abd9dd077bf866b4d89a3b853cc3ae99ed7a9cd6d3b11a",
+          "bytes": 7525,
+          "mode": 420
+        }
+      },
+      {
+        "path": "agents/kernel/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f94e32e7747564280cd78533bf057cd574f9eeff56d869161039d0118ddbb11",
+          "bytes": 1267,
+          "mode": 420
+        }
+      },
+      {
+        "path": "agents/manager/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7f355368e33a28fe4ca1a1f8c452e961c9a499cd34b695e9e4d0b6ecd0803f42",
+          "bytes": 832,
+          "mode": 420
+        }
+      },
+      {
+        "path": "agents/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2806596d740cae740c9a3e9c951f8e1bcfe35aec6b4ebc246f00ce1286d879b9",
+          "bytes": 718,
+          "mode": 420
+        }
+      },
+      {
+        "path": "apps/console/bff/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5393df1b4ccef4d576d38053c8c80ae3da8bc6b32f5c5c15093d0f0ee9de01e6",
+          "bytes": 1378,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/agents/pilot/manifest.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:26a69a43fcd574def4b6b0ed9a2e5a661ec20c474792ce26b41e3499bdccc82f",
+          "bytes": 3537,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/agents/pilot/migrations/0001_domain.sql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d73dc23d8722d81d222c396c8acff434f5f745bf8d2c1cec9dfde323714486d4",
+          "bytes": 1236,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/deployments.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:889f2bf135414534094d7bd8e3aa43673ca9faa9f7b0841dbe65c9fa890d10fb",
+          "bytes": 5529,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/gateway.local.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2710145a114636fb311759c7ff892004cd556e7f758e8bb16dc789cafa01d024",
+          "bytes": 158879,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/gateway.smoke.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5cbab6edebbb556b0bede5c2093bc1e3362678456b0b9f7c9d5131c3bc87e6bc",
+          "bytes": 22701,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/jwks.smoke.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07f00343211571ebebf970206dd64d713e354430e30588baf875285098b5c921",
+          "bytes": 474,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/keycloak/veoveo-ci-realm.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e70bdc08c9bb88edb9a6e6ef0aa4245c72f1e605b4d5b547a902e16faed49378",
+          "bytes": 2662,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/otel-collector.siem.example.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0fb4a19a5025d87fd8611faf27c85504207998372b3196b8be134e3447e1aa32",
+          "bytes": 807,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/otel-collector.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b51f6aea8a02e02c28a3a13acdcb22a2494ee0a37fad95ec39eb3b3f0c7a241f",
+          "bytes": 467,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/reason/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45f03620007bb9cd7191b6f917b7a8552713fea774a12ba50ea41c5158b64018",
+          "bytes": 1680,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/reason/catalog.example.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7357e3232d19650bb9b0a5bc34de779c048fd3412811ead2b93b24c116c5d7f3",
+          "bytes": 973,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/stream/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17bf0916f0acfb89ed02719fb4861d9324943e755ef39ccb2c229683611aff6b",
+          "bytes": 1645,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/stream/catalog.example.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06fdad81710c153aebd2fc8406d2211ea1dffbf38cd9ed8f69b95d2676839ed8",
+          "bytes": 3545,
+          "mode": 420
+        }
+      },
+      {
+        "path": "configs/view/layers.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f394a0c68c725ae439723788bdcf3899220988d25ac33d7217af74e3fec30da",
+          "bytes": 345,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a77be1a40ee1e605c1c0f0c8e0a7c622b16531663e9f08528321ef48c009a689",
+          "bytes": 388,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8ca5ea75fc0fa5e2373c3e1fbf43b7c214c17beddca5252ae84021fd322af8a3",
+          "bytes": 29097,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/artifacts/descriptor.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e65c96d94f6fc73287cb1218812291dc224a9d2dbc9c0cb3046278d98228a05b",
+          "bytes": 2846,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/artifacts/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f5df1601785eb02f257ff49ba1eddaae7efc832bd04509ed50149e04408209ab",
+          "bytes": 5684,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/artifacts/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cecbc252965758c4199d243750b7c5b749874041fdbe2ab4b28d42c356dfccdb",
+          "bytes": 766,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/bin/veoveo-deployment-schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf7c91f01bedc3ae17bcd6b57622ae4f24d9fa5de3537111ac4cbce2bb1c6050",
+          "bytes": 979,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/bindings.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f12ba0424ad88eb0cdf86f629acfcc3d43d1600cea498634e8aea6fd0389adb2",
+          "bytes": 11982,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:badf362de8e6455d3f31299b81c62ebd54d77795678977d3569df02aeb381714",
+          "bytes": 4914,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/execution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f817b7eb3610bbe0e8c0f6c7aafc55ba03b1cfcb09e41cc996d3c4a08159721b",
+          "bytes": 2798,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/history.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0a57e96f4b44d5ec21200e2df07628a2439aedd3526d7274cd96770faf0ffe4",
+          "bytes": 2610,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/installed.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06747238ced3563871bea4d9c40f82dc72e57a49fbc07cacbddde7fc024dbe89",
+          "bytes": 4658,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:59135d41df48c6a9c76f3b1900d791ee0ca5122cc9bf6a8014770207d2ffaa37",
+          "bytes": 1338,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/plan.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cd352da98b40b860c20cb4ad96804eb51986780f1533f7e566f29707075882f8",
+          "bytes": 10745,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/profile.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2fe78d1a0163815ce7eec3af58295f4b5fea3f2e4113550beae924f415ad2b6d",
+          "bytes": 17115,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/types.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:15e95359926775ab0eb1ccf5ff894b8d4da1b3b281c7cded3b12d8b0763b4a2b",
+          "bytes": 8273,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/components/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d2fb85e3608e387ca94c489fd83226421a4f8aa3a498b4779c112e735526ba2e",
+          "bytes": 15413,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/decoding.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e15538e41cfb26df43644213e45ab9f2a7fb8db8991d533e968562d6c50c65a7",
+          "bytes": 1622,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/gateway_bundle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92afc388915dfb52e1da5915e0e98478f88a0db6e9ad478f0dcc4f1a489cb1aa",
+          "bytes": 3045,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/image_release.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1ecce9d1b4d038d887e69bf8d7f198e85d0d8669a2e9e8c962515046efa80728",
+          "bytes": 5115,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f7ae3b94af78aca3c85520ba9afaed7b4fe4d2d77d98441d376de30b5136c21",
+          "bytes": 117862,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/locked_images.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a39a2f87eb767e82817e890558328461f3bd78ee4e0874003af538cce28250e",
+          "bytes": 2543,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/secret_closure.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:298825c5b9126a6fe6c0c611e75d1ecf6cce5faac661c2c8574b36ca7120bc30",
+          "bytes": 27965,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/src/source_chart.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:47cde4b86bd7e54add3cf1a5f39c5a8f5f0bc00867259990b73e25af2642739a",
+          "bytes": 4118,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/artifacts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3be05e8bfe3d0bd17826f9d78b8b6754117ad9abc2c1bb79081cfc23cd236c32",
+          "bytes": 1531,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/component_bindings.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9754c7292c92369897c4934b977a79b189248ed6bd22aa132f3c7130a0df4269",
+          "bytes": 11788,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/component_ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf94b5a245964a3bfcd39cc9d6ab719eed5668c8a354b002094113e09c0c4495",
+          "bytes": 22346,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/component_reuse.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f135488f4cba4d71d3e50c6ede9882c5e525a889a3770c21511a8497a0dd3341",
+          "bytes": 12376,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/fixtures/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a06a98b2fc4bc3cd87a74bf889a6e0f2ef8af53abea47e5ce6f75e2c05a5c8e3",
+          "bytes": 714,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/fixtures/deployment-lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:724a4600f7c7f5e1348949d45ef679bd8fed1e9d34d08dd9912a177016267a80",
+          "bytes": 12697,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/fork_installation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6033b5012b6656c6b95bb28a204ac4c1f88a5fd83b0490782abcf25b29e3688c",
+          "bytes": 13729,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/fork_workload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c651d0eb31331d953f25b445e6ceda91334da953372961abae0c083343c2c48",
+          "bytes": 1594,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/secret_closure.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1b941e7c3edb5a262be99e5efd4332c9f54da1b101635a27e3a1823645782299",
+          "bytes": 7653,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/source_chart_content.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:586e6ef0c237fc1507d6a3fae16de2479fdf52cffad4440f1bf81ad289964a23",
+          "bytes": 5215,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/support/components.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cde2593eb38239fd79b486c9b782e463e8535e0d57ad5f15846217f7e276a547",
+          "bytes": 4112,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/contract/tests/support/lock.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e84a658386e0d815f1ef72350ebd1ae53343186eddf9cf7f61e2710c20d900dd",
+          "bytes": 4798,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7577a50b5d94d48510db344e46a6f8aae70fbe816ef7d0458d0a96ec4f534ec1",
+          "bytes": 173,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aebc763201cd7e940d778fc226f5b7918899a4e516378ab915d3fb723aea563a",
+          "bytes": 1599,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:84a5b4011fa05bb0e7e48401c6c56a8eed81e90a286aad4d6ba6c83f7444238b",
+          "bytes": 1978,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/templates/_contract.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd564ebabe95b5d048889ff542e8f7f653c8834f1c98196441d35fa57a049301",
+          "bytes": 7757,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/templates/_networkpolicy.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9f0faba1af53274f884fd8f6b6160798cdba639dc81cec960515e7616dd050f",
+          "bytes": 2295,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/common/templates/_recording.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9e4c1fd077700ec4e5141895dae8674afcdb534b01e19c652651639f1b3cee0",
+          "bytes": 2174,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d4c363c2ad31e08bf06892a63f0e16798b389c5c1e63766857761134743ed650",
+          "bytes": 213,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06e1a5bdbe0a112e0bef8ba610391789b2f289e9c934634c03bbfc88427f5ed2",
+          "bytes": 375,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:307395bfbb559a5b3a502f0a2c7738a569a9ad82d6d492729788078eea7221d7",
+          "bytes": 12977,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:706abb7056cee152cac6635d87aeae4abdf3c355a8a9618769f79fcd12e293b5",
+          "bytes": 22315,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/charts/veoveo-common-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a977a396caf4618fddd8dbab10455523bd37e2a5fa76ce6a630e32f60b6f2cba",
+          "bytes": 4553,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/definitions/domain-services.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba0be499ba2d16e668f8df1c654b002aae9e2898e419566d6432e37d5a8c1f9c",
+          "bytes": 8096,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/NOTES.txt",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:22fa1e1226c140671e5d37db80dae56ce3ec2a781e22e847f7a94e3882bcc113",
+          "bytes": 1005,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/_agent-policy.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:841f07e549636e092e35a13e2027d35de44340577162ce9685e67e4f76474985",
+          "bytes": 7621,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/_helpers.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:68ff797debad7c2edac9faa9694520d58e1b202c012458f7f662fb1c624dc4e3",
+          "bytes": 9923,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/_selection.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8703151a885b05e3b6a744802969ecb0ef63d1d67bf987380b4831579af35b72",
+          "bytes": 4893,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/_stream.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:855bfbba71a1fb1be5a71cb2f0fef7a6f5ba5b1ad374a46c1bb7aae9bbfb66ad",
+          "bytes": 4049,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/agent-admission.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e0c6dacedd9c4a16b9f2920c1dc8f117072285e4e333c2ecb9176bfa52a03d7e",
+          "bytes": 5871,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/agent-manager.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99c97ca95a8bd9ffb22d03d73fa526bf592227c3729bcf39c2105705ddd44506",
+          "bytes": 5321,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/agent-networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:028075091856955557c4ff087898e1bdd448e5d563ba69ee5d4427a36880561f",
+          "bytes": 3380,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/artifact-service.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0e01da15cf39f450220fa4a2e91ea1167f4a28aa60ac78b82a8e3c7b06ee553b",
+          "bytes": 4248,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/computer-host-networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b02e4b8a6fc9cf1a127e618ff3d9b51234cee5a78823c51dba5e6c172036c430",
+          "bytes": 1151,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/computer-host.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9c84ce783dc5098fa88ca2445d8f62679e33f19487714fac8b80cee09a159ae",
+          "bytes": 5119,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/computers.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:28e476b444b5b3243aeb702fca4041b5c6e746eeb1edee5f8e17722411090361",
+          "bytes": 5241,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/console-bff.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cea672db9b6b8839eaa0a10eb36a2412a454d2c8d567669eb4610df1ff6bdf18",
+          "bytes": 6871,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/console-cluster-access.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2ea860d4d97175cc52d7df8a1968e08d1745c0d6221c26453cd72069a6404cb6",
+          "bytes": 1201,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/domain-services.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3a08563eeb8aad8cb10bffaef65f9d887ea74084e884ff8a7e13e881f4a3b6ee",
+          "bytes": 12640,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/gateway.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c1df0afbedad086414c165a92d623e4ca979bcfe24b7cc06f2bd3a7c46484889",
+          "bytes": 6352,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/ingress.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d28ac3e1973f79a4649783a961c65641ac0e0e24fba030e66444b076da087b53",
+          "bytes": 3652,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b18198930d329c922de1fefed10fef0853b158eeb39317d7ff9dd7c19b12cc38",
+          "bytes": 8811,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/object-store-init.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c83b5b11861633d7e7968aca5fe54091e4f995407fb261fc2014660c48220f99",
+          "bytes": 2551,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/object-store.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9da574eca2d59814e49de981d98278ff21e25c31d1ac16d7aec168a27652a581",
+          "bytes": 3609,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/pdb.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92219feea21478be0106d8b7834480529d7d601a7e52fcab6fc6c1d523e5e154",
+          "bytes": 858,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/platform-bootstrap.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:464e9c1f135a5bbf667b3fb859e31b5ae458e38c2338dadb518b8d26e46538cc",
+          "bytes": 3708,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/reason.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c863ecc7c33a446f0c6f43129c6769f99c45b00c011a2a2e669362867abf6356",
+          "bytes": 6028,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/recording.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b4d17d1daa146837995f57e8de799dfc9c78eb4dd24fae89cd7e219e2cf95f4d",
+          "bytes": 12704,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/selection-validation.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eaee83fd73f8ab624a4ce31b150129b0a182e7f87c7b79028055222b0bf3a7b7",
+          "bytes": 45,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/server-bootstrap.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:901e99fa1904d92d730fc645bc166ddf96028641c2788b6aba3ab8d839907519",
+          "bytes": 399,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/service-mesh.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cbf874c9be79bd66a60b9515c3b7798ade3256f5f68b89cf8254e778779e1a71",
+          "bytes": 514,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/serviceaccount.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6ccf895a1efbea21292f977acdc68fa5ffd3f7b869bba425035b132d39ea2308",
+          "bytes": 405,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/stream.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:541bb6a5b3f7e98acbeb51ab667558de8867d7bab3b98d893776c322fe6b37d9",
+          "bytes": 9114,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/surrealdb.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d1fa3c39bead420fb6d88cb078f44f26240ff9c5671603a739825a11c5d54436",
+          "bytes": 4435,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/templates/telemetry.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f55b4f5dce4ec2a1e597919ffb167fb24954931cb1c1f2fdde5e90c5d97c2e8",
+          "bytes": 2826,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8183349d0f04c9a8be4e8a7015db05adab20e93521c50db7a98b5ad2631f6d4e",
+          "bytes": 62789,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/helm/veoveo/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b019d536684a80476483ba0a207f3146f744a49b94499020559f7a65527b6051",
+          "bytes": 13227,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b4dc973d0ae6bdf2d12af0fa555b033a456bbf1b72a58751179053942d44b447",
+          "bytes": 7395,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/cluster.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e290958c12be1598506444507a4d6515f49923f0301f89bb4913a0b47b221e5e",
+          "bytes": 780,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/development-resources.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:28ec4bbf5f8898f3a092ce2605266e40ca870d469731f738fcc97eec37d5a74c",
+          "bytes": 5295,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/gpu-probe.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8487207748861c09d3a85c4a6e05b627682d09d9f49b90b7212000dfa6251e9d",
+          "bytes": 1025,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/node/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:87553219aab721e89a58de7d6202d14d9385c3e7ec9265fe6179648632ebdfdb",
+          "bytes": 1188,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/node/nvidia-device-plugin.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4a0234e60f7b26323aedeacf386554b003b1b73c5146c1d6857dff3368adbb3c",
+          "bytes": 1724,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/registry.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:796aedfc41c7937bbed3221bda7a6374248432eeccfd8dc3ab5efbdbe3c28236",
+          "bytes": 317,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4a20d0184627a31083eb7ef8cbdfd68dc19d624e8d1d89d4c90a8cae3c62bf33",
+          "bytes": 525,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/local/k3d/versions.env",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f0d37215c180d2ad4467093e2c086fa9a8a372eebb33418483721d6ef2c894c",
+          "bytes": 425,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/offline/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:83ae469ef450ffbb9a827f19a38ad833126feb7557b158cf45d950c80394a171",
+          "bytes": 3703,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/offline/create-bundle.sh",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c95ab9bf5069a4ea4156e95e26df7265484d60265eb1cc62cc816f0b168426f",
+          "bytes": 5096,
+          "mode": 493
+        }
+      },
+      {
+        "path": "deploy/offline/images.lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:91e2ab597b5a160b7a105b21c629950e8bcaf3b561161c21cd5b703de5141d0c",
+          "bytes": 3151,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/offline/load-bundle.sh",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8611bfd762bf05a4e1f0a6c11fe1082ed8fbfcbeec46c82b72dbbc09b0a037de",
+          "bytes": 3119,
+          "mode": 493
+        }
+      },
+      {
+        "path": "deploy/offline/values.offline.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f2611c6de11a7e25784e38ff85360c6833dd61173edb8dce5de28621aabb309e",
+          "bytes": 317,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5ae8d8fed5edd55d720cbed12db50ddd49750df447bab9b76cb2085c23774780",
+          "bytes": 1058,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19a0e8ca962c8bbb94456161c5a763d1469137ee6476ce8f6d873040a259d972",
+          "bytes": 492,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:69490f6456c18993ab017479d1bc3748210a34d23cedd5d97bac3dabd671d554",
+          "bytes": 32636,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/charts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6a41278c0aa428bcb1819a4945b7dd253fb972365a6ece09e3f85624634c463",
+          "bytes": 12267,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/cluster.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44bc5051da1b24cc9d472c40c2c96debca3231ba55b8c047c5a15732add9973a",
+          "bytes": 9767,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:731c3009403b05448449c53c858f5e4ad556d72c1edc84172534f45139bbefe3",
+          "bytes": 21850,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/configuration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3e4fe535f4fa9769dbe5683a52a93b5d27a38ea0bf989fe5d4875a8ddae4ec50",
+          "bytes": 4645,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/execution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c4d8c425fd43be15d328b3b58403212fee9cb83b07aea7b6a6ebb6107959550a",
+          "bytes": 4218,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/images.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:120c3ca72d009d9ef84b8c0d4486dee7a706194cf340168770071381b87fd370",
+          "bytes": 9679,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:953cca24c7ebbbf4e31c681b7bf88605680ead7b456bb7336b57d9da1db4f300",
+          "bytes": 10728,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/objects.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e62e3575c18251900755ba0fa3f56f40768cfe3f7dd3242d112b38b6776731b",
+          "bytes": 15265,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:37d1b1ba28e78da94518c431ac7b892b0349fe4bb0d891298fe147177b43ae86",
+          "bytes": 35186,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/tests/execution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0829821b047b046deaf5e4992364238085ff2787ab3d6df1585254d1ae022f5a",
+          "bytes": 5444,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/compile/tests/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:192c00c0c240aed785d28215aa8368df2cf311fe244f25633c80452ca7608a74",
+          "bytes": 8405,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/configuration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:03d340eb6c5dded1fd016462cd56c27cd480e4149585e78ad5e68ac8ff6e7721",
+          "bytes": 12858,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/discovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b5e7a8c674803302d1c57e3280c8aabca62b43e5a489602b194bee171c23f971",
+          "bytes": 9877,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ce519d27bf2ea7f92b8a2362bea6b869adb2fb26dc1dac93e9c587cd6b078e04",
+          "bytes": 43335,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a3b49f5d624374883e95bb8ab88cb0ad813909eb74b840d85cc1164f849c5656",
+          "bytes": 11106,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/helm.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:34f398de6c6b793e64d9ca0eddff0bb460781e35c2db4fe7358109648562d0b2",
+          "bytes": 13858,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/migration.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9307b5df72befb669ecd0f88a13936adbbbaf43008ab52d7994e82e8b080ce51",
+          "bytes": 16598,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/migration/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b1bc62f6a1d26598e2e45b4d0ddd34ef00f26cda80eb992afc4bc27c0017287d",
+          "bytes": 14531,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/workloads.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5e8904630fe279feafe71c26c6676c911f58778b9b3c75009a440bbc1b960609",
+          "bytes": 17031,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/gpu/workloads/quiescence.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e9918f00617a897623c51d19dc723f7f2ca576538e0935f76526690b861299b7",
+          "bytes": 6586,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/helm_bundle.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fb7b318d337cb5b6230b1dee736c565f0da33e9133e2c03b15b87c327b79e068",
+          "bytes": 9179,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/helm_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8364ca39f7d0854446f5b4eae24b96ccc3d066a6f47aed7086a18b920c29324c",
+          "bytes": 6147,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/helm_state/snapshot.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e576c8aa163f0faf1d1640b04574d7887b61462aca8733897543a8971adbff6a",
+          "bytes": 5085,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/images.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:52fa9e226144098b38a59e10c7b4ca1e825d7bc42a9cea2d1f9a623bc9a8c202",
+          "bytes": 5048,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ce51cef484694c35f2d2fa8296c1efce8cd850be9dd33b5fdd917bbd843d7cf",
+          "bytes": 7823,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/normalize.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b8147165de3107af93f5b2b27121b20728ceb74aa1d1f2b27784ef280070988f",
+          "bytes": 3976,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/objects.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fe6b59ce9ebed034f9af407e630b4ffad8de70913dbbd39ea30e4b8f2e65e4ae",
+          "bytes": 8583,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/planning.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39605a95af5bcc76df7d0a006d29040937b6433ed9f520dab8b4bda24ae75a31",
+          "bytes": 6623,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:900e983444778cf71cf8fa048712a4f5884d28de1ac844781628e1e8a77f477d",
+          "bytes": 4806,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba68e1d254bd25843f32f054a036f8c58d596c0b8532ee8b04ad4c3b17a77a6f",
+          "bytes": 17039,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/tests/planning.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:979b9544b2827715d2b6dfc3a3407f1bc5cb6735a9e16475bdf1fa113e0804d1",
+          "bytes": 6547,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/installed/unselected.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f35bdceb63cd2be45d799d51c3df8c0de6637755e09d9a479c0f51b8488502df",
+          "bytes": 2917,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d02e539121125a89311d9759ab257a2a9821f97f40dd25d206c1dd25b4f18f88",
+          "bytes": 876,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c148eedb2b3f10847aa79135f2b82385ba950bbe9f850702a3095f06fde54fd",
+          "bytes": 13957,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/ownership/live_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:83846e589011a887b34ac158fa82f7b5c807ab97a21cd8c921cd64ddf2bc91c7",
+          "bytes": 8379,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0b1bbcb1d65b28b3f42884462c82fb54a5e45c5fc66d14a25669f66b7135943",
+          "bytes": 2242,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/profile.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eae764c9e6b3be5f9023ef7e72d67367bd6cdefba18a5397adfb967f0f52f200",
+          "bytes": 14878,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/profile/coordination.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:23c66359e61f60bfdebf08ed84d394e46fa74ae2e7ea6f02dc7ef069fab7cd6d",
+          "bytes": 10637,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/profile/coordination/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8a759e5033bcef5a5911de378dccadb04f50e803101bb7857724286ae8e37009",
+          "bytes": 7107,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/profile/execution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c55470f9850d7123869e9e76b50abb2eb4d55ca6e45e5407f68556da0116b564",
+          "bytes": 9115,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/profile/operations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:63cb85b39fa51e543d71deee70bfb170c222459badf947ce3a8e50ccda0e8a52",
+          "bytes": 3204,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/publication.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cf15bd6422cea27a588addc5eb7842c0746db545f83348a6395d956d083b6880",
+          "bytes": 7358,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/snapshot.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6dc7774507a6ab7a79e24adddfcda99f5c9c345a5e5356db4deb850aefb460e3",
+          "bytes": 8299,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/snapshot/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:988b2968ef7951c39d6d572f69976d7bfa203052203c31d92ad5fdfeddbb0a72",
+          "bytes": 8065,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/sources.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4636194138ae99e7ccfa5dbb7ebaf5a8402b914ca9906b59a7e313e4d0979502",
+          "bytes": 12849,
+          "mode": 420
+        }
+      },
+      {
+        "path": "deploy/runtime/src/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:388c552ea3f3346a8ae198e3a2a3ce52f78b05add24a965c2b99a343c4058075",
+          "bytes": 10685,
+          "mode": 420
+        }
+      },
+      {
+        "path": "docker-bake.hcl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e985c210debb792be0efad3d0cd5ff7252c9e856cb113f0d54b769bf9876bfca",
+          "bytes": 22441,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/.env.example",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:28600982b2eca9fe4aaffa94ada9b3dc7dc4e189a52ccfcc76a017cd01e9bb1a",
+          "bytes": 193,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:19fd43903b4093730bf95ad6a980fe97c5bd333789f9efc0a46f2b6d835d6c95",
+          "bytes": 32492,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:69d281a9c64eebe77625670f761b89da8542ef44f75920d4daea93c7728d8cf0",
+          "bytes": 548,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:618bce677a3dc6aef51a88bc63086bbb13404cf316ba9288b2da49d5c01ebcb1",
+          "bytes": 6537,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/fixtures/retained-pilot-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3abd655f556d25b982b8d7e15e38af90d14fa11e30dc2a5aab8090f69f26efc2",
+          "bytes": 1951,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e79a97f55d9329ae1dbae9b6dc369dfb4a2e95b39798c1560c874af8db8a3827",
+          "bytes": 10134,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/src/pilot_consolidation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:377955b5663b60d8af907cea847b8ac61184c632fb45940ced64bbc48c26314e",
+          "bytes": 7510,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/src/pilot_consolidation.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:50cfe3db78eb7666af48ef4cd64f9e3bf976114d465c6e5a068ba62c0b5e3f45",
+          "bytes": 2599,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/src/pilot_cutover.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2031d0d872cb820cf40de452b8631d985f3eeeda36bb8e9c62dd541cfdc4c938",
+          "bytes": 5693,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/src/pilot_cutover.surql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db974bc0114d005403022c458c010870463360677df3a4d387a466e7682c30ad",
+          "bytes": 2662,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/tests/pilot_consolidation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:afeda98b5aa1966e1a60a1b3d20eb3c11f7161dd9468e17baa013400ac385845",
+          "bytes": 11635,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/tests/pilot_consolidation/support.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fdcd1c7a1f5aff300da272f1b67a09e0168c3245fe0eb5b7e3fe4360e81ffe4d",
+          "bytes": 7070,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/tests/pilot_cutover.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17bd8e1909930360bc5e38d62cacce5f544a5d89b18b434cff13d782b2cdaaa7",
+          "bytes": 19312,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/tests/pilot_cutover/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:71aee87d089728d7ecf43181ca1089f8e9bcf0086f72f78bef6cf748759803df",
+          "bytes": 7923,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/acceptance/tests/pilot_recovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2ea81e79666995216bdcf94d5276060ea3b9e6f55c141182dbaefd4f02603ca5",
+          "bytes": 7385,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/admin-client-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1ed99806980371983ab0031557b4bbe067f332f580165c79ea55d7c3cfb0f87",
+          "bytes": 684,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/agents.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b62d9c45691c8cf33df5d19e7faf03eba221cc885f96c352d3b011feb5954b5",
+          "bytes": 1984,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/cloudflare-tunnel.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:24dc8ea88e38936afda56cca0d7063e295a70a0fe6fb49e675bcdaef50a99e37",
+          "bytes": 359,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/computers/computers.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:88acb4794f7f81e0ffde6463e00b4a2052d8ec988373e4c5eaa59283c69b59dd",
+          "bytes": 7347,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/computers/host.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45d730ad409ef5cc4a78301a17b9fede4f79181fe13802dc08e6ce48c6a3da47",
+          "bytes": 1358,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/computers/policy.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51dd45cb8ba7ba01d38af6be5e5ac71b3451e7cd7789a5469ec9e72583fb990f",
+          "bytes": 632,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:acf9732bac7fcbe0907c2527c7642001a7162582fe0c699a67c10ffa7dbe0628",
+          "bytes": 171274,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/bootstrap.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba52fded91480c38dd81db2b0348e98b26e492fac3308dd687e28b6dd57e58cd",
+          "bytes": 556,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/cloudflared.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1bace39423cab6fa5c1bffc4e8f1c33ff3ed5ff550c9d742132fd54779fb0109",
+          "bytes": 1716,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/name-references.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6ad53d7ca8e1d0b4ea08462ded71bf3c283cb1daa4c4ed1e5359944c6908e5f3",
+          "bytes": 186,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/namespace.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9ae5358b5cc4a215888022072ddb0af37aa4c900b83602eb150212d9f7282654",
+          "bytes": 104,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/releases/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:67c3c46774ff755b221045bf14b206a7614748d033a66820d4308abba504846d",
+          "bytes": 108,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/releases/uav-sim.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9ce04117b6c182550cc602038b67f7611e54a659cdd3cc4a2900da1c62f06faa",
+          "bytes": 804,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/releases/veoveo.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:627c8983b0569dfe99f3ebee4b596daa67c1df1f72d09a020eac331818521e1f",
+          "bytes": 852,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/sources/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:67c3c46774ff755b221045bf14b206a7614748d033a66820d4308abba504846d",
+          "bytes": 108,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/sources/uav-sim.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ab92be7152dd6fb5e2cb4179af40bd52a208aa4f514c95c3f1536bf8cc0236a",
+          "bytes": 508,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/gitops/sources/veoveo.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d288e4c1677bda308289aaa652cc8948439df2af80be6fe6d61eb079d4b2e867",
+          "bytes": 506,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/images/uav-sim.lock.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36e761f1815d70989b647c55af5e76628b475c191f21886d4284a0f2723b3bd4",
+          "bytes": 393,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/images/veoveo.lock.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0c29d8afb519f0c3fa5be3211b22780c44677e1dfb81cc56b4e6f89b1ddfe67",
+          "bytes": 2612,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/k3d-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f459ce1fec42d619a24744a14356d74b9792d329035f257b7c75cbf474b0e1a7",
+          "bytes": 4837,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/k3d.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c6e332e3de4220ab8b3f3318cdccb7bf798487a7d0321cec10c3928e36053c8",
+          "bytes": 712,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6c90de18531977033e4de485f0263aa581a02405f442c952ba1d093809f44f9f",
+          "bytes": 1747,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/lan-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:21593c71d2a9c195a870432499a2b047e4a08de53f08c776e5bcdb81d7fc9a44",
+          "bytes": 72,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/operator-client-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4c62f9b9fb47817d803c0b3eab07ca68e5fb75b56a3db8fe3e34efa047b1b630",
+          "bytes": 687,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/flux/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0809426716dba3ca6bc96cc7e8db9a69a015d2946c36059ea6320b019bc962a6",
+          "bytes": 1795,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/flux/labels.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:750a9ed00ed4b8df937502e7c6ffeef9e2d72e4d2e6e71d8a8cc3f5d405532c8",
+          "bytes": 326,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/flux/namespace.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:77c51b40cdafb25562317e4accf6a030b6b7507f469e8ffa4bc7bffd861df2b1",
+          "bytes": 289,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3e3ae27a92b756c869a9868c740e71bfb9aee49cf7b919deaae5f7b9a26b8c8e",
+          "bytes": 97,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/registry/kustomization.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c03a9e73c6316fbb018b20b243518742fe5c5be7c334b8d97b14c3440e327a5a",
+          "bytes": 92,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/platform/registry/service.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6204bc7f91ee0f72f6d55f62fcfb511519f0b0178bd597a6a048250817bf8634",
+          "bytes": 231,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/recording-hub-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:485a106bf087d4f2579df0f10a6afd899d4cb07260857fa60f26886c0fb4c7f9",
+          "bytes": 674,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/recording-mcp-publisher-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5930d967d694ce8b2af6b99e4f6486e71cb600ceabb912ddc4d0db11a644b11d",
+          "bytes": 684,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/recording-producer-jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98417edfaa3bd89ab5f28c9ca9e313fb9a2f85d40e67ad1d00c8273a1fb9f10d",
+          "bytes": 679,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/uav-sim-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1552de00f625a608156b47ed597856b3609fcbb3ffd51bb317056990a540429b",
+          "bytes": 1135,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/uav-sim-world.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f5b5d954229ae8acca90c8bcd1372501cd9ca380f569f27f8675e464c39ce265",
+          "bytes": 570,
+          "mode": 420
+        }
+      },
+      {
+        "path": "examples/bioma/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eb6278cfcaa7717030a4989c7be6b531064b6853f481e5d18857716ec48d5c56",
+          "bytes": 5618,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6826ffa5a368be745032bcea49398cc9913df3820e3377d9603652594998658a",
+          "bytes": 257,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1bd016baf2758368836078f7f7181e53649b96afe8ad131b7b5534f677bdd0bf",
+          "bytes": 18000,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/admission.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4afb638b5feeff38c28c9826dea20b3bcb702aae74715422fb74bbf5e9e46b0c",
+          "bytes": 4902,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/asset.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8be12dfd1e21d0a20badf0aa74bc95d41e92e6617ae2832c0f70c31182001a9a",
+          "bytes": 2659,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/client.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17fdfc8ab755232ad2012240d5c322c1df79791eb14289cbd88070bf2544aa59",
+          "bytes": 5158,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:01b3f11a27319ea98b1708a2b659496bcf568e83b5fd31ef47ee8602ddda5005",
+          "bytes": 711,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/models.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44bc3aab5d60fe81b7e4d85e5eceaecb4d667879105b3ce76ee7488c6c3ffcc1",
+          "bytes": 5924,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95379dbbc8d96704ec24d021ba58fc67684bd322a886450da568e4b7d52700ce",
+          "bytes": 5439,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/workbench.html",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bfc44e1d993e9b0a4878fe2ab6a1f67218588387ee558e5cf25f993f5814f0c",
+          "bytes": 12011,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/apps-extension/src/workbench.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c2d23438ac4d63d7ee2f14a9962499160a3419375b12c53c62880696f74f38c",
+          "bytes": 2836,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/bridges/legacy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39c13496f2298641f4ebe05857c734f7eb1d4b07c8b9fb6f7512ae829a2a049d",
+          "bytes": 600,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/bridges/stdio/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5df01f12b0b554024fb737677d60748bc5ff6e7182640f500fd307fee402dcc1",
+          "bytes": 518,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7ccc8d8bd5c6d71b8de32898b766e03862c7e6512470266e5aefe1ac545df69a",
+          "bytes": 1150,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9a40831e3516e451ed7a102ba0ec0720babc5f5efc12ed1e6d4df77fd8250979",
+          "bytes": 6205,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a0a2b1c49c73d46e3d7d4e144e5803fa0097a82073eab8368f4e7a4ae3f839be",
+          "bytes": 557,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/profiles/hosted-server.example.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0ae0280a6950cdda47464e1b48ee98a40e68962227ece635421491109dcafdb3",
+          "bytes": 1097,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/certify.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:88ea3efac4f9389509422d544c64f1cb0d80c38128e43b0b0a385a332bd07926",
+          "bytes": 1643,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a387e0fc1ddca4061f41ee448c4cf29dafb98e2104137411aa0d9dd9622ab3ab",
+          "bytes": 20951,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/auth_discovery.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:afc199b5ea0b7b948907b42713bc818727612ab0e9c4acfe3507bcf5b6393842",
+          "bytes": 7680,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/cli.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:351d8c686bcbe1f4f68a29ac0a6d4656deb22eab7a92cac1f59e0317cf199490",
+          "bytes": 19274,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/client.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0122353d3313c6c658d81eae5fd81b44e202ab13034af7b35c811baa344c5d85",
+          "bytes": 5725,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/client_signing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cff277a28feef5381f1f738a296282304d3f17fae4cd01b9d983f4359a8a6a8d",
+          "bytes": 5878,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/control_plane.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aad0ad12754954f3dc1699f8083fa571a6348ffb5da56a5b6e882330093a1f8f",
+          "bytes": 22732,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/fake_services.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfa5d3c1bb9e8f0f7a9f510aa04eaec55757cdd2d963b2a4f12d8508b02c315f",
+          "bytes": 47451,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/mcp_commands.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:060bfd9e44813e5f2437ecc5819a532468133be772f41e33386f6fc86c3d94ce",
+          "bytes": 26311,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97a9f1a612eb79a4acfedc3e079e19cd23927e5b6ae9f0f2a34df0ab65e37ceb",
+          "bytes": 6605,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/bin/conformance/tokens.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9651e764db690dc31959923b0d593d49ae8b9121161e47ce2f7d2fb996056c70",
+          "bytes": 11860,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e88c4a4966a78ac3ea5ddeda129e2169631ef54119d3ea6fee28fc58af7a8980",
+          "bytes": 1300,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/profile.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7cce365e98542f47d3914b0d0e20942bff5ffe5111e411820d90dc31aafcabb0",
+          "bytes": 12245,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/report.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fecf6be50f02271c9a10db1c492c499596b97b4a6f1d8d83e82024922eb3f0ef",
+          "bytes": 2221,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/runner.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c13eac801113488b2c674ebce0d8712ae5a909bef970f0fe657606ddfdd5588c",
+          "bytes": 32037,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/src/tool_schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:150fba7c451afab29b027a445fed08aaf1e9ea7b77b691a6b3e52522f616c87e",
+          "bytes": 6844,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/tests/contract_docs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c1f9dcf6a619dd25121bf13a352b61822c3e6efc74047be34b06b22c80efd1e",
+          "bytes": 8707,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/tests/live_certification.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0d75c71cd7fd85ca575462344125a76c968934a168228e9c03bf3d640f601810",
+          "bytes": 8808,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/conformance/tests/profile_contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aef97c39f82e719fc33bddb0c91ff769cb92f0bebbe67e6397a7dc7d0d80ad98",
+          "bytes": 731,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1042342f32684b723b89760029cd0460e796add49d1e8f3a5e97ff831095ee7",
+          "bytes": 1359,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a834f7df7f4e11831d5f38aa0be364173918d33679c5edc8c418eeb1dd273db",
+          "bytes": 31452,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b9d0ee136bd4b81542f465883fc8e940cd9aefc715760f156eed7fff5d17bf6e",
+          "bytes": 20603,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1073728b0337a13cb5604e593835057212af40b1d5eacf81146c9468b2f5224c",
+          "bytes": 4704,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:766a00be0d7c151d29c0dd3438dc42a5e1cfb8b6b20979e70afe414e02990965",
+          "bytes": 1989,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/installation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db0bc0f51e87e8e94769135903a81d359d609d48ea2f6305ad3cac67ba69307a",
+          "bytes": 6556,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/instances.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d2dcde13ce4d4bf08f72a1d92fd21c0a6f3358db4116b2264bf267531fcd3692",
+          "bytes": 3505,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8058108bbec0164874a2bb54fd77563fc8f3c787cb13261113530f9df1109b1d",
+          "bytes": 9421,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/template_validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e140648dd443157b7f1c5262a8e1304302c262a136590ab52e7e4826fe5d5557",
+          "bytes": 7858,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agent_management/templates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d301899a7bc95111f933da0a8f3fbf76bf0e50d8475e0644b55a0cf476f5ee46",
+          "bytes": 3458,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/agents.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f7fc89e47a454efc12ee2f876c09fc52f4d90e9c43b545b5a3f03e43f312affa",
+          "bytes": 4862,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/analytics.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07d653f86dcdebb90a1455727a6b02321400caf50a6ad4690056948034a1dd39",
+          "bytes": 9525,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f326cb4d01414f999cdbddd80707821bd53cb3979f212660680c3083cc17356c",
+          "bytes": 29462,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/read_capability.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0bbd5b67545ab58da6ecf2ff4dc52146a26ab6b3bc742edffa19087d8a88f2ee",
+          "bytes": 2962,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:740964023f0b721eefc19e216b803850dc8bc0e82e3fb28e7cb0a07d6b069c0e",
+          "bytes": 7328,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/artifact_service/upload/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2713b715d058e045e895577619d4aa9f2f460cbcbf3292e41f1b22b97b82ab80",
+          "bytes": 6427,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/bootstrap.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1e094db44ad464bb89bd05ab261ff55a203cd17dcf7841021bce80397b1be4f5",
+          "bytes": 7042,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:484f33f5772a74b85371319b3f92ecab947f03cb10fa47e8ec829f5e40dd5a2a",
+          "bytes": 3344,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/coordinates.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2814135bff76c2a3fd203d81b5097bc13c60cecde3a2fb493f215b7f88097a88",
+          "bytes": 19627,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7caeaf78f0103534bb14ace09176c2c4c14c2c5732de9bf5d856b42882a08e07",
+          "bytes": 23523,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/deployment/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2bd9d46e5656d35470bdfe002fe14d5c8a35353dbf2471fcf38e074e2209c945",
+          "bytes": 3920,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31b6914c76c1a017948ba2883c51574be3f49129f6e23568709ee31516b41149",
+          "bytes": 2765,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/docs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:51da998d790d9d1a52b1d6e0708e8ce787f2a22faeb9f1711d3d3a653c2c747e",
+          "bytes": 9574,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/duckdb.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7301c5511a402007702ea95b36646536cd38cc3686351976ec94fc0981c21b3",
+          "bytes": 7049,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8d738de8893d5473d8d2a7a536d31b716a1abb08e400aa294273b271c98ae0c6",
+          "bytes": 32065,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/auth_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4ba4cedbc12a3f732c982c24a5a302b202be4aacb1941d1e4c6d378b1761992",
+          "bytes": 7349,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/branding.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:299f45fc799f359007b676635fa9ca2ad126ce07be325f10a887e4786c6819ef",
+          "bytes": 5549,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/console.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3963f45f05040c6ccff46a9fc6f778eb1900746ce5291893aa38dc768fdf959e",
+          "bytes": 1851,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/data_label.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:40f13bc722b399b2700c0193fb1f2b6bd65b4d1a40a4228676d659b67458eacd",
+          "bytes": 535,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/error.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:428c9650478997c360f7794614673ec4777c7a79db241e7bfe7d03475cb54a7c",
+          "bytes": 34021,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/ids.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:78b4463e5532c21a8e7f9cb0892fd0b97b13e70a0cf108963777483d69db353c",
+          "bytes": 11164,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/policy.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:35ebc17a2dfa1c7146c49f8970645a023809b052140afaf88a9317386c960ddd",
+          "bytes": 21632,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/recording_ingest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f50649a172e821388092ddbf3e03e2e071f13f4685d6b34a941c29487a7c373f",
+          "bytes": 2108,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/runtime_state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:95135b2aaa8cceb73dd0277ee8c9fba62f24edc9f26fd3a740208cd64ca754d9",
+          "bytes": 5107,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/server_config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef4361775461ae75d0ae797c21380f553355bf3523cdc14a5ebb985ec7315e62",
+          "bytes": 21792,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tenant.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:546cb4c5152724a2adf00ef51352f31d5ffd3a4995ec2a99c2d6b3540faf033b",
+          "bytes": 479,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ba370c4763667bdf674448302c4669eb1982ac266f4d40793e471b0e4e36e944",
+          "bytes": 83069,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/validation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8bccd6247dfabd54945ae4c52861342e394e2a66a670dd24687c9feeec0d3aeb",
+          "bytes": 47672,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/gateway/wire.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea907766632c1e77e2ceeb9f6fd57c1baee2bb6d2717e0839484df5066745dbe",
+          "bytes": 16478,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/generation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa69fec4382356f4ca328d78eca5c29f5c104ba97e3ab6d1c111ca5f476ce063",
+          "bytes": 1100,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e3d248db8b6f5706cbd05d8bc7aabd24e8d06861f9366c806c18277dcd0c9fc",
+          "bytes": 6640,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9976782b7105d84de8a099f03b4a1b71056b5f43b760b02b30b9df66784753c5",
+          "bytes": 34168,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f8e02d93edaf92b06dd4b8187951b163b945c586d30d21895dd14277a0f3b88b",
+          "bytes": 3215,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/request_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de6b7da52f551b0fce4543a41b1e95ec930e2c838b98a18bba63db102f3b87ce",
+          "bytes": 5126,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/internal_auth/upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9e8f99740c1032ac0470e9bd933e9d6e93cf70e0caf0a622885d582f048643d",
+          "bytes": 2360,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6f5053b4b6653be2edc41fbf901fb5de5d185412bcb3a85a9bb547574fadea0",
+          "bytes": 11441,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/live_view.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85bcef90f1834aa703c63be281dea1c9a6205cfb18b0dbff90c29c1b1f6263b5",
+          "bytes": 31600,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/pagination.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a3d564a0d137db0d83af9c2020848a4f20d6d2d993451f3e65e8d588e46f735a",
+          "bytes": 2690,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/protocol.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:85c3f581716bed023925b668e204bbfb10edd1a17ca7c778deeec67d33edc0be",
+          "bytes": 5587,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/provider.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:693d141de28a15a15cbf3ae3531235273f980c6ffa781843bbc0a7702e1f57ef",
+          "bytes": 2065,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/recording_catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:75142c71bc3875bcdc78cf2590f5c02559c29bf5c39a674bad298f69fdf16450",
+          "bytes": 3210,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:956555ed683f528aae1339c9c978e47436bba418a936f921eed538d7e54c933d",
+          "bytes": 5714,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/subscriptions.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db23fe5baae3b0314b9ec20d831c80db378b4edca6ee382870f3ce080159f93f",
+          "bytes": 7560,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/tasks.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d0c01309c16724ede792e1e5b1cd23cb1f61dd070d4bc1c51b5c1eb24b38397a",
+          "bytes": 6795,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/telemetry.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4fbca74d10be0b9b85420e6cf50955f7b907ab9771018bb91fb7d6bdafbc2f21",
+          "bytes": 7448,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/transport.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:167c1c568073bcba66bd8b96456dd96dd12bab012708a52f9d4fa108ac87b2af",
+          "bytes": 7437,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/uri.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1763e9723053f083ad22d71ede25f0680b4cad4250a8451af9558583b02452e",
+          "bytes": 14954,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/usage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:39ad5769f53c44e2574c190b63fe4f59952a25b8e73a1facb9443b83fbde92f3",
+          "bytes": 5497,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/waiters.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:47f104c2f8ed7451fc31cdd6212ad16e4cb3d20908aaa4bcdc8db9fe291caab6",
+          "bytes": 959,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/work_context.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1d4c0b816e62fef7c2ba5e44334b6a30dd7b8dcf0b10588075db9ee35a825d21",
+          "bytes": 8820,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/workspace.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:68b43e5819de1578944bcc66cd8d4399c56b8eacac22b1657ef05929243e62da",
+          "bytes": 14411,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/workspace/apps.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:725985c39459f5fb5f520567612e9bffdf3f5a9d4ac5e4a3dccc6b7afe317a54",
+          "bytes": 1998,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/src/workspace/operations.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ecf89d149f97da08b391b7650096c0b4e1d587f1e1ffe59a0b45adbd700f1f26",
+          "bytes": 5472,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/tests/artifact_upload.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:533fb42d5a8d1d785b049f32305b765203a65f4b6f015cd09a318eeb5d40c534",
+          "bytes": 6525,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/tests/sha256_digest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6697c59530fb249ee95ce12d68ebc47e0090ea3af8d46b8f7a9ab1866aecc24d",
+          "bytes": 826,
+          "mode": 420
+        }
+      },
+      {
+        "path": "mcp/contract/tests/streamable_notifications.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9943f180740e64fb5f1725af79887d0c414d25c42d01168677d57e69c604bbd1",
+          "bytes": 2671,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/artifacts/client/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b20f806859f510236deabdc19d79a934cfdaab1b4246b02f7d391dd767b97e68",
+          "bytes": 482,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/artifacts/service/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:25c2267bbf32fc4f6a275c8ae10f1bf02c9bfc1e6d4f6948a5a0458cb030fda1",
+          "bytes": 1250,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4f1e01910b87096ce64551cb9874669d7d7845f6765283ebc80908bbfdece58c",
+          "bytes": 990,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:728b0ad2c9afb7ef2f253625eb2886423ea92257bbc0eb4f837551538b1ebb2c",
+          "bytes": 365,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97253215011f60be54669ff322605d24a1b0d0ca7f5f7709975cd0d33934aac7",
+          "bytes": 318,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7acb4f1a87f09e3bd05fcf3614fe6f5f6ef301511e6cd39a0e7f4714e72dedd0",
+          "bytes": 12336,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/access.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:baee5db47a7259780cc209089edc7eb0af34d88eb31b260449a330f1103d1553",
+          "bytes": 1957,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/automation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e0eacdfff163eba52cd36d960f5f4e9771d165a6390edac4aa82726acd9e6292",
+          "bytes": 8193,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/bin/computers-schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:568ca34cca80f3d02a9c5bf2753bf2530eca6d45b61e681fa09b62fb4ac2e83f",
+          "bytes": 214,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/execution.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6af803811017f341977609379e7e06b287fae971cecdb036973b02f95fc18d71",
+          "bytes": 3961,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/files.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3c7949e84f6edbccd1fcbdff8441b5fbac74fa807353ed60782a517698109404",
+          "bytes": 9431,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6b1b12b6ba8904305701272aa25d24ca0fb7c5ae5400ec13f5f4b048f7feecf",
+          "bytes": 17943,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/maintenance.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d85f05d372c8cc6b1f33e90610e758b3a31a1354e78debf3c5baf376780eab99",
+          "bytes": 2538,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/contract/src/pairing.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1341f3910d6fd7657efd20edc1386550bded1d8dacc1a9e9364d27c2fd1977dd",
+          "bytes": 2433,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/execution/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb31b3d37db32590506ef82e748f60c404ced9b6d271d082a0920696b8c5727a",
+          "bytes": 412,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/host/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5310e1db048c0b5d1cf2d36e7321de530eb3566e5fd61cba2da59c737cf586bb",
+          "bytes": 713,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/storage/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa5333a81363ecc035d68ea89bd17291334d3262e014650e3425192ed752fd26",
+          "bytes": 716,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/computers/transport/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6681124ea0c6c09c86f846ba83ed512837bffa1a674e592b126bf911310750e",
+          "bytes": 902,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/gateway/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1ba42bc365223fff1b399a7cd8e2b4ba84b40509321cfe6188e6827accd2571d",
+          "bytes": 2049,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/policy/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e82d18fc53d606e8cbdb9ab66da2c6245df6d762817f2afee69c0746e52a2038",
+          "bytes": 251,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/forwarder/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1fd5782ef727d57295b4f29016bf86c6754a833fe3c890303bd5fe9531aa4d78",
+          "bytes": 1216,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/hub/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:359bbbd0684a5c65beb84e2d255b69091b1dbf68b5cd326c7badcafd0ba88f11",
+          "bytes": 1718,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/protocol/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:411dab3d469273d4663bf24daaf70a84bd89c09464ac98854aa272aa61aac454",
+          "bytes": 280,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/reader/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94a78aaf3fd108752729b428744114ca1489c77ae7908ec5ea7d7be61f1f790e",
+          "bytes": 588,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/rrd/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bf489348bb63113fb7e713e49e02ff38ee009dc435c6096a57e9e3b23ad998eb",
+          "bytes": 673,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/recordings/video/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c4d78e5920f5d4c7c3a7cc6437daf56233cb0fdfddf0a1a48fe645b8a3319b0",
+          "bytes": 582,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/computers/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:dfb135c762adac3c37f796055595ca8f0250d99deb743d44940f65fc47012013",
+          "bytes": 1418,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/duckdb/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9d7a8b4c7b7068d05fed77933577baa7714c85cf1bc937792d291f0ea145484a",
+          "bytes": 368,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:850222c8e16c04e05f2d3d5b97e64ddc4da7d6d44a0bd085ab4118e1cf92702a",
+          "bytes": 812,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7615242c426890649d461e62604b133ebdcf73cb0241fbb3935f8ad0e65ae303",
+          "bytes": 10769,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb71c5490b7178fcc60f7cfbb7537f415cb87443b33237d4bd31d9d497950919",
+          "bytes": 13752,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6126f5fd8fd428a84db6c970f8c9f0012894ed400929085187a6f3608ccf4e5",
+          "bytes": 349,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:de7310f7e5f99345c6ec4a11bacc615a80e77c60b0961334602e63175e1d1b91",
+          "bytes": 320,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5a849f089509fa3dcd6907fb31d693fa696cbd1af72761846a4e39915f7b95c8",
+          "bytes": 1359,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/src/components.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b70177bc5143027a15168eb283d07e7b88147e844bb113ce35ee57a546daeef7",
+          "bytes": 2363,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:61f4be82d7399fe96cd739afa8c3fd7dc0ffbeacbb6aa15a6c4899deba03a0b6",
+          "bytes": 1059,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/src/schema.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ffc34bcfbae0431c2d067e227105d27f18d0d3bb2e82ec913773608abea3a694",
+          "bytes": 730,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/src/simulation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3733a3f1dd60e018d1c63e92ae3ab96e4dade982a194b7d8dd89f0fb73ebdb9c",
+          "bytes": 21617,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/contract/tests/contracts.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a81280c465961728c314b26abe737fcfc1f5407c42429b472da3699cb29c1b0",
+          "bytes": 9295,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/patches/apply_isaac_newton_1_5.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:81dfda3988e480dfafaf7daac34890859f2da0a9e65a58a960cdd00345675a16",
+          "bytes": 2445,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/probes/gpu.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1abf0aa0743638de57710d48468b7bd1d0f84b7cc92808ee61ccff0c6bf1bc0b",
+          "bytes": 14604,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/probes/identity.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c3b1a3bed50ac8c8a806d32f53547a4712a93dac509116de87f90c50704cd92a",
+          "bytes": 6521,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/requirements.in",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd7d827d05cfa2564e3e83d21755546d5c5326f7b6d2b0774408e25c06b5d7cc",
+          "bytes": 566,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/requirements.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:73d44c167c069f6922fadbf0a0ec09b5015c7b8212044c0697a49af84bd822a8",
+          "bytes": 115405,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/simulation-runtime.lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7fa0a425e6e5e2a6aa5fb766d60af10b4eb96985005eb0493d4af65909b3d53b",
+          "bytes": 3788,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/veoveo_simulation_base/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:df658f8874064ef0a9a83f3353fb59a164a21c27e01bfcbd75a97a129761efae",
+          "bytes": 184,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/veoveo_simulation_base/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f93ea5d919f08f12ae9f0b41c3d3b967a66c01f81585c0daa99b7775ac14f0f5",
+          "bytes": 1001,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/runtimes/simulation/veoveo_simulation_base/probe.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e2de55d22da2fecd154824059c509bcd510e68857b06ad434dd4d90569e4a217",
+          "bytes": 19391,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/store/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fc6fb808ca5a9bacd3583f7ecdc5730d2a40b6100132ae8f4f114b543ae4ca70",
+          "bytes": 701,
+          "mode": 420
+        }
+      },
+      {
+        "path": "platform/task-runtime/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db75809a9778af87d2eacd9ac454828234bb9ac6707cd97f0a23304165917632",
+          "bytes": 751,
+          "mode": 420
+        }
+      },
+      {
+        "path": "rust-toolchain.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8e390d6a0838315f972690f46ef8bae8b7ecc9ee6c1ed70140ef852869c2482e",
+          "bytes": 86,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6ee0e2cb86de881392efa881f3d1c334d162a504ed158b892d8c434ac359397",
+          "bytes": 94,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1319ebfd8ed9a4b9e5c617e05c11b1981c836dac6a965fdf452cd95eb63053a",
+          "bytes": 3980,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1617af62d0af726f4038caa88f811322edda7a6259b0acf2d48ad6c2b7a78c1c",
+          "bytes": 1225,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:70e4e539bf2c097865ee46d0bc6c3d2056c742f15443cf61e51d9c2148f06320",
+          "bytes": 542,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/artifacts.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b7ae737271ae7344c9ec643ff3fc8ec50e4af8ffd87a6a31360e68282ee964e7",
+          "bytes": 14785,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/contract/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:41268c17c8683c9a070ff6c91e47aae8cdd251267909a0f4bd3aa6452b9f6cee",
+          "bytes": 2770,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/contract/artifacts.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bce14b5dcdf817ea4da5832f8cfc2ea57739c736aebade61173f47b7f3be2f28",
+          "bytes": 5002,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/contract/docs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98981645b4d0be159f2340fe94c84d3a508f08b8c417b17ff05f9d0505d41490",
+          "bytes": 8191,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/contract/identity.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:940fc16fb6327e68cb6886fb8f870195a8288e046a55801498c486a5197de077",
+          "bytes": 10010,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/contract/usage.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a0c030c7031759a21d399aded32aad27421e740768f9d52054bdad350273b679",
+          "bytes": 2479,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/deployment.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:30a34c1468fe3e527e8af4cd8b2e1417a9c52dc759d8a10f7e9cb4bc5af2d495",
+          "bytes": 2033,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/host.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:782ac4444a9121fed25ea66fca26011401dd2079e5eda137ac404e8401d5fd0d",
+          "bytes": 4508,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/internal_auth.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ab9e3de6f6b4fbba34bff874171c9f7b4e988e99d302ed71ef82530b64992227",
+          "bytes": 9955,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/pagination.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5a91b3566b8585c6eb2c1ceb5707d30d4b6d7e58df82be55c8fbda09684eb927",
+          "bytes": 1153,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/py.typed",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/schema.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9d7dd1e26678ac09242b3021e6871dd2a5997c8262368e3072cc41c59986ada",
+          "bytes": 2608,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/task_extension/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:98c631e63eb365e1a90a7605920ad3d83c8db0e0e5e00a97631d40f799b3b3b7",
+          "bytes": 1779,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/task_extension/extension.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3a463a3685a8beda1f58032ac23f3fa6305849ddbe1130a245661bb612dd119e",
+          "bytes": 6636,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/task_extension/models.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:74b547e92fd4cc4fc60455722f590097b8319bb29a4743d8c658c9dbca6ebc1f",
+          "bytes": 5341,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/task_extension/projection.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a471c60fd955cb87c6ce5f87f14c2336f115296be098764f4563b479577b569",
+          "bytes": 3228,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/tasks/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:44ff9bc5e1474eaaec020a0ad29751f9684942e797f0104bc3919dc2b4b389f7",
+          "bytes": 1696,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/tasks/runtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:58bc5c741a103d5b7649ff2102629f0fef686f7194f04839418b75509b20b24e",
+          "bytes": 42086,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/tasks/store.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c325f023991f9192364a421dba10507ae4a780a2e5ffc163c1960cb93785ba75",
+          "bytes": 16311,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/tasks/types.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d042fc855424cb39922b735540a2d64007a1b2e36e4fe830a749bf3336332776",
+          "bytes": 17949,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/src/veoveo_mcp/telemetry.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:181973ee2e7e8bb651deeb973af370306c19f4cae162724de77f11b2ea3a99a3",
+          "bytes": 1200,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/conftest.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d36c613fe8056bdccf7f3381c37fac3ff390ccbde8675acad5f220957d3007bd",
+          "bytes": 3150,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_artifact_streams.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f98d3e6e3640a69e2abac891db107845d64e70903b92c8f2bbd97555bc8fc3b9",
+          "bytes": 8217,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_contract_docs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8a42c3450edaff2f77108722acc4880a92fe34fa44502a6d23aba1d552bd58f8",
+          "bytes": 4542,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_contract_models.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6ac3259e4d79327b8754c581ee660a30d88692fd7890c6c13af5a90e68b4f4a1",
+          "bytes": 4246,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_host_and_pagination.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2293084cb4ba654f2a6d456fc47fe8ed11ebc8b197613bfd103f40321d8b773d",
+          "bytes": 3679,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_internal_auth.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:37d751646a156e7d764da19d2adde6f751b4b8b3f410c3b3672b71413f67bc33",
+          "bytes": 8508,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_schema.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0ca4a398163ddbf92745402e70dd860cd4f524d32a11cd4d266fa73942fba730",
+          "bytes": 1517,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_store.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e7f34d9467941d5ec9d57bcdd091b2276745a2b85ddfaadc6bab49d6fa650a85",
+          "bytes": 3186,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_task_extension_protocol.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f665ad810d53add64ad076e8e1a0d5fa712e6146a4c9f68966076672bf171498",
+          "bytes": 5153,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/python/tests/test_task_runtime_integration.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9dc4fb18caad43c705f3e69a234f2663b018f5ed2b8424a5d3c79c04f8604399",
+          "bytes": 11054,
+          "mode": 420
+        }
+      },
+      {
+        "path": "sdk/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2efe3b634a8aabc1a88dcda76029d534ecd11b6f6c48fb3fb9c4e12c160fa5b6",
+          "bytes": 284928,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/artifact-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4b663ad1a3d084a897c48b58efcc1d9054d0bbdac9c951248713334565f745b6",
+          "bytes": 1087,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/computers-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3b443341132f0d840c8037239452217a08d1e698e087d3f65ed4204720b3e336",
+          "bytes": 1957,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/duckdb-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:211120cf85b8255ffb2cc8e705170463aea42bb547befd33b78904ae90b0b83b",
+          "bytes": 1365,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/frames-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36c81ef72d1953256253dd9ae721796bcd84ceff3987ebf88d66950d128f4914",
+          "bytes": 1325,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/map-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f1c766b15eefa2ade317eace4602843eb000bf2026e076884efaf613cb4dd8a4",
+          "bytes": 1889,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/media-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:761b8a381e2e9b17e566d737fee6e42b74d450115591dbe45ff1f3b407e38bbd",
+          "bytes": 1257,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/optimization-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:80f05fc71263a8ad08df258bc8ba896af143f6767749032ac4ad5db1ac057639",
+          "bytes": 1320,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/reason-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b412bfcc2425e9c8e28e04200f000b6268d5250d4205686cf8b637774af4434a",
+          "bytes": 1401,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/recording-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e58d8bb620973c4c5f5490eae14d4e3ddf8a85cb5df6a738f90b21775be04b55",
+          "bytes": 2418,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:96bbbd2b0c2504a028a085bdf7d49d8f06377686c215f12f89eed3c4a2265bd6",
+          "bytes": 1359,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/contract/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b3ab5b143fa0f4e8a5e41d013f5745999d59e116c03e482a5b41244fc48a54b1",
+          "bytes": 340,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/contract/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45a04709c054bd8ecfa41cf50f44082cbe09f1585221a919e4d5c0471b901260",
+          "bytes": 650,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/contract/src/dictation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:313fe654b2ab25e842faf5ce2bccd2dec311fa83f49f4dc0b14b4bdab694af60",
+          "bytes": 1190,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/contract/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:121def8833a2cb29aebf5cedc1a0b7cbc813615ae373146a7946a6398fd14a33",
+          "bytes": 3164,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/speech-mcp/contract/src/transcript.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e65ea1d24232d528eee5cb479ce3b3314375c84a596df2b4cfd2271f60216d0d",
+          "bytes": 4976,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/stream-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c074adef23307177b449169ced81590420ac93352a1263cc683a57b3e004d3aa",
+          "bytes": 1411,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/time-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:153398c1837cb8845e5a3fc58e9934037d263152dc73fbd97f483ff95af030a4",
+          "bytes": 1328,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/timeseries-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f5197823ffd3be2c7cb34ad634cdeb8c594fc924177e3413322568087dd24f1",
+          "bytes": 1464,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/uav-sim-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdc8a0e036c856827b220d62f088a5aca2e5c1791305f4c51bfc948c476886bf",
+          "bytes": 1405,
+          "mode": 420
+        }
+      },
+      {
+        "path": "servers/view-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bf0aa4859454db7b389563e76a27997d2336b1138e9185853ded6b15e94bc74",
+          "bytes": 1612,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6fac543797f62851b55724f4c5a95b324178ee99d72784b9227d4f10277005c3",
+          "bytes": 5645,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/base/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:20687be9925a8e6f7715af8e09ba007c0aff9bb4779aab3035fe88e3807658f2",
+          "bytes": 200,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b585ae439e0ccd5580c238738e88a392a4df259aa35671cdd97ab7c37c3606fc",
+          "bytes": 4245,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:89caeec59bc2fc8f7f1555b5303da1a96ed31b65bbd4ab19d13334053777d431",
+          "bytes": 13533,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/helm/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4e2c3b9218cd1870ed044abdb11eb56d18e4356ad668831d95386b27903fca40",
+          "bytes": 164,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/helm/templates/_helpers.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48e9268b39937e37a547c3bc8d64ec3385206e0f5ebbf515f5721d1eff955c5b",
+          "bytes": 401,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/helm/templates/workloads.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1f4aa8d716b028c733bed9309a8f20232e310fc2eae9b3f89a5822a16224ae0d",
+          "bytes": 8933,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/helm/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:16d6b25c1c52d24347a76d4f088b9128d3528a6e5b76288a7a875c9ec3bf5b9e",
+          "bytes": 4632,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/helm/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:668581e77f98d087ba73c1203f7938e786558fec075872ba40b4127e9401e7be",
+          "bytes": 1398,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/jwks.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:07f00343211571ebebf970206dd64d713e354430e30588baf875285098b5c921",
+          "bytes": 474,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/deploy/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4e3faee48c421c4d603a0d40ee4ff33931dfe42ca3ee20df17a9d931a6b37f3e",
+          "bytes": 467,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sim/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a06d0e2162c1fa9496a28c4deded7c7a15e17ee336495d2bd90cc16f9ee9edc8",
+          "bytes": 1891,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sim/run-sumo.sh",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d223a32b266e65a8580bda3c59271a346c8c1550edb92ac8f0593a1931bd9379",
+          "bytes": 133,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a6cd9e378c68ddd1ddf666bc59c24e16cde766dd87d1237b07122187c2cd674a",
+          "bytes": 1066,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:06b946b2d1ddf46fd25cf5d3f8463eb3e39d7c73611bf6db53bc7326990d50b2",
+          "bytes": 2344,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/bin/server.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b1d8a726f7123feec6c31fbafe79bf948e2cd41380d90ba6af1994f33d948428",
+          "bytes": 71,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8c79382214f82f54d78d8925e67b22f943242899a334f26e72b266d82f6a826a",
+          "bytes": 5188,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/driver.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:473a92182f9b9afaa89811713236f80f2e4427d29ccc5a9923dbe25eb4eec7d0",
+          "bytes": 17153,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cd17780aed4393007edfdb1ee76a67ca8eb70698e87a744082e32a4daeab8dee",
+          "bytes": 296,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/recording.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b6cacbbde8532813ab229fb59e8f311aeb264b0b523ca7c01a74fd7f023f82a6",
+          "bytes": 2565,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/auth.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a22780d2121fc851895fe26e1c26235da03748a87231044b94b85b076de5778e",
+          "bytes": 2071,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/config.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9cbbf9c79d3d046f083919e8bb9da44443b39f9c6c6f2c5c3de6858b6b0b4e2f",
+          "bytes": 4564,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/host.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:45996ddde70e4bc4432a4f890301d1417521163f7eca7868d1a7c06217be3e6f",
+          "bytes": 1224,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2f147370cf6a3795ef808354e94280bb0b2dfe4a8fe84ded12379c54dd2c37bc",
+          "bytes": 362,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/ownership.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5df8d9162710d9982cfd9b99c46e74ec44800bce195796612561d1ac0841ce9a",
+          "bytes": 2748,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/service.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3392e7d5039b8e67e2bfd0043b4e5bcb6775e72786962876cf5511a06e0b9d8f",
+          "bytes": 27720,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/state.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fd9fc245bf93ea59b46afd596c406533e5b7cadc7d89f547841d1b5d8eb3b461",
+          "bytes": 946,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/task_extension.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ef4238c6eff618fd7d42146f7f8394d887bf4058eaa43606d46fc7394b96027b",
+          "bytes": 5200,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/src/server/task_worker.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b1d9bc6fb788c598f5683cee59f77644a5a6a624932bd49d593904cd12ec09f",
+          "bytes": 19805,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/sumo/sumo-mcp/tests/deployment_contract.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:681d2eae0c275dd7203c468449eb3ffc169a86a95f7af3d097068291718c192e",
+          "bytes": 1571,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/dependencies.lock.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5b0b39b2b832e9092f0f160084298fd894a6f1901ffb553bad610ea9c318d3ed",
+          "bytes": 3100,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c2dace5c3edcb5f07f080ac37bbca4376c339e3f179445ac3f09a2c434ae522",
+          "bytes": 234,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:afc415cb0a25b0ce665eeb1f121408d303c92d8968217799962d49c402f5351c",
+          "bytes": 318,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3dc44f47d21e0b616f983c59568040dae02a385a8f4fe630deecf5c270d2bf5a",
+          "bytes": 2107,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/charts/veoveo-common-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a977a396caf4618fddd8dbab10455523bd37e2a5fa76ce6a630e32f60b6f2cba",
+          "bytes": 4553,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/files/agent-template/manifest.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:13f5e4de24a1859f62778dc585189bb8b5691908f3979370bd3096ccbba8a30e",
+          "bytes": 2529,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/files/agent-template/migrations/0001_mission_state.sql",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f803ba82cc6d3a79f26e57987ea88d084fca4b1de2a31f292bf4a16ba3fc70d7",
+          "bytes": 579,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/_helpers.tpl",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a8ac6073bb4a66173ebec0fb25469250706390a8cc4083271a3209c557e5e560",
+          "bytes": 11305,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/agent-template.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b979f1ae11cdf22ac596c5dcc85d9fc50e7a1b93e03359b12e1edecc031f51f",
+          "bytes": 614,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/cache-pvc.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:71a29f23c63656b0ea8cc6d726b72bf82340fbb46ebd16e20abac2c7b7d1503d",
+          "bytes": 450,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/deployment.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6953f7b7c942daf4371b563d41172840467c7c0d56fddf808dc07bdc0eb235a4",
+          "bytes": 9061,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/ingress.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:688fb3f1c7d1b9912e9c91d0d63823614bc1f0eea3bf49e79020aeb523338f51",
+          "bytes": 1160,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:265f3fd07ef9d81c2a72fa3c5fe4aa630a1d6a705a87d9712a831de413d03b36",
+          "bytes": 2425,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/recording-forwarder-pvc.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:593450740aa0379547a4762bd981651d72c4bef9c353ff98d6e5717b07bc0a1f",
+          "bytes": 488,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/templates/service.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7810f34f850c799bbd3a64dbff96467090ce174fae949627076ad8d205188c76",
+          "bytes": 756,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:700f9f7c6669b091be2ba0db633abce31bfc916c6c9850829bc91cfbcd09a3a7",
+          "bytes": 53562,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/deploy/helm/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3de898bd0400ce011ea90b808ab4d83ba443d3aa171b751e0d76c8e93ad851c1",
+          "bytes": 6188,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:be1dbb9ce517ec51d549f84300a1d9c012ec73166b197ceb9577d2048b4890c7",
+          "bytes": 903,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/Dockerfile.dependencies",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2d4af8b43bf286669948313108c4b86b08027b8077e7ffcabae11b6ba476db9a",
+          "bytes": 5432,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/assets/iris.usda",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b5e4344b3b420baadc44c7eda24e95f61258bc9813be6abfbcf82a234c63bfe0",
+          "bytes": 2966,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/entrypoint.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8f5f06b7cf0e33c7f8bc527aaa0bfc0e86eda61074c8914231992581e4b9ce6",
+          "bytes": 379,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/patches/cesium-0.29.0-external-viewports.patch",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bd02480a7159e8fda95c9458f8255aaac5959a8dc5a7466695749aecb5e89348",
+          "bytes": 1180,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/patches/cesium-0.29.0-lifecycle-events.patch",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d845ae80881ebc24899c27d2dcdc891478bc43ef7e173e8ca0939c93f01f9a01",
+          "bytes": 12249,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/patches/cesium-0.29.0-preinstalled-vendor.patch",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36b8d15a8f8550315f9fbe5595fa45e67dbbb7579a89314d0ace94bdbde4acfe",
+          "bytes": 2605,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/patches/cesium-native-ca0311f-tile-load-events.patch",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b23f77e264c2c878f8499a4c00f34491021c986d34e4b7636d273343dc0a72be",
+          "bytes": 9480,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/patches/px4-1.17.0-multi-instance-gcs.patch",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9ad27748b8f67e090814a7d877c693ac1c7713956b04c4e155a3ce8bf38e0837",
+          "bytes": 1367,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_adapter_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8834ac4236e54ecd1246f4e234f7550d5291126650af31697bb4b5339676fcbd",
+          "bytes": 1855,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_cesium_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9c95dcb041a1e22624268c3383983ae1cb2930f1c9c3ed71ba34f6fa772640d0",
+          "bytes": 850,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_operator_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0b85a08d1adf0fd231e19e0c38fb30296c13960eef1d9af8458b5e259818aae7",
+          "bytes": 12772,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_operator_products.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8705bc8262eb6f79215adfa72c80144cbdbfa93d4a06c915750ab5a2608d318d",
+          "bytes": 10956,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_recording_segments.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e10d3b6e75a506a05f83f63aeb7950d54cffbda29ca252a37becfdfed1135e79",
+          "bytes": 1472,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_render_pose.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5156bbad4b11047ffdf0fd1dcb0bf9153145e0836e5c8dd7cfc3c8ca2d2f8117",
+          "bytes": 2339,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/tests/test_runtime_contracts.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c8d35eac7a4e19f38587e1e6f7584713763d13281c55236ef84ae70b03415202",
+          "bytes": 86342,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/uav-overlay.identity.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f02fe4c42a8874d24cb94eb6bb135e828bdfec07ad2214093caad44e7d7f58fd",
+          "bytes": 281,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a135cc3aa8b85d4cee7bfc94e41d8b76dc5e53f21362d5541d9737cce06f76e4",
+          "bytes": 116,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/adapter_auth.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7a809023bceaaed95ce1f9729b284aebd6ca370ef8534c52507e16af2a63693f",
+          "bytes": 924,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/adapter_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:60e533ec9c8f804cb4549db52713a85c7df4f48fa6d4401b88a653189f37e19c",
+          "bytes": 2727,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/app.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bc972c5f25364c302997098e6c59793fe606c60a2d94708e78f02e0a4de7d21d",
+          "bytes": 47445,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/cesium_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4dcb51c115986304080fde7900c9554499db01cdf4dd8f603ae5b5f5f13c0aed",
+          "bytes": 1698,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/command_queue.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:26e74350d33e7568a32ae6299056f69c014c7b5d802b8a2d204753cead06857d",
+          "bytes": 1216,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:568b23ee0e79869206ae758c8516d62cf412ed8790493ee2d880085efa9a9728",
+          "bytes": 17577,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/contracts.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:123ea73e8a09b0b69978b36976c0da52d3dfe68f318af09efd36399bdb9b86eb",
+          "bytes": 8131,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/event_queue.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9dc6a90a8356a48663cb511cb7a9ac2b722c06a8b3e905dc37589cc05e8340a",
+          "bytes": 1423,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/fleet_loop.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6c54970c666efe191b296989c65d996cab5e3cff8c2d060f90dba4fdcad02819",
+          "bytes": 7351,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/fleet_runtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bdf7e735761ac0dfc46f2e560cff4b783de2178c02102da3b6a717a85b102369",
+          "bytes": 12971,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/geo.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cf5c917f857510d8b301c2d7d03da963f696c717be4219d34562cd6a8b52541e",
+          "bytes": 2826,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/h264.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:43cf3ef0b80656e7005a959bf4d01fc8d60a9bf0cec66fd02386e175bf1152ff",
+          "bytes": 3649,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/hydra_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5f34e06df6a648ca5a4fda062c38bfebd165a47d952abfcdc7fa3775d64b69df",
+          "bytes": 15435,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5215fef5de9fd0b6fbf17e158a29f41456c4c36c4634df7b8c3856438998ef58",
+          "bytes": 12795,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9ed42b0cd0f70cfbc7d2fa2f2ccc809428440fe7e3c943313ec2a80476df3776",
+          "bytes": 15869,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_rigs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb7134184cbb6a6f0cb6f38e99079424760514cfef6d8bd6380001f97e30c8b5",
+          "bytes": 7289,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_camera_smoothing.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:48ad6a9898acbb6998d58e40c045e959bc838940c279d2e58a8e7cf1a47d8e15",
+          "bytes": 7800,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_health.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fc97c8800e4a60142c75fb4dffe3fd9b1992eb806d2f8d84c985600dc369408a",
+          "bytes": 5013,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/operator_products.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:318664b535d3c73ab1b1b1319c4aae972c7163a79de704f2990a6bd89af3100f",
+          "bytes": 12865,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/physical_camera.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d292d5722d5fc68afcc02f8549b222aaf256d61ff10781acc1869069fbcaf1a6",
+          "bytes": 3006,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/plant_warp.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:14dbfd7994bde24c6c62b72594869abb9fa0082204204805b5a4e47f6287f242",
+          "bytes": 8758,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/px4.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:982c5b2607c52a3631cd06b6dc637582f42c0e1a10a7baa67cf4e22060d0aff5",
+          "bytes": 15811,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/px4_hil.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:46d6291a58eac6bdcb221f1413a49156862054af31a82a510eadaa5b504e776f",
+          "bytes": 10935,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/realtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:974d1831e3f706d300efb5cdcf94f0e57486fcb57d45cc9f93b5e58e6867a1ee",
+          "bytes": 3255,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/recording.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:13abc1fdaf6f2d969882846521f06d137b9c9d19a4eff6b4a3ad1758a02c4543",
+          "bytes": 18721,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/recording_segments.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:92f0e67471417c2795a757ec6a7da9670a7a9e19f1a8f1f39478a1607f22b735",
+          "bytes": 1456,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/render_pose.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:074d07d240a656a51ea4af36dc5fd45c84ffd51a2d6e26068eb08e30d2d87ada",
+          "bytes": 2941,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/rtsp_h264.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:77e8ab61d49d394fa7b652e60641d9d94d9a6e150e1e34fb4b74ea496e9d59ad",
+          "bytes": 16121,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:038f39c57e803466574e957faf9b9255587f96747b9839c7cc97723f7caf1dcb",
+          "bytes": 3638,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/scene.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b3a4b698e0c80d8b50004e31a84deac5eeaae784b4664d0e69836fe5f6af20af",
+          "bytes": 1986,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:219f53bb6074c410ebba38af72f0a6c0b46727e2e5092fd95dacba064196be5b",
+          "bytes": 20044,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/simulation_overlay.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a47ff7ac451e6f1d8f7b2dcb2253462d5a2efed8abcd69de41ab575e89037471",
+          "bytes": 462,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/state.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6498265b784dda556e2ae54da2f91672ffde09241fe359f45021d192a7b39302",
+          "bytes": 16429,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/stream_output.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f2cfd94e32aeaa2e4c0917ba4c3d007103e71ed1430e61f4a7cdd786a02caa22",
+          "bytes": 7913,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8b75670222d2ca7211d7fdfae0d39bdfec142ccca2eb1f8da9dadc9b20432cca",
+          "bytes": 19528,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/vehicle_spec.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:93ab0d1998bd10d139324ea9af6a51ad7e65aadd073860649a814bfc13e5fe68",
+          "bytes": 4183,
+          "mode": 420
+        }
+      },
+      {
+        "path": "showcase/uav-sim/runtime/veoveo_uav_sim/world_config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aa3b5cdace4e0e0eb008dc1bb7f97c2a5cf661801deb029f3bf1ad7300ab7c8d",
+          "bytes": 6339,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:69360eaa34e820294f211d288ad93e143317c17beeb939494da914525ca6d050",
+          "bytes": 3230,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f0385c996800b1141804ea05b612a433e872cd0f374b916b2986b0aa9bc46574",
+          "bytes": 3640,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:678fd4619812d571365929110570134c5942cceac14997e94e29e4b291a2c460",
+          "bytes": 1336,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:64b09e29b0db1191e44491c87c69a5199da0c8ea14a25714a5d8755cbd848b77",
+          "bytes": 4091,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bb9971c85f412580eee2908abfce9a94127c4e9e2d89cb4ea3d5861dd05844cc",
+          "bytes": 1043,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/app.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d5ec6d50b0041390f551b43c16167cb8b1c3105212cc841722fbf85edc828ccc",
+          "bytes": 5624,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b31b51815be82df2f92135392d52c8277ab53ed4d56487e81ab80acf0c72b46c",
+          "bytes": 2960,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/docs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cec6df5711b257708278b0e09dc9d8319ebde54cb196b6f83241997562117d39",
+          "bytes": 851,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/engine.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3eec4f22aad4222e26370c89cec37f354883c20fad29f62baaaeb30c99713178",
+          "bytes": 5877,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/prompts.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:91fe0ac253654a068a946ec12aea5212d340d54f2676b15e3f511b11978e532e",
+          "bytes": 3196,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "bytes": 0,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/app_state.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:33f6101d98d011e32c3556f8e164f1745dc318587abf3f13f332a8aa77adc56f",
+          "bytes": 816,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ca81ac4b5a8874c99872466e3ea291d0837c2266dcf116724d8deae3a0b9f69f",
+          "bytes": 3975,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7c8b65909f29aecc1fa56226c4dea9157454515493c73a93a1d69c5535bacd90",
+          "bytes": 8599,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/mcp_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:159376f2f1c1c2436ef1e788f8e8fb09f113866980d590490f82b2d38dffc02d",
+          "bytes": 18211,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/ownership.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c4b7da775fc4ffd5efda579d5a75300fa0f827c8c5d648ec4a77b779b56bafc7",
+          "bytes": 2491,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/profile_task.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7d136f49c2174f0bc19c45eefeff891b72d2e5c9dc164fdc918bf167b107c544",
+          "bytes": 10154,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/server/task_extension.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cb3734b23a707ca9604c033fe450bfe514c5cd76aa25debde60f711e277e3ef5",
+          "bytes": 6283,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/src/datasheet_mcp/uris.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6a4784e0ae38a3b4f9e2e1fd741059363fdb680c16d03a24196a83bfaf0461fa",
+          "bytes": 1343,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/tests/test_docs.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ffef90459a6777d3fb3fa232c3b33195aea25b2cecf0f8e215cefa266637aab9",
+          "bytes": 5047,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/tests/test_engine.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4d732a0854e4f748129146cbff5ec7335dc4f109d718f42c26c94b173364ab7e",
+          "bytes": 2409,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/tests/test_mcp_schema.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2a3824b043de58f0db660c366b5671e573c6fb42f021a324b012e22919915c26",
+          "bytes": 488,
+          "mode": 420
+        }
+      },
+      {
+        "path": "templates/python-mcp/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4bec654ca680b9cf5e18c48b028a45675f75aebd67cebd9668700fc219644f50",
+          "bytes": 339955,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/browser-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bcf75607a9cb8c9aad2333473280d164c88a4c3896aa44f2026b8cfa12d1fb91",
+          "bytes": 621,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/deployment-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5f2117b567a7c32ab2009c1f17d7bb21d03d6afcdcdf60454469f931c88a9a2d",
+          "bytes": 697,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/evidence-checks/fork-development.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d8271c34db5359df04c52869644d2b84b8c9d74c297a21eac4163995de4e6c66",
+          "bytes": 2417,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d9d0fee127f34befb16ebd04141b3fb4a417fee16fe946bc94a1a1f774b6cb9e",
+          "bytes": 283,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bbd0f45206604bb6ec409fcc2e59db412c9f2a9c7495441e04fa538cea915fef",
+          "bytes": 1184,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4dfc222934a1e5c8caca094c8f9de7d56aa47cf09b0cc284fae8d6b0f57c8391",
+          "bytes": 231,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ac1fcbd211fddf2c4f26f944c4768720fd780e4cc31e1719723b60e394e36196",
+          "bytes": 302,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/charts/veoveo-common-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a977a396caf4618fddd8dbab10455523bd37e2a5fa76ce6a630e32f60b6f2cba",
+          "bytes": 4553,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:88e9b7856913a659040834d47b4cc73f0a6301cd69592d7062fdd75108bc6253",
+          "bytes": 689,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a4152b414f03d49dfa3ad403f7e264c730824519a73fed141071438a13e57919",
+          "bytes": 2967,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4653a19b8ef00d5470fb7ba340696f5f586c457b4ff2a50d1031d4f6344c302e",
+          "bytes": 3563,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/chart-library-consumer/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:99b3fc6432f4d7f1a445e680bc7635750746c3e97d4228bc74b2f564362e62b1",
+          "bytes": 690,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/Dockerfile.anonymous-simulation-mcp",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ffcc1c45514225015a457dc2e8b51cd93838bf0dbd8c8b5dd2077da9d4b17fee",
+          "bytes": 1407,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:df3ad69e6e6bef8c646bdfdc66aeb66a1b299e47f490769ffcd4abc0a30feedf",
+          "bytes": 1730,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/cluster.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cc51b8344c8db1588165e47bb82add5636d4ed5494d1057db9801721a137931b",
+          "bytes": 946,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bfe2d5fb16890ada66816373dca72091b0691b23b5d33a7e43806247e1d43159",
+          "bytes": 4113,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f24a87b4fe706bf2833d5ab8cdb8e17f7713ceeae44c0ce315165b8b030ea83",
+          "bytes": 60,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/gateway.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1607635e43c69cbae9e71da41b1c1e4529c7c0db684cb1db4e6466a33963208b",
+          "bytes": 7667,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/nvidia-runtime-class.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f9ecd6785107af5353d66f14d3381e9f210961d14774b13a6b08c5479de39f71",
+          "bytes": 87,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-installation/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:130607b49607b06666debc57e699d3ba8e7d65825a3c92a7ccdb15bcbf94235a",
+          "bytes": 47,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/.dockerignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:abd97f4969cd78b5a50730dcca881e3955b1f7585a46f180868ed8ad44a5d65a",
+          "bytes": 59,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/.gitignore",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1786908e1e13cf3b8cab4f559c266300016ebffe18b90531575ad30ef3f41655",
+          "bytes": 53,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/AGENTS.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a89cbae80ca8c0a4c624252dfa73b93f08c8072759052fef723a76d9fc06e60f",
+          "bytes": 1654,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f2a7b361b67d75c1ba55a0c29dcf6bd056141147b6d81127d911d1647f9eb62f",
+          "bytes": 2457,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/README.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8b70645ab46658d7a78716571b82930bd04e99221d5355f8f351afef27da62a3",
+          "bytes": 719,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/conformance/hosted-server.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0c554c11a1f46f596d1c7dc89d9080bd6b0c7e1ed75535c6b0ac23cbfe2fa5e0",
+          "bytes": 1386,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/Chart.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9a85cdbab9f0f95c955c12e41d7265e9efdd53cbeae5e9f2ffd03dc8449c09ae",
+          "bytes": 237,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/Chart.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cee1773618af13bc087dabd07a165e7375b84b86921302945b0f15265c054be2",
+          "bytes": 302,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/charts/veoveo-common-0.1.0.tgz",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a977a396caf4618fddd8dbab10455523bd37e2a5fa76ce6a630e32f60b6f2cba",
+          "bytes": 4553,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/templates/networkpolicy.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9bd4c563d4d89d9b5aa9bd8754c12b927b0bc292c9692945f7c7137058c5483c",
+          "bytes": 621,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/templates/workload.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:1bd26794440436e685ba1334213d77e5639a51383007487cbd59bf0ebf683326",
+          "bytes": 3197,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/values.schema.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5e043ad503083d0fdb925c5de4d2604ec04ae180f3becdbfdb1f58aa0f49742e",
+          "bytes": 5347,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/values.test.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ecb533858b2de0d6a741d8ae9c42e32c8be74ad00497f532cfb55da8d43f871b",
+          "bytes": 277,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/deploy/helm/values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d70194c2b46ce29a47321226592eaea4b22b67147e2abd966b7b00ad39d05c4c",
+          "bytes": 722,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/pyproject.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6df38c5ffa9379eee98a264e6fe8512c284a58ec69ff855238052d873b55c3c5",
+          "bytes": 917,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/__init__.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0852f7a9a5bc6c0784ea3e2355236f8dd7157158d590907e4a154d4724ccb2fa",
+          "bytes": 83,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/config.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0b457b73a74053235922eca6524752187e4fdf7b520f4932c452f6d8b4256609",
+          "bytes": 2795,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/contract.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6e2ad30b015458105259a08da0b72b24969dae749ff320504e5fc446acb27db0",
+          "bytes": 3699,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/main.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:db5428717af8474b6eb05f08b4042b712a8d8c3ff5f11552abcffe8b1f359d89",
+          "bytes": 7540,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/mcp_server.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9b935fffdeedff909d9295a2f9fd4270dd9cc1957d1f5d1f3b3bec801af1eccd",
+          "bytes": 12423,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/src/anonymous_simulation_mcp/runtime.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e28045a3669360c50f89710dc1203c1bf5b3b7978527e58c64feb0e4d01fe88c",
+          "bytes": 11232,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/tests/test_fixture.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:102b68c3a8eb73b5d83b302fc62713a7daee27903a1dde81546c618b4db07378",
+          "bytes": 5380,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/fork-workload/uv.lock",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d32681b478c362db221c97e0a958511504195d888b87746b08f4a7164f54728f",
+          "bytes": 120972,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/gateway-request-context.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a73d90965133b5176c3e24cf17d3cf7aa5696f359e40009339ce6554697f9b8e",
+          "bytes": 6080,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/platform-selection/deployment.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:543556833fc9cf9f6832c1511697e406a5bf1251ab806d33d88741336964fd58",
+          "bytes": 2211,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/platform-selection/gateway-requirements.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2b5988076fa0c40043c3246efee4b63a8fc4405d949efd9599d89921dd325f65",
+          "bytes": 163,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/platform-selection/platform-values.yaml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f2ec0cb8cbeca8210ab3453a5fa830b280785183da351886ccbf0ec25821bc3",
+          "bytes": 241,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c9e3ab01000ef902c61798653bccde2bf34af193a44d2b76cfbb202d6dee76ea",
+          "bytes": 834,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/anonymous_simulation_overlay.py",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:559605f586e1276b3c0a46329ce1e5d7eb2483f5e51991f86dd1bb57919fa6bc",
+          "bytes": 473,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/simulation-overlay/identity.json",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2e4f278c9fd7d7f400b6ff744f0e3481ff7e27ccd35382e96dfb70c958b1c52a",
+          "bytes": 286,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/fixtures/store.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:666de324f8f7c8181f68a054e0d41456fee8d7dc80bac3e76f8591910a32a5c0",
+          "bytes": 4811,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/flight-smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0084d0207c697bf7052b2ef093c83284b29a69bb8241625e2926da39efbdf416",
+          "bytes": 682,
+          "mode": 420
+        }
+      },
+      {
+        "path": "testing/smoke/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8779ef03ebfb2799c28b576996ac4acac8fc5776c98ef42e1b2d842e0c06f0ff",
+          "bytes": 1936,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c252b20eb80718aa92fb47d8799cb77c2f4e2f1d114d5656579f838671360077",
+          "bytes": 21138,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/buildkitd.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:331f4b556c6ee7239ab2def882f2efb525ee27d814849b96e2e83d90bc94faba",
+          "bytes": 1312,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/compiler-cache.Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2c75c248599609f506c66c7905795fa890044cb6ec28c76177f84ac3ad422dcb",
+          "bytes": 4140,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b24b144b645c16de06493ff7052484a9219799740fcbe34f8117895261f16aec",
+          "bytes": 256,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/src/experiment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:43ed85ddf2496efa8ed1fea3c8b3adebaccda49d561f962fa55b56bb296701f9",
+          "bytes": 6134,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/src/lib.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5c8fcdef220dc8c7ee99a271a81c35c97d51bf290acd0fa622e98781c4415acf",
+          "bytes": 29309,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/src/quota.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:8bf630acafd0a1acdd22e5a60cba6a95e0519670e2859fad591c0cadbad7c5d1",
+          "bytes": 3008,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/control/src/resources.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:fe9eea0e0857f6f3aababde59d38da9b89d0cbb2bad56d8d511912fece2fa83f",
+          "bytes": 7842,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/rust-control.Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b677bd87698d9a9505096ed4da68bfe8c18c6fa2d43b7a6665a8b59942aaa50d",
+          "bytes": 644,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/rust-workspace.Dockerfile",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2ba3c87417d33bbfecd8f1f573cf0cbef736e317a5ed20825a70a8ac579541b9",
+          "bytes": 3183,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/image-build/source-freshness.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:7270a342d8acd59388c965178426efe496710ce06d53af594c9e10babb7fac4a",
+          "bytes": 18112,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/Cargo.toml",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:97d168d2d4cfcb7261496ff99faf87a01a7c85996c9412b2a8fd45cb68bfec3f",
+          "bytes": 894,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/builder.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ddfcccc3809432c38866e6375af6147f993f52c9f9528ecd491f27eebfd8f7c",
+          "bytes": 1930,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/client_types/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:aac31fcea02aa045e522a6793d5fbfebec43ef9e97ad903445dd1e4747d93b72",
+          "bytes": 1673,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/client_types/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:55653b9d4acba5cbfb62be4eb7de9601fa2c30abd363928cefcd4839204fc0ac",
+          "bytes": 3300,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/computers_trust/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0fc5979d3b28e391fb03f4c514cb8d8a1b9858a90ffe9907a936e86239731998",
+          "bytes": 2199,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/computers_trust/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:21dea00db72a7be36212af9fa6534afe031736e78ad0cac2db7594aa4c32abef",
+          "bytes": 7637,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/doctor.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:26912e0d1501b83324f90fd80f7b592cd0d826badd55cb351d39a8f58e8282d1",
+          "bytes": 12124,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/enforce.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c933626cb91a5db78653474a5e036e6e76102f8a69f80cca7bb633dff9f9cb91",
+          "bytes": 995,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/helm.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:94e2ad2bfc7f02ac961542e45c2763fdb34cfd8fe007f21c54e74e8032f5b9c9",
+          "bytes": 9485,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/helm/rollout_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:eb982e5b81930615296afbbba586755b9da6cb5da776138badbfa768b233384e",
+          "bytes": 17216,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b654d55797cf27345df0a98b7520fb7856e34c90392f5a2e2427d86465c72900",
+          "bytes": 50798,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/affected.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:a547f98160b3c585150f79d0232fa2d4454765c5d4148eba2fd7f3744d57bd32",
+          "bytes": 23735,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/benchmark.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ccdc045d00bdb4c7638d392a12a492d292d0cd51b02630ded6ef47c38e8743f2",
+          "bytes": 14512,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/browser_compilation_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:66fb8531a937956983eeca67474cd427e3d47ecbacfb987f0602ecd7970089ec",
+          "bytes": 2941,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/buildkit.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5922a23a90304839872e036006384cdd3e82cb944b68105592944297f7116b77",
+          "bytes": 16923,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/cache_benchmark.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c6fcfb9ccd7e58534a76b44a404235c04d1a12d90020c7849436521cbdedf882",
+          "bytes": 20475,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/normalized.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:ea3db2b8261819cd7b9709c737176344343a6a7f6db3bfd866603da79bbc694c",
+          "bytes": 20070,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/operation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:140cd56e72df778bd357d3fc86049470f8d2a625de0fc1b6b5c5ed983fa3cfbe",
+          "bytes": 8960,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/packaging_tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:d89719b186e0457efd3b358a98f21f526052a9f3f454b2f69440f9b83743b2b0",
+          "bytes": 1663,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/run_evidence.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:17663841ec0ffe587389611e21c65ee93e33e8567b2263b8e6903031c4556e01",
+          "bytes": 7858,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/selection.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:2b829168665536a08879036d8057a45e20f1741cb1d160fe8bbef019d3bf7aa7",
+          "bytes": 4851,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/source_context.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3e6ebe7db4bd34f20a5eb1dfa27806290860a5dda433164a1a4bc00e91dea830",
+          "bytes": 28364,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image/worker_benchmark.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:5e87e37917aeeabc998ca602ed4c966d3569167f5c4db7b4346513c016c2814c",
+          "bytes": 18396,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/image_manifest.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3ebec18ec330574fb21cd000bfab0c3f8c30d4e7d194c398c12b61adf5aac577",
+          "bytes": 13078,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:3cf8dd03478b530099f10456fcfecb2637f657a3e0f431365dada8eeec312cb7",
+          "bytes": 442,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/python.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:9f1f4e8e1c6a9c891eca601cbc2371e26aa0f4e0034085c8cce077d7f5bed341",
+          "bytes": 674,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/registry.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6b9fee236ae868998ecc832af0520c75cb5954f51d7fb258bb3918c266b8632a",
+          "bytes": 2434,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/release.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:13ae2761f98cd8e62fd9eb5fc73b031ed197ee23d5557ec72eff616981ca023c",
+          "bytes": 51371,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/release/components.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0f5848e23c7ba6a4273294b343835f42fe461049bc507d5fd53f60b253539d95",
+          "bytes": 12397,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/release_cache.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4ca986efa6b463850bdaf77cce1b539d4546e68133d5f929eee24564f454559f",
+          "bytes": 16628,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/release_preflight.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:cceb7ea836f90f383883439f0d0e86d25624469c2dc492118fc0dad71abb3b78",
+          "bytes": 8870,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/simulation.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:75cbceebde06921116ac68e32f9975b944a385e61b0a448a1e0bad349de2fbf6",
+          "bytes": 10338,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/smoke.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:748642edd26d2e532875c1c6f6dbc51ddca135acacf25b59ada17a80aa0c60e8",
+          "bytes": 21106,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/source.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:641939229220025df4dd1eb46d139f6e159ad99abab09c9312a4ece20822ebc0",
+          "bytes": 15116,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/DESIGN.md",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:bc222139db9d9a9551a1b1e7604d8cadc8fb31c5dbda29d8452961f8c20a89cb",
+          "bytes": 9236,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/cargo_inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:4809fe63d1274b7955550646c0547f5b056addbb3c4688c9e8b271856f8edab2",
+          "bytes": 7163,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/catalog.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:6bef04651f537dcf12437ec256f16063276e83af8a3b260235d945dfa01669c8",
+          "bytes": 4411,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/environment.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b59fee92aa8edffce053ea169166b44fcd849e665f809f6b044217ffc30cfe10",
+          "bytes": 4441,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/inputs.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:f61266bb32a16819dc0b3781b57dea986914074633e186b627ce807c9e36e542",
+          "bytes": 7561,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/mod.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:0a24a7a35404a0a9fe08838d33140423b4358f467d0e392e8b53ead7b8212d76",
+          "bytes": 4984,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/model.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:250440e6b073b847ef707b4fc88622a1c593188fb276a7bb43921490fac590da",
+          "bytes": 5966,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/report.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:283b5fc328167f210d25aba0b4f5206de2a80619be7931f754046fc1325c9e14",
+          "bytes": 8214,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/storage.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:b65c8f740f41b1c2bc96671e456b3ee71671c46301caa997ca0c3c223a5579ba",
+          "bytes": 13114,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/commands/test_report/tests.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:c07df91d5a557f29e7e24c9a562f21e268d188a95c28e665b062c7837c17b5bb",
+          "bytes": 19392,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/context.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:36de1b540d7962876d2204249b89b2a2718c9327a66c7e0d65a7db5f5deebf9d",
+          "bytes": 878,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/main.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:31d63b853139fe6775dea51cc182b47a70136a8d740c8d82fb04b2b7a666b9d1",
+          "bytes": 19839,
+          "mode": 420
+        }
+      },
+      {
+        "path": "tools/xtask/src/process.rs",
+        "content": {
+          "kind": "file",
+          "sha256": "sha256:e6dd0e084702d90f907fc5977573dc0e49aeb009ffa9a65ddacd73ffde89408e",
+          "bytes": 4957,
+          "mode": 420
+        }
+      }
+    ]
+  },
+  "environment": {
+    "os": "linux",
+    "architecture": "x86_64",
+    "toolchains": [
+      {
+        "name": "cargo",
+        "version": "cargo 1.97.1 (c980f4866 2026-06-30)"
+      },
+      {
+        "name": "cargo-clippy",
+        "version": "clippy 0.1.97 (8bab26f4f6 2026-07-14)"
+      },
+      {
+        "name": "managed-protoc",
+        "version": "libprotoc 31.1"
+      },
+      {
+        "name": "rustc",
+        "version": "rustc 1.97.1 (8bab26f4f 2026-07-14)\nbinary: rustc\ncommit-hash: 8bab26f4f68e0e26f0bb7960be334d5b520ea452\ncommit-date: 2026-07-14\nhost: x86_64-unknown-linux-gnu\nrelease: 1.97.1\nLLVM version: 22.1.6"
+      },
+      {
+        "name": "rustfmt",
+        "version": "rustfmt 1.9.0-stable (8bab26f4f6 2026-07-14)"
+      }
+    ],
+    "runtime": {
+      "class": "source",
+      "bindings": {},
+      "validForSeconds": null
+    },
+    "reusable": true
+  },
+  "startedAt": "2026-09-23T18:42:52.502042102Z",
+  "finishedAt": "2026-09-23T18:43:12.500033173Z",
+  "durationMillis": 19997,
+  "outcome": "passed",
+  "exitCode": 0,
+  "diagnostics": null
+}
