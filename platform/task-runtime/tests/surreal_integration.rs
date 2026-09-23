@@ -537,11 +537,7 @@ async fn durable_cursor_replays_every_transition_after_live_disconnect() {
             .iter()
             .map(|snapshot| snapshot.status_message.as_deref())
             .collect::<Vec<_>>(),
-        vec![
-            Some("claimed for execution"),
-            Some("forecasting"),
-            Some("complete")
-        ]
+        vec![Some("Running"), Some("forecasting"), Some("complete")]
     );
 }
 

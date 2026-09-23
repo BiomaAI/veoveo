@@ -1,12 +1,12 @@
 # Veoveo reference architecture
 
-This directory is the isolated Veoveo UAF 1.3 and SysML 1.6 reference
-architecture publication snapshot. It contains no client-specific mission data and
-is not integrated into the whitepaper or a white-label publication.
+This directory holds a published snapshot of the Veoveo reference architecture,
+modeled in UAF 1.3 and SysML 1.6. It contains no client-specific mission data and
+is separate from the whitepaper and any white-label publication.
 
-The package records the components inventoried at its publication baseline.
-It is not regenerated from the current checkout: Workspace, Computers and later
-ownership changes must be read through the current [code map](../CODEMAP.md) and
+The snapshot describes the components as they were at publication and is not
+regenerated from the current checkout. For Workspace, Computers, and later
+ownership changes, read the current [code map](../CODEMAP.md) and
 [technical design](../TECH_DESIGN.md). The published catalog includes 42 Rust
 workspace packages, the React console, the Python SDK and hosted-server template,
 internal Python and C++ executors,
@@ -15,14 +15,14 @@ runtimes.
 
 ## Review files
 
-- `index.html` is the offline browser portal and canonical report source.
+- `index.html` is the offline browser portal and the source the PDF is rendered from.
 - `veoveo-reference-architecture.pdf` is the fixed-layout formal review copy.
 - `diagrams/*.svg` contains eleven individually reusable vector views.
 - `catalogs/software-components.csv` enumerates 68 scoped software resources.
-- `catalogs/interfaces-and-protocols.csv` defines 43 canonical interfaces.
+- `catalogs/interfaces-and-protocols.csv` defines 43 interfaces.
 - `catalogs/requirements-traceability.csv` traces 20 requirements to capability,
   activity, service, resource, and evidence.
-- `catalogs/model-glossary.csv` fixes the terms used across the package.
+- `catalogs/model-glossary.csv` defines the terms used across the package.
 
 Open the portal directly:
 
@@ -38,17 +38,17 @@ open docs/architecture/diagrams/05-software-resource-structure.svg
 
 ## Model exchange
 
-`model/veoveo-uaf-sysml.xmi` is the tool-neutral semantic exchange source. It
-applies the official OMG UAF 1.3 and SysML 1.6 profile URIs and contains stable
-capability, operational activity, service, software, actual-resource,
-requirement, and traceability identities. `model/model-manifest.yaml` records
-the standards, provenance, validation posture, and known exchange boundary.
+`model/veoveo-uaf-sysml.xmi` is the tool-neutral model for exchange with other
+modeling tools. It uses the official OMG UAF 1.3 and SysML 1.6 profile URIs and
+gives stable identifiers to every capability, operational activity, service,
+software component, actual resource, requirement, and trace link.
+`model/model-manifest.yaml` records the standards, provenance, what has been
+validated, and the known limits of the exchange.
 
-The XMI deliberately contains no vendor-specific diagram notation. Import it
-into a UAF 1.3-capable modeling tool, resolve the official profiles, run that
-tool's UAF/SysML validation, and save the resulting native project. The
-published SVGs remain the layout-controlled review views. See
-`model/MODEL-IMPORT.md`.
+The XMI contains no vendor-specific diagram notation, so any UAF 1.3-capable
+tool can import it. Import it, resolve the official profiles, run that tool's
+UAF/SysML validation, and save the resulting native project. The published SVGs
+are the review views with fixed layout. See `model/MODEL-IMPORT.md`.
 
 This release validates XML well-formedness, unique XMI identifiers, internal
 references, catalog coverage, cross-catalog identifiers, HTML links, PDF text,
@@ -88,9 +88,9 @@ uv run --project docs/architecture --locked python docs/architecture/tools/valid
 Render the PDF from `index.html` with headed hardware-backed Chrome after
 regeneration. Before `Page.printToPDF`, probe WebGPU and WebGL when the browser
 exposes them and prove that at least one API reaches hardware. Stop when neither
-API does. SwiftShader, llvmpipe, and other software renderers are never hardware
-evidence. Never edit the generated SVG, XMI, HTML, PDF, or release archives as
-an alternate source of truth.
+API does. SwiftShader, llvmpipe, and other software renderers do not count as
+hardware. Change the sources and regenerate; never edit the generated SVG, XMI,
+HTML, PDF, or release archives by hand.
 
 Render every PDF page and a review contact sheet through the pinned PDFium and
 Pillow stack:
@@ -100,10 +100,9 @@ uv run --project docs/architecture --locked python docs/architecture/tools/qa.py
 ```
 
 Client-specific generators, recipes, assets, and identifiers belong only under
-the ignored `docs/whitelabel/` boundary. The generic architecture tools do not
-discover, name, render, validate, or package client editions. Validation also
-enforces the canonical generic-tool allowlist and rejects additional Python
-modules in this directory.
+the git-ignored `docs/whitelabel/` directory. The generic architecture tools have
+no knowledge of client editions. Validation also checks this directory against an
+allowlist of generic tools and rejects any other Python module.
 
 ## Model identity
 

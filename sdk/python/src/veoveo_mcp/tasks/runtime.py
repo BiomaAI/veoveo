@@ -170,7 +170,7 @@ class TaskRuntime:
         envelope = {
             "input": draft.request,
             "owner": draft.owner.to_json(),
-            "status_message": "accepted; queued",
+            "status_message": "Queued",
             "ttl_ms": draft.ttl_ms,
             "poll_interval_ms": draft.poll_interval_ms,
         }
@@ -213,7 +213,7 @@ class TaskRuntime:
             request=draft.request,
             recovery_class=draft.recovery_class,
             status=TaskStatus.QUEUED,
-            status_message="accepted; queued",
+            status_message="Queued",
             progress=0.0,
             result=None,
             error=None,
@@ -373,13 +373,13 @@ class TaskRuntime:
         envelope = {
             "input": current.request,
             "owner": current.owner.to_json(),
-            "status_message": "input required",
+            "status_message": "Waiting for input",
             "ttl_ms": current.ttl_ms,
             "poll_interval_ms": current.poll_interval_ms,
         }
         event_snapshot = _copy(current)
         event_snapshot.status = TaskStatus.WAITING
-        event_snapshot.status_message = "input required"
+        event_snapshot.status_message = "Waiting for input"
         event_snapshot.updated_at = now
         event = _task_event(event_snapshot, "task.input_requested")
         try:
@@ -565,7 +565,7 @@ class TaskRuntime:
         lease_expires_at = now + lease_duration
         event_snapshot = _copy(snapshot)
         event_snapshot.status = TaskStatus.RUNNING
-        event_snapshot.status_message = "claimed for execution"
+        event_snapshot.status_message = "Running"
         event_snapshot.lease_owner = self.worker_id
         event_snapshot.lease_expires_at = lease_expires_at
         event_snapshot.started_at = snapshot.started_at or now
@@ -574,7 +574,7 @@ class TaskRuntime:
         envelope = {
             "input": snapshot.request,
             "owner": snapshot.owner.to_json(),
-            "status_message": "claimed for execution",
+            "status_message": "Running",
             "ttl_ms": snapshot.ttl_ms,
             "poll_interval_ms": snapshot.poll_interval_ms,
         }

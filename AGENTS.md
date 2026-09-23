@@ -282,6 +282,29 @@ earns trust.
 
 The abstract of docs/veoveo-whitepaper-print.html is the register exemplar.
 
+Avoid these patterns in both marketing and technical prose:
+
+- Reversals and aphorisms: "It is not X. It is Y.", "X, not Y" one-liners, mirrored
+  sentences, and truisms used as openers or section closers.
+- Verbless fragments used for effect ("Inverted.", "A deliberate slice.").
+- Slogan headings. A heading names what the section contains.
+- Vocabulary inflation. "Governed", "durable", "canonical", "authoritative",
+  "projection", "bounded", "exact", "boundary", and "evidence" must each carry
+  information in the sentence where they appear. Say what the bound is, or drop the word.
+- Restating the same claim across sections. Say it once, where it matters, and link to it.
+- "From X to Y to Z" ranges, padded audience lists, and folksy asides.
+- Denial stacks. State what a component does; name a non-goal only when a reader would
+  otherwise reasonably assume it.
+- Contract-register abstraction: sentences with no actor, filler verbs such as "remains"
+  and "retains", and nouns standing in for actions. Name who does what.
+- Change-log residue in design documents: migration numbers, incident fixes, and
+  one-off asides belong in commits and plans.
+- Claims without evidence. Tie comparative or outcome claims to something checkable.
+
+Established industry terms such as "agentic", "agentic apps", "software factory", and
+"AI factory" are fine. Readers recognize them, and a paraphrase is usually vaguer. The
+rules above target filler and rhetorical patterns, not accepted vocabulary.
+
 ## Design Documentation
 
 Every design document must include a `## Standards And Protocols` section near

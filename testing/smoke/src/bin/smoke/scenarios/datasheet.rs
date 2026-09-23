@@ -177,7 +177,10 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
             direct_args.into(),
         ],
     )?;
-    contains(&rejected, "profile_dataset requires task-based invocation")?;
+    contains(
+        &rejected,
+        "`profile_dataset` must be called as an MCP Task. Resend the call with task parameters.",
+    )?;
     not_contains(&rejected, "structured:")?;
 
     let profile_args = serde_json::json!({"inline_csv": SMOKE_CSV, "artifact": true}).to_string();

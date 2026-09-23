@@ -97,7 +97,7 @@ impl ArtifactMcp {
 
     #[tool(
         title = "Read artifact metadata",
-        description = "Read policy-filtered metadata for one artifact occurrence.",
+        description = "Read an artifact's metadata. Fields your access doesn't allow are left out.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ArtifactMetadataOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -305,7 +305,7 @@ impl ServerHandler for ArtifactMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("artifact", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Artifact discovery and sharing. Canonical artifact://{artifact_id} resources are immutable occurrence identities. Named user/group grants provide authorized sharing; expiring anyone-with-link bearers require an explicit releasable state."
+            "Find and share artifacts. Each artifact://{artifact_id} URI names one immutable artifact. Share with named users or groups through grants. Anyone-with-link sharing needs the artifact to be marked releasable, and links expire."
                 .to_owned(),
         );
         info
@@ -470,7 +470,7 @@ impl ServerHandler for ArtifactMcp {
                 &veoveo_mcp_apps_extension::WorkbenchApp {
                     app_id: "artifact-library",
                     title: "Library",
-                    subtitle: "Discover, inspect, release, and share governed artifacts",
+                    subtitle: "Find, inspect, release, and share artifacts",
                     empty_message: "No artifacts are visible to this identity.",
                     resources: &[veoveo_mcp_apps_extension::WorkbenchResource {
                         label: "Artifact index",

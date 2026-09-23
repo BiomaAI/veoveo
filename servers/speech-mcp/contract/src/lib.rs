@@ -27,7 +27,7 @@ pub fn schema_bundle() -> schemars::Schema {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TranscribeRequest {
-    /// Governed uploaded audio or video, identified by its canonical Artifact URI.
+    /// `artifact://` URI of an uploaded audio or video file you can read.
     pub artifact_uri: String,
 }
 

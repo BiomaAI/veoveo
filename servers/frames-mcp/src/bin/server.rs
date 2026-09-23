@@ -156,7 +156,7 @@ impl FramesMcp {
 
     #[tool(
         title = "Create frame world",
-        description = "Create an empty authored frame world. Publish its complete rooted tree separately.",
+        description = "Create an empty frame world. Add its frames with `publish_world`.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<CreateWorldOutput>(),
         annotations(
             read_only_hint = false,
@@ -187,7 +187,7 @@ impl FramesMcp {
 
     #[tool(
         title = "Publish frame world",
-        description = "Validate and atomically publish a complete rooted frame tree as a new immutable world revision.",
+        description = "Check a complete frame tree with a single root and publish it as a new world revision.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<PublishWorldOutput>(),
         annotations(
             read_only_hint = false,
@@ -222,7 +222,7 @@ impl FramesMcp {
 
     #[tool(
         title = "Batch transform",
-        description = "Run a batch frame conversion as an MCP task and optionally store the JSON output through the shared artifact plane.",
+        description = "Convert a batch of coordinates between frames and optionally save the JSON output as an artifact. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<BatchTransformOutput>(),
         annotations(
             read_only_hint = false,
@@ -236,7 +236,7 @@ impl FramesMcp {
         Parameters(_args): Parameters<BatchTransformRequest>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "batch_transform requires task-based invocation",
+            "`batch_transform` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
@@ -329,10 +329,10 @@ impl ServerHandler for FramesMcp {
         info.capabilities = caps;
         info.server_info = rmcp::model::Implementation::new("frames", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Frames world-graph server. Create worlds at runtime, publish complete rooted frame \
-             trees as immutable revisions, and pin revision-scoped frame URIs in sessions and \
-             recordings. Use direct tools for bounded transforms; use \
-             batch_transform as an MCP task for bulk conversion and artifact output."
+            "Coordinate frames and frame worlds. Create a world, publish its frame tree as a \
+             revision, and reference frames by their revision URIs in sessions and recordings. \
+             Use `convert_frame` for small conversions and `batch_transform` as an MCP Task for \
+             bulk conversion with artifact output."
                 .into(),
         );
         info
@@ -588,7 +588,7 @@ impl ServerHandler for FramesMcp {
                     &veoveo_mcp_apps_extension::WorkbenchApp {
                         app_id: "frames-workspace",
                         title: "Frame Editor",
-                        subtitle: "Author immutable frame worlds and perform governed transforms",
+                        subtitle: "Build frame worlds and convert coordinates between frames",
                         empty_message: "No frame worlds are visible to this identity.",
                         resources: &[
                             veoveo_mcp_apps_extension::WorkbenchResource {

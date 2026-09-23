@@ -31,12 +31,12 @@ impl RecordingPrompt {
         let (title, description, arguments) = match self {
             Self::Inspect => (
                 "Inspect recording",
-                "Inspect governed recording metadata and segment state.",
+                "Inspect a recording's metadata and segment state.",
                 vec![required("recording_id", "Recording UUIDv7.")],
             ),
             Self::Project => (
                 "Project recording",
-                "Draft a deterministic bounded Apache Arrow projection.",
+                "Draft an Apache Arrow extraction of selected entities and components.",
                 vec![
                     required("dataset_id", "Recording dataset UUIDv7."),
                     required("recording_id", "Recording UUIDv7."),
@@ -47,7 +47,7 @@ impl RecordingPrompt {
             ),
             Self::Seal => (
                 "Seal recording",
-                "Validate and publish a recording as governed immutable artifacts.",
+                "Validate a recording and publish it as artifacts.",
                 vec![required("recording_id", "Recording UUIDv7.")],
             ),
         };

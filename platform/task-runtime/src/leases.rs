@@ -105,7 +105,7 @@ impl TaskRuntime {
         let mut event_snapshot = snapshot.clone();
         if !observation {
             event_snapshot.status = StoreTaskStatus::Running;
-            event_snapshot.status_message = Some("claimed for execution".to_owned());
+            event_snapshot.status_message = Some("Running".to_owned());
         }
         event_snapshot.lease_owner = Some(self.worker_id().to_owned());
         event_snapshot.lease_expires_at = Some(lease_expires_at);

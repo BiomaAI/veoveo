@@ -1,4 +1,5 @@
 import { authenticationRequired } from "./auth.ts";
+import { httpErrorMessage } from "./httpMessages.ts";
 
 export interface RerunMapViewerOptions {
   mapbox_access_token?: string;
@@ -31,7 +32,7 @@ export async function resolveRerunMapViewerOptions(
   });
   if (response.status === 401) authenticationRequired();
   if (!response.ok) {
-    throw new Error(`Rerun map configuration returned ${response.status}`);
+    throw new Error(httpErrorMessage(response.status, { action: "load the map settings for the recording viewer" }));
   }
   const config = decodeRerunMapConfig(await response.json());
   if (config.provider === "openStreetMap") {
@@ -120,7 +121,7 @@ async function validateMapboxAccessToken(fetcher: typeof fetch, accessToken: str
       "Mapbox denied the installation token; verify its scopes and allowed Console origins",
     );
   }
-  throw new Error(`Mapbox token validation returned ${response.status}`);
+  throw new Error(`Mapbox couldn't validate the installation token (HTTP ${response.status}). Check the Mapbox configuration.`);
 }
 
 export function mapProviderCompatibilityError(

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { browserSession } from "../../../console/web/src/csrf.ts";
-import { ApiError } from "../api.ts";
+import { ApiError, unreadableResponse } from "../api.ts";
 import schema from "../generated/speech.schema.json" with { type: "json" };
 import type { DictationSnapshot, TranscriptDocument, TranscriptionOutput } from "../generated/speech.ts";
 
@@ -13,11 +13,16 @@ export function parseSpeech<K extends keyof Types>(name: K, value: unknown): Typ
     validator = z.fromJSONSchema(definition as Parameters<typeof z.fromJSONSchema>[0]);
     validators.set(name, validator);
   }
-  return validator.parse(value) as Types[K];
+  const result = validator.safeParse(value);
+  if (!result.success) {
+    console.error(`Workspace could not read ${name}`, result.error);
+    throw new Error(unreadableResponse);
+  }
+  return result.data as Types[K];
 }
 
 export async function dictation(path: string, method: string, body?: ArrayBuffer | object, signal?: AbortSignal): Promise<DictationSnapshot> {
-  if (!browserSession.csrfToken) throw new ApiError(401);
+  if (!browserSession.csrfToken) throw new ApiError(401, "use dictation");
   const binary = body instanceof ArrayBuffer;
   const response = await fetch(`/workspace/api/speech/dictation${path}`, {
     method, credentials: "same-origin", redirect: "error",
@@ -28,7 +33,7 @@ export async function dictation(path: string, method: string, body?: ArrayBuffer
   browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? browserSession.csrfToken;
   if (!response.ok) {
     if (response.status === 401) { browserSession.csrfToken = undefined; window.dispatchEvent(new Event("workspace-auth-expired")); }
-    throw new ApiError(response.status);
+    throw new ApiError(response.status, "use dictation");
   }
   return parseSpeech("DictationSnapshot", await response.json());
 }

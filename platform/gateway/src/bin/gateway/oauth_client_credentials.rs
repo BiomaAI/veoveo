@@ -372,7 +372,7 @@ pub(super) async fn token_endpoint_client_credentials(
                 return oauth_error_response(
                     StatusCode::BAD_REQUEST,
                     "invalid_request",
-                    "work_context is invalid",
+                    "work_context is not a valid Work Context ID",
                 );
             }
         },
@@ -383,21 +383,25 @@ pub(super) async fn token_endpoint_client_credentials(
         return oauth_error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "server_error",
-            "client invocation authority is not configured",
+            "this client is not configured to act in any tenant; ask an administrator to finish its setup",
         );
     };
-    let mut service_principal =
-        match client_credentials_principal(authorization_server, &client_id, tenant, &scopes) {
-            Ok(principal) => principal,
-            Err(err) => {
-                tracing::error!("failed to establish automated principal: {err}");
-                return oauth_error_response(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "server_error",
-                    "client invocation authority is not configured",
-                );
-            }
-        };
+    let mut service_principal = match client_credentials_principal(
+        authorization_server,
+        &client_id,
+        tenant,
+        &scopes,
+    ) {
+        Ok(principal) => principal,
+        Err(err) => {
+            tracing::error!("failed to establish automated principal: {err}");
+            return oauth_error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "server_error",
+                "this client is not configured to act in any tenant; ask an administrator to finish its setup",
+            );
+        }
+    };
     if let Err(error) = effective.apply_service_roles(&mut service_principal) {
         tracing::warn!(%error, "managed service roles are unavailable");
         return oauth_error_response(

@@ -121,7 +121,7 @@ impl StreamMcp {
 
     #[tool(
         title = "Run a pipeline over recorded video",
-        description = "Resolve an authorized Rerun VideoStream range, run an admitted Stream pipeline, and publish typed results plus an immutable Rerun annotation layer.",
+        description = "Run a configured Stream pipeline over a video range from a recording you can read, and publish typed results and a Rerun annotation layer.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RunRecordingOutput>(),
         annotations(
             read_only_hint = false,
@@ -155,7 +155,7 @@ impl StreamMcp {
 
     #[tool(
         title = "Start a live Stream session",
-        description = "Start one admitted live GStreamer pipeline and return its typed RTP/H.264 ingress plus Work-Context-readable, owner-controlled session resources immediately.",
+        description = "Start a configured live GStreamer pipeline. Returns right away with the RTP/H.264 ingest address and session resources you can subscribe to.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_stream_mcp::contract::StartLiveSessionOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -177,7 +177,7 @@ impl StreamMcp {
 
     #[tool(
         title = "Stop a live Stream session",
-        description = "Stop an owner-scoped live GStreamer session and preserve its bounded typed result history.",
+        description = "Stop a live GStreamer session you own. Its recent results are kept.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_stream_mcp::contract::StopLiveSessionOutput>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = true, open_world_hint = false)
     )]
@@ -224,7 +224,7 @@ impl ServerHandler for StreamMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Operate admitted live and replay GStreamer pipelines. Discover pipeline and model identities through stream://pipelines and stream://models. Use run_recording for governed replay; live sessions publish stream://session resources without waiting for Recording Hub."
+            "Run configured GStreamer pipelines on live video or recordings. Find pipelines and models at stream://pipelines and stream://models. Use `run_recording` to process a recording. Live sessions publish stream://session resources as results arrive, without waiting for Recording Hub."
                 .to_owned(),
         );
         info
@@ -525,7 +525,12 @@ impl ServerHandler for StreamMcp {
                     .catalog
                     .pipeline(id)
                     .map(pipeline_view)
-                    .ok_or_else(|| McpError::resource_not_found("pipeline not found", None))?;
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(
+                            format!("Pipeline `{id}` was not found."),
+                            None,
+                        )
+                    })?;
                 return json_resource(uri, &pipeline);
             }
             if let Some(id) = uris::parse_model_uri(uri) {
@@ -534,7 +539,9 @@ impl ServerHandler for StreamMcp {
                     .catalog
                     .model(id)
                     .map(model_view)
-                    .ok_or_else(|| McpError::resource_not_found("model not found", None))?;
+                    .ok_or_else(|| {
+                        McpError::resource_not_found(format!("Model `{id}` was not found."), None)
+                    })?;
                 return json_resource(uri, &model);
             }
             let identity = internal_identity(&context)?;
@@ -782,9 +789,14 @@ async fn run_snapshot(state: &AppState, task_id: &str) -> Result<TaskSnapshot, M
         .get(task_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("stream run not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Stream run `{task_id}` was not found."), None)
+        })?;
     if snapshot.task_type != "run_recording" {
-        return Err(McpError::resource_not_found("stream run not found", None));
+        return Err(McpError::resource_not_found(
+            format!("Stream run `{task_id}` was not found."),
+            None,
+        ));
     }
     Ok(snapshot)
 }
@@ -877,11 +889,13 @@ async fn inline_artifact(
         .head(caller, artifact_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("artifact not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
+        })?;
     if metadata.byte_len > state.max_inline_resource_bytes {
         return Err(McpError::invalid_request(
             format!(
-                "artifact is {} bytes and exceeds the {}-byte inline MCP resource limit; use its governed artifact download path",
+                "Artifact `{artifact_id}` is {} bytes, over the {}-byte limit for inline MCP resources. Download it through the artifact download route instead.",
                 metadata.byte_len, state.max_inline_resource_bytes
             ),
             None,
@@ -892,7 +906,9 @@ async fn inline_artifact(
         .get(caller, artifact_id)
         .await
         .map_err(internal)?
-        .ok_or_else(|| McpError::resource_not_found("artifact not found", None))?;
+        .ok_or_else(|| {
+            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
+        })?;
     if artifact.bytes.len() as u64 != metadata.byte_len
         || artifact.bytes.len() as u64 > state.max_inline_resource_bytes
     {

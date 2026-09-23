@@ -12,12 +12,16 @@ pub(super) fn internal_identity(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 
 pub(super) fn internal_caller(
@@ -26,17 +30,23 @@ pub(super) fn internal_caller(
     let parts = context
         .extensions
         .get::<axum::http::request::Parts>()
-        .ok_or_else(|| McpError::invalid_request("authenticated HTTP context missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let identity = parts
         .extensions
         .get::<GatewayInternalIdentity>()
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     let bearer = parts
         .extensions
         .get::<super::internal_auth::ForwardedBearer>()
         .map(|bearer| bearer.0.clone())
-        .ok_or_else(|| McpError::invalid_request("forwarded bearer missing", None))?;
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })?;
     Ok(caller_from(identity, bearer))
 }
 
@@ -126,7 +136,7 @@ pub(super) async fn require_task_owner(
         Ok(identity)
     } else {
         Err(McpError::invalid_request(
-            "Frames task policy denied request",
+            "You don't have permission to access this task.",
             None,
         ))
     }

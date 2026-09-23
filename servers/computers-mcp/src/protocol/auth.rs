@@ -35,8 +35,11 @@ pub fn caller(
     })
 }
 pub fn forbidden() -> ErrorData {
-    ErrorData::invalid_request("Computer access is not authorized", None)
+    ErrorData::invalid_request("You don't have permission to use this Computer.", None)
 }
 pub fn unavailable() -> ErrorData {
-    ErrorData::internal_error("Computers state is unavailable", None)
+    ErrorData::internal_error(
+        "Computers is temporarily unavailable. Try again shortly.",
+        None,
+    )
 }

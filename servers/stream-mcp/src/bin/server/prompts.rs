@@ -29,7 +29,7 @@ impl StreamPrompt {
         let (title, description, arguments) = match self {
             Self::RunRecording => (
                 "Run a pipeline over recorded video",
-                "Prepare a governed GPU-backed Stream run over a Rerun video range.",
+                "Plan a GPU Stream run over a Rerun video range.",
                 vec![
                     required("recording_uri", "Canonical recording resource URI."),
                     required("entity_path", "Rerun VideoStream entity path."),
@@ -41,7 +41,7 @@ impl StreamPrompt {
             ),
             Self::StartLiveSession => (
                 "Start a live stream session",
-                "Start one operator-admitted live GStreamer graph and return its typed ingress.",
+                "Start a configured live GStreamer pipeline and return its ingest address.",
                 vec![required("pipeline_id", "Live Stream pipeline identifier.")],
             ),
         };
@@ -63,7 +63,7 @@ impl StreamPrompt {
         let pipeline_id = args.pipeline_id.as_deref().unwrap_or("<required>");
         let text = match self {
             Self::RunRecording => format!(
-                "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recording_uri {}, entity_path {}, timeline {}, durable range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
+                "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
                 args.recording_uri.as_deref().unwrap_or("<required>"),
                 args.entity_path.as_deref().unwrap_or("<required>"),
                 args.timeline.as_deref().unwrap_or("<required>"),

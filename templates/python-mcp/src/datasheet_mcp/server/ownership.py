@@ -15,6 +15,9 @@ from veoveo_mcp.tasks import PrincipalKind, TaskOwner
 from .app_state import AppState
 
 
+GATEWAY_ROUTING_REQUIRED = "This server only accepts requests routed through the Veoveo gateway."
+
+
 def _invalid(message: str) -> MCPError:
     return MCPError(code=INVALID_REQUEST, message=message)
 
@@ -22,7 +25,7 @@ def _invalid(message: str) -> MCPError:
 def identity_from_scope(scope: dict[str, Any]) -> GatewayInternalIdentity:
     identity = scope.get(IDENTITY_SCOPE_KEY)
     if identity is None:
-        raise _invalid("gateway identity missing")
+        raise _invalid(GATEWAY_ROUTING_REQUIRED)
     return identity
 
 
@@ -30,7 +33,7 @@ def caller_from_scope(scope: dict[str, Any]) -> PlaneCaller:
     identity = identity_from_scope(scope)
     bearer = scope.get(BEARER_SCOPE_KEY)
     if bearer is None:
-        raise _invalid("forwarded bearer missing")
+        raise _invalid(GATEWAY_ROUTING_REQUIRED)
     return PlaneCaller.from_identity(identity, bearer)
 
 
@@ -38,7 +41,7 @@ def request_scope(ctx: ServerRequestContext[Any, Any]) -> dict[str, Any]:
     """The ASGI scope of the HTTP request behind the current MCP call."""
     request = ctx.request
     if request is None:
-        raise _invalid("authenticated HTTP context missing")
+        raise _invalid(GATEWAY_ROUTING_REQUIRED)
     return request.scope
 
 

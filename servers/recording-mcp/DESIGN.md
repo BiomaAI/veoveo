@@ -37,7 +37,7 @@ the live receiver only. A missing credential never falls back to an old local ar
 path.
 
 MCP resource discovery lists stable roots and documents. Templates describe individual
-recordings and layers; the governed catalog content discovers their exact identities.
+recordings and layers; reading the catalog resource returns each recording's exact URI.
 Recording writes do not alter these discovery descriptors. Full recording views are
 assembled when the client requests the catalog content.
 

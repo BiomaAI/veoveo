@@ -35,6 +35,7 @@ pub enum WorkerError {
 }
 type Result<T> = std::result::Result<T, WorkerError>;
 const LEASE_DURATION: Duration = Duration::from_secs(60);
+const OPERATION_NEEDS_RECOVERY: &str = "Needs recovery: this operation's outcome is uncertain, so it won't run again automatically. Open the Computer to check before retrying.";
 
 pub struct LifecycleWorker<G> {
     store: ComputersStore,
@@ -109,8 +110,7 @@ impl<G: Preflight> LifecycleWorker<G> {
                 Ok(WorkerStep::Settled)
             }
             OperationStage::RecoveryRequired => {
-                self.waiting(&id, "Recovery Required; the operation remains protected")
-                    .await?;
+                self.waiting(&id, OPERATION_NEEDS_RECOVERY).await?;
                 Ok(WorkerStep::RecoveryRequired)
             }
             OperationStage::Queued => self.dispatch(&mut claimed, &operation).await,
@@ -260,11 +260,8 @@ impl<G: Preflight> LifecycleWorker<G> {
             }
             ObservationAdmission::Wait { .. } => {}
             ObservationAdmission::RecoveryRequired => {
-                self.waiting(
-                    &operation.task_id().to_string(),
-                    "Recovery Required; the operation remains protected",
-                )
-                .await?;
+                self.waiting(&operation.task_id().to_string(), OPERATION_NEEDS_RECOVERY)
+                    .await?;
                 return Ok(WorkerStep::RecoveryRequired);
             }
         }

@@ -26,7 +26,10 @@ impl ComputersMcp {
 fn read_error(error: ApplicationError) -> ErrorData {
     match error {
         ApplicationError::Domain(ComputerError::NotFound | ComputerError::InvalidInput) => {
-            ErrorData::invalid_params("unknown Computer resource", None)
+            ErrorData::invalid_params(
+                "Computer resource was not found. Read computer://computers to see your Computers.",
+                None,
+            )
         }
         ApplicationError::Domain(ComputerError::Forbidden) => auth::forbidden(),
         _ => auth::unavailable(),
@@ -36,8 +39,12 @@ fn page<T>(
     values: Vec<T>,
     params: Option<&PaginatedRequestParams>,
 ) -> Result<veoveo_mcp_contract::Page<T>, ErrorData> {
-    veoveo_mcp_contract::paginate(values, params, 100)
-        .map_err(|_| ErrorData::invalid_params("invalid catalog cursor", None))
+    veoveo_mcp_contract::paginate(values, params, 100).map_err(|_| {
+        ErrorData::invalid_params(
+            "The cursor is invalid. Pass the nextCursor from the previous page.",
+            None,
+        )
+    })
 }
 impl ServerHandler for ComputersMcp {
     fn supported_protocol_versions(&self) -> std::borrow::Cow<'static, [ProtocolVersion]> {
@@ -58,7 +65,7 @@ impl ServerHandler for ComputersMcp {
         let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = Implementation::new("computers", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some("Read computer://computers for your collection, availability and permitted actions. Lifecycle tools require the Tasks extension and a stable requestId. Disconnecting access leaves work running; Stop ends processes and preserves the home. Recovery Required keeps uncertain operations protected.".into());
+        info.instructions = Some("Start by reading computer://computers to see your Computers, whether they are available, and which actions you may take. Call lifecycle tools as MCP Tasks with a requestId you reuse on retries. Disconnecting leaves work running; Stop ends processes and keeps the home directory. An operation marked Needs recovery had an uncertain outcome and will not run again automatically; check the Computer before retrying.".into());
         info
     }
     async fn list_tools(

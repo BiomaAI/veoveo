@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DrawerShell } from "./DrawerShell";
 import { ProgressBar, StatusPill } from "../components/primitives";
 import { formatDate } from "../format";
+import { recoveryClassLabel } from "../labels";
 import { useCancelTask } from "../queries";
 import type { TaskSummary } from "../types";
 
@@ -14,7 +15,7 @@ export function TaskDrawer({ task, onClose }: { task: TaskSummary; onClose: () =
     try {
       await cancelTask.mutateAsync(task.id);
     } catch (cause) {
-      setActionError(cause instanceof Error ? cause.message : "Task cancellation failed");
+      setActionError(cause instanceof Error ? cause.message : "The task wasn't cancelled. Try again.");
     }
   };
   return (
@@ -31,7 +32,7 @@ export function TaskDrawer({ task, onClose }: { task: TaskSummary; onClose: () =
           <h3>Execution</h3>
           <dl className="definition-list compact">
             <div><dt>Task ID</dt><dd className="mono hash">{task.id}</dd></div>
-            <div><dt>Recovery</dt><dd><span className="code-label">{task.recoveryClass}</span></dd></div>
+            <div><dt>Recovery</dt><dd>{recoveryClassLabel(task.recoveryClass)}</dd></div>
             <div><dt>Created</dt><dd>{formatDate(task.createdAt)}</dd></div>
             <div><dt>Updated</dt><dd>{formatDate(task.updatedAt)}</dd></div>
             <div><dt>Result artifact</dt><dd className="mono">{task.resultArtifactId ?? "-"}</dd></div>

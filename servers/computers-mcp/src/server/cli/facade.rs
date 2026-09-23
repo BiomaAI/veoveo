@@ -39,7 +39,9 @@ impl OpenShell for Restricted {
     ) -> Result<Response<api::SandboxResponse>, Status> {
         let request = request.into_inner();
         if request.name != self.computer.to_string() || request.workspace != "default" {
-            return Err(Status::permission_denied("Computer target denied"));
+            return Err(Status::permission_denied(
+                "You don't have permission to access this Computer.",
+            ));
         }
         let mut response = self
             .access
@@ -86,7 +88,9 @@ impl OpenShell for Restricted {
 fn error(error: RuntimeFailure) -> Status {
     match error {
         RuntimeFailure::LeaseExpired => Status::unauthenticated("Computer access ended"),
-        RuntimeFailure::BindingMismatch => Status::permission_denied("Computer target denied"),
+        RuntimeFailure::BindingMismatch => {
+            Status::permission_denied("You don't have permission to access this Computer.")
+        }
         RuntimeFailure::NotFound | RuntimeFailure::InvalidState => {
             Status::failed_precondition("Computer is not connectable")
         }

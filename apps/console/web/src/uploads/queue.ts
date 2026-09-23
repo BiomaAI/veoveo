@@ -285,7 +285,7 @@ export class UploadQueue {
       }
       this.patch(key, { checked: true, phase: "Uploading", message: undefined });
       const count = Math.max(1, Math.ceil(file.size / status.layout.part_bytes));
-      if (count > status.layout.max_parts || file.size > status.layout.max_total_bytes) throw new Error("This file exceeds the admitted upload layout.");
+      if (count > status.layout.max_parts || file.size > status.layout.max_total_bytes) throw new Error("This file is larger than uploads allow here.");
       const missing = Array.from({ length: count }, (_, index) => index + 1).filter((number) => !parts.has(number));
       let authorizedAt = performance.now();
       let authorization: Promise<void> | undefined;
@@ -348,7 +348,7 @@ export class UploadQueue {
       let failure: unknown;
       const budget = this.state.policy?.policy?.max_inflight_bytes;
       const parallel = budget ? Math.min(status.layout.parallel_parts, Math.floor(budget / status.layout.part_bytes), missing.length) : 0;
-      if (missing.length && parallel < 1) throw new Error("Current upload memory policy cannot admit this file's transfer layout.");
+      if (missing.length && parallel < 1) throw new Error("This browser can't upload a file this large right now. Close other uploads or tabs and try again.");
       await Promise.all(Array.from({ length: parallel }, () => upload().catch((error: unknown) => {
         if (!failure) { failure = error; controller.abort(); }
       })));

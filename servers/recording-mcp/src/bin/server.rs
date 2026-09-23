@@ -96,7 +96,7 @@ impl RecordingMcp {
 
     #[tool(
         title = "Seal recording",
-        description = "Validate committed immutable layers, publish the v9 manifest Artifact, then atomically seal the recording. Requires admin:manage scope.",
+        description = "Check a recording's finished layers, publish its v9 manifest as an artifact, and seal the recording in one step. Requires the admin:manage scope.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<SealRecordingOutput>(),
         annotations(
             read_only_hint = false,
@@ -135,7 +135,7 @@ impl RecordingMcp {
 
     #[tool(
         title = "Create recording projection",
-        description = "Materialize one deterministic, bounded Apache Arrow stream from exact entities and components in one governed immutable recording. The returned handle contains no bearer credentials.",
+        description = "Extract selected entities and components from one recording as an Apache Arrow stream. The same selection always returns the same data. The returned handle contains no credentials.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<RecordingProjectionHandle>(),
         annotations(
             read_only_hint = true,
@@ -193,7 +193,7 @@ impl ServerHandler for RecordingMcp {
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
-            "Governed access to the installation recording catalog. Discover recordings through resources, materialize deterministic bounded Apache Arrow projections from committed immutable layers with create_recording_projection, and seal only frozen recordings when the caller has admin:manage scope. Sealing returns artifact:// occurrence URIs; artifact policy controls subsequent reads and sharing."
+            "The installation's recording catalog. Find recordings through resources. Use `create_recording_projection` to extract selected entities and components as Apache Arrow. With the admin:manage scope, you can seal a frozen recording; sealing returns artifact:// URIs, and artifact permissions control who can read or share them after that."
                 .to_owned(),
         );
         info
@@ -341,7 +341,7 @@ impl ServerHandler for RecordingMcp {
                     &veoveo_mcp_apps_extension::WorkbenchApp {
                         app_id: "recording-explorer",
                         title: "Explorer",
-                        subtitle: "Browse governed recordings and inspect bounded timeline data",
+                        subtitle: "Browse recordings and inspect their timeline data",
                         empty_message: "No recordings are visible to this identity.",
                         resources: &[veoveo_mcp_apps_extension::WorkbenchResource {
                             label: "Recording catalog",
@@ -389,7 +389,7 @@ impl ServerHandler for RecordingMcp {
                     .layer_views(&identity, recording_id)
                     .await
                     .map_err(internal)?
-                    .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
+                    .ok_or_else(|| McpError::resource_not_found(format!("Recording `{recording_id}` was not found."), None))?;
                 return json_resource(uri, &layers);
             }
             if let Some(value) = veoveo_recording_reader::uris::parse_recording_uri(uri) {
@@ -400,7 +400,7 @@ impl ServerHandler for RecordingMcp {
                     .recording_view(&identity, recording_id)
                     .await
                     .map_err(internal)?
-                    .ok_or_else(|| McpError::resource_not_found("recording not found", None))?;
+                    .ok_or_else(|| McpError::resource_not_found(format!("Recording `{recording_id}` was not found."), None))?;
                 return json_resource(uri, &recording);
             }
             Err(McpError::resource_not_found(
@@ -466,7 +466,10 @@ impl ServerHandler for RecordingMcp {
                 .map_err(internal)?
                 .is_none()
             {
-                return Err(McpError::resource_not_found("recording not found", None));
+                return Err(McpError::resource_not_found(
+                    format!("Recording `{recording_id}` was not found."),
+                    None,
+                ));
             }
         }
         veoveo_mcp_contract::listen_resources(context, &self.state.subscribers, None).await

@@ -12,7 +12,7 @@ how to reproduce every view.
 | [![Operations overview](gallery/console-overview.png)](gallery/console-overview.png) | [![Durable work](gallery/console-work.png)](gallery/console-work.png) |
 | Operations overview | Durable work across reasoning, perception, and simulation |
 | [![Governed artifact catalog](gallery/console-artifacts.png)](gallery/console-artifacts.png) | [![Continuous recording playback](gallery/console-recordings.png)](gallery/console-recordings.png) |
-| Governed artifact catalog | Continuous recording playback |
+| Artifact catalog | Continuous recording playback |
 | [![Reasoning artifact detail](gallery/console-artifact-reason.png)](gallery/console-artifact-reason.png) | [![Stream detection video artifact](gallery/console-artifact-video.png)](gallery/console-artifact-video.png) |
 | Reasoning artifact with provenance and access | Stream-derived video preview |
 
@@ -23,7 +23,7 @@ how to reproduce every view.
 | [![Reason MCP capability surface](gallery/console-mcp-reason.png)](gallery/console-mcp-reason.png) | [![Map MCP capability surface](gallery/console-mcp-map.png)](gallery/console-mcp-map.png) |
 | Reason MCP protocol surface | Map MCP protocol surface |
 | [![Interactive MCP chart app](gallery/console-app-chart.png)](gallery/console-app-chart.png) | [![Governed map administration app](gallery/console-app-map.png)](gallery/console-app-map.png) |
-| Interactive chart output | Governed map administration |
+| Interactive chart output | Map source and release administration |
 | [![Interactive forecast app](gallery/console-app-timeseries.png)](gallery/console-app-timeseries.png) | [![GPU-backed 3D View MCP App](gallery/console-app-view.png)](gallery/console-app-view.png) |
 | Interactive forecast fixture | Live 3D Tiles, camera control, and captured-frame state |
 | [![View MCP App running in Claude](gallery/mcp-app-view-claude.png)](gallery/mcp-app-view-claude.png) | |

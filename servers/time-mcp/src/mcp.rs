@@ -66,7 +66,7 @@ impl TimeMcp {
     ///
     #[tool(
         title = "Resolve operational time",
-        description = "Resolve RFC 3339/9557, civil, military DTG, Unix, TAI, GPS, Julian TAI, or mission-relative time against the active versioned authority releases.",
+        description = "Resolve a time given as RFC 3339/9557, civil time, a military DTG, Unix time, TAI, GPS time, Julian TAI, or mission-relative time, using the active time-authority releases.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ResolveTimeOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -89,7 +89,7 @@ impl TimeMcp {
 
     #[tool(
         title = "Convert operational time",
-        description = "Project one authority-bound TimeInstant into UTC, selected IANA zones, TAI, TT, TDB, GPST, and GST representations.",
+        description = "Convert a resolved TimeInstant to UTC, chosen IANA time zones, TAI, TT, TDB, GPS time (GPST), and Galileo time (GST).",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ConvertTimeOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -112,7 +112,7 @@ impl TimeMcp {
 
     #[tool(
         title = "Evaluate time windows",
-        description = "Calculate union, intersection, or difference for half-open authority-bound time windows.",
+        description = "Compute the union, intersection, or difference of half-open time windows.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<EvaluateWindowsOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -138,7 +138,7 @@ impl TimeMcp {
 
     #[tool(
         title = "Assess clock quality",
-        description = "Assess the measured host clock offset, error bound, stratum, diversity, holdover, and traceability against an explicit or tenant policy.",
+        description = "Check the host clock's measured offset, error bound, stratum, source diversity, holdover, and traceability against a policy you pass or the tenant's policy.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ClockAssessment>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -166,7 +166,7 @@ impl TimeMcp {
 
     #[tool(
         title = "Expand operational calendar",
-        description = "Expand a versioned civil-time operational calendar into authority-bound half-open windows. This bulk operation requires Task API invocation.",
+        description = "Expand a versioned civil-time operational calendar into half-open time windows. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ExpandScheduleOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -176,14 +176,14 @@ impl TimeMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "expand_schedule requires task-based invocation",
+            "`expand_schedule` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Validate mission timeline",
-        description = "Resolve named temporal points and validate precedence plus minimum and maximum separation constraints. This bulk operation requires Task API invocation.",
+        description = "Resolve named time points and check their ordering and minimum and maximum separation constraints. Run as an MCP Task.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<ValidateTimelineOutput>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
@@ -193,14 +193,14 @@ impl TimeMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         Err(McpError::invalid_request(
-            "validate_timeline requires task-based invocation",
+            "`validate_timeline` must be called as an MCP Task. Resend the call with task parameters.",
             None,
         ))
     }
 
     #[tool(
         title = "Create temporal event",
-        description = "Create an owner-scoped event at an authority-bound instant and emit resource updates when it becomes due.",
+        description = "Create an event at a resolved time instant. Subscribers receive a resource update when it becomes due. Only its owner can change it.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TemporalEvent>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
@@ -261,7 +261,7 @@ impl TimeMcp {
 
     #[tool(
         title = "Cancel temporal event",
-        description = "Cancel an owner-scoped temporal event under optimistic concurrency.",
+        description = "Cancel an event you own. Pass the revision you last read; the call fails if it has changed.",
         output_schema = rmcp::handler::server::tool::schema_for_type::<TemporalEvent>(),
         annotations(read_only_hint = false, destructive_hint = true, idempotent_hint = false, open_world_hint = false)
     )]
@@ -318,7 +318,7 @@ impl ServerHandler for TimeMcp {
         let mut info = ServerConfig::default();
         info.capabilities = capabilities;
         info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some("Authoritative time interpretation and operational scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative expressions against versioned TZDB and leap-second releases. Invoke schedule expansion and timeline validation through the Task API. Carry TimeInstant authority bindings and uncertainty into Map and Optimization calls.".to_owned());
+        info.instructions = Some("Time interpretation and scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative times against versioned TZDB and leap-second releases. Call `expand_schedule` and `validate_timeline` as MCP Tasks. When you pass a time to Map or Optimization, pass the resolved TimeInstant with its uncertainty, not a plain string.".to_owned());
         info
     }
 
@@ -521,7 +521,7 @@ impl ServerHandler for TimeMcp {
                 &veoveo_mcp_apps_extension::WorkbenchApp {
                     app_id: "time-timeline",
                     title: "Timeline",
-                    subtitle: "Resolve authoritative time and manage operational temporal state",
+                    subtitle: "Resolve times and manage scheduled events",
                     empty_message: "No temporal resources are visible to this identity.",
                     resources: &[
                         veoveo_mcp_apps_extension::WorkbenchResource {
@@ -918,7 +918,9 @@ fn internal_identity(
         .get::<axum::http::request::Parts>()
         .and_then(|parts| parts.extensions.get::<GatewayInternalIdentity>())
         .cloned()
-        .ok_or_else(|| McpError::invalid_request("gateway identity missing", None))
+        .ok_or_else(|| {
+            McpError::invalid_request(veoveo_mcp_contract::GATEWAY_ROUTING_REQUIRED, None)
+        })
 }
 fn require_scope(
     context: &RequestContext<RoleServer>,
@@ -932,7 +934,7 @@ fn require_scope(
         .any(|scope| scope.as_str() == required)
     {
         return Err(McpError::invalid_request(
-            format!("scope `{required}` is required"),
+            format!("You don't have permission to make this request. Missing scope `{required}`."),
             None,
         ));
     }

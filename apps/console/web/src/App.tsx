@@ -205,7 +205,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     try {
       await logoutConsole();
     } catch (cause) {
-      setSignOutError(cause instanceof Error ? cause.message : "Sign out failed");
+      setSignOutError(cause instanceof Error ? cause.message : "Veoveo couldn't sign you out. Reload the page and try again.");
       setSigningOut(false);
     }
   };
@@ -265,7 +265,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
                       <ChevronRight size={14} className="nav-app-chevron" />
                       <span>{group.title}</span>
                       {group.unavailable && <span className="nav-app-unavailable">Unavailable</span>}
-                      {group.discovering && <span className="nav-app-unavailable">Discovering…</span>}
+                      {group.discovering && <span className="nav-app-unavailable">Loading…</span>}
                     </summary>
                     {group.apps.map((app) => (
                       <button

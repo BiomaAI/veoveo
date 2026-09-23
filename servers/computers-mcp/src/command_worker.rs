@@ -103,7 +103,7 @@ impl CommandWorker {
             CommandStage::RecoveryRequired => {
                 self.waiting(
                     &id,
-                    "Recovery Required; the original command remains protected",
+                    "Needs recovery: this command's outcome is uncertain, so it won't run again automatically. Open the Computer to check before retrying.",
                 )
                 .await?;
                 WorkerStep::RecoveryRequired

@@ -1,16 +1,16 @@
 # Veoveo Architecture Decisions
 
-This document records the product and architecture boundaries that all Veoveo
-implementations must preserve. It is normative. Detailed component designs may
-change, but a change to one of these decisions requires an explicit replacement
-decision rather than an implicit compatibility path.
+This document records the product and architecture decisions that every Veoveo
+implementation must follow. It is normative. Component designs may change, but
+changing one of these decisions requires an explicit replacement decision, not a
+quiet compatibility path.
 
 ## Standards And Protocols
 
 | Boundary | Profile |
 |---|---|
 | MCP, JSON-RPC, JSON Schema, OAuth and OpenID Connect | Versions and supported subsets in the normative [MCP server contract](../mcp/contract/DESIGN.md) |
-| HTTP, WebSocket, SSH and internal gRPC | Governed control, artifact transfer, and planned Computers access; [contract evolution](CONTRACT_EVOLUTION.md) records the new profile requirements |
+| HTTP, WebSocket, SSH and internal gRPC | Policy-checked control, artifact transfer, and Computers access; [contract evolution](CONTRACT_EVOLUTION.md) records the new profile requirements |
 | UUIDv7, SHA-256 and Git identity | Opaque domain identities, integrity, and exact source provenance |
 | SurrealQL and transactional outbox | Durable store and recovery under the pinned SurrealDB implementation; no database HA claim |
 | OCI, Helm, Kubernetes and GitOps | Immutable release artifacts and installation-owned reconciliation |
@@ -21,408 +21,414 @@ decision rather than an implicit compatibility path.
 
 ## Contract evolution
 
-[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) records the accepted September 9
-decisions for provider recovery, core capacity, human and agent authority, renewable
+[`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) records the decisions accepted on
+September 9 for provider recovery, core capacity, human and agent authority, renewable
 access, verification, evidence reuse, dependency qualification, deployment boundaries,
-and future Artifact transfer profiles. Internal models remain canonical. Public
-adapters and persistent/deployment transitions require an explicit supported window,
-owner, migration, and qualification; hidden compatibility paths remain prohibited.
-Its implementation table distinguishes accepted policy from delivered behavior.
+and future Artifact transfer profiles. Internal models are the single source of each
+type. A public adapter or a persistent or deployment transition needs an explicit
+support window, owner, migration, and qualification. Hidden compatibility paths are
+prohibited. The document's implementation table shows which accepted policies have
+shipped.
 
 ## Product boundary
 
-Veoveo is installed and operated by its owner. Each installation is autonomous:
+The owner installs and operates each Veoveo installation, and each installation runs
+on its own:
 
-- there is no Veoveo-operated control plane, identity service, artifact index,
-  telemetry sink, license service, or mandatory public hostname;
-- the installation owner selects its own hostname, ingress, identity provider,
-  object store, secret manager, and observability destinations;
+- Veoveo operates no control plane, identity service, artifact index, telemetry
+  sink, license service, or required public hostname;
+- the installation owner chooses its hostname, ingress, identity provider, object
+  store, secret manager, and observability destinations;
 - `veoveo.bioma.ai` is one Bioma installation and may appear only in a clearly
   labeled deployment example;
-- connected and offline installations expose the same product capabilities.
+- connected and offline installations offer the same product capabilities.
 
-Kubernetes is the supported installation form and Helm is its package contract.
-k3d runs that same chart for local development.
+Kubernetes is the supported installation form and Helm is its package format. k3d
+runs the same chart for local development.
 
 ## Computers
 
-Computers is a core Veoveo capability. Standard releases own its native API, Console
-experience, durable lifecycle, retained storage integration, and installation package.
-Installations configure capacity, admitted development images, policy, provider
-connections, and trust. Admission and maintenance are operational controls.
+Computers is a core Veoveo capability. Standard releases include its native API,
+Console pages, lifecycle, retained storage integration, and installation package.
+Each installation configures capacity, the development images it allows, policy,
+provider connections, and trust. Operators control admission and maintenance.
 
-Core status permits qualified local, remote, or on-demand compute. Control surfaces
-remain present when capacity is unconfigured, exhausted, or under maintenance, with
-actionable states. Setup can finish without allocating workers; operational Computers
-acceptance requires a configured provider and real retained execution. Offline
-qualification requires the complete selected local runtime and storage inputs.
+A core capability may run on local, remote, or on-demand compute once that
+compute is qualified. The Console and API stay available when capacity is
+unconfigured, exhausted, or under maintenance, and they show the user what to do
+next. Setup can finish without allocating workers. Computers acceptance requires a
+configured provider and real retained execution. Offline qualification requires
+every selected local runtime and storage input.
 
-Ownership and actor authority use canonical principals and Work Context policy.
-Humans and services may receive explicit action grants. Personal privacy is the
-default, and per-owner cardinality is a quota policy. A human-only installation can
-express that restriction in policy without imposing it on the domain model.
+Ownership and action authority use the platform's principals and Work Context
+policy. Humans and services can receive explicit action grants. Computers are
+private to their owner by default, and the number of Computers per owner is a quota
+setting. An installation that wants only humans to use Computers expresses that in
+policy rather than in the domain model.
 
-The first supported profile is a personal development Computer with explicit owner
-authority, reconnectable execution, retained files and caches across Stop/Start,
-and scoped agent control. Browser, CLI, and agent access share the same domain
-authority. Renewable attachments expire and revoke independently of retained work.
-The native Console page and planned MCP facade project the same Computers domain;
-the gateway retains generic governed routing and no provider controller.
-Build publication and production promotion keep their separate authority boundaries.
-The implementation and acceptance sequence is proposed in
-[`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md); the capability is not implemented at this
-decision checkpoint.
+The first supported profile is a personal development Computer. Its owner has
+explicit authority, execution can be reconnected, files and caches survive
+Stop/Start, and agents can be given scoped control. Browser, CLI, and agent access
+all check the same domain authority. Renewable attachments expire and are revoked
+independently of the retained work. The native Console page and the `computers-mcp`
+server both present the same Computers domain. The gateway routes and checks policy
+like it does for any server and contains no provider controller. Build publication
+and production promotion keep their own separate authority.
+
+The selected profile is deployed with the Bioma configuration.
+[`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) tracks the remaining gates: clean and offline
+installation, broader provider profiles, performance qualification, and installed MCP
+conformance.
 
 ## Release and installation ownership
 
 Veoveo release engineering publishes OCI images and Helm charts. Production image
-references are digest-locked, and chart versions identify one committed release.
-The publisher does not hold cluster credentials or apply customer resources.
+references are locked by digest, and each chart version identifies one committed
+release. The publisher holds no cluster credentials and never applies customer
+resources.
 
-The installation owner maintains a private configuration repository containing Helm
-values, gateway control data, public trust material, image locks, and Kubernetes
-resources outside the charts. Secret bytes remain in the owner's secret-management
-system and enter workloads through existing Kubernetes Secret references. One setting
-has one owner; an additional deployment document must not repeat chart selection,
-values, Secret bindings, and apply order.
+The installation owner keeps a private configuration repository with Helm values,
+gateway control data, public trust material, image locks, and any Kubernetes
+resources outside the charts. Secret values stay in the owner's secret manager and
+reach workloads through existing Kubernetes Secret references. Each setting has one
+owner. A second deployment document must not repeat chart selection, values, Secret
+bindings, or apply order.
 
-The installation owner also supplies the Kubernetes cluster and reconciliation
-controller. Flux is the reference GitOps implementation, not a Veoveo runtime
-dependency. The Veoveo root Kustomization begins after the controller and repository
-credentials exist, and it cannot install, upgrade, or delete that controller. Direct
-Helm and other GitOps controllers consume the same package and configuration contracts.
+The installation owner also supplies the Kubernetes cluster and the reconciliation
+controller. Flux is the reference GitOps controller; Veoveo does not depend on it at
+runtime. The Veoveo root Kustomization starts only after the controller and its
+repository credentials exist, and it cannot install, upgrade, or delete that
+controller. Direct Helm and other GitOps controllers use the same charts and
+configuration.
 
-The platform chart and independently deployable MCP extension charts reconcile as
-separate applications. A customer-authored extension does not require Veoveo's build
-system once its image and chart are published, but its gateway registration continues
-to use the canonical control-plane, internal-trust, policy, audit, task, artifact, and
-URI contracts.
+The platform chart and each independently deployable MCP extension chart reconcile
+as separate applications. Once a customer-authored extension's image and chart are
+published, it needs nothing from Veoveo's build system. Its gateway registration
+still uses the standard control-plane, internal-trust, policy, audit, task, artifact,
+and URI contracts.
 
-Typed deployment profiles are confined to disposable repository-development
-environments. They are not an enterprise installation API. The Rust smoke harness
-verifies a reconciled installation and does not own installation orchestration.
+Typed deployment profiles exist only for disposable development environments in this
+repository. They are not an installation API for enterprises. The Rust smoke harness
+checks a reconciled installation; it does not orchestrate installation.
 
 ## Tenancy
 
-One installation represents one enterprise boundary and may contain multiple
-internal tenants. A tenant is a hard data and authorization partition inside
-that installation, not a customer account in a vendor service.
+One installation represents one enterprise and may contain several internal
+tenants. A tenant is a hard partition of data and authorization inside that
+installation. It is not a customer account in a vendor service.
 
-Tenant and principal identities resolve through one canonical platform identity
-mapping. Tasks, artifacts, frames, recordings, agents, grants, audit events, and
-outbox events must use those same canonical record identities. A subsystem must not
-invent a parallel tenant or principal namespace.
+Tenant and principal identities resolve through one platform identity mapping.
+Tasks, artifacts, frames, recordings, agents, grants, audit events, and outbox
+events all use those record identities. No subsystem may define its own tenant or
+principal namespace.
 
 ## Durable platform store
 
-SurrealDB `3.2.4` is the required durable platform store. The canonical topology
-is one SurrealDB node using RocksDB storage. Application services may scale
-horizontally; database high availability is not claimed by this release.
+SurrealDB `3.2.4` is the required platform store. The supported topology is one
+SurrealDB node on RocksDB storage. Application services may scale horizontally; this
+release makes no claim of database high availability.
 
-SurrealDB owns durable identity, control-plane revisions, policies, tasks,
-provider jobs and webhook events, artifact metadata and grants, coordinate
-registries, recordings and segments, agents and wakes, audit evidence, and the
-transactional outbox.
+SurrealDB stores identity, control-plane revisions, policies, tasks, provider jobs
+and webhook events, artifact metadata and grants, coordinate registries, recordings
+and segments, agents and wakes, audit records, and the transactional outbox.
 
-The transactional outbox and replayable changefeed are the source of truth for
-cross-process work. SurrealDB LIVE queries are a latency optimization because
-their delivery order is best effort; a consumer resumes from its durable outbox
-checkpoint after a disconnect or restart.
+Cross-process work is driven by the transactional outbox and its replayable
+changefeed. SurrealDB LIVE queries only reduce latency, because their delivery order
+is best effort. After a disconnect or restart, a consumer resumes from its outbox
+checkpoint.
 
-Schema migration uses installation-admin credentials. Runtime workloads use a
-database-level runtime user and do not run migrations on connection.
+Schema migrations run with installation-admin credentials. Runtime workloads connect
+as a database-level runtime user and never run migrations.
 
 ## DuckDB execution
 
-DuckDB remains an arbitrary-SQL analytical capability. Veoveo does not replace
-SQL with a fixed query builder or a read-only subset.
+DuckDB accepts arbitrary SQL for analysis. Veoveo does not replace it with a fixed
+query builder or a read-only subset.
 
-Each request executes in a bounded sandbox with locked configuration and
-extensions, memory/thread/spill limits, response row and byte limits, governed
-external-source attachment, and container defense in depth. External data enters
-through governed ingest, artifact, or explicitly authorized HTTPS attachment
-paths. A mutating query interrupted after execution begins fails as
-`interrupted_indeterminate` and is never replayed automatically.
+Each request runs in a sandbox with locked configuration and extensions, memory,
+thread, and spill limits, response row and byte limits, policy-checked attachment of
+external sources, and container-level isolation as a second layer. External data
+arrives through ingest, artifacts, or explicitly authorized HTTPS attachment. A
+mutating query interrupted after it starts fails as `interrupted_indeterminate` and is
+never replayed automatically.
 
-DuckDB is not the durable multi-process platform database.
+DuckDB is not the platform's multi-process coordination database; SurrealDB is.
 
 ## Optimization execution
 
-Optimization exposes typed vehicle-routing, route-scenario, continuous convex,
-and linear mixed-integer problem families. It does not expose a generic planning
-graph or preserve the retired planner contract. Map owns geography and publishes
-immutable `veoveo.io/travel-model-artifact/v1` matrices; Optimization consumes
-those matrices without recomputing GIS costs.
+Optimization offers typed problem families for vehicle routing, route scenarios,
+continuous convex problems, and linear mixed-integer problems. It has no generic
+planning graph and no support for the retired planner contract. Map owns geography
+and publishes immutable `veoveo.io/travel-model-artifact/v1` matrices. Optimization
+uses those matrices as-is and never recomputes GIS costs.
 
-The Rust Optimization server owns public identities, authorization, validation,
-compilation, durable tasks, solver admission, artifacts, and independent
-verification. A pod-local Python sidecar owns only NVIDIA cuOpt execution through
-`veoveo.io/cuopt-executor/v1`. The sidecar runs the digest-pinned cuOpt 26.08 and
-CUDA 13.3 image, requests one NVIDIA GPU, and fails closed when the runtime,
-driver, or device is unavailable. There is no CPU solver, GPU-optional profile,
-or public executor endpoint.
+The Rust Optimization server handles public identities, authorization, validation,
+compilation, long-running tasks, solver admission, artifacts, and independent
+verification. A pod-local Python sidecar only runs NVIDIA cuOpt, over
+`veoveo.io/cuopt-executor/v1`. The sidecar uses the digest-pinned cuOpt 26.08 and
+CUDA 13.3 image, requests one NVIDIA GPU, and refuses to start when the runtime,
+driver, or device is missing. There is no CPU solver, GPU-optional profile, or public
+executor endpoint.
 
-Solver status is not acceptance evidence. The control plane recalculates route
-feasibility, variable bounds, integrality, constraints, and objective values
-before publishing an immutable solution linked to its exact problem and run.
+A solver's own status never counts as acceptance. Before publishing an immutable
+solution linked to its problem and run, the server recalculates route feasibility,
+variable bounds, integrality, constraints, and objective values itself.
 
 ## Recording ingest
 
-Recording ingest uses one authenticated, resumable batch protocol from Kubernetes, a
-local network, or the public edge. Network placement changes only the route to the
-gateway. Every producer presents an OAuth client-credentials token for the installation's
-recording resource and is bound to an installation-owned tenant, dataset, application
-allowlist, classification, labels, retention policy, and quota set.
+Producers upload recordings with one authenticated, resumable batch protocol, whether
+they run in Kubernetes, on a local network, or across the internet. Network location
+changes only the route to the gateway. Every producer presents an OAuth
+client-credentials token for the installation's recording resource. The token binds
+the producer to an installation-owned tenant, dataset, application allowlist,
+classification, labels, retention policy, and quota set.
 
-Native Rerun gRPC terminates at a loopback producer forwarder. Recording Hub accepts only
-the gateway's short-lived internal assertion and never exposes the Rerun proxy as an
-installation service, NodePort, or public route. The forwarder and hub retain batches
-until a monotonic durable checkpoint makes replay idempotent.
+Native Rerun gRPC ends at a forwarder on the producer's loopback interface. Recording
+Hub accepts only the gateway's short-lived internal assertion. It never exposes the
+Rerun proxy as an installation service, NodePort, or public route. The forwarder and
+Hub both keep each batch until a monotonic checkpoint is durable, which makes replay
+idempotent.
 
-Durability begins with a validated, fsynced batch journal and its SurrealDB checkpoint.
-Small RRD parts are the ordered write-path materialization of that journal. They remain
-internal. Finishing and rollover run one fail-closed object-store compaction pass that
-publishes an immutable, footer-indexed archive shard. The normal shard boundary is one
-hour or 192 MiB of unoptimized input, and video rollover starts the next shard at a
-decoder-reentrant batch. The producer-local forwarder begins a durable batch at every
-H.264 sample. Hub recognizes only an access unit containing SPS, PPS, and IDR as an
-eligible shard boundary. Frozen and sealed archive shards remain the governed long-term
-recording authority.
+A batch counts as durable once it is validated, fsynced to the batch journal, and
+checkpointed in SurrealDB. Small internal RRD parts are written in journal order.
+Finishing a recording, or rolling over to a new shard, runs one compaction pass that
+publishes an immutable, footer-indexed archive shard to object storage, and the pass
+aborts on any error. A shard normally covers one hour or 192 MiB of unoptimized input.
+For video, the forwarder starts a new batch at every H.264 sample, and Hub starts a
+new shard only at an access unit containing SPS, PPS, and IDR, so each shard can be
+decoded on its own. Frozen and sealed archive shards are the long-term record.
 
-Console live playback receives bounded recent history and follows the authorized writing
-segment after each Hub flush. Completed playback opens one recording-scoped Rerun Data
-Protocol dataset. Immutable shards are layers of its stable segment, and Rerun fetches
-footer-indexed chunks as the active view requires them. Live messages use the same dataset
-and segment identity. No request path opens every shard, rebuilds, or concatenates the
-whole recording.
+Console live playback loads recent history, then follows the writing segment after
+each Hub flush. Completed playback opens one Rerun Data Protocol dataset per
+recording. Its immutable shards are layers of one stable segment, and Rerun fetches
+footer-indexed chunks only as the view needs them. Live messages use the same dataset
+and segment identity. No request opens every shard, rebuilds the recording, or
+concatenates it.
 
-Bounded Stream replay and Reason tasks may analyze the writing recording before rollover.
-Their governed read plan captures only complete acknowledged ingest parts, copies those
-parts into task-local storage, and records their immutable identities in output
-provenance. A task never reads an incomplete Hub write or attaches to a producer proxy.
+Stream replay and Reason tasks can analyze a recording that is still being written.
+Their read plan takes only the ingest parts Hub has fully acknowledged, copies them
+to task-local storage, and records their identities in the output's provenance. A
+task never reads a partial Hub write and never attaches to a producer proxy.
 
 ## Task execution and provider completion
 
-Long-running work uses the shared durable task runtime. Task IDs are UUIDv7 and
-state transitions, leases, cancellation, results, and outbox events are atomic.
+Long-running work uses the shared task runtime. Task IDs are UUIDv7. State
+transitions, leases, cancellation, results, and outbox events commit atomically.
 Idempotency keys are scoped by tenant, principal, profile, server, and operation.
 
-Recovery is explicit per task:
+Each task declares how it recovers:
 
-- `resume`: deterministic, side-effect-safe work may be reclaimed after its
+- `resume`: deterministic work without side effects may be reclaimed after its
   lease expires;
-- `webhook_wait`: a durably submitted provider job waits for its signed webhook;
+- `webhook_wait`: a provider job that was durably submitted waits for its signed
+  webhook;
 - `interrupted_indeterminate`: interrupted mutating work fails and is not run
   again automatically.
 
-These are the currently implemented recovery classes. The accepted extension is a
-provider-specific completion/recovery profile under
+These are the recovery classes implemented today. The accepted extension is a
+provider-specific completion and recovery profile under
 [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md#ce-01-provider-completion-follows-qualified-semantics).
-Native authenticated events are preferred. Definitive synchronous results and
-bounded authoritative status reconciliation are permitted by a qualified adapter;
-an API-only provider may declare a bounded polling profile. Missing events and
-expired waits preserve uncertain effects and resource fencing. Recovery cannot
-redispatch a mutation without proven safety. Media retains its signed-webhook
-profile until an explicit replacement passes its own qualification.
+Native authenticated events are preferred. A qualified adapter may also use
+definitive synchronous results and limited status reconciliation against the
+provider, and an API-only provider may declare a polling profile with fixed limits.
+When an event is missing or a wait expires, the task keeps the effect marked as
+uncertain and keeps its resource fence. Recovery never re-sends a mutation unless it
+is proven safe. Media keeps its signed-webhook profile until a replacement passes its
+own qualification.
 
 ## Artifacts and sharing
 
-Every artifact occurrence has a fresh opaque UUIDv7 identity and canonical
-`artifact://{id}` URI. Content hashes provide integrity and tenant-local blob
-deduplication; they are not public addresses. Equal bytes in different tenants
-never share a storage key or authorization record.
+Every artifact occurrence gets a fresh opaque UUIDv7 identity and an
+`artifact://{id}` URI. Content hashes are used for integrity checks and for
+deduplication within a tenant. They are never public addresses. Identical bytes in
+two tenants never share a storage key or authorization record.
 
-The artifact service is the byte-level policy enforcement point. Domain servers
-forward the gateway-signed identity they received and cannot mint identities for
-background completion. Asynchronous producers redeem bounded, expiring artifact
-write capabilities that were issued while a live identity was present.
+The artifact service enforces policy on every byte read and write. Domain servers
+forward the gateway-signed identity they received and cannot create identities to
+finish work in the background. Asynchronous producers instead redeem an artifact
+write capability that was issued while a live identity was present. The capability
+is limited in size and scope and expires.
 
-Artifacts support two distinct sharing modes:
+Artifacts can be shared in two ways:
 
-- authorized grants to users or groups, still constrained by tenant and label
-  policy;
-- read-only anyone-with-link bearers for artifacts explicitly marked
-  releasable.
+- authorized grants to users or groups, still limited by tenant and label policy;
+- read-only links that anyone holding them can open, for artifacts explicitly
+  marked releasable.
 
-Link tokens are random, stored only as hashes, default to seven days, may not
-exceed thirty days, and are revocable. Public links never confer write or admin
-access. The current client-facing transfer route uses the installation origin selected by
-`global.publicBaseUrl`. Large authorized, ranged, and public-share downloads are
-policy-checked and streamed through Artifact service. Object storage remains private,
-has no client-addressable hostname, and never issues a redirect to a client.
+Link tokens are random and stored only as hashes. They last seven days by default,
+at most thirty, and can be revoked. A public link never gives write or admin access.
+Clients reach artifacts through the installation origin set by
+`global.publicBaseUrl`. Large authorized downloads, ranged downloads, and public-share
+downloads are checked against policy and streamed through the Artifact service.
+Object storage is private, has no hostname clients can reach, and never redirects a
+client.
 
-Artifact remains the authority when a future qualified transfer profile uses an
-installation-owned endpoint. Such a profile must prove its method/object scope,
-quota, integrity, publication, and revocation semantics and demonstrate a measured
-benefit. Presigned object transfer is not currently supported. URL expiration alone
-cannot prove active-stream revocation. The implementation gate is
+If a future transfer profile uses a separate installation-owned endpoint, the
+Artifact service still decides access. Such a profile must prove its method and
+object scope, quota, integrity, publication, and revocation behavior, and show a
+measured benefit. Presigned object transfer is not supported today, partly because
+URL expiry alone cannot revoke a stream that is already running. The implementation
+gate is
 [`CE-09`](CONTRACT_EVOLUTION.md#ce-09-artifact-authority-can-admit-qualified-transfer-routes).
 
 ## MCP protocol surface
 
-The gateway and hosted servers use the MCP protocol features that fit their
-domains: tools, resources and templates, prompts, completions, tasks,
-subscriptions, notifications, structured content with declared schemas, and URI
-identities.
+The gateway and hosted servers use whichever MCP features fit their domain: tools,
+resources and templates, prompts, completions, tasks, subscriptions, notifications,
+structured content with declared schemas, and URI identities.
 
-Tool helpers for clients with weak resource or task support may be added only as
-explicit projections over the canonical behavior. They reuse the same models,
-policy checks, audit events, task state, and artifact identities. They are not a
-second implementation or a fallback completion path.
+Helper tools for clients with weak resource or task support may be added only as
+thin wrappers over the standard behavior. They reuse the same models, policy checks,
+audit events, task state, and artifact identities. They never implement the
+operation a second time or complete it by a different path.
 
-Federated discovery failure is a profile-selected decision, not an implicit
-behavior. The default isolates an unavailable server and reports its degradation
-through typed metadata; a profile that declares `fail_closed` discovery refuses
-the whole tool list instead, so an autonomous client can never act on a silently
-incomplete toolset. No profile may degrade silently.
+Each profile chooses how it handles a failed server during discovery. By default,
+the gateway leaves the unavailable server out and reports the gap in typed metadata.
+A profile that declares `fail_closed` discovery refuses the whole tool list instead,
+so an autonomous client never acts on a toolset that is incomplete without saying so.
+No profile may drop a server silently.
 
 ## Hosted server administration
 
-Domain administration is part of the hosted server's MCP contract. Servers use
-scoped tools for mutations, resources for reads, durable tasks for long-running
-work, and MCP Apps when a browser view fits the domain. These surfaces retain the
-same typed models, policy checks, audit evidence, task state, artifact identities,
-and canonical resource URIs as every other operation.
+Domain administration is part of each hosted server's MCP contract. Servers use
+scoped tools for changes, resources for reads, tasks for long-running work, and MCP
+Apps when a browser view suits the domain. These use the same typed models, policy
+checks, audit records, task state, artifact identities, and resource URIs as every
+other operation.
 
-A server may declare an additive HTTP administration projection at
-`{mount}/admin/*` when an accepted client or installation workflow cannot use the
-canonical MCP surface. The gateway exposes that projection at
-`/admin/{profile}/servers/{server}/{*path}`. It resolves the active catalog,
-authorizes the operation, records audit evidence, and forwards a short-lived
-internal identity assertion. The owning server validates that assertion and
-applies the request through its canonical domain models and state.
+A server may also declare an HTTP administration API at `{mount}/admin/*` for an
+accepted client or installation workflow that cannot use MCP. The gateway exposes it
+at `/admin/{profile}/servers/{server}/{*path}`. The gateway looks up the active
+catalog, authorizes the operation, records it in the audit log, and forwards a
+short-lived internal identity assertion. The server validates that assertion and
+applies the request through the same domain models and state that its MCP tools use.
 
-Health is a declared contract, never an inference. Every catalog entry names an
-explicit `health_url` beside its MCP endpoint; the gateway probes it with an
-unauthenticated GET and treats only a success status as healthy. An MCP request,
-an authentication failure, or a method rejection is never a health signal, and a
-fragment without a health endpoint fails control-plane validation.
+Every catalog entry declares an explicit `health_url` next to its MCP endpoint. The
+gateway sends that URL an unauthenticated GET and treats only a success status as
+healthy. It never infers health from an MCP request, an authentication failure, or a
+rejected method. A fragment without a health endpoint fails control-plane validation.
 
-An HTTP projection never replaces MCP, invents alternate resource identities, or
-becomes a second source of truth. Generic server documentation under
-`{mount}/admin/docs/*` remains a read-only self-description projection. The
-Console uses installation-wide BFF routes for platform administration and hosts
-domain MCP Apps for server-owned workflows. Each server design document declares
-any accepted HTTP projection, its scopes, and its relationship to the canonical
-MCP resources and tools.
+An HTTP administration API adds to MCP; it never replaces it, invents other resource
+identities, or keeps its own copy of state. Generic server documentation under
+`{mount}/admin/docs/*` is read-only. The Console uses installation-wide BFF routes for
+platform administration and hosts each server's MCP Apps for that server's workflows.
+Each server's design document lists any accepted HTTP API, its scopes, and how it maps
+to the server's MCP resources and tools.
 
 ## Identity and internal trust
 
-Operator authentication is provider-independent OIDC/OAuth with discovery and
-JWKS verification. Keycloak is the integration-test identity provider; Entra is
+Operators sign in through any OIDC/OAuth provider that supports discovery and JWKS
+verification. Keycloak is the identity provider used in integration tests. Entra is
 a reference configuration, not a product dependency.
 
-The gateway alone signs short-lived internal identity assertions with Ed25519.
-Hosted services receive a public JWKS trust bundle, require a `kid`, and never
-receive the private signing key. Rotation distributes overlapping old and new
-public keys before the gateway changes its signing key.
+Only the gateway signs short-lived internal identity assertions, using Ed25519.
+Hosted services receive a public JWKS trust bundle, require a `kid`, and never see the
+private signing key. During rotation, services receive both the old and new public
+keys before the gateway switches signing keys.
 
-Refresh-token rotation remains strict across gateway replicas, with one bounded
-exception for concurrent stateless BFF delivery. For a few configured seconds,
-the consumed token may redeliver the identical successor from an authenticated
-encrypted envelope; afterward, reuse revokes the family as replay. The envelope
-key is separate from signing and browser-session keys, plaintext is not
-persisted, and delivery ciphertext is excluded from logs, audit, outbox, and
-console projections. A successor consumption clears its envelope atomically;
-otherwise expired envelopes are ineligible immediately and physically removed by a
-dedicated one-minute GC pass.
+Refresh-token rotation is strict across gateway replicas, with one limited exception
+for concurrent requests from the stateless BFF. For a few configured seconds, a
+just-consumed token can receive the same successor token again, delivered from an
+authenticated, encrypted envelope. After that window, reusing the token counts as
+replay and revokes the whole token family. The envelope key is separate from the
+signing and browser-session keys. Plaintext tokens are never persisted, and the
+delivery ciphertext never appears in logs, audit records, outbox events, or Console
+data. Consuming the successor clears its envelope in the same transaction. Expired
+envelopes can no longer be delivered, and a dedicated garbage-collection pass removes
+them every minute.
 
-Helm deployments separate migration-admin and runtime database
-credentials, use existing Kubernetes Secrets, support service-mesh mTLS, and
-apply default-deny network policy. The k3d profile binds local projections to
-loopback and keeps TraCI inside the cluster.
+Helm deployments use separate migration-admin and runtime database credentials, read
+existing Kubernetes Secrets, support service-mesh mTLS, and apply default-deny network
+policy. The k3d profile binds local endpoints to loopback and keeps TraCI inside the
+cluster.
 
 ## Operations console
 
-The React console is an operational interface, not a marketing site. Its first
-screen is the live installation: health, work, artifacts, agents, recordings,
-MCP topology, policies, audit evidence, and installation state.
+The React Console is a working operations tool. Its first screen shows the live
+installation: health, work, artifacts, agents, recordings, MCP topology, policies,
+audit records, and installation state.
 
-The in-install console BFF owns browser login, PKCE, encrypted HttpOnly sessions,
-CSRF enforcement, and authorized API aggregation. It is not a source of truth;
-mutations go through the gateway or owning service, and reads come from governed
-platform projections.
+The Console BFF inside the installation handles browser login, PKCE, encrypted
+HttpOnly sessions, CSRF checks, and authorized API aggregation. It stores no state of
+its own. Changes go through the gateway or the owning service, and reads come from
+platform data the caller is authorized to see.
 
 ## Agent control
 
-Agent control is policy authority, not principal-kind authority. Reading agent
-state, sending an agent a message, and answering a pending input request are
-gateway actions that every caller, signed-in user and service principal alike,
-must pass through the selected profile's action policy. This replaces the earlier
-human-only restriction: an installation that wants human-only control expresses
-it as policy, and one that admits automated responders grants that authority to
-named principals explicitly. Messages never carry implicit authority, remain
-actor-attributed and idempotent, and land inside the caller's exact tenant and
-Work Context.
+Policy decides who may control an agent, not the kind of principal making the
+request. Reading an agent's state, messaging it, and answering its pending input
+requests are gateway actions, and every caller must pass the selected profile's action
+policy, whether a signed-in user or a service principal. This replaces the earlier
+rule that only humans could control agents. An installation that wants human-only
+control writes that as policy. One that allows automated responders grants that
+authority to named principals. A message never carries implicit authority. Messages
+are attributed to their sender, are idempotent, and land in the caller's own tenant
+and Work Context.
 
 ## Recording and simulation
 
-The recording hub is a durable push path. Producers push Rerun log streams;
-the hub does not poll producers. Segment writes are fsynced, crash-decodable,
-verified before optimized replacement, and cataloged as governed tenant records.
-A recording MCP server exposes authorized discovery, queries, subscriptions,
-artifact publication, and one recording-scoped read-only Redap projection. It
-does not expose an unauthenticated Rerun proxy or general catalog.
+Recording Hub receives pushed data and stores it durably. Producers push Rerun log
+streams; Hub never polls producers. Segment writes are fsynced, can be decoded after a
+crash, are verified before an optimized copy replaces them, and are cataloged as
+tenant records with access control. The recording MCP server offers authorized
+discovery, queries, subscriptions, artifact publication, and one read-only Redap view
+per recording. It exposes no unauthenticated Rerun proxy or general catalog.
 
-SUMO is a domain showcase over these same contracts: one process owns TraCI,
-pushes world state to the recording hub, exposes MCP controls, and uses the
-shared durable task runtime. It does not carry a private compatibility task
-protocol or shell-based smoke framework.
+SUMO is a domain showcase built on the same contracts. One process owns the TraCI
+connection, pushes world state to Recording Hub, exposes MCP controls, and uses the
+shared task runtime. It has no private task protocol of its own and no shell-based
+smoke framework.
 
-The UAV simulation showcase follows the same control boundary at GPU scale.
-One MCP server serializes mutations for each simulation session, while a
-cluster-private adapter owns Isaac Sim, Cesium for Omniverse, Newton rigid bodies,
-the CUDA Warp UAV plant and sensors, PX4 HIL, MAVLink, and sensor capture. Google
-Photorealistic 3D Tiles rendered inside Isaac through Cesium ion are part of the
-delivered world contract. View MCP's
-direct Google source is independent and is not a substitute for simulator tile
-residency.
+The UAV simulation showcase applies the same control model on GPUs. One MCP server
+serializes changes to each simulation session. A cluster-private adapter runs Isaac
+Sim, Cesium for Omniverse, Newton rigid bodies, the CUDA Warp UAV plant and sensors,
+PX4 HIL, MAVLink, and sensor capture. Google Photorealistic 3D Tiles, rendered inside
+Isaac through Cesium ion, are part of the delivered world. View MCP loads Google tiles
+through its own separate source, which cannot stand in for the tiles loaded in the
+simulator.
 
-Frames MCP supplies the durable WGS84 origin and local frame identity. The UAV
-adapter materializes that definition before starting physics and performs
-high-rate ENU/NED conversion locally. Camera, transform, vehicle, mission,
-collision, and tile state enter Recording Hub as typed Rerun streams, and
-Stream consumes newly encoded simulator camera frames directly for live
-processing. Its reproducible replay profile consumes governed recording
-identities rather than a simulator-private media URL.
+Frames MCP supplies the WGS84 origin and local frame identity. The UAV adapter loads
+that definition before physics starts and does high-rate ENU/NED conversion locally.
+Camera, transform, vehicle, mission, collision, and tile state go into Recording Hub
+as typed Rerun streams. Stream reads newly encoded simulator camera frames directly for
+live processing. Its reproducible replay profile reads recordings by identity, never
+a media URL private to the simulator.
 
-The authoritative simulator also owns operator live cameras. Each logical camera has one
-final smoothed pose and one continuous RTX/NVENC H.264 product. Actor-and-browser
-authorizations share that exact encoded product. Camera smoothing
-changes only the logical operator-camera transform at the current simulator tick. The
-platform does not mirror scenes, transport visualization poses, reconcile a second
-renderer, duplicate encoding, or persist browser authorizations.
+The simulator also produces the operators' live camera views. Each logical camera has
+one final smoothed pose and one continuous RTX/NVENC H.264 stream, and every
+authorized actor and browser shares that stream. Camera smoothing changes only the
+logical camera's transform at the current simulator tick. Nothing else renders,
+encodes, or stores a copy of the scene, the camera poses, or the browser
+authorizations.
 
-The reference deployment runs the authoritative UAV simulator, View, Stream, Reason,
-the cuOpt executor, and the Rerun viewer concurrently. Their Helm workloads
-declare ordinary GPU requests and remain independently schedulable. No
-application profile disables one GPU service to admit another; cluster capacity
-must satisfy the complete six-workload declaration.
+The reference deployment runs six GPU workloads at once: the UAV simulator, View,
+Stream, Reason, the cuOpt executor, and the Rerun viewer. Each Helm workload requests
+its GPU normally and schedules independently. No profile disables one GPU service to
+make room for another, so the cluster must have capacity for all six.
 
-Visual workflows fail closed without hardware acceleration. Visual browser acceptance,
-interactive demonstrations, visual-evidence screenshots, and publication rendering require a
-headed browser with hardware-backed WebGPU or WebGL. Both APIs are probed when
-available; SwiftShader, llvmpipe, and software rasterizers do not count as
-hardware evidence.
+Visual workflows require hardware acceleration and stop without it. Visual browser
+acceptance, interactive demonstrations, screenshots used as visual evidence, and
+publication rendering all need a headed browser with hardware-backed WebGPU or WebGL.
+Both APIs are probed when available. SwiftShader, llvmpipe, and other software
+rasterizers do not count as hardware.
 
-Headless browser tests may establish nonvisual behavior such as forms, authorization,
-navigation, and keyboard handling. They carry behavioral evidence and cannot replace
-required visual or GPU acceptance. Tests may use maintained tooling in their owning
-language under the shared prerequisite, cleanup, diagnostics, and evidence contract.
-Labeled headless failure screenshots are diagnostic artifacts and never visual acceptance.
+Headless browser tests may check nonvisual behavior such as forms, authorization,
+navigation, and keyboard handling. Their results cannot stand in for required visual
+or GPU acceptance. Tests may use maintained tooling in their own language, following
+the shared rules for prerequisites, cleanup, diagnostics, and evidence. A labeled
+screenshot from a headless failure is a diagnostic, never visual acceptance.
 
-Browser H.264 playback is the only software exception. The exact Media
-Capabilities configuration must report `supported` and `smooth`, and the UI
-labels the path as software decode unless it is also `powerEfficient`. This
-exception does not relax hardware-backed browser graphics, server-side NVENC,
-GPU rendering, simulation, Stream perception, Reason execution, or cuOpt
-optimization.
+Browser H.264 playback is the one software exception. The exact Media Capabilities
+configuration must report `supported` and `smooth`, and the UI labels the path as
+software decode unless it is also `powerEfficient`. This exception does not relax the
+hardware requirement for browser graphics, server-side NVENC, GPU rendering,
+simulation, Stream perception, Reason, or cuOpt.
 
 ## Offline operation
 
-An offline bundle contains all pinned external images, Veoveo images, the Helm
-chart, configuration schemas, checksums, and SBOMs.
-Bundle creation occurs in a connected build environment; installation and
-verification must not require a registry, package index, vendor API, or Veoveo
-service. Provider-dependent features may be unavailable offline without changing
-the platform, artifact, recording, SQL, policy, or agent contracts.
+An offline bundle contains every pinned external image, the Veoveo images, the Helm
+chart, configuration schemas, checksums, and SBOMs. The bundle is built in a connected
+environment. Installing and verifying it must not need a registry, package index,
+vendor API, or Veoveo service. Features that depend on an outside provider may be
+unavailable offline, but the platform, artifact, recording, SQL, policy, and agent
+contracts stay the same.

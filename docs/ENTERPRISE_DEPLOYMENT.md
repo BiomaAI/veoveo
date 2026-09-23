@@ -2,9 +2,8 @@
 
 Veoveo ships Kubernetes software as OCI images and Helm charts. The installation
 owner supplies the cluster, registry access, configuration repository, secrets,
-identity, ingress, and reconciliation controller. This boundary keeps a customer
-installation recognizable to a Kubernetes platform team and prevents the product
-repository from becoming the owner of customer infrastructure.
+identity, ingress, and reconciliation controller. A Kubernetes platform team will
+recognize the result, and the Veoveo repository never owns customer infrastructure.
 
 Helm is the package contract. GitOps is the recommended reconciliation model, with
 Flux as the maintained reference. An operator may use another controller or direct Helm without
@@ -39,12 +38,11 @@ changing the chart, image, configuration, or Secret contracts.
 | Application reconciliation | Installation GitOps controller | Declared source, Kustomization, and release objects |
 | Acceptance evidence | Installation release process | Rust smoke, conformance, and operational evidence |
 
-The [Autonomy Harness](AUTONOMY_HARNESS.md) defines the continuous containment boundary,
-complete shared-responsibility matrix, and end-to-end operating proof for agents that
-remain autonomous throughout the installation lifecycle. Helm readiness establishes
-workload health, and the gateway independently probes each hosted server's declared
-health endpoint so a degraded server surfaces in the Console; the harness evidence
-proves that each effect stays inside its declared authority while agents keep running.
+The [Autonomy Harness](AUTONOMY_HARNESS.md) divides responsibility for always-on agents
+between Veoveo and the installation, and lists the tests that show each agent's effects
+stay within its authority. Helm readiness reports workload health. The gateway also
+probes each hosted server's health endpoint, so a degraded server shows up in the
+Console.
 
 The build pipeline publishes artifacts. It does not connect to customer clusters.
 The configuration repository selects published artifacts. It does not compile
@@ -53,17 +51,17 @@ cluster. The smoke harness verifies the resulting installation without owning it
 
 ## Installation Addressing
 
-The installation owner chooses the canonical client-facing origin, for example
+The installation owner chooses the client-facing origin, for example
 `https://veoveo.example.internal`. The name may resolve only through private DNS, an
-internal load balancer, or a VPN. It remains distinct from the private OCI registry and
-package-index coordinates.
+internal load balancer, or a VPN. It is separate from the private OCI registry and
+package-index addresses.
 
 `global.publicBaseUrl`, ingress hosts, OAuth protected resources, redirect URIs, and
 gateway issuer metadata derive from that one installation-owned origin. No Veoveo
 artifact embeds a universal service hostname, and private deployment does not require a
 public Veoveo control plane.
 
-Artifact downloads, Console downloads, and public-share bearers also remain on that
+Artifact downloads, Console downloads, and public-share links also use that
 origin. RustFS or an external S3-compatible service is private installation
 infrastructure. It has no client-facing ingress, DNS requirement, or presigned delivery
 contract.
@@ -102,20 +100,19 @@ An internal development registry may explicitly enable plain HTTP. A fielded reg
 uses TLS, authentication, immutable tags, retention policy, and vulnerability scanning
 supplied by the installation owner.
 
-Veoveo's profile publisher remains available for development and source-publication
-acceptance. The profile may live in a separate installation repository without making
+Veoveo's profile publisher is for development and source-publication acceptance. The profile may live in a separate installation repository without making
 `xtask` part of the fielded runtime or GitOps contract. It is documented in
 [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) and is not required in an
 installation repository.
 
-Direct group publication remains available to Veoveo release pipelines. A Veoveo-backed
-extension platform uses `external-extension-platform`; the canonical simulation base
-and overlays use their dedicated groups. The simulation image group is an ABI and GPU
-certification boundary, not proof that Frames, Map, Media, Optimization, or RRD
-services were installed. The installation's typed chart selection and composed gateway
-requirements supply that proof.
+Veoveo release pipelines can also publish image groups directly. A Veoveo-backed
+extension platform uses `external-extension-platform`; the simulation base and
+overlays use their dedicated groups. The simulation image group certifies ABI and GPU
+compatibility. It does not show that Frames, Map, Media, Optimization, or RRD services
+were installed; the installation's typed chart selection and composed gateway
+requirements show that.
 
-The canonical simulation runtime is a separate build dependency because UAV and
+The simulation runtime is a separate build dependency because UAV and
 external simulator overlays consume it as a named build context. The deployment
 profile derives the exact required platform targets and records their combined
 immutable closure.
@@ -152,12 +149,11 @@ generate ConfigMaps from committed non-secret outputs. There is no second instal
 document that repeats releases, values files, Secret keys, and apply order.
 
 Environment overlays use the native composition mechanism chosen by the enterprise:
-Helm values, Kustomize, or the GitOps controller's generator. One setting has one
-canonical owner. A value is not copied into a general repository configuration file
-merely because one installation needs it.
+Helm values, Kustomize, or the GitOps controller's generator. Each setting has one
+owner. Do not copy a value into a shared repository configuration file because one
+installation needs it.
 
-The Console public OAuth identity and its network route have separate installation
-ownership. Keep `consoleBff.oauthResource` at the public protected-resource URL and set
+The Console's public OAuth identity and its network route are configured separately. Keep `consoleBff.oauthResource` at the public protected-resource URL and set
 `consoleBff.mcpTransportUrl` to the endpoint reachable by the BFF pod. Corporate roots
 belong in a non-secret installation ConfigMap selected by
 `consoleBff.outboundCa.existingConfigMap`; the chart mounts its configured PEM key and
@@ -180,8 +176,8 @@ The platform chart expects these Secret contracts by default:
 | veoveo-surreal-runtime | username, password |
 | veoveo-installation-secrets | internal-signing-key-der-b64, internal-signing-key-id, internal-trust-jwks, oidc-client-secret, authorization-server-private-key-der-b64, refresh-delivery-key-b64, console-session-key, recording-playback-token-key, object-store-access-key, object-store-secret-key, media-provider-api-key, google-maps-api-key, media-provider-webhook-secret |
 
-An extension declares its own least-privilege Secret references. It does not add
-provider credentials to the platform Secret merely for convenience. Registry
+An extension declares its own least-privilege Secret references. Its provider
+credentials stay out of the platform Secret. Registry
 credentials use a Kubernetes image pull Secret selected through Helm values.
 
 Flux repository credentials are also platform Secrets. They authorize Flux to read
@@ -210,24 +206,24 @@ configured name references. A release-input commit changes the chart reference a
 values references on the same HelmRelease object. Flux can then wait for the new chart
 source instead of combining its previous artifact with new values.
 
-This boundary matters when a chart changes its values schema. Updating a stable values
+The pattern matters when a chart changes its values schema. Updating a stable values
 ConfigMap and a stable OCIRepository separately can trigger an upgrade before the new
 chart artifact is available. The Bioma reference exercises the immutable-input pattern
 for Veoveo and its UAV extension. Other installation repositories use the same pattern.
 [Flux documents generated values references](https://fluxcd.io/flux/guides/helmreleases/#refer-to-values-in-configmaps-generated-with-kustomize).
 
 The controller reconciles drift continuously. Routine releases change Git and let the
-controller converge. kubectl apply and helm upgrade are bootstrap and recovery tools,
-not concurrent owners of the same application resources.
+controller converge. Use kubectl apply and helm upgrade only for bootstrap and recovery, never to manage
+application resources alongside the controller.
 
 ## Independently deployed MCP extensions
 
 An extension packages its Kubernetes workload in its own Helm chart. The installation
 adds a HelmRelease for that chart, selects its immutable release manifest, and
 binds its gateway fragment through installation-owned policy. The deterministic
-composer registers routes and capabilities in the complete control plane. This
-separates scheduling and rollout while preserving one MCP authority and one
-authorization boundary.
+composer registers routes and capabilities in the complete control plane. The
+extension schedules and rolls out on its own, while every MCP call still passes
+through the one gateway and its authorization.
 
 An extension release normally selects two artifacts:
 
@@ -243,7 +239,7 @@ authentication failure, or a method rejection as a health signal. A fragment wit
 Private MCP servers follow the same pattern. They use their repository's native build
 system and do not join the Veoveo workspace. Their chart consumes the versioned
 `veoveo-extension` library from the configured private OCI registry or verified offline
-bundle. Their gateway fragment still uses the canonical typed control-plane model,
+bundle. Their gateway fragment still uses the typed control-plane model,
 internal assertion trust, policy checks, audit path, and URI identities. The complete
 normative server requirements, including the well-known docs and contract resources,
 are in
@@ -268,16 +264,15 @@ helm upgrade --install veoveo \
 The operator must apply the gateway ConfigMap and provision every referenced Secret
 before Helm starts workloads. `values/veoveo.yaml` supplies the explicit
 `gateway.controlPlaneRevision` digest for the complete mounted public bundle. Another
-GitOps system should express those same ordering
-and ownership boundaries rather than translating them into a Veoveo-specific
-orchestrator.
+GitOps system should enforce the same ordering and ownership with its own
+mechanisms. Veoveo does not ship an orchestrator for it.
 
 ## Upgrade and rollback
 
 A release change updates selected release manifests, chart versions, and image digests
 in one reviewed commit.
 Automated reconciliation may self-heal configuration drift, but promotion between
-environments remains an explicit Git change. Rollback restores the previous known-good
+environments is always an explicit Git change. Rollback restores the previous known-good
 manifests and digests. Database migration compatibility belongs to release notes and
 must be evaluated before promotion.
 

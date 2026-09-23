@@ -22,7 +22,7 @@ export class Capture {
   constructor(private callbacks: Callbacks) {}
 
   async start() {
-    if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser cannot capture microphone audio.");
+    if (!navigator.mediaDevices?.getUserMedia || !window.AudioWorkletNode) throw new Error("This browser can't record from the microphone. Try a current version of Chrome, Edge, Firefox, or Safari.");
     this.context = new AudioContext({ sampleRate: 48000 });
     await this.context.resume();
     this.media = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }, video: false });
@@ -31,7 +31,7 @@ export class Capture {
     const snapshot = await dictation("", "POST", { id: this.id, sample_rate: this.context.sampleRate }, this.abort.signal);
     this.admitted = true;
     if (this.closed) { await this.cancel(); return; }
-    if (snapshot.id !== this.id || snapshot.status !== "listening") throw new Error("The microphone session could not start.");
+    if (snapshot.id !== this.id || snapshot.status !== "listening") throw new Error("The microphone session couldn't start. Try again.");
     this.source = this.context.createMediaStreamSource(this.media);
     this.node = new AudioWorkletNode(this.context, "speech-pcm", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
     this.node.port.onmessage = (event: MessageEvent<unknown>) => {
@@ -45,7 +45,7 @@ export class Capture {
       this.writes = this.writes.then(async () => {
         if (this.closed) return;
         const snapshot = await dictation(`/${this.id}/chunks/${sequence}`, "PUT", bytes, this.abort.signal);
-        if (snapshot.id !== this.id || snapshot.next_sequence !== sequence + 1 || snapshot.status === "failed") throw new Error("Dictation was interrupted. You can keep the available text.");
+        if (snapshot.id !== this.id || snapshot.next_sequence !== sequence + 1 || snapshot.status === "failed") throw new Error("Dictation was interrupted. You can keep the text captured so far.");
         if (snapshot.transcript) this.callbacks.partial(snapshot.transcript.text);
       }).catch(error => this.fail(error instanceof Error ? error.message : "Dictation was interrupted.")).finally(() => { this.queued--; });
     };
@@ -67,10 +67,10 @@ export class Capture {
     });
     this.release();
     await this.writes;
-    if (this.closed) throw new Error("Dictation was interrupted. You can keep the available text.");
+    if (this.closed) throw new Error("Dictation was interrupted. You can keep the text captured so far.");
     try {
       const snapshot = await dictation(`/${this.id}/finish`, "POST", undefined, this.abort.signal);
-      if (snapshot.id !== this.id || snapshot.status !== "completed") throw new Error("Dictation could not finish. You can keep the available text.");
+      if (snapshot.id !== this.id || snapshot.status !== "completed") throw new Error("Dictation couldn't finish. You can keep the text captured so far.");
       this.closed = true;
       return snapshot.transcript?.text ?? "";
     } catch (error) { await this.cancel(); throw error; }

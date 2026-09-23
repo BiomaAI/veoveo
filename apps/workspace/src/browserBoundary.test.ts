@@ -45,7 +45,7 @@ test("shared browser components require explicit immutable application authority
   };
   try {
     browserSession.csrfToken = undefined;
-    await assert.rejects(browserJson("computers", {}), /session is not ready/);
+    await assert.rejects(browserJson("computers", {}), /session isn't ready/);
     assert.equal(calls, 0);
     browserSession.csrfToken = "workspace-csrf";
     assert.deepEqual(await browserJson("computers", {}), { admitted: true });

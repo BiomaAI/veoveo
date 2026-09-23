@@ -25,7 +25,7 @@ export function AgentParticipation({ policy, agents, busy, onSave }: {
     </label>)}
     <p className="muted">{draft.mode === "on_request" ? "People select agents or begin a message with @Name to request a response."
       : draft.mode === "default" ? "This assistant responds when a human message addresses no other agent."
-      : "These agents respond to new human messages. Up to four may respond to each message."} Agent replies never trigger another response. Capabilities use the sender's current permissions; Task results stay in their private Activity.</p>
+      : "These agents respond to new human messages. Up to four may respond to each message."} Agent replies never trigger another response. Agents use tools with the permissions of the person who sent the message.</p>
     <button disabled={!valid || JSON.stringify(draft) === JSON.stringify(policy)} onClick={() => onSave(draft)}>Save participation</button>
   </fieldset>;
 }

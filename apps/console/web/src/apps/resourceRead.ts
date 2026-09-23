@@ -67,7 +67,7 @@ export function interceptResourceReadRequests(
       typeof uri !== "string" ||
       (!ownedResource(app, uri) && !declaredDependency(app, uri))
     ) {
-      void reject(message.id, INVALID_PARAMS, "resource is not declared for this App")
+      void reject(message.id, INVALID_PARAMS, "This App can't read that resource.")
         .catch(report);
       return;
     }

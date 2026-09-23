@@ -99,7 +99,7 @@ export function DefinitionEditor({ api, initial, authoring, templates, changed, 
         {review.findings.length ? <ul>{review.findings.map((f, i) => <li key={i}>{f.message}</li>)}</ul> : <><p>Validation passed. This version will become available in the selected contexts.</p><button className="am-primary" disabled={!!busy || dirty} onClick={() => void act("Publishing", async () => {
           const value = { expectedRevision: definition.revision, digest: review.digest, audience: audience.split(",").map(v => v.trim()).filter(Boolean) };
           const result = await api.publish(id, { ...value, requestId: requestId("publish", value) });
-          setDefinition(result); setReview(undefined); setNotice("Published. Existing participants remain on their admitted revision.");
+          setDefinition(result); setReview(undefined); setNotice("Published. Chats that already include this agent keep the revision they use now.");
           const revisions = await api.revisions(id); setHistory(revisions.items); setNext(revisions.next);
         })}>Publish this revision</button></>}
       </div>}
@@ -113,8 +113,8 @@ export function DefinitionEditor({ api, initial, authoring, templates, changed, 
       {permission.control && definition.status !== "archived" && <button disabled={!!busy} onClick={() => definition.disabled ? void act("Enabling", () => update("enable")) : setConfirm("disable")}>{definition.disabled ? "Enable" : "Disable"}</button>}
       {permission.archive && definition.status !== "archived" && <button disabled={!!busy} onClick={() => setConfirm("archive")}>Archive</button>}
     </div>
-    {confirm && <div className="am-review" role="group" aria-label="Confirm agent status"><p>{confirm === "disable" ? "Disable this agent? Current execution will lose admission, including pinned revisions." : "Archive this definition? New participants will no longer be admitted. Existing participants may continue using their pinned revisions."}</p><button disabled={!!busy} onClick={() => void act("Updating status", () => update(confirm))}>Confirm {confirm}</button><button disabled={!!busy} onClick={() => setConfirm(undefined)}>Cancel</button></div>}
-    {permission.transfer && <details><summary>Transfer ownership</summary><p>The recipient must be an enabled principal in this tenant. Transfer does not grant Work Context access.</p><label>Principal UUID<input value={owner} onChange={e => setOwner(e.target.value)}/></label><button disabled={!!busy || !/^[0-9a-f-]{36}$/i.test(owner)} onClick={() => void act("Transferring ownership", async () => {
+    {confirm && <div className="am-review" role="group" aria-label="Confirm agent status"><p>{confirm === "disable" ? "Disable this agent? Running copies stop, including ones on older revisions." : "Archive this definition? It can no longer be added to chats. Chats that already include it can keep using their current revision."}</p><button disabled={!!busy} onClick={() => void act("Updating status", () => update(confirm))}>Confirm {confirm}</button><button disabled={!!busy} onClick={() => setConfirm(undefined)}>Cancel</button></div>}
+    {permission.transfer && <details><summary>Transfer ownership</summary><p>The new owner must be an active user or service account in this tenant. Transferring ownership doesn't give them access to the Work Context.</p><label>User or service account ID<input value={owner} onChange={e => setOwner(e.target.value)}/></label><button disabled={!!busy || !/^[0-9a-f-]{36}$/i.test(owner)} onClick={() => void act("Transferring ownership", async () => {
       await api.metadata(id, { requestId: requestId("transfer", owner), expectedRevision: definition.revision, change: { kind: "transfer", owner } });
       changed(); setNotice("Ownership transferred.");
     })}>Transfer</button></details>}

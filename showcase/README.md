@@ -1,20 +1,20 @@
 # Showcases
 
-Each showcase proves the platform end to end on a real external system. Every
-showcase is self-contained in its own subdirectory here: its images, MCP server,
-Helm chart, profile values, gateway configuration, and verification contract.
-That boundary keeps simulators independent and lets new ones arrive as siblings.
+Each showcase runs Veoveo against a real external simulator. A showcase keeps
+everything it needs in its own subdirectory: images, MCP server, Helm chart,
+profile values, gateway configuration, and acceptance tests. Simulators therefore
+do not depend on each other, and a new one is added as another subdirectory.
 
-| Showcase | What it proves |
+| Showcase | What it runs |
 |----------|----------------|
-| [`sumo/`](sumo/README.md) | The [SUMO](https://eclipse.dev/sumo/) traffic simulator as a live world: a task-native Rust MCP server owns the one TraCI connection, pushes `/world/sumo/**` into the Recording Hub as typed Rerun streams (map + 3D views of real Luxembourg), and exposes SUMO control as governed `sumo__*` tools. |
-| [`uav-sim/`](uav-sim/README.md) | Isaac Sim renders Google Photorealistic 3D Tiles through Cesium ion while Newton and a batched CUDA Warp plant simulate PX4-controlled UAVs; a provider-neutral MCP server governs sessions and missions, the encoded camera feeds Stream directly, and typed world state enters Recording Hub independently. |
+| [`sumo/`](sumo/README.md) | The [SUMO](https://eclipse.dev/sumo/) traffic simulator running the Luxembourg LuST scenario. A Rust MCP server holds the single TraCI connection, pushes `/world/sumo/**` to Recording Hub as typed Rerun streams (map and 3D views), and exposes SUMO control as `sumo__*` tools behind the gateway. |
+| [`uav-sim/`](uav-sim/README.md) | A four-vehicle PX4 fleet in Isaac Sim over Google Photorealistic 3D Tiles streamed through Cesium ion. Newton and a batched CUDA Warp plant simulate the vehicles. An MCP server manages sessions and missions. The encoded camera feeds Stream directly, and world state is recorded to Recording Hub on a separate path. |
 
-Component tests remain native Cargo commands. Cross-component acceptance lives
-in the typed Rust smoke harness and is dispatched through `cargo xtask smoke`.
-Deployment uses the same typed profile scenarios as every installation. SUMO's
-composition lives in `sumo/deploy/deployment.json`.
+Component tests are ordinary Cargo tests. Cross-component acceptance tests live
+in the Rust smoke harness and run through `cargo xtask smoke`. Showcases deploy
+with the same typed profiles as other local installations; SUMO's profile is
+`sumo/deploy/deployment.json`.
 
-The UAV runtime uses its Rust crate tests and the colocated Python adapter
-tests. Its installation-owned live proof requires NVIDIA registry access plus
-`CESIUM_ION_ACCESS_TOKEN`.
+The UAV showcase is tested by its Rust crate tests and the Python adapter tests
+beside them. Running it live on an installation requires NVIDIA registry access
+and a `CESIUM_ION_ACCESS_TOKEN`.

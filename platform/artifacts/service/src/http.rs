@@ -129,14 +129,30 @@ pub struct ApiError(ArtifactPlaneError);
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        // Response bodies can reach browsers through the gateway and anonymous
+        // share-link holders, so they carry fixed text. The access decision
+        // travels only in the header for internal clients, and backend detail
+        // stays in the service log.
         let (status, message) = match &self.0 {
-            ArtifactPlaneError::NotFound => (StatusCode::NOT_FOUND, self.0.to_string()),
-            ArtifactPlaneError::Denied(_) => (StatusCode::FORBIDDEN, self.0.to_string()),
-            ArtifactPlaneError::Unauthenticated => (StatusCode::UNAUTHORIZED, self.0.to_string()),
+            ArtifactPlaneError::NotFound => {
+                (StatusCode::NOT_FOUND, "Artifact not found.".to_owned())
+            }
+            ArtifactPlaneError::Denied(_) => (
+                StatusCode::FORBIDDEN,
+                "You don't have access to this artifact.".to_owned(),
+            ),
+            ArtifactPlaneError::Unauthenticated => (
+                StatusCode::UNAUTHORIZED,
+                "Sign in to access this artifact.".to_owned(),
+            ),
             ArtifactPlaneError::InvalidRequest(_) => (StatusCode::BAD_REQUEST, self.0.to_string()),
             ArtifactPlaneError::Conflict(_) => (StatusCode::CONFLICT, self.0.to_string()),
-            ArtifactPlaneError::Transport(_) => {
-                (StatusCode::SERVICE_UNAVAILABLE, self.0.to_string())
+            ArtifactPlaneError::Transport(detail) => {
+                tracing::error!("artifact request failed: {detail}");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "Artifact storage is temporarily unavailable. Try again shortly.".to_owned(),
+                )
             }
         };
         if let ArtifactPlaneError::Denied(decision) = &self.0
@@ -726,10 +742,10 @@ pub(crate) mod tests {
         GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
     };
     use veoveo_mcp_contract::{
-        AccessSubject, ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
-        CreateArtifactShareLinkRequest, InvocationAuthority, InvocationProvenance,
-        IssueArtifactWriteCapabilityRequest, PlaneCaller, PolicyVersion, Principal,
-        PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextId,
+        AccessDecision, AccessSubject, ArtifactPlane, ArtifactReleaseState,
+        ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest, InvocationAuthority,
+        InvocationProvenance, IssueArtifactWriteCapabilityRequest, PlaneCaller, PolicyVersion,
+        Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextId,
         WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
 
@@ -1008,5 +1024,30 @@ pub(crate) mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn error_bodies_do_not_expose_backend_detail_or_decision() {
+        let transport = ApiError(ArtifactPlaneError::Transport(
+            "surrealdb connection refused at 10.0.0.7".into(),
+        ))
+        .into_response();
+        assert_eq!(transport.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = axum::body::to_bytes(transport.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(
+            body.as_ref(),
+            b"Artifact storage is temporarily unavailable. Try again shortly."
+        );
+
+        let denied =
+            ApiError(ArtifactPlaneError::Denied(AccessDecision::DenyClearance)).into_response();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        assert!(denied.headers().contains_key("x-artifact-decision"));
+        let body = axum::body::to_bytes(denied.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert_eq!(body.as_ref(), b"You don't have access to this artifact.");
     }
 }

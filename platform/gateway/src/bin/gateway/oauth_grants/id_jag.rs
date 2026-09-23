@@ -438,7 +438,7 @@ pub(crate) async fn token_endpoint_id_jag(
                 return oauth_error_response(
                     StatusCode::BAD_REQUEST,
                     "invalid_request",
-                    "work_context is invalid",
+                    "work_context is not a valid Work Context ID",
                 );
             }
         },
@@ -461,7 +461,7 @@ pub(crate) async fn token_endpoint_id_jag(
             return oauth_error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "server_error",
-                "delegated invocation could not be established",
+                "the gateway could not record this delegated sign-in; try again",
             );
         }
     };

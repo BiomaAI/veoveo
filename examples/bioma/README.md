@@ -41,7 +41,7 @@ The token needs model inference permission for the account configured in the mod
 URL. Do not put it in Helm values, Git or command-line literals. The gateway alone
 receives the selected key through `VEOVEO_AGENT_MODEL_API_KEY`. The browser edge
 uses the distinct Workspace OAuth client and requests operator use, Artifact upload
-and time-read scopes. Work Context and resource policies still govern every action.
+and time-read scopes. Work Context and resource policies still apply to every action.
 
 `gateway.agents.models` admits the model connection. `agents.json` is the explicit
 Assistant/Reviewer import source; gateway startup never reconciles it over Console
@@ -49,7 +49,7 @@ edits. The [catalog import procedure](../../platform/gateway/src/bin/gateway/age
 preserves existing chat participant IDs and records exact source digests.
 
 The client entry is `/workspace/`. Agent responses can dispatch admitted native MCP
-operations; Task input and results remain in the initiating person's private Activity.
+operations; Task input and results stay in the initiating person's private Activity.
 The installation must pass real model and public Task acceptance after rollout.
 
 Owner-local acceptance checks the shared server contract and validates the complete
@@ -149,7 +149,7 @@ four for this installation. Console and Computers control each use two replicas;
 the private compute host owns a retained 100 GiB PVC. Host maintenance requires
 explicit lifecycle coordination before its single replica is replaced.
 
-Fresh installations enroll trust with the canonical command:
+Fresh installations enroll trust with this command:
 
 ```sh
 cargo xtask release computers-trust --output /private/new-computers-trust --host-name computer-host.veoveo.svc.cluster.local
@@ -165,7 +165,7 @@ file contains exactly 32 random bytes and is mounted only in Computers workers.
 The parent directory must already exist. Keep the operator CA keys outside the
 cluster and protect the bundle with installation-owned encrypted backup. Leaf
 certificates expire after 90 days; enrollment on 2026-09-10 requires renewal before
-2026-12-09. Rotation remains a required maintenance qualification before that date.
+2026-12-09. Qualify the rotation as maintenance before that date.
 Existing retained providers preserve their trust and JWT identity across rollouts.
 For an existing v1 installation, enroll only the new command key in its worker Secret;
 do not replace provider, storage or JWT trust. Drain v1 workers and apply migrations
@@ -217,11 +217,11 @@ files, through the deployment contract's `veoveo.io/gateway-activation/v1` encod
 Production workloads use the repository and digest maps under `images/`. Each release
 receives only the images consumed by its rendered objects. The
 platform and UAV OCI sources select immutable chart manifest digests independently in
-`gitops/sources/`. Chart metadata retains the human-readable release version. Those
-files and the lock, rather than a copied revision in this manual, define the current
-deployment closure. Each selected image digest is the workload's immutable identity. A
-release-input commit advances the coordinated runtime closure before a qualified
-publication promotes those exact inputs.
+`gitops/sources/`. Chart metadata keeps the human-readable release version. Those
+files and the image locks define the current deployment; this manual does not copy
+the revision. A workload is identified by its selected image digest. A release-input
+commit updates all of these inputs together, and a qualified publication then
+promotes exactly those inputs.
 
 Publish a new local release directly to the shared registry:
 
@@ -308,7 +308,7 @@ kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata
 ~~~
 
 The node must report six allocatable GPU shares before application bootstrap.
-The local time-slicing profile keeps the authoritative UAV simulator, View, Stream,
+The local time-slicing profile keeps the UAV simulator, View, Stream,
 Reason, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
 workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
@@ -318,15 +318,14 @@ together; they are not a CPU fallback.
 
 The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM. This
 bound preserves device-memory headroom for the six-frame multimodal pass while
-the authoritative Isaac simulator, cuOpt, Rerun, and the other GPU services remain
+the Isaac simulator, cuOpt, Rerun, and the other GPU services stay
 resident. Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
 `VEOVEO_CUOPT_POOL_GIB` against all six concurrently resident workloads.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
-simulator's operator-camera products remain inside the simulator allocation. Higher
-memory limits remain available
-for bursts without making the six-workload placement unschedulable on the reference
-64 GiB node.
+simulator's operator-camera products run inside the simulator allocation. Higher
+memory limits allow bursts without making the six-workload placement unschedulable on
+the reference 64 GiB node.
 
 The local fixture advertises simulator-owned shared H.264 delivery through
 `wss://veoveo.bioma.ai/uav-sim/live`. The existing HTTPS ingress upgrades authenticated
@@ -351,12 +350,12 @@ Controller images select exact release tags and immutable OCI index digests.
 The Kustomize and Helm controllers enable `CancelHealthCheckOnNewRevision`.
 A corrected source revision can interrupt an obsolete root health check, and the
 resulting release update can interrupt Helm's old health check. Veoveo retries failed
-upgrades in place after one minute. Health checks remain required, and a failed
-release remains visible until its workloads recover. Automatic rollback could remove
+upgrades in place after one minute. Health checks are still required, and a failed
+release stays visible until its workloads recover. Automatic rollback could remove
 new Computers services and repeatedly restart retained workloads when an unrelated
 service fails. Rollback therefore requires an explicitly qualified installation
-revision and storage transition. The isolated cancellation fixture retains rollback
-remediation to exercise that controller path. Verify cancellation with the isolated
+revision and storage transition. The isolated cancellation fixture keeps rollback
+remediation enabled to exercise that controller path. Verify cancellation with the isolated
 `cargo xtask smoke gitops-cancel-verify` scenario described in
 [`testing/deployment-smoke/DESIGN.md`](../../testing/deployment-smoke/DESIGN.md).
 
@@ -538,7 +537,7 @@ veoveo.bioma.ai -> http://traefik.kube-system.svc.cluster.local:80
 ~~~
 
 The DNS record targets the tunnel hostname and Cloudflare terminates public TLS.
-RustFS remains cluster-private. Artifact bytes reach clients only through governed
+RustFS remains cluster-private. Artifact bytes reach clients only through the
 Gateway, Console BFF, or public-share paths on `veoveo.bioma.ai`.
 
 The operations console is available at:
@@ -574,7 +573,7 @@ existing browser session retains the claims issued at login.
 
 ## LAN producers
 
-A LAN recording producer still uses the canonical public resource identity
+A LAN recording producer still uses the public resource identity
 https://veoveo.bioma.ai. Configure internal DNS for the Traefik address and create the
 TLS Secret referenced by lan-values.yaml:
 
@@ -617,7 +616,7 @@ cargo xtask smoke uav-showcase-verify \
 ~~~
 
 `uav-showcase-up` converges the immutable Frames world, starts the perpetual fleet
-loop, and leaves its authoritative simulator-hosted camera live. The verification commands
+loop, and leaves its simulator-hosted camera live. The verification commands
 exercise bounded missions and may take temporary ownership of individual vehicles.
 
 The Pilot acceptance starts the real cuOpt executor on the host GPU, sends a typed
@@ -628,7 +627,7 @@ record.
 The live reference keeps four PX4 vehicles on nested loops over Manhattan until an
 explicit mission or direct flight command takes control of an individual vehicle. The
 UAV acceptance requires Google Photorealistic 3D Tiles resident in Isaac, claims one
-vehicle for a governed PX4 mission, verifies direct Stream results from newly arrived
+vehicle for a PX4 mission, verifies direct Stream results from newly arrived
 camera frames, then runs reproducible Stream replay and Reason over acknowledged
 recording parts before archive rollover. The other vehicles continue their loops while
 the acceptance confirms that concurrent GPU deployments remain available. Its runtime inputs come from
@@ -656,7 +655,7 @@ Publish a changed chart with `cargo xtask release helm-charts --chart veoveo` or
 `--chart uav-sim`, together with its required revision and version arguments. An
 image-only digest update needs no chart publication.
 
-Template IDs remain attached to retained Computers. The installed `development`
+Template IDs stay attached to retained Computers. The installed `development`
 template keeps its original ID and fingerprint. The execution-capable image has the
 new ID `development-20260910`; changing the default selects it only for new requests.
 An explicit qualified maintenance operation changes an existing Computer's template.

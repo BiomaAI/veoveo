@@ -43,7 +43,7 @@ impl TimePrompt {
             ),
             Self::ExpandOperationalCalendar => (
                 "Expand operational calendar",
-                "Expand a versioned operational calendar inside a bounded horizon.",
+                "Expand a versioned operational calendar over a set time horizon.",
                 vec![
                     required("calendar_id", "Visible calendar id."),
                     required("version", "Calendar version."),
@@ -83,13 +83,13 @@ impl TimePrompt {
                     .map_or_else(String::new, |zone| format!(" in IANA zone `{zone}`"))
             ),
             Self::ExpandOperationalCalendar => format!(
-                "Read time://calendars/{}/versions/{}. Invoke expand_schedule through the Task API for horizon {}. Treat every interval as half-open [start,end).",
+                "Read time://calendars/{}/versions/{}. Call expand_schedule as an MCP Task for horizon {}. Treat every interval as half-open [start,end).",
                 required_value(arguments.calendar_id, "calendar_id")?,
                 required_value(arguments.version, "version")?,
                 required_value(arguments.horizon, "horizon")?
             ),
             Self::ValidateMissionTimeline => format!(
-                "Resolve each point in `{}` to a canonical TimeInstant, then invoke validate_timeline through the Task API. Report every violated constraint.",
+                "Resolve each point in `{}` to a TimeInstant, then call validate_timeline as an MCP Task. Report every violated constraint.",
                 required_value(arguments.timeline, "timeline")?
             ),
         };

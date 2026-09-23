@@ -111,12 +111,12 @@ pub fn templates() -> Vec<ResourceTemplate> {
         (
             TRANSFER_TEMPLATE,
             "file-transfer-result",
-            "Verified file transfer and governed Artifact reference",
+            "A file transfer's verified result and its Artifact",
         ),
         (
             MAINTENANCE_TEMPLATE,
             "computer-maintenance",
-            "Admitted environment updates and active progress",
+            "Environment updates you can apply, and the progress of an active one",
         ),
         (
             AUTOMATION_TEMPLATE,
@@ -126,12 +126,12 @@ pub fn templates() -> Vec<ResourceTemplate> {
         (
             GRANT_TEMPLATE,
             "automation-grant",
-            "Exact automation grant, including revoked or expired state",
+            "One automation grant, including whether it was revoked or expired",
         ),
         (
             EXECUTION_TEMPLATE,
             "execution-result",
-            "Known command exit and governed output references",
+            "A command's exit status and its output Artifacts",
         ),
         (
             ACCESS_TEMPLATE,
