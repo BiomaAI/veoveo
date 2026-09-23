@@ -1,5 +1,10 @@
 # Veoveo Contract Evolution
 
+The accepted fork-development transition is tracked in
+[`FORK_DEVELOPMENT_PLAN.md`](FORK_DEVELOPMENT_PLAN.md). It retires independent extension
+release compatibility while preserving the MCP protocol surface, runtime policy and
+component deployment isolation. The plan records implementation and the installed cut.
+
 Status: accepted policy direction on 2026-09-09 following the user's request to
 renegotiate contracts for ecosystem usefulness, Computers, UX, performance, and
 security. The decisions govern contribution rules and architecture boundaries.
