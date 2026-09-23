@@ -51,7 +51,7 @@ covered.
 | Record | State |
 |---|---|
 | [Speech](SPEECH_PLAN.md) | Deployed September 22. CUDA dictation, recording Tasks, reload recovery, playback, and downloads passed installed browser acceptance. Physical-microphone, scale, and broader readiness testing are still open. |
-| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19. The registry and the authoring API and UI are implemented. Registry-backed execution, managed provisioning, and acceptance on an installation are in progress. |
+| [Agent management](AGENT_MANAGEMENT_PLAN.md) | Delivered September 20. Authoring, publication, revision adoption, and managed lifecycle are deployed at `veoveo.bioma.ai` and pass installed checks with four UAV pilots. Still open: a completed simulator flight, managed templates that admit Computer tools, load measurements, and a second-person usability session. |
 | [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16. Later reactive behavior is tracked in the Reactive UX row. The plan lists follow-ups for distinct-person testing and production Task input. |
 | [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Status display for a cold catalog and large-scale performance experiments are still open. |
 | [Computers](COMPUTERS_PLAN.md) | Deployed on Bioma, where browser access, the stock CLI, retained files, and named agent authority are verified. A clean offline release and broader performance testing are still open. |
