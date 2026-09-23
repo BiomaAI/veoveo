@@ -278,6 +278,17 @@ impl GatewayState {
             .context("failed to record canonical gateway policy audit event")
     }
 
+    pub async fn record_audit_events(&self, events: &[AuditEvent]) -> Result<()> {
+        let records = events
+            .iter()
+            .map(canonical_policy_record)
+            .collect::<Result<Vec<_>>>()?;
+        self.platform
+            .record_gateway_audit_events(GatewayAuditKind::Policy, &records)
+            .await
+            .context("failed to record canonical gateway policy audit batch")
+    }
+
     pub async fn record_auth_audit_event(&self, event: &AuthAuditEvent) -> Result<()> {
         let record = canonical_auth_record(event)?;
         self.platform

@@ -1,4 +1,3 @@
-use futures::{StreamExt, TryStreamExt, stream};
 use rmcp::{
     model::{
         ErrorData as McpError, ListResourceTemplatesResult, ListResourcesResult,
@@ -17,13 +16,12 @@ use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
     project_app_tool_dependencies, project_gateway_resource_uri_for_upstream,
     project_listed_resource, project_listed_resource_uri, project_read_resource_result,
-    project_resource_template_uri, resource_read_action, upstream_error,
+    project_resource_template_uri, resource_policy_target, resource_read_action, upstream_error,
 };
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp,
-    discovery::{DiscoveryCacheKey, MAX_CONCURRENT_DISCOVERY},
+    GATEWAY_PAGE_SIZE, GatewayMcp, discovery::DiscoveryCacheKey,
     invocation_authorization_fingerprint,
 };
 
@@ -165,45 +163,37 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_resources().await },
             )
             .await?;
-        stream::iter(
-            upstream_resources
-                .into_iter()
-                .map(|mut resource| async move {
-                    let projection = self.project_upstream_resource(server_slug, &resource.uri)?;
-                    project_listed_resource_uri(manifest, &mut resource)?;
-                    project_listed_resource(&mut resource, &projection);
-                    project_app_resource_dependencies(
-                        manifest,
-                        &mut resource,
-                        profile_servers,
-                        &subject.actor.scopes,
-                        &subject.actor.data_labels,
-                    )?;
-                    project_app_tool_dependencies(
-                        manifest,
-                        &mut resource,
-                        profile_servers,
-                        &subject.actor.scopes,
-                        &subject.actor.data_labels,
-                    )?;
-                    if !self
-                        .allows_resource(
-                            context,
-                            GatewayAction::ResourcesList,
-                            projection.server.clone(),
-                            &resource.uri,
-                        )
-                        .await?
-                    {
-                        return Ok(None);
-                    }
-                    Ok(Some(resource))
-                }),
-        )
-        .buffered(MAX_CONCURRENT_DISCOVERY)
-        .try_filter_map(|resource| async { Ok(resource) })
-        .try_collect()
-        .await
+        let mut resources = Vec::with_capacity(upstream_resources.len());
+        let mut targets = Vec::with_capacity(upstream_resources.len());
+        for mut resource in upstream_resources {
+            let projection = self.project_upstream_resource(server_slug, &resource.uri)?;
+            project_listed_resource_uri(manifest, &mut resource)?;
+            project_listed_resource(&mut resource, &projection);
+            project_app_resource_dependencies(
+                manifest,
+                &mut resource,
+                profile_servers,
+                &subject.actor.scopes,
+                &subject.actor.data_labels,
+            )?;
+            project_app_tool_dependencies(
+                manifest,
+                &mut resource,
+                profile_servers,
+                &subject.actor.scopes,
+                &subject.actor.data_labels,
+            )?;
+            targets.push(resource_policy_target(projection.server, &resource.uri)?);
+            resources.push(resource);
+        }
+        let allowed = self
+            .allows_catalog_targets(context, GatewayAction::ResourcesList, targets)
+            .await?;
+        Ok(resources
+            .into_iter()
+            .zip(allowed)
+            .filter_map(|(resource, allowed)| allowed.then_some(resource))
+            .collect())
     }
 
     pub(super) async fn handle_list_resource_templates(
@@ -346,23 +336,24 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_resource_templates().await },
             )
             .await?;
-        let mut templates = Vec::new();
+        let mut templates = Vec::with_capacity(upstream_templates.len());
+        let mut targets = Vec::with_capacity(upstream_templates.len());
         for mut template in upstream_templates {
             project_resource_template_uri(manifest, &mut template)?;
-            if !self
-                .allows_resource(
-                    context,
-                    GatewayAction::ResourcesTemplatesList,
-                    server_slug.clone(),
-                    &template.uri_template,
-                )
-                .await?
-            {
-                continue;
-            }
+            targets.push(resource_policy_target(
+                server_slug.clone(),
+                &template.uri_template,
+            )?);
             templates.push(template);
         }
-        Ok(templates)
+        let allowed = self
+            .allows_catalog_targets(context, GatewayAction::ResourcesTemplatesList, targets)
+            .await?;
+        Ok(templates
+            .into_iter()
+            .zip(allowed)
+            .filter_map(|(template, allowed)| allowed.then_some(template))
+            .collect())
     }
 
     pub(super) async fn handle_read_resource(

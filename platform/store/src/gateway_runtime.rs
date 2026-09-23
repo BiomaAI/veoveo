@@ -668,15 +668,42 @@ impl PlatformStore {
         kind: GatewayAuditKind,
         record: AuditEventRecord,
     ) -> Result<(), StoreError> {
-        debug_assert_eq!(record.resource_type, kind.resource_type());
-        let outbox = gateway_audit_outbox(kind, &record);
+        self.record_gateway_audit_events(kind, &[record]).await
+    }
+
+    /// Keep individual audit and outbox records while amortizing the shared
+    /// sequence transaction. No catalog result is released before these commit.
+    pub async fn record_gateway_audit_events(
+        &self,
+        kind: GatewayAuditKind,
+        records: &[AuditEventRecord],
+    ) -> Result<(), StoreError> {
+        for batch in records.chunks(64) {
+            self.record_gateway_audit_batch(kind, batch).await?;
+        }
+        Ok(())
+    }
+
+    async fn record_gateway_audit_batch(
+        &self,
+        kind: GatewayAuditKind,
+        records: &[AuditEventRecord],
+    ) -> Result<(), StoreError> {
+        debug_assert!(
+            records
+                .iter()
+                .all(|record| record.resource_type == kind.resource_type())
+        );
+        let outbox: Vec<_> = records
+            .iter()
+            .map(|record| gateway_audit_outbox(kind, record))
+            .collect();
         const MAX_ATTEMPTS: u32 = 8;
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; CREATE ONLY $record CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-                .bind(("record", record.id.clone()))
-                .bind(("content", record.clone()))
+                .query("BEGIN TRANSACTION; FOR $record IN $records { CREATE ONLY $record.id CONTENT $record RETURN NONE; }; FOR $event IN $outbox { CREATE outbox_event CONTENT $event RETURN NONE; }; COMMIT TRANSACTION;")
+                .bind(("records", records.to_vec()))
                 .bind(("outbox", outbox.clone()))
                 .await
                 .and_then(|mut response| match primary_transaction_error(response.take_errors()) {

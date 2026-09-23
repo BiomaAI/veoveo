@@ -1,7 +1,7 @@
 use std::{borrow::Cow, time::Instant};
 
 use chrono::Utc;
-use futures::{StreamExt, TryStreamExt, stream};
+use futures::{StreamExt, stream};
 use rmcp::{
     model::{
         CallToolRequest, CallToolRequestParams, CallToolResponse, CallToolResult, ClientRequest,
@@ -80,49 +80,9 @@ impl GatewayMcp {
                 }
                 let fetch = self.discovery.start_tools(key.clone()).await;
                 let result = async {
-                    let manifest = catalog.server(&server_slug).ok_or_else(|| {
-                        mcp_internal(format!("unknown profile server `{server_slug}`"))
-                    })?;
-                    let upstream_tools = self
-                        .idempotent_upstream_request(
-                            &server_slug,
-                            context.peer.clone(),
-                            subject,
-                            |upstream| async move { upstream.list_all_tools().await },
-                        )
+                    let tools = self
+                        .discover_tools_for_server(&catalog, &server_slug, context, subject)
                         .await?;
-                    let mut tools = Vec::new();
-                    for mut tool in upstream_tools {
-                        let local_tool = LocalToolName::new(tool.name.as_ref().to_owned())
-                            .map_err(|err| {
-                                mcp_internal(format!("upstream exposed invalid tool name: {err}"))
-                            })?;
-                        if !self
-                            .client_allows_compatibility_helper(subject, &server_slug, &local_tool)
-                            .await?
-                        {
-                            continue;
-                        }
-                        if !self
-                            .allows_tool(
-                                context,
-                                GatewayAction::ToolsList,
-                                server_slug.clone(),
-                                local_tool.clone(),
-                            )
-                            .await?
-                        {
-                            continue;
-                        }
-                        project_tool_resource_metadata(manifest, &mut tool)?;
-                        let gateway_name = catalog
-                            .project_tool_name(&server_slug, &local_tool)
-                            .map_err(|err| {
-                                mcp_internal(format!("failed to project tool name: {err}"))
-                            })?;
-                        tool.name = Cow::Owned(gateway_name.to_string());
-                        tools.push(tool);
-                    }
                     self.discovery
                         .store_tools(fetch.clone(), tools.clone())
                         .await;
@@ -263,7 +223,9 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_tools().await },
             )
             .await?;
-        stream::iter(upstream_tools.into_iter().map(|mut tool| async move {
+        let mut tools = Vec::with_capacity(upstream_tools.len());
+        let mut targets = Vec::with_capacity(upstream_tools.len());
+        for mut tool in upstream_tools {
             let local_tool = LocalToolName::new(tool.name.as_ref().to_owned()).map_err(|err| {
                 mcp_internal(format!("upstream exposed invalid tool name: {err}"))
             })?;
@@ -271,30 +233,27 @@ impl GatewayMcp {
                 .client_allows_compatibility_helper(subject, server_slug, &local_tool)
                 .await?
             {
-                return Ok(None);
+                continue;
             }
-            if !self
-                .allows_tool(
-                    context,
-                    GatewayAction::ToolsList,
-                    server_slug.clone(),
-                    local_tool.clone(),
-                )
-                .await?
-            {
-                return Ok(None);
-            }
+            targets.push(veoveo_mcp_contract::PolicyTarget::Tool {
+                server: server_slug.clone(),
+                tool: local_tool.clone(),
+            });
             project_tool_resource_metadata(manifest, &mut tool)?;
             let gateway_name = catalog
                 .project_tool_name(server_slug, &local_tool)
                 .map_err(|err| mcp_internal(format!("failed to project tool name: {err}")))?;
             tool.name = Cow::Owned(gateway_name.to_string());
-            Ok(Some(tool))
-        }))
-        .buffered(MAX_CONCURRENT_DISCOVERY)
-        .try_filter_map(|tool| async { Ok(tool) })
-        .try_collect()
-        .await
+            tools.push(tool);
+        }
+        let allowed = self
+            .allows_catalog_targets(context, GatewayAction::ToolsList, targets)
+            .await?;
+        Ok(tools
+            .into_iter()
+            .zip(allowed)
+            .filter_map(|(tool, allowed)| allowed.then_some(tool))
+            .collect())
     }
 
     pub(super) async fn handle_call_tool(

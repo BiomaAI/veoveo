@@ -335,6 +335,50 @@ impl GatewayMcp {
         target: PolicyTarget,
         trace_id: TraceId,
     ) -> Result<(AuthenticatedSubject, PolicyDecision), McpError> {
+        let event = self.policy_event(subject, action, target, trace_id).await?;
+        self.state
+            .record_audit_event(&event)
+            .await
+            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
+        Ok((subject.clone(), event.decision))
+    }
+
+    /// One decision and durable audit record per listed item, with bounded
+    /// database batches instead of competing per-item sequence transactions.
+    pub(super) async fn allows_catalog_targets(
+        &self,
+        context: &RequestContext<RoleServer>,
+        action: GatewayAction,
+        targets: Vec<PolicyTarget>,
+    ) -> Result<Vec<bool>, McpError> {
+        let subject = self.authenticated(context)?;
+        let trace = trace_id_for_context(context)?;
+        let mut events = Vec::with_capacity(targets.len());
+        for target in targets {
+            events.push(
+                self.policy_event(&subject, action, target, trace.clone())
+                    .await?,
+            );
+        }
+        self.state
+            .record_audit_events(&events)
+            .await
+            .map_err(|err| {
+                mcp_internal(format!("failed to record discovery audit events: {err}"))
+            })?;
+        Ok(events
+            .into_iter()
+            .map(|event| event.decision.effect == PolicyEffect::Allow)
+            .collect())
+    }
+
+    async fn policy_event(
+        &self,
+        subject: &AuthenticatedSubject,
+        action: GatewayAction,
+        target: PolicyTarget,
+        trace_id: TraceId,
+    ) -> Result<AuditEvent, McpError> {
         let catalog = self.catalog.current();
         let managed_admitted = match self
             .state
@@ -360,26 +404,22 @@ impl GatewayMcp {
         }
         let event_id = TraceId::new(uuid::Uuid::new_v4().to_string())
             .map_err(|err| mcp_internal(format!("failed to create audit event id: {err}")))?;
-        self.state
-            .record_audit_event(&AuditEvent {
-                event_id,
-                timestamp: decision.evaluated_at,
-                trace_id,
-                profile: self.profile_id.clone(),
-                method: audit_method_name(action)?,
-                action,
-                target,
-                decision: decision.clone(),
-                principal: Some(subject.principal.id.clone()),
-                principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
-                tenant: subject.principal.tenant.clone(),
-                token_issuer: Some(subject.access_token.issuer.clone()),
-                latency_ms: None,
-                metadata: principal_audit_metadata(&subject.principal),
-            })
-            .await
-            .map_err(|err| mcp_internal(format!("failed to record gateway audit event: {err}")))?;
-        Ok((subject.clone(), decision))
+        Ok(AuditEvent {
+            event_id,
+            timestamp: decision.evaluated_at,
+            trace_id,
+            profile: self.profile_id.clone(),
+            method: audit_method_name(action)?,
+            action,
+            target,
+            decision: decision.clone(),
+            principal: Some(subject.principal.id.clone()),
+            principal_attributes: Some(PrincipalAuditAttributes::from(&subject.principal)),
+            tenant: subject.principal.tenant.clone(),
+            token_issuer: Some(subject.access_token.issuer.clone()),
+            latency_ms: None,
+            metadata: principal_audit_metadata(&subject.principal),
+        })
     }
 
     pub(super) async fn authorize_tool(
@@ -400,17 +440,6 @@ impl GatewayMcp {
             )
             .await?;
         Ok((subject, trace_id))
-    }
-
-    pub(super) async fn allows_tool(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        server: ServerSlug,
-        tool: LocalToolName,
-    ) -> Result<bool, McpError> {
-        self.allows(context, action, PolicyTarget::Tool { server, tool })
-            .await
     }
 
     pub(super) async fn authorize_resource(
@@ -437,17 +466,6 @@ impl GatewayMcp {
             projection.gateway_uri.as_str(),
         )
         .await
-    }
-
-    pub(super) async fn allows_resource(
-        &self,
-        context: &RequestContext<RoleServer>,
-        action: GatewayAction,
-        server: ServerSlug,
-        uri: &str,
-    ) -> Result<bool, McpError> {
-        let target = resource_policy_target(server, uri)?;
-        self.allows(context, action, target).await
     }
 
     pub(super) async fn authorize_prompt(
