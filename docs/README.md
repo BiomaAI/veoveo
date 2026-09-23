@@ -12,6 +12,7 @@ installation, its services and agents. Computers is a core platform capability.
 | Understand the product | [Repository overview](../README.md), [architecture decisions](ARCHITECTURE_DECISIONS.md), [technical design](TECH_DESIGN.md) |
 | Work on shared chat and agent feedback | [Workspace client](../apps/workspace/DESIGN.md), [Workspace delivery](WORKSPACE_PLAN.md), [reactive UX delivery](REACTIVE_UX_PLAN.md) |
 | Add agent creation and management | [Agent-management plan](AGENT_MANAGEMENT_PLAN.md): API/Console authoring, delegated Workspace creation and managed UAV-style agents |
+| Use or develop Speech | [Delivery and qualification](SPEECH_PLAN.md), [Speech domain](../servers/speech-mcp/DESIGN.md) |
 | Work on Computers | [Domain design](../platform/computers/DESIGN.md), [delivery and qualification](COMPUTERS_PLAN.md) |
 | Install and operate Veoveo | [Enterprise deployment](ENTERPRISE_DEPLOYMENT.md), [Helm installation](../deploy/helm/veoveo/README.md), [offline delivery](../deploy/offline/README.md) |
 | Iterate on code and deploy a change | [Development iteration](DEVELOPMENT_ITERATION.md), [image builds](IMAGE_BUILDS.md), [local deployment profiles](LOCAL_DEPLOYMENT_PROFILES.md) |
@@ -47,6 +48,7 @@ limits.
 
 | Record | State |
 |---|---|
+| [Speech](SPEECH_PLAN.md) | Deployed September 22; CUDA dictation, recording Tasks, reload recovery, playback and downloads passed installed browser acceptance. Physical microphone, scale and broader readiness qualification remain recorded. |
 | [Agent management](AGENT_MANAGEMENT_PLAN.md) | Accepted September 19; registry and authoring API/UI checkpoints implemented. Registry-backed execution, managed provisioning and installed acceptance remain in progress. |
 | [Workspace](WORKSPACE_PLAN.md) | First web release deployed September 16; later reactive behavior is recorded separately below. Distinct-person and production Task-input follow-ups remain documented. |
 | [Reactive UX](REACTIVE_UX_PLAN.md) | Deployed and verified September 17. Cold-catalog status presentation and large-scale performance experiments remain. |

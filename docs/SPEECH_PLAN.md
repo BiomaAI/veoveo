@@ -1,7 +1,8 @@
 # Speech Delivery Plan
 
-Status: implementation started September 22, 2026. GPU qualification and installed
-acceptance are required before this plan can be marked delivered.
+Status: delivered September 22, 2026 at `https://veoveo.bioma.ai/workspace/`.
+Private dictation and governed recording transcription passed installed acceptance.
+The qualification limits below remain explicit follow-up work.
 
 ## Standards And Protocols
 
@@ -112,9 +113,69 @@ The Rust domain and Workspace UI are implemented. Recording Tasks publish JSON a
 WebVTT through the real Artifact service and shared store. The native test verifies
 sensitive-source admission, output label inheritance, private Task access and
 cross-connection observation. A second runtime's cancellation is tested separately.
-The browser build and cookie/CSRF projection test pass. Packaging, MCP conformance,
-restart recovery and installed headed acceptance remain pending.
+The browser build and cookie/CSRF projection test passed at this initial checkpoint.
+The installed delivery below supersedes its packaging, conformance and recovery gaps.
 
 Artifacts follow existing Work Context access policy. Private Activity refers to the
 operation and Task details; it does not redefine Artifact permissions. This distinction
 is preserved in the UI and qualification fixtures.
+
+
+## Installed Delivery And Qualification
+
+Veoveo Speech is deployed with the Bioma installation configuration. In Workspace,
+open a chat and choose **Dictate** to produce an editable draft. **Transcribe a
+recording** accepts a completed upload or an authorized Artifact link. **My activity**
+retains the Task and opens its timestamped transcript, source playback and JSON/WebVTT
+downloads. Activity is private; Artifact access follows the current Work Context policy.
+
+The installed revision `3736331b2fc384466ba0f77d1e6b99d324bfaa14` converged through
+GitOps with Speech, gateway and browser edge ready. Its immutable image closure is:
+
+| Component | Runtime digest |
+|---|---|
+| Speech | `sha256:2bfc200da2781a8f555d4ad01c7f2ed6ed1a26dcd1e21d5b92651d0417804696` |
+| Gateway | `sha256:949b60df34f70f28bba5c03465bd7b4c3b04ca5f2fb681c28cdd43d58d5214be` |
+| Browser edge | `sha256:7d2c59b8ea674cf9c90d03b1e0847317e5cacd4acc3125da2123b4f297909a3f` |
+
+The native Rust browser harness passed against that installation at
+`2026-09-23T03:36:03Z`. Evidence and inspected screenshots are under
+`output/acceptance/speech/01a0cc55-5295-7c30-b546-52a084ff27da/`. Headed Chrome used
+NVIDIA RTX 4090 WebGL. WebGPU was also probed and reported SwiftShader; it was not
+accepted as hardware evidence. Synthetic microphone audio passed through the real
+AudioWorklet, authenticated browser edge, gateway and CUDA worker.
+
+The run verified draft preservation, a deliberately delayed 2.5-second audio request,
+Stop, discarded cancellation and explicit Send without invoking an unselected agent.
+It uploaded a distinct recording and observed that exact Task after reload. Timestamp
+playback and both downloads passed, including the transcript's source identity. The
+7.435-second recording appeared in the viewer 3,469 ms after Transcribe, including the
+page reload. This is one interactive observation, not a concurrency benchmark.
+
+Native CUDA tests qualified English and Spanish timestamps, GPU absence denial, path
+confinement, capacity, actor/Work Context/session isolation, output-label inheritance,
+cross-runtime cancellation and recovery after publication with identical Artifact IDs.
+The hosted native boundary passed 26 conformance checks. Workspace has 18 passing unit
+tests, including PCM ordering, partial Stop flush and bounded streaming JSON without
+Content-Length. The installation and recording URI declarations passed Helm checks.
+
+Installed testing corrected the Speech authentication prefix, source Artifact URI
+projection, an outbox query that delayed Task observation, dictation's sensitivity to
+HTTP latency and transcript previews behind HTTP compression. Build changes and exact
+measurements are recorded in [Development Iteration](DEVELOPMENT_ITERATION.md#speech-iteration-measurements-after-the-corrections).
+
+## Remaining Qualification
+
+- Physical microphone devices, permission prompts and browser/OS combinations need
+  separate device qualification; the completed browser run supplied fixture audio.
+- Longer recordings, video-container diversity, full capacity, sustained dictation
+  and multi-client latency need performance runs. Current evidence does not certify
+  the two-hour limit at installation scale.
+- Installed catalog readiness qualification for C31 remains declared pending in the
+  server documents. The native conformance result does not close that broader gate.
+- Cold/offline packaging and full release provenance remain separate qualification.
+  The installed images are immutable development-stage images, not release-qualified.
+
+These limits do not prevent using the deployed dictation and recording workflows.
+Speaker attribution, translation, meeting capture and spoken replies remain later
+product work rather than implied capabilities of this delivery.
