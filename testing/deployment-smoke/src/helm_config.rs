@@ -996,7 +996,7 @@ pub(crate) fn helm_config() -> Result<()> {
     let gateway_dockerfile = fs::read_to_string("platform/gateway/Dockerfile")?;
     contains(
         &gateway_dockerfile,
-        "COPY --from=veoveo-rust-artifacts /lib/libduckdb.so",
+        "COPY --from=veoveo-rust-artifacts /bin/gateway /usr/local/bin/gateway",
     )?;
     contains(
         &gateway_dockerfile,
