@@ -35,7 +35,7 @@ export function Recording({ chat, uploads, disabled, onUpload }: { chat: string;
   return <div className="recording-transcription">
     <button type="button" disabled={disabled} onClick={() => setOpen(value => !value)}><FileAudio size={15}/> Transcribe a recording</button>
     {open && <div className="recording-picker">
-      <p>Choose uploaded audio or video. The transcript stays in your private Activity until you share it. Up to 2 hours and 2 GiB.</p>
+      <p>Choose uploaded audio or video. Your Activity is private. Recording and transcript files follow the current Work Context’s access policy. Up to 2 hours and 2 GiB.</p>
       <button type="button" disabled={disabled} onClick={onUpload}><Upload size={14}/> Upload recording</button>
       {!!files.length && <label>Completed uploads<select aria-label="Recording to transcribe" value={uri} disabled={busy || !!attempt.current} onChange={event => { setUri(event.target.value); setAccepted(false); }}><option value="">Choose a recording</option>{files.map(entry => <option key={entry.key} value={entry.receipt!.artifact_uri}>{entry.receipt!.filename}</option>)}</select></label>}
       <label>Recording Artifact link<input value={uri} readOnly={busy || !!attempt.current} placeholder="artifact://…" onChange={event => { setUri(event.target.value); setAccepted(false); }}/></label>

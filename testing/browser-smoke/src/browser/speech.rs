@@ -106,6 +106,18 @@ async fn run(
     )
     .await?;
     let chat_url: String = cdp.evaluate(session, "location.href", false).await?;
+    let chat_id = Url::parse(&chat_url)?
+        .query_pairs()
+        .find(|(key, _)| key == "chat")
+        .context("new chat URL has no chat id")?
+        .1
+        .into_owned();
+    let card = format!(
+        "document.querySelector({})",
+        serde_json::to_string(&format!(
+            "article[aria-label=\"Activity: speech__transcribe\"]:has(a[href=\"/workspace/?chat={chat_id}&panel=activity\"])"
+        ))?
+    );
     fill(
         cdp,
         session,
@@ -194,6 +206,8 @@ async fn run(
     .await?;
     ensure!(cdp.evaluate::<bool>(session, "!window.speechAcceptance.requests.some(r=>r.method==='POST' && r.path.endsWith('/runs'))", false).await?, "unselected agent invoked");
     click(cdp, session, "Transcribe a recording").await?;
+    let previous_uploads: Vec<String> = cdp.evaluate(session,
+        "[...document.querySelectorAll('select[aria-label=\"Recording to transcribe\"] option')].map(o=>o.value)", false).await?;
     click(cdp, session, "Upload recording").await?;
     wait(
         cdp,
@@ -213,25 +227,35 @@ async fn run(
     wait(cdp, session, "document.body.innerText.includes('Ready') && document.body.innerText.includes('english.wav')").await?;
     ensure!(cdp.evaluate::<bool>(session, "(()=>{const b=document.querySelector('button[aria-label=\"Close uploads; transfers continue\"]');if(!b)return false;b.click();return true})()", false).await?);
     wait(cdp, session, "(document.querySelector('select[aria-label=\"Recording to transcribe\"]')?.options.length??0)>1").await?;
-    ensure!(cdp.evaluate::<bool>(session, "(()=>{const e=document.querySelector('select[aria-label=\"Recording to transcribe\"]');e.value=e.options[e.options.length-1].value;e.dispatchEvent(new Event('change',{bubbles:true}));return true})()", false).await?);
+    let select_upload = format!(
+        "(()=>{{const e=document.querySelector('select[aria-label=\"Recording to transcribe\"]');const o=[...e.options].find(o=>o.value && !{}.includes(o.value));if(!o)return false;e.value=o.value;e.dispatchEvent(new Event('change',{{bubbles:true}}));return true}})()",
+        serde_json::to_string(&previous_uploads)?
+    );
+    wait(cdp, session, &select_upload).await?;
+    let source_uri: String = cdp
+        .evaluate(
+            session,
+            "document.querySelector('select[aria-label=\"Recording to transcribe\"]').value",
+            false,
+        )
+        .await?;
+    let recording_started = Instant::now();
     click(cdp, session, "Transcribe").await?;
     click(cdp, session, "Open Activity").await?;
-    wait(
-        cdp,
-        session,
-        "Boolean(document.querySelector('article[aria-label=\"Activity: speech__transcribe\"]'))",
-    )
-    .await?;
+    wait(cdp, session, &format!("Boolean({card})")).await?;
     cdp.command("Page.reload", serde_json::json!({}), Some(session))
         .await?;
     wait_for_document(cdp, session).await?;
     hardware(cdp, session).await?;
-    click(cdp, session, "Open transcript").await?;
-    wait(cdp, session, "document.querySelector('.speech-segments')?.textContent.toLowerCase().includes('old portrait')??false").await?;
+    wait(cdp, session, &format!("(()=>{{const b=[...({card}?.querySelectorAll('button')??[])].find(b=>b.textContent==='Open transcript');if(!b)return false;b.click();return true}})()")).await?;
+    wait(cdp, session, &format!("{card}?.querySelector('.speech-segments')?.textContent.toLowerCase().includes('old portrait')??false")).await?;
+    let recording_elapsed = recording_started.elapsed().as_millis();
     ensure!(
         cdp.evaluate::<bool>(
             session,
-            "(()=>{document.querySelector('.speech-segments button').click();return true})()",
+            &format!(
+                "(()=>{{{card}.querySelector('.speech-segments button').click();return true}})()"
+            ),
             false
         )
         .await?
@@ -239,13 +263,14 @@ async fn run(
     wait(
         cdp,
         session,
-        "(document.querySelector('.speech-result audio')?.currentTime??0)>0.1",
+        &format!("({card}?.querySelector('.speech-result audio')?.currentTime??0)>0.1"),
     )
     .await?;
-    let result: Value = cdp.evaluate(session, "(()=>{const s=document.querySelector('.speech-result');return {text:s.querySelector('.speech-segments').textContent,downloads:[...s.querySelectorAll('a')].map(a=>a.href),duration:s.querySelector('audio').duration}})()", false).await?;
+    let result: Value = cdp.evaluate(session, &format!("(()=>{{const s={card}.querySelector('.speech-result');return {{text:s.querySelector('.speech-segments').textContent,downloads:[...s.querySelectorAll('a')].map(a=>a.href),duration:s.querySelector('audio').duration}}}})()"), false).await?;
+    ensure!(cdp.evaluate::<bool>(session, &format!("(async()=>{{const links=[...{card}.querySelectorAll('.speech-result>a')];if(links.length!==2)return false;const [json,vtt]=await Promise.all(links.map(a=>fetch(a.href)));if(!json.ok||!vtt.ok)return false;const doc=await json.json();return doc.schema==='veoveo.speech-transcript/v1' && doc.source_artifact_uri==={} && (await vtt.text()).startsWith('WEBVTT')}})()", serde_json::to_string(&source_uri)?), true).await?, "transcript/caption downloads did not match the new recording");
     let final_hardware = hardware(cdp, session).await?;
     let transcript_shot = capture_screenshot(cdp, session, &output.join("transcript.png")).await?;
-    let evidence = serde_json::json!({"schema":"veoveo.io/speech-browser-acceptance/v1","createdAt":Utc::now(),"chatUrl":chat_url,"microphone":"synthetic fixture MediaStream through real AudioWorklet and CUDA; hardware microphone not qualified","initialHardware":initial_hardware,"finalHardware":final_hardware,"reviewedDraft":reviewed,"cancelPreservedDraft":true,"explicitSend":true,"taskObservedAfterReload":true,"result":result,"screenshots":{"review":draft_shot,"transcript":transcript_shot}});
+    let evidence = serde_json::json!({"schema":"veoveo.io/speech-browser-acceptance/v1","createdAt":Utc::now(),"chatUrl":chat_url,"microphone":"synthetic fixture MediaStream through real AudioWorklet and CUDA; hardware microphone not qualified","initialHardware":initial_hardware,"finalHardware":final_hardware,"reviewedDraft":reviewed,"cancelPreservedDraft":true,"explicitSend":true,"taskObservedAfterReload":true,"sourceArtifactUri":source_uri,"recordingElapsedMillis":recording_elapsed,"downloadsVerified":true,"result":result,"screenshots":{"review":draft_shot,"transcript":transcript_shot}});
     fs::write(
         output.join("evidence.json"),
         serde_json::to_vec_pretty(&evidence)?,
