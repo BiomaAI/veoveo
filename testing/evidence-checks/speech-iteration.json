@@ -68,6 +68,31 @@
       "toolchains": [
         "rust"
       ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "veoveo-xtask",
+        "packaging_tests::"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-xtask"
+        ],
+        "roots": [
+          "docker-bake.hcl",
+          ".dockerignore",
+          "tools/image-build",
+          "platform/gateway"
+        ]
+      },
+      "toolchains": [
+        "rust"
+      ]
     }
   ]
 }
