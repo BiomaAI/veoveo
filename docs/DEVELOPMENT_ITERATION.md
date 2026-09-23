@@ -1066,7 +1066,7 @@ large diffs for a small crate; the first Speech checkpoint added about 28000 lin
 including locks and evidence. Receipt compaction and GPU environment qualification
 remain future tooling work and do not gate this delivery.
 
-The Bioma node advertises seven shared GPU slots, all allocated. Speech needs an
+At initial admission the Bioma node advertised seven shared GPU slots, all allocated. Speech needed an
 eighth declared slot while preserving existing GPU workloads. At this checkpoint,
 the RTX 4090 used approximately 10.6 GiB of its 24 GiB. Scheduling admission and model
 residency are separate facts; installed concurrent acceptance must verify both.
@@ -1129,3 +1129,55 @@ successful compilation. The gateway no longer links DuckDB; earlier warm builds 
 copy a leftover library. The requirement and runtime copy are removed, and a Cargo
 production-graph/Bake regression protects that boundary. Successful compiler output
 from the failed packaging attempt remains reusable.
+
+
+### Speech Iteration Measurements After The Corrections
+
+The managed worker now excludes execution cache mounts from its ordinary disk-pressure
+sweep. A separate rule can still reclaim them when the cache exceeds its configured
+budget or free space falls below 32 GiB. The first normalized Speech dependency parent
+cost 433,094 ms to publish. Application builds reuse its immutable digest.
+
+| Workload | Elapsed | Evidence |
+|---|---:|---|
+| Earlier Speech and BFF follow-up, before the corrections | 752,958 ms | `output/development/speech/final-stage.json` |
+| Gateway packaging correction plus Speech, using retained compiler output | 22,085 ms | `output/development/speech/optimized-retry-stage.json`, source `b027708d` |
+| Unchanged Speech and gateway repeat | 7,015 ms | `output/development/speech/warm-repeat-stage.json`; both runtime digests unchanged |
+| Real shared Task-runtime and Speech Rust edit | 88,672 ms | `output/development/speech/task-observation-stage.json`, source `2d1536a6`; 78,901 ms compilation window |
+| First BFF rebuild after its old cache had already been evicted | 218,903 ms | `output/development/speech/workspace-final-stage.json`, source `74da312e` |
+| Unchanged BFF repeat | 5,729 ms | `output/development/speech/workspace-warm-stage.json`; runtime digest unchanged |
+
+These are distinct workloads, not a cold-versus-warm speedup ratio. The Speech-specific
+BuildKit timestamp rewrite fell from 215.100 seconds to 1.115 seconds on the first
+normalized application build. Cross-target phase windows overlap; the 50-second export
+window in the subsequent Rust-edit build includes waiting for the other compiler and
+must not be described as 50 seconds rewriting Speech dependencies.
+
+Installed acceptance found another latency source outside compilation. The Task
+subscription baseline chose the available-time index and sorted historical outbox
+events before applying `LIMIT 1`. A recording worker waited over four minutes before
+its first progress transition and its lease was reclaimed in the meantime. The shared
+query now selects the sequence index in reverse order. The installation query returned
+in 15.6 ms, and an isolated native regression verifies the execution plan and exclusion
+of future events. Speech also establishes its subscription concurrently with execution
+and lease renewal. The gateway and Speech images include this correction; other
+consumers receive the shared-library change when their images are next rebuilt.
+
+The first host Task-runtime test compiled in 2m 01s. The subsequent Speech integration
+command compiled a different dependency feature variant in 2m 26s before its 21.84-second
+CUDA run. Consolidating compatible native test graphs is a follow-up. It does not explain
+image cache reuse, and deleting active Cargo targets would recreate that cost.
+
+Remaining coordination work includes the repository source lock shared by chart
+publication and image staging, repeated input manifests in immutable test receipts,
+and independently cached registry downloads across compiler families. This delivery
+retains their current contracts. Current image timings are development observations;
+cold/offline release qualification and larger concurrency and long-recording benchmarks
+remain separate work.
+
+The installed dictation check also exposed a network constraint: 250-ms PCM batches
+required four serial HTTP round trips per second and failed after a brief backlog.
+One-second batches stay within the existing 192,000-byte frame ceiling, with at most
+four outstanding batches. The browser harness injects a 2.5-second request delay while
+retaining real transport and inference. Native capture tests check exact PCM ordering,
+the wire ceiling and the partial Stop flush. No retry or automatic message send is added.
