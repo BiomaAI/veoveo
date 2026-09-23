@@ -29,7 +29,10 @@
         "roots": [
           "deploy",
           "testing/fixtures",
-          "showcase",
+          "showcase/sumo",
+          "showcase/uav-sim/deploy",
+          "showcase/uav-sim/runtime",
+          "showcase/uav-sim/dependencies.lock.json",
           "examples/bioma",
           "configs",
           "docker-bake.hcl",
@@ -66,7 +69,10 @@
         "roots": [
           "deploy",
           "testing/fixtures",
-          "showcase",
+          "showcase/sumo",
+          "showcase/uav-sim/deploy",
+          "showcase/uav-sim/runtime",
+          "showcase/uav-sim/dependencies.lock.json",
           "examples/bioma",
           "configs",
           "docker-bake.hcl",
@@ -75,6 +81,28 @@
           "tools/image-build",
           "platform/runtimes/simulation"
         ]
+      },
+      "toolchains": [
+        "rust"
+      ]
+    },
+    {
+      "arguments": [
+        "cargo",
+        "test",
+        "-p",
+        "veoveo-platform-store",
+        "--lib",
+        "--locked",
+        "--",
+        "--include-ignored"
+      ],
+      "inputs": {
+        "kind": "cargo",
+        "packages": [
+          "veoveo-platform-store"
+        ],
+        "roots": []
       },
       "toolchains": [
         "rust"
