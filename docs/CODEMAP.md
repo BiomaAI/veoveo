@@ -133,14 +133,11 @@ material they operate:
 | [`templates/python-mcp/README.md`](../templates/python-mcp/README.md) | Python MCP server template |
 | [`timesfm-showcase/README.md`](../servers/timeseries-mcp/testdata/timesfm-showcase/README.md) | TimesFM test fixture provenance and use |
 
-The long-form sources are
-[`veoveo-whitepaper-print.html`](veoveo-whitepaper-print.html) and
-[`autonomy-harness-print.html`](autonomy-harness-print.html). Their source headers
-document the headed Chrome `Page.printToPDF` steps that produce the
-[`whitepaper PDF`](veoveo-whitepaper.pdf) and
-[`harness PDF`](autonomy-harness.pdf). [`autonomy-harness.html`](autonomy-harness.html)
-is the browser edition of the harness document. All three are snapshots of the
-catalog at their recorded baseline. For current Workspace, Computers, Stream, Reason,
+The whitepaper has one source,
+[`veoveo-whitepaper.html`](veoveo-whitepaper.html). Browsers read it directly, and
+the [`whitepaper PDF`](veoveo-whitepaper.pdf) is printed from it in headed Chrome
+with `Page.printToPDF`, as its source header describes. The paper reflects the
+catalog at its stated version. For current Workspace, Computers, Stream, Reason,
 UAV live view, Recording Hub, administration and GPU behavior, read the component
 designs above.
 

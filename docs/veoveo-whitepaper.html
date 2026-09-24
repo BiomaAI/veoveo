@@ -1,0 +1,1047 @@
+<!doctype html>
+<!-- Single source of the Autonomy Harness whitepaper. Browsers read this file directly;
+     docs/veoveo-whitepaper.pdf is printed from it. To print, serve the repository root,
+     open this file in headed Chrome whose WebGPU or WebGL adapter is hardware-backed,
+     emulate prefers-color-scheme: light, and call DevTools Page.printToPDF with
+     printBackground and preferCSSPageSize enabled. Print pagination comes from the
+     @media print rules; render every page and inspect it after editing. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Autonomy Harness Whitepaper</title>
+<style>
+  :root {
+    --bg: #FFFFFF;
+    --ink: #17212B;
+    --muted: #4A5560;
+    --faint: #8494A1;
+    --line: #D8DEE4;
+    --accent: #B87514;
+    --accent-bright: #E2A14E;
+    --wash: #F4F6F8;
+    --dark: #0E141B;
+    --dark-ink: #E7EDF2;
+    --dark-muted: #8C9AA6;
+    --figure-bg: #FFFFFF;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --body: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  }
+  @media screen and (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0D1117;
+      --ink: #E3E9EE;
+      --muted: #A7B3BD;
+      --faint: #7D8B97;
+      --line: #2A3440;
+      --accent: #E2A14E;
+      --wash: #151C24;
+      --figure-bg: #FFFFFF;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 17px; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); }
+  a { color: inherit; }
+
+  /* ---------- article column ---------- */
+  main { max-width: 46rem; margin: 0 auto; padding: 0 16px 6rem; }
+  section.chapter { padding-top: 3.5rem; }
+  section.chapter > section.sub { padding-top: 1.5rem; }
+
+  h1.section {
+    font-size: 2rem; font-weight: 700; letter-spacing: -0.015em; line-height: 1.15;
+    padding-bottom: 0.6rem; border-bottom: 3px solid var(--ink); margin-bottom: 1.1rem;
+  }
+  h2.sub {
+    font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2;
+    padding-bottom: 0.45rem; border-bottom: 2.5px solid var(--ink); margin: 0.4rem 0 1rem;
+  }
+  h3.minor { font-size: 1.05rem; font-weight: 700; margin: 1.3rem 0 0.5rem; }
+
+  p.body { font-size: 1rem; line-height: 1.62; margin-bottom: 0.95rem; }
+  p.note { font-size: 0.9rem; line-height: 1.55; color: var(--muted); margin-bottom: 0.95rem; }
+  ul.bullets { list-style: none; margin: 0.3rem 0 1.1rem; }
+  ul.bullets li { font-size: 1rem; line-height: 1.58; padding-left: 1.2rem; position: relative; margin-bottom: 0.6rem; }
+  ul.bullets li::before { content: "•"; position: absolute; left: 0.2rem; }
+  b { font-weight: 700; }
+  code { font-family: var(--mono); font-size: 0.86em; overflow-wrap: anywhere; }
+
+  .callout { background: var(--wash); border-left: 3.5px solid var(--accent); padding: 0.9rem 1.1rem 1rem; margin: 1.2rem 0; }
+  .callout .label { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 0.4rem; }
+  .callout p { font-size: 1rem; line-height: 1.6; }
+
+  /* ---------- tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 0.9rem 0 1.3rem; }
+  table.data { width: 100%; border-collapse: collapse; }
+  table.data thead td {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); padding: 0.45rem 0.7rem 0.45rem 0; border-bottom: 2px solid var(--ink);
+  }
+  table.data tbody td {
+    font-size: 0.9rem; line-height: 1.5; color: var(--muted);
+    padding: 0.55rem 0.7rem 0.55rem 0; vertical-align: top; border-bottom: 1px solid var(--line);
+  }
+  table.data tbody tr:nth-child(even) { background: var(--wash); }
+  table.data tbody td:first-child { font-weight: 700; color: var(--ink); padding-left: 0.2rem; }
+  table.data td.mono { font-family: var(--mono); font-size: 0.8rem; font-weight: 600; overflow-wrap: anywhere; }
+  table.data.tight tbody td { padding-top: 0.38rem; padding-bottom: 0.38rem; font-size: 0.86rem; line-height: 1.45; }
+  table.data.tight td.mono { font-size: 0.76rem; }
+  table.data td.num { width: 2rem; }
+
+  /* ---------- figures ---------- */
+  figure.art { margin: 1.1rem 0 1.4rem; }
+  figure.art img { display: block; width: 100%; height: auto; border: 1px solid var(--line); background: var(--figure-bg); }
+  figure.art.narrow img { width: 72%; margin: 0 auto; }
+  figure.art figcaption {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em; line-height: 1.5;
+    color: var(--faint); margin-top: 0.5rem; text-transform: uppercase;
+  }
+
+  /* ---------- cover ---------- */
+  header.cover {
+    position: relative; overflow: hidden; background: var(--dark); color: var(--dark-ink);
+    min-height: 88vh; display: flex; flex-direction: column; justify-content: flex-end;
+  }
+  .cover-art { position: absolute; inset: 0; background: url("images/cover.png") center / cover no-repeat; opacity: 0.9; }
+  .cover-veil {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(14,20,27,0.55) 0%, rgba(14,20,27,0.1) 38%, rgba(14,20,27,0.86) 74%, rgba(14,20,27,0.97) 100%);
+  }
+  .cover .brand { position: absolute; top: 2rem; left: 16px; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; color: #fff; }
+  .cover .brand::after { content: "."; color: var(--accent-bright); }
+  .cover .kind {
+    position: absolute; top: 2.3rem; right: 16px; font-family: var(--mono); font-size: 0.62rem;
+    letter-spacing: 0.16em; color: var(--dark-muted); text-transform: uppercase;
+  }
+  .titleblock { position: relative; max-width: 46rem; width: 100%; margin: 0 auto; padding: 0 16px 4rem; }
+  .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.2em; color: var(--accent-bright); text-transform: uppercase; margin-bottom: 1rem; }
+  .cover h1 { font-size: clamp(2.6rem, 9vw, 3.6rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.04; color: #fff; }
+  .cover .subtitle { margin-top: 1rem; font-size: 1.05rem; line-height: 1.5; color: #B9C4CD; max-width: 32rem; }
+  .verline { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.14em; color: var(--dark-muted); text-transform: uppercase; margin-top: 1rem; }
+
+  /* ---------- transcript ---------- */
+  section.transcript { background: var(--dark); color: var(--dark-ink); padding: 3rem 16px; }
+  .transcript-inner { max-width: 46rem; margin: 0 auto; }
+  .tp-eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.2em; color: var(--accent-bright); text-transform: uppercase; margin-bottom: 0.4rem; }
+  .tp-sub { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.08em; color: var(--dark-muted); text-transform: uppercase; margin-bottom: 1.6rem; }
+  .tlog { font-family: var(--mono); font-size: 0.74rem; line-height: 1.85; color: #B9C4CD; }
+  .tlog .row { display: flex; }
+  .tlog .t { flex: 0 0 5.2rem; color: #64747F; }
+  .tlog .ch { flex: 0 0 5.2rem; color: var(--accent-bright); }
+  .tlog .tx { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .tlog .tx b { color: #fff; font-weight: 600; }
+  .tlog .gap { height: 0.9rem; }
+  .opbox { border: 1.5px solid var(--accent-bright); border-radius: 3px; padding: 0.8rem 1rem; margin: 1rem 0; }
+  .opbox .oplabel { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.18em; color: var(--accent-bright); margin-bottom: 0.45rem; }
+  .opbox p { font-family: var(--mono); font-size: 0.78rem; line-height: 1.75; color: #fff; }
+  .tcap { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.04em; line-height: 1.8; color: var(--dark-muted); margin-top: 1.6rem; border-top: 1px dashed #37475A; padding-top: 0.8rem; }
+
+  /* ---------- abstract ---------- */
+  .abstract { border-top: 3px solid var(--ink); border-bottom: 1px solid var(--line); padding: 1.1rem 0 1rem; margin: 0.6rem 0 1.1rem; }
+  .abstract p { font-size: 1.04rem; line-height: 1.7; }
+  .abstract p + p { margin-top: 0.7rem; }
+  .abstract p.keywords { font-family: var(--mono); font-size: 0.78rem; line-height: 1.6; letter-spacing: 0.04em; color: var(--muted); margin-top: 0.9rem; }
+  .keywords b { color: var(--ink); font-weight: 600; letter-spacing: 0.1em; }
+
+  /* ---------- contents ---------- */
+  ol.toc { list-style: none; counter-reset: none; border-top: 2.5px solid var(--ink); }
+  ol.toc li { display: flex; gap: 0.8rem; padding: 0.5rem 0.6rem; font-size: 1rem; font-weight: 600; }
+  ol.toc li:nth-child(even) { background: var(--wash); }
+  ol.toc li span { flex: 0 0 1.8rem; font-weight: 400; color: var(--muted); }
+  ol.toc a { text-decoration: none; }
+  ol.toc a:hover { text-decoration: underline; }
+
+  @media screen and (min-width: 1240px) {
+    main { display: grid; grid-template-columns: 14rem 46rem; column-gap: 3rem; max-width: 63rem; }
+    main > section.chapter { grid-column: 2; }
+    main > #contents {
+      grid-column: 1; grid-row: 1 / span 20; align-self: start;
+      position: sticky; top: 0; max-height: 100vh; overflow-y: auto; padding: 3.5rem 0 1rem;
+    }
+    #contents h1.section { font-size: 0.72rem; font-family: var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); border-bottom: none; padding: 0; margin-bottom: 0.5rem; }
+    #contents ol.toc { border-top: none; }
+    #contents ol.toc li { font-size: 0.8rem; font-weight: 500; padding: 0.3rem 0.4rem; background: none; }
+  }
+
+  @media screen and (max-width: 600px) {
+    html { font-size: 16px; }
+    .tlog .row { flex-wrap: wrap; }
+    .tlog .t { flex-basis: 4.6rem; }
+    .tlog .ch { flex-basis: auto; }
+    .tlog .tx { flex-basis: 100%; padding-left: 0; margin-bottom: 0.35rem; }
+    figure.art.narrow img { width: 100%; }
+  }
+
+  /* ---------- print: US Letter pages ---------- */
+  @page {
+    size: letter;
+    margin: 0.8in 0.85in 0.95in;
+    @top-right {
+      content: "Veoveo · Autonomy Harness Whitepaper";
+      font-family: ui-monospace, Menlo, monospace; font-size: 6.5px; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #8494A1; vertical-align: bottom; padding-bottom: 0.2in;
+    }
+    @bottom-left {
+      content: "veoveo.";
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 15px; font-weight: 700;
+      color: #17212B; vertical-align: top; padding-top: 0.3in;
+    }
+    @bottom-center {
+      content: counter(page);
+      font-family: ui-monospace, Menlo, monospace; font-size: 8px; color: #8494A1;
+      vertical-align: top; padding-top: 0.34in;
+    }
+  }
+  @page fullbleed {
+    margin: 0;
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-center { content: none; }
+  }
+
+  @media print {
+    html { font-size: 10.5px; }
+    body { background: #fff; color: #17212B; }
+    main { max-width: none; padding: 0; }
+
+    header.cover, section.transcript {
+      page: fullbleed; width: 8.5in; height: 11in; min-height: 0; overflow: hidden;
+      break-after: page;
+    }
+    header.cover { display: block; }
+    .cover .brand { top: 0.55in; left: 0.7in; font-size: 26px; }
+    .cover .kind { top: 0.6in; right: 0.7in; font-size: 6.5px; }
+    .titleblock { position: absolute; left: 0.7in; right: 0.9in; bottom: 2.2in; width: auto; max-width: none; padding: 0; margin: 0; }
+    .eyebrow { font-size: 10px; margin-bottom: 18px; }
+    .cover h1 { font-size: 58px; }
+    .cover .subtitle { font-size: 13.5px; max-width: 6.4in; margin-top: 18px; }
+    .verline { font-size: 8.5px; margin-top: 14px; }
+
+    section.transcript { padding: 0.75in 0.8in; }
+    .transcript-inner { max-width: none; }
+    .tp-eyebrow { font-size: 10px; }
+    .tp-sub { font-size: 8px; margin-bottom: 26px; }
+    .tlog { font-size: 9px; line-height: 2.05; }
+    .tlog .t { flex-basis: 74px; }
+    .tlog .ch { flex-basis: 76px; }
+    .opbox p { font-size: 9.5px; line-height: 1.8; }
+    .opbox .oplabel { font-size: 8px; }
+    .tcap { font-size: 8px; margin-top: 24px; }
+
+    section.chapter { padding-top: 0; break-before: page; }
+    section.chapter > section.sub { padding-top: 0.6rem; }
+    section.sub.newpage { break-before: page; padding-top: 0; }
+    h1.section { font-size: 30px; padding-bottom: 12px; margin-bottom: 18px; }
+    h2.sub { font-size: 21px; padding-bottom: 9px; margin: 8px 0 14px; }
+    h3.minor { font-size: 12.5px; }
+    h1, h2, h3 { break-after: avoid; }
+    p.body, ul.bullets li { orphans: 3; widows: 3; }
+
+    .table-wrap { overflow: visible; }
+    table.data thead td { font-size: 8.5px; }
+    table.data tbody td { font-size: 9.5px; }
+    table.data td.mono { font-size: 8.5px; }
+    table.data.tight tbody td { font-size: 9px; }
+    table.data.tight td.mono { font-size: 8px; }
+    table.data tr, figure.art, .callout, .abstract, ol.toc li { break-inside: avoid; }
+    table.data.dense tbody td { font-size: 8.2px; line-height: 1.28; padding-top: 2.5px; padding-bottom: 2.5px; }
+    table.data.dense td.mono { font-size: 7.6px; }
+
+    figure.art img { width: auto; max-width: 100%; max-height: 3.1in; margin: 0 auto; }
+    figure.art.short img { max-height: 2.5in; }
+    figure.art.compact img { max-height: 1.45in; }
+    figure.art.narrow img { width: auto; }
+    figure.art figcaption { font-size: 7.5px; }
+
+    #contents { break-before: page; }
+  }
+</style>
+</head>
+<body>
+
+<header class="cover">
+  <div class="cover-art"></div>
+  <div class="cover-veil"></div>
+  <div class="brand">veoveo</div>
+  <div class="kind">Self-hosted autonomy platform</div>
+  <div class="titleblock">
+    <div class="eyebrow">Technical whitepaper</div>
+    <h1>Autonomy<br>Harness</h1>
+    <p class="subtitle">Autonomous agents that run live operations on infrastructure the operator
+      owns, acting only through tools the operator's policy allows.</p>
+    <div class="verline">Version 2.0 · September 2026</div>
+  </div>
+</header>
+
+<section class="transcript" aria-label="Illustrative mission transcript">
+  <div class="transcript-inner">
+    <div class="tp-eyebrow">Transcript of an illustrative mission</div>
+    <div class="tp-sub">Live traffic world · Eclipse SUMO, Simulation of Urban Mobility · Luxembourg scenario</div>
+    <div class="tlog">
+      <div class="row"><span class="t">06:41:02</span><span class="ch">wake</span><span class="tx">timer · hourly review</span></div>
+      <div class="row"><span class="t">06:41:03</span><span class="ch">context</span><span class="tx">slice: 2 active missions · 214 vehicles tracked · signals nominal</span></div>
+      <div class="row"><span class="t">06:41:04</span><span class="ch">episode</span><span class="tx">#4,112 closed · no action required · sleeping</span></div>
+    </div>
+    <div class="opbox">
+      <div class="oplabel">OPERATOR → PILOT</div>
+      <p>New mission: survey the northern district for congestion buildup between 07:00
+         and 09:00, and keep it moving. Boundary attached (survey-north.kml); intersection
+         priorities from ops (priorities.xlsx). Interventions stay inside city signal policy.
+         Report with evidence.</p>
+    </div>
+    <div class="tlog">
+      <div class="row"><span class="t">06:42:07</span><span class="ch">wake</span><span class="tx">operator message · 2 attachments</span></div>
+      <div class="row"><span class="t">06:42:08</span><span class="ch">reason</span><span class="tx">this operator has not sent a .kml boundary or an .xlsx priority sheet before; I can structure both</span></div>
+      <div class="row"><span class="t">06:42:09</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> priorities.xlsx → ops_priorities · 14 intersections ranked</span></div>
+      <div class="row"><span class="t">06:42:10</span><span class="ch">act</span><span class="tx"><b>map__validate_geofence</b> survey-north.kml → WGS84 polygon · 8.2 km²</span></div>
+      <div class="row"><span class="t">06:42:11</span><span class="ch">act</span><span class="tx"><b>memory_write</b> missions ← ‘survey-north’ · objectives, boundary, constraints</span></div>
+      <div class="row"><span class="t">06:42:12</span><span class="ch">reason</span><span class="tx">the report needs camera footage and vehicle counts; four streams cover the district</span></div>
+      <div class="row"><span class="t">06:42:13</span><span class="ch">act</span><span class="tx"><b>subscribe</b> sumo://congestion · scoped to the boundary</span></div>
+      <div class="row"><span class="t">06:42:14</span><span class="ch">act</span><span class="tx"><b>schedule</b> wake 07:00 · survey window opens</span></div>
+      <div class="row"><span class="t">06:42:15</span><span class="ch">episode</span><span class="tx">#4,113 closed · mission stored in the <b>world model</b> · sleeping</span></div>
+      <div class="gap"></div>
+      <div class="row"><span class="t">07:00:00</span><span class="ch">wake</span><span class="tx">timer · survey window open</span></div>
+      <div class="row"><span class="t">07:00:03</span><span class="ch">act</span><span class="tx"><b>recording__create_recording_projection</b> latest-at → 61 vehicles in boundary · edge N-14 densest</span></div>
+      <div class="row"><span class="t">07:00:05</span><span class="ch">act</span><span class="tx"><b>stream__run_recording</b> /world/camera/n14 · task t-2211 · sleeping</span></div>
+      <div class="row"><span class="t">07:11:40</span><span class="ch">wake</span><span class="tx">task result · 1,204 detections · 87 tracks · northbound queue +9%/min</span></div>
+      <div class="row"><span class="t">07:11:43</span><span class="ch">act</span><span class="tx"><b>duckdb__ingest</b> detections → demand per approach</span></div>
+      <div class="row"><span class="t">07:11:44</span><span class="ch">act</span><span class="tx"><b>optimization__solve_milp</b> · minimize delay · typed signal choices, demand, priorities, and policy constraints</span></div>
+      <div class="row"><span class="t">07:11:52</span><span class="ch">reason</span><span class="tx">the verified solution retimes N-14 and N-9 inside policy and leaves N-2 unchanged because its priority and demand are low</span></div>
+      <div class="row"><span class="t">07:11:53</span><span class="ch">act</span><span class="tx"><b>sumo__set_signal_phase</b> N-14 N-9 · run_batch(500) · task t-2212 · sleeping</span></div>
+      <div class="row"><span class="t">07:19:26</span><span class="ch">wake</span><span class="tx">task result · queue at N-14 down <b>23%</b> · writing report</span></div>
+      <div class="row"><span class="t">07:19:31</span><span class="ch">report</span><span class="tx">artifact sealed · counts, plan, clip, rationale · shareable under policy</span></div>
+    </div>
+    <p class="tcap">This transcript is illustrative. Its wakes, tools, tasks, and artifacts are the
+      ones the platform ships, and the sections that follow describe how each of them works.</p>
+  </div>
+</section>
+
+<main>
+
+<section class="chapter" id="abstract">
+  <h1 class="section">Abstract</h1>
+  <div class="abstract">
+    <p>
+      What an operation needs from autonomy is harder to supply than intelligence. Decisions
+      have to follow from what was actually observed, and they have to stay aligned with the
+      mission — with its objectives and constraints, and with the intent behind them when
+      circumstances force a change of plan. Permission has to hold even when the model's
+      judgment fails; especially then. Resilience has to be engineered: processes die, machines
+      are lost, tasks are cut off mid-flight, and the system must come back knowing what it was
+      doing, with the consequences of every interruption defined in advance. What the autonomy
+      is doing has to be observable while it is doing it. And the operator, who answers for all
+      of it, needs assurance that behavior stays within what was approved — and an account of
+      every action, attributable and replayable from the record.
+    </p>
+    <p>
+      The <b>Autonomy Harness</b> is a self-hosted cognition stack built to supply these
+      guarantees structurally. Its foundation is a <b>world model</b>: everything the operation
+      senses, remembers, and decides, fused into a durable body of state that agents query
+      rather than accumulate. The mission is part of that model — objectives, constraints, and
+      current beliefs held as data — so intent is something an agent reasons over, and a
+      deviation is measured against the goal it serves before it is adopted and recorded.
+      Reasoning runs in bounded episodes over fresh slices of this model, which is why an
+      agent's knowledge outlives any single process or context window. Between every agent and
+      every tool sits one gateway, enforcing the operator's policy outside the model's
+      reasoning; a refusal there leaves the same evidence an approval does. Work too long for
+      an episode becomes a durable task whose recovery behavior is declared before it starts.
+      Beneath all of this, a producer-local forwarder holds each signal until Recording Hub
+      acknowledges fsynced journal state and an immutable ordered part. One verified archive pass
+      reduced a representative 30,307-chunk corpus to 31 indexed chunks in 2.56 seconds. The
+      record that grounds a decision can also replay it. New hosted servers attach through a full
+      MCP contract, in Rust or Python, and inherit the task, artifact, identity, policy, and audit
+      guarantees on arrival. A live traffic world exercises the complete loop, and the identical
+      stack runs on a single edge host or inside an air-gapped cluster.
+    </p>
+    <p class="keywords"><b>KEYWORDS</b> &nbsp; autonomous agents · world model · runtime policy ·
+      task recovery · acknowledged recording · edge and air-gap deployment · MCP</p>
+  </div>
+  <div class="callout">
+    <div class="label">Reading guide</div>
+    <p>Section 1 lists what the platform does and where each capability is described. Sections 2
+       through 8 describe the architecture. Section 9 runs the whole loop against a simulated
+       city, and Section 10 explains how the platform is tested. Sections 11 and 12 cover
+       learning and deployment. The appendices define each component and list the standards the
+       platform implements.</p>
+  </div>
+</section>
+
+<section class="chapter" id="contents">
+  <h1 class="section">Contents</h1>
+  <nav aria-label="Contents">
+    <ol class="toc">
+      <li><span>1</span><a href="#capabilities">Capabilities</a></li>
+      <li><span>2</span><a href="#system-model">System Model</a></li>
+      <li><span>3</span><a href="#world-model">The World Model</a></li>
+      <li><span>4</span><a href="#agent-kernel">The Agent Kernel</a></li>
+      <li><span>5</span><a href="#gateway">Edge, Access, and the Gateway</a></li>
+      <li><span>6</span><a href="#hosted-servers">Hosted Servers</a></li>
+      <li><span>7</span><a href="#tasks">Tasks and Shared Stores</a></li>
+      <li><span>8</span><a href="#recording-hub">Recording Hub</a></li>
+      <li><span>9</span><a href="#sumo">SUMO Traffic Showcase</a></li>
+      <li><span>10</span><a href="#verification">Verification and Observability</a></li>
+      <li><span>11</span><a href="#learning">Self-Improvement Primitives</a></li>
+      <li><span>12</span><a href="#deployment">Deployment and Operations</a></li>
+      <li><span>A</span><a href="#components">Component Reference</a></li>
+      <li><span>B</span><a href="#standards">Standards and Protocols</a></li>
+    </ol>
+  </nav>
+</section>
+
+<section class="chapter" id="capabilities">
+  <h1 class="section">1. Capabilities</h1>
+  <p class="body">
+    An installation gives an operation agents that watch live conditions, act through tools the
+    operator approves, and record every step they take. The table lists what an operator can do
+    with it and the section that explains how each capability works.
+  </p>
+  <figure class="art short">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/harness-poster-dark.png">
+      <img src="images/harness-poster.png" alt="The harness loop: live media, Stream, Reason, the world model, an agent, the gateway checks, capabilities, and the evidence store.">
+    </picture>
+    <figcaption>Figure 1. The harness loop. Stream processes live media directly, recording is optional, and every agent action passes the gateway's authentication, policy, and audit checks.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Capability</td><td>What the operator gets</td><td>Section</td></tr></thead>
+    <tbody>
+      <tr><td>Continuous watch</td><td>An agent wakes when a watched condition changes, decides, and acts: it retimes a signal, reroutes a vehicle, or reassigns work. Between events it advances the mission on its own schedule.</td><td>4</td></tr>
+      <tr><td>Long work in the background</td><td>A render, forecast, route plan, or 500-step simulation batch runs as a task. The agent sleeps until the result arrives, and an interrupted task ends in a state declared before it started.</td><td>7</td></tr>
+      <tr><td>One model of the operation</td><td>Sensor data, agent memory, and decisions share queryable stores. An operator can replay any run and see why an agent acted.</td><td>3, 8</td></tr>
+      <tr><td>Rules agents cannot bypass</td><td>Policy decides who may call which tool on which tenant's data at which sensitivity. The gateway enforces it outside the model and refuses any call no rule allows.</td><td>5</td></tr>
+      <tr><td>Eighteen hosted servers</td><td>Media, video, reasoning, SQL, forecasting, optimization, maps, frames, time, speech, computers, simulation, and visualization. A new MCP server joins through a catalog entry.</td><td>6</td></tr>
+      <tr><td>Controlled sharing</td><td>Every output is an owned artifact. Owners grant access to users and groups, or publish an expiring, revocable link to a released artifact.</td><td>7</td></tr>
+      <tr><td>Console and Workspace</td><td>The Console shows health, tasks, artifacts, agents, recordings, policy, and audit records. Workspace is the chat client where people and agents work together.</td><td>12</td></tr>
+      <tr><td>Operator-owned installation</td><td>The operator supplies the hostname, identity provider, and object store, and runs the same chart on one host, a cluster, or a disconnected network.</td><td>12</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="chapter" id="system-model">
+  <h1 class="section">2. System Model</h1>
+  <p class="body">
+    The platform runs one loop. Live encoded video enters Stream directly, and a separate
+    forwarder can record it. Agents combine live results, recorded snapshots, and Reason output,
+    then act through tools behind the gateway. The effects appear in the world the agents
+    observe, and each step writes a record. The loop follows Boyd's OODA cycle of observe,
+    orient, decide, and act. Orientation lives in stored state that any agent process can read,
+    which is why a restarted agent resumes with the same picture of the world.
+  </p>
+  <figure class="art">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/system-map-dark.png">
+      <img src="images/system-map.png" alt="Live H.264 goes directly to Stream and optionally through a forwarder to the record; Stream results and record snapshots feed Reason; the agent reaches hosted servers through the gateway.">
+    </picture>
+    <figcaption>Figure 2. Live H.264 reaches Stream without waiting for the Recording Hub. Stream results and recorded snapshots ground Reason, and agents reach every hosted server through the gateway.</figcaption>
+  </figure>
+  <p class="body">Data moves through the loop in three flows.</p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><td>Flow</td><td>Path</td><td>Guarantee</td></tr></thead>
+    <tbody>
+      <tr><td>Observe</td><td>Stream processes arriving H.264. A forwarder beside each producer uploads recording batches. Agents read immutable snapshots, taken when a task starts, through Recording and Reason.</td><td>Live results never wait for the Recording Hub. The Hub acknowledges a batch after it fsyncs the journal and writes the part.</td></tr>
+      <tr><td>Act</td><td>Every tool call passes through the gateway under one tool namespace. Short tools answer inline, and long tools return a task handle immediately.</td><td>A finished task wakes the agent, and the next episode starts with the result.</td></tr>
+      <tr><td>Account</td><td>Authentication, policy, administration, and task transitions write audit records. Each decision records what the agent saw, what it chose, and why.</td><td>Usage records meter provider spend and tool calls per principal.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="chapter" id="world-model">
+  <h1 class="section">3. The World Model</h1>
+  <p class="body">
+    An agent's context comes from a world model: what the operation senses, what its agents
+    remember, and what they decided, kept in stores the agent can query. Sensors and simulators
+    stream the physical world into the Recording Hub. Agents keep beliefs, missions, and
+    constraints in their analytical memory, and every decision goes into a decision log. Each
+    action an agent takes becomes data that its next episode reads. The kernel assembles
+    context from these stores at the start of every episode, so an agent keeps what it knows
+    across restarts and beyond the size of any one context window.
+  </p>
+  <p class="body">
+    The mission is stored as data. Objectives, constraints, and current beliefs sit in tables
+    that the agent reads and writes with guarded tools. When an agent considers a change of
+    plan, it compares the change against the objective the change serves, adopts it only if it
+    still serves that objective, and records its reasoning next to the mission.
+  </p>
+  <p class="body">
+    A mission can arrive in whatever format its source produces: a scenario file from another
+    autonomy stack, an exported plan, an annotated map, or a plain document. The agent reads
+    the file and writes its objectives and constraints as table rows. Geometry passes through
+    the Map and Frames servers into real coordinates, and the original file is stored as an
+    artifact with its provenance. Connecting an existing autonomy stack starts with giving the
+    agent that stack's files.
+  </p>
+  <figure class="art narrow">
+    <img src="images/world-model.png" alt="Sensors, agent memory, and the decision log feed the world model; each episode's context is drawn from it.">
+    <figcaption>Figure 3. Sensors, memories, and decisions feed the world model. Each episode's context is a query result over it.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><td>Source</td><td>What it contributes</td><td>What agents read</td></tr></thead>
+    <tbody>
+      <tr><td>Sensors and simulators</td><td>The physical world, streamed into the recorded time-and-space record.</td><td>The world now, as a latest-at snapshot, and how it got here, as trajectories and ranges.</td></tr>
+      <tr><td>Agent memory</td><td>Beliefs, missions, constraints, and state in each agent's analytical database.</td><td>What the agent believes and intends, through guarded SQL.</td></tr>
+      <tr><td>Decision log</td><td>Every turn, tool call, and rationale, indexed by time and replayable.</td><td>What the agents did and why.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <section class="sub newpage" id="context-queried">
+    <h2 class="sub">3.1 Context, Queried</h2>
+    <p class="body">
+      The kernel builds each episode's context from slices that the agent's manifest defines. The
+      agent holds the same query tools during the episode. When it needs more, it fetches rows
+      from its memory, a snapshot or trajectory from the record, or analytics over data it has
+      ingested.
+    </p>
+    <div class="table-wrap">
+    <table class="data tight">
+      <thead><tr><td>Tool</td><td>Example</td><td>What the episode receives</td></tr></thead>
+      <tbody>
+        <tr><td class="mono">memory_query</td><td><code>SELECT id, eta, risk FROM missions WHERE status = 'active'</code></td><td>The active missions as rows. Beliefs and constraints join the same way.</td></tr>
+        <tr><td class="mono">recording__create_recording_projection · latest-at</td><td>every vehicle's position, now</td><td>A size-limited Arrow snapshot of the world on the recording timeline.</td></tr>
+        <tr><td class="mono">recording__create_recording_projection · range</td><td>vehicle 214, last five minutes</td><td>One Arrow trajectory on the original timeline.</td></tr>
+        <tr><td class="mono">timeline_query</td><td>my tool calls and outcomes, last six hours</td><td>The agent's own conduct, as data.</td></tr>
+        <tr><td class="mono">duckdb__query</td><td><code>SELECT class, count(*) FROM detections GROUP BY window_5m</code></td><td>Analytics over any ingested data, including perception output.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="body">
+      Querying for context has two effects. Tokens go to answers, so a long mission history
+      reduces to the rows the current episode needs. Every tool also reads the same stores,
+      which lets results combine: detections land in SQL, SQL rows feed a planning problem, and
+      the committed plan goes back into memory. Section 6.2 follows one such chain.
+    </p>
+    <figure class="art short">
+      <img src="images/context-queried.png" alt="An episode sends queries to memory, the record, and the decision log and receives only answers, under a token budget.">
+      <figcaption>Figure 4. An episode queries memory, the record, and the decision log. Only the answers enter the context, which has a fixed token budget.</figcaption>
+    </figure>
+  </section>
+</section>
+
+<section class="chapter" id="agent-kernel">
+  <h1 class="section">4. The Agent Kernel</h1>
+  <p class="body">
+    An agent can run indefinitely because its memory lives in stores that outlast any process.
+    The kernel assembles each episode's context from the world model, and work in flight
+    survives a restart. An agent type consists of a manifest, a preamble, and SQL migrations,
+    and the kernel validates the manifest against its schema before the agent runs. Adding an
+    agent is a configuration change. One installation can run a single agent or a team.
+  </p>
+  <figure class="art short">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/agent-loop-dark.png">
+      <img src="images/agent-loop.png" alt="The agent lifecycle: wake, assemble, episode, persist, sleep.">
+    </picture>
+    <figcaption>Figure 5. The episode lifecycle: wake, assemble, run, persist, and sleep.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Stage</td><td>What happens</td></tr></thead>
+    <tbody>
+      <tr><td>Wake</td><td>The kernel coalesces and deduplicates a batch of wakes. It stores each wake with its disposition, so the ledger shows why each episode ran.</td></tr>
+      <tr><td>Assemble</td><td>The kernel builds the context from current state, beliefs, and history, adds the wake payload, and keeps the total under the token budget.</td></tr>
+      <tr><td>Episode</td><td>The model runs once, within step and token budgets. Short tools answer inline and long tools start tasks. Hooks record each step and stop a run that exceeds its budget.</td></tr>
+      <tr><td>Persist</td><td>Descriptors for unfinished tasks go to the platform store. The episode closes with usage counters and a summary.</td></tr>
+      <tr><td>Sleep</td><td>The agent idles on the wake bus. A leased watcher for each detached task waits for its result, and a heartbeat caps the time between wakes.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">
+    Wakes come from task results, resource changes, timers, operator messages, and answers to
+    input requests. Task descriptors and watcher leases reload from the platform store at
+    boot, so a killed and restarted kernel resumes the same tasks.
+  </p>
+
+  <section class="sub newpage" id="memory">
+    <h2 class="sub">4.1 Memory and Recovery</h2>
+    <h3 class="minor">Where an agent's memory lives</h3>
+    <ul class="bullets">
+      <li><b>Scheduling state.</b> The platform store holds episodes, wakes, task watchers, and
+          leases. Its transactional outbox and changefeed deliver wakes between processes.</li>
+      <li><b>Analytical memory.</b> Each agent has a sandboxed DuckDB database with its domain
+          tables, a key-value store, and an episode-log view used for context assembly. The Pilot
+          agent's tables are <code>targets</code>, <code>missions</code>, <code>waypoints</code>,
+          <code>constraints</code>, and <code>beliefs</code>.</li>
+      <li><b>Decision log.</b> An append-only Rerun recording of every turn, tool call, task
+          event, prompt, and summary. Operators can watch it live.</li>
+    </ul>
+    <p class="body">
+      The agent reads all three itself. <code>memory_query</code> runs guarded SQL,
+      <code>memory_write</code> applies size-limited mutations and mirrors them to the decision
+      log, and <code>timeline_query</code> reads the log as a dataframe.
+    </p>
+    <h3 class="minor">How work survives interruption</h3>
+    <ul class="bullets">
+      <li>A task descriptor outlives the episode that created it. A later boot reloads the
+          handle and keeps waiting.</li>
+      <li>Token rotation issues the new token before it revokes the old one. Task ids belong to
+          the principal, so a reconnecting agent finds its own tasks.</li>
+      <li>Wakes are pushed. In a validation run with polling set to 60&nbsp;s and the heartbeat
+          to 600&nbsp;s, an agent using a real model slept through a 15&nbsp;s task and woke
+          within one second of its completion.</li>
+      <li>A run that exceeds its budget ends as <code>budget_terminated</code>, which the ledger
+          records like any other outcome. Hourly windows defer wakes that are not marked
+          priority.</li>
+    </ul>
+    <div class="callout">
+      <div class="label">Agents are configuration</div>
+      <p>The manifest declares the model endpoint, the gateway principal, episode limits,
+         budgets, schedule, context sections, and writable tables. The kernel rejects an invalid
+         manifest at boot. Authenticated users and policy-approved service principals reach a
+         running agent through wakes: they can send it a prompt, read its status in the Console,
+         and answer its pending input requests.</p>
+    </div>
+  </section>
+</section>
+
+<section class="chapter" id="gateway">
+  <h1 class="section">5. Edge, Access, and the Gateway</h1>
+  <p class="body">
+    Every client enters through the installation's Kubernetes Ingress. The gateway
+    authenticates each request, checks it against policy, and records the decision before it
+    forwards anything. Policy runs outside the model. A model that is wrong, drifts, or follows
+    injected instructions still cannot call a tool the policy denies. Hosted servers sit on the
+    internal network and accept only requests that carry a gateway-signed Ed25519 identity
+    assertion.
+  </p>
+  <figure class="art short">
+    <img src="images/gateway-gauntlet.png" alt="Requests pass authentication, policy, and audit in order; the gateway refuses by default and forwards a signed identity.">
+    <figcaption>Figure 6. The gateway authenticates each request, checks policy, and writes an audit record. It refuses by default and forwards a signed identity.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Public path</td><td>Destination</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">/mcp · /oauth · /admin · /artifacts</td><td>The gateway.</td></tr>
+      <tr><td class="mono">/console · /workspace · /auth</td><td>The web backend that serves the Console and Workspace and holds browser sessions.</td></tr>
+      <tr><td class="mono">/s/{token}</td><td>The artifact service, for public share links.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Function</td><td>Behavior</td></tr></thead>
+    <tbody>
+      <tr><td>Authentication</td><td>Browser OAuth with PKCE, client credentials with private-key JWT, identity-assertion grant (ID-JAG) exchange, JWKS, and token issuance and revocation. Refresh tokens rotate, and reusing an old one revokes its whole family.</td></tr>
+      <tr><td>Policy and audit</td><td>Attribute- and role-based policy covers tools, resources, tasks, and artifacts, with tenant and data-label checks for regulated data. Every denial carries a reason code, and admin, authentication, and policy operations write audit records.</td></tr>
+      <tr><td>Control plane</td><td>Administrators apply and reload a validated catalog of servers, profiles, and policies while the gateway runs. Secrets are referenced by name and redacted. Artifact downloads pass policy and audit.</td></tr>
+      <tr><td>Domain administration</td><td>Each server administers its domain through MCP tools, resources, tasks, and Apps. A server may also declare an HTTP route at <code>/admin/{profile}/servers/{server}/{path}</code> that uses the same models, policy, audit, and state.</td></tr>
+      <tr><td>Protocol surface</td><td>Tools, resources and templates, prompts, completions, tasks, subscriptions, notifications, structured content with declared schemas, artifacts, and usage. The gateway prefixes tool names when it aggregates servers and leaves resource URI schemes unchanged.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="body">
+    A server that speaks MCP over stdio joins through the Stdio Bridge, which runs it as a child
+    process and serves its tools over streamable HTTP. The Recording Viewer is deployed this
+    way, with the headless viewer, its stdio MCP server, and the bridge in one container.
+  </p>
+</section>
+
+<section class="chapter" id="hosted-servers">
+  <h1 class="section">6. Hosted Servers</h1>
+  <p class="body">
+    The gateway catalog defines eighteen hosted servers. Each server declares the MCP surfaces
+    its domain needs and runs behind gateway-signed identity. A local, bridged, or remote MCP
+    endpoint joins by registering in the validated catalog. From then on it uses the same task,
+    artifact, identity, policy, and audit contracts as the built-in servers. A client that
+    connects to the gateway reaches every registered server, and a newly registered server is
+    available to every client.
+  </p>
+  <figure class="art compact">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/integration-matrix-dark.png">
+      <img src="images/integration-matrix.png" alt="Direct integration needs N times M connections; a gateway needs N plus M.">
+    </picture>
+    <figcaption>Figure 7. With a gateway, N clients and M systems need N + M connections instead of N × M direct integrations.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight dense">
+    <thead><tr><td>Server</td><td>Capability</td><td>Representative tools</td></tr></thead>
+    <tbody>
+      <tr><td>Media<br><code>media</code></td><td>Provider-backed generative media with webhook completion, a model catalog, and pricing.</td><td class="mono">run · models · model_schema · artifact</td></tr>
+      <tr><td>Stream<br><code>stream</code></td><td>Live RTP/H.264 processing and reproducible replay of recording snapshots, with an encoded App preview and typed results.</td><td class="mono">start_live_session · stop_live_session · run_recording</td></tr>
+      <tr><td>Reason<br><code>reason</code></td><td>A local world model that answers questions about recording snapshots, optionally grounded by Stream detections.</td><td class="mono">analyze_recording</td></tr>
+      <tr><td>Speech<br><code>speech</code></td><td>GPU speech recognition for private Workspace dictation and recording transcription, with JSON and WebVTT output.</td><td class="mono">transcribe · start_dictation · finish_dictation · cancel_dictation</td></tr>
+      <tr><td>Computers<br><code>computers</code></td><td>Retained computers for people and agents, with lifecycle control, command execution, file transfer, and named agent grants.</td><td class="mono">create · start · stop · execute · transfer_file · grant_automation</td></tr>
+      <tr><td>Forecasting<br><code>timeseries</code></td><td>Forecasts over any SQL-readable time series, returned as Rerun recordings.</td><td class="mono">forecast</td></tr>
+      <tr><td>Time<br><code>time</code></td><td>Civil, military, GNSS, and mission time bound to versioned TZDB and leap-second releases, plus calendars, windows, and clock checks.</td><td class="mono">resolve_time · convert_time · assess_clock · evaluate_windows</td></tr>
+      <tr><td>SQL<br><code>duckdb</code></td><td>Arbitrary SQL over databases the caller owns, inside a locked sandbox with resource limits.</td><td class="mono">query · execute · ingest · export</td></tr>
+      <tr><td>Optimization<br><code>optimization</code></td><td>NVIDIA cuOpt vehicle routing, scenario batches, and convex and MILP solving, with immutable problem, run, solution, and verification records.</td><td class="mono">optimize_routes · optimize_route_scenarios · solve_convex · solve_milp · verify_solution</td></tr>
+      <tr><td>Frames<br><code>frames</code></td><td>ECEF-rooted frame worlds with immutable revisions, coordinate conversion, batch transforms, and provenance.</td><td class="mono">create_world · publish_world · convert_frame · batch_transform</td></tr>
+      <tr><td>Map<br><code>map</code></td><td>Earth geography over versioned data releases and restrictions, with Valhalla and network routing, cuOpt travel models, and reachable areas. Each route records its data, profile, and planner versions.</td><td class="mono">search_locations · route · route_matrix · build_travel_model · reachable_area · publish_restriction</td></tr>
+      <tr><td>Datasheet<br><code>datasheet</code></td><td>The Python reference server: dataset preview, column statistics, and profiling that writes its report as an artifact.</td><td class="mono">preview_dataset · column_stats · profile_dataset</td></tr>
+      <tr><td>Sharing<br><code>artifact</code></td><td>Artifact metadata, access grants, release state, and share links.</td><td class="mono">metadata · grant_access · revoke_access · set_release_state · create_share_link</td></tr>
+      <tr><td>Recordings<br><code>recording</code></td><td>Authorized Rerun datasets, immutable layers, size-limited Arrow projections, subscriptions, and publication.</td><td class="mono">create_recording_projection · seal_recording</td></tr>
+      <tr><td>Charts<br><code>charts</code></td><td>Chart rendering that turns query results into shareable images and chart views.</td><td class="mono">render_chart · compile_chart · validate_chart · create_chart_view</td></tr>
+      <tr><td>Viewer<br><code>rerun</code></td><td>A Rerun viewer driven over MCP: session control, capture, widget inspection, and UI automation.</td><td class="mono">17 tools, connect through batch</td></tr>
+      <tr><td>3D View<br><code>view</code></td><td>Static 3D Tiles scene compositions with fixed inputs and overlays, rendered offscreen on NVIDIA Vulkan.</td><td class="mono">create_scene_composition · create_view · set_camera · capture_frame</td></tr>
+      <tr><td>UAV Simulation<br><code>uav-sim</code></td><td>Simulation sessions, missions, vehicles, terrain, dataset capture, and simulator-hosted cameras streamed as authenticated H.264 from shared GPU products.</td><td class="mono">configure_world · execute_vehicle_mission_plan · list_live_cameras · open_live_view</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Each server's <code>DESIGN.md</code> under <code>servers/</code> lists its full tool, resource, and task surface.</p>
+
+  <section class="sub newpage" id="stream-reason">
+    <h2 class="sub">6.1 Live Stream, Replay, and Grounded Reason</h2>
+    <p class="body">
+      Stream starts processing RTP/H.264 frames as they arrive. Its encoded tee feeds an App
+      preview and can feed the recording forwarder, and live results never wait for the
+      Recording Hub. The same admitted pass-through or perception profile can run later over a
+      snapshot of complete, acknowledged recording parts, taken when the task starts.
+    </p>
+    <ul class="bullets">
+      <li><b>Live.</b> An owner starts one session. Stream processes new frames on the GPU and
+          publishes typed detections, and the H.264 App draws them as overlays.</li>
+      <li><b>Replay.</b> The same approved profile runs over an authorized recording range and
+          publishes immutable JSON and RRD results.</li>
+      <li><b>Reason.</b> Reason combines an authorized recording snapshot with a typed subset of
+          one <code>stream://artifact/{id}</code> result, and its answers can cite Stream track
+          identities.</li>
+    </ul>
+    <p class="body">
+      Stream processing, Reason inference, and visual acceptance fail closed when their GPU is
+      missing. A browser may decode H.264 in software only when Media Capabilities reports the
+      exact configuration as supported and smooth, and the App then labels the path as software
+      decode.
+    </p>
+    <figure class="art short">
+      <img src="images/grounding-flow.png" alt="Live Stream and replay publish results; Reason combines a recording snapshot with optional Stream detections.">
+      <figcaption>Figure 8. Live Stream and replay publish results. Reason combines a recording snapshot with optional typed Stream detections.</figcaption>
+    </figure>
+  </section>
+
+  <section class="sub newpage" id="optimization">
+    <h2 class="sub">6.2 Optimization</h2>
+    <p class="body">
+      Optimization solves vehicle routing and other mathematical decisions. Routing assigns
+      orders to a mixed fleet and sequences every stop. Convex and mixed-integer models cover
+      decisions that do not fit a route. Typical questions:
+    </p>
+    <ul class="bullets">
+      <li>Three survey drones, forty waypoints, and battery limits: which drone flies which route?</li>
+      <li>Given measured demand per approach, which signal-timing plan minimizes total delay?</li>
+      <li>Ten targets, two sensors, and shifting priorities: what gets watched this hour?</li>
+    </ul>
+    <p class="body">
+      Map publishes immutable cost and transit-time matrices for each vehicle type. An agent may
+      derive coefficients from SQL observations, but it submits the problem as typed JSON with
+      stable identities for every location, order, vehicle, variable, and constraint. The
+      result is an immutable solution linked to the problem and to the run that produced it.
+    </p>
+    <p class="body">
+      The Rust control plane validates and compiles the typed model, then NVIDIA cuOpt 26.08
+      solves it on a GPU. Routing supports service and pickup-delivery orders, time windows,
+      breaks, capacities, optional orders, restrictions, warm starts, and weighted objectives.
+      The mathematical solvers accept continuous LP, QP, QCQP, and SOCP models and linear MILP.
+      A separate verifier recomputes route feasibility, bounds, integrality, constraints, and
+      objective values before the solution is stored as a result.
+    </p>
+    <h3 class="minor">An illustrative signal-retiming run</h3>
+    <div class="table-wrap">
+    <table class="data tight">
+      <thead><tr><td>#</td><td>Call</td><td>Result</td></tr></thead>
+      <tbody>
+        <tr><td class="num">1</td><td class="mono">wake · resources/updated: sumo://congestion</td><td>The congestion resource changed, which wakes the agent.</td></tr>
+        <tr><td class="num">2</td><td class="mono">recording__create_recording_projection · latest-at</td><td>An Arrow snapshot shows edge E14 saturated.</td></tr>
+        <tr><td class="num">3</td><td class="mono">stream__run_recording /world/camera/e14 · 10 min</td><td>1,204 detections and 87 tracks of cars, buses, and trucks, counted per approach.</td></tr>
+        <tr><td class="num">4</td><td class="mono">duckdb__ingest → query</td><td>Demand per approach, as SQL rows.</td></tr>
+        <tr><td class="num">5</td><td class="mono">optimization__solve_milp · signal choices and policy constraints</td><td>A signal-timing solution, solved on the GPU and independently verified.</td></tr>
+        <tr><td class="num">6</td><td class="mono">sumo__set_signal_phase · run_batch(500)</td><td>The new phases apply, and the agent sleeps through the batch.</td></tr>
+        <tr><td class="num">7</td><td class="mono">wake · task result</td><td>Delay at the intersection fell 23%. Every step is already in the record.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</section>
+
+<section class="chapter" id="tasks">
+  <h1 class="section">7. Tasks and Shared Stores</h1>
+  <h3 class="minor">Tasks</h3>
+  <p class="body">
+    Every long-running tool runs on the shared task runtime through official MCP Tasks. Task
+    ids are UUIDv7. Creation, leases, transitions, results, and outbox events commit atomically
+    in the platform store. A task-augmented <code>tools/call</code> returns a handle
+    immediately, <code>tasks/get</code> returns status, progress, and the final result, and
+    <code>tasks/cancel</code> stops the task and records the provider's cancellation outcome.
+    Each operation declares how it recovers, so an interruption always ends in a known state:
+  </p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead><tr><td>Recovery class</td><td>Meaning</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">resume</td><td>Deterministic work without side effects may be reclaimed after its lease expires.</td></tr>
+      <tr><td class="mono">webhook_wait</td><td>A submitted provider job completes only when its signed webhook arrives.</td></tr>
+      <tr><td class="mono">interrupted_indeterminate</td><td>Interrupted work that changes external state fails closed and never replays automatically.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3 class="minor">Shared stores</h3>
+  <ul class="bullets">
+    <li><b>Platform store.</b> One SurrealDB 3.2.4 node on RocksDB coordinates the installation.
+        It holds identity, policy, control-plane revisions, tasks, artifacts, the recording
+        catalog, map catalogs and releases, agents, wakes, audit records, and usage.
+        Cross-process work travels through its transactional outbox and replayable changefeed.</li>
+    <li><b>Artifact plane.</b> Every server reads and writes artifact bytes through one policy
+        enforcement point. Bytes live in an S3-compatible object store, and grants, labels, and
+        release state live in the platform store. Each stored occurrence receives a new
+        <code>artifact://{uuidv7}</code> identity, and content hashes provide integrity and
+        deduplication within a tenant. One server consumes another's output by its
+        <code>artifact://</code> reference, as when DuckDB ingests a media render.</li>
+    <li><b>Contract core.</b> Every server shares the same Rust newtypes and enums, deployment
+        models, exported JSON Schemas, and Ed25519 identity assertions. A server refuses to
+        start when validation fails, and it holds only public verification keys.</li>
+  </ul>
+  <div class="callout">
+    <div class="label">Sharing</div>
+    <p>An owner shares an artifact in one of two ways. A grant gives read, write, or admin
+       access to users or groups, and tenant and label policy still apply. For an artifact
+       marked releasable, the owner can also create a read-only link that expires, limits
+       downloads, and can be revoked.</p>
+  </div>
+</section>
+
+<section class="chapter" id="recording-hub">
+  <h1 class="section">8. Recording Hub</h1>
+  <p class="body">
+    Each producer sends native Rerun traffic to a forwarder on its own loopback interface. The
+    forwarder keeps a size-limited persistent queue, authenticates through the gateway, and
+    resumes uploading from the Hub's checkpoint after a producer or network restart. The
+    Recording Hub fsyncs the batch journal and writes an immutable, ordered RRD part before it
+    acknowledges a batch, and only then may the producer discard its copy. A writing segment
+    closes after one hour or at the 192 MiB precompaction limit, on an IDR frame where video
+    decoding can restart. One object-store pass writes the indexed archive shards and a
+    verified footer. Live Stream processing never waits on the Hub.
+  </p>
+  <figure class="art short">
+    <img src="images/capture-pipeline.png" alt="Capture path: fsynced journal, checkpoint, immutable parts, indexed shards.">
+    <figcaption>Figure 9. The capture path: fsynced journal, checkpoint, immutable parts, and indexed shards. A 30,307-chunk corpus became 31 archive chunks in 2.56 seconds.</figcaption>
+  </figure>
+  <p class="body">
+    The catalog gives each recording a stable identity in the platform store and links it to
+    its acknowledged parts, archive shards, checkpoints, labels, and lifecycle state. The
+    recording server answers authorized latest-at, range, and dataframe queries, serves
+    subscriptions, and seals a finished recording into an artifact. A replay task reads one
+    immutable snapshot taken when it starts, so later writes cannot change its input.
+  </p>
+</section>
+
+<section class="chapter" id="sumo">
+  <h1 class="section">9. SUMO Traffic Showcase</h1>
+  <p class="body">
+    The end-to-end test world is a simulated city. Eclipse SUMO 1.27.1, the Simulation of
+    Urban Mobility, runs the pinned, MIT-licensed LuST Luxembourg scenario in its own
+    container. One <code>sumo-mcp</code> server owns the single serialized TraCI connection,
+    publishes the world to the Recording Hub as Rerun <code>/world/sumo/**</code> streams, and
+    exposes simulator control as <code>sumo__*</code> tools behind the gateway. Its long
+    operations are tasks that the agent detaches from and wakes on, through the same path as
+    every other long tool.
+  </p>
+  <figure class="art short">
+    <img src="images/sumo-loop.png" alt="The agent reads the recorded city, decides, and acts on signals and routes.">
+    <figcaption>Figure 10. The agent reads the record, decides, and changes signals and routes in the simulated city.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Surface</td><td>Detail</td></tr></thead>
+    <tbody>
+      <tr><td>Synchronous tools</td><td><code>query_state</code> · <code>describe_scenario</code> · <code>set_signal_phase</code> · <code>reroute_vehicle</code> · <code>set_edge_speed</code> · <code>close_lane</code> · <code>open_lane</code></td></tr>
+      <tr><td>Tasks</td><td><code>run_batch</code> advances the live simulation, so an interruption ends as <code>interrupted_indeterminate</code>. <code>generate_network</code>, <code>compute_routes</code>, and <code>optimize_signals</code> run SUMO command-line programs and resume after interruption.</td></tr>
+      <tr><td>Events</td><td>Agents can subscribe to <code>sumo://congestion</code>, and a forming jam wakes them.</td></tr>
+      <tr><td>Outputs</td><td>A successful task uploads its outputs to the artifact plane with a write capability bound to that task.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <section class="sub newpage" id="measured">
+    <h2 class="sub">9.1 Measured Behavior</h2>
+    <p class="body">
+      When the agent calls a task-augmented tool, it receives a handle immediately. It stores
+      the descriptor, ends the episode, and sleeps. The server keeps working. When the task
+      finishes, the kernel receives a wake and assembles a new episode with the result.
+    </p>
+    <figure class="art short">
+      <picture>
+        <source media="screen and (prefers-color-scheme: dark)" srcset="images/task-sleepwake-dark.png">
+        <img src="images/task-sleepwake.png" alt="Detach, sleep, and wake: the agent holds no connection while the task runs.">
+      </picture>
+      <figcaption>Figure 11. Detach, sleep, and wake. While the task runs, the agent holds no connection and runs no episodes.</figcaption>
+    </figure>
+    <div class="table-wrap">
+    <table class="data">
+      <thead><tr><td>Property</td><td>Measured behavior</td></tr></thead>
+      <tbody>
+        <tr><td>Archive materialization</td><td>76,094,593 source bytes in 30,307 one-row chunks became 31 archive chunks of 28,815,516 bytes in 2.56 seconds, with 138,812 KiB peak RSS.</td></tr>
+        <tr><td>Video indexing</td><td>194 H.264 GoPs and 3,875 frames became 12 IDR-aligned video chunks of at most 2 MiB each.</td></tr>
+        <tr><td>Wake latency</td><td>With polling set to 60 s and the heartbeat to 600 s, the agent slept through a 15 s task and woke within one second of completion.</td></tr>
+        <tr><td>Process death</td><td>Task descriptors and watcher leases reload at boot. A killed and restarted kernel resumes the same tasks with its memory intact.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+</section>
+
+<section class="chapter" id="verification">
+  <h1 class="section">10. Verification and Observability</h1>
+  <ul class="bullets">
+    <li><b>Conformance.</b> A generic MCP client exercises info, resources, prompts,
+        completions, tasks, usage, and artifacts. It also checks authorization-metadata
+        discovery and token handling.</li>
+    <li><b>Smoke scenarios.</b> <code>cargo xtask smoke</code> runs end-to-end scenarios with
+        real processes against a fake identity provider, fake providers and upstream services,
+        and a pinned Keycloak realm. The scenarios cover live agent sleep and wake and the full
+        SUMO world in a disposable k3d cluster. The Map scenario acquires and activates fixture
+        data, runs Valhalla and network routes as tasks, and checks that restriction and release
+        changes invalidate dependent resources.</li>
+    <li><b>Test report.</b> Developers run each check through
+        <code>cargo xtask test-report</code>, which stores an immutable receipt per run, and
+        commit the updated report with the change. The GitHub workflow displays the committed
+        report.</li>
+    <li><b>Hardware visual acceptance.</b> Headed browser checks probe WebGPU and WebGL and
+        require at least one hardware-backed path. They reject SwiftShader, llvmpipe, and other
+        software rasterizers. GPU workloads request their accelerator and have no CPU
+        fallback.</li>
+    <li><b>Telemetry.</b> OpenTelemetry traces and logs cover the gateway and the servers. Audit
+        summaries give regulated deployments a retained account of admin, authentication, and
+        policy decisions.</li>
+  </ul>
+</section>
+
+<section class="chapter" id="learning">
+  <h1 class="section">11. Self-Improvement Primitives</h1>
+  <p class="body">
+    An operation that runs on the harness produces the data a learning program needs. Every
+    episode leaves a trajectory of the context the agent saw, the action it took, and the
+    result, aligned in time with the world's own record. The platform itself does not train
+    models or tune policies, and it does not decide what counts as improvement. A
+    reinforcement-learning, imitation, or scenario-driven program can build on the data the
+    platform keeps from its first deployment.
+  </p>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Primitive</td><td>What the platform provides</td><td>What a learning program can build</td></tr></thead>
+    <tbody>
+      <tr><td>Complete episodes</td><td>Each episode records its context slice, tool calls, outcomes, and rationale on the same timeline as the sensor record.</td><td>State, action, and outcome datasets selected by query, with rewards computed afterward from measured results.</td></tr>
+      <tr><td>Perception labels</td><td>Stream turns live or replayed video into typed detections and RRD annotations on the source timeline.</td><td>Training data drawn from real operations, with provenance for every label.</td></tr>
+      <tr><td>A practice world</td><td>Live and simulated worlds use the same contracts, and recorded anomalies replay as scenarios.</td><td>Policy evaluation and rollouts against replayed or simulated conditions, away from the live system.</td></tr>
+      <tr><td>Measurable objectives</td><td>Missions, constraints, and outcomes are queryable, and usage and results are metered per principal.</td><td>Objective and reward functions over data the operation already keeps.</td></tr>
+      <tr><td>Controlled rollout</td><td>A candidate agent variant is a manifest, and it acts through the same gateway, budgets, and policy as every other agent.</td><td>Shadow or staged variants whose actions stay inside policy, promoted through the control plane.</td></tr>
+      <tr><td>Lineage</td><td>Artifacts carry provenance, and control-plane revisions and the audit trail record what changed, when, and on whose authority.</td><td>A traceable chain from data to training run to deployed variant.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="chapter" id="deployment">
+  <h1 class="section">12. Deployment and Operations</h1>
+  <p class="body">
+    An installation runs on one host, a cluster, an air-gapped network, or a hybrid of an edge
+    host and remote services. Each form carries the whole stack: the agents, every hosted
+    server, the Console and Workspace, the record, and the audit trail.
+  </p>
+  <figure class="art short">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/deployment-map-dark.png">
+      <img src="images/deployment-map.png" alt="The same platform in edge, cluster, air-gap, and hybrid forms.">
+    </picture>
+    <figcaption>Figure 12. One platform in four forms. Only the hybrid form calls outside the installation, and only to endpoints the operator registers.</figcaption>
+  </figure>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Form</td><td>Shape</td></tr></thead>
+    <tbody>
+      <tr><td>Local</td><td><code>cargo xtask smoke profile-cluster-up --profile &lt;profile&gt;</code> creates a Kubernetes cluster bound to loopback. The same typed profile publishes immutable images and installs the workload model used in the field.</td></tr>
+      <tr><td>Cluster</td><td>The Helm chart runs one SurrealDB StatefulSet with default-deny NetworkPolicy, optional service-mesh mTLS, separate migration and runtime credentials, and telemetry and SIEM wiring supplied by the operator.</td></tr>
+      <tr><td>Air-gap</td><td>The verified offline bundle contains pinned images, Helm material, configuration schemas, checksums, and SBOMs. Installation and verification run entirely inside the disconnected network.</td></tr>
+      <tr><td>Hybrid</td><td>An edge installation registers remote MCP endpoints and provider-backed servers. Calls to them pass the same policy, audit, and task contract as local calls.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3 class="minor">Operating an installation</h3>
+  <ul class="bullets">
+    <li>The Console opens on the running installation: health, tasks, artifacts, agents,
+        recordings, policy, and audit records. Map sources, acquisitions, releases, active
+        pointers, and mobility profiles are managed through Map's MCP tools and its
+        administration App.</li>
+    <li>Workspace is the daily chat client. People and agents share conversations, and each
+        person sees their own tool results, task progress, and input requests.</li>
+    <li>The web backend handles PKCE login and keeps tokens in an encrypted HttpOnly cookie, so
+        browser JavaScript never receives gateway credentials.</li>
+    <li>An operator adds an agent by adding a manifest. A single agent and a team use the same
+        wake bus, budgets, and memory stores in every deployment form.</li>
+  </ul>
+</section>
+
+<section class="chapter" id="components">
+  <h1 class="section">Appendix A: Component Reference</h1>
+  <p class="note">Role tags: <b>ours</b> is built in this repository, <b>OSS</b> is an open-source component the platform runs, and <b>protocol</b>, <b>format</b>, and <b>concept</b> name a wire protocol, a data format, and a design idea.</p>
+  <div class="table-wrap">
+  <table class="data tight dense">
+    <thead><tr><td>Component</td><td>Role</td><td>What it is</td></tr></thead>
+    <tbody>
+      <tr><td class="mono">ingress</td><td>ours</td><td>The installation's single public entry point, a Kubernetes Ingress the operator owns.</td></tr>
+      <tr><td class="mono">gateway</td><td>ours</td><td>Authenticates callers, checks policy, aggregates every server's MCP surface, and writes the audit trail.</td></tr>
+      <tr><td class="mono">web backend</td><td>ours</td><td>Serves the Console and Workspace, owns browser login and encrypted sessions, and enforces CSRF protection.</td></tr>
+      <tr><td class="mono">agent kernel</td><td>ours</td><td>Runs long-lived agents in short episodes and wakes them on a result, a timer, or a message.</td></tr>
+      <tr><td class="mono">world model</td><td>concept</td><td>What an agent knows: the record, its memory, and the decision log, queried fresh for each episode.</td></tr>
+      <tr><td class="mono">hosted MCP server</td><td>ours</td><td>A domain service with typed models, full MCP surfaces, and the shared task and artifact contracts.</td></tr>
+      <tr><td class="mono">Stream server</td><td>ours</td><td>Runs admitted GPU pipelines over live H.264 or one recording snapshot and publishes typed results.</td></tr>
+      <tr><td class="mono">Reason server</td><td>ours</td><td>Describes recorded segments, detects typed events, and answers questions with a local world model.</td></tr>
+      <tr><td class="mono">Map server</td><td>ours</td><td>Earth geography and routing over versioned releases, with MCP administration of sources, activation, and rollback.</td></tr>
+      <tr><td class="mono">Python server SDK</td><td>ours</td><td>Gives Python servers identity checks, official Tasks, artifact capabilities, and usage reporting. Datasheet is its reference server.</td></tr>
+      <tr><td class="mono">platform store</td><td>OSS</td><td>SurrealDB 3.2.4 holding identity, policy, tasks, artifacts, recordings, agents, audit, and the transactional outbox.</td></tr>
+      <tr><td class="mono">task runtime</td><td>ours</td><td>Stores long work with atomic leases, transitions, results, and a declared recovery class per operation.</td></tr>
+      <tr><td class="mono">recording forwarder</td><td>ours</td><td>Accepts Rerun gRPC on the producer's loopback, queues it on disk, uploads through OAuth, and resumes from the checkpoint.</td></tr>
+      <tr><td class="mono">Recording Hub</td><td>ours</td><td>Acknowledges a batch after fsyncing its journal and writing an immutable part, and advances a monotonic checkpoint.</td></tr>
+      <tr><td class="mono">RRD archive shard</td><td>format</td><td>An immutable, footer-indexed shard written once at an IDR-aligned one-hour or 192 MiB boundary.</td></tr>
+      <tr><td class="mono">catalog</td><td>ours</td><td>Links stable recording identities to their parts, shards, checkpoints, labels, and lifecycle state.</td></tr>
+      <tr><td class="mono">recording server</td><td>ours</td><td>Answers authorized latest-at, range, and dataframe queries and seals recordings into artifacts.</td></tr>
+      <tr><td class="mono">Rerun viewer</td><td>OSS</td><td>Renders recorded streams as maps, plots, and a scrubbable timeline. The hosted headless instance is the Viewer server.</td></tr>
+      <tr><td class="mono">SUMO</td><td>OSS</td><td>Eclipse SUMO 1.27.1, a traffic microsimulator running the LuST Luxembourg scenario.</td></tr>
+      <tr><td class="mono">TraCI</td><td>protocol</td><td>SUMO's control socket for stepping the simulation, reading state, and changing signals and routes.</td></tr>
+      <tr><td class="mono">sumo-mcp</td><td>ours</td><td>Owns the simulator's TraCI connection, publishes the world to the Hub, and exposes control as <code>sumo__*</code> tools.</td></tr>
+      <tr><td class="mono">MCP</td><td>protocol</td><td>Model Context Protocol, carrying tools, resources, prompts, completions, tasks, subscriptions, notifications, and structured content.</td></tr>
+      <tr><td class="mono">task</td><td>concept</td><td>A tool call the agent can leave: the handle returns immediately, and the result wakes the agent later.</td></tr>
+      <tr><td class="mono">resource subscription</td><td>concept</td><td>A watched resource whose change wakes the agent, such as <code>sumo://congestion</code>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="chapter" id="standards">
+  <h1 class="section">Appendix B: Standards and Protocols</h1>
+  <p class="body">
+    The table names each external standard and format the platform exposes or depends on, with
+    the version the implementation pins. Veoveo implements the listed profile of each one, and
+    the owning component's <code>DESIGN.md</code> states the exact subset.
+  </p>
+  <div class="table-wrap">
+  <table class="data tight">
+    <thead><tr><td>Standard or format</td><td>Where it applies</td></tr></thead>
+    <tbody>
+      <tr><td>MCP 2026-07-28</td><td>The public protocol between clients, the gateway, and hosted servers, including official Tasks. Repository-specific extensions are defined in <code>mcp/contract/DESIGN.md</code>.</td></tr>
+      <tr><td>OAuth 2.0 and OpenID Connect</td><td>Browser login with PKCE, client credentials with private-key JWT, ID-JAG exchange, JWKS, and refresh-token rotation at the gateway.</td></tr>
+      <tr><td>Ed25519 signatures</td><td>Gateway-signed identity assertions that every hosted server verifies with a public key.</td></tr>
+      <tr><td>JSON Schema 2020-12</td><td>Exported contract types and declared tool input and output schemas.</td></tr>
+      <tr><td>RTP and H.264</td><td>Live video into Stream, and camera output from UAV simulation.</td></tr>
+      <tr><td>Rerun 0.38.1 and RRD</td><td>Recording traffic, the decision log, and archive shards.</td></tr>
+      <tr><td>Apache Arrow</td><td>Recording projections returned to agents.</td></tr>
+      <tr><td>SurrealDB 3.2.4</td><td>The platform store, one node on RocksDB.</td></tr>
+      <tr><td>NVIDIA cuOpt 26.08</td><td>Routing and mathematical optimization on a GPU.</td></tr>
+      <tr><td>Eclipse SUMO 1.27.1 and TraCI</td><td>The traffic showcase simulator and its control socket.</td></tr>
+      <tr><td>OpenTelemetry</td><td>Traces and logs from the gateway and servers.</td></tr>
+      <tr><td>Kubernetes and Helm</td><td>Every deployment form, including the local k3d cluster and the offline bundle.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+</main>
+</body>
+</html>
