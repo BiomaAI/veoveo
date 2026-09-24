@@ -28,7 +28,7 @@ def attach_native_rtsp_writer(
 
     with Usd.EditContext(stage, stage.GetSessionLayer()):
         created, _ = ensure_render_var_on_product(
-            stage, render_product_path, "LdrColor", "h264"
+            stage, render_product_path, "LdrColor", ""
         )
         if not created:
             raise RuntimeError(
@@ -37,7 +37,9 @@ def attach_native_rtsp_writer(
         writer = RTSPStreamWriter(
             port=port,
             mountPath="/stream",
-            encoding="h264",
+            # NVIDIA's writer passes the resident CUDA buffer directly to its
+            # RTSP backend, which owns the one NVENC encode for this product.
+            encoding="raw",
             width=width,
             height=height,
         )
