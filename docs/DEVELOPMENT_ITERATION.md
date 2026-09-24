@@ -1516,16 +1516,28 @@ build can publish those dependencies instead of failing on a missing admitted in
 Generated plans, deletion journals, and results are under
 `output/development/registry-cleanup-20260924/`.
 
-The separate host inventory identified 22.5 GiB of Rust 1.97.1 artifacts through
-Cargo compiler fingerprints and ELF compiler identities. The current Rust 1.98.1
-cache uses a different fingerprint. Independent `rig/target` and `rust-sdk/target`
-directories held 32.2 GiB last modified on August 19. Neither group was deleted.
+The subsequent cache cleanup removed 22.5 GiB of Rust 1.97.1 artifacts identified
+through Cargo compiler fingerprints and ELF compiler identities. Before deletion,
+each file matched its recorded device, inode, allocation and complete hard-link set.
+All 142,786 retained host artifact paths passed identity checks afterward, including
+the current Rust 1.98.1 artifacts. Independent `rig/target` and `rust-sdk/target`
+directories held another 32.2 GiB last modified on August 19; removing those caches
+preserved both source checkouts. Git removed four clean worktrees whose commits were
+already in `main`, recovering 1.34 GiB. Worktrees with unique work were preserved.
 The 1.25 GiB host smoke executable contained 1.075 GiB of debug sections; qualify
 reduced development debug information before considering release-only local tests.
 
-Docker also held 8,146 empty, unreferenced anonymous volumes. Their small directory
-allocation does not explain the capacity pressure. Disposable fixture cleanup paths
+Docker removed 8,146 empty, unreferenced anonymous volumes after checking each
+volume's contents and container references. All 25 protected volumes survived,
+including the nonempty anonymous orphan. The empty directories accounted for only
+about 64 MiB; registry history and old compiler artifacts caused the capacity pressure.
+Available filesystem space reached 658 GiB. Containers stayed stopped with restart
+policies set to `no`. Cleanup plans and deletion journals are under
+`output/development/cache-cleanup-20260924/`.
+
+Disposable fixture cleanup paths
 in `testing/fixtures/store.rs` and `testing/smoke/src/bin/smoke/support/process.rs`
 remove containers without requesting anonymous-volume removal. Qualify explicit
 volume cleanup and assert that fixtures leave no owned volumes behind. The inventory
-does not establish the origin of every orphan, and no volumes were pruned in this pass.
+does not establish the origin of every orphan. This follow-up needs container-based
+tests when the host is authorized to run containers again.
