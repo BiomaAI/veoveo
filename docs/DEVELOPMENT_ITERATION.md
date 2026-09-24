@@ -1587,3 +1587,29 @@ and the cluster pull address replaced its named worker during certification and
 again during release. A registry configuration that admits both authorities
 would avoid this cache churn. The first smoke launch also compiled a second
 Cargo target tree until it was rerun with the shared `CARGO_TARGET_DIR`.
+
+Installed UAV acceptance exposed a gap in the candidate probes. Isaac 6.1
+required the public MuJoCo solver configuration and Newton model body-label
+indices before the four-vehicle fleet could run on CUDA. After those changes,
+the fleet advanced and both RTX Hydra products reported rendered samples, but
+neither AOV/RTSP stream emitted an H.264 frame. Each RTSP DESCRIBE ended in 503.
+Six finite retries did not change the result. The pinned NVIDIA RTSP extension
+notes that an initial 503 can occur before media flows, but the installation
+still had zero encoded frames after several minutes. The last qualified Isaac
+6.0.1 image on the same node reached 104 sensor frames and 719 atlas frames
+with both streams ready. Bioma therefore keeps digest `e9e1e101` while the
+Isaac 6.1 AOV-to-NVENC handoff is investigated. Candidate source and test
+receipts are preserved on `upgrade/isaac-6.1-runtime`. The installation lock
+points to the qualified image.
+
+The first 6.1 runtime pull into k3s took 14 minutes 34 seconds and wrote about
+100 GiB, although cached overlay stages took 2–7 seconds. An attested overlay
+release took about 176 seconds, including roughly 55 seconds for its SBOM.
+Each diagnostic image replacement waited for the Recreate Pod's termination
+and another Kit startup. Flux also restored the published image over a manual
+candidate within its one-minute interval. A repeatable candidate test needs
+an isolated deployment or an explicit development image input, followed by one
+GitOps lock change after qualification. The repository-wide input hash in
+`test-report` took more than ten seconds for each small UAV check and wrote a
+roughly 24,500-line receipt. Scope these checks to their real inputs before
+using them for frequent render/stream experiments.
