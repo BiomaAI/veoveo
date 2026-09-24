@@ -16,7 +16,7 @@
 | `veoveo.io/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
 | `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
-| Kubernetes/K3s v1.36.2 and Helm v4.2.3 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
+| Kubernetes/K3s v1.36.2 and Helm v4.3.0 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
 | Kubernetes Ingress `networking.k8s.io/v1` | TLS Secret references |
 | Kubernetes Gateway API `gateway.networking.k8s.io/v1` | listener certificate references to core Secrets; other certificate kinds remain outside this profile |

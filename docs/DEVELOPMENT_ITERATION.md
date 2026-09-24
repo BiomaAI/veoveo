@@ -1443,6 +1443,14 @@ server-side `--max-keys` selected the object and the read passed. These checks
 cover a retained sample and current write path, not a census of every stored
 object.
 
+The OpenTelemetry Collector 0.161.0 index passed its config validator and
+accepted an OTLP/HTTP log through the checked-in receiver, batch processor
+and debug exporter. Bioma disables the Collector, so no telemetry Pod changed.
+Helm 4.3.0 passed checksum verification, lint and rendering for the Bioma
+chart, read the installed release, and completed the isolated live Flux
+health-check cancellation scenario. The fixed witness release became Ready
+20.618 seconds after submission, and the fixture namespace was removed.
+
 During the UAV export, deleting Rust incremental directories last touched before
 September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
 reclaimed about 65 GiB of disk, and pruning unused dangling Docker images reclaimed

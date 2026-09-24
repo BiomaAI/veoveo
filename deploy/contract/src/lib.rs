@@ -70,7 +70,7 @@ pub const NVIDIA_DRA_IMAGE_ARM64_DIGEST: &str =
 /// Exact Kubernetes release qualified for the managed GPU allocator closure.
 pub const NVIDIA_DRA_KUBERNETES_VERSION: &str = "1.36.2";
 /// Exact Helm release qualified for the managed GPU allocator closure.
-pub const NVIDIA_DRA_HELM_VERSION: &str = "4.2.3";
+pub const NVIDIA_DRA_HELM_VERSION: &str = "4.3.0";
 /// Exact host NVIDIA driver retained by the qualified GPU allocator closure.
 pub const NVIDIA_DRA_HOST_DRIVER_VERSION: &str = "610.43.02";
 /// Exact NVIDIA Container Toolkit package in the qualified repository-managed node image.

@@ -7,16 +7,16 @@
       "source": "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843"
     },
     {
-      "ref": "rustfs/rustfs:1.0.0-rc.3",
-      "source": "rustfs/rustfs@sha256:800cf3f352a0a27e3275ca854a51f0027975d7acc7a0d52089a35bcc9fcbf0b5"
+      "ref": "rustfs/rustfs:1.0.0",
+      "source": "rustfs/rustfs@sha256:8cc9801755448b71a786705ce76692c77e14936cccd87cf2fc31842e58f4d1ff"
     },
     {
       "ref": "amazon/aws-cli:2.35.23",
       "source": "amazon/aws-cli@sha256:0425835c7c9e33a747dfd499dcd3603ec802662f7f7ded42d8fc81ce7b712bf9"
     },
     {
-      "ref": "otel/opentelemetry-collector:0.156.0",
-      "source": "otel/opentelemetry-collector@sha256:0beba82d63792511591522a8d582904b9a8ae81710357bfcab731607b8b0ffe2"
+      "ref": "otel/opentelemetry-collector:0.161.0",
+      "source": "otel/opentelemetry-collector@sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913"
     }
   ],
   "veoveo_images": [

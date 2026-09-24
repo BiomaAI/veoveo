@@ -12,7 +12,7 @@
 | `veoveo.io/component-installation/v2` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
-| Helm v4.2.4 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
+| Helm v4.3.0 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Helm, Flux, and Argo CD ownership metadata | Exact Helm release annotations and managed-by label, with selected Flux and Argo ownership markers checked for imperative conflicts; absence of a marker grants no authority |
 | Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, GPU resource discovery, and server dry-run (`dryRun=All`) for normalized installation baselines |
 | Kubernetes `coordination.k8s.io/v1` | Non-expiring Lease mutex for cooperating profile commands; conditional deletion requires its UID and resource version |
@@ -246,7 +246,7 @@ Before namespace, bootstrap, allocator, configuration, or source-release writes,
 installation reads the exact stored Helm manifests and hooks. It checks the current
 revision and, when they differ, the deployed revision and most recent successful
 rollback candidate. This follows the pinned
-[Helm upgrade implementation](https://github.com/helm/helm/blob/v4.2.4/pkg/action/upgrade.go).
+[Helm upgrade implementation](https://github.com/helm/helm/blob/v4.3.0/pkg/action/upgrade.go).
 Historical namespaced objects can retire within the owner's declared namespaces;
 cluster objects retain their explicit permission requirement. An object reserved by
 another component or assigned to another atomic target cannot transfer through an
@@ -360,7 +360,7 @@ configuration provenance of the operation that actually installed the unit.
 A `batch/v1` Job observed Complete without Failed and with a declared TTL may later be
 absent. A Job removed before completion was observed cannot establish that evidence.
 An absent hook requires Helm's stored `Succeeded` phase and `hook-succeeded` deletion
-policy, following its [hook execution format](https://github.com/helm/helm/blob/v4.2.4/pkg/release/v1/hook.go).
+policy, following its [hook execution format](https://github.com/helm/helm/blob/v4.3.0/pkg/release/v1/hook.go).
 Other missing objects decline reuse. This avoids rerunning completed initialization
 solely because an expected cleanup removed its object.
 
