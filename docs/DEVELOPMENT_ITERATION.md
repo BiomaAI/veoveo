@@ -1627,6 +1627,15 @@ The RTX 4090 reported 6% encoder utilization during a preceding run. Bioma's
 GitOps lock now selects release digest `03791f6c`; Flux applied `e7c364b4`
 and both streams were ready on the resulting Pod.
 
+The September 24 live check found a remaining throughput limit. At 1,275
+seconds of simulation time, the Pod had completed 38,259 physics steps and
+encoded 7,907 atlas frames, about 6.2 frames per simulation second against a
+16 fps camera setting. Its longest recorded render cycle was 9.6 seconds.
+PX4 also logged intermittent barometer `STALE` warnings while all four links,
+vehicle motion, physics steps, and encoded frame counts continued advancing.
+The warnings and render stalls need a timed NVIDIA/Isaac performance probe
+before the operator view can be called smooth or PX4 sensor timing qualified.
+
 Staging the committed UAV overlay reused its dependency image and completed
 in 2.9 seconds. Attested publication took 184.7 seconds, including an 87.2
 second SBOM scan. Flux replaced the Pod once more when it reapplied the Helm
