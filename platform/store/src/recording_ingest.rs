@@ -56,6 +56,45 @@ pub struct RecordingIngestQuotaCheckpoint {
 }
 
 impl RecordingIngestQuotaCheckpoint {
+    /// Derives the fixed UTC minute and day windows that contain `at`.
+    fn containing(
+        tenant_id: TenantId,
+        producer_id: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Self, StoreError> {
+        let minute_start = at
+            .with_second(0)
+            .and_then(|value| value.with_nanosecond(0))
+            .ok_or(StoreError::InvalidRecordingIngestField {
+                field: "quota_time",
+                reason: "could not derive a UTC minute boundary",
+            })?;
+        let day_start = at
+            .date_naive()
+            .and_hms_opt(0, 0, 0)
+            .map(|value| value.and_utc())
+            .ok_or(StoreError::InvalidRecordingIngestField {
+                field: "quota_time",
+                reason: "could not derive a UTC day boundary",
+            })?;
+        Ok(Self {
+            minute: RecordingIngestQuotaWindow::new(
+                tenant_id,
+                producer_id,
+                RecordingIngestQuotaPeriod::Minute,
+                minute_start,
+                minute_start + TimeDelta::minutes(1),
+            ),
+            day: RecordingIngestQuotaWindow::new(
+                tenant_id,
+                producer_id,
+                RecordingIngestQuotaPeriod::Day,
+                day_start,
+                day_start + TimeDelta::days(1),
+            ),
+        })
+    }
+
     pub fn is_current(&self, at: DateTime<Utc>) -> bool {
         self.minute.contains(at) && self.day.contains(at)
     }
@@ -356,14 +395,15 @@ impl PlatformStore {
         stream: RecordingIngestStreamRecord,
         draft: RecordingIngestBatchDraft,
     ) -> Result<RecordingIngestAppendOutcome, StoreError> {
+        let accepted_at = Utc::now();
         let quota = self
             .recording_ingest_quota_checkpoint(
                 draft.identity.tenant_id,
                 &draft.producer_id,
-                Utc::now(),
+                accepted_at,
             )
             .await?;
-        self.commit_recording_ingest_batch_at_checkpoints(stream, quota, draft)
+        self.commit_recording_ingest_batch_at_checkpoints(stream, quota, accepted_at, draft)
             .await
     }
 
@@ -374,49 +414,27 @@ impl PlatformStore {
         at: DateTime<Utc>,
     ) -> Result<RecordingIngestQuotaCheckpoint, StoreError> {
         validate_text("producer_id", producer_id)?;
-        let minute_start = at
-            .with_second(0)
-            .and_then(|value| value.with_nanosecond(0))
-            .ok_or(StoreError::InvalidRecordingIngestField {
-                field: "quota_time",
-                reason: "could not derive a UTC minute boundary",
-            })?;
-        let day_start = at
-            .date_naive()
-            .and_hms_opt(0, 0, 0)
-            .map(|value| value.and_utc())
-            .ok_or(StoreError::InvalidRecordingIngestField {
-                field: "quota_time",
-                reason: "could not derive a UTC day boundary",
-            })?;
-        let minute = RecordingIngestQuotaWindow::new(
-            tenant_id,
-            producer_id,
-            RecordingIngestQuotaPeriod::Minute,
-            minute_start,
-            minute_start + TimeDelta::minutes(1),
-        );
-        let day = RecordingIngestQuotaWindow::new(
-            tenant_id,
-            producer_id,
-            RecordingIngestQuotaPeriod::Day,
-            day_start,
-            day_start + TimeDelta::days(1),
-        );
-        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &minute)
+        let checkpoint = RecordingIngestQuotaCheckpoint::containing(tenant_id, producer_id, at)?;
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.minute)
             .await?;
-        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &day)
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.day)
             .await?;
-        Ok(RecordingIngestQuotaCheckpoint { minute, day })
+        Ok(checkpoint)
     }
 
     /// Commits one batch against stream and quota checkpoints already held by
     /// the serialized materializer. The quota records remain database-atomic,
     /// while ordinary appends avoid rediscovering their fixed UTC windows.
+    ///
+    /// `accepted_at` is the one acceptance time for the batch. The caller
+    /// derives `quota` from the same instant, and the ledger entry, stream
+    /// update, and both quota windows use it, so a batch that crosses a minute
+    /// or day boundary during journal materialization still commits once.
     pub async fn commit_recording_ingest_batch_at_checkpoints(
         &self,
         mut stream: RecordingIngestStreamRecord,
         quota: RecordingIngestQuotaCheckpoint,
+        accepted_at: DateTime<Utc>,
         draft: RecordingIngestBatchDraft,
     ) -> Result<RecordingIngestAppendOutcome, StoreError> {
         validate_batch_draft(&draft)?;
@@ -435,7 +453,7 @@ impl PlatformStore {
         classify_sequence(&stream, &draft, self).await?;
 
         let batch_id = RecordingIngestBatchId::new();
-        let now = Utc::now();
+        let now = accepted_at;
         if !quota.is_current(now) {
             return Err(StoreError::InvalidRecordingIngestField {
                 field: "quota_checkpoint",
@@ -1076,5 +1094,62 @@ mod tests {
         assert!(first.contains(started_at));
         assert!(first.contains(started_at + TimeDelta::seconds(59)));
         assert!(!first.contains(started_at + TimeDelta::minutes(1)));
+    }
+
+    #[test]
+    fn quota_checkpoint_contains_its_acceptance_time_across_boundaries() {
+        let tenant = TenantId::new();
+        let day_end = DateTime::parse_from_rfc3339("2026-01-01T23:59:59.999999999Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let next_day = day_end + TimeDelta::nanoseconds(1);
+        let minute_end = DateTime::parse_from_rfc3339("2026-01-01T12:00:59.999999999Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let next_minute = minute_end + TimeDelta::nanoseconds(1);
+
+        for at in [day_end, next_day, minute_end, next_minute] {
+            let checkpoint =
+                RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", at).unwrap();
+            assert!(checkpoint.is_current(at), "{at} is outside its own windows");
+        }
+
+        // A checkpoint chosen at one instant is stale one nanosecond later
+        // across a boundary. The commit therefore takes the same acceptance
+        // time that selected its checkpoint instead of reading the clock again.
+        let before_day =
+            RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", day_end).unwrap();
+        let after_day =
+            RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", next_day).unwrap();
+        assert!(!before_day.is_current(next_day));
+        assert_ne!(before_day.minute.id, after_day.minute.id);
+        assert_ne!(before_day.day.id, after_day.day.id);
+
+        let before_minute =
+            RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", minute_end).unwrap();
+        let after_minute =
+            RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", next_minute).unwrap();
+        assert!(!before_minute.is_current(next_minute));
+        assert_ne!(before_minute.minute.id, after_minute.minute.id);
+        assert_eq!(before_minute.day.id, after_minute.day.id);
+    }
+
+    #[test]
+    fn quota_checkpoint_windows_are_deterministic_per_producer() {
+        let tenant = TenantId::new();
+        let at = DateTime::parse_from_rfc3339("2026-01-01T12:00:30Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let first = RecordingIngestQuotaCheckpoint::containing(tenant, "producer-a", at).unwrap();
+        let again = RecordingIngestQuotaCheckpoint::containing(
+            tenant,
+            "producer-a",
+            at + TimeDelta::seconds(29),
+        )
+        .unwrap();
+        let other = RecordingIngestQuotaCheckpoint::containing(tenant, "producer-b", at).unwrap();
+        assert_eq!(first, again);
+        assert_ne!(first.minute.id, other.minute.id);
+        assert_ne!(first.day.id, other.day.id);
     }
 }

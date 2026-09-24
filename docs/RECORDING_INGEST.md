@@ -137,22 +137,11 @@ an upgrade or Hub restart. Later appends perform constant-size updates rather
 than aggregating the producer's retained batch history. Expired counter records
 are removed when the next window is created.
 
-### Open quota-boundary defect
-
-An acceptance run observed one append at an exact UTC minute transition fail with
-`quota_checkpoint` not containing the batch acceptance time. The uploader retained the
-durable batch and succeeded on its 250 ms retry, so the event did not lose recording
-data or delay simulation. The request path currently chooses a quota checkpoint before
-journal materialization, while the store validates that checkpoint against a separate
-later clock read. Crossing the window boundary between those operations makes the
-otherwise valid checkpoint stale.
-
-The correction must derive the acceptance timestamp and quota checkpoint from one
-transaction input, then use that timestamp for the ledger entry and both quota-window
-checks. A deterministic test must hold an append across the minute and day boundaries,
-prove one successful commit without transport retry, and retain same-window quota
-atomicity. This defect remains open; a successful retry is durability evidence, not a
-substitute for the boundary correction.
+Each batch has one acceptance time, read once when Hub admits the append. Hub picks
+the minute and day windows that contain that time, and the store writes the ledger
+entry, the stream checkpoint, and both window counters with the same timestamp. A
+batch whose journal write finishes after a minute or day boundary still commits once,
+counted in the windows it was admitted to.
 
 One ordered materializer converts a journal batch into an immutable sequence
 part beneath one cataloged writing segment before the append completes. A batch
