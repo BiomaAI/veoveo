@@ -287,6 +287,46 @@ async fn simulation_certify_inner(
         hex::encode(Sha256::digest(&build_lock_bytes))
     ))?;
 
+    transcript.stage("NVIDIA driver preflight")?;
+    let driver_container_name = format!("veoveo-simulation-driver-{}", uuid::Uuid::new_v4());
+    let _driver_container = ContainerGuard::new(driver_container_name.clone());
+    let mut driver_command = tokio::process::Command::new("docker");
+    driver_command
+        .args([
+            "run",
+            "--rm",
+            "--name",
+            &driver_container_name,
+            "--gpus",
+            "all",
+            "--runtime",
+            "nvidia",
+            "--network",
+            "none",
+            "--pull",
+            "never",
+            "-e",
+            "NVIDIA_DRIVER_CAPABILITIES=utility",
+            "--entrypoint",
+            "nvidia-smi",
+            &materialized.tag,
+            "--query-gpu=driver_version",
+            "--format=csv,noheader",
+        ])
+        .kill_on_drop(true);
+    let driver_output = tokio::time::timeout(Duration::from_secs(60), driver_command.output())
+        .await
+        .context("NVIDIA driver preflight timed out")??;
+    transcript.output(&driver_output)?;
+    ensure!(
+        driver_output.status.success(),
+        "NVIDIA driver preflight failed inside the selected Docker runtime"
+    );
+    validate_container_driver_versions(
+        std::str::from_utf8(&driver_output.stdout)?,
+        &build_lock.gpu.minimum_driver_version,
+    )?;
+
     transcript.stage("canonical base attestations")?;
     let sbom = inspect_attestation(&repository, base_image, "SBOM", transcript)?;
     let provenance = inspect_attestation(&repository, base_image, "Provenance", transcript)?;
@@ -949,6 +989,25 @@ fn driver_at_least(actual: &str, minimum: &str) -> Result<bool> {
     Ok(actual >= minimum)
 }
 
+fn validate_container_driver_versions(output: &str, minimum: &str) -> Result<()> {
+    let versions = output
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    ensure!(
+        !versions.is_empty(),
+        "NVIDIA driver preflight found no visible GPUs"
+    );
+    for version in versions {
+        ensure!(
+            driver_at_least(version, minimum)?,
+            "NVIDIA driver {version} is older than required {minimum}; upgrade the Docker GPU host before Isaac certification"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use std::{collections::BTreeMap, process::Stdio, time::Duration};
@@ -957,9 +1016,22 @@ mod tests {
     use tempfile::tempdir;
 
     use super::{
-        Transcript, run_logged, unique_environment, validate_inherited_python_path,
-        validate_locked_authority,
+        Transcript, run_logged, unique_environment, validate_container_driver_versions,
+        validate_inherited_python_path, validate_locked_authority,
     };
+
+    #[test]
+    fn driver_preflight_checks_every_visible_gpu() {
+        validate_container_driver_versions("595.91.07\n595.58.03\n", "595.58.03")
+            .expect("qualified drivers");
+        assert!(validate_container_driver_versions("\n", "595.58.03").is_err());
+        assert!(
+            validate_container_driver_versions("595.91.07\n580.173.02\n", "595.58.03")
+                .unwrap_err()
+                .to_string()
+                .contains("580.173.02 is older")
+        );
+    }
 
     #[test]
     fn deployment_lock_authority_accepts_exact_private_registry_with_arbitrary_port() {
