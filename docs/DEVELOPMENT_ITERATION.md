@@ -1669,7 +1669,7 @@ The emitted SPS identifies H.264 Main Level 5.2 (`avc1.4d4034`).
 The signed-in Chrome profile initially reported software H.264 decoding.
 An unmodified user-local `nvidia-vaapi-driver` v0.0.18 build, commit
 `982ba1c2464b9cea5a4403df8f2c5a351ca21394`, enabled NVIDIA decoding on driver
-595.91.07. Chrome's GLX launch produced black decoded surfaces. ANGLE
+595.91.07. Chrome's ANGLE `gl` launch produced black decoded surfaces. ANGLE
 `gl-egl` with `AcceleratedVideoDecodeLinuxGL`,
 `AcceleratedVideoDecodeLinuxZeroCopyGL`, and `VaapiOnNvidiaGPUs` displayed
 the stream with hardware NVIDIA WebGL and observed NVDEC activity. These

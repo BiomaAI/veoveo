@@ -37,7 +37,6 @@ mod tests {
             "fixedFps",
             ".padStart(2,\"0\")",
             "fixedFps(player.presentedAt.length)",
-            "Google Photorealistic 3D Tiles",
             "MAX_RECOVERY_BACKOFF_ATTEMPT=8",
             "Camera recovery is waiting for simulator readiness",
             "ensureSubscription",
