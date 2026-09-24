@@ -4,6 +4,9 @@ metadata:
   name: uav-sim
   namespace: flux-system
 spec:
+  # Operator pause: simulator is scaled to zero during the remaining upgrades.
+  # Remove this field and resume the release when simulation is needed again.
+  suspend: true
   interval: 5m
   timeout: 30m
   releaseName: uav-sim
