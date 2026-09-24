@@ -4,5 +4,5 @@ global:
   imageDigests:
     veoveo/recording-forwarder: sha256:25b478a6a34145e055cd59de4d47be5c28c883b8c44ce5ea1363a833ab76d853
     veoveo/uav-sim-mcp: sha256:fb93d9e80aa9207aa7a31bfcd622cf364a30e9b18d25c625543ff081fda64f80
-    # Isaac Sim 6.0.1: the 6.1 candidate renders but emits no AOV/RTSP H.264 frames on this GPU.
-    veoveo/uav-sim-runtime: sha256:e9e1e10102577efa6c88c0a60c4fd55ce01dca49c209ee0b96441c8093440d15
+    # Isaac Sim 6.1.0 candidate: AOV/RTSP H.264 frame output is under investigation.
+    veoveo/uav-sim-runtime: sha256:885c33b3030311da29fcc463a8989e31a29a78e7ea007116ba20a9ec570b0493
