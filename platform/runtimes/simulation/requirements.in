@@ -1,7 +1,6 @@
 # Runtime dependencies required by the supported Isaac Lab core, renderer, and
-# frame-view subset. Torch, Warp, Newton, MuJoCo, and MuJoCo Warp are installed
-# into their authoritative Kit extension roots by the Dockerfile.
-torch==2.12.0
+# frame-view subset. Isaac Sim supplies Torch, Warp, MuJoCo, and MuJoCo Warp
+# in its Kit extension roots. The Dockerfile updates only Newton.
 numpy==2.3.1
 onnx>=1.18.0
 prettytable==3.3.0
@@ -10,15 +9,19 @@ hidapi==0.14.0.post2
 gymnasium==1.2.1
 trimesh==4.11.1
 pyglet>=2.1.6,<3
-transformers==4.57.6
+transformers==5.10.4
 einops
 matplotlib==3.10.8
-pillow==12.2.0
+pillow>=12.3.0
 botocore==1.40.61
-starlette==0.49.3
+starlette>=1.3.1
 packaging==26.0
 psutil==7.2.2
 filelock
-typing-extensions==4.12.2
+typing-extensions>=4.15.0
 pydantic==2.11.10
 lazy-loader>=0.4
+rich
+jinja2
+scipy>=1.11.0
+h5py>=3.15.0

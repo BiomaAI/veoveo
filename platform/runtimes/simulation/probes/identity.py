@@ -17,15 +17,14 @@ ML_PREBUNDLE_ROOT = (
     ISAAC_ROOT / "extsDeprecated/omni.isaac.ml_archive/pip_prebundle"
 )
 TORCH_ROOT = ML_PREBUNDLE_ROOT / "torch"
-RTX_NVRTC_ROOT = ML_PREBUNDLE_ROOT / "nvidia/cuda_nvrtc/lib"
-WARP_ROOT = ISAAC_ROOT / "extscache/omni.warp.core-1.13.0+lx64/warp"
+RTX_NVRTC_ROOT = ISAAC_ROOT / "exts/isaacsim.pip.nv/pip_prebundle/nvidia/cuda_nvrtc/lib"
+WARP_ROOT = ISAAC_ROOT / "extscache/omni.warp.core-1.16.0+lx64/warp"
 NEWTON_ROOT = ISAAC_ROOT / "exts/isaacsim.pip.newton/pip_prebundle/newton"
 EXPECTED_ISAAC_LAB_PACKAGES = {
-    "isaaclab": "6.1.14",
-    "isaaclab_newton": "0.13.6",
-    "isaaclab_ov": "0.4.2",
-    "isaaclab_ovphysx": "3.0.2",
-    "isaaclab_physx": "1.1.3",
+    "isaaclab": "17.0.2",
+    "isaaclab_newton": "5.4.1",
+    "isaaclab_ov": "2.2.0",
+    "isaaclab_physx": "6.0.0",
 }
 SYNTHETIC_TORCH_MODULES = {
     ("torch.classes", "_classes.py"),
@@ -49,9 +48,9 @@ def _module_path(module: ModuleType) -> Path:
 
 
 def _isaac_lab_version(package: str) -> str:
-    config = ISAAC_LAB_ROOT / "source" / package / "config/extension.toml"
+    config = ISAAC_LAB_ROOT / "source" / package / "pyproject.toml"
     with config.open("rb") as stream:
-        return str(tomllib.load(stream)["package"]["version"])
+        return str(tomllib.load(stream)["project"]["version"])
 
 
 def inspect_identity() -> dict[str, object]:
@@ -61,28 +60,25 @@ def inspect_identity() -> dict[str, object]:
 
     if warp.__version__ != "1.16.0":
         raise RuntimeError(f"expected Warp 1.16.0, loaded {warp.__version__}")
-    if newton.__version__ != "1.5.0":
-        raise RuntimeError(f"expected Newton 1.5.0, loaded {newton.__version__}")
-    if torch.__version__ != "2.12.0+cu130":
-        raise RuntimeError(f"expected Torch 2.12.0+cu130, loaded {torch.__version__}")
-    if torch.version.cuda != "13.0":
-        raise RuntimeError(f"expected Torch CUDA 13.0, loaded {torch.version.cuda}")
+    if newton.__version__ != "1.5.2":
+        raise RuntimeError(f"expected Newton 1.5.2, loaded {newton.__version__}")
+    if torch.__version__ != "2.11.0+cu128":
+        raise RuntimeError(f"expected Torch 2.11.0+cu128, loaded {torch.__version__}")
+    if torch.version.cuda != "12.8":
+        raise RuntimeError(f"expected Torch CUDA 12.8, loaded {torch.version.cuda}")
     if not _under(_module_path(torch), TORCH_ROOT):
         raise RuntimeError(f"Torch resolved outside {TORCH_ROOT}: {_module_path(torch)}")
     if not _under(_module_path(warp), WARP_ROOT):
         raise RuntimeError(f"Warp resolved outside {WARP_ROOT}: {_module_path(warp)}")
     if not _under(_module_path(newton), NEWTON_ROOT):
         raise RuntimeError(f"Newton resolved outside {NEWTON_ROOT}: {_module_path(newton)}")
-    for package in ("functorch", "nvidia", "torchgen", "triton"):
+    for package in ("functorch", "torchgen"):
         if not (ML_PREBUNDLE_ROOT / package).is_dir():
             raise RuntimeError(
                 f"Torch support package {package} is missing from {ML_PREBUNDLE_ROOT}"
             )
-    for unsupported in ("torchaudio", "torchvision", "torchvision.libs"):
-        if (ML_PREBUNDLE_ROOT / unsupported).exists():
-            raise RuntimeError(
-                f"unsupported bundled package remains in Torch root: {unsupported}"
-            )
+    if not (ISAAC_ROOT / "exts/isaacsim.pip.nv/pip_prebundle/nvidia").is_dir():
+        raise RuntimeError("Isaac CUDA package root is missing")
     for library in (
         "libnvrtc-builtins.so.12.8",
         "libnvrtc-builtins.alt.so.12.8",
@@ -117,10 +113,9 @@ def inspect_identity() -> dict[str, object]:
         "functorch": ML_PREBUNDLE_ROOT / "functorch",
         "warp": WARP_ROOT,
         "newton": NEWTON_ROOT,
-        "nvidia": ML_PREBUNDLE_ROOT / "nvidia",
+        "nvidia": ISAAC_ROOT / "exts/isaacsim.pip.nv/pip_prebundle/nvidia",
         "torch": TORCH_ROOT,
         "torchgen": ML_PREBUNDLE_ROOT / "torchgen",
-        "triton": ML_PREBUNDLE_ROOT / "triton",
     }
     for name, module in sorted(sys.modules.items()):
         family = name.partition(".")[0]
