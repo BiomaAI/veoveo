@@ -99,7 +99,20 @@ class WarpFleetRuntime:
             or self._body_q is None
             or self._body_qd is None
         ):
-            raise RuntimeError("Newton native body tensors are incomplete")
+            missing = [
+                name
+                for name, value in (
+                    ("body_indices", self._body_indices),
+                    ("body_q", self._body_q),
+                    ("body_qd", self._body_qd),
+                )
+                if value is None
+            ]
+            backend_fields = [name for name in dir(backend) if "index" in name or "indice" in name]
+            raise RuntimeError(
+                f"Newton native body tensors are incomplete: missing={missing}, "
+                f"backend_index_fields={backend_fields}"
+            )
         if any(
             str(array.device) != str(self._device)
             for array in (self._body_indices, self._body_q, self._body_qd)
