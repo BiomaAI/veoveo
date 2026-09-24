@@ -8,6 +8,7 @@ import importlib
 import importlib.metadata
 import json
 import math
+import os
 import subprocess
 import sys
 import time
@@ -213,7 +214,7 @@ def _verify_simulation_manager_newton(app: object, wp: object) -> dict[str, Any]
             "SimulationManager did not retain Newton after initialization"
         )
     simulation_view = SimulationManager.get_physics_simulation_view()
-    if simulation_view is None or not simulation_view.is_valid():
+    if simulation_view is None or not simulation_view.is_valid:
         raise RuntimeError(
             "SimulationManager did not create a valid Newton tensor view"
         )
@@ -432,6 +433,8 @@ def main() -> int:
             "extra_args": [
                 "--enable",
                 "isaacsim.physics.newton",
+                "--enable",
+                "isaacsim.physics.newton.tensors",
                 "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
             ],
         }
@@ -497,11 +500,12 @@ def main() -> int:
         }
         print(RESULT_MARKER + json.dumps(result, sort_keys=True), flush=True)
     except BaseException:
-        # Kit owns the process shutdown path and can otherwise hide Python's
-        # uncaught-exception report while returning a successful exit status.
+        # Kit's destructor exits successfully even after an uncaught probe error.
         traceback.print_exc()
-        raise
-    finally:
+        sys.stderr.flush()
+        sys.stdout.flush()
+        os._exit(1)
+    else:
         app.close()
     return 0
 

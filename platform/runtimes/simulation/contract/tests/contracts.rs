@@ -36,7 +36,7 @@ fn simulation_components() -> Vec<RuntimeComponentVersion> {
         (RuntimeComponent::Torch, "2.11.0+cu128", None),
         (RuntimeComponent::Cuda, "12.8", None),
         (RuntimeComponent::IsaacRtxNvrtc, "12.8.61", None),
-        (RuntimeComponent::Kit, "110.1.2", None),
+        (RuntimeComponent::Kit, "110.3.0", None),
     ]
     .into_iter()
     .map(|(component, version, revision)| RuntimeComponentVersion {

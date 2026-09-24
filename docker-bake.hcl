@@ -677,7 +677,7 @@ target "simulation-runtime-payload" {
   platforms  = ["linux/amd64"]
   target     = "payload"
   labels = {
-    "io.veoveo.build.input-paths" = "Dockerfile,requirements.lock,simulation-runtime.lock.json,patches,probes,veoveo_simulation_base"
+    "io.veoveo.build.input-paths" = "Dockerfile,requirements.lock,simulation-runtime.lock.json,probes,veoveo_simulation_base"
   }
 }
 

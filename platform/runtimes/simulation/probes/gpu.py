@@ -297,7 +297,7 @@ def _verify_isaac_lab_camera(
             rot=(0.0, 1.0, 0.0, 0.0),
             convention="ros",
         ),
-        prim_path="/World/CameraRig_.*/Camera",
+        prim_path="/World/CameraRig_[^/]+/Camera",
         update_period=0,
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
@@ -368,16 +368,16 @@ def main() -> int:
 
     _phase("runtime_storage")
     storage = _verify_runtime_storage()
-    _phase("driver_apis")
-    driver_apis = _verify_driver_apis()
-    _phase("hardware_identity")
-    hardware = _verify_hardware_identity()
 
     from isaaclab.app import AppLauncher
 
     _phase("app_launcher")
     simulation_app = AppLauncher(headless=True, enable_cameras=True).app
     try:
+        _phase("driver_apis")
+        driver_apis = _verify_driver_apis()
+        _phase("hardware_identity")
+        hardware = _verify_hardware_identity()
         _phase("module_identity")
         identity = inspect_identity()
         _phase("cuda_kernels")
@@ -408,7 +408,10 @@ def main() -> int:
             + json.dumps(result, sort_keys=True),
             flush=True,
         )
-    finally:
+    except Exception:
+        # Kit shutdown can exit the process successfully and hide probe failures.
+        raise
+    else:
         simulation_app.close()
     return 0
 

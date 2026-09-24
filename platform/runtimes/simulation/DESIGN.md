@@ -28,7 +28,7 @@ The runtime lock selects this tuple:
 | Component | Selected identity |
 |---|---|
 | Isaac Sim | `6.1.0`, platform digest `sha256:af1d2b4e75d553bfa27beb5a401198654aa8d607f3b7a6749196e9ce253def20` |
-| Kit | `110.1.2` |
+| Kit | `110.3.0` |
 | Python | CPython 3.12 |
 | Isaac Lab | tag `v3.0.0-EA`, revision `ae37b028ea415c91ea2bc32609efcd759ed2b974` |
 | Warp | `1.16.0`, bundled by Isaac Sim |
@@ -43,10 +43,10 @@ The runtime lock selects this tuple:
 Isaac Lab `v3.0.0-EA` is a deliberate pre-release dependency. It is the upstream
 release paired with Isaac Sim 6.1; no stable 6.1-compatible Lab release exists.
 The base retains Isaac Sim's Torch, Warp, MuJoCo, and MuJoCo Warp packages and
-replaces Newton in its Kit-owned extension root. A pinned patch routes
-`SimulationManager` tensor views through Newton's native tensor factory. Isaac Sim
-6.1 otherwise asks the legacy tensor plugin for an unregistered `newton` backend.
-Applications enable `isaacsim.physics.newton` in Kit's initial arguments and set
+replaces Newton in its Kit-owned extension root. Isaac Sim's Newton tensor extension
+registers the `newton` backend with `omni.physics.tensors` when Kit enables it.
+Applications enable `isaacsim.physics.newton` and its tensors extension in Kit's
+initial arguments and set
 `SimulationManager`'s default engine to `newton`. Newton registration therefore exists
 before any physics-backed application state is created; a later engine assertion fails
 closed if Kit did not retain that selection.
@@ -133,8 +133,12 @@ supported release workflow.
 
 The build executes `probes/identity.py` as a structural check. That check is not GPU
 acceptance.
+The pinned Isaac 6.1 parent links Warp's license-only APIC initializer to a teleop
+file. The Dockerfile materializes that file within Warp before checking module roots.
 
-`probes/gpu.py` launches Isaac through Isaac Lab and then proves:
+`probes/gpu.py` initializes Kit before calling the CUDA and NVENC driver APIs. This
+keeps Isaac's Vulkan and RTX startup in the same order as the application runtime.
+The probe then proves:
 
 - writable cache and data paths plus a private 2 GiB `/dev/shm`;
 - CUDA driver initialization and a visible hardware device;

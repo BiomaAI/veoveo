@@ -41,6 +41,8 @@ def kit_newton_arguments() -> list[str]:
     return [
         "--enable",
         "isaacsim.physics.newton",
+        "--enable",
+        "isaacsim.physics.newton.tensors",
         "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
     ]
 
@@ -143,6 +145,7 @@ def run(config: RuntimeConfig) -> None:
         "cesium.usd.plugins",
         "cesium.omniverse",
         "isaacsim.physics.newton",
+        "isaacsim.physics.newton.tensors",
         "isaacsim.core.simulation_manager",
         "isaacsim.core.experimental.prims",
         "isaacsim.core.experimental.objects",
