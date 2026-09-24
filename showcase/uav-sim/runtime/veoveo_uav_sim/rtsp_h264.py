@@ -20,6 +20,7 @@ _STAP_A = 24
 _FU_A = 28
 _SEQUENCE_PARAMETER_SET = 7
 _PICTURE_PARAMETER_SET = 8
+_RTSP_PREPARE_ATTEMPTS = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -218,6 +219,13 @@ class _RtspResponse:
     body: bytes
 
 
+class RtspResponseError(RuntimeError):
+    def __init__(self, method: str, status: int) -> None:
+        self.method = method
+        self.status = status
+        super().__init__(f"RTSP {method} failed with status {status}")
+
+
 class _RtspSession:
     def __init__(self, endpoint: RtspEndpoint) -> None:
         self._endpoint = endpoint
@@ -331,7 +339,7 @@ class _RtspSession:
         body = _read_exact(reader, content_length) if content_length else b""
         response = _RtspResponse(int(parts[1]), response_headers, body)
         if response.status != 200:
-            raise RuntimeError(f"RTSP {method} failed with status {response.status}")
+            raise RtspResponseError(method, response.status)
         return response
 
 
@@ -371,7 +379,21 @@ class RtspH264Receiver:
 
     def _run(self) -> None:
         try:
-            depacketizer = self._session.connect()
+            for attempt in range(_RTSP_PREPARE_ATTEMPTS):
+                if self._stop.is_set():
+                    return
+                try:
+                    depacketizer = self._session.connect()
+                    break
+                except RtspResponseError as error:
+                    if (error.method, error.status) != ("DESCRIBE", 503):
+                        raise
+                    self._session.close()
+                    if attempt == _RTSP_PREPARE_ATTEMPTS - 1:
+                        raise
+                    if self._stop.wait(0.5):
+                        return
+                    self._session = _RtspSession(self._endpoint)
             self._ready.set()
             while not self._stop.is_set():
                 packet = self._session.receive_interleaved()

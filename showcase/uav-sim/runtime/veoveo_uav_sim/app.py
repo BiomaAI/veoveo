@@ -419,15 +419,6 @@ def run(config: RuntimeConfig) -> None:
             QuaternionXyzw(mount_x, mount_y, mount_z, mount_w),
         ).normalized()
 
-        # Register AOV frame hooks before creating the Hydra products they stream.
-        extension_manager.set_extension_enabled_immediate(
-            "omni.kit.livestream.aov", True
-        )
-        if not extension_manager.is_extension_enabled("omni.kit.livestream.aov"):
-            raise RuntimeError(
-                "failed to enable required extension omni.kit.livestream.aov"
-            )
-
         physical_cameras = {}
         for index in range(config.vehicle_count):
             vehicle_id = f"uav-{index + 1}"
@@ -469,6 +460,13 @@ def run(config: RuntimeConfig) -> None:
             config.operator_live_view,
             operator_cameras,
         )
+        extension_manager.set_extension_enabled_immediate(
+            "omni.kit.livestream.aov", True
+        )
+        if not extension_manager.is_extension_enabled("omni.kit.livestream.aov"):
+            raise RuntimeError(
+                "failed to enable required extension omni.kit.livestream.aov"
+            )
         state.update_stream_products(operator_products.state(content_ready=False))
         physics_timeline.play()
         simulation_app.update()
