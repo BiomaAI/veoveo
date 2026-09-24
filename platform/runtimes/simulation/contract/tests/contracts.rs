@@ -22,19 +22,19 @@ fn artifact(name: &str, kind: ArtifactKind, byte: char) -> ArtifactDescriptor {
 
 fn simulation_components() -> Vec<RuntimeComponentVersion> {
     [
-        (RuntimeComponent::IsaacSim, "6.0.1", None),
+        (RuntimeComponent::IsaacSim, "6.1.0", None),
         (
             RuntimeComponent::IsaacLab,
-            "3.0.0-beta2.patch1",
+            "3.0.0-EA",
             Some("f".repeat(40)),
         ),
         (RuntimeComponent::Warp, "1.16.0", None),
-        (RuntimeComponent::Newton, "1.5.0", None),
+        (RuntimeComponent::Newton, "1.5.2", None),
         (RuntimeComponent::Mujoco, "3.11.0", None),
         (RuntimeComponent::MujocoWarp, "3.11.0", None),
         (RuntimeComponent::Python, "3.12.13", None),
-        (RuntimeComponent::Torch, "2.12.0+cu130", None),
-        (RuntimeComponent::Cuda, "13.0", None),
+        (RuntimeComponent::Torch, "2.11.0+cu128", None),
+        (RuntimeComponent::Cuda, "12.8", None),
         (RuntimeComponent::IsaacRtxNvrtc, "12.8.61", None),
         (RuntimeComponent::Kit, "110.1.2", None),
     ]
@@ -67,11 +67,11 @@ fn simulation_build_lock_requires_complete_immutable_tuple() {
         sources: vec![SimulationSourceInput {
             component: RuntimeComponent::IsaacLab,
             repository: "https://github.com/isaac-sim/IsaacLab.git".to_owned(),
-            tag: "v3.0.0-beta2.patch1".to_owned(),
+            tag: "v3.0.0-EA".to_owned(),
             revision: SourceRevision::new("f".repeat(40)).expect("revision"),
             archive_digest: digest('1'),
             prerelease_reason: Some(
-                "Isaac Lab has no stable Isaac Sim 6.0-compatible release".to_owned(),
+                "Isaac Lab has no stable Isaac Sim 6.1-compatible release".to_owned(),
             ),
         }],
         python_distributions: vec![PythonDistributionInput {
@@ -93,7 +93,7 @@ fn simulation_build_lock_requires_complete_immutable_tuple() {
                 runtime_class_name: Some("nvidia".to_owned()),
                 shared_memory_bytes: 2 * 1024 * 1024 * 1024,
             },
-            minimum_driver_version: "580.173.02".to_owned(),
+            minimum_driver_version: "595.58.03".to_owned(),
             driver_capabilities: BTreeSet::from([
                 NvidiaDriverCapability::Compute,
                 NvidiaDriverCapability::Graphics,
@@ -197,7 +197,7 @@ fn simulation_result(overlay_kind: SimulationOverlayKind) -> SimulationConforman
         components: simulation_components(),
         hardware: SimulationHardwareEvidence {
             gpu_name: "NVIDIA GPU".to_owned(),
-            driver_version: "580.173.02".to_owned(),
+            driver_version: "595.58.03".to_owned(),
             cuda_device: "cuda:0".to_owned(),
             graphics_api: "Vulkan".to_owned(),
             renderer: "RaytracedLighting".to_owned(),

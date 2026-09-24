@@ -25,7 +25,7 @@ OVERLAY_IDENTITY_PATH = Path("/opt/veoveo/simulation-overlay/identity.json")
 ISAAC_LAB_REVISION_PATH = Path("/opt/veoveo/isaaclab/.veoveo-source-revision")
 RTX_NVRTC_ROOT = (
     Path("/isaac-sim")
-    / "extsDeprecated/omni.isaac.ml_archive/pip_prebundle"
+    / "exts/isaacsim.pip.nv/pip_prebundle"
     / "nvidia/cuda_nvrtc/lib"
 )
 RTX_NVRTC_BUILTINS = (

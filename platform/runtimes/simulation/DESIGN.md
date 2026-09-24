@@ -12,9 +12,9 @@ controller, scenario, mission, customer asset, or domain entrypoint. Application
 | `veoveo.io/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
 | `veoveo.io/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
 | NVIDIA Container Runtime | one visible NVIDIA RTX GPU through `nvidia.com/gpu` and RuntimeClass `nvidia` |
-| CUDA | Torch CUDA 13.0 plus the Isaac RTX extension's pinned NVRTC 12.8.61 builtins |
+| CUDA | Torch CUDA 12.8 plus the Isaac RTX extension's pinned NVRTC 12.8.61 builtins |
 | NVIDIA NVENC API | driver-provided encode API required by live-view profiles |
-| USD | render and simulation scene representation supplied by Isaac Sim 6.0.1 |
+| USD | render and simulation scene representation supplied by Isaac Sim 6.1.0 |
 | SHA-256 | image, archive, wheel, lock, SBOM, provenance, and conformance identity |
 
 Isaac, Kit, CUDA, and NVIDIA live-stream interfaces are implementation dependencies.
@@ -27,36 +27,31 @@ The runtime lock selects this tuple:
 
 | Component | Selected identity |
 |---|---|
-| Isaac Sim | `6.0.1`, platform digest `sha256:b1c542b2ecc549b3d1ebb78c25664aa3bacba1709e6ad8e0a68e09426d57dedb` |
+| Isaac Sim | `6.1.0`, platform digest `sha256:af1d2b4e75d553bfa27beb5a401198654aa8d607f3b7a6749196e9ce253def20` |
 | Kit | `110.1.2` |
 | Python | CPython 3.12 |
-| Isaac Lab | tag `v3.0.0-beta2.patch1`, revision `ffff603eafc6b74264a5261cc0183d6a65390d78` |
-| Warp | `1.16.0`, revision `86ec8b78cbef8bb570a9877e351ac0f365718e30` |
-| Newton | `1.5.0`, revision `cca3bb8a17a3620a1343df3cf12c625e4161b317` |
-| MuJoCo | `3.11.0`, revision `b85fdca54f0e0038b804af146a0b4e94199e00d0` |
-| MuJoCo Warp | `3.11.0`, revision `dbc52e3ea69a63e14026e969cb055e0c3c2f0c83` |
-| Torch | `2.12.0+cu130` |
+| Isaac Lab | tag `v3.0.0-EA`, revision `ae37b028ea415c91ea2bc32609efcd759ed2b974` |
+| Warp | `1.16.0`, bundled by Isaac Sim |
+| Newton | `1.5.2`, wheel digest `sha256:b432b0db9ee963c1fe570b88952d913b9eb98c9ca190c58f80882f28dd0dd5d6` |
+| MuJoCo | `3.11.0`, bundled by Isaac Sim |
+| MuJoCo Warp | `3.11.0`, bundled by Isaac Sim |
+| Torch | `2.11.0+cu128`, bundled by Isaac Sim |
 | Isaac RTX NVRTC builtins | `12.8.61`, retained from the pinned Isaac Sim image |
 | NVIDIA AOV live stream | `10.2.0+110.1.2.lx64.r.cp312` |
-| NVIDIA RTSP live stream | `10.2.0+110.1.2.lx64.r.cp312` from Isaac Sim |
+| NVIDIA RTSP live stream | `10.4.1+110.1.2.lx64.r.cp312` from Isaac Sim |
 
-Isaac Lab `v3.0.0-beta2.patch1` is a deliberate pre-release dependency. It is
-the latest published release with explicit Isaac Sim 6.0.1 support, and no stable
-Isaac Lab 3.0 release exists. Veoveo qualifies its source revision with Warp 1.16.0,
-Newton 1.5.0, and Newton's required MuJoCo 3.11 line. A narrow source patch replaces
-Newton's removed `SolverNotifyFlags` import with `ModelFlags`; the build rejects the
-old import after applying that patch. The image also removes Isaac Sim's obsolete
-`ls_parallel` MuJoCo solver field because Newton 1.5 no longer accepts that constructor
-argument. The live Isaac adapter therefore initializes the pinned GPU solver without
-retaining the removed configuration surface. A second pinned patch routes
+Isaac Lab `v3.0.0-EA` is a deliberate pre-release dependency. It is the upstream
+release paired with Isaac Sim 6.1; no stable 6.1-compatible Lab release exists.
+The base retains Isaac Sim's Torch, Warp, MuJoCo, and MuJoCo Warp packages and
+replaces Newton in its Kit-owned extension root. A pinned patch routes
 `SimulationManager` tensor views through Newton's native tensor factory. Isaac Sim
-6.0.1 otherwise asks the legacy tensor plugin for an unregistered `newton` backend.
+6.1 otherwise asks the legacy tensor plugin for an unregistered `newton` backend.
 Applications enable `isaacsim.physics.newton` in Kit's initial arguments and set
 `SimulationManager`'s default engine to `newton`. Newton registration therefore exists
 before any physics-backed application state is created; a later engine assertion fails
 closed if Kit did not retain that selection.
 
-The supported Isaac Lab surface contains the core, PhysX, Newton, OV, OVPhysX,
+The supported Isaac Lab surface contains the core, PhysX, Newton, OV,
 camera-render specification, and frame-view packages. Training environments, policy
 libraries, task catalogs, teleoperation, Mimic, and application assets remain overlay
 dependencies. This boundary gives simulator and renderer overlays the common launch,
@@ -70,13 +65,10 @@ newer packages only in ordinary site-packages leaves the bundled versions
 authoritative after Kit starts. Importing a newer package first creates a mixed graph
 when Kit later loads an older package or native dependency from its extension.
 
-The image replaces each package inside its Kit-owned extension root and updates the
-Warp extension version. Torch 2.12 and its CUDA 13.0, NCCL, Triton, and Python support
-packages replace the complete Kit ML archive graph. The Isaac RTX Hydra extension
-retains its upstream NVRTC 12.8.61 builtins at the immutable path referenced by its
-own symlinks; those files are renderer dependencies and do not enter Torch's CUDA 13
-module graph. The bundled TorchVision and TorchAudio payloads are removed because
-they are outside the supported subset and do not have a stable Torch 2.12 pair.
+The image replaces Newton inside its Kit-owned extension root. Torch 2.11 and
+Warp 1.16 remain in the Isaac Sim image; the build checks those roots before
+export. The Isaac RTX Hydra extension retains its upstream NVRTC 12.8.61 builtins
+at the immutable path referenced by its own symlinks.
 `PYTHONPATH` selects the same roots before Kit starts. The identity probe rejects
 loaded Torch, Warp, or Newton file modules outside their selected root. An overlay
 may add compatible packages, but it cannot replace Isaac Sim, Isaac Lab, Warp,
@@ -100,9 +92,8 @@ Production defaults to an exclusive GPU. A sharing profile requires separate mea
 capacity evidence and cannot be enabled by resource configuration alone.
 
 The image has no CPU rendering or simulation fallback. A missing GPU, CUDA driver,
-hardware RTX path, or NVENC API fails conformance. The initial `linux/amd64` profile
-uses NVIDIA's minimum driver floor `570.169`; release qualification uses the tested
-Isaac Sim driver `595.58.03`.
+hardware RTX path, or NVENC API fails conformance. The `linux/amd64` qualification floor is NVIDIA's tested Isaac Sim 6.1 driver
+`595.58.03`. An installation with an older driver cannot qualify this candidate.
 
 ## Authoritative Live Cameras
 

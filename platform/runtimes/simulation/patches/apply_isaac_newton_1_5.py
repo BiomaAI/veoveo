@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply the pinned Isaac Sim 6.0.1 tensor-view bridge for Newton 1.5."""
+"""Apply the pinned Isaac Sim 6.1.0 tensor-view bridge for Newton 1.5."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ def main() -> int:
     matches = source.count(BEFORE)
     if matches != 1:
         raise RuntimeError(
-            f"expected one Isaac Sim 6.0.1 tensor-view block, found {matches}"
+            f"expected one Isaac Sim 6.1.0 tensor-view block, found {matches}"
         )
     target.write_text(source.replace(BEFORE, AFTER), encoding="utf-8")
     return 0
