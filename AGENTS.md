@@ -279,7 +279,7 @@ the questions a capability answers in the user's domain; mechanisms belong in te
 sections and get at most a closing sentence elsewhere. Keep one hard number where it
 earns trust.
 
-The abstract of docs/veoveo-whitepaper-print.html is the register exemplar.
+The abstract of docs/veoveo-whitepaper.html is the register exemplar.
 
 Avoid these patterns in both marketing and technical prose:
 

@@ -6,8 +6,8 @@ own work within those controls. It still has only the credentials, network acces
 compute, data, and authority the installation granted it.
 
 The capability architecture appears in the
-[browser edition](autonomy-harness.html) and
-[print edition](autonomy-harness-print.html). This document divides responsibility between Veoveo and
+[Autonomy Harness whitepaper](veoveo-whitepaper.html), also available as a
+[PDF](veoveo-whitepaper.pdf). This document divides responsibility between Veoveo and
 the installation, and lists the tests that show an always-on agent stays within the
 limits the installation set.
 
