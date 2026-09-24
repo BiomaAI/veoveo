@@ -16,7 +16,7 @@ encodes them with NVIDIA NVENC, and streams them to the live-view App.
 | `veoveo.io/live-view/v4` | Simulator-rendered operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
-| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` to the RTX render products. Its SRTX H.264 path uses NVENC, and `omni.kit.livestream.rtsp` `10.4.1` serves the encoded frames. |
+| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` to the RTX render products. Its CUDA-buffer path sends resident pixels to `omni.kit.livestream.rtsp` `10.4.1`, which performs the product's single NVENC encode and serves H.264. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.38.1` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, low-latency RTX rendering, and server-side video encoding. |
