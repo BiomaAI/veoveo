@@ -10,9 +10,28 @@
 | Kubernetes networking.k8s.io/v1 | Namespace-isolated managed ingress/egress and fixed destination admission |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
+| Amazon S3 API | Private Artifact object storage through RustFS 1.0.0 or an installation-owned compatible store; multipart write, object metadata and ranged reads are exercised by the Artifact client |
 | `veoveo.io/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
+
+## Object Store Version Transition
+
+The chart owns the RustFS image and the single-replica StatefulSet. It pins the
+stable 1.0.0 OCI index digest. The installation owns its PVC, credentials and
+stored objects. The single replica stops before its replacement starts; there is
+no mixed-version serving window or second writer on the ReadWriteOnce volume.
+
+An installation moving from 1.0.0-rc.3 must qualify a same-volume sequence with
+its pinned source and target images before updating the image: write a multipart
+object on the source, restart on the target, and check its metadata, full body and
+ranged bytes. A reverse restart on the source must check an object written by the
+target before the source image can be treated as a rollback. The installation
+keeps the existing PVC and exact old image digest until the target has passed
+read and write checks against the installed store. If reverse compatibility is
+absent, recovery uses a restored volume or a corrected target image; changing
+the tag alone is not a rollback of a migrated format. The RC image leaves support
+after each installation has passed this transition and retained-data checks.
 
 ## Redap Ingress
 
