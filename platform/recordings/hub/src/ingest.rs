@@ -479,6 +479,7 @@ impl RecordingIngestService {
             .commit_recording_ingest_batch_at_checkpoints(
                 stream,
                 quota.clone(),
+                now,
                 RecordingIngestBatchDraft {
                     identity: identity.clone(),
                     stream_id,
