@@ -163,7 +163,7 @@ class CameraConfig:
             width=_int("UAV_SIM_CAMERA_WIDTH", "640", 64, 3_840),
             height=_int("UAV_SIM_CAMERA_HEIGHT", "480", 64, 2_160),
             fps=_int("UAV_SIM_CAMERA_FPS", "2", 1, 60),
-            rtsp_port=_int("UAV_SIM_CAMERA_RTSP_PORT", "8554", 1, 65_534),
+            rtsp_port=_int("UAV_SIM_CAMERA_RTSP_PORT", "8554", 1, 65_535),
             focal_length_mm=_float(
                 "UAV_SIM_CAMERA_FOCAL_LENGTH_MM", "8.0", 0.1, 1_000.0
             ),
@@ -361,8 +361,6 @@ class RuntimeConfig:
     extension_directory: str
 
     def __post_init__(self) -> None:
-        from .hydra_camera import native_sensor_aov_signal_port
-
         maximum_operator_fps = max(
             camera.optics.frame_rate_hz
             for camera in self.operator_live_view.cameras
@@ -377,18 +375,9 @@ class RuntimeConfig:
             raise ValueError(
                 "UAV_SIM_RECORDING_TELEMETRY_HZ must not exceed UAV_SIM_PHYSICS_HZ"
             )
-        sensor_aov_ports = {
-            self.camera.rtsp_port,
-            native_sensor_aov_signal_port(self.camera.rtsp_port),
-        }
-        operator_aov_ports = {
-            self.operator_live_view.atlas_rtsp_port,
-            self.operator_live_view.atlas_rtsp_port + 1,
-        }
-        if overlap := sorted(sensor_aov_ports & operator_aov_ports):
+        if self.camera.rtsp_port == self.operator_live_view.atlas_rtsp_port:
             raise ValueError(
-                "native sensor and operator AOV port ranges overlap at "
-                + ", ".join(str(port) for port in overlap)
+                "native sensor and operator RTSP ports must differ"
             )
         admitted_vehicle_ids = {
             f"uav-{index + 1}" for index in range(self.vehicle_count)

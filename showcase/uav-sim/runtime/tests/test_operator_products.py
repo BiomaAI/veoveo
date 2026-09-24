@@ -10,10 +10,8 @@ from veoveo_uav_sim.operator_camera import CameraRigKind
 from veoveo_uav_sim.operator_camera_config import OperatorLiveViewRuntimeConfig
 from veoveo_uav_sim.operator_health import OperatorProductHealth
 from veoveo_uav_sim.operator_products import (
-    OPERATOR_ATLAS_NAME,
     OPERATOR_ATLAS_PRODUCT_ID,
     OperatorCameraProduct,
-    operator_aov_arguments,
     operator_atlas_layout,
 )
 
@@ -184,7 +182,7 @@ class OperatorProductTests(unittest.TestCase):
         assert second is not None
         self.assertEqual(second.sequence, 2)
 
-    def test_aov_arguments_have_one_tiled_rtsp_nvenc_product(self) -> None:
+    def test_tiled_product_regions_and_dimensions(self) -> None:
         cameras = [
             _camera(
                 camera_id,
@@ -200,11 +198,6 @@ class OperatorProductTests(unittest.TestCase):
             for slot, camera_id in enumerate(("follow", "chase"))
         ]
         config = _config(cameras)
-        arguments = operator_aov_arguments(config)
-        self.assertEqual(len(arguments), 5)
-        self.assertTrue(any(OPERATOR_ATLAS_NAME in item for item in arguments))
-        self.assertTrue(any("signalPort=8561" in item for item in arguments))
-        self.assertTrue(any("streamPort=8560" in item for item in arguments))
         self.assertEqual(OPERATOR_ATLAS_PRODUCT_ID, "camera-atlas")
         regions, width, height = operator_atlas_layout(config)
         self.assertEqual((width, height), (2560, 720))

@@ -9,14 +9,14 @@ encodes them with NVIDIA NVENC, and streams them to the live-view App.
 
 | Boundary | Supported profile |
 |---|---|
-| Isaac Sim | Marketing release `6.0.1`; internal build `6.0.1-rc.7+release.42383.32955d8d.gl`. |
-| Isaac Experimental API and Newton | Experimental prims and objects expose one Newton `1.5.0` CUDA rigid-body tensor state to the fleet. The classic Core API and PhysX UAV path are absent. |
+| Isaac Sim | Release `6.1.0`; internal build `6.1.0-rc.26+release.49347.2d230af4.gl`. |
+| Isaac Experimental API and Newton | Experimental prims and objects expose one Newton `1.5.2` CUDA rigid-body tensor state to the fleet. The classic Core API and PhysX UAV path are absent. |
 | Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified runtime tuple. Repository Warp kernels own UAV integration, launch contact, the plant, and HIL sensors; MuJoCo-Warp does not step the fleet. |
 | `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
 | `veoveo.io/live-view/v4` | Simulator-rendered operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
 | `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
-| Native sensor video | `omni.kit.livestream.aov` `10.2.0` and `omni.kit.livestream.rtsp` `10.2.3`, packaged by Isaac Sim `6.0.1`, for CUDA-AOV-to-NVENC H.264 output. |
+| Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` to the RTX render products. Its SRTX H.264 path uses NVENC, and `omni.kit.livestream.rtsp` `10.4.1` serves the encoded frames. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |
 | Rerun RRD | Version `0.38.1` telemetry, leader-camera video, and producer Blueprint publication. |
 | NVIDIA CUDA, Vulkan, RTX, and NVENC | Mandatory simulation, low-latency RTX rendering, and server-side video encoding. |
@@ -226,7 +226,7 @@ At startup the runtime creates a fixed set of logical cameras under
 stabilized mounted, and formation overview. Every streamable camera owns one typed
 region in a shared RTX tiled render. Isaac's Experimental Camera API batches the USD
 cameras and enforces their common optics. The atlas owns one Hydra texture,
-product ID, pod-loopback RTSP port pair, RTX render, NVENC session, and H.264 ring.
+product ID, pod-loopback RTSP port, RTX render, NVENC session, and H.264 ring.
 
 The camera update reads the current simulated entity transforms directly. Its
 frame-rate-independent filter smooths only the final operator-camera position and
@@ -265,9 +265,11 @@ Only the leader owns the admitted nadir sensor and recorded H.264 source. Follow
 telemetry without duplicating camera capture. The leader's root-level USD camera receives
 the simulated body-and-mount transform without operator smoothing. Cesium receives
 the physical sensor viewport on every Kit update. Its Hydra product renders at the
-declared sensor rate and transfers the CUDA-resident `LdrColor` AOV directly into Isaac's
-native RTSP/NVENC extension. Replicator orchestration and CPU pixel capture are absent
-from both camera paths.
+declared sensor rate. Isaac Sim's RTSP writer attaches to that render product and
+requests SRTX H.264 compression from the `LdrColor` render variable. NVIDIA's
+NVENC path produces the encoded frames and its RTSP extension serves them.
+The tiled operator product uses the same writer. Neither path reads pixels back
+to the CPU or adds a second encode.
 
 The runtime consumes the pod-local encoded RTSP/RTP stream. It depacketizes H.264 without
 decoding or re-encoding, qualifies normal GOP access units, and fans those same bytes to
@@ -307,7 +309,7 @@ The chart requires:
   startup binding ConfigMap for restart-stable always-on operation;
 - bounded fleet route, takeoff, vehicle, and PX4 parameters;
 - a strict logical operator-camera collection and one continuous tiled product;
-- one pod-loopback RTSP port pair and one authenticated public WebSocket route;
+- distinct pod-loopback RTSP ports for the sensor and operator atlas, and one authenticated public WebSocket route;
 - expiring stream credentials with transparent renewal, without a viewer lease pool,
   camera-selection limit, or viewer quota;
 - a leader identity and bounded recording cadence and queue;

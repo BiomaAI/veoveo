@@ -42,8 +42,8 @@ class OperatorLiveViewRuntimeConfig:
         camera_ids = [camera.camera_id for camera in self.cameras]
         if len(camera_ids) != len(set(camera_ids)):
             raise ValueError("operator-camera identities must be unique")
-        if not 1 <= self.rtsp_port_base <= 65_534:
-            raise ValueError("operator-camera atlas RTSP port pair exceeds 65535")
+        if not 1 <= self.rtsp_port_base <= 65_535:
+            raise ValueError("operator-camera atlas RTSP port must be between 1 and 65535")
 
     @property
     def streamable_cameras(self) -> tuple[OperatorCameraDefinition, ...]:

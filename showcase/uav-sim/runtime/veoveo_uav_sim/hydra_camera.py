@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from .h264 import NativeH264AccessUnit
+from .native_rtsp import attach_native_rtsp_writer
 from .rtsp_h264 import RtspEndpoint, RtspH264Receiver
 
 LOGGER = logging.getLogger("veoveo.uav_sim.hydra_camera")
@@ -71,39 +72,6 @@ def render_product_path(name: str) -> str:
             "containing only ASCII letters, digits, underscores, or dashes"
         )
     return f"{RTX_RENDER_PRODUCT_PREFIX}/{name}"
-
-
-def native_sensor_aov_signal_port(rtsp_port: int) -> int:
-    if not 1 <= rtsp_port <= 65_534:
-        raise ValueError("native sensor RTSP port must be between 1 and 65534")
-    return rtsp_port + 1
-
-
-def native_sensor_aov_arguments(
-    product_name: str,
-    *,
-    rtsp_port: int,
-    target_fps: int,
-) -> list[str]:
-    """Configure one CUDA AOV-to-NVENC RTSP stream for a sensor product."""
-    signal_port = native_sensor_aov_signal_port(rtsp_port)
-    if not 1 <= target_fps <= 60:
-        raise ValueError("native sensor frame rate must be between 1 and 60")
-    aov = f"Render.OmniverseKit.HydraTextures.{product_name}.LdrColor"
-    prefix = f"--/exts/omni.kit.livestream.aov/{aov}/spectatorStream/0"
-    settings = {
-        "streamType": "rtsp",
-        # The pinned livestream core gives every server type a default
-        # signalPort of 49100. RTSP does not expose that socket, but the AOV
-        # manager still reserves the value and would displace the first
-        # AOV product from its locked endpoint. Give the internal
-        # RTSP server an explicit, disjoint reservation beside its listener.
-        "signalPort": str(signal_port),
-        "streamPort": str(rtsp_port),
-        "targetFps": str(target_fps),
-        "allowDynamicResize": "false",
-    }
-    return [f"{prefix}/{name}={value}" for name, value in settings.items()]
 
 
 def tcp_listener_is_ready(port: int) -> bool:
@@ -299,15 +267,24 @@ class NativeH264CameraSensor:
             height=height,
             render_fps=render_fps,
         )
+        try:
+            self._writer = attach_native_rtsp_writer(
+                self._render_product.path,
+                port=rtsp_port,
+                width=width,
+                height=height,
+            )
+        except BaseException:
+            self._render_product.close()
+            raise
         self._subscription = get_eventdispatcher().observe_event(
             observer_name=f"veoveo_uav_native_h264_{name}",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
             on_event=self._on_drawable_changed,
             filter=self._render_product.hydra_texture.get_event_key(),
         )
-        # This one low-rate sensor product remains active. The native AOV
-        # extension transfers its CUDA LdrColor resource directly to the RTSP
-        # backend, which performs one NVENC encode shared by all RTSP clients.
+        # Isaac's writer encodes the LdrColor render variable with NVENC and
+        # serves its H.264 stream through the NVIDIA RTSP extension.
         self._render_product.set_updates_enabled(True)
 
     @property
@@ -360,6 +337,7 @@ class NativeH264CameraSensor:
         self._subscription = None
         if receiver is not None:
             receiver.close()
+        self._writer.detach()
         self._render_product.close()
 
     def _on_drawable_changed(self, event: Any) -> None:
