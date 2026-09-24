@@ -453,7 +453,7 @@
 <tspan x="1478.0" dy="0">OpenTelemetry collector and SIEM</tspan>
 <tspan x="1478.0" dy="16">export</tspan>
 </text>
-<text x="1785.0" y="1661" class="tiny" text-anchor="end">OpenTelemetry Collector 0.156.0 and optional SIEM</text>
+<text x="1785.0" y="1661" class="tiny" text-anchor="end">OpenTelemetry Collector 0.161.0 and optional SIEM</text>
 <rect x="1815.0" y="1640" width="335.0" height="76" rx="7" fill="#ffffff" stroke="#b8c7cd" stroke-width="1" opacity="1"/>
 <rect x="1815.0" y="1640" width="6" height="76" rx="6" fill="#2c8580" stroke="none" stroke-width="1" opacity="1"/>
 <text x="1831.0" y="1661" class="node-id" text-anchor="start">VV-CMP-043</text>

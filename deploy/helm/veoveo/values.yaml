@@ -504,8 +504,8 @@ telemetry:
   enabled: true
   image:
     repository: otel/opentelemetry-collector
-    tag: 0.156.0
-    digest: ""
+    tag: 0.161.0
+    digest: sha256:b6d2b9a85b1029d05b5ad913150c1f014eed4ae99be81a1813ca5ade4a191913
   existingConfigMap: veoveo-otel-collector
   configKey: config.yaml
   credentialExistingSecret: ""

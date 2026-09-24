@@ -77,8 +77,8 @@ pub(super) fn tool_versions() -> Result<(String, String)> {
         "cancellation verification requires Flux CLI 2.9.5"
     );
     ensure!(
-        helm.trim().starts_with("v4.2.4+"),
-        "cancellation verification requires Helm 4.2.4"
+        helm.trim().starts_with("v4.3.0+"),
+        "cancellation verification requires Helm 4.3.0"
     );
     Ok((flux.trim().into(), helm.trim().into()))
 }

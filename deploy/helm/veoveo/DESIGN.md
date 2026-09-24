@@ -11,6 +11,7 @@
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only Redap route on a separate Ingress with native HTTP/2 gRPC to the recording service; browser gRPC-Web uses the same path |
 | OCI image digests | Veoveo image ownership and production digest enforcement through the shared chart helpers |
 | Amazon S3 API | Private Artifact object storage through RustFS 1.0.0 or an installation-owned compatible store; multipart write, object metadata and ranged reads are exercised by the Artifact client |
+| OTLP gRPC and HTTP; OpenTelemetry Collector 0.161.0 | Optional telemetry receiver with installation-owned pipeline configuration; the checked-in receiver, batch processor and debug exporter profile is qualified with an OTLP/HTTP log |
 | `veoveo.io/computers-service/v3` | Private Computers JSON configuration; the typed service validates the selected capacity and trust before store mutation |
 | `veoveo.io/computer-host/v1` | Private compute-container configuration; dedicated daemon, provider and retained ext4 storage |
 | RFC 9562 UUIDv8 | Deterministic identity for explicitly unconfigured Computers; configured provider identity remains an installation input |
