@@ -1602,6 +1602,14 @@ Isaac 6.1 AOV-to-NVENC handoff is investigated. Candidate source and test
 receipts are preserved on `upgrade/isaac-6.1-runtime`. The installation lock
 points to the qualified image.
 
+A diagnostic image paired the 6.1 runtime with the 6.0.1 RTSP extension
+`10.2.3`. The extension loaded, the fleet advanced on CUDA, and Hydra
+continued to render, but both stream products still had zero encoded frames
+after more than 2,000 physics steps. The older RTSP extension alone does not
+restore streaming. This narrows the next probe to the AOV source and its
+connection to the encoder. The diagnostic image was removed from the live
+Deployment, which returned to the qualified digest.
+
 The first 6.1 runtime pull into k3s took 14 minutes 34 seconds and wrote about
 100 GiB, although cached overlay stages took 2–7 seconds. An attested overlay
 release took about 176 seconds, including roughly 55 seconds for its SBOM.
