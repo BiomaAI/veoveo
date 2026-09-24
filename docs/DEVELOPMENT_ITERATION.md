@@ -1654,3 +1654,39 @@ GitOps lock change after qualification. The repository-wide input hash in
 `test-report` took more than ten seconds for each small UAV check and wrote a
 roughly 24,500-line receipt. Scope these checks to their real inputs before
 using them for frequent render/stream experiments.
+
+The September 24 browser investigation measured about 6.2 atlas frames per
+second inside the Pod but only 0.2–0.3 over the public WebSocket. The SRTX
+pre-encoded path produced roughly 250 KiB access units. NVIDIA's native
+`RTSPStreamWriter` CUDA-buffer mode reduced the measured public stream to
+5.4 MB over 20 seconds while delivering 335 decoded frames to all five views.
+Six frames were keyframes; predicted frames carried the rest. This path keeps
+pixels on CUDA and delegates NVENC to NVIDIA's RTSP backend. Revision
+`da30f75d` staged in 3.2 seconds. Attested publication took 267.6 seconds,
+including 106.5 seconds for its SBOM, and preserved the staged runtime digest.
+The emitted SPS identifies H.264 Main Level 5.2 (`avc1.4d4034`).
+
+The signed-in Chrome profile initially reported software H.264 decoding.
+An unmodified user-local `nvidia-vaapi-driver` v0.0.18 build, commit
+`982ba1c2464b9cea5a4403df8f2c5a351ca21394`, enabled NVIDIA decoding on driver
+595.91.07. Chrome's GLX launch produced black decoded surfaces. ANGLE
+`gl-egl` with `AcceleratedVideoDecodeLinuxGL`,
+`AcceleratedVideoDecodeLinuxZeroCopyGL`, and `VaapiOnNvidiaGPUs` displayed
+the stream with hardware NVIDIA WebGL and observed NVDEC activity. These
+are host-specific browser settings. A fresh Chrome profile without those
+flags also displayed all five views, decoding 141 frames in ten seconds
+through the permitted software H.264 path. Neither test changes the client
+protocol or makes EGL a deployment prerequisite.
+
+Restarting the signed-in profile also exposed an obsolete
+`/console/recording-live-proxy-sw.js` registration. It returned Console HTML
+for `/console/api/session`; removing that registration restored JSON and
+preserved the login. The retired worker's installation cleanup needs a
+separate follow-up for other profiles that still have it registered.
+
+A full release-mode Cargo invocation for the App's string-contract test
+started a cold dependency graph and was deliberately interrupted after
+90.6 seconds. The unchanged owning Rust test module then passed through
+`rustc --test` in 0.1 seconds. Its canceled receipt is retained as historical
+diagnostics, not passing coverage. Use the smallest owning harness when a
+browser asset change does not need the service's complete test dependency graph.
