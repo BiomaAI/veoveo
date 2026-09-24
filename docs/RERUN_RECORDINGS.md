@@ -26,23 +26,81 @@ recordings; it does not open the rest of the dataset.
 
 ## Connect a native Rerun client
 
-The native Viewer and Python Catalog SDK require HTTP/2 gRPC. Give the Viewer the
-returned `entry_uri` and `redap_token`. A Python notebook can query the same entry:
+The native Viewer and Python Catalog SDK require HTTP/2 gRPC. Use version 0.38.1
+to match Veoveo's recording service. The installation hostname in `entry_uri` must
+resolve to an endpoint that carries native gRPC. Tokens permit that hostname only;
+substituting an IP address or another hostname fails Rerun's token host check.
+An approved private DNS route can preserve the hostname while selecting a different
+network path.
+
+A Python notebook with `rerun-sdk[catalog]==0.38.1` can request a grant and query a
+pandas dataframe. Supply the installation origin, admitted profile, dataset and
+recording IDs through the environment along with its current OAuth access token:
 
 ```python
-import rerun as rr
+import json
+import os
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
 
-grant = request_catalog_grant()  # Send the authenticated POST shown above.
-client = rr.catalog.CatalogClient("rerun+https://<native-grpc-host>", token=grant["redap_token"])
-dataset = client.get_dataset(id=grant["entry_uri"].rsplit("/", 1)[-1])
-print(dataset.segment_ids())
-frame = dataset.reader(index="log_time").limit(1000).to_pandas()
+import rerun as rr
+from datafusion import col
+
+def request_catalog_grant():
+    request = Request(
+        f'{os.environ["VEOVEO_ORIGIN"].rstrip("/")}'
+        f'/recordings/{os.environ["VEOVEO_PROFILE"]}/catalog-grants',
+        data=json.dumps({
+            "dataset_id": os.environ["VEOVEO_DATASET_ID"],
+            "recording_ids": [os.environ["VEOVEO_RECORDING_ID"]],
+        }).encode(),
+        headers={
+            "Authorization": f'Bearer {os.environ["VEOVEO_ACCESS_TOKEN"]}',
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+grant = request_catalog_grant()
+entry = urlsplit(grant["entry_uri"])
+client = rr.catalog.CatalogClient(
+    f"{entry.scheme}://{entry.netloc}", token=grant["redap_token"]
+)
+dataset = client.get_dataset(id=entry.path.rsplit("/", 1)[-1])
+indexes = [column.name for column in dataset.schema().index_columns()]
+timeline = "log_time" if "log_time" in indexes else next(iter(indexes), None)
+frame = (
+    dataset.reader(index=timeline)
+    .filter(col("rerun_segment_id") == os.environ["VEOVEO_RECORDING_ID"])
+    .limit(1000)
+    .to_pandas()
+)
 ```
 
-Select an index returned by `dataset.schema().index_columns()` if the recording has
-no `log_time` timeline. Filter by `rerun_segment_id` when the grant covers several
-recordings. The pinned acceptance client is in
+The query selects an available timeline, filters the requested segment, and limits
+the result before converting it to pandas. The pinned acceptance client is in
 [`testing/recording-catalog-sdk/`](../testing/recording-catalog-sdk/).
+
+To open the same entry in a locally installed Rerun Viewer 0.38.1, pass the token
+through its `REDAP_TOKEN` environment variable. This uses the grant already held
+in memory and keeps the token out of command arguments:
+
+```python
+import subprocess
+
+viewer = subprocess.Popen(
+    ["rerun", grant["entry_uri"]],
+    env={**os.environ, "REDAP_TOKEN": grant["redap_token"]},
+)
+```
+
+Rerun's [connection registry](https://github.com/rerun-io/rerun/blob/b08c599e934b0dedee1e95fd74a989a1582ce3d5/crates/data_flow/re_redap_client/src/connection_registry.rs)
+tries saved credentials for a server before this environment token.
+Clear a stale server credential in the Viewer before reconnecting with a fresh grant.
+Check `rerun --version` before launching; the SDK environment and a separately
+installed Viewer can have different versions.
 
 The Bioma public hostname currently reaches Veoveo through a Cloudflare Tunnel public
 hostname route. [Cloudflare documents native gRPC support for private subnet
@@ -52,8 +110,9 @@ there through gRPC-Web. Native clients must use a direct HTTP/2 ingress address 
 operator-approved private route to the same recording service. The installed smoke
 runner maps `veoveo.bioma.ai` to the local k3d ingress and connects on port 8781, so
 the SDK sees the hostname authorized by the grant while exercising the real Redap
-Ingress. This direct path is for local verification; it does not make native gRPC
-available through the public Tunnel hostname.
+Ingress. The runner uses `rerun+http://veoveo.bioma.ai:8781` only on that loopback
+path. Use TLS for remote clients. This direct path is for local verification; it
+does not make native gRPC available through the public Tunnel hostname.
 
 The installed SDK scenario requires the operator service client's private-key file
 and registered key ID in `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
@@ -69,7 +128,9 @@ Request another catalog grant before `expires_at`, then construct a new Viewer o
 `CatalogClient` connection with the returned token. A five-minute token does not
 renew an existing connection. Reissue the request with the same selected IDs and
 current OAuth token; a new policy decision may narrow or deny access. The installed
-SDK smoke scenario performs a second grant and repeats its query after reconnecting.
+SDK smoke scenario performs a second grant and repeats its dataframe query after
+reconnecting. A native Viewer launched with `REDAP_TOKEN` must be relaunched with
+the new token; changing the parent process's environment does not update it.
 
 ## Follow an active recording
 
