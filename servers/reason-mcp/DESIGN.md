@@ -34,10 +34,20 @@ inference service, and no agent framework.
 | ISO Base Media File Format / MP4 | A bounded source range is remuxed without re-encoding for the task-local decoder and world-model runner. |
 | Typed JSON process protocol | One schema-controlled request and response per isolated runner process. This boundary is private and does not replace MCP. |
 | OAuth bearer and signed JWT identity | Source recording, grounding artifacts, results, and derived artifacts retain gateway-resolved Work Context authority and labels. |
-| [vLLM 0.28.0](https://github.com/vllm-project/vllm/releases/tag/v0.28.0) | Official CUDA 13.0 runtime, pinned by OCI index digest. The image supplies the matched Torch and Transformers stack. |
+| [vLLM 0.30.0](https://github.com/vllm-project/vllm/releases/tag/v0.30.0) | Official CUDA 13.0 runtime, pinned by OCI index digest. The image supplies the matched Torch and Transformers stack. |
 | Hugging Face checkpoint | A site-supplied, revision- and digest-pinned checkpoint in native Transformers layout. |
 | [PyNvVideoCodec 2.2.2](https://pypi.org/project/pynvvideocodec/2.2.2/), NVDEC, CUDA, and DLPack | Internal image-input adapter: NVDEC exports device RGB surfaces, Torch owns resized CUDA observations, and Transformers produces CUDA pixel patches. PyAV 18.1.0 reads container metadata only. |
 | vLLM precomputed image embeddings | Internal Qwen3-VL profile with base and deepstack features. The offline engine and its single worker share the runner process; embeddings never enter the RPC tensor serializer. |
+
+The qualified image uses vLLM 0.30.0, Torch 2.13.0+cu130, and
+PyNvVideoCodec 2.2.2 on an RTX 4090. vLLM's package metadata pins
+PyNvVideoCodec 2.0.4 for its own video loader. Reason uses its separate
+NVDEC-to-CUDA RGB adapter and passes precomputed embeddings to vLLM; it does
+not invoke that loader. The 2.2.2 override supports device-memory frame
+ownership and DLPack transfer. Each runtime update must qualify CUDA decode,
+the in-process embedding path, and a complete Reason task. Remove the override
+when vLLM supports the required codec release or the adapter qualifies against
+vLLM's own pin.
 
 ## Data path
 

@@ -188,7 +188,7 @@ Map's analytics family. The DeepStream development stage compiles only the C++ r
 and mounts only `servers/stream-mcp/gst-runner`; Rust edits preserve that native action.
 Runtime assembly combines the two binaries with the digest-pinned DeepStream runtime.
 Reason consumes the same control compiler and assembles its executable with the
-digest-pinned vLLM 0.28.0 runtime. Runner dependency manifests have their own build
+digest-pinned vLLM 0.30.0 runtime. Runner dependency manifests have their own build
 mounts, while Python source becomes an executable archive in a later layer. Rust and
 Python source edits reuse the large GPU runtime and dependency installation.
 Reason disables install-time Python bytecode and fixes archive timestamps, member
