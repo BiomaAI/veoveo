@@ -13,6 +13,8 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1"]
+# Veoveo's CUDA RGB/DLPack decoder needs 2.2.2. vLLM 0.30.0 pins 2.0.4 for
+# its own video loader, which Reason does not call. See ../DESIGN.md.
 gpu = ["pynvvideocodec==2.2.2"]
 
 [project.scripts]
