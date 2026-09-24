@@ -37,7 +37,7 @@ The runtime lock selects this tuple:
 | MuJoCo Warp | `3.11.0`, bundled by Isaac Sim |
 | Torch | `2.11.0+cu128`, bundled by Isaac Sim |
 | Isaac RTX NVRTC builtins | `12.8.61`, retained from the pinned Isaac Sim image |
-| NVIDIA AOV live stream | `10.2.0+110.1.2.lx64.r.cp312` |
+| NVIDIA AOV live stream | `10.2.1+110.1.2.lx64.r.cp312` |
 | NVIDIA RTSP live stream | `10.4.1+110.1.2.lx64.r.cp312` from Isaac Sim |
 
 Isaac Lab `v3.0.0-EA` is a deliberate pre-release dependency. It is the upstream
