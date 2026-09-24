@@ -13,7 +13,7 @@ mod tests {
             "VideoDecoder",
             "EncodedVideoChunk",
             "veoveo.h264.annexb.v1",
-            "avc1.4d4032",
+            "avc1.4d4034",
             "list_live_cameras",
             "open_live_view",
             "renew_live_view",
