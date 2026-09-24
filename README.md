@@ -49,6 +49,8 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   streams on your own GPUs.
 - **Record field operations.** Stream camera, telemetry, and vehicle state
   from field producers into one timeline.
+- **Query recordings with Rerun.** Open any recording you can access in the
+  native Rerun Viewer, or load it into pandas with Rerun's Python SDK.
 - **Ask what happened.** Ask questions about synchronized recordings of world
   state, sensors, poses, and annotations. Each answer links back to the
   recordings it used, and each query is audited.
@@ -71,6 +73,28 @@ what actually happened. Today's vehicle adapters are simulators: Isaac Sim with
 PX4 for UAVs, and SUMO for road traffic. The UAV server's per-vehicle grants and
 command leases are provider-neutral, so a real-vehicle adapter would plug into
 the same controls an agent already uses in simulation.
+
+## Recordings In Rerun
+
+An installation records what happens in [Rerun](https://rerun.io/)'s open format:
+sensor and camera streams from the field, world state from SUMO and Isaac Sim, poses
+and telemetry, Stream detections, and Reason results. Producers push data through
+the gateway from inside the cluster, a local network, or the internet, and each
+recording keeps its streams on one synchronized timeline. A rehearsal in simulation
+and a fielded run produce the same kind of recording, so they can be opened side by
+side.
+
+Each recording has an owner, tenant, data labels, grants, and a retention policy.
+Recordings are stored as immutable Rerun 0.38.1 files and served as Rerun datasets
+over the Rerun Data Protocol. People with access open them in the Console, in the
+native Rerun Viewer, or in a Python notebook through Rerun's Catalog SDK. Stream
+replays video from recordings, Reason answers questions grounded in them, agents
+query them, and derived results are stored back as new layers of the same recording.
+
+That makes Veoveo ready for physical AI work: one record of what robots, simulators,
+and agents did, kept under the installation's access rules and readable by the tools
+robotics teams already use. [Use recordings with Rerun](docs/RERUN_RECORDINGS.md)
+shows how to connect.
 
 ## Identity, Policy, And Audit
 
@@ -111,8 +135,8 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
 Veoveo adds simulation and recording of the operations themselves: simulator
-runtimes that run PX4 autopilot firmware, live video pipelines, and a timeline
-that makes each mission replayable. The two can run side by side. Palantir
+runtimes that run PX4 autopilot firmware, live video pipelines, and a Rerun
+timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
 Foundry is listed in the [connector catalog](docs/connectors/README.md).
 
 ## Agentic Apps
@@ -228,6 +252,8 @@ resolved the destination through Map and flew under its existing grant for
 [Inspect the Console evidence](showcase/uav-sim/assets/uav-e2e-001-console-complete.png)
 or repeat the
 [`UAV-E2E-001` acceptance](showcase/uav-sim/ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
+The flight is also a Rerun dataset that can be
+[queried from Python](docs/RERUN_RECORDINGS.md).
 
 | San Salvador | Midtown Manhattan |
 |---|---|
@@ -492,7 +518,7 @@ optional features, Veoveo implements only the subset its designs describe.
 |---|---|
 | Agent and app interfaces | Model Context Protocol `2026-07-28` over JSON-RPC 2.0 and stateless Streamable HTTP; official MCP Tasks; JSON Schema 2020-12; and [MCP Apps](mcp/apps-extension/DESIGN.md). |
 | Identity and authorization | OpenID Connect Core; OAuth 2.0 Authorization Code with S256 PKCE, Client Credentials, and JWT Bearer grants; RFC 8414 metadata; RFC 9728 protected-resource metadata; RFC 8707 resource indicators; JWT, JWS, and JWK; MCP enterprise-managed authorization and ID-JAG. |
-| Recordings, data, and media | Rerun RRD and `VideoStream`; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
+| Recordings, data, and media | Rerun 0.38.1 RRD and `VideoStream`; read-only Rerun Data Protocol over native gRPC and gRPC-Web; versioned protobuf recording ingest; S3-compatible object APIs; DuckDB SQL; Apache Parquet; and OTLP/HTTP telemetry. |
 | Geography and time | WGS84/EPSG identities; GeoJSON RFC 7946; OGC JSON-FG and CQL2; GeoParquet 1.0; Mapbox Vector Tile 2.1; MapLibre Style 8; RFC 3339; RFC 9557; IANA TZDB/TZif and leap-second data; TAI and GPS time. |
 | Optimization | NVIDIA cuOpt 26.08 on CUDA 13.3; `veoveo.io/travel-model-artifact/v1` for the Map handoff; and the private pod-local `veoveo.io/cuopt-executor/v1` adapter protocol. |
 | 3D and vehicles | OGC 3D Tiles 1.0/1.1; glTF/GLB 2.0; Draco geometry compression; OpenUSD; Newton and Warp CUDA; and MAVLink 2 HIL. |
@@ -513,7 +539,8 @@ Platform services are written in Rust. Python covers the SDK, the server
 template, and simulator adapters, and the Console and Workspace use TypeScript
 and React. Hosted MCP servers can be written in any language that speaks the
 protocol. Kubernetes and Helm run the installation, SurrealDB handles
-coordination, DuckDB handles analytics, and Rerun stores recordings. NVIDIA
+coordination, DuckDB handles analytics, and Rerun stores recordings and serves them
+to Rerun's own Viewer and SDK. NVIDIA
 runtimes power cuOpt optimization, Isaac Sim, and Stream perception.
 
 <table align="center" aria-label="Technology stack logos">
