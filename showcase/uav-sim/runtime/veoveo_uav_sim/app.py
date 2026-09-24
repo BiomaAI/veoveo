@@ -137,6 +137,7 @@ def run(config: RuntimeConfig) -> None:
     import omni.timeline
     import omni.usd
     from isaacsim.core.simulation_manager import SimulationManager
+    from isaacsim.physics.newton import MuJoCoSolverConfig, get_newton_solver
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     extension_manager = omni.kit.app.get_app().get_extension_manager()
@@ -283,9 +284,11 @@ def run(config: RuntimeConfig) -> None:
         newton_stage = isaacsim.physics.newton.acquire_stage()
         if newton_stage is None:
             raise RuntimeError("Isaac Sim did not expose the active Newton stage")
+        physics_scenes = SimulationManager.get_physics_scenes()
+        if len(physics_scenes) != 1 or get_newton_solver(physics_scenes[0].prim) != "mujoco":
+            raise RuntimeError("UAV fleet requires one MuJoCo-Warp Newton physics scene")
+        newton_stage.cfg.solver_cfg = MuJoCoSolverConfig()
         newton_stage.cfg.time_step_app = False
-        if newton_stage.cfg.solver_cfg.solver_type != "mujoco":
-            raise RuntimeError("UAV fleet requires the MuJoCo-Warp Newton solver")
         newton_stage.cfg.num_substeps = 1
         newton_stage.cfg.use_cuda_graph = False
         newton_stage.cfg.solver_cfg.iterations = 1
@@ -294,6 +297,7 @@ def run(config: RuntimeConfig) -> None:
         newton_stage.cfg.solver_cfg.use_mujoco_contacts = False
         newton_stage.cfg.solver_cfg.njmax = 1
         newton_stage.cfg.solver_cfg.nconmax = 0
+        isaacsim.physics.newton.configure_newton(newton_stage.cfg)
         physics_timeline = omni.timeline.get_timeline_interface()
         # Newton owns the authoritative clock. Kit remains in manual mode and
         # advances only render products and extension work.
