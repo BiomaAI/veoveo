@@ -1595,12 +1595,9 @@ the fleet advanced and both RTX Hydra products reported rendered samples, but
 neither AOV/RTSP stream emitted an H.264 frame. Each RTSP DESCRIBE ended in 503.
 Six finite retries did not change the result. The pinned NVIDIA RTSP extension
 notes that an initial 503 can occur before media flows, but the installation
-still had zero encoded frames after several minutes. The last qualified Isaac
-6.0.1 image on the same node reached 104 sensor frames and 719 atlas frames
-with both streams ready. Bioma therefore keeps digest `e9e1e101` while the
-Isaac 6.1 AOV-to-NVENC handoff is investigated. Candidate source and test
-receipts are preserved on `upgrade/isaac-6.1-runtime`. The installation lock
-points to the qualified image.
+still had zero encoded frames after several minutes. The Isaac 6.0.1 image on
+the same node reached 104 sensor frames and 719 atlas frames with both streams
+ready. The installation kept digest `e9e1e101` for that diagnostic checkpoint.
 
 A diagnostic image paired the 6.1 runtime with the 6.0.1 RTSP extension
 `10.2.3`. The extension loaded, the fleet advanced on CUDA, and Hydra
@@ -1615,8 +1612,27 @@ working installation's AOV extension `10.2.0`. The four-vehicle fleet advanced
 past 1,900 physics steps and the operator render product reported 256 source
 to render samples. Both H.264 counters remained zero, and RTSP continued to
 report no media. Reverting AOV `10.2.1` alone therefore does not restore the
-stream. The qualified 6.0.1 deployment resumed with 47 sensor frames and 204
-atlas frames, both ready, and Flux reconciliation was resumed.
+stream. The 6.0.1 deployment briefly resumed with 47 sensor frames and 204
+atlas frames, both ready. The next diagnostic returned the installation to 6.1.
+
+Isaac Sim 6.1 includes `isaacsim.streaming.rtsp` `0.1.5`. Its
+`RTSPStreamWriter` attaches to an existing render-product prim, authors the
+`LdrColor` render variable for SRTX H.264 compression, and passes the encoded
+frames to NVIDIA's RTSP server. Both the sensor and tiled operator atlas ran
+through that writer without a CPU pixel readback or duplicate encode. The
+first live diagnostic produced over 3,000 frames on each stream. The published
+`uav-sim-runtime` image from signed revision `c87bff09` then produced 92
+sensor frames and 92 atlas frames after Flux reapplied the installation.
+The RTX 4090 reported 6% encoder utilization during a preceding run. Bioma's
+GitOps lock now selects release digest `03791f6c`; Flux applied `e7c364b4`
+and both streams were ready on the resulting Pod.
+
+Staging the committed UAV overlay reused its dependency image and completed
+in 2.9 seconds. Attested publication took 184.7 seconds, including an 87.2
+second SBOM scan. Flux replaced the Pod once more when it reapplied the Helm
+release, even though manual validation already used the final image digest.
+The source, chart, and image lock should converge in one GitOps pass after
+development validation to avoid that second Kit startup.
 
 The first 6.1 runtime pull into k3s took 14 minutes 34 seconds and wrote about
 100 GiB, although cached overlay stages took 2–7 seconds. An attested overlay
