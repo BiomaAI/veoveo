@@ -9,12 +9,6 @@ ARG ISAAC_LAB_ARCHIVE_URL=https://github.com/isaac-sim/IsaacLab/archive/ae37b028
 ARG ISAAC_LAB_ARCHIVE_SHA256=323c0c1d8eb30d31022ef56406eba998bd7760631341191c5d15e8b308a5fa5d
 ARG NEWTON_WHEEL_URL=https://files.pythonhosted.org/packages/03/a5/fba1e550b36cae939aaaea40612a6f70a754747b5129ef978add2569da49/newton-1.5.2-py3-none-any.whl
 ARG NEWTON_WHEEL_SHA256=b432b0db9ee963c1fe570b88952d913b9eb98c9ca190c58f80882f28dd0dd5d6
-ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.0
-ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
-ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.0%2B110.1.2.lx64.r.cp312.zip
-ARG NVIDIA_LIVESTREAM_AOV_SHA256=e842d29982283787b145f3a1f91210b4b16ecc9fbc7038e970ed4dc4bf482c49
-ARG NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256=71081c9a5190fc4ed116e31a97fbdf54423e83834c736ce7883343d7676bfad4
-
 USER root
 
 COPY requirements.lock /opt/veoveo/simulation-runtime/requirements.lock
@@ -66,6 +60,12 @@ RUN curl --fail --location --show-error \
       > /opt/veoveo/isaaclab/.veoveo-source-revision \
     && ln -s /isaac-sim /opt/veoveo/isaaclab/_isaac_sim \
     && rm /tmp/isaaclab.tar.gz
+
+ARG NVIDIA_LIVESTREAM_AOV_VERSION=10.2.1
+ARG NVIDIA_LIVESTREAM_AOV_BUILD=110.1.2.lx64.r.cp312
+ARG NVIDIA_LIVESTREAM_AOV_URL=https://d4i3qtqj3r0z5.cloudfront.net/omni.kit.livestream.aov-10.2.1%2B110.1.2.lx64.r.cp312.zip
+ARG NVIDIA_LIVESTREAM_AOV_SHA256=8b83c9b2ecf46f8b63c6931c93938f468a01e94b2df59a16d324be22a7b2b316
+ARG NVIDIA_LIVESTREAM_AOV_CONFIG_SHA256=cde17a4d4407f5550bf8e865e832d8e6d856a57dea6d07fe5b6a6589182e7de7
 
 RUN curl --fail --location --show-error \
       --output /tmp/omni.kit.livestream.aov.zip \
