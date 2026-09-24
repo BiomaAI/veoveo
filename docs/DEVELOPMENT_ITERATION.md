@@ -1541,3 +1541,33 @@ remove containers without requesting anonymous-volume removal. Qualify explicit
 volume cleanup and assert that fixtures leave no owned volumes behind. The inventory
 does not establish the origin of every orphan. This follow-up needs container-based
 tests when the host is authorized to run containers again.
+
+### Isaac 6.1 candidate qualification — September 24, 2026
+
+The pinned Isaac 6.1 image reports Kit 110.3.0. The candidate lock had recorded
+110.1.2, which belongs to the AOV and RTSP extension build identifiers. Correcting
+the lock changed every overlay's base-lock label and forced another image export.
+Kit also requires `isaacsim.physics.newton.tensors` at launch for its native Newton
+tensor view. The earlier local patch to `SimulationManager` targeted an API that
+the extension does not export; the upstream `omni.physics.tensors` adapter works
+when that extension is enabled. The base now materializes one license-only Warp
+symlink within Warp's source root before checking module provenance.
+
+Clean local candidate images passed hardware probes on the RTX 4090 with driver
+595.91.07. The base image reached CUDA, NVENC, Torch, Warp, Newton, and four
+distinct Isaac Lab RTX camera frames. The anonymous and UAV overlays each produced
+20 distinct Newton camera hashes and 20 distinct RTX frame hashes, with rising
+CUDA-resident rigid bodies under a 25 N force. All three containers exited zero.
+Their logs and the base JSON result are in
+`output/development/component-upgrade-20260923/isaac61-gpu/`. These candidate
+images carry `SOURCE_REVISION=uncommitted-candidate`; they are not release images.
+
+The first UAV rebuild after registry-history cleanup had to regenerate retired
+PX4 and Cesium dependency inputs and took about 15 minutes. The next three-image
+candidate Bake reused those upstream stages. Its UAV export spent 34.5 seconds
+writing layers and 4.0 seconds pushing them. The final base GPU probe took about
+three minutes, including Kit and RTX startup; each 20-camera overlay probe spent
+about 94 seconds on independent RTX cameras after its other checks. Keep the
+reusable upstream build cache and batch related image targets while preserving
+the exact source and lock identity. Release staging, formal simulation certification,
+and installed acceptance still follow the signed source checkpoint.
