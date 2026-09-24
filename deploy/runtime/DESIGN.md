@@ -14,7 +14,7 @@
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.3.0 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
 | Helm, Flux, and Argo CD ownership metadata | Exact Helm release annotations and managed-by label, with selected Flux and Argo ownership markers checked for imperative conflicts; absence of a marker grants no authority |
-| Kubernetes/K3s v1.36.2 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, GPU resource discovery, and server dry-run (`dryRun=All`) for normalized installation baselines |
+| Kubernetes/K3s v1.37.0 | Explicit contexts, namespace and object operations, Deployment readiness, Secret presence, GPU resource discovery, and server dry-run (`dryRun=All`) for normalized installation baselines |
 | Kubernetes `coordination.k8s.io/v1` | Non-expiring Lease mutex for cooperating profile commands; conditional deletion requires its UID and resource version |
 | Kubernetes DRA `resource.k8s.io/v1` | Persistent ResourceClaims, named requests, and distinct-device constraints |
 | NVIDIA DRA chart `0.5.0` and `resource.nvidia.com/v1beta1` | Pinned standalone allocator, verified chart and image artifacts, CDI preparation, and declared sharing configuration; hardware qualification is pending and upstream technology-preview features remain bounded by the deployment contract |

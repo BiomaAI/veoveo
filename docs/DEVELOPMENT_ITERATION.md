@@ -1480,3 +1480,14 @@ September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
 reclaimed about 65 GiB of disk, and pruning unused dangling Docker images reclaimed
 2.5 GB. No host Cargo compile was active during that cleanup; today's Rust artifacts
 and the active BuildKit worker were left intact.
+
+The K3s 1.37 upgrade used the retained single-node volume and restarted the node
+twice: once for K3s and once for NVIDIA Container Toolkit 1.20.1. Every workload
+had one desired replica and no HPA. The four pilot processes briefly failed tool
+discovery while the simulator and gateway started; restarting the failed Pods after
+those services were ready restored all four. A future node upgrade should start
+the simulator and gateway before the pilots to avoid this recovery delay.
+The focused deployment-smoke parser test took 2m 53s on a cold host build because
+its binary target compiled the full service dependency graph. Move transport-log
+parsing into a small test target when that path next changes; its warmed test run
+is fast.
