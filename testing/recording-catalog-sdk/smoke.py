@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 import rerun as rr
+from datafusion import col
 
 
 def validate_grant(result: dict, dataset: str, recording: str) -> None:
@@ -32,10 +33,17 @@ def query(redap_url: str, issued_grant: dict, recording: str) -> tuple[str, int]
         raise ValueError("admitted recording is absent from the Redap dataset")
     indexes = [column.name for column in dataset.schema().index_columns()]
     timeline = "log_time" if "log_time" in indexes else (indexes[0] if indexes else None)
-    dataframe = dataset.reader(index=timeline).limit(16)
-    rows = sum(batch.num_rows for batch in dataframe.collect())
+    dataframe = (
+        dataset.reader(index=timeline)
+        .filter(col("rerun_segment_id") == recording)
+        .limit(16)
+        .to_pandas()
+    )
+    rows = len(dataframe)
     if rows == 0:
         raise ValueError("Rerun Catalog SDK returned no recording rows")
+    if not dataframe["rerun_segment_id"].eq(recording).all():
+        raise ValueError("Rerun Catalog SDK returned another recording's rows")
     return timeline or "static", rows
 
 

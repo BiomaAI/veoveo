@@ -1742,3 +1742,25 @@ Cloudflare access is an installation networking decision. The supported route an
 token renewal procedure are in [RERUN_RECORDINGS.md](RERUN_RECORDINGS.md).
 PX4 sensor timing and long-run render stalls require a later simulator session;
 the operator's resource pause keeps those performance checks deferred.
+
+The final SDK follow-up queried a pandas dataframe through native gRPC, filtered
+the selected recording, checked every returned segment ID, and repeated that query
+with a new grant. Both queries returned 16 rows from the retained UAV recording
+while the simulator stayed stopped. The existing Rust harness compiled in 0.6
+seconds. This qualifies the notebook result format alongside grant renewal.
+The recorder classifies this installed command as an unknown invocation and hashes
+2,722 files, including documentation. Editing this delivery note therefore required
+a fresh SDK run to record current inputs. A reviewed installed-check
+descriptor should scope those inputs without treating deployment state as reusable.
+
+The public native-client route still requires installation work. The current k3d
+load balancer publishes its HTTP ingress only at `127.0.0.1:8781`; it has no
+published TLS listener. The available paths have different prerequisites:
+
+| Access model | Installation work before native-client acceptance |
+|---|---|
+| Public HTTP/2 origin | Reachable origin, TLS for the installation hostname, and a DNS/proxy route that carries native gRPC without a Tunnel public-hostname route |
+| Private Cloudflare route | Private subnet routing, enrolled WARP clients, and private DNS/TLS that preserves the installation hostname in the grant |
+
+Neither route is configured by the local SDK smoke. The operator's access-model
+decision is pending. Browser access continues through the existing public Tunnel.
