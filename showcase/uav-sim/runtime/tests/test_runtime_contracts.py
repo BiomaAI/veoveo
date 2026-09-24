@@ -211,6 +211,8 @@ class RuntimeConfigTests(unittest.TestCase):
             [
                 "--enable",
                 "isaacsim.physics.newton",
+                "--enable",
+                "isaacsim.physics.newton.tensors",
                 "--/exts/isaacsim.core.simulation_manager/default_engine=newton",
             ],
         )

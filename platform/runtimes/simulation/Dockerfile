@@ -85,16 +85,6 @@ RUN curl --fail --location --show-error \
     && ! grep -q 'spectatorStream' "${config}" \
     && rm /tmp/omni.kit.livestream.aov.zip
 
-COPY --chmod=0555 patches/apply_isaac_newton_1_5.py /tmp/apply-isaac-newton-1.5.py
-RUN simulation_manager=/isaac-sim/exts/isaacsim.core.simulation_manager/isaacsim/core/simulation_manager/impl/simulation_manager.py \
-    && /isaac-sim/kit/python/bin/python3 \
-      /tmp/apply-isaac-newton-1.5.py \
-      "${simulation_manager}" \
-    && grep -Fq \
-      'isaacsim.physics.newton.tensors.create_simulation_view' \
-      "${simulation_manager}" \
-    && rm /tmp/apply-isaac-newton-1.5.py
-
 RUN groupadd --gid 10001 veoveo \
     && useradd \
       --uid 10001 \
@@ -119,13 +109,22 @@ RUN groupadd --gid 10001 veoveo \
       /var/lib/veoveo \
     && chmod 0755 /isaac-sim
 
+# The pinned Isaac 6.1 image deduplicates Warp's license-only APIC initializer
+# through a symlink into the teleop extension. Keep Warp imports within Warp's
+# own source root so the runtime identity check can verify their provenance.
+RUN warp_apic=/isaac-sim/extscache/omni.warp.core-1.16.0+lx64/warp/_src/apic/__init__.py \
+    && test "$(readlink "$warp_apic")" = \
+      '../../../../../exts/isaacsim.replicator.teleop/pip_prebundle/isaacteleop/retargeters/joint_space/__init__.py' \
+    && cp -L "$warp_apic" "$warp_apic.materialized" \
+    && mv "$warp_apic.materialized" "$warp_apic"
+
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
 COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
 COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
-RUN echo "3c558c7c20c522263ae799264b9de045943d5efd9b6cd0e4727c89a487a7e180  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+RUN echo "604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
       | sha256sum --check --strict \
     && printf '%s\n' \
-      "3c558c7c20c522263ae799264b9de045943d5efd9b6cd0e4727c89a487a7e180" \
+      "604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d" \
       > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \
