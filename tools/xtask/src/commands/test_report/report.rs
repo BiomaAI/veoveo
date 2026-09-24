@@ -81,10 +81,12 @@ pub(crate) fn show(repository: &RepositoryContext, github_summary: bool) -> Resu
             .open(path)?
             .write_all(markdown.as_bytes())?;
     }
-    ensure!(
-        failing == 0 && passing > 0,
-        "local evidence has a current failure or no current passing observations"
-    );
+    if !github_summary {
+        ensure!(
+            failing == 0 && passing > 0,
+            "local evidence has a current failure or no current passing observations"
+        );
+    }
     Ok(())
 }
 

@@ -28,7 +28,10 @@ input dependency or reclassify a failed check into qualifying evidence.
 Running a check always executes it; preserving an earlier valid result is an index
 operation, not an implicit decision to skip a requested command. The display command
 presents committed evidence. Release verification additionally evaluates required
-coverage, environment bindings and explicit freshness limits.
+coverage, environment bindings and explicit freshness limits. GitHub summary mode
+validates receipts and displays source status as an informational report. A stale
+observation from another host does not fail that presentation. Local display still
+fails for a current failed check or when no current passing observation exists.
 
 ## Input Planning
 
