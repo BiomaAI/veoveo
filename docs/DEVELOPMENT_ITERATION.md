@@ -1690,3 +1690,9 @@ started a cold dependency graph and was deliberately interrupted after
 `rustc --test` in 0.1 seconds. Its canceled receipt is retained as historical
 diagnostics, not passing coverage. Use the smallest owning harness when a
 browser asset change does not need the service's complete test dependency graph.
+
+The first MCP publication for the codec change took 302.1 seconds after the
+selected Cargo feature graph changed. The subsequent footer-only change reused
+those dependencies: Cargo compiled the UAV crate in 22.5 seconds and the full
+attested image publication finished in 44.6 seconds. Track feature-graph cache
+churn separately from the incremental cost of embedding an App asset in Rust.
