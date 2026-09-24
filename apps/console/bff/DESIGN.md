@@ -54,6 +54,21 @@ The Workspace API and asset contracts are owned by
 uploads and App hosting keep their existing component contracts. Static bundles have
 independent frontend build stages and do not become Rust compiler inputs.
 
+### Installed Recording Worker Retirement
+
+The browser edge serves `/console/recording-live-proxy-sw.js` as JavaScript with
+`Cache-Control: no-store`. This endpoint replaces installed recording-proxy workers
+with a worker that handles no fetches and unregisters itself on activation. Console
+also unregisters that specific script before session bootstrap, reloading the current
+document once if the retired worker controls it. Other workers, cookies and browser
+storage are preserved. New clients never register the retirement worker.
+
+The Console edge owns this installed-client transition. Its browser test covers
+an already-controlled tab, normal bootstrap, worker update without new application
+code, and unrelated registrations. Keep the retirement URL through December 24,
+2026; removal then requires a coordinated reset or confirmation that the
+installation's managed browser profiles have retired their registrations.
+
 ## Qualification
 
 Unit tests cover cross-application envelope rejection and return-path constraints.

@@ -9,22 +9,12 @@
         "test"
       ],
       "inputs": {
-        "kind": "cargo",
-        "packages": [
-          "veoveo-xtask"
-        ],
+        "kind": "console",
         "roots": [
-          "tools/image-build",
-          "configs",
-          "deploy",
-          "platform/runtimes/simulation/contract",
-          "testing",
-          "examples/bioma",
           "apps/console/web"
         ]
       },
       "toolchains": [
-        "rust",
         "node"
       ]
     },
@@ -37,22 +27,12 @@
         "lint"
       ],
       "inputs": {
-        "kind": "cargo",
-        "packages": [
-          "veoveo-xtask"
-        ],
+        "kind": "console",
         "roots": [
-          "tools/image-build",
-          "configs",
-          "deploy",
-          "platform/runtimes/simulation/contract",
-          "testing",
-          "examples/bioma",
           "apps/console/web"
         ]
       },
       "toolchains": [
-        "rust",
         "node"
       ]
     },
@@ -65,22 +45,12 @@
         "build"
       ],
       "inputs": {
-        "kind": "cargo",
-        "packages": [
-          "veoveo-xtask"
-        ],
+        "kind": "console",
         "roots": [
-          "tools/image-build",
-          "configs",
-          "deploy",
-          "platform/runtimes/simulation/contract",
-          "testing",
-          "examples/bioma",
           "apps/console/web"
         ]
       },
       "toolchains": [
-        "rust",
         "node"
       ]
     },
@@ -110,6 +80,24 @@
       },
       "toolchains": [
         "rust",
+        "node"
+      ]
+    },
+    {
+      "arguments": [
+        "npm",
+        "--prefix",
+        "apps/console/web",
+        "run",
+        "test:browser"
+      ],
+      "inputs": {
+        "kind": "console",
+        "roots": [
+          "apps/console/web"
+        ]
+      },
+      "toolchains": [
         "node"
       ]
     }

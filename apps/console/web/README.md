@@ -55,6 +55,10 @@ Ordinary frontend edits use Vite refresh and require no schema generation or Rus
 assets. Visual verification additionally requires a headed browser and hardware-backed
 WebGPU or WebGL; probe both exposed APIs before interacting with the Console.
 
+`npm --prefix apps/console/web run test:browser` runs the installed service-worker
+retirement scenario in headless Chrome against isolated loopback fixtures. It checks
+browser lifecycle and session bootstrap behavior; it does not qualify graphics.
+
 The Artifacts upload panel requires an enabled Gateway profile upload policy and the
 `artifact:upload` scope. Its controller lives in the authenticated application shell;
 closing the panel and changing pages preserve active transfers. Reload reconciles
