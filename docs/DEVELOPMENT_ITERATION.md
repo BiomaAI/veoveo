@@ -1494,3 +1494,83 @@ The focused deployment-smoke parser test took 2m 53s on a cold host build becaus
 its binary target compiled the full service dependency graph. Move transport-log
 parsing into a small test target when that path next changes; its warmed test run
 is fast.
+
+### Registry Retention And Host Cache Inventory — September 24, 2026
+
+With all containers stopped, the current registry occupied 367 GiB and an
+unattached older registry occupied 11.8 GiB. Native registry garbage collection
+in dry-run mode found only 0.29 GiB reclaimable without deleting manifests.
+Image history therefore needs a retention decision before garbage collection
+can recover substantial space.
+
+The authorized cleanup removed 2,857 obsolete manifest records through temporary
+loopback registry APIs, stopped those processes, and ran native garbage collection.
+It recovered 330.8 GiB and increased available filesystem space from 272 GiB to
+603 GiB. The keep set included the deployment locks, captured Pod image references,
+their OCI indexes and attestations, Helm charts, and the reusable Speech dependency
+image. All 377 retained manifests passed digest verification; their 1,328 referenced
+blobs remained present at their recorded sizes. This verifies registry retention,
+not a workload restart. Every container stayed stopped.
+
+BuildKit's 165 GiB cache, Cargo artifacts, and installation data were preserved.
+Two generated UAV dependency receipts were archived and removed from the active
+receipt cache because their registry images were explicitly retired. A subsequent
+build can publish those dependencies instead of failing on a missing admitted input.
+Generated plans, deletion journals, and results are under
+`output/development/registry-cleanup-20260924/`.
+
+The subsequent cache cleanup removed 22.5 GiB of Rust 1.97.1 artifacts identified
+through Cargo compiler fingerprints and ELF compiler identities. Before deletion,
+each file matched its recorded device, inode, allocation and complete hard-link set.
+All 142,786 retained host artifact paths passed identity checks afterward, including
+the current Rust 1.98.1 artifacts. Independent `rig/target` and `rust-sdk/target`
+directories held another 32.2 GiB last modified on August 19; removing those caches
+preserved both source checkouts. Git removed four clean worktrees whose commits were
+already in `main`, recovering 1.34 GiB. Worktrees with unique work were preserved.
+The 1.25 GiB host smoke executable contained 1.075 GiB of debug sections; qualify
+reduced development debug information before considering release-only local tests.
+
+Docker removed 8,146 empty, unreferenced anonymous volumes after checking each
+volume's contents and container references. All 25 protected volumes survived,
+including the nonempty anonymous orphan. The empty directories accounted for only
+about 64 MiB; registry history and old compiler artifacts caused the capacity pressure.
+Available filesystem space reached 658 GiB. Containers stayed stopped with restart
+policies set to `no`. Cleanup plans and deletion journals are under
+`output/development/cache-cleanup-20260924/`.
+
+Disposable fixture cleanup paths
+in `testing/fixtures/store.rs` and `testing/smoke/src/bin/smoke/support/process.rs`
+remove containers without requesting anonymous-volume removal. Qualify explicit
+volume cleanup and assert that fixtures leave no owned volumes behind. The inventory
+does not establish the origin of every orphan. This follow-up needs container-based
+tests when the host is authorized to run containers again.
+
+### Isaac 6.1 candidate qualification — September 24, 2026
+
+The pinned Isaac 6.1 image reports Kit 110.3.0. The candidate lock had recorded
+110.1.2, which belongs to the AOV and RTSP extension build identifiers. Correcting
+the lock changed every overlay's base-lock label and forced another image export.
+Kit also requires `isaacsim.physics.newton.tensors` at launch for its native Newton
+tensor view. The earlier local patch to `SimulationManager` targeted an API that
+the extension does not export; the upstream `omni.physics.tensors` adapter works
+when that extension is enabled. The base now materializes one license-only Warp
+symlink within Warp's source root before checking module provenance.
+
+Clean local candidate images passed hardware probes on the RTX 4090 with driver
+595.91.07. The base image reached CUDA, NVENC, Torch, Warp, Newton, and four
+distinct Isaac Lab RTX camera frames. The anonymous and UAV overlays each produced
+20 distinct Newton camera hashes and 20 distinct RTX frame hashes, with rising
+CUDA-resident rigid bodies under a 25 N force. All three containers exited zero.
+Their logs and the base JSON result are in
+`output/development/component-upgrade-20260923/isaac61-gpu/`. These candidate
+images carry `SOURCE_REVISION=uncommitted-candidate`; they are not release images.
+
+The first UAV rebuild after registry-history cleanup had to regenerate retired
+PX4 and Cesium dependency inputs and took about 15 minutes. The next three-image
+candidate Bake reused those upstream stages. Its UAV export spent 34.5 seconds
+writing layers and 4.0 seconds pushing them. The final base GPU probe took about
+three minutes, including Kit and RTX startup; each 20-camera overlay probe spent
+about 94 seconds on independent RTX cameras after its other checks. Keep the
+reusable upstream build cache and batch related image targets while preserving
+the exact source and lock identity. Release staging, formal simulation certification,
+and installed acceptance still follow the signed source checkpoint.
