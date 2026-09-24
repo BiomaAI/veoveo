@@ -1703,7 +1703,7 @@ atlas frames in ten seconds with an empty decode queue, and omitted the map
 provider footer label. The headed Chrome used NVIDIA WebGL; Media Capabilities
 reported supported, smooth, power-efficient H.264 and `nvidia-smi` observed
 Chrome decoder activity. The operator then requested a resource pause. The UAV
-HelmRelease is suspended in Git and its simulator Deployment is scaled to zero.
-The MCP Pod stays deployed; its adapter readiness and live cameras are unavailable
-during the pause. Remove the suspension and resume that release
-to let Helm restore the simulator when needed.
+HelmRelease is suspended in Git and both `uav-sim` and `uav-sim-mcp` Deployments
+are scaled to zero. The MCP service was also stopped because its simulator health
+dependency caused a restart after Isaac exited. Remove the suspension and resume
+that release to let Helm restore both services when simulation is needed.
