@@ -1432,6 +1432,16 @@ compiling its full service dependency graph, including SurrealDB. Reusing the
 binary made each later test run subsecond before evidence recording. Move this
 external S3 compatibility check into a focused test crate if repeated storage
 upgrades justify the build cost.
+Bioma then selected the digest-pinned stable chart. Exact GitOps convergence at
+revision `5537c6832fd413e2e3f1f5fa5dbbd3c46e80e331` passed; the RustFS
+StatefulSet ran the GA index with zero restarts and the PVC retained its UID.
+The public Bioma smoke passed a full, HEAD and ranged Artifact read after the
+rollout. A separate S3 check read HEAD and 4,096 bytes from an existing
+134,758,814-byte object on the retained PVC. The first attempt used AWS CLI
+client-side `--max-items` with a JMESPath selector and got a bad HEAD key;
+server-side `--max-keys` selected the object and the read passed. These checks
+cover a retained sample and current write path, not a census of every stored
+object.
 
 During the UAV export, deleting Rust incremental directories last touched before
 September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
