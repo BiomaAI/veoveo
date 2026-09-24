@@ -1160,10 +1160,7 @@ class NativeCadenceTests(unittest.TestCase):
         self.assertIn("newton_stage.cfg.num_substeps = 1", app_source)
         self.assertIn("newton_stage.cfg.use_cuda_graph = False", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.iterations = 1", app_source)
-        self.assertIn("newton_stage.cfg.solver_cfg.ls_iterations = 1", app_source)
-        self.assertIn(
-            'newton_stage.cfg.solver_cfg.integrator = "euler"', app_source
-        )
+        self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_cpu = False", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.disable_contacts = True", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.use_mujoco_contacts = False", app_source)
         self.assertIn("newton_stage.cfg.solver_cfg.njmax = 1", app_source)
