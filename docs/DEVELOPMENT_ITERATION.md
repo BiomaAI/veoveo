@@ -1610,6 +1610,14 @@ restore streaming. This narrows the next probe to the AOV source and its
 connection to the encoder. The diagnostic image was removed from the live
 Deployment, which returned to the qualified digest.
 
+A second diagnostic paired the 6.1 runtime and its RTSP extension with the
+working installation's AOV extension `10.2.0`. The four-vehicle fleet advanced
+past 1,900 physics steps and the operator render product reported 256 source
+to render samples. Both H.264 counters remained zero, and RTSP continued to
+report no media. Reverting AOV `10.2.1` alone therefore does not restore the
+stream. The qualified 6.0.1 deployment resumed with 47 sensor frames and 204
+atlas frames, both ready, and Flux reconciliation was resumed.
+
 The first 6.1 runtime pull into k3s took 14 minutes 34 seconds and wrote about
 100 GiB, although cached overlay stages took 2–7 seconds. An attested overlay
 release took about 176 seconds, including roughly 55 seconds for its SBOM.
