@@ -45,13 +45,23 @@ recordings. The pinned acceptance client is in
 [`testing/recording-catalog-sdk/`](../testing/recording-catalog-sdk/).
 
 The Bioma public hostname currently reaches Veoveo through a Cloudflare Tunnel public
-hostname route. That route does not carry native gRPC. The Console WebViewer works
+hostname route. [Cloudflare documents native gRPC support for private subnet
+routing, while public Tunnel hostname routes are unsupported](https://developers.cloudflare.com/network/grpc-connections/).
+The Console WebViewer works
 there through gRPC-Web. Native clients must use a direct HTTP/2 ingress address or an
 operator-approved private route to the same recording service. The installed smoke
 runner maps `veoveo.bioma.ai` to the local k3d ingress and connects on port 8781, so
 the SDK sees the hostname authorized by the grant while exercising the real Redap
 Ingress. This direct path is for local verification; it does not make native gRPC
 available through the public Tunnel hostname.
+
+The installed SDK scenario requires the operator service client's private-key file
+and registered key ID in `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
+`VEOVEO_SERVICE_CLIENT_KEY_ID`. Supply those from the installation's credential
+store before running `cargo xtask smoke recording-catalog-sdk` with the admitted
+dataset and recording IDs. A Console browser login does not provide service-client
+credentials to this command. The scenario sends issued grants to the SDK through
+stdin and reports only query counts and renewal success.
 
 ## Renew access during a session
 
