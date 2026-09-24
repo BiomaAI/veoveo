@@ -1696,3 +1696,14 @@ selected Cargo feature graph changed. The subsequent footer-only change reused
 those dependencies: Cargo compiled the UAV crate in 22.5 seconds and the full
 attested image publication finished in 44.6 seconds. Track feature-graph cache
 churn separately from the incremental cost of embedding an App asset in Rust.
+
+Revision `89854fbe` converged through GitOps without restarting the running
+simulator. The deployed App displayed all five 1280×720 cameras, decoded 153
+atlas frames in ten seconds with an empty decode queue, and omitted the map
+provider footer label. The headed Chrome used NVIDIA WebGL; Media Capabilities
+reported supported, smooth, power-efficient H.264 and `nvidia-smi` observed
+Chrome decoder activity. The operator then requested a resource pause. The UAV
+HelmRelease is suspended in Git and its simulator Deployment is scaled to zero.
+The MCP Pod stays deployed; its adapter readiness and live cameras are unavailable
+during the pause. Remove the suspension and resume that release
+to let Helm restore the simulator when needed.
