@@ -1457,6 +1457,24 @@ by the chart update. Console and Workspace returned HTTP 200. The cluster also
 held 52 Failed and six Succeeded Veoveo Pod records from older revisions; these
 terminated records were deleted without touching a running Pod.
 
+Reason's vLLM 0.30.0 upgrade took 704.6 seconds for its first image build.
+The Rust compiler ran for 48.2 seconds, while extraction of the new CUDA parent
+took 371.3 seconds and export took 149.6 seconds. A build after documenting
+the codec override reused that parent and finished in 132.8 seconds; staging
+the committed image took 119.2 seconds. BuildKit and host Docker held separate
+copies of the parent during qualification. The disposable host Docker image and
+an abandoned diagnostic container were removed after the GPU probe.
+
+The digest-pinned image loaded the installed Qwen3-VL checkpoint and generated
+an answer from a CUDA frame on the RTX 4090. Flux then selected it at revision
+`2ea5919a663b71643b62de6c6de9a8e2d15959a7`. The new Pod spent almost
+eight minutes pulling and unpacking the cold image; GitOps desired-state apply
+took 472.9 seconds. Only Reason's Pod identity changed, and its Deployment
+returned to one desired and one ready replica. The installed Reason smoke
+processed six recording frames, completed the MCP task, and published typed
+artifacts in 170.6 seconds. These timings identify cold CUDA image transport
+and extraction as the dominant remaining iteration cost for this component.
+
 During the UAV export, deleting Rust incremental directories last touched before
 September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
 reclaimed about 65 GiB of disk, and pruning unused dangling Docker images reclaimed
