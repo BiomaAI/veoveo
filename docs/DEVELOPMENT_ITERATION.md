@@ -1574,3 +1574,16 @@ about 94 seconds on independent RTX cameras after its other checks. Keep the
 reusable upstream build cache and batch related image targets while preserving
 the exact source and lock identity. Release staging, formal simulation certification,
 and installed acceptance still follow the signed source checkpoint.
+
+The signed revision `162045bf` staged the base, UAV, and anonymous overlay in
+497 seconds. The UAV dependency-cache manifest was absent after registry cleanup,
+which rebuilt PX4 and Cesium inputs. Attested publication took another 175 seconds.
+Formal certification passed for both overlays against the same base publication
+digest on the RTX 4090. Each produced 20 distinct RTX camera frames, and the
+paired conformance bundle was published from those results. The result JSON and
+transcripts are under `output/development/component-upgrade-20260923/` in the
+Isaac qualification worktree. Switching BuildKit between the host push address
+and the cluster pull address replaced its named worker during certification and
+again during release. A registry configuration that admits both authorities
+would avoid this cache churn. The first smoke launch also compiled a second
+Cargo target tree until it was rerun with the shared `CARGO_TARGET_DIR`.
