@@ -7,8 +7,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .config import RuntimeConfig
-from .hydra_camera import native_sensor_aov_arguments
-from .operator_products import operator_aov_arguments
 from .physical_camera import physical_camera_product_name
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
@@ -113,13 +111,9 @@ def run(config: RuntimeConfig) -> None:
                 "--/exts/cesium.omniverse/externallyManagedViewports=true",
                 "--enable",
                 "omni.kit.livestream.rtsp",
+                "--enable",
+                "isaacsim.streaming.rtsp",
                 *kit_newton_arguments(),
-                *native_sensor_aov_arguments(
-                    physical_product_name,
-                    rtsp_port=config.camera.rtsp_port,
-                    target_fps=config.camera.fps,
-                ),
-                *operator_aov_arguments(config.operator_live_view),
                 (
                     "--/rtx/viewTile/limit="
                     f"{len(config.operator_live_view.streamable_cameras)}"
@@ -153,6 +147,7 @@ def run(config: RuntimeConfig) -> None:
         "isaacsim.core.experimental.materials",
         "isaacsim.core.experimental.utils",
         "omni.kit.livestream.rtsp",
+        "isaacsim.streaming.rtsp",
     ):
         extension_manager.set_extension_enabled_immediate(extension, True)
         if not extension_manager.is_extension_enabled(extension):
@@ -460,13 +455,6 @@ def run(config: RuntimeConfig) -> None:
             config.operator_live_view,
             operator_cameras,
         )
-        extension_manager.set_extension_enabled_immediate(
-            "omni.kit.livestream.aov", True
-        )
-        if not extension_manager.is_extension_enabled("omni.kit.livestream.aov"):
-            raise RuntimeError(
-                "failed to enable required extension omni.kit.livestream.aov"
-            )
         state.update_stream_products(operator_products.state(content_ready=False))
         physics_timeline.play()
         simulation_app.update()

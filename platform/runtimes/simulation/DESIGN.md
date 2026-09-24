@@ -39,6 +39,7 @@ The runtime lock selects this tuple:
 | Isaac RTX NVRTC builtins | `12.8.61`, retained from the pinned Isaac Sim image |
 | NVIDIA AOV live stream | `10.2.1+110.1.2.lx64.r.cp312` |
 | NVIDIA RTSP live stream | `10.4.1+110.1.2.lx64.r.cp312` from Isaac Sim |
+| Isaac RTSP render-product writer | `isaacsim.streaming.rtsp` `0.1.5`, supplied by Isaac Sim `6.1.0`; the UAV overlay uses its SRTX H.264/NVENC path |
 
 Isaac Lab `v3.0.0-EA` is a deliberate pre-release dependency. It is the upstream
 release paired with Isaac Sim 6.1; no stable 6.1-compatible Lab release exists.

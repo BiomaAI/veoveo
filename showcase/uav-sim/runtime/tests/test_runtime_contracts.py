@@ -36,10 +36,6 @@ from veoveo_uav_sim.h264 import (
     make_decoder_reentrant,
     parse_native_h264_access_unit,
 )
-from veoveo_uav_sim.hydra_camera import (
-    native_sensor_aov_arguments,
-    native_sensor_aov_signal_port,
-)
 from veoveo_uav_sim.physical_camera import (
     physical_camera_path,
     physical_camera_product_name,
@@ -368,7 +364,7 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn('"isaacsim.sensors.experimental.rtx"', app_source)
         self.assertIn("NativeH264CameraSensor", app_source)
         self.assertIn("create_physical_rgb_camera", app_source)
-        self.assertIn("omni.kit.livestream.aov", app_source)
+        self.assertIn('"isaacsim.streaming.rtsp"', app_source)
         self.assertIn("AuthoritativeOperatorCameraCollection", app_source)
         self.assertIn('"--/rtx/viewTile/limit="', app_source)
         self.assertIn('"sync_loads": False', app_source)
@@ -414,34 +410,22 @@ class RuntimeAdapterHttpTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('GetRelationship("camera").SetTargets', hydra_camera_source)
         self.assertIn('settings.set("/rtx/viewTile/resolution/0", 0)', hydra_camera_source)
         self.assertIn("reset_xform_op_properties=False", hydra_camera_source)
-        self.assertIn('"streamType": "rtsp"', hydra_camera_source)
         self.assertIn("RtspH264Receiver", operator_product_source)
 
-    def test_native_sensor_aov_uses_one_internal_nvenc_stream(self) -> None:
-        arguments = native_sensor_aov_arguments(
-            "physical_uav_1_down",
-            rtsp_port=8554,
-            target_fps=2,
-        )
-        self.assertEqual(len(arguments), 5)
-        self.assertTrue(
-            all("physical_uav_1_down.LdrColor" in value for value in arguments)
-        )
-        self.assertTrue(any(value.endswith("/streamType=rtsp") for value in arguments))
-        self.assertTrue(any(value.endswith("/signalPort=8555") for value in arguments))
-        self.assertTrue(any(value.endswith("/streamPort=8554") for value in arguments))
-        self.assertEqual(native_sensor_aov_signal_port(8554), 8555)
-        with self.assertRaisesRegex(ValueError, "between 1 and 65534"):
-            native_sensor_aov_signal_port(65_535)
-
-    def test_native_sensor_aov_ports_cannot_overlap_operator_products(self) -> None:
+    def test_native_sensor_and_operator_rtsp_ports_must_differ(self) -> None:
         environment = {
             **VALID_ENVIRONMENT,
-            "UAV_SIM_OPERATOR_RTSP_PORT_BASE": "8555",
+            "UAV_SIM_OPERATOR_RTSP_PORT_BASE": "8554",
         }
         with patch.dict(os.environ, environment, clear=True):
-            with self.assertRaisesRegex(ValueError, "AOV port ranges overlap at 8555"):
+            with self.assertRaisesRegex(ValueError, "RTSP ports must differ"):
                 RuntimeConfig.from_environment()
+        environment["UAV_SIM_OPERATOR_RTSP_PORT_BASE"] = "8555"
+        with patch.dict(os.environ, environment, clear=True):
+            self.assertEqual(
+                RuntimeConfig.from_environment().operator_live_view.atlas_rtsp_port,
+                8555,
+            )
 
     def test_physical_capture_cadence_is_exact(self) -> None:
         cadence = FixedStepCadenceGate(60, 2)

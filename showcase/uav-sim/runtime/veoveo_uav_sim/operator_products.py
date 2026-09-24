@@ -10,9 +10,9 @@ from typing import Any
 from .h264 import NativeH264AccessUnit
 from .hydra_camera import (
     RtxTiledHydraRenderProduct,
-    native_sensor_aov_arguments,
     tcp_listener_is_ready,
 )
+from .native_rtsp import attach_native_rtsp_writer
 from .operator_camera import AuthoritativeOperatorCameraCollection, Pose
 from .operator_camera_config import OperatorLiveViewRuntimeConfig
 from .operator_health import OperatorProductHealth
@@ -22,19 +22,6 @@ from .rtsp_h264 import RtspEndpoint, RtspH264Receiver
 _FRAME_RING_SIZE = 256
 OPERATOR_ATLAS_NAME = "uav_camera_atlas"
 OPERATOR_ATLAS_PRODUCT_ID = "camera-atlas"
-
-
-def operator_aov_arguments(config: OperatorLiveViewRuntimeConfig) -> list[str]:
-    """Configure the single tiled CUDA AOV and NVENC stream."""
-    cameras = config.streamable_cameras
-    if not cameras:
-        return []
-    _require_uniform_atlas_optics(config)
-    return native_sensor_aov_arguments(
-        OPERATOR_ATLAS_NAME,
-        rtsp_port=config.atlas_rtsp_port,
-        target_fps=cameras[0].optics.frame_rate_hz,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +135,7 @@ class OperatorCameraProduct:
         self._health = OperatorProductHealth(maximum_frame_age_ms)
         self._health.activate()
         self._subscription = None
+        self._writer = None
         self._render_product = RtxTiledHydraRenderProduct(
             name=OPERATOR_ATLAS_NAME,
             camera_paths=tuple(
@@ -166,14 +154,23 @@ class OperatorCameraProduct:
             raise RuntimeError(
                 "Isaac tiled RTX product resolution does not match its camera atlas"
             )
+        try:
+            self._writer = attach_native_rtsp_writer(
+                self._render_product.path,
+                port=config.atlas_rtsp_port,
+                width=self._coded_width_px,
+                height=self._coded_height_px,
+            )
+        except BaseException:
+            self._render_product.close()
+            raise
         self._subscription = get_eventdispatcher().observe_event(
             observer_name="veoveo_uav_camera_atlas",
             event_name=omni.hydratexture.GLOBAL_EVENT_DRAWABLE_CHANGED,
             on_event=self._on_drawable_changed,
             filter=self._render_product.hydra_texture.get_event_key(),
         )
-        # The AOV extension consumes this RTX product's CUDA LdrColor resource
-        # directly and performs one NVENC encode shared by every browser.
+        # Isaac's writer encodes this tiled render product once with NVENC.
         self._render_product.set_updates_enabled(True)
 
     def observe_source_pose(self, monotonic_seconds: float) -> None:
@@ -282,6 +279,8 @@ class OperatorCameraProduct:
         if receiver is not None:
             receiver.close()
         self._subscription = None
+        if self._writer is not None:
+            self._writer.detach()
         self._render_product.close()
 
     def _on_access_unit(self, access_unit: NativeH264AccessUnit) -> None:
