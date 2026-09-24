@@ -299,6 +299,10 @@ recording observations according to policy, but it cannot delay physics, PX4, op
 rendering, or the optional live RTP path. The producer-local forwarder moves batches to
 Recording Hub and can recover its own durable queue independently.
 
+Each flight's telemetry and leader-camera video become a Rerun dataset. Open it in the
+Console or the native Rerun Viewer, or query it from Python as described in
+[Use recordings with Rerun](../../docs/RERUN_RECORDINGS.md).
+
 ## Configuration
 
 The chart requires:

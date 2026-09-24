@@ -1,28 +1,41 @@
 # Use recordings with Rerun
 
 Veoveo publishes committed recording layers as Rerun datasets. Each recording is a
-segment. The Console follows an active recording through Veoveo's live RRD stream;
-the Rerun Catalog SDK queries committed layers through the read-only Redap service.
+segment of its dataset. The Console follows an active recording through Veoveo's live
+RRD stream, and Rerun clients query committed layers through the Redap service.
+
+## What Veoveo supports with Rerun 0.38.1
+
+| Capability | Support |
+|---|---|
+| Recording format | Rerun `0.38.1` RRD. Each committed layer uses the dataset UUID as its Rerun application ID and the recording UUID as its recording and segment ID. |
+| Native clients | The Rerun Viewer and the Python Catalog SDK (`rr.catalog.CatalogClient`) over HTTP/2 gRPC. |
+| Browser client | The Console's embedded Rerun WebViewer over gRPC-Web on the same Redap path. |
+| Redap reads | Dataset entries and schemas, segment tables, dataset manifests, RRD manifests, segment assets, dataset queries, chunk fetches, and event watching. Selected `re_redap_tests 0.38.1` assertions cover query filters, manifest scans, chunk completeness, and missing segments. |
+| Redap writes | Refused. Data enters through [recording ingest](RECORDING_INGEST.md), which applies each producer's tenant, dataset, labels, retention, and quota. |
+| Storage | Archive shards compacted with Rerun's object-store chunk profile; live playback uses Rerun's live profile. |
+| Video | H.264 `VideoStream` samples keep their original timeline indices, and keyframes are derived from the encoded access units so archived video stays seekable. |
 
 ## Get a catalog grant
 
-An authenticated service may request selected recordings from one dataset. Use its
-OAuth access token for the `operator` profile and `operations` Work Context. The
-request must name a UUIDv7 dataset and at least one UUIDv7 recording admitted by
-policy. The response includes an `entry_uri`, `redap_token`, and `expires_at`.
+A client asks the gateway for access to selected recordings in one dataset. Use an
+OAuth access token for a gateway profile that exposes the `recording` server; the
+caller's Work Context and current recording policy decide which recordings it may
+read. The request names one UUIDv7 dataset and at least one UUIDv7 recording:
 
 ```sh
 curl --fail-with-body --silent --show-error \
   -H "Authorization: Bearer $VEOVEO_ACCESS_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"dataset_id":"<dataset-uuid>","recording_ids":["<recording-uuid>"]}' \
-  https://veoveo.bioma.ai/recordings/operator/catalog-grants
+  "https://$VEOVEO_HOST/recordings/$VEOVEO_PROFILE/catalog-grants"
 ```
 
-The service checks the caller's OAuth authority and current recording policy, records
-the grant, and returns a read-only Redap token valid for at most five minutes. Keep
-both tokens out of logs, notebooks, and shared files. A grant names only the admitted
-recordings; it does not open the rest of the dataset.
+The gateway checks the caller's authority and policy, records the grant, and returns
+an `entry_uri`, a `redap_token`, and an `expires_at` time. The Redap token is
+read-only, valid for at most five minutes, and accepted only on the installation host
+it was issued for. A grant covers only the recordings it names, not the rest of the
+dataset. Keep both tokens out of logs, notebooks, and shared files.
 
 ## Connect a native Rerun client
 
@@ -143,19 +156,23 @@ the new token; changing the parent process's environment does not update it.
 ## Follow an active recording
 
 Open **Recordings** in the Console and select the active recording. The Console
-follows its authenticated live RRD stream and switches to committed archive playback
-when the recording closes. Catalog queries see committed layers of an active recording,
-but the native Catalog SDK is not a subscription to Veoveo's live receiver. Clients
-that need continuous RRD bytes use the separately authorized
-`GET /recordings/{profile}/{recording_id}/live/rrd-stream` endpoint. Its media type is
-`application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`; each frame has a
-four-byte big-endian length followed by one RRD payload. The live route uses the
-caller's OAuth authority, rather than a Redap catalog token.
+follows its live RRD stream and switches to archive playback when the recording
+closes. Catalog queries see the committed layers of an active recording; the Catalog
+SDK does not subscribe to live data. A client that needs continuous RRD bytes reads
+`GET /recordings/{profile}/{recording_id}/live/rrd-stream` with its OAuth token. The
+response type is `application/vnd.veoveo.rerun.rrd-stream; framing=be32; version=2`,
+and each frame is a four-byte big-endian length followed by one RRD payload.
 
 ## Ingress requirements
 
-The chart gives Redap its own Ingress and marks `recording-mcp` as an h2c upstream
-for Traefik. A different ingress controller must preserve HTTP/2 gRPC to the service;
-set `ingress.redapAnnotations` for that controller's gRPC backend protocol. Qualify
-native clients and gRPC-Web separately. Terminating HTTP/2 into ordinary HTTP/1.1
-does not support the native Viewer or Catalog SDK.
+Native Rerun clients need HTTP/2 gRPC from the client to the recording service. The
+chart gives Redap its own Ingress on `/rerun.cloud.v1alpha1.RerunCloudService` and
+marks `recording-mcp` as an h2c upstream for Traefik. For another ingress controller,
+set its gRPC backend protocol through `ingress.redapAnnotations`. A proxy or tunnel
+that converts HTTP/2 to HTTP/1.1 carries only the browser's gRPC-Web traffic, so test
+native clients and the WebViewer separately on each route an installation exposes.
+
+In the Bioma reference installation, the public hostname uses a Cloudflare Tunnel
+route that carries gRPC-Web only. Its SDK smoke scenario maps `veoveo.bioma.ai` to the
+local k3d ingress on port 8781, so the SDK presents the hostname the grant was issued
+for while reaching the real Redap Ingress.
