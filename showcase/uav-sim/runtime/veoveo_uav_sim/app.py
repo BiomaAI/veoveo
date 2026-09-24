@@ -286,8 +286,7 @@ def run(config: RuntimeConfig) -> None:
         newton_stage.cfg.num_substeps = 1
         newton_stage.cfg.use_cuda_graph = False
         newton_stage.cfg.solver_cfg.iterations = 1
-        newton_stage.cfg.solver_cfg.ls_iterations = 1
-        newton_stage.cfg.solver_cfg.integrator = "euler"
+        newton_stage.cfg.solver_cfg.use_mujoco_cpu = False
         newton_stage.cfg.solver_cfg.disable_contacts = True
         newton_stage.cfg.solver_cfg.use_mujoco_contacts = False
         newton_stage.cfg.solver_cfg.njmax = 1
