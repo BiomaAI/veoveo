@@ -1587,3 +1587,45 @@ and the cluster pull address replaced its named worker during certification and
 again during release. A registry configuration that admits both authorities
 would avoid this cache churn. The first smoke launch also compiled a second
 Cargo target tree until it was rerun with the shared `CARGO_TARGET_DIR`.
+
+Installed UAV acceptance exposed a gap in the candidate probes. Isaac 6.1
+required the public MuJoCo solver configuration and Newton model body-label
+indices before the four-vehicle fleet could run on CUDA. After those changes,
+the fleet advanced and both RTX Hydra products reported rendered samples, but
+neither AOV/RTSP stream emitted an H.264 frame. Each RTSP DESCRIBE ended in 503.
+Six finite retries did not change the result. The pinned NVIDIA RTSP extension
+notes that an initial 503 can occur before media flows, but the installation
+still had zero encoded frames after several minutes. The last qualified Isaac
+6.0.1 image on the same node reached 104 sensor frames and 719 atlas frames
+with both streams ready. Bioma therefore keeps digest `e9e1e101` while the
+Isaac 6.1 AOV-to-NVENC handoff is investigated. Candidate source and test
+receipts are preserved on `upgrade/isaac-6.1-runtime`. The installation lock
+points to the qualified image.
+
+A diagnostic image paired the 6.1 runtime with the 6.0.1 RTSP extension
+`10.2.3`. The extension loaded, the fleet advanced on CUDA, and Hydra
+continued to render, but both stream products still had zero encoded frames
+after more than 2,000 physics steps. The older RTSP extension alone does not
+restore streaming. This narrows the next probe to the AOV source and its
+connection to the encoder. The diagnostic image was removed from the live
+Deployment, which returned to the qualified digest.
+
+A second diagnostic paired the 6.1 runtime and its RTSP extension with the
+working installation's AOV extension `10.2.0`. The four-vehicle fleet advanced
+past 1,900 physics steps and the operator render product reported 256 source
+to render samples. Both H.264 counters remained zero, and RTSP continued to
+report no media. Reverting AOV `10.2.1` alone therefore does not restore the
+stream. The qualified 6.0.1 deployment resumed with 47 sensor frames and 204
+atlas frames, both ready, and Flux reconciliation was resumed.
+
+The first 6.1 runtime pull into k3s took 14 minutes 34 seconds and wrote about
+100 GiB, although cached overlay stages took 2–7 seconds. An attested overlay
+release took about 176 seconds, including roughly 55 seconds for its SBOM.
+Each diagnostic image replacement waited for the Recreate Pod's termination
+and another Kit startup. Flux also restored the published image over a manual
+candidate within its one-minute interval. A repeatable candidate test needs
+an isolated deployment or an explicit development image input, followed by one
+GitOps lock change after qualification. The repository-wide input hash in
+`test-report` took more than ten seconds for each small UAV check and wrote a
+roughly 24,500-line receipt. Scope these checks to their real inputs before
+using them for frequent render/stream experiments.
