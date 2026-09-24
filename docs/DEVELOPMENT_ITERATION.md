@@ -1450,6 +1450,12 @@ Helm 4.3.0 passed checksum verification, lint and rendering for the Bioma
 chart, read the installed release, and completed the isolated live Flux
 health-check cancellation scenario. The fixed witness release became Ready
 20.618 seconds after submission, and the fixture namespace was removed.
+The chart selection at Git revision `3a1191c4` converged through Flux. Its
+Collector remained disabled. All 27 Veoveo Deployments and StatefulSets had
+one desired and one ready replica; the 26 running Pod identities were unchanged
+by the chart update. Console and Workspace returned HTTP 200. The cluster also
+held 52 Failed and six Succeeded Veoveo Pod records from older revisions; these
+terminated records were deleted without touching a running Pod.
 
 During the UAV export, deleting Rust incremental directories last touched before
 September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
