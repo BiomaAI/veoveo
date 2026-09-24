@@ -1,7 +1,7 @@
 use std::process::Command;
 
 use anyhow::Result;
-use veoveo_deploy_contract::RegistryTransport;
+use veoveo_deploy_contract::LockedRegistry;
 pub(crate) use veoveo_image_build_control::{BUILDER_NAME, BUILDX_VERSION, BuilderLease};
 
 use super::image::operation::{self, Phase};
@@ -20,12 +20,10 @@ pub(crate) fn ensure(repository: &RepositoryContext) -> Result<BuilderLease> {
 
 pub(crate) fn ensure_for_registry(
     repository: &RepositoryContext,
-    registry: &str,
-    transport: RegistryTransport,
+    registry: &LockedRegistry,
 ) -> Result<BuilderLease> {
     let _timing = operation::span(Phase::BuilderSetup);
-    let lease =
-        veoveo_image_build_control::ensure_for_registry(repository.root(), registry, transport)?;
+    let lease = veoveo_image_build_control::ensure_for_registry(repository.root(), registry)?;
     operation::builder_lock_wait(lease.wait);
     Ok(lease)
 }

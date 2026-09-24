@@ -12,7 +12,7 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use veoveo_deploy_contract::{ArtifactCoordinate, ArtifactDigest, SourceRevision};
-use veoveo_deploy_contract::{DeploymentLock, RegistryTransport};
+use veoveo_deploy_contract::{DeploymentLock, LockedRegistry};
 use veoveo_simulation_contract::{
     SimulationAttestationEvidence, SimulationConformanceResult, SimulationConformanceResultSchema,
     SimulationHardwareEvidence, SimulationNewtonDynamicsEvidence, SimulationOverlayKind,
@@ -23,12 +23,6 @@ use super::*;
 
 const RESULT_MARKER: &str = "VEOVEO_SIMULATION_PROBE_RESULT=";
 const EMBEDDED_BUILD_LOCK: &str = "/opt/veoveo/simulation-base/simulation-runtime.lock.json";
-
-#[derive(Debug)]
-struct RegistryAccess {
-    address: Option<String>,
-    transport: RegistryTransport,
-}
 
 struct MaterializedImage {
     tag: String,
@@ -261,12 +255,8 @@ async fn simulation_certify_inner(
     let registry = registry_access(deployment_lock, base_image, overlay_image)?;
     let repository = repository_root()?;
     transcript.stage("managed BuildKit registry resolver")?;
-    let _builder = match &registry.address {
-        Some(address) => veoveo_image_build_control::ensure_for_registry(
-            &repository,
-            address,
-            registry.transport,
-        )?,
+    let _builder = match &registry {
+        Some(registry) => veoveo_image_build_control::ensure_for_registry(&repository, registry)?,
         None => veoveo_image_build_control::ensure(&repository)?,
     };
 
@@ -604,12 +594,9 @@ fn registry_access(
     deployment_lock: Option<&Path>,
     base_image: &str,
     overlay_image: &str,
-) -> Result<RegistryAccess> {
+) -> Result<Option<LockedRegistry>> {
     let Some(path) = deployment_lock else {
-        return Ok(RegistryAccess {
-            address: None,
-            transport: RegistryTransport::Tls,
-        });
+        return Ok(None);
     };
     let bytes =
         fs::read(path).with_context(|| format!("reading deployment lock {}", path.display()))?;
@@ -619,10 +606,7 @@ fn registry_access(
     for (field, image) in [("base image", base_image), ("overlay image", overlay_image)] {
         validate_locked_authority(field, image, &lock.registry.pull_address)?;
     }
-    Ok(RegistryAccess {
-        address: Some(lock.registry.pull_address),
-        transport: lock.registry.transport,
-    })
+    Ok(Some(lock.registry))
 }
 
 fn validate_locked_authority(field: &str, image: &str, registry: &str) -> Result<()> {

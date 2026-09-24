@@ -101,8 +101,11 @@ impl Fixture {
         let repository = fs::canonicalize(&args.repository)?;
         let builder = veoveo_image_build_control::ensure_for_registry(
             &repository,
-            &args.push_registry,
-            RegistryTransport::InsecureHttp,
+            &veoveo_deploy_contract::LockedRegistry {
+                push_address: args.push_registry.clone(),
+                pull_address: args.pull_registry.clone(),
+                transport: RegistryTransport::InsecureHttp,
+            },
         )?;
         let mut roots = BTreeMap::new();
         for name in ["platform", "workload"] {

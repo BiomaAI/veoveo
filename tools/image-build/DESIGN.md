@@ -29,6 +29,12 @@ temporary Cargo-derived contexts and holds a control-library quota lease through
 restoration. Its local artifacts grant no compiler-family or image-release admission.
 The [image-build runbook](../../docs/IMAGE_BUILDS.md) defines commands and receipts.
 
+Publication, staging and simulation certification pass the complete locked registry
+to the worker manager. For an admitted HTTP registry, BuildKit receives both its
+host push address and cluster pull address in sorted, deduplicated configuration.
+Changing which address an operation uses therefore preserves worker identity and
+cache state. Only addresses declared by that registry receive HTTP configuration.
+
 The compiler-cache experiment consumes the existing family's compile stage as a named
 BuildKit context. It introduces no alternative Rust toolchain or production wrapper.
 Its recipe installs the pinned sccache release and builds each case into an empty

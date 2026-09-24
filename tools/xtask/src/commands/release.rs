@@ -123,11 +123,7 @@ pub(crate) fn simulation_runtime(
     lock.validate()?;
     let publication = PublicationSource::prepare(repository, &args.revision)?;
     registry_command::preflight(&lock.registry.push_address, lock.registry.transport)?;
-    let _builder = builder::ensure_for_registry(
-        repository,
-        &lock.registry.push_address,
-        lock.registry.transport,
-    )?;
+    let _builder = builder::ensure_for_registry(repository, &lock.registry)?;
     let platform_source = lock
         .sources
         .iter()
@@ -233,8 +229,7 @@ pub(crate) fn stage_images(repository: &RepositoryContext, args: &ImageStageArgs
     };
     registry_command::preflight(&registry.push_address, registry.transport)?;
     let allow_insecure_registry = registry.transport.is_insecure();
-    let _builder =
-        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
+    let _builder = builder::ensure_for_registry(repository, &registry)?;
     let source_repository = RepositoryContext::discover(publication.path())?;
     let environment = publication_environment(&registry.push_address, publication.revision());
     let prepared =
@@ -484,8 +479,7 @@ fn release_direct_images(repository: &RepositoryContext, args: &ReleaseImagesArg
     validate_registry(&registry.pull_address)?;
     registry_command::preflight(&registry.push_address, registry.transport)?;
     let allow_insecure_registry = registry.transport.is_insecure();
-    let _builder =
-        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
+    let _builder = builder::ensure_for_registry(repository, &registry)?;
     let selected_repository = RepositoryContext::discover(publication.path())?;
     let images = publish_image_selections(
         repository,
@@ -573,8 +567,7 @@ fn release_profile_images(
     validate_registry(&registry.push_address)?;
     validate_registry(&registry.pull_address)?;
     registry_command::preflight(&registry.push_address, registry.transport)?;
-    let _builder =
-        builder::ensure_for_registry(repository, &registry.push_address, registry.transport)?;
+    let _builder = builder::ensure_for_registry(repository, &registry)?;
     let allow_insecure_registry = registry.transport.is_insecure();
     let platform_targets = committed_profile.required_platform_images()?;
     let mut prepared_sources = Vec::new();

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     fs::{self, File, OpenOptions},
     io::Write,
     path::{Path, PathBuf},
@@ -9,7 +10,7 @@ use std::{
 use anyhow::{Context, Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
-use veoveo_deploy_contract::RegistryTransport;
+use veoveo_deploy_contract::{LockedRegistry, RegistryTransport};
 
 mod experiment;
 mod quota;
@@ -89,15 +90,11 @@ pub fn ensure(repository: &Path) -> Result<BuilderLease> {
     Ok(lease)
 }
 
-pub fn ensure_for_registry(
-    repository: &Path,
-    registry: &str,
-    transport: RegistryTransport,
-) -> Result<BuilderLease> {
-    if transport == RegistryTransport::Tls {
+pub fn ensure_for_registry(repository: &Path, registry: &LockedRegistry) -> Result<BuilderLease> {
+    if registry.transport == RegistryTransport::Tls {
         return ensure(repository);
     }
-    let configuration = registry_configuration(repository, registry, transport)?;
+    let configuration = registry_configuration(repository, registry)?;
     ensure_configuration(repository, configuration)
 }
 
@@ -558,30 +555,39 @@ fn base_configuration(repository: &Path) -> Result<BuilderConfiguration> {
 
 fn registry_configuration(
     repository: &Path,
-    registry: &str,
-    transport: RegistryTransport,
+    registry: &LockedRegistry,
 ) -> Result<BuilderConfiguration> {
     let base = base_configuration(repository)?;
-    if transport == RegistryTransport::Tls {
+    if registry.transport == RegistryTransport::Tls {
         return Ok(base);
     }
-    ensure!(
-        !registry
-            .chars()
-            .any(|character| character.is_control() || matches!(character, '"' | '\\')),
-        "registry address contains characters that cannot be represented in BuildKit configuration"
-    );
+    // Publication and certification share one declared registry, even when the
+    // host and cluster reach it through different authorities. Sort and dedupe
+    // both addresses so their role never changes the worker configuration.
+    let addresses = BTreeSet::from([
+        registry.push_address.as_str(),
+        registry.pull_address.as_str(),
+    ]);
     let mut bytes = fs::read(&base.path)
         .with_context(|| format!("reading BuildKit configuration {}", base.path.display()))?;
     ensure!(
         bytes.last().is_none_or(|byte| *byte == b'\n'),
         "BuildKit base configuration must end in a newline"
     );
-    write!(
-        bytes,
-        "\n[registry.\"{registry}\"]\n  http = true\n  insecure = true\n"
-    )
-    .context("rendering registry-specific BuildKit configuration")?;
+    for address in addresses {
+        ensure!(
+            !address.is_empty()
+                && !address
+                    .chars()
+                    .any(|character| character.is_control() || matches!(character, '"' | '\\')),
+            "registry address contains characters that cannot be represented in BuildKit configuration"
+        );
+        write!(
+            bytes,
+            "\n[registry.\"{address}\"]\n  http = true\n  insecure = true\n"
+        )
+        .context("rendering registry-specific BuildKit configuration")?;
+    }
     let digest = hex::encode(Sha256::digest(&bytes));
     let root = managed_root(repository)?;
     let directory = root.join("builder-config");
@@ -719,7 +725,7 @@ mod tests {
         BuilderInspection, managed_buildx, parse_buildx_version, parse_inspection,
         prune_certification_cache, registry_configuration,
     };
-    use veoveo_deploy_contract::RegistryTransport;
+    use veoveo_deploy_contract::{LockedRegistry, RegistryTransport};
 
     fn git(repository: &Path, arguments: &[&str]) {
         let output = Command::new("git")
@@ -826,8 +832,11 @@ mod tests {
         .expect("write base configuration");
         let generated = registry_configuration(
             &repository,
-            "registry.private.internal:5002",
-            RegistryTransport::InsecureHttp,
+            &LockedRegistry {
+                push_address: "registry.private.internal:5002".to_owned(),
+                pull_address: "registry.private.internal:5002".to_owned(),
+                transport: RegistryTransport::InsecureHttp,
+            },
         )
         .expect("generate registry configuration");
         let contents = fs::read_to_string(&generated.path).expect("read generated configuration");
@@ -836,10 +845,42 @@ mod tests {
         assert!(contents.contains("http = true"));
         assert!(contents.contains("insecure = true"));
         assert!(!contents.contains(":5001"));
+        assert_eq!(contents.matches("[registry.").count(), 1);
         assert_eq!(
             generated.path.file_stem().and_then(std::ffi::OsStr::to_str),
             Some(generated.digest.as_str())
         );
+
+        let dual = LockedRegistry {
+            push_address: "127.0.0.1:5001".to_owned(),
+            pull_address: "registry.private.internal:5002".to_owned(),
+            transport: RegistryTransport::InsecureHttp,
+        };
+        let publication = registry_configuration(&repository, &dual).unwrap();
+        let certification = registry_configuration(
+            &repository,
+            &LockedRegistry {
+                push_address: dual.pull_address.clone(),
+                pull_address: dual.push_address.clone(),
+                transport: dual.transport,
+            },
+        )
+        .unwrap();
+        assert_eq!(publication.digest, certification.digest);
+        assert_eq!(publication.path, certification.path);
+        let contents = fs::read_to_string(publication.path).unwrap();
+        assert!(contents.contains("[registry.\"127.0.0.1:5001\"]"));
+        assert!(contents.contains("[registry.\"registry.private.internal:5002\"]"));
+        assert_eq!(contents.matches("[registry.").count(), 2);
+        let tls = registry_configuration(
+            &repository,
+            &LockedRegistry {
+                transport: RegistryTransport::Tls,
+                ..dual
+            },
+        )
+        .unwrap();
+        assert!(!fs::read_to_string(tls.path).unwrap().contains("[registry."));
     }
 
     #[test]
