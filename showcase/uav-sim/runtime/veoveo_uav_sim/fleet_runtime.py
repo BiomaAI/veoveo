@@ -83,9 +83,13 @@ class WarpFleetRuntime:
         if self._rigid_tensor_view is None:
             raise RuntimeError("Newton rigid-body tensor view is unavailable")
         backend = getattr(self._rigid_tensor_view, "_backend", None)
-        newton_stage = getattr(self._rigid_tensor_view, "_newton_stage", None)
+        from isaacsim.physics.newton import acquire_stage
+
+        newton_stage = acquire_stage()
         state = getattr(newton_stage, "state_0", None)
-        if backend is None or state is None:
+        if backend is None:
+            raise RuntimeError("Newton rigid-body tensor backend is unavailable")
+        if state is None:
             raise RuntimeError("Newton native rigid-body state is unavailable")
         self._body_indices = getattr(backend, "body_indices", None)
         self._body_q = getattr(state, "body_q", None)
