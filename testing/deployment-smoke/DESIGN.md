@@ -14,7 +14,7 @@
 | `veoveo.io/flux-cancellation-evidence/v1` | repository-owned controller state, source digest, latency bound, failure, and fixture cleanup evidence |
 | `veoveo.io/component-installation/v2` | successful selected CLI receipt defined by the deployment contract |
 | `veoveo.io/component-scope-evidence/v1` | independent Git/OCI fixture inputs, selected installation duration, applied/reused units, native API request metadata, runtime snapshots, overlap rejection, and cleanup |
-| kubectl/client-go v1.36.2/v0.36.2 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
+| kubectl/client-go v1.37.0/v0.37.0 local proxy logs | internal test observer of completed HTTP method and URI at verbosity 6; canary writes and ordered barriers verify the observer before accepting scope evidence |
 
 ## Responsibility
 
@@ -115,7 +115,7 @@ must replace the selected Pod, while the namespace dependency must reuse its rec
 
 The child installer uses a loopback kubeconfig connected to the native kubectl proxy.
 The proxy alone uses the original credentials. At verbosity 6, client-go's
-[transport logger](https://github.com/kubernetes/client-go/blob/v0.36.2/transport/round_trippers.go)
+[transport logger](https://github.com/kubernetes/client-go/blob/v0.37.0/transport/round_trippers.go)
 records completed request method, URL, status, and timing; headers begin at verbosity 7.
 The harness retains method and URI only, with no request bodies, response bodies,
 headers, or credentials in evidence. Create/patch/delete canaries and ordered GET

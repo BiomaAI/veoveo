@@ -4,7 +4,7 @@ metadata:
   name: veoveo-bioma
 servers: 1
 agents: 0
-image: veoveo/k3s-gpu:v1.36.2-k3s1-cuda13.3.0
+image: veoveo/k3s-gpu:v1.37.0-k3s1-cuda13.3.0
 kubeAPI:
   hostIP: 127.0.0.1
 ports:

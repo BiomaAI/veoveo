@@ -56,6 +56,8 @@ The node image combines K3s with the NVIDIA Container Toolkit and a CDI-enabled
 containerd runtime. It does not embed an allocator. Each deployment profile either uses
 managed DRA or bootstraps the NVIDIA device plugin, and the two allocators never run
 on the same node. GPU workloads do not have a CPU fallback.
+The image restores Ubuntu's GNU tar after the K3s filesystem copy because `dpkg-deb`
+requires it for package maintenance on a retained node.
 The reference profile publishes six time-sliced device-plugin allocations because
 the UAV simulator, View, Stream, Reason, the cuOpt executor, and the
 Rerun viewer MCP run at the same time. Each workload still requests one ordinary
@@ -85,6 +87,20 @@ kubectl --context k3d-veoveo-sumo logs job/veoveo-gpu-probe
 The probe requests one Kubernetes GPU and checks CUDA, the NVIDIA Vulkan ICD, and
 the proprietary Vulkan device. A missing device, runtime, driver library, or
 graphics capability fails the job.
+
+## Retained cluster upgrades
+
+A k3d cluster with retained local-path volumes must keep its existing node volumes.
+Deleting and recreating that cluster removes the installation's local storage. Build
+the pinned node image first. Before replacing the running single server's K3s binary,
+take a SQLite `.backup` of `/var/lib/rancher/k3s/server/db/state.db` and copy the
+server token and old binary outside the node volume. The binary in the built node
+image is the source for the in-place replacement. Restart the same Docker node
+container, then verify the K3s and kubectl versions, node readiness, advertised GPU
+resources, every workload's one ready replica, and the public routes. Keep the
+snapshot and old binary until those checks pass. The in-place binary survives a
+container restart; a later node replacement must use the newly pinned image and
+reattach the retained volumes.
 
 Clusters built from earlier node images, which embedded an allocator, cannot switch to
 managed DRA. Rebuild the image and recreate the cluster first. A cluster restart
