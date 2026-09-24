@@ -1679,10 +1679,11 @@ through the permitted software H.264 path. Neither test changes the client
 protocol or makes EGL a deployment prerequisite.
 
 Restarting the signed-in profile also exposed an obsolete
-`/console/recording-live-proxy-sw.js` registration. It returned Console HTML
-for `/console/api/session`; removing that registration restored JSON and
-preserved the login. The retired worker's installation cleanup needs a
-separate follow-up for other profiles that still have it registered.
+`/console/recording-live-proxy-sw.js` registration while the browser received
+Console HTML for `/console/api/session`. Removing that registration and
+reloading with the HTTP cache bypassed restored JSON and preserved the login.
+That diagnostic changed both variables; it did not isolate which caused the
+HTML response. Installed workers still need explicit retirement.
 
 A full release-mode Cargo invocation for the App's string-contract test
 started a cold dependency graph and was deliberately interrupted after
@@ -1707,3 +1708,37 @@ HelmRelease is suspended in Git and both `uav-sim` and `uav-sim-mcp` Deployments
 are scaled to zero. The MCP service was also stopped because its simulator health
 dependency caused a restart after Isaac exited. Remove the suspension and resume
 that release to let Helm restore both services when simulation is needed.
+
+### Upgrade follow-up — September 24, 2026
+
+The Console retirement endpoint and startup check remove only the obsolete
+recording worker. The behavioral browser test covers an already-controlled tab,
+worker replacement without current application code, cookie/storage preservation,
+and unrelated registrations. Its loopback run took 2.5 seconds. The Rust static
+route tests also passed. Console checks now hash 234 frontend files instead of a
+roughly 2,700-file repository closure. The image publication took 86.4 seconds,
+including a 45.2-second cold parent extraction window.
+
+The builder manager now accepts the complete registry declaration for both image
+publication and simulation certification. Its regression test requires an identical
+configuration digest for the declared push/pull addresses regardless of role order,
+one table when both addresses match, and no HTTP exceptions in the TLS template.
+The manager still preserves state when a genuine configuration change requires a
+worker restart. This change removes address-switching restarts, not cold image
+transfer or SBOM costs.
+
+A Console stage under the new registry configuration took 16.1 seconds and reused
+every compiler/frontend layer. Its runnable digest matched the attested publication.
+The first final Catalog SDK invocation stopped before requesting a grant because
+the shell lacked the operator service-key environment. Its failed receipt is kept;
+the documented credential variables must be supplied for installed SDK acceptance.
+
+The original component upgrade list has published pins for Rust 1.98.1, Rerun
+0.38.1, RustFS 1.0.0, vLLM 0.30.0, K3s 1.37.0, Helm 4.3.0, Collector 0.161.0
+and Isaac Sim 6.1.0. The Collector stays disabled in this installation. Native
+Rerun SDK access is qualified through the direct ingress; public Cloudflare Tunnel
+hostnames do not carry native gRPC. Choosing a public HTTP/2 origin or private
+Cloudflare access is an installation networking decision. The supported route and
+token renewal procedure are in [RERUN_RECORDINGS.md](RERUN_RECORDINGS.md).
+PX4 sensor timing and long-run render stalls require a later simulator session;
+the operator's resource pause keeps those performance checks deferred.
