@@ -181,3 +181,83 @@ cargo xtask smoke profile-cluster-delete \
 The standalone registry remains available to other profiles after cluster
 deletion. The complete local profile contract is documented in
 [`../../../docs/LOCAL_DEPLOYMENT_PROFILES.md`](../../../docs/LOCAL_DEPLOYMENT_PROFILES.md).
+
+## Registry history maintenance
+
+Review the local registry every week and after a large image release. Run a cleanup
+when its volume exceeds 100 GiB, or sooner when the host approaches its build-space
+reserve. Check the volume and free space with:
+
+```bash
+REGISTRY_DATA=$(docker volume inspect --format '{{.Mountpoint}}' veoveo-registry)
+sudo du -sh "$REGISTRY_DATA"
+df -h "$REGISTRY_DATA"
+```
+
+The registry stores immutable
+revision tags; publishing a new revision does not remove the old manifest. Garbage
+collection alone frees little space while those manifests still refer to their layers.
+
+Before deleting a manifest, make a repository-and-digest keep list from every current
+installation image lock, live Pod image reference, qualified release input, and image
+needed for the next rollback. In the Bioma reference, include both files under
+`examples/bioma/images/`, the selected chart digests under
+`examples/bioma/gitops/sources/`, and retained normalized dependency receipts under
+`target/veoveo-xtask/normalized/`. Include all consumers of this shared registry,
+not only Bioma. When a cluster is stopped, its checked-in lock is the minimum keep
+set; compare it with a recent Pod inventory before deleting anything it does not
+name. Keep each selected OCI index, its child platform manifests, and its SBOM and
+provenance referrers. Protect the current chart and the chart needed for rollback.
+If a reference or its ownership is uncertain, retain it until verified.
+
+Inventory repository tags through the OCI Distribution `/v2/_catalog` and
+`/v2/<repository>/tags/list` endpoints, following pagination links. Resolve a
+candidate tag with `HEAD /v2/<repository>/manifests/<tag>` using an Accept header
+for OCI image indexes, OCI image manifests, Docker manifest lists, and Docker v2
+manifests. Record the returned `Docker-Content-Digest`, the tag, and the reason the
+digest is absent from the keep list. Delete the **digest** through the registry API
+only after checking the complete keep list; deleting a tag is not the manifest
+deletion contract. For a reviewed candidate:
+
+```bash
+REGISTRY=http://127.0.0.1:5001
+REPOSITORY=veoveo/example
+DIGEST='sha256:REPLACE_WITH_REVIEWED_DIGEST'
+curl --fail --silent --show-error --request DELETE \
+  "$REGISTRY/v2/$REPOSITORY/manifests/$DIGEST"
+```
+
+Pause image and chart publication before garbage collection. Stop the registry,
+then run the pinned OCI Distribution image against its existing volume. Copy the
+container's effective config first and confirm its filesystem root is
+`/var/lib/registry`. Inspect the dry-run list of blobs eligible for deletion against
+the protected manifests and their referenced blobs. Run the real sweep only when
+that comparison passes:
+
+```bash
+REGISTRY_CONTAINER=k3d-veoveo-registry.localhost
+REGISTRY_IMAGE=$(docker inspect --format '{{.Config.Image}}' "$REGISTRY_CONTAINER")
+docker cp "$REGISTRY_CONTAINER:/etc/distribution/config.yml" ./registry-gc.yml
+docker stop "$REGISTRY_CONTAINER"
+docker run --rm --network none --volumes-from "$REGISTRY_CONTAINER":ro \
+  --volume "$PWD/registry-gc.yml:/etc/distribution/config.yml:ro" \
+  --entrypoint /bin/registry "$REGISTRY_IMAGE" \
+  garbage-collect --dry-run /etc/distribution/config.yml
+docker run --rm --network none --volumes-from "$REGISTRY_CONTAINER" \
+  --volume "$PWD/registry-gc.yml:/etc/distribution/config.yml:ro" \
+  --entrypoint /bin/registry "$REGISTRY_IMAGE" \
+  garbage-collect /etc/distribution/config.yml
+```
+
+Start the registry with `docker start "$REGISTRY_CONTAINER"` when the installation is
+ready for publication and pulls; leave it stopped when the installation is intentionally
+offline. Verify protected manifests
+with `HEAD` at their digest, check the registry volume and free space again, and
+retain the keep list, deletion journal, and garbage-collection output with the
+maintenance record. Do not use `garbage-collect --delete-untagged`: selected child
+manifests and attestations may have no tag. This procedure applies to the local
+OCI Distribution registry; other registry products need their own retention policy.
+The [OCI Distribution garbage-collection guide](https://distribution.github.io/distribution/about/garbage-collection/)
+defines the stopped-writer requirement, and the
+[Distribution API](https://distribution.github.io/distribution/spec/api/) defines
+digest-based manifest deletion.
