@@ -1422,6 +1422,17 @@ that read moving apt indexes can produce different runtime layers after cache
 eviction. Pin those package inputs or use a fixed repository snapshot before
 relying on stage-to-release digest equality.
 
+RustFS 1.0.0 qualification reused one isolated Docker volume across RC 3 and GA
+containers. The Artifact client wrote an 18 MiB multipart object on RC 3; GA
+read its metadata, full body and a 4 KiB range. GA then wrote the same payload,
+and RC 3 read it after a reverse restart. This qualifies the tested object path
+and image reversal. It does not establish that every object in the installation's
+197 GiB live PVC has been read. The first Artifact test build spent 2m 26s
+compiling its full service dependency graph, including SurrealDB. Reusing the
+binary made each later test run subsecond before evidence recording. Move this
+external S3 compatibility check into a focused test crate if repeated storage
+upgrades justify the build cost.
+
 During the UAV export, deleting Rust incremental directories last touched before
 September 23 reclaimed 16 GiB. Removing older host `target/debug/deps` files
 reclaimed about 65 GiB of disk, and pruning unused dangling Docker images reclaimed
