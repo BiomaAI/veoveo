@@ -110,3 +110,6 @@ The remaining client and streaming opportunities are:
 - Dense, continuously changing maps need revision-aware feature deltas or a qualified
   tile data path. Current viewport queries are paginated and capped at 5,000 features
   per layer; notifications trigger queries rather than streaming geometry.
+  `build_vector_tiles` already produces requested XYZ tiles as an immutable MVT 2.1
+  bundle with a MapLibre style. Reuse those products for large published layers;
+  Map Explorer still needs an authorized tile-transfer and rendering path.

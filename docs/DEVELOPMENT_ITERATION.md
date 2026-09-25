@@ -1940,6 +1940,10 @@ Map Explorer checks hardware WebGL2 before contacting the host, limits concurren
 metadata reads, acknowledges MCP subscriptions and refreshes affected indexes.
 Failed reads preserve the prior data and show an error. Its Retry button repeats
 startup, and bridge requests reject after 15 seconds or when the frame closes.
+The Console preserves its CSRF token when a snapshot request fails without issuing
+a replacement token. Clearing it made App calls fail locally with "session isn't
+ready" and no network request. The browser regression harness covers this failure
+together with catalog churn, theme updates and frame remounts.
 
 The first deployment eliminated the request queue, but catalog expiry still pushed
 parallel reads to 1.1–1.3 seconds. Gateway timing showed most upstream discovery at
@@ -1958,6 +1962,11 @@ Build and deployment observations:
 | Console and Map images | 476.9 s | Map's cold native dependency closure dominated; Console compilation took about two minutes |
 | Gateway timing instrumentation | 67.4 s | Cached dependencies, gateway compilation only |
 | Gateway bulk-audit image | 82.7 s | Store and its gateway consumers rebuilt; dependency caches were reused |
+| Console snapshot-recovery image | 16.3 s | Frontend rebuilt while the cached native executable was reused |
+
+After rebasing over concurrent documentation work, staging the published source
+commit `2c6470cd` took 6.6 seconds and reproduced the same Console runtime digest.
+That source verification required no additional rollout.
 
 The store-only native test selected a different Cargo feature closure and compiled
 SurrealDB core again, taking 95 seconds before test execution. `cargo tree` showed
@@ -1970,6 +1979,41 @@ unclassified receipt of roughly 24,600 lines. Source hashing and report generati
 cost more time than the check. A reviewed descriptor for installation Helm inputs
 is a follow-up. The Map Recreate rollout also waits for its 30-second termination
 period; acceptance starts after rollout and discovery recovery.
+
+The installed latency target is still open. Eight rounds spaced 5.5 seconds apart
+returned their concurrent reads together, but catalog expiry still incurred a full
+authorization/audit pass. Across 64 reads, p95 was 1.53 seconds; the eight App catalog
+requests had p95 1.32 seconds. The warm round completed within 280 ms. These results
+do not meet the requested 500 ms p95. The native audit optimization did not establish
+the same improvement under installed concurrent discovery.
+
+The next performance investigation should split policy-evaluation time from audit
+commit and transaction-retry time, then reduce work repeated across catalog
+refreshes. Coalescing concurrent audit batches is a candidate; its acceptance must
+preserve each decision and event, rollback behavior and commit-before-response.
+
+The final headed Chrome check used NVIDIA RTX 4090 WebGL2. WebGPU exposed a
+software adapter and was not counted as hardware. Both authored layers, the active
+source, saved composition and three visible features rendered. An injected failed
+workspace read showed a startup error; the in-frame Retry restored the same data.
+The browser regression suite separately proved calls survive a failed snapshot and
+an equivalent descriptor rerender. No map data was created or changed by these checks.
+
+| Final installed check | Result |
+|---|---|
+| Full Console reload to map data | 3.72 s; exceeds the three-second startup budget |
+| Open Map Explorer again from Apps | 1.66 s |
+| Refresh after catalog expiry | Feedback in 0.5 ms; complete in 1.38 s, above the one-second budget |
+| Layer toggle | Feedback in 0.6 ms; complete in 0.60 s |
+| Four rounds of parallel reads across cache expiry | 32 reads, p95 957 ms; still above 500 ms |
+| Four App catalog requests in those rounds | Maximum 739 ms |
+| Frame remount and startup Retry | Restored both layers and the source |
+
+Local observations are in `output/map-recovery/installed.json`, `installed.png`,
+`performance-bulk.json` and the image staging records in that directory. These are
+measurements from this installation, rather than a portable performance guarantee.
+Chrome also reported opaque `Object` exceptions without stacks during frame loads.
+Their origin was not established; the targeted rendering and recovery checks passed.
 
 The map import/export surfaces and remaining streaming opportunities are recorded
 in [Map integration](MAP_APP_INTEGRATION.md#upload-download-and-live-changes).
