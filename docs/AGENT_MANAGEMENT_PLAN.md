@@ -3,8 +3,9 @@
 Status: delivered September 20, 2026. Governed authoring, publication, explicit
 revision adoption and managed lifecycle are deployed at `veoveo.bioma.ai`. The four
 migrated UAV pilots retain their original runtime IDs, principals, signing keys and
-physical memory volumes. Normal GitOps reconciliation is active. The September 24
-upgrade recheck below records an unresolved UAV pilot authentication failure.
+physical memory volumes. Normal platform GitOps reconciliation is active. The
+September 25 recheck below resolves the UAV pilot authentication failure. The
+simulation release stays suspended for the requested resource pause.
 
 Installed checks cover real chat and managed model execution, native MCP Task
 navigation and gateway replacement, named Computer grants, wrong-vehicle denial,
@@ -12,7 +13,44 @@ stop/archive, retained memory and credential revocation. Idle credential renewal
 adds no model calls. The completion checkpoint below distinguishes these passing
 feature checks from the outstanding simulator flight and broader qualification work.
 
-## Upgrade Recheck — September 24, 2026
+## Upgrade Recheck — September 25, 2026
+
+All four existing UAV pilots adopted revision `d11ee2c56226` at generation 10 through
+Console publication and **Apply reviewed revision**. Each completed an operator
+inspection using `list_active_vehicle_control_grants` and `get_simulation_state`,
+then reported its correct vehicle and `inspect`, `plan`, `execute`, `abort` grants.
+The model runs completed at about 14:14 UTC. The requests authorized no vehicle
+mutation. Before/after instance reads preserved the instance IDs, definition,
+client IDs, principals, storage sizes and Work Contexts. Existing conversation
+history remained visible. This check did not repeat physical-volume checksum or
+signing-key qualification.
+
+The deployment initially stalled because the manager's egress rule admitted the
+former node address `172.18.0.2`, while the running control-plane node uses
+`172.18.0.3`. The installation rule now admits the current node. TLS verification,
+reconciliation and all four replacement kernels succeeded. This is installation
+configuration, not an agent contract change.
+
+The Kubernetes API service also advertises `.2` and `.4`, currently the registry
+and load-balancer containers. Removing those stale Endpoints and EndpointSlice
+addresses restored routing temporarily, but the cluster controller reinstated them.
+Their source needs separate investigation; the installed API route is not cleared
+of intermittent connection failures by this checkpoint. No host OS, driver, Docker
+daemon setting or cluster restart changed during this check.
+
+Isaac Sim ran for roughly ten minutes. The five operator views displayed live
+H.264 through NVIDIA NVENC and hardware browser decoding. Rerun displayed the
+archived leader camera, but the current recording did not enter the catalog because
+the forwarder drained earlier generations first and repeatedly hit the ingest
+batch quota. [The iteration record](DEVELOPMENT_ITERATION.md#installed-pilot-and-rerun-recheck--september-25-2026)
+tracks that failed live check. Both simulation Deployments returned to zero and
+their HelmRelease remains suspended. Pilots remain deployed on the current revision.
+
+Ignored check artifacts are `output/installed-feature-check/pilots-final.json`,
+`pilot-replies.json`, `live-cameras.json` and `recording-catalog-check.json`.
+The installation egress change passed strict Helm lint through the test recorder.
+
+### September 24 Preparation
 
 Chat agents completed real Workspace replies during the
 [installed group check](WORKSPACE_PLAN.md#installed-upgrade-check--september-24-2026).
@@ -28,14 +66,9 @@ Isaac Sim to apply its world binding before startup; starting only that process 
 not provide a catalog, and it was stopped again. No published revision or managed
 instance changed during this preparation.
 
-The simulator and its MCP deployment are both scaled to zero, with the simulation
-HelmRelease suspended as requested. Completion requires an approved brief simulator
-window: validate and publish the prepared definition, apply the reviewed revision
-to all four existing instances, verify credential renewal and bounded non-flight
-queries, then stop the simulator services again. Keep the existing identities,
-grants and memory. Do not remove tool validation or restore an older runtime image
-to bypass this dependency. This pending work supersedes the earlier healthy-pilot
-checkpoint for the currently upgraded installation.
+The simulator and its MCP deployment returned to zero after that preparation.
+The authorized September 25 window above completed publication and instance
+adoption without bypassing tool validation or restoring an older runtime image.
 
 ## Standards And Protocols
 
