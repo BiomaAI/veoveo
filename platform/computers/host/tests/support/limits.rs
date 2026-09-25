@@ -3,6 +3,12 @@ use anyhow::{Context, Result, ensure};
 use std::{fs, path::Path};
 
 pub fn check(directory: &Path, after: bool) -> Result<()> {
+    // OCI exec may join the originally configured cgroup namespace rather than
+    // the one PID 1 created. Inspect from the launcher's actual namespace.
+    nix::sched::setns(
+        fs::File::open("/proc/1/ns/cgroup")?,
+        nix::sched::CloneFlags::CLONE_NEWCGROUP,
+    )?;
     const ROOT: &str = "/sys/fs/cgroup";
     ensure!(fs::read_to_string("/proc/1/cgroup")?.trim() == "0::/init");
     ensure!(fs::read_to_string(format!("{ROOT}/cpu.max"))?.trim() == "100000 100000");

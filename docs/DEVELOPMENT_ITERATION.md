@@ -94,6 +94,11 @@ remaining iteration improvement; the resource fix does not change provider pins 
 add another build route. Detailed output is in the ignored
 `output/computers-resource-check/host-build.log`.
 
+The follow-up host correction at `e53e843e` reused the provider and completed staging
+in 18.403 seconds. Rust compilation took about 4.7 seconds and export about 9.9 seconds.
+This demonstrates the warm path and narrows the earlier delay to lost reusable
+provider build state, rather than every host edit inherently requiring that rebuild.
+
 The unclassified native test receipts also copy repository-wide input manifests.
 Four source/storage/chart attempts added about 98,000 lines of receipt history.
 Scoped check declarations and shared input-manifest storage would reduce this cost;
