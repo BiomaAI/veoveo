@@ -1831,3 +1831,57 @@ Remote native Rerun access is an accepted infrastructure follow-up. Longer
 simulator render-stall and PX4 sensor-timing measurements are deferred while the
 simulator is stopped. The build/cache inefficiencies recorded in this document
 remain follow-up measurements and improvements; they do not hold this upgrade open.
+
+### Installed Pilot And Rerun Recheck — September 25, 2026
+
+The operator authorized a brief simulator window after the Computers resource audit.
+The installed Isaac Sim 6.1 runtime started in about 40 seconds using its retained
+cache; no simulator image rebuild was needed. The Console published the prepared
+UAV Pilot definition and all four existing instances adopted generation 10. Each
+completed the same read-only grant and simulation-state inspection. The
+[agent-management checkpoint](AGENT_MANAGEMENT_PLAN.md#upgrade-recheck--september-25-2026)
+records identities, deployment and the remaining cluster routing issue.
+
+Rollout exposed an installation address mismatch. The manager's NetworkPolicy
+permitted the old API node IP, which now belongs to the registry. Correcting the
+rule to the current node allowed reconciliation. Kubernetes also recreated two
+stale API service addresses after a targeted removal. Investigate the controller's
+address source before calling service routing healthy. This work changed no host
+OS or Docker daemon settings. Strict Helm lint passed for the installation rule;
+the unclassified recorder again wrote about 24,500 receipt lines for a one-line
+configuration change. GitOps applied `b24ad1a9` as platform release 216.
+
+The five operator cameras displayed in headed Chrome with NVIDIA RTX 4090 WebGL
+and the App's hardware H.264 decode indication. The simulator reported one NVENC
+session for the shared camera atlas. This was a functional check, not another
+throughput or latency qualification run.
+
+Fresh Rerun playback failed this check. On startup, the forwarder held 36,690
+pending batches and approximately 1.82 GB from earlier recording generations.
+The simulator's new producer key was `0adc1dbe-4637-4272-8074-4267bcde7062`.
+Its publisher reported Ready, advancing simulation time and zero producer queue
+drops, but that key did not reach the Console catalog during the roughly ten-minute
+window. The uploader repeatedly received HTTP 429 for the producer's 1,200-batch
+per-minute quota. Older recordings were still being uploaded.
+
+`platform/recordings/forwarder/src/queue.rs::streams` sorts finishing streams first.
+`runner.rs::upload_pass` drains each recording before advancing to the next one
+and publishes its Blueprint after its batches. A quota error exits the pass.
+Together these choices delay a new live recording behind a retained backlog;
+publisher readiness does not establish delivery to Recording Hub or the browser.
+
+Rerun 0.38.1 displayed the archived leader camera, fleet and map for recording
+`01a0d575-8b6d-79b2-8afe-eb128e8e9285`. The subsequent older recording marked Live
+opened its receiver and delivered one bootstrap frame, but that is not proof of
+current simulation delivery. The simulator currently publishes one leader-camera
+entity into its Rerun recording; the five operator views use the separate shared
+H.264 camera atlas. Neither result qualifies fresh Rerun live following.
+
+The follow-up needs fair upload scheduling across recordings, early Blueprint
+publication and quota-aware progress that gives live capture service while older
+data drains. Test interruption/restart with a retained backlog and assert that a
+new recording's identity and advancing camera frames reach the signed-in viewer.
+Preserve queued data and per-recording sequence/acknowledgement rules. Increasing a
+quota alone does not address starvation. No queue data or historical recording was
+deleted during this investigation. Both simulation Deployments returned to zero;
+the UAV HelmRelease stays suspended.
