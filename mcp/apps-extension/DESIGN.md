@@ -114,7 +114,12 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   manual registration step anywhere. The initial catalog may be empty or
   partial while hosted servers discover. Each auth-scoped BFF client opens one
   resource-and-tool list-change listener before taking its first snapshot, then
-  streams complete caller-visible catalog snapshots to the browser. The shell
+  streams complete caller-visible catalog snapshots to the browser. Partial catalogs
+  keep their degradation metadata and use the same five-second cache window as
+  successful catalogs. The gateway delays retrying a failed source for five seconds;
+  subsequent demand starts its retry without holding healthy discovery behind it.
+  A successful retry sends a list-change notification. Source invalidation or a new
+  catalog generation clears the retry delay. The shell
   renders immediately and replaces its catalog query data as each server
   responds; one unresponsive server cannot retain the page's loading state.
 - **Frame** — app HTML is served same-origin with `default-src 'none'` into an

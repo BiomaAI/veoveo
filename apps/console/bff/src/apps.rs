@@ -280,11 +280,14 @@ async fn with_apps_session<T, F>(
 where
     F: Future<Output = Result<T, rmcp::ServiceError>>,
 {
+    let started = Instant::now();
     let upstream = api::upstream_session(state, request_headers).await?;
-    let response_headers =
+    let session_duration = started.elapsed();
+    let mut response_headers =
         api::response_session_headers(state, &upstream).map_err(IntoResponse::into_response)?;
     let mut retried = false;
     loop {
+        let acquire_started = Instant::now();
         let mcp = state
             .mcp
             .client(
@@ -298,6 +301,8 @@ where
                 tracing::error!(%error, "console apps MCP client failed");
                 StatusCode::BAD_GATEWAY.into_response()
             })?;
+        let acquire_duration = acquire_started.elapsed();
+        let operation_started = Instant::now();
         match operation(mcp.clone()).await {
             Err(error) if is_transport_error(&error) && !retried => {
                 retried = true;
@@ -311,6 +316,16 @@ where
                     .await;
             }
             result => {
+                response_headers.insert(
+                    "server-timing",
+                    HeaderValue::from_str(&format!(
+                        "session;dur={:.1}, mcp_client;dur={:.1}, mcp_request;dur={:.1}",
+                        session_duration.as_secs_f64() * 1000.0,
+                        acquire_duration.as_secs_f64() * 1000.0,
+                        operation_started.elapsed().as_secs_f64() * 1000.0,
+                    ))
+                    .expect("numeric server timings are valid headers"),
+                );
                 return Ok(AppsSessionOutcome {
                     client: mcp,
                     response_headers,
@@ -978,8 +993,10 @@ pub(crate) async fn unsubscribe_app_resource(
     request_headers: HeaderMap,
     Json(request): Json<UnsubscribeAppResourceRequest>,
 ) -> Response {
-    let listing = with_apps_session(&state, &request_headers, |mcp| async move {
-        mcp.app_catalog().await
+    // The registration belongs to this authenticated client's UUID namespace.
+    // Releasing it needs no new catalog authority or upstream discovery.
+    let listing = with_apps_session(&state, &request_headers, |_mcp| async move {
+        Ok(())
     })
     .await;
     let AppsSessionOutcome {
