@@ -62,10 +62,25 @@ async fn ticket(
         return Err(forbidden());
     }
     transport.app.runtime.current()?;
+    let current_actor = actor(&identity)?;
+    let control = transport
+        .app
+        .store
+        .control_authority(&current_actor)
+        .await
+        .map_err(ApplicationError::from)?;
+    control.require_attach(id).map_err(ApplicationError::from)?;
+    let computer = transport
+        .app
+        .store
+        .get(current_actor.owner(), id)
+        .await
+        .map_err(ApplicationError::from)?;
+    transport.app.refresh_run(&computer).await?;
     let grant = transport
         .app
         .store
-        .issue_browser_grant(&actor(&identity)?, id)
+        .issue_browser_grant(&current_actor, id)
         .await
         .map_err(ApplicationError::from)?;
     Ok((
@@ -202,11 +217,14 @@ async fn attached(
         let terminal = runtime
             .attach(&binding, size, lease.clone())
             .await
-            .map_err(|_| ())?;
+            .map_err(|error| {
+                tracing::warn!(computer_id = %id, %error, "Computer terminal setup failed");
+            })?;
         if Some(terminal.sandbox_id()) != baseline.computer().provider_resource_id.as_deref()
             || Some(terminal.main_process_instance_id())
                 != baseline.computer().process_id.as_deref()
         {
+            tracing::warn!(computer_id = %id, "Computer process changed during terminal attachment; reconnect to refresh the run");
             return Err(());
         }
         pump::run(socket, terminal, &activity, updates).await

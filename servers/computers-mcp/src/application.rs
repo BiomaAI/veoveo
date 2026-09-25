@@ -14,6 +14,7 @@ mod file_state;
 mod files;
 mod lifecycle;
 pub(crate) mod maintenance;
+mod observed_restart;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApplicationError {
@@ -155,10 +156,16 @@ impl Application {
     pub async fn computer(&self, actor: &ComputerActor, id: Uuid) -> Result<ComputerView> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(Some(id))?;
-        let computer = self
+        let mut computer = self
             .store
             .read_computer_access(actor, &authority, id)
             .await?;
+        if self.refresh_run(computer.computer()?).await? {
+            computer = self
+                .store
+                .read_computer_access(actor, &authority, id)
+                .await?;
+        }
         let access = self.browser_access(&authority).await?;
         let active = self
             .store
@@ -405,6 +412,7 @@ impl Application {
         {
             return Err(ApplicationError::Unavailable);
         }
+        self.refresh_run(&selected).await?;
         authority.require_action(action)?;
         let operation = self
             .store
