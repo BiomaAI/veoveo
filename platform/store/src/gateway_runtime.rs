@@ -702,7 +702,7 @@ impl PlatformStore {
         for attempt in 0..MAX_ATTEMPTS {
             let response = self
                 .db
-                .query("BEGIN TRANSACTION; FOR $record IN $records { CREATE ONLY $record.id CONTENT $record RETURN NONE; }; FOR $event IN $outbox { CREATE outbox_event CONTENT $event RETURN NONE; }; COMMIT TRANSACTION;")
+                .query("BEGIN TRANSACTION; INSERT INTO audit_event $records RETURN NONE; INSERT INTO outbox_event $outbox RETURN NONE; COMMIT TRANSACTION;")
                 .bind(("records", records.to_vec()))
                 .bind(("outbox", outbox.clone()))
                 .await

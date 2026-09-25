@@ -29,7 +29,8 @@ fn record() -> AuditEventRecord {
 #[tokio::test]
 async fn discovery_audit_batches_preserve_each_record_and_atomic_outbox() {
     let db = fixture::TestDb::new().await;
-    let first = (0..65).map(|_| record()).collect::<Vec<_>>();
+    let mut first = (0..65).map(|_| record()).collect::<Vec<_>>();
+    first[0].outcome = AuditOutcome::Denied;
     let second = (0..65).map(|_| record()).collect::<Vec<_>>();
     let (a, b) = tokio::join!(
         db.a.record_gateway_audit_events(GatewayAuditKind::Policy, &first),
@@ -43,6 +44,16 @@ async fn discovery_audit_batches_preserve_each_record_and_atomic_outbox() {
             .unwrap(),
         130
     );
+    let stored =
+        db.a.gateway_audit_events(GatewayAuditKind::Policy)
+            .await
+            .unwrap();
+    for expected in first.iter().chain(&second) {
+        let actual = stored.iter().find(|r| r.id == expected.id).unwrap();
+        assert_eq!(actual.action, expected.action);
+        assert_eq!(actual.outcome, expected.outcome);
+        assert_eq!(actual.occurred_at, expected.occurred_at);
+    }
     let outbox = db.b.read_outbox(0, 1000).await.unwrap();
     let events = outbox
         .events
