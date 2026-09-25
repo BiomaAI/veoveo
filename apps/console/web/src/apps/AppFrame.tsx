@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { appFrameUrl } from "../api";
 import { attachAppBridge, type AppBridge, type InternalAppLinkHandler } from "./bridge";
 import type { AppDescriptor } from "../types";
@@ -22,20 +22,30 @@ export function AppFrame({
   const { appTheme } = useTheme();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge>(null);
+  const serialized = JSON.stringify(app);
+  const descriptor = useMemo(() => JSON.parse(serialized) as AppDescriptor, [serialized]);
+  const presentation = useRef({ appTheme, onInternalLink });
+
+  useEffect(() => {
+    presentation.current = { appTheme, onInternalLink };
+    bridgeRef.current?.setTheme(appTheme);
+  }, [appTheme, onInternalLink]);
 
   useEffect(() => {
     const iframe = frameRef.current;
     if (!iframe) return;
-    const bridge = attachAppBridge(iframe, app, appTheme, onInternalLink);
+    const bridge = attachAppBridge(iframe, descriptor, presentation.current.appTheme,
+      (url) => presentation.current.onInternalLink?.(url) ?? false);
     bridgeRef.current = bridge;
     return () => {
       bridgeRef.current = null;
       bridge.dispose();
     };
-  }, [app, appTheme, onInternalLink]);
+  }, [descriptor]);
 
   return (
     <iframe
+      key={serialized}
       ref={frameRef}
       className="app-frame"
       src={appFrameUrl(app.resourceUri)}

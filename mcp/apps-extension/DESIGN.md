@@ -137,6 +137,11 @@ The hosting core (gateway + console BFF + console web) stays fully generic:
   gateway-projected App dependency that names the owning App URI, target
   server, URI scheme and prefix, required scope, operation, and optional data
   labels. Gateway policy remains the authoritative second wall.
+  Console catalog updates with unchanged descriptor values preserve the iframe and
+  bridge. Theme changes travel through `ui/notifications/host-context-changed`;
+  link callbacks use the current shell navigation without replacing the bridge.
+  A changed descriptor replaces both the document and bridge, so a newly admitted
+  resource or tool set starts with a fresh handshake and subscriptions.
 - **Tasks** — task-based tools stay task-based inside apps. A view may send
   `tools/call` with final request metadata plus `tasks/get`, `tasks/update`,
   and `tasks/cancel`; the console host intercepts these ahead of the

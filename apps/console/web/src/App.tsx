@@ -159,6 +159,7 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
     [apps, appsCatalog?.degradations],
   );
   const selectedApp = appForRoute(selectedAppKey, apps);
+  const unavailableAppServices = appGroups.filter((group) => group.unavailable).length;
 
   const navigate = useCallback((next: ViewId, recordingId?: string) => {
     setView(next);
@@ -287,10 +288,11 @@ function Console({ bootstrap }: { bootstrap: ConsoleBootstrap }) {
           ))}
         </nav>
         {snapshot && <div className="sidebar-foot">
-          <div className={`live-dot ${liveStatus === "reconnecting" || snapshot.services.some((service) => service.state === "offline") ? "live-off" : ""}`} />
+          <div className={`live-dot ${liveStatus === "reconnecting" || unavailableAppServices > 0 || snapshot.services.some((service) => service.state === "offline") ? "live-off" : ""}`} />
           <div>
-            <strong>{liveStatus === "live" ? "Live" : liveStatus === "reconnecting" ? "Reconnecting" : "Status"}</strong>
+            <strong>{liveStatus === "live" ? "Console live" : liveStatus === "reconnecting" ? "Reconnecting" : "Status"}</strong>
             <span>{snapshot.services.filter((service) => service.state === "healthy").length}/{snapshot.services.length} platform services healthy</span>
+            {unavailableAppServices > 0 && <span>{unavailableAppServices} app service{unavailableAppServices === 1 ? "" : "s"} unavailable</span>}
           </div>
         </div>}
       </aside>

@@ -725,7 +725,10 @@ pinned-GDAL OGC GeoPackage inspection and conversion boundary.
 `src/mcp/authoring.rs` publishes the write and query tools. `src/server/tasks.rs` owns
 durable execution and task-local staging, while
 `src/server/tasks/feature_transfers.rs` owns GeoPackage-aware transfer execution.
-`app/` owns the MapLibre bundle pipeline and the permission-aware source,
+`app/` owns the MapLibre bundle pipeline and the permission-aware source.
+`app/bridge.js` owns parent-only MCP messages, request deadlines and subscription
+acknowledgments; `app/resources.js` owns permission-filtered, concurrent snapshot
+reads and targeted refreshes. `app/workspace.js` composes them with the map UI,
 while `assets/workspace-app.html` is the generated self-contained Map MCP App
 for composition viewing, feature authoring, and administration. The SurrealDB schemas are
 `platform/store/migrations/0025_map_authoring.surql`
