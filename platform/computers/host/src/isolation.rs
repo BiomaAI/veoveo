@@ -1,7 +1,7 @@
 //! Scope upstream dind initialization and every nested cgroup to this container.
 use anyhow::{Context, Result, ensure};
 use nix::{
-    mount::{MsFlags, mount},
+    mount::{MsFlags, mount, umount},
     sched::{CloneFlags, unshare},
     unistd::{geteuid, getpid},
 };
@@ -26,6 +26,9 @@ pub fn initialize(config: &Path) -> Result<()> {
         MsFlags::MS_REC | MsFlags::MS_PRIVATE,
         None::<&str>,
     )?;
+    // Replace the inherited mount only after propagation is private. Mounting
+    // the new namespace's subtree directly over its ancestor returns EBUSY.
+    umount(ROOT).context("unmount inherited cgroup view inside the private namespace")?;
     mount(
         Some("cgroup2"),
         ROOT,
