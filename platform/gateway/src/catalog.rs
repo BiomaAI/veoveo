@@ -159,6 +159,13 @@ pub struct GatewayCatalog {
 
 impl GatewayCatalog {
     pub fn from_control_plane(control_plane: GatewayControlPlane) -> Result<Self> {
+        // Opaque JSON objects must have the same order before publication and
+        // after storage. Dependencies may enable serde_json's preserve_order;
+        // that must not change the digest checked by independent workers.
+        // Reconstruct the typed document to preserve its established field order.
+        let mut document = serde_json::to_value(control_plane)?;
+        document.sort_all_objects();
+        let control_plane: GatewayControlPlane = serde_json::from_value(document)?;
         control_plane.validate()?;
         let configuration_sha256 = Sha256::digest(serde_json::to_vec(&control_plane)?).into();
 

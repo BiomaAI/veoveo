@@ -348,6 +348,33 @@ fn catalog() -> GatewayCatalog {
     catalog_with_policy(policy())
 }
 
+#[test]
+fn control_digest_survives_json_object_order_and_storage_round_trip() {
+    let mut control = catalog().control_plane().clone();
+    control.metadata =
+        serde_json::from_str(r#"{"z":{"second":2,"first":1},"a":[{"z":0,"a":1}]}"#).unwrap();
+    control.servers[0].metadata = control.metadata.clone();
+    let published = GatewayCatalog::from_control_plane(control).unwrap();
+    assert_eq!(
+        serde_json::to_string(&published.control_plane().metadata).unwrap(),
+        r#"{"a":[{"a":1,"z":0}],"z":{"first":1,"second":2}}"#,
+    );
+
+    // The store returns object keys in sorted order. A worker hashes the typed
+    // document directly and may use a different serde_json feature closure.
+    let mut stored = serde_json::to_value(published.control_plane()).unwrap();
+    stored.sort_all_objects();
+    let restored: GatewayControlPlane = serde_json::from_value(stored).unwrap();
+    let worker_digest: [u8; 32] = Sha256::digest(serde_json::to_vec(&restored).unwrap()).into();
+    assert_eq!(published.configuration_sha256(), worker_digest);
+    assert_eq!(
+        published.configuration_sha256(),
+        GatewayCatalog::from_control_plane(restored)
+            .unwrap()
+            .configuration_sha256(),
+    );
+}
+
 fn catalog_with_policy(policy: PolicySet) -> GatewayCatalog {
     catalog_with_profile_and_policy(profile(), policy)
 }
