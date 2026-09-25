@@ -69,6 +69,49 @@ read or browser connection to reconcile an idle run. Unresolved work requires it
 existing recovery path. The ignored detail artifact is
 `output/installed-feature-check/computers.json`.
 
+## Resource Limits Deployment — September 25, 2026
+
+Release 218 on `veoveo.bioma.ai` runs host source `e53e843e`, image
+`sha256:65da0cb84b9f54f50e7a77bb8ddeb9b85e5c0b6ed624c266bf4db08465bee02d`.
+Both the live Deployments and their Pods declare zero CPU and memory requests.
+The host keeps its eight-CPU/12 GiB maximum, and the Computers worker keeps its
+two-CPU/1 GiB maximum. Each current Computer keeps its two-CPU/2 GiB ceiling with
+zero memory protection. The host's private cgroup namespace places both running
+guests below its aggregate limits.
+
+The Rust allocator creates sparse retained files with fixed logical maximums.
+It checks the configured free-space floor before creation without requiring the
+home's entire maximum. Existing 8 GiB homes retain their inode, filesystem identity
+and bytes. The 8 GiB floor guards new admission; it does not reserve blocks against
+existing writers. The shared local-path PVC still supplies no aggregate disk quota.
+The [storage design](../platform/computers/storage/DESIGN.md#durable-allocation)
+defines pressure and recovery behavior, including the consequences of a full backing
+filesystem. Enforcing a separate pool budget requires a qualified storage backend.
+
+The isolated Rust storage test admitted a sparse 512 MiB home in a 768 MiB pool
+with a 512 MiB free-space floor. It reached the home limit, filled the pool, rejected
+a new allocation before creating its journal and preserved the existing file across
+helper replacement. The native host test replaced the previous installed image,
+kept the Docker/provider resource and retained bytes, and resumed a new process.
+A guest CPU workload increased the stricter host's throttling counter. The test
+also checked guest ancestry, memory maximums and zero memory protection.
+
+The installed rollout stopped and started the same two owner Computers through
+Console. All three retained backing files kept their inode, length and allocated
+block count; the private Docker UUID stayed unchanged. Fresh terminal sessions in
+both Workspace and Console read the two original checksums recorded above. Lease
+renewal and another owner's access denial passed. Headed Chrome reported NVIDIA
+RTX 4090 WebGL; its software WebGPU adapter supplied no hardware evidence.
+The simulator deployments stayed at zero replicas. Detailed artifacts are under
+the ignored `output/computers-resource-check/` directory and
+`output/installed-feature-check/computers.json`.
+
+The first isolated candidate failed its cgroup mount before reaching deployment.
+Replacing the inherited mount inside the private mount namespace fixed startup.
+The installed chart was independently pinned, so release 218 also supplies explicit
+zero requests through installation values. That extra rollout and the cold-provider
+build cost are tracked in [Development Iteration](DEVELOPMENT_ITERATION.md#computers-resource-update--september-25-2026).
+
 ## Resource Allocation Audit — September 25, 2026
 
 This read-only inspection compared the repository configuration with the installed

@@ -104,6 +104,14 @@ Four source/storage/chart attempts added about 98,000 lines of receipt history.
 Scoped check declarations and shared input-manifest storage would reduce this cost;
 their dependency and environment coverage must remain explicit.
 
+Installed release 217 exposed a separate deployment mismatch: the reference
+installation consumes a pinned OCI chart, so updated repository defaults did not
+change its live CPU/RAM requests. Release 218 supplied explicit zero requests in
+installation values and verified both Deployment and Pod resources. It required an
+extra stopped-host rollout. Future pre-deployment comparisons must render the actual
+pinned chart with the proposed values; linting the source chart alone cannot establish
+the installed result. No chart republish or broader runtime rebuild was necessary.
+
 The September 24 installed Computers check found HTTP 503 in both browser clients.
 The Rerun dependency graph enabled `serde_json/preserve_order` in the gateway, while
 the Computers build sorted JSON object keys. Publishing metadata in input order
