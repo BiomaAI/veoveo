@@ -77,3 +77,36 @@ bridge, scoped resource reads, and notification-driven refresh. See
 [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) for the full
 host and dependency contract and [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md)
 for Map's resource catalog.
+
+## Upload, Download And Live Changes
+
+Upload a file through the artifact upload service, then pass its authorized artifact
+identity to `import_feature_layer`. Map accepts GeoJSON FeatureCollections, RFC 8142
+sequences and the supported GeoPackage vector profile. GeoPackage users first call
+`inspect_geopackage` and choose the table and column mapping explicitly. Import runs
+as an MCP Task and commits at most 10,000 features in one transaction.
+
+Small edits use Map's layer and feature tools. Open views subscribe to mutable
+layer, publication and composition indexes, then query the current viewport after
+an update. Notifications signal a change; they do not contain geometry or provide
+a replayable feature stream. Map Explorer coalesces notifications and refreshes only
+affected metadata. It preserves the previous view when a read fails.
+
+To download data, publish a layer and call `export_feature_layer`. Its task produces
+an immutable GeoJSON sequence, GeoParquet 1.0 or GeoPackage artifact. Transfer the
+artifact through the authorized artifact download service. Large files belong on
+that byte-transfer path; MCP calls carry identities, task progress and results.
+
+The remaining client and streaming opportunities are:
+
+- Map Explorer's import drawer takes an artifact ID. A file picker connected to the
+  existing upload queue would remove that manual handoff; an export-and-download
+  action could use the same artifact service.
+- Source registration and acquisition-status indexes need authorized update
+  notifications before clients can subscribe to them. Existing layer subscriptions
+  do not imply coverage of these indexes.
+- Imports beyond the transaction limit need checkpointed batches with cancellation,
+  recovery and progress. The present import task is a bounded batch operation.
+- Dense, continuously changing maps need revision-aware feature deltas or a qualified
+  tile data path. Current viewport queries are paginated and capped at 5,000 features
+  per layer; notifications trigger queries rather than streaming geometry.

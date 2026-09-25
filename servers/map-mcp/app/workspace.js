@@ -1,5 +1,7 @@
 import * as maplibregl from "maplibre-gl";
 import workerSource from "embedded:maplibre-worker";
+import { createBridge } from "./bridge.js";
+import { mapSubscriptionUris, readMapSnapshot } from "./resources.js";
 
 // The opaque-origin App sandbox cannot directly fetch its own blob URL.
 // MapLibre recognizes the `.cjs` suffix, fetches this CSP-admitted data URL,
@@ -7,38 +9,7 @@ import workerSource from "embedded:maplibre-worker";
 const workerUrl = `data:text/javascript;charset=utf-8,${encodeURIComponent(workerSource)}#maplibre-worker.cjs`;
 maplibregl.setWorkerUrl(workerUrl);
 
-const bridge = (() => {
-  let nextId = 1;
-  const pending = new Map();
-  const handlers = new Map();
-  const post = (message) => parent.postMessage(message, "*");
-  addEventListener("message", (event) => {
-    const message = event.data;
-    if (!message || message.jsonrpc !== "2.0") return;
-    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
-      const waiter = pending.get(message.id);
-      if (!waiter) return;
-      pending.delete(message.id);
-      if (message.error) waiter.reject(new Error(message.error.message || "host error"));
-      else waiter.resolve(message.result);
-      return;
-    }
-    const handler = handlers.get(message.method);
-    if (handler) handler(message.params, message.id);
-  });
-  return {
-    request(method, params) {
-      return new Promise((resolve, reject) => {
-        const id = nextId++;
-        pending.set(id, { resolve, reject });
-        post({ jsonrpc: "2.0", id, method, params });
-      });
-    },
-    notify: (method, params) => post({ jsonrpc: "2.0", method, params }),
-    on: (method, handler) => handlers.set(method, handler),
-    post,
-  };
-})();
+const bridge = createBridge();
 
 const state = {
   access: {
@@ -75,6 +46,12 @@ const state = {
   refreshTimer: null,
   refreshPromise: null,
   refreshQueued: false,
+  changedResources: new Set(),
+  fullRefresh: false,
+  started: false,
+  startPromise: null,
+  subscribed: false,
+  notificationTimer: null,
   closing: false,
   action: null,
   rawAdminKind: null,
@@ -231,7 +208,7 @@ async function rebuildEntries() {
     const styleId = pinned?.style_revision_id || publication?.style_revision_id;
     if (styleId && (!style || style.style_revision_id !== styleId)) {
       if (!state.styles.has(styleId)) {
-        try { state.styles.set(styleId, await read(`map://feature-style/${styleId}`)); } catch { state.styles.set(styleId, null); }
+        state.styles.set(styleId, await read(`map://feature-style/${styleId}`));
       }
       style = state.styles.get(styleId);
     }
@@ -521,8 +498,7 @@ async function applyBasemapTheme(theme) {
   return state.basemapSwitchPromise;
 }
 
-async function initializeMap() {
-  if (state.map) return;
+function checkGraphics() {
   let gpu;
   try {
     gpu = rendererFingerprint();
@@ -532,7 +508,15 @@ async function initializeMap() {
     el("map-failure").textContent = error.message;
     throw error;
   }
+  el("gpu-badge").hidden = false;
+  el("map-failure").hidden = true;
   el("gpu-badge").textContent = `Hardware WebGL2 · ${gpu.renderer}`;
+}
+
+async function initializeMap() {
+  if (state.mapReady) return;
+  if (state.map) { state.map.remove(); state.map = null; }
+  checkGraphics();
   const basemap = state.access.basemap;
   const theme = state.desiredBasemapTheme;
   const styleUrl = basemapStyleUrl(theme) || null;
@@ -823,7 +807,7 @@ async function refreshViewport() {
           : await querySourceEntry(entry, bbox, generation);
         return { features, error: null };
       } catch (error) {
-        return { features: [], error };
+        return { features: entry.features, error };
       }
     });
     if (generation !== state.queryGeneration) return;
@@ -852,7 +836,7 @@ async function refreshViewport() {
     if (!state.action) renderInspector();
     const truncated = visible.some((entry) => entry.truncated);
     const failed = results.filter((result) => result.error).length;
-    setStatus(`${expectedFeatureCount} feature${expectedFeatureCount === 1 ? "" : "s"} visible across ${visible.length - failed} layer${visible.length - failed === 1 ? "" : "s"}${failed ? ` · ${failed} layer preview${failed === 1 ? "" : "s"} unavailable` : ""}${truncated ? " · preview cap reached" : ""}.`, failed || truncated ? "warn" : "good");
+    setStatus(`${expectedFeatureCount} feature${expectedFeatureCount === 1 ? "" : "s"} visible across ${visible.length} layer${visible.length === 1 ? "" : "s"}${failed ? ` · ${failed} layer refresh${failed === 1 ? "" : "es"} failed; previous data shown` : ""}${truncated ? " · preview cap reached" : ""}.`, failed || truncated ? "warn" : "good");
   } catch (error) {
     if (generation === state.queryGeneration) setStatus(`Couldn't show this layer: ${error.message}`, "bad");
   }
@@ -1718,83 +1702,58 @@ function zoomToEntry(entry) {
   else setStatus("No visible geometry is available to fit yet.", "warn");
 }
 
-async function loadFeatureData() {
-  if (!state.access.feature_read) return [];
-  const results = await Promise.allSettled([
-    read("map://feature-layers"),
-    read("map://publications"),
-    read("map://compositions"),
-  ]);
-  const labels = ["layers", "publications", "saved views"];
-  const failures = [];
-  results.forEach((result, index) => {
-    if (result.status === "fulfilled") {
-      if (index === 0) state.layers = result.value;
-      if (index === 1) state.publications = result.value;
-      if (index === 2) state.compositions = result.value;
-    } else failures.push(`${labels[index]}: ${result.reason.message}`);
-  });
-  return failures;
-}
-
-async function loadDatasetData() {
-  if (!state.access.dataset_read) return [];
-  const resources = [
-    ["map://sources", "sources"],
-    ["map://datasets", "datasets"],
-    ["map://active-releases", "activeReleases"],
-    ["map://mobility-profiles", "profiles"],
-  ];
-  const results = await Promise.allSettled(resources.map(([uri]) => read(uri)));
-  const failures = [];
-  results.forEach((result, index) => {
-    const [uri, field] = resources[index];
-    if (result.status === "fulfilled") state[field] = result.value;
-    else failures.push(`${uri}: ${result.reason.message}`);
-  });
-  return failures;
-}
-
-async function loadAdminData() {
-  if (!state.access.administration) return [];
-  try {
-    state.acquisitions = await read("map://acquisitions");
-    return [];
-  } catch (error) {
-    return [`map://acquisitions: ${error.message}`];
-  }
-}
-
-async function refreshSnapshot() {
+async function refreshSnapshot(changed) {
   setStatus("Refreshing map data…");
-  const [featureFailures, datasetFailures, adminFailures] = await Promise.all([
-    loadFeatureData(),
-    loadDatasetData(),
-    loadAdminData(),
-  ]);
+  const snapshot = await readMapSnapshot(state.access, read, changed);
+  if (state.closing) return;
+  Object.assign(state, snapshot);
   await rebuildEntries();
-  const failures = [...featureFailures, ...datasetFailures, ...adminFailures];
-  if (failures.length) setStatus(`Map updated with ${failures.length} unavailable resource${failures.length === 1 ? "" : "s"}.`, "warn");
-  else if (!state.mapReady) setStatus("Map resources loaded.", "good");
+  if (!state.mapReady) setStatus("Map data loaded; starting the map…");
   reportSize();
 }
 
-async function refreshAll() {
-  if (state.refreshPromise) {
-    state.refreshQueued = true;
-    return state.refreshPromise;
-  }
-  state.refreshPromise = refreshSnapshot();
+async function refreshAll(changed) {
+  if (state.closing) return;
+  if (changed) for (const uri of changed) state.changedResources.add(uri);
+  else state.fullRefresh = true;
+  state.refreshQueued = true;
+  if (state.refreshPromise) return state.refreshPromise;
+  el("refresh").disabled = true;
+  el("refresh").textContent = "Refreshing…";
+  state.refreshPromise = (async () => {
+    while (state.refreshQueued && !state.closing) {
+      state.refreshQueued = false;
+      const requested = state.fullRefresh ? undefined : new Set(state.changedResources);
+      state.fullRefresh = false;
+      state.changedResources.clear();
+      await refreshSnapshot(requested);
+    }
+  })();
   try {
     await state.refreshPromise;
   } finally {
     state.refreshPromise = null;
+    el("refresh").disabled = false;
+    el("refresh").textContent = "Refresh";
   }
-  if (state.refreshQueued) {
-    state.refreshQueued = false;
-    return refreshAll();
-  }
-  return undefined;
+}
+
+function reportRefreshFailure(error) {
+  if (state.closing) return;
+  setStatus(`Couldn't refresh map data. ${error.message}`, "bad");
+  el("refresh").textContent = "Retry";
+}
+
+function scheduleResourceRefresh(uri) {
+  if (!mapSubscriptionUris(state.access).includes(uri)) return;
+  state.changedResources.add(uri);
+  clearTimeout(state.notificationTimer);
+  state.notificationTimer = setTimeout(() => {
+    if (!state.started) return;
+    const changed = new Set(state.changedResources);
+    state.changedResources.clear();
+    void refreshAll(changed).catch(reportRefreshFailure);
+  }, 80);
 }
 
 async function applyCompositionSelection() {
@@ -1825,7 +1784,13 @@ function reportSize() {
   });
 }
 
-el("refresh").addEventListener("click", () => void refreshAll());
+el("refresh").addEventListener("click", () => {
+  if (!state.started) void start();
+  else {
+    void subscribeResources();
+    void refreshAll().catch(reportRefreshFailure);
+  }
+});
 el("add-data").addEventListener("click", () => showAction("picker"));
 el("save-view").addEventListener("click", () => showAction("save-view"));
 el("close-action").addEventListener("click", closeAction);
@@ -1844,43 +1809,83 @@ el("finish-drawing").addEventListener("click", finishDrawing);
 el("cancel-drawing").addEventListener("click", cancelDrawing);
 
 bridge.on("ui/notifications/host-context-changed", (params) => applyHostContext(params && (params.hostContext || params)));
-bridge.on("ui/notifications/tool-result", () => void refreshAll());
-bridge.on("ui/notifications/resource-updated", (params) => {
+bridge.on("ui/notifications/tool-result", () => {
+  if (state.started) void refreshAll().catch(reportRefreshFailure);
+});
+bridge.on("notifications/resources/updated", (params) => {
   const uri = params && params.uri || params;
-  if (typeof uri === "string" && uri.startsWith("map://")) void refreshAll();
+  if (typeof uri === "string") scheduleResourceRefresh(uri);
 });
 bridge.on("ui/resource-teardown", (_params, id) => {
   state.closing = true;
   clearTimeout(state.refreshTimer);
+  clearTimeout(state.notificationTimer);
+  bridge.close();
   state.map?.remove();
   if (id !== undefined) bridge.post({ jsonrpc: "2.0", id, result: {} });
 });
 
-(async () => {
+async function subscribeResources() {
+  if (state.subscribed || state.closing) return;
+  const subscriptions = mapSubscriptionUris(state.access);
+  if (!subscriptions.length) return;
+  state.subscribed = true;
+  el("live-updates").textContent = "Connecting live updates…";
+  const failed = (error) => {
+    state.subscribed = false;
+    if (state.closing) return;
+    console.error("Live resource updates unavailable", error);
+    el("live-updates").textContent = "Live updates unavailable · Refresh to reconnect";
+    setStatus("Live updates are unavailable. Press Refresh to reconnect.", "warn");
+  };
   try {
+    await bridge.request("subscriptions/listen", {
+      notifications: { resourceSubscriptions: subscriptions },
+    }, { onError: failed });
+    el("live-updates").textContent = "Live updates connected";
+  } catch (error) { failed(error); }
+}
+
+async function start() {
+  if (state.startPromise || state.closing) return state.startPromise;
+  el("refresh").disabled = true;
+  el("refresh").textContent = "Starting…";
+  setStatus("Connecting to the Console…");
+  state.startPromise = (async () => {
+    // Report the local GPU result before waiting for any host data.
+    checkGraphics();
     const initialized = await bridge.request("ui/initialize", {
       protocolVersion: "2026-01-26",
-      appInfo: { name: "map-workspace", version: "2.0.0" },
+      appInfo: { name: "map-explorer", version: "2.0.0" },
       appCapabilities: { availableDisplayModes: ["inline"] },
     });
     bridge.notify("ui/notifications/initialized", {});
     applyHostContext(initialized && initialized.hostContext);
     state.access = await read("map://workspace");
     renderAccess();
+    // Register before the snapshot so updates during startup cannot be lost.
+    await subscribeResources();
     await refreshAll();
     await initializeMap();
-    const subscriptions = [];
-    if (state.access.feature_read) subscriptions.push(
-      "map://feature-layers", "map://publications", "map://compositions");
-    if (state.access.dataset_read) subscriptions.push(
-      "map://datasets", "map://active-releases", "map://mobility-profiles");
-    void bridge.request("subscriptions/listen", { notifications: { resourceSubscriptions: subscriptions } })
-      .catch((error) => {
-        if (state.closing) return;
-        console.error("Live resource updates unavailable", error);
-        setStatus("Live updates are unavailable, so the map won't refresh on its own. Reload to see changes.", "warn");
-      });
-  } catch (error) {
-    setStatus(`The map couldn't start. ${error.message}`, "bad");
+    state.started = true;
+    if (state.changedResources.size) {
+      const changed = new Set(state.changedResources);
+      state.changedResources.clear();
+      await refreshAll(changed);
+    }
+  })();
+  try { await state.startPromise; }
+  catch (error) {
+    if (!state.closing) {
+      setStatus(`The map couldn't start. ${error.message}`, "bad");
+      el("refresh").textContent = "Retry";
+    }
+  } finally {
+    state.startPromise = null;
+    el("refresh").disabled = false;
+    if (state.started) el("refresh").textContent = "Refresh";
   }
-})();
+}
+
+addEventListener("pagehide", () => { state.closing = true; bridge.close(); });
+void start();

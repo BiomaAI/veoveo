@@ -1,7 +1,7 @@
 /**
  * Host side of the stable MCP Apps protocol.
  *
- * The official AppBridge owns JSON-RPC validation, protocol negotiation, and
+ * Veoveo's AppBridge owns JSON-RPC validation, protocol negotiation, and
  * lifecycle handling. Veoveo supplies the product policy around that bridge:
  * app-scoped tool allowlisting, confirmed HTTPS links, inline display, and
  * bounded frame sizing.
@@ -39,6 +39,7 @@ import { interceptRecordingProjectionStreams } from "./recordingProjectionStream
 
 export interface AppBridge {
   dispose: () => void;
+  setTheme: (theme: AppTheme) => void;
   notifyToolResult: (result: CallToolResult) => void;
   notifyToolInput: (args: Record<string, unknown>) => void;
 }
@@ -252,6 +253,9 @@ export function attachAppBridge(
   });
 
   return {
+    setTheme: (theme) => {
+      void bridge.setTheme(theme).catch((error: unknown) => console.error("MCP App theme update failed", error));
+    },
     dispose: () => {
       subscriptions.dispose();
       projectionStreams.dispose();

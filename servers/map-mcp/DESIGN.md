@@ -484,7 +484,20 @@ release and viewport. Generation cancellation prevents stale responses from
 painting after a camera or visibility change. The visible cap is reported
 instead of silently dropping the condition. The UI reports a successful
 refresh only after MapLibre reaches an idle paint with returned geometry
-visible. Resource subscriptions wake the App to reread canonical state.
+visible. Resource subscriptions use MCP `notifications/resources/updated` and
+cover admitted layers, publications, compositions, datasets, active releases and
+mobility profiles. Source registration and acquisition indexes support explicit reads;
+they do not expose update subscriptions. An active-release change also refreshes its
+source and dataset metadata. The App registers before reading its first snapshot. Notifications within
+80 ms coalesce into a refresh of the changed indexes with at most four concurrent
+reads. The App publishes a snapshot only when its requested reads succeed; a failed
+refresh preserves the previous view and offers Retry.
+
+The hardware WebGL2 check runs before host requests. Ordinary bridge requests time
+out after 15 seconds; a subscription deadline ends on the MCP acknowledgment and
+does not limit a healthy stream. Teardown rejects pending requests. Startup Retry
+repeats the handshake, permission read and map initialization inside the same frame.
+Mutations are never replayed automatically after a missing response.
 
 The Add data workflow distinguishes three actions. Create layer uses ordinary
 fields with a permissive JSON Schema default. Add feature uses map drawing,

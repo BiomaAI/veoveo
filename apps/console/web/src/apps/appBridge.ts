@@ -144,6 +144,12 @@ export class AppBridge {
     await this.notify("ui/notifications/tool-input", params);
   }
 
+  async setTheme(theme: HostContext["theme"]): Promise<void> {
+    if (this.options.hostContext.theme === theme) return;
+    this.options.hostContext.theme = theme;
+    await this.notify("ui/notifications/host-context-changed", { theme });
+  }
+
   private async notify(method: string, params: Record<string, unknown>): Promise<void> {
     if (!this.transport) throw new Error("MCP App bridge is not connected");
     await this.transport.send({ jsonrpc: "2.0", method, params } as JSONRPCMessage);
