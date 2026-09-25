@@ -125,7 +125,7 @@ material they operate:
 | [`docs/IMAGE_BUILDS.md`](IMAGE_BUILDS.md) | typed Bake planning, managed builder, cache families, and immutable image publication |
 | [`docs/IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md) | image-graph baseline, cold and warm measurements, digest equality, and incremental-build acceptance |
 | [`examples/bioma/README.md`](../examples/bioma/README.md) | enterprise GitOps reference and owner-local compiled acceptance over k3d, OCI charts, Entra, and Cloudflare Tunnel |
-| [`showcase/README.md`](../showcase/README.md) | showcase entrypoint |
+| [`showcase/README.md`](../showcase/README.md) | reference integrations and the pattern for connecting robots and simulators |
 | [`showcase/sumo/README.md`](../showcase/sumo/README.md) | SUMO/TraCI integration and operations |
 | [`showcase/uav-sim/README.md`](../showcase/uav-sim/README.md) | Isaac/Cesium/Newton/Warp/PX4 UAV simulation integration and operations |
 | [`showcase/uav-sim/agents/DESIGN.md`](../showcase/uav-sim/agents/DESIGN.md) | reviewed managed pilot template, seed instructions, retained identity and volume transfer |

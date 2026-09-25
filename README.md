@@ -18,13 +18,13 @@ On infrastructure you own.</h3>
 
 Veoveo is a self-hosted platform for AI agents that work with physical systems.
 Agents read sensors and camera streams, rehearse missions in simulation, command
-vehicles, and record everything that happened so people can query it later. The organization that deploys Veoveo runs it on its own cluster, with its
+robots, and record everything that happened so people can query it later. The organization that deploys Veoveo runs it on its own cluster, with its
 own identity provider, storage, models, policies, and domain name.
 
 [Product tour](#product-tour) · [Agentic apps](#agentic-apps) ·
 [Compared to Palantir](#compared-to-palantir) ·
-[Executable showcases](#executable-showcases) ·
-[Bring your own simulator](#bring-your-own-simulator) ·
+[Robots and simulators](#connect-robots-and-simulators) ·
+[Reference integrations](#reference-integrations) ·
 [Connectors](#enterprise-connectors) ·
 [Deployment](#deploy-your-installation) ·
 [Software factory](#a-software-factory) ·
@@ -39,18 +39,15 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
 
 ## What You Can Do With It
 
-- **Rehearse UAV missions.** Fly
-  [multirotor missions](#uav-flight-in-isaac-sim) over photorealistic
-  terrain with simulated flight dynamics and PX4 autopilot firmware, and keep
-  each run as a recording.
-- **Control traffic.** Read traffic state, retime signals, and reroute vehicles
-  in a SUMO simulation of Luxembourg, then replay the result.
-- **Bring your own simulator.** Connect any simulator as an MCP server.
-  [SUMO and Isaac Sim](#bring-your-own-simulator) are the reference
-  integrations.
+- **Command robots.** Agents operate robots and other physical systems through
+  MCP servers the installation connects, under its identity, policy, and audit.
+- **Rehearse in simulation.** Connect any simulator the same way and rehearse a
+  mission before it runs in the field. The
+  [reference integrations](#reference-integrations) fly a PX4 drone fleet in
+  Isaac Sim and control traffic in SUMO.
 - **Run detection on video.** Detect and track objects in authorized camera
   streams on your own GPUs.
-- **Record field operations.** Stream camera, telemetry, and vehicle state
+- **Record field operations.** Stream camera, telemetry, and robot state
   from field producers into one timeline.
 - **Query recordings with Rerun.** Open any recording you can access in the
   native Rerun Viewer, or load it into pandas with Rerun's Python SDK.
@@ -67,42 +64,37 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   the work behind a live interface. Apps use the installation's sign-in,
   policy, and audit log from their first request.
 
-## Simulators And Vehicles
+## Connect Robots And Simulators
 
 Agents work from data the installation manages: map releases and routing,
 civil time and calendars, coordinate frames, photorealistic 3D Tiles scenes,
 simulated worlds, and continuous recordings of fielded operations.
 
-An agent commands a vehicle only while it holds a grant for that vehicle and an
-exclusive command lease, and it flies mission plans the UAV server has admitted.
-A vehicle adapter behind those controls carries each command to whatever executes
-it. The UAV showcase's adapter flies a PX4 fleet in Isaac Sim over MAVLink 2
-hardware-in-the-loop, with the same autopilot firmware and protocol that fly real
-aircraft. Connecting a fleet means adding an adapter for its control link. The
-grants, leases, missions, and recordings the agent uses stay the same.
+Robots, fleets, and simulators join an installation as MCP servers. Each one is
+connected the same way, whether it is a physical system or a simulation of one:
 
-### Bring your own simulator
+- An MCP server in the installation's fork owns the system's control link.
+  Reads and commands become tools, long operations become tasks with a declared
+  recovery behavior, and watched conditions become resources agents subscribe to.
+- The system publishes its state, sensors, and cameras to Recording Hub as Rerun
+  streams, so a rehearsal and a fielded run produce the same kind of recording.
+- Cameras publish through the live-view contract, which the Python SDK implements
+  for Python servers.
+- The server registers in the gateway catalog. From its first request, its tools
+  pass the installation's identity, policy, task, artifact, and audit checks, and
+  agents, Stream, Reason, and the Console can work with it.
 
-Any simulator can join an installation. SUMO and Isaac Sim are the reference
-integrations, and a new simulator follows the same pattern:
-
-- An MCP server in the installation's fork wraps the simulator's control API.
-  Reads and commands become tools, long runs become tasks, and watched
-  conditions become resources that agents subscribe to.
-- The simulator publishes world state to Recording Hub as Rerun streams, so a
-  rehearsal and a fielded run produce the same kind of recording.
-- Simulator cameras publish through the live-view contract, which the Python
-  SDK implements for Python servers.
-- The server registers in the gateway catalog and gets the same identity,
-  policy, task, artifact, and audit handling as the built-in servers.
-
-[Fork development](docs/FORK_DEVELOPMENT.md) covers where the server lives, and
-[the showcases](showcase/README.md) are working examples.
+A server can add the domain authority its system needs on top of the
+installation's policy. The UAV reference integration, for example, lets an agent
+command a vehicle only while it holds that vehicle's grant and an exclusive
+command lease. [Fork development](docs/FORK_DEVELOPMENT.md) covers where the
+server lives, and the [reference integrations](#reference-integrations) are
+working examples.
 
 ## Recordings In Rerun
 
 An installation records what happens in [Rerun](https://rerun.io/)'s open format:
-sensor and camera streams from the field, world state from SUMO and Isaac Sim, poses
+sensor and camera streams from the field, world state from robots and simulators, poses
 and telemetry, Stream detections, and Reason results. Producers push data through
 the gateway from inside the cluster, a local network, or the internet, and each
 recording keeps its streams on one synchronized timeline. A rehearsal in simulation
@@ -135,8 +127,9 @@ holds none, so any compatible MCP host can drive an installation without
 receiving server credentials. NVIDIA's
 [agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack)
 puts the line in the same place: "The harness guides what an agent tries. The
-infrastructure controls what an agent can do." Vehicle commands also require an
-exclusive per-vehicle command lease.
+infrastructure controls what an agent can do." A server can add domain authority
+on top of that policy, as the UAV reference integration does with an exclusive
+command lease for each vehicle.
 
 <a href="docs/images/harness-poster.png">
   <picture>
@@ -155,19 +148,19 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Palantir product | What it does | How Veoveo compares |
 |---|---|---|
 | AIP | AI agents acting on enterprise systems through a controlled action layer | Closest match. Veoveo's gateway provides identity, policy, long-running tasks, and audit over the open Model Context Protocol, so any MCP host and any model can use it. |
-| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command the vehicles that fly them, and record every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
+| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command robots in the field, and record every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
 | Foundry | Enterprise data integration, ontology, and operational applications | Partial overlap. Work Contexts, artifacts, and analytical stores cover data ownership and access, and MCP Apps provide operational interfaces. Veoveo has no equivalent of Foundry's ontology. |
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
-Veoveo adds control and recording of the operations themselves: vehicle command
-under per-vehicle grants and leases, simulators for rehearsal, live video
-pipelines, and a Rerun timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
+Veoveo adds control and recording of the operations themselves: robots and
+simulators connected as governed MCP servers, live video pipelines, and a Rerun
+timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
 Foundry is listed in the [connector catalog](docs/connectors/README.md).
 
 ## Agentic Apps
 
 An agentic app pairs an agent with a live interface. An operator types an
-instruction, the agent drives a vehicle, a simulator, or a video pipeline, and the
+instruction, the agent drives a robot, a simulator, or a video pipeline, and the
 interface shows progress and results as they arrive. Veoveo's own charts,
 maps, forecasts, and 3D views are built this way, and the server capabilities
 behind them are available to your apps.
@@ -187,7 +180,7 @@ as the built-in ones.
 
 | Capability | What it provides |
 |---|---|
-| Real and simulated worlds | Recordings, coordinate frames and time references, SUMO, Isaac Sim, or your own simulator, camera streams, vehicle control with grants and command leases, and 3D Tiles scenes. |
+| Real and simulated worlds | Robots and simulators connected as MCP servers, recordings, coordinate frames and time references, camera streams, and 3D Tiles scenes. SUMO and Isaac Sim are the reference integrations. |
 | Analysis and planning | Sandboxed DuckDB SQL, forecasting, optimization, operator-approved live and replay video processing, and temporal reasoning. |
 | Long-running work | Tasks that recover after restarts, cancellation, budgets, agent wakes, and stored results for work that outlives one request. |
 | Interactive apps | Interfaces that ship with each server for charts, forecasts, maps, and 3D views rendered on cluster GPUs. The same app can run in the Console or a compatible external MCP host. |
@@ -236,12 +229,12 @@ with an owner, provenance, release state, and access list.
 | [![Stream detection video artifact](docs/screenshots/gallery/console-artifact-video.png)](docs/screenshots/gallery/console-artifact-video.png) | [![Continuous recording playback](docs/screenshots/gallery/console-recordings.png)](docs/screenshots/gallery/console-recordings.png) |
 | Stream-derived media preview and access | One authorized timeline in embedded Rerun |
 
-## Executable Showcases
+## Reference Integrations
 
-The showcases run the platform against real simulator runtimes. Each one is a
-deployable workload with typed MCP contracts, a recording path, and acceptance
-tests. Any other simulator joins the same way, as described in
-[Bring your own simulator](#bring-your-own-simulator).
+Two reference integrations show how a system connects to the platform, end to
+end. Each one is a deployable workload with typed MCP contracts, a recording path,
+and acceptance tests. Robots and simulators you connect follow the same pattern,
+described in [Connect robots and simulators](#connect-robots-and-simulators).
 
 ### UAV flight in Isaac Sim
 
@@ -359,7 +352,7 @@ without changing the servers behind them.
 | `stream` | Operator-approved live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, artifacts, and an interactive forecast app. |
-| `uav-sim` | Multi-vehicle simulation, missions, datasets, operator cameras rendered in the simulator, shared NVENC video, stream authorization, and a WebCodecs App. |
+| `uav-sim` | Reference integration for UAV fleets: multi-vehicle simulation, missions, datasets, operator cameras rendered in the simulator, shared NVENC video, stream authorization, and a WebCodecs App. |
 | `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
 The agent runtime adds episodes that survive restarts, detach and resume,
