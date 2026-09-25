@@ -25,7 +25,7 @@ import type {
 } from "./types";
 import { authenticationRequired, redirectToLogin } from "./auth";
 
-import { browserSession } from "./csrf";
+import { acceptBrowserCsrfToken, browserSession } from "./csrf";
 import { forbiddenMessage, httpErrorMessage, sessionNotReadyMessage, unexpectedResponseMessage } from "./httpMessages";
 
 export function initializeAppSession(token: string): void {
@@ -52,7 +52,7 @@ export async function loadSnapshot(signal?: AbortSignal): Promise<InstallationSn
     headers: { Accept: "application/json" },
     signal
   });
-  browserSession.csrfToken = response.headers.get("x-veoveo-csrf-token") ?? undefined;
+  acceptBrowserCsrfToken(response.headers.get("x-veoveo-csrf-token"));
   if (response.status === 401) {
     authenticationRequired();
   }
