@@ -13,13 +13,10 @@
   <a href="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml"><img src="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml/badge.svg?branch=main" alt="Build"></a>
 </p>
 
-<h3 align="center">Autonomous agents that run operations in the physical world.<br>
-On infrastructure you own.</h3>
+<h3 align="center">Autonomous operations on infrastructure you own.</h3>
 
-Veoveo is a self-hosted platform for AI agents that work with physical systems.
-Agents read sensors and camera streams, rehearse missions in simulation, command
-robots, and record everything that happened so people can query it later. The organization that deploys Veoveo runs it on its own cluster, with its
-own identity provider, storage, models, policies, and domain name.
+Veoveo is a self-hosted autonomy harness for physical AI, where humans, robots and
+agents learn, play and evolve together in simulated and real worlds.
 
 [Product tour](#product-tour) · [Agentic apps](#agentic-apps) ·
 [Compared to Palantir](#compared-to-palantir) ·
