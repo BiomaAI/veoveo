@@ -113,7 +113,7 @@ async fn composite_host_replaces_its_namespace_and_retains_the_computer() -> Res
     fixture
         .fault("limits-before", binding.computer_id())
         .await?;
-    exec(&runtime, &binding, "import multiprocessing as m, time\ndef burn():\n end=time.monotonic()+3\n while time.monotonic()<end: pass\njobs=[m.Process(target=burn) for _ in range(4)]\nfor job in jobs: job.start()\nfor job in jobs: job.join()\nassert all(job.exitcode==0 for job in jobs)").await?;
+    exec(&runtime, &binding, "import multiprocessing as m, time\ndef burn():\n end=time.monotonic()+3\n while time.monotonic()<end: pass\njobs=[m.get_context('fork').Process(target=burn) for _ in range(4)]\nfor job in jobs: job.start()\nfor job in jobs: job.join()\nassert all(job.exitcode==0 for job in jobs)").await?;
     fixture.fault("limits-after", binding.computer_id()).await?;
     stop(&runtime, fixture.provider, &binding).await?;
     std::fs::write(

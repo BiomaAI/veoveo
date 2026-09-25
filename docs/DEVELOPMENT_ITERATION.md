@@ -76,6 +76,29 @@ activation continues through its GitOps repository.
 
 ## Evidence And Defect Records
 
+### Computers Resource Update — September 25, 2026
+
+Staging `computer-host` at `4db200a0` compiled the changed Veoveo host and storage
+release binaries in 48.92 seconds. The solve also rebuilt the unchanged pinned
+OpenShell provider: Debian package layers, source extraction and its independent
+gateway/supervisor builds ran again. The supervisor took 2 minutes 8 seconds and
+the gateway build took 3 minutes 22 seconds. Total staging took 533.709 seconds;
+export took about 25 seconds and pushing the manifest took 114 milliseconds.
+The command used the established `localhost:5001` registry endpoint and the existing
+managed builder. No broader image matrix was requested.
+
+The provider is already a separate Bake target. Its unchanged output should survive
+eviction of intermediate layers through a qualified immutable artifact or reusable
+cache export keyed to its patch manifest, toolchain and packaging inputs. This is a
+remaining iteration improvement; the resource fix does not change provider pins or
+add another build route. Detailed output is in the ignored
+`output/computers-resource-check/host-build.log`.
+
+The unclassified native test receipts also copy repository-wide input manifests.
+Four source/storage/chart attempts added about 98,000 lines of receipt history.
+Scoped check declarations and shared input-manifest storage would reduce this cost;
+their dependency and environment coverage must remain explicit.
+
 The September 24 installed Computers check found HTTP 503 in both browser clients.
 The Rerun dependency graph enabled `serde_json/preserve_order` in the gateway, while
 the Computers build sorted JSON object keys. Publishing metadata in input order
