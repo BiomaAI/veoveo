@@ -18,13 +18,13 @@ On infrastructure you own.</h3>
 
 Veoveo is a self-hosted platform for AI agents that work with physical systems.
 Agents read sensors and camera streams, rehearse missions in simulation, command
-simulated vehicles, and record everything that happened so people can query it
-later. The organization that deploys Veoveo runs it on its own cluster, with its
+vehicles, and record everything that happened so people can query it later. The organization that deploys Veoveo runs it on its own cluster, with its
 own identity provider, storage, models, policies, and domain name.
 
 [Product tour](#product-tour) · [Agentic apps](#agentic-apps) ·
 [Compared to Palantir](#compared-to-palantir) ·
 [Executable showcases](#executable-showcases) ·
+[Bring your own simulator](#bring-your-own-simulator) ·
 [Connectors](#enterprise-connectors) ·
 [Deployment](#deploy-your-installation) ·
 [Software factory](#a-software-factory) ·
@@ -43,8 +43,11 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   [multirotor missions](#uav-flight-in-isaac-sim) over photorealistic
   terrain with simulated flight dynamics and PX4 autopilot firmware, and keep
   each run as a recording.
-- **Control simulated traffic.** Read traffic state, retime signals, and
-  reroute vehicles in a SUMO simulation of Luxembourg, then replay the result.
+- **Control traffic.** Read traffic state, retime signals, and reroute vehicles
+  in a SUMO simulation of Luxembourg, then replay the result.
+- **Bring your own simulator.** Connect any simulator as an MCP server.
+  [SUMO and Isaac Sim](#bring-your-own-simulator) are the reference
+  integrations.
 - **Run detection on video.** Detect and track objects in authorized camera
   streams on your own GPUs.
 - **Record field operations.** Stream camera, telemetry, and vehicle state
@@ -64,15 +67,37 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   the work behind a live interface. Apps use the installation's sign-in,
   policy, and audit log from their first request.
 
-## Simulation And Reality
+## Simulators And Vehicles
 
 Agents work from data the installation manages: map releases and routing,
 civil time and calendars, coordinate frames, photorealistic 3D Tiles scenes,
-a simulated city's traffic, simulated UAV flight, and continuous recordings of
-what actually happened. Today's vehicle adapters are simulators: Isaac Sim with
-PX4 for UAVs, and SUMO for road traffic. The UAV server's per-vehicle grants and
-command leases are provider-neutral, so a real-vehicle adapter would plug into
-the same controls an agent already uses in simulation.
+simulated worlds, and continuous recordings of fielded operations.
+
+An agent commands a vehicle only while it holds a grant for that vehicle and an
+exclusive command lease, and it flies mission plans the UAV server has admitted.
+A vehicle adapter behind those controls carries each command to whatever executes
+it. The UAV showcase's adapter flies a PX4 fleet in Isaac Sim over MAVLink 2
+hardware-in-the-loop, with the same autopilot firmware and protocol that fly real
+aircraft. Connecting a fleet means adding an adapter for its control link. The
+grants, leases, missions, and recordings the agent uses stay the same.
+
+### Bring your own simulator
+
+Any simulator can join an installation. SUMO and Isaac Sim are the reference
+integrations, and a new simulator follows the same pattern:
+
+- An MCP server in the installation's fork wraps the simulator's control API.
+  Reads and commands become tools, long runs become tasks, and watched
+  conditions become resources that agents subscribe to.
+- The simulator publishes world state to Recording Hub as Rerun streams, so a
+  rehearsal and a fielded run produce the same kind of recording.
+- Simulator cameras publish through the live-view contract, which the Python
+  SDK implements for Python servers.
+- The server registers in the gateway catalog and gets the same identity,
+  policy, task, artifact, and audit handling as the built-in servers.
+
+[Fork development](docs/FORK_DEVELOPMENT.md) covers where the server lives, and
+[the showcases](showcase/README.md) are working examples.
 
 ## Recordings In Rerun
 
@@ -130,19 +155,19 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Palantir product | What it does | How Veoveo compares |
 |---|---|---|
 | AIP | AI agents acting on enterprise systems through a controlled action layer | Closest match. Veoveo's gateway provides identity, policy, long-running tasks, and audit over the open Model Context Protocol, so any MCP host and any model can use it. |
-| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: missions are flown in simulation, and every run is recorded. It has no equivalent of Gotham's intelligence-analysis tooling. |
+| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command the vehicles that fly them, and record every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
 | Foundry | Enterprise data integration, ontology, and operational applications | Partial overlap. Work Contexts, artifacts, and analytical stores cover data ownership and access, and MCP Apps provide operational interfaces. Veoveo has no equivalent of Foundry's ontology. |
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
-Veoveo adds simulation and recording of the operations themselves: simulator
-runtimes that run PX4 autopilot firmware, live video pipelines, and a Rerun
-timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
+Veoveo adds control and recording of the operations themselves: vehicle command
+under per-vehicle grants and leases, simulators for rehearsal, live video
+pipelines, and a Rerun timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
 Foundry is listed in the [connector catalog](docs/connectors/README.md).
 
 ## Agentic Apps
 
 An agentic app pairs an agent with a live interface. An operator types an
-instruction, the agent drives a simulator or a video pipeline, and the
+instruction, the agent drives a vehicle, a simulator, or a video pipeline, and the
 interface shows progress and results as they arrive. Veoveo's own charts,
 maps, forecasts, and 3D views are built this way, and the server capabilities
 behind them are available to your apps.
@@ -162,7 +187,7 @@ as the built-in ones.
 
 | Capability | What it provides |
 |---|---|
-| Real and simulated worlds | Recordings, coordinate frames and time references, traffic simulation, UAV simulation, camera streams, simulated vehicle control, and 3D Tiles scenes. |
+| Real and simulated worlds | Recordings, coordinate frames and time references, SUMO, Isaac Sim, or your own simulator, camera streams, vehicle control with grants and command leases, and 3D Tiles scenes. |
 | Analysis and planning | Sandboxed DuckDB SQL, forecasting, optimization, operator-approved live and replay video processing, and temporal reasoning. |
 | Long-running work | Tasks that recover after restarts, cancellation, budgets, agent wakes, and stored results for work that outlives one request. |
 | Interactive apps | Interfaces that ship with each server for charts, forecasts, maps, and 3D views rendered on cluster GPUs. The same app can run in the Console or a compatible external MCP host. |
@@ -215,7 +240,8 @@ with an owner, provenance, release state, and access list.
 
 The showcases run the platform against real simulator runtimes. Each one is a
 deployable workload with typed MCP contracts, a recording path, and acceptance
-tests.
+tests. Any other simulator joins the same way, as described in
+[Bring your own simulator](#bring-your-own-simulator).
 
 ### UAV flight in Isaac Sim
 
