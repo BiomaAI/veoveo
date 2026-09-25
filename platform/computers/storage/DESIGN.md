@@ -1,9 +1,7 @@
 # Retained Computer Storage
 
-Status: the journal, filesystem backend, private mTLS service and Docker volume plugin
-pass isolated native qualification, including shared mounts across helper replacement.
-Durable physical handoff also passes its native fault case. Worker maintenance
-orchestration, release packaging and installed acceptance remain implementation work.
+The Rust allocator owns retained-home allocation, recovery and physical writer
+admission. The [Computers plan](../../../docs/COMPUTERS_PLAN.md) records qualification.
 
 ## Standards And Protocols
 
@@ -12,10 +10,10 @@ orchestration, release packaging and installed acceptance remain implementation 
 | `veoveo.io/computer-storage/v1` | Private bounded JSON frames over TLS 1.3 with worker client authentication; exact provider, Computer, template and instance identity |
 | Docker volume-plugin API v1 | Named retained volumes, local scope and a private Unix socket; notifications do not transfer writer authority |
 | Docker Engine API `1.53` | Exact engine identity and registered-container observation; provider mutations remain with the Computers worker |
-| Linux ext4 and loop devices | Fixed, preallocated backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
+| Linux ext4 and loop devices | Fixed logical-size sparse backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
 | `veoveo.io/retained-storage-host/v1` and `veoveo.io/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
-| util-linux and e2fsprogs command profiles | Bounded `fallocate`, `mkfs.ext4`, read-only `e2fsck`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
+| util-linux and e2fsprogs command profiles | Bounded `mkfs.ext4`, read-only `e2fsck`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
 
 ## Ownership And Deployment
 
@@ -38,8 +36,7 @@ native service fixture publishes mounts through a dedicated `rshared` bind and g
 the daemon the corresponding `rslave` bind. The [composite compute host](../host/DESIGN.md)
 instead runs both in one mount namespace and qualifies restoration after that container
 is replaced. The installation must not change propagation for unrelated host paths or
-restart the host Docker daemon to install the helper. Kubernetes installation and
-public acceptance remain delivery work.
+restart the host Docker daemon to install the helper.
 
 The storage client CA is distinct from the provider guest CA. Its certificates admit
 only the Computers worker. Docker's plugin socket is local to the compute host and
@@ -54,7 +51,8 @@ does not stand in for physical writer exclusion. The owner never deletes the loc
 while the root exists. Records use Computer UUID filenames and deny unknown fields.
 
 Prepare first persists an allocating record. It may create a new backing file exactly
-once, then preallocate and format it, mount the filesystem, establish the admitted home
+once, set its logical maximum without allocating data blocks, format it with explicit
+discard, mount the filesystem, establish the admitted home
 permissions and persist Ready with the backing-file identity. A crash leaves explicit
 incomplete state. Repeating Prepare cannot reformat that state or silently seed a new
 home. Files from incomplete allocation continue to count against physical capacity.
@@ -83,8 +81,25 @@ not an assumption that device nodes present at container creation remain complet
 Restore requires the recorded provider, Computer, template and admitted instance. It
 verifies the backing file and filesystem identity before reopening the mount. It does
 not resize, replace or format a file. A restart may reattach the exact verified backing
-file; missing or substituted bytes require recovery. Free-space reserve applies before
-allocation, including concurrently admitted homes, logs and temporary host usage.
+file; missing or substituted bytes require recovery.
+
+`reserveBytes` is a minimum-free-space admission threshold, at least 512 MiB. New
+allocation checks currently available blocks against that threshold; the home's full
+maximum is not reserved. Filesystem metadata consumes real blocks at creation and
+user writes allocate more. A home reaches ENOSPC at its own filesystem capacity.
+The threshold does not protect bytes from existing writers, Docker layers or other
+host workloads. The installation must monitor actual shared-disk usage; a local-path
+PVC size alone enforces no pool quota. If the backing filesystem fills, loop-device
+writes can fail and ext4 can require operator recovery. No automatic reformat, file
+replacement or eviction follows such a failure. Recovered free space allows normal
+allocation admission, while incomplete allocations keep their journal and require
+the existing recovery checks.
+
+The on-disk v1 format and fixed logical capacity are unchanged by thin allocation.
+Retained files keep their inode, ext4 UUID, writer and bytes. A host image change
+requires draining guest work and stopping Computers before replacing the host, then
+resuming the same resources. Rollback uses the prior image after the same drain and
+does not convert or recreate homes; its admission policy may require more free space.
 
 An allocation record is outside the user's mounted `home` subdirectory. File publication
 uses a private temporary file, a synchronized file and an atomic directory operation,
@@ -241,7 +256,7 @@ fault profile. Template qualification cannot silently substitute that smaller pr
 `filesystem` requires root, a persistent ext-family host volume and a free-space
 reserve. The native profile uses ext4; volatile, overlay and remote roots are rejected.
 A new reservation creates its
-backing file exclusively, preallocates its complete size and formats ext4 with the
+backing file exclusively, sets its logical size and formats ext4 with the
 Computer UUID. An existing incomplete reservation returns Recovery Required. Ready
 restoration verifies the recorded file device/inode/length, ext4 type and UUID, exact
 loop mapping, mount target/options and home UID/GID. New homes start with mode 0700.
@@ -256,8 +271,11 @@ its child. Command output is never a public failure payload. Kernel mount operat
 use the qualified Nix crate. No new dependency version is selected for this backend.
 
 `tests/native_filesystem.rs` runs the production backend as root in two disposable
-containers using the existing pinned Computer image. It preallocates 512 MiB, reaches
-ENOSPC, preserves a file and reopens the allocation after the original helper container
+containers using the pinned Computer image. A 768 MiB disposable ext4 pool admits a
+sparse 512 MiB home with a 512 MiB free-space floor, proving that admission does not
+require the complete maximum plus that floor. It checks allocated blocks, reaches
+the home limit, then fills the outer pool and verifies rejection before a new journal
+record. It restores free space, preserves a file and reopens the allocation after the original helper container
 exits, including an owner's changed home permissions. It rejects another instance and a changed ext4 UUID without changing the stored
 identity. A separate cleanup phase verifies loop detachment before removing fixture
 files. The fixture uses an explicit local Docker socket, isolated mount namespaces and

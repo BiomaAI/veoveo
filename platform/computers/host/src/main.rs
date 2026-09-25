@@ -1,5 +1,6 @@
 mod config;
 mod files;
+mod isolation;
 mod process;
 mod runtime;
 
@@ -14,17 +15,32 @@ struct Args {
 }
 #[derive(Subcommand)]
 enum Action {
+    Init {
+        #[arg(long)]
+        config: PathBuf,
+    },
     Run {
         #[arg(long)]
         config: PathBuf,
     },
     Health,
 }
-#[tokio::main]
-async fn main() -> Result<()> {
-    match Args::parse().command {
+fn main() -> Result<()> {
+    let action = Args::parse().command;
+    if let Action::Init { config } = action {
+        return isolation::initialize(&config);
+    }
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?
+        .block_on(run(action))
+}
+async fn run(action: Action) -> Result<()> {
+    match action {
+        Action::Init { .. } => unreachable!("initialization precedes runtime threads"),
         Action::Health => runtime::health().await,
         Action::Run { config } => {
+            isolation::verify_runtime()?;
             ensure!(
                 nix::unistd::geteuid().is_root(),
                 "compute host requires its privileged container"

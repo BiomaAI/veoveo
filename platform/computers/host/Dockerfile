@@ -24,6 +24,6 @@ RUN /usr/local/bin/openshell-gateway --version \
     && sha256sum veoveo-computer-host veoveo-computer-storage openshell-gateway openshell-driver-docker openshell-sandbox dockerd docker containerd containerd-shim-runc-v2 runc docker-init docker-proxy dind > /usr/share/veoveo-computer-host-binaries.sha256
 EXPOSE 8805 8806
 USER root
-# dind only runs inside this container's private network/mount/PID namespaces.
-ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/docker-init", "--", "/usr/local/bin/veoveo-computer-host"]
-CMD ["run", "--config", "/etc/veoveo/computers/host-config/host.json"]
+# Rust scopes cgroups before upstream dind enables nested container controllers.
+ENTRYPOINT ["/usr/local/bin/veoveo-computer-host"]
+CMD ["init", "--config", "/etc/veoveo/computers/host-config/host.json"]

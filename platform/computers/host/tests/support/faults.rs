@@ -1,5 +1,7 @@
 //! Faults run only in the owned native fixture's private host namespace.
 use anyhow::{Result, ensure};
+#[path = "limits.rs"]
+mod limits;
 use std::{
     fs::{self, File},
     os::unix::fs::{FileTypeExt, MetadataExt},
@@ -48,6 +50,8 @@ pub fn run(mode: &str) -> Result<()> {
     let directory = PathBuf::from("/var/lib/veoveo-computers/state/retained/homes")
         .join(computer.simple().to_string());
     match mode {
+        "limits-before" => limits::check(&directory, false),
+        "limits-after" => limits::check(&directory, true),
         "hide-loop-nodes" => hide_nodes(),
         "interrupt-allocation" => {
             let record = directory.join("record.json");

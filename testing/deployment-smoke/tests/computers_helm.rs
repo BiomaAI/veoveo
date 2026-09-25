@@ -55,6 +55,10 @@ fn core_presets_render_stable_unconfigured_control_without_privileged_capacity()
         let pod = &deployment["spec"]["template"]["spec"];
         ensure!(pod["automountServiceAccountToken"] == false);
         let container = &pod["containers"][0];
+        ensure!(container["resources"]["requests"]["cpu"] == "0");
+        ensure!(container["resources"]["requests"]["memory"] == "0");
+        ensure!(container["resources"]["limits"]["cpu"] == "2");
+        ensure!(container["resources"]["limits"]["memory"] == "1Gi");
         ensure!(container["securityContext"]["allowPrivilegeEscalation"] == false);
         ensure!(container["securityContext"]["readOnlyRootFilesystem"] == true);
         ensure!(container["readinessProbe"]["httpGet"]["path"] == "/computers/healthz");
@@ -148,6 +152,9 @@ fn configured_capacity_requires_explicit_configuration_and_trust() -> Result<()>
     );
     ensure!(pod["terminationGracePeriodSeconds"] == 60);
     ensure!(pod["containers"][0]["securityContext"]["privileged"] == true);
+    let resources = &pod["containers"][0]["resources"];
+    ensure!(resources["requests"]["cpu"] == "0" && resources["requests"]["memory"] == "0");
+    ensure!(resources["limits"]["cpu"] == "8" && resources["limits"]["memory"] == "12Gi");
     ensure!(
         pod["volumes"]
             .as_array()

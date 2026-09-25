@@ -157,6 +157,13 @@ impl Fixture {
     }
     async fn launch(&mut self) -> Result<()> {
         let mut command = host();
+        // Reproduce Kubernetes' node-wide cgroup view on the replacement. Its
+        // bootstrap must scope this before upstream dind enables controllers.
+        let cgroup_namespace = if self.generation == 0 {
+            "private"
+        } else {
+            "host"
+        };
         command.args([
             "create",
             "--pull",
@@ -164,12 +171,14 @@ impl Fixture {
             "--name",
             &self.name,
             "--privileged",
+            "--cgroupns",
+            cgroup_namespace,
             "--network",
             "bridge",
             "--memory",
             "6g",
             "--cpus",
-            "4",
+            "1",
             "--pids-limit",
             "1024",
             "--tmpfs",
