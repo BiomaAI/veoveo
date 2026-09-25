@@ -3,13 +3,39 @@
 Status: delivered September 20, 2026. Governed authoring, publication, explicit
 revision adoption and managed lifecycle are deployed at `veoveo.bioma.ai`. The four
 migrated UAV pilots retain their original runtime IDs, principals, signing keys and
-physical memory volumes. Normal GitOps reconciliation is active.
+physical memory volumes. Normal GitOps reconciliation is active. The September 24
+upgrade recheck below records an unresolved UAV pilot authentication failure.
 
 Installed checks cover real chat and managed model execution, native MCP Task
 navigation and gateway replacement, named Computer grants, wrong-vehicle denial,
 stop/archive, retained memory and credential revocation. Idle credential renewal
 adds no model calls. The completion checkpoint below distinguishes these passing
 feature checks from the outstanding simulator flight and broader qualification work.
+
+## Upgrade Recheck — September 24, 2026
+
+Chat agents completed real Workspace replies during the
+[installed group check](WORKSPACE_PLAN.md#installed-upgrade-check--september-24-2026).
+The four managed UAV pilots are not cleared by this check. Their Kubernetes pods
+report Ready, but gateway credential renewal rejects them with `managed template
+changed`: the published definition still references the previous approved runtime
+template. Pod readiness does not establish usable agent credentials.
+
+The operator UI saved UAV Pilot draft revision 5 with **Use the approved template**.
+Review identified an execution-template change. Publication was refused because
+validation could not discover the simulator tools. The UAV MCP process requires
+Isaac Sim to apply its world binding before startup; starting only that process did
+not provide a catalog, and it was stopped again. No published revision or managed
+instance changed during this preparation.
+
+The simulator and its MCP deployment are both scaled to zero, with the simulation
+HelmRelease suspended as requested. Completion requires an approved brief simulator
+window: validate and publish the prepared definition, apply the reviewed revision
+to all four existing instances, verify credential renewal and bounded non-flight
+queries, then stop the simulator services again. Keep the existing identities,
+grants and memory. Do not remove tool validation or restore an older runtime image
+to bypass this dependency. This pending work supersedes the earlier healthy-pilot
+checkpoint for the currently upgraded installation.
 
 ## Standards And Protocols
 

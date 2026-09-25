@@ -33,6 +33,42 @@ The selected provider incorporates qualified gateway and supervisor fixes from t
 handoff. The runtime design records the maintained patches and their qualification
 boundary. Broader provider compatibility requires a separate qualified upgrade.
 
+## Installed Upgrade Check — September 24, 2026
+
+The signed-in owner checked both retained Computers in Console and Workspace on
+`veoveo.bioma.ai`. Helm release 215 runs Computers service source `11829800`, image
+`sha256:7940434141c08edc844e828033f55ff8ce848b61b9557568859a117c13705086`.
+Gateway source `b92e5e30` fixes the configuration-digest mismatch described in
+[Development Iteration](DEVELOPMENT_ITERATION.md#evidence-and-defect-records).
+
+The browser issued fresh terminal access and accepted commands on both Computers
+through each client. The original binary on Computer `01a08bd6-c6b0-7f91-8ffe-ecec949fb25b`
+returned SHA-256 `e769cb00db4ef697c91c1851272c953e964f064a6d6bd326736d5c083b8d0fa7`.
+The original marker on Computer `01a08be2-ff09-7ce2-9e4f-21889942151c` returned
+`80de56762fea13f6b1bbbdcdd31af99f2e5f2c962ef09e946ecb3a379138ea58`.
+Workspace received current lease renewals on both attachments. Disconnect and a
+new connection through Console preserved access. Both clients returned HTTP 404
+for an existing Computer belonging to another owner.
+
+The host restart had changed the two native process IDs while their retained
+Computer records still named the previous runs. Request-triggered provider reads
+now reconcile an idle Ready run before browser attachment, individual resource
+reads and owner lifecycle admission. The domain refuses a changed resource,
+instance or template and preserves pending operation and execution fences.
+The [domain design](../platform/computers/DESIGN.md#admission-and-ownership) defines
+that transaction. No Computer container restart, home replacement or data deletion
+was needed for this repair.
+
+Headed Chrome 154 reported NVIDIA RTX 4090 WebGL. Its WebGPU adapter was a software
+fallback and supplies no hardware evidence. Nine real-store domain checks and thirty
+service checks passed. This checkpoint covers installed browser access, retained
+file reads and owner isolation; it does not repeat the earlier stock CLI, file
+transfer, template-maintenance or agent-execution qualification. A first automation
+or CLI request after another host restart still needs a current individual resource
+read or browser connection to reconcile an idle run. Unresolved work requires its
+existing recovery path. The ignored detail artifact is
+`output/installed-feature-check/computers.json`.
+
 ## Current Implementation Checkpoint
 
 On September 11, 2026, Veoveo with the Bioma configuration supports the following

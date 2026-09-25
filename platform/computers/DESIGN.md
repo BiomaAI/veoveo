@@ -117,7 +117,11 @@ browser grants and writes `computer.run_observed` to the outbox. Existing CLI
 connections fail their process check on renewal. Ownership, resource grants and
 retained storage do not change. Concurrent or stale observations must reread; they
 cannot settle uncertain work. No persistent format changes or provider mutations
-occur, so rollback uses the same stored Computer representation.
+occur, so rollback uses the same stored Computer representation. During a rolling
+service update, older readers still enforce the stored process identity on grants
+and settlement. The transaction writes the same Computer row that admission uses to
+serialize lifecycle and execution work. Existing attachments to the previous run
+must reconnect; no adapter or mixed schema is introduced.
 
 ## Delivery Boundary
 

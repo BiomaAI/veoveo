@@ -7,6 +7,29 @@ Release 176 established the installed checkpoint at
 progress, personal Task/invitation events and subscription recovery. The user accepted
 the two original installed follow-ups below as nonblocking on September 16.
 
+## Installed Upgrade Check — September 24, 2026
+
+The signed-in owner exercised a disposable group chat at `veoveo.bioma.ai` in two
+headed Chrome tabs. Human-only messages created no agent runs. Selecting Assistant
+and Reviewer produced two completed real replies. Reload preserved message IDs and
+history. Renaming the chat and changing the member-invitation setting propagated
+to the other tab.
+People search returned the owner; removing Reviewer updated membership, and archiving
+the chat disabled the other tab's composer. Both test chats were archived after use.
+
+This run used one human identity in two tabs. It does not establish delivery or
+acceptance of an invitation by a second real person. The maintained browser fixture
+passed its multi-user permissions, reconnect, Tasks and managed-authoring cases;
+those fixtures remain behavioral coverage, separate from installed acceptance.
+Intermittent HTTP 503 responses occurred during activity and people reads. Later
+reads and the completed journey passed, but their cause and behavior under load
+remain unqualified. They should not be described as fixed by the Computers repair.
+
+Headed Chrome 154 used NVIDIA RTX 4090 WebGL; WebGPU reported a fallback adapter.
+The ignored detail artifact is `output/installed-feature-check/group-final.json`.
+The [Computers checkpoint](COMPUTERS_PLAN.md#installed-upgrade-check--september-24-2026)
+records Workspace terminal access and owner isolation from the same installation.
+
 ## Standards And Protocols
 
 Workspace uses the platform's OAuth authorization-code flow with PKCE, encrypted
