@@ -362,8 +362,8 @@
   <div class="callout">
     <div class="label">Reading guide</div>
     <p>Section 1 lists what the platform does and where each capability is described. Sections 2
-       through 8 describe the architecture. Section 9 runs the whole loop against a simulated
-       city, and Section 10 explains how the platform is tested. Sections 11 and 12 cover
+       through 8 describe the architecture. Section 9 describes the reference simulators and
+       how to add another, and Section 10 explains how the platform is tested. Sections 11 and 12 cover
        learning and deployment. The appendices define each component and list the standards the
        platform implements.</p>
   </div>
@@ -381,7 +381,7 @@
       <li><span>6</span><a href="#hosted-servers">Hosted Servers</a></li>
       <li><span>7</span><a href="#tasks">Tasks and Shared Stores</a></li>
       <li><span>8</span><a href="#recording-hub">Recording Hub</a></li>
-      <li><span>9</span><a href="#sumo">SUMO Traffic Showcase</a></li>
+      <li><span>9</span><a href="#simulators">Simulators</a></li>
       <li><span>10</span><a href="#verification">Verification and Observability</a></li>
       <li><span>11</span><a href="#learning">Self-Improvement Primitives</a></li>
       <li><span>12</span><a href="#deployment">Deployment and Operations</a></li>
@@ -410,9 +410,11 @@
     <thead><tr><td>Capability</td><td>What the operator gets</td><td>Section</td></tr></thead>
     <tbody>
       <tr><td>Continuous watch</td><td>An agent wakes when a watched condition changes, decides, and acts: it retimes a signal, reroutes a vehicle, or reassigns work. Between events it advances the mission on its own schedule.</td><td>4</td></tr>
+      <tr><td>Vehicle command</td><td>An agent commands a vehicle only while it holds that vehicle's grant and an exclusive command lease, and it flies mission plans the server has admitted. A vehicle adapter carries the commands to a simulator or a fleet.</td><td>9</td></tr>
       <tr><td>Long work in the background</td><td>A render, forecast, route plan, or 500-step simulation batch runs as a task. The agent sleeps until the result arrives, and an interrupted task ends in a state declared before it started.</td><td>7</td></tr>
       <tr><td>One model of the operation</td><td>Sensor data, agent memory, and decisions share queryable stores. An operator can replay any run and see why an agent acted.</td><td>3, 8</td></tr>
       <tr><td>Rules agents cannot bypass</td><td>Policy decides who may call which tool on which tenant's data at which sensitivity. The gateway enforces it outside the model and refuses any call no rule allows.</td><td>5</td></tr>
+      <tr><td>Any simulator</td><td>SUMO and Isaac Sim are the reference integrations. Another simulator joins as an MCP server and records to the same timeline.</td><td>9</td></tr>
       <tr><td>Eighteen hosted servers</td><td>Media, video, reasoning, SQL, forecasting, optimization, maps, frames, time, speech, computers, simulation, and visualization. A new MCP server joins through a catalog entry.</td><td>6</td></tr>
       <tr><td>Controlled sharing</td><td>Every output is an owned artifact. Owners grant access to users and groups, or publish an expiring, revocable link to a released artifact.</td><td>7</td></tr>
       <tr><td>Console and Workspace</td><td>The Console shows health, tasks, artifacts, agents, recordings, policy, and audit records. Workspace is the chat client where people and agents work together.</td><td>12</td></tr>
@@ -832,35 +834,90 @@
   </p>
 </section>
 
-<section class="chapter" id="sumo">
-  <h1 class="section">9. SUMO Traffic Showcase</h1>
+<section class="chapter" id="simulators">
+  <h1 class="section">9. Simulators</h1>
   <p class="body">
-    The end-to-end test world is a simulated city. Eclipse SUMO 1.27.1, the Simulation of
-    Urban Mobility, runs the pinned, MIT-licensed LuST Luxembourg scenario in its own
-    container. One <code>sumo-mcp</code> server owns the single serialized TraCI connection,
-    publishes the world to the Recording Hub as Rerun <code>/world/sumo/**</code> streams, and
-    exposes simulator control as <code>sumo__*</code> tools behind the gateway. Its long
-    operations are tasks that the agent detaches from and wakes on, through the same path as
-    every other long tool.
+    Simulators give agents a world to rehearse in and give the platform a world to test
+    against. Any simulator can join an installation as an MCP server. Two reference
+    integrations ship with the platform: Eclipse SUMO for road traffic and Isaac Sim for
+    UAV flight. Both use the same gateway, task runtime, and Recording Hub as every other
+    server, so a rehearsal produces the same kind of record as a fielded run.
   </p>
-  <figure class="art short">
-    <img src="images/sumo-loop.png" alt="The agent reads the recorded city, decides, and acts on signals and routes.">
-    <figcaption>Figure 10. The agent reads the record, decides, and changes signals and routes in the simulated city.</figcaption>
-  </figure>
-  <div class="table-wrap">
-  <table class="data tight">
-    <thead><tr><td>Surface</td><td>Detail</td></tr></thead>
-    <tbody>
-      <tr><td>Synchronous tools</td><td><code>query_state</code> · <code>describe_scenario</code> · <code>set_signal_phase</code> · <code>reroute_vehicle</code> · <code>set_edge_speed</code> · <code>close_lane</code> · <code>open_lane</code></td></tr>
-      <tr><td>Tasks</td><td><code>run_batch</code> advances the live simulation, so an interruption ends as <code>interrupted_indeterminate</code>. <code>generate_network</code>, <code>compute_routes</code>, and <code>optimize_signals</code> run SUMO command-line programs and resume after interruption.</td></tr>
-      <tr><td>Events</td><td>Agents can subscribe to <code>sumo://congestion</code>, and a forming jam wakes them.</td></tr>
-      <tr><td>Outputs</td><td>A successful task uploads its outputs to the artifact plane with a write capability bound to that task.</td></tr>
-    </tbody>
-  </table>
-  </div>
+
+  <section class="sub" id="sumo">
+    <h2 class="sub">9.1 SUMO Road Traffic</h2>
+    <p class="body">
+      Eclipse SUMO 1.27.1, the Simulation of Urban Mobility, runs the pinned, MIT-licensed
+      LuST Luxembourg scenario in its own container. One <code>sumo-mcp</code> server owns
+      the single serialized TraCI connection, publishes the world to the Recording Hub as
+      Rerun <code>/world/sumo/**</code> streams, and exposes simulator control as
+      <code>sumo__*</code> tools behind the gateway. Its long operations are tasks that the
+      agent detaches from and wakes on, through the same path as every other long tool.
+    </p>
+    <figure class="art short">
+      <img src="images/sumo-loop.png" alt="The agent reads the recorded city, decides, and acts on signals and routes.">
+      <figcaption>Figure 10. The agent reads the record, decides, and changes signals and routes in the simulated city.</figcaption>
+    </figure>
+    <div class="table-wrap">
+    <table class="data tight">
+      <thead><tr><td>Surface</td><td>Detail</td></tr></thead>
+      <tbody>
+        <tr><td>Synchronous tools</td><td><code>query_state</code> · <code>describe_scenario</code> · <code>set_signal_phase</code> · <code>reroute_vehicle</code> · <code>set_edge_speed</code> · <code>close_lane</code> · <code>open_lane</code></td></tr>
+        <tr><td>Tasks</td><td><code>run_batch</code> advances the live simulation, so an interruption ends as <code>interrupted_indeterminate</code>. <code>generate_network</code>, <code>compute_routes</code>, and <code>optimize_signals</code> run SUMO command-line programs and resume after interruption.</td></tr>
+        <tr><td>Events</td><td>Agents can subscribe to <code>sumo://congestion</code>, and a forming jam wakes them.</td></tr>
+        <tr><td>Outputs</td><td>A successful task uploads its outputs to the artifact plane with a write capability bound to that task.</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="sub newpage" id="uav">
+    <h2 class="sub">9.2 UAV Flight in Isaac Sim</h2>
+    <p class="body">
+      The UAV integration flies a four-vehicle fleet in Isaac Sim 6.0.1 over Google
+      Photorealistic 3D Tiles streamed through Cesium ion. Newton and a batched CUDA Warp
+      plant simulate the airframes, and each vehicle runs PX4 autopilot firmware over
+      MAVLink 2 hardware-in-the-loop, the same firmware and protocol that fly real aircraft.
+      Simulator cameras render on the GPU and encode once with NVENC. The encoded video goes
+      directly to Stream and to authorized viewers, and world state goes to the Recording Hub
+      on a separate path.
+    </p>
+    <p class="body">
+      An agent commands a vehicle only while it holds that vehicle's grant and an exclusive
+      command lease. It resolves destinations through Map, submits a mission plan that the
+      UAV server admits against the route, and executes the plan as a task. A vehicle adapter
+      behind these controls carries each command to whatever executes it. The shipped adapter
+      drives the simulator, and connecting a fleet means adding an adapter for its control
+      link while the grants, leases, missions, and recordings stay the same.
+    </p>
+  </section>
+
+  <section class="sub" id="byo-simulator">
+    <h2 class="sub">9.3 Adding a Simulator</h2>
+    <p class="body">
+      A new simulator follows the pattern both reference integrations use. The work lives in
+      the installation's fork, next to the built-in servers.
+    </p>
+    <div class="table-wrap">
+    <table class="data tight">
+      <thead><tr><td>Step</td><td>What the integrator builds</td></tr></thead>
+      <tbody>
+        <tr><td>Control</td><td>An MCP server, in Rust or with the Python SDK, that owns the simulator's control connection. Reads and commands become tools, long runs become tasks with a declared recovery class, and watched conditions become subscribable resources.</td></tr>
+        <tr><td>Record</td><td>World state published to the Recording Hub as Rerun streams through the recording forwarder.</td></tr>
+        <tr><td>Cameras</td><td>Simulator cameras published through the <code>veoveo.io/live-view/v4</code> contract, which gives each viewer its own authorization over one shared encoded product.</td></tr>
+        <tr><td>Deploy</td><td>An image and Helm chart that request the simulator's GPU, a gateway catalog entry, and acceptance tests in the smoke harness.</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="body">
+      Registration grants the new server no extra authority. Its tools pass the same
+      identity, policy, task, artifact, and audit checks as the built-in servers from its
+      first request.
+    </p>
+  </section>
 
   <section class="sub newpage" id="measured">
-    <h2 class="sub">9.1 Measured Behavior</h2>
+    <h2 class="sub">9.4 Measured Behavior</h2>
     <p class="body">
       When the agent calls a task-augmented tool, it receives a handle immediately. It stores
       the descriptor, ends the episode, and sleeps. The server keeps working. When the task
@@ -1005,6 +1062,7 @@
       <tr><td class="mono">Rerun viewer</td><td>OSS</td><td>Renders recorded streams as maps, plots, and a scrubbable timeline. The hosted headless instance is the Viewer server.</td></tr>
       <tr><td class="mono">SUMO</td><td>OSS</td><td>Eclipse SUMO 1.27.1, a traffic microsimulator running the LuST Luxembourg scenario.</td></tr>
       <tr><td class="mono">TraCI</td><td>protocol</td><td>SUMO's control socket for stepping the simulation, reading state, and changing signals and routes.</td></tr>
+      <tr><td class="mono">vehicle adapter</td><td>ours</td><td>Carries admitted commands from the UAV server to a simulator or a vehicle fleet. The shipped adapter drives Isaac Sim with PX4.</td></tr>
       <tr><td class="mono">sumo-mcp</td><td>ours</td><td>Owns the simulator's TraCI connection, publishes the world to the Hub, and exposes control as <code>sumo__*</code> tools.</td></tr>
       <tr><td class="mono">MCP</td><td>protocol</td><td>Model Context Protocol, carrying tools, resources, prompts, completions, tasks, subscriptions, notifications, and structured content.</td></tr>
       <tr><td class="mono">task</td><td>concept</td><td>A tool call the agent can leave: the handle returns immediately, and the result wakes the agent later.</td></tr>
@@ -1034,6 +1092,7 @@
       <tr><td>Apache Arrow</td><td>Recording projections returned to agents.</td></tr>
       <tr><td>SurrealDB 3.2.4</td><td>The platform store, one node on RocksDB.</td></tr>
       <tr><td>NVIDIA cuOpt 26.08</td><td>Routing and mathematical optimization on a GPU.</td></tr>
+      <tr><td>Isaac Sim 6.0.1, PX4, and MAVLink 2</td><td>The UAV simulator, the autopilot firmware on each simulated vehicle, and the hardware-in-the-loop link between them.</td></tr>
       <tr><td>Eclipse SUMO 1.27.1 and TraCI</td><td>The traffic showcase simulator and its control socket.</td></tr>
       <tr><td>OpenTelemetry</td><td>Traces and logs from the gateway and servers.</td></tr>
       <tr><td>Kubernetes and Helm</td><td>Every deployment form, including the local k3d cluster and the offline bundle.</td></tr>
