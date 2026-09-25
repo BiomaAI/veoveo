@@ -84,8 +84,28 @@ Gateway catalog construction now sorts opaque object keys before reconstructing 
 typed document; both publication paths use that document. The regression test checks
 nested metadata, objects inside arrays, and the digest after a storage round trip.
 The coordinated installation update republishes the same configuration through
-bootstrap. Existing Computer homes and identities require no conversion. Live terminal
-acceptance must pass before closing this repair.
+bootstrap. Existing Computer homes and identities require no conversion. The
+[September 24 browser checkpoint](COMPUTERS_PLAN.md#installed-upgrade-check--september-24-2026)
+passed after also repairing stale process identities left by the host restart.
+
+The follow-up Computers image stage took 306.117 seconds, including a 270.221-second
+compiler window. It selected only `computers-mcp` and reused the existing BuildKit
+worker and registry spelling. The log still shows shared dependencies, including
+Tokio and SurrealDB, recompiling for this target; dependency-feature and cache-key
+reuse deserve a scoped measurement before attributing that cost to source changes.
+The service check took 277.5 seconds: compilation consumed 165 seconds, and one
+four-case application harness took 100 seconds while Docker database-container
+creation waited. Later HTTP and service cases completed in 10.1 and 1.7 seconds.
+The fixture's database-readiness deadline starts after synchronous Docker creation,
+so it does not bound that earlier wait. Track a process deadline and useful startup
+diagnostics as harness work; no Docker daemon or host configuration was changed.
+
+The three focused backend/format receipts added roughly 74,000 JSON lines because
+unclassified checks record repository-wide inputs. Their passing results are not
+qualified for environment reuse. Scoped descriptors and receipt-display costs remain
+iteration work. The deployment changed one service image; the host and retained
+Computer containers stayed running. Ignored detail files are under
+`output/installed-feature-check/`.
 
 `output/` contains disposable generated evidence, build products, downloaded tooling,
 and runtime caches. It is never the authoritative location for a defect, follow-up, or
