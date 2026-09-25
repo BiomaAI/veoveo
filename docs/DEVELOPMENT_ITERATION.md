@@ -76,6 +76,17 @@ activation continues through its GitOps repository.
 
 ## Evidence And Defect Records
 
+The September 24 installed Computers check found HTTP 503 in both browser clients.
+The Rerun dependency graph enabled `serde_json/preserve_order` in the gateway, while
+the Computers build sorted JSON object keys. Publishing metadata in input order
+produced a configuration digest that the worker could not reproduce after storage.
+Gateway catalog construction now sorts opaque object keys before reconstructing the
+typed document; both publication paths use that document. The regression test checks
+nested metadata, objects inside arrays, and the digest after a storage round trip.
+The coordinated installation update republishes the same configuration through
+bootstrap. Existing Computer homes and identities require no conversion. Live terminal
+acceptance must pass before closing this repair.
+
 `output/` contains disposable generated evidence, build products, downloaded tooling,
 and runtime caches. It is never the authoritative location for a defect, follow-up, or
 engineering decision. A generated report may be cited by path while a run is being

@@ -238,6 +238,13 @@ creates or rotates the database runtime user, and publishes the first gateway co
 revision. Long-running services connect with database-scoped credentials and never run
 migrations.
 
+Before publishing a control revision, the gateway sorts keys recursively in opaque
+JSON objects and reconstructs the typed control document. Its SHA-256 covers the
+typed document's JSON bytes, with struct field order and array order preserved.
+Bootstrap and administrator updates publish that same normalized document. Workers
+can therefore verify its digest after a store read even when their dependency graphs
+select different `serde_json` object-order features.
+
 `veoveo-platform-store` defines the Rust record types and persistence APIs for:
 
 - tenants, principals, groups, server/profile identities, and policies;

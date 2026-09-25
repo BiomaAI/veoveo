@@ -180,7 +180,7 @@ pub(crate) async fn update_control_plane(
         Err(response) => return *response,
     };
 
-    let new_catalog = match GatewayCatalog::from_control_plane(control_plane.clone()) {
+    let new_catalog = match GatewayCatalog::from_control_plane(control_plane) {
         Ok(catalog) => Arc::new(catalog),
         Err(err) => {
             tracing::warn!("rejected invalid gateway control plane update: {err}");
@@ -232,6 +232,7 @@ pub(crate) async fn update_control_plane(
                 .into_response();
         }
     };
+    let control_plane = new_catalog.control_plane().clone();
     let sha256 = match control_plane_sha256(&control_plane) {
         Ok(sha256) => sha256,
         Err(err) => {
