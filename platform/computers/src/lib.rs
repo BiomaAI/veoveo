@@ -16,6 +16,7 @@ mod identity;
 mod lifecycle;
 pub mod maintenance;
 mod model;
+mod observed_restart;
 mod operation;
 mod operation_admission;
 mod operation_authority;

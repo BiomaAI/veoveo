@@ -18,6 +18,17 @@
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
 ordinary catalog and action policy without importing the provider SDK. The `computers-mcp` executable serves the same HTTP router used by fixtures.
 
+After authorizing an individual Computer read, browser attachment or owner lifecycle
+request, the service may make one provider `GetSandbox` read with a five-second
+timeout. A changed Ready process on the same retained resource goes through the
+domain's `record_observed_restart` transaction before new access is issued. This
+request-triggered observation has no retry loop and performs no provider mutation.
+It cannot resolve a pending lifecycle operation or command/file execution. Provider
+absence, transport loss and a changed resource are errors, not restart evidence.
+Offline inventory continues to expose retained records without claiming a fresh
+provider observation. Browser grants and terminal setup repeat current authority
+and process checks after recovery.
+
 ## Retained Maintenance Worker
 
 `MaintenanceWorker` composes the domain journal with the pinned provider, retained-home

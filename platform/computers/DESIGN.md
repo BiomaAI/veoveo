@@ -108,6 +108,17 @@ The runtime resolves that exact instance for lifecycle, terminal and CLI access.
 An old operation cannot settle a different instance even when its template is unchanged.
 The identity field does not authorize maintenance or adopt storage by itself.
 
+The internal `record_observed_restart` operation records a new Ready process after
+a host restart. Its input comes from an authenticated provider read of the same
+provider, resource, retained instance and template. The read must be less than ten
+seconds old. A transaction compares the previous process and row timestamp, refuses
+an active lifecycle operation or command/file slot, updates the process, revokes old
+browser grants and writes `computer.run_observed` to the outbox. Existing CLI
+connections fail their process check on renewal. Ownership, resource grants and
+retained storage do not change. Concurrent or stale observations must reread; they
+cannot settle uncertain work. No persistent format changes or provider mutations
+occur, so rollback uses the same stored Computer representation.
+
 ## Delivery Boundary
 
 The private file-transfer envelope protects a metadata-only import/export request.
