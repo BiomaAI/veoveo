@@ -26,6 +26,11 @@ recordings; it does not open the rest of the dataset.
 
 ## Connect a native Rerun client
 
+Remote native Viewer and Catalog SDK access is **not reachable through the current
+infrastructure at `veoveo.bioma.ai`**. Browser playback works through the public
+Tunnel, and the installed SDK smoke uses the direct loopback ingress. The native
+examples below require an installation route that carries HTTP/2 gRPC.
+
 The native Viewer and Python Catalog SDK require HTTP/2 gRPC. Use version 0.38.1
 to match Veoveo's recording service. The installation hostname in `entry_uri` must
 resolve to an endpoint that carries native gRPC. Tokens permit that hostname only;
@@ -113,6 +118,9 @@ the SDK sees the hostname authorized by the grant while exercising the real Reda
 Ingress. The runner uses `rerun+http://veoveo.bioma.ai:8781` only on that loopback
 path. Use TLS for remote clients. This direct path is for local verification; it
 does not make native gRPC available through the public Tunnel hostname.
+Remote native access is a separate infrastructure follow-up. Its acceptance must
+run from a remote client over the selected route, including grant renewal and the
+installation hostname check.
 
 The installed SDK scenario requires the operator service client's private-key file
 and registered key ID in `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and

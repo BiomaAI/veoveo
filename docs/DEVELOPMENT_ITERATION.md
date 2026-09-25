@@ -1733,9 +1733,7 @@ The first final Catalog SDK invocation stopped before requesting a grant because
 the shell lacked the operator service-key environment. Its failed receipt is kept;
 the documented credential variables must be supplied for installed SDK acceptance.
 
-The original component upgrade list has published pins for Rust 1.98.1, Rerun
-0.38.1, RustFS 1.0.0, vLLM 0.30.0, K3s 1.37.0, Helm 4.3.0, Collector 0.161.0
-and Isaac Sim 6.1.0. The Collector stays disabled in this installation. Native
+The component pins and acceptance are listed in the closeout below. Native
 Rerun SDK access is qualified through the direct ingress; public Cloudflare Tunnel
 hostnames do not carry native gRPC. Choosing a public HTTP/2 origin or private
 Cloudflare access is an installation networking decision. The supported route and
@@ -1762,5 +1760,43 @@ published TLS listener. The available paths have different prerequisites:
 | Public HTTP/2 origin | Reachable origin, TLS for the installation hostname, and a DNS/proxy route that carries native gRPC without a Tunnel public-hostname route |
 | Private Cloudflare route | Private subnet routing, enrolled WARP clients, and private DNS/TLS that preserves the installation hostname in the grant |
 
-Neither route is configured by the local SDK smoke. The operator's access-model
-decision is pending. Browser access continues through the existing public Tunnel.
+Neither route is configured by the local SDK smoke. At the operator's direction,
+remote native Rerun access is recorded as unreachable through the current
+infrastructure and deferred from this upgrade closeout. Browser access continues
+through the existing public Tunnel. A future networking change must qualify an
+external native client, host-scoped grants and renewal over its selected route.
+
+### Component Upgrade Closeout — September 24, 2026
+
+The September 23 upgrade set is implemented and its applicable images are deployed
+on `veoveo.bioma.ai`. The installed locks match the qualified release images.
+
+| Component | Qualified version | Acceptance |
+|---|---|---|
+| Rust | 1.98.1 | Workspace compile and published service images; current host compiler matches the toolchain pin |
+| Rerun | 0.38.1 | Recording tests, selected upstream Redap tests, browser playback, and native Catalog SDK dataframe queries with grant renewal |
+| RustFS | 1.0.0 | Multipart write/read across RC 3 and GA, reverse image restart, retained-PVC sample read, and public Artifact full/HEAD/range reads |
+| Isaac Sim | 6.1.0 | NVIDIA CUDA/Newton and RTX certification; all five installed camera views advanced with NVENC and hardware browser H.264 decode before the requested pause |
+| vLLM | 0.30.0 | Installed Reason MCP task processed six frames and published typed artifacts; the closeout rerun passed on NVIDIA driver 595.91.07 |
+| K3s | 1.37.0+k3s1 | Retained node storage, Ready control plane, one replica per active workload, and installed GPU workload execution |
+| OpenTelemetry Collector | 0.161.0 | Checked-in configuration validates; an isolated collector accepted and exported an OTLP/HTTP log. Bioma keeps telemetry disabled |
+| Helm | 4.3.0 | Chart lint/rendering, installed release inspection, and isolated Flux health-check cancellation/recovery with fixture cleanup |
+
+The final check found 24 running Veoveo Pods, all ready. The signed-in Console
+loaded Apps on headed Chrome with NVIDIA-backed WebGL. Session bootstrap returned
+JSON, and both Console and Workspace returned HTTP 200. The supplemental Collector
+container was removed after its test. Both UAV Deployments stay at zero replicas
+under the suspended UAV HelmRelease, as requested.
+
+The current closeout observations are in
+`output/development/upgrade-closeout-browser.json`,
+`output/development/otel-0161-closeout.log`, and
+`output/development/reason-upgrade-closeout.log`. The earlier committed test
+receipts and publication/convergence records above establish the upgrade checks.
+These observations cover the listed workflows, not every application feature or
+every stored object.
+
+Remote native Rerun access is an accepted infrastructure follow-up. Longer
+simulator render-stall and PX4 sensor-timing measurements are deferred while the
+simulator is stopped. The build/cache inefficiencies recorded in this document
+remain follow-up measurements and improvements; they do not hold this upgrade open.
