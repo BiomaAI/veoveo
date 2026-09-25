@@ -12,6 +12,8 @@ use uuid::Uuid;
 use veoveo_computer_storage::{
     AllocationState, Filesystem, HomeIdentity, HostIdentity, Journal, StorageError,
 };
+#[path = "support/thin_pool.rs"]
+mod thin_pool;
 
 const CAPACITY: u64 = 512 * 1024 * 1024;
 const TEST: &str = "native_quota_restart_and_filesystem_identity";
@@ -79,6 +81,7 @@ fn detach(backing: &Path) {
 
 async fn child(phase: &str) {
     let identity = identity();
+    thin_pool::mount();
     if phase == "cleanup" {
         let backing = root()
             .join("homes")
@@ -88,6 +91,7 @@ async fn child(phase: &str) {
         if root().exists() {
             fs::remove_dir_all(root()).unwrap();
         }
+        thin_pool::cleanup();
         return;
     }
     if phase == "prepare" {
@@ -106,11 +110,30 @@ async fn child(phase: &str) {
     }
     let mut filesystem = Filesystem::new(journal(), CAPACITY).unwrap();
     if phase == "prepare" {
+        let space = nix::sys::statvfs::statvfs(root().as_path()).unwrap();
+        let available = space.blocks_available() * space.fragment_size();
+        assert!(
+            available > CAPACITY && available < CAPACITY * 2,
+            "thin admission has less free space than home maximum plus floor"
+        );
         let mount = filesystem
             .prepare(identity.clone(), CAPACITY)
             .await
             .unwrap();
         let home = mount.join("home");
+        let backing = fs::metadata(
+            filesystem
+                .journal()
+                .directory(identity.computer_id)
+                .unwrap()
+                .join("home.ext4"),
+        )
+        .unwrap();
+        assert_eq!(backing.len(), CAPACITY);
+        assert!(
+            backing.blocks() * 512 < CAPACITY / 4,
+            "new home preallocated its maximum"
+        );
         assert_eq!(fs::metadata(&home).unwrap().mode() & 0o777, 0o700);
         fs::write(home.join("retained"), b"same home after helper restart").unwrap();
         let mut filled = 0u64;
@@ -132,6 +155,7 @@ async fn child(phase: &str) {
             }
         }
         assert!(filled > 400 * 1024 * 1024);
+        thin_pool::pressure(&mut filesystem, &identity).await;
         fs::remove_file(home.join("fill")).unwrap();
         assert_eq!(
             filesystem
@@ -274,7 +298,7 @@ impl Fixture {
             .arg("--env")
             .arg(format!(
                 "VEOVEO_STORAGE_NATIVE_ROOT={}",
-                self.directory.join("retained").display()
+                self.directory.join("pool/retained").display()
             ))
             .arg("--env")
             .arg(format!("VEOVEO_STORAGE_NATIVE_PHASE={phase}"))
@@ -314,7 +338,7 @@ impl Fixture {
     }
     async fn finish(mut self) {
         self.run("cleanup").await;
-        assert!(!self.directory.join("retained").exists());
+        assert!(!self.directory.join("pool.ext4").exists());
         self.finished = true;
     }
 }

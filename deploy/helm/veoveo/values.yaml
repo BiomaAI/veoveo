@@ -189,9 +189,10 @@ computers:
     tolerations: []
     registryEgress: []
     resources:
+      # Explicit zero prevents Kubernetes from copying limits into requests.
       requests:
-        cpu: 500m
-        memory: 1Gi
+        cpu: "0"
+        memory: "0"
       limits:
         cpu: "8"
         memory: 12Gi
@@ -203,8 +204,8 @@ computers:
     idleSeconds: 1800
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: "0"
+      memory: "0"
     limits:
       cpu: "2"
       memory: 1Gi

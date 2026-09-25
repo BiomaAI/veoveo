@@ -65,11 +65,7 @@ impl Filesystem {
                 .blocks_available()
                 .checked_mul(space.fragment_size())
                 .ok_or(StorageError::CapacityExceeded)?;
-            if free
-                < capacity_bytes
-                    .checked_add(self.reserve_bytes)
-                    .ok_or(StorageError::CapacityExceeded)?
-            {
+            if free < self.reserve_bytes {
                 return Err(StorageError::CapacityExceeded);
             }
         }
@@ -91,16 +87,10 @@ impl Filesystem {
                     .custom_flags(OFlag::O_NOFOLLOW.bits())
                     .open(&backing)
                     .map_err(|_| StorageError::RecoveryRequired)?;
-                // A lost command result leaves Allocating. No repeat formats it.
-                command::checked(
-                    "fallocate",
-                    &[
-                        OsStr::new("--length"),
-                        OsStr::new(&capacity_bytes.to_string()),
-                        backing.as_os_str(),
-                    ],
-                )
-                .await?;
+                // Logical size caps the home; physical blocks grow on demand.
+                // A lost formatter result leaves Allocating. No repeat formats it.
+                file.set_len(capacity_bytes)
+                    .map_err(|_| StorageError::BackendUnavailable)?;
                 command::checked(
                     "mkfs.ext4",
                     &[
@@ -108,6 +98,8 @@ impl Filesystem {
                         OsStr::new("-q"),
                         OsStr::new("-m"),
                         OsStr::new("0"),
+                        OsStr::new("-E"),
+                        OsStr::new("discard"),
                         OsStr::new("-U"),
                         OsStr::new(&identity.computer_id.to_string()),
                         backing.as_os_str(),

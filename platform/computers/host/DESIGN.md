@@ -1,7 +1,7 @@
 # Private Computer Host
 
-Status: the composite image passes isolated native retained-container replacement.
-Installed Kubernetes and public Computers journeys remain release work.
+The Rust launcher owns private Docker, provider and storage process management.
+The [Computers plan](../../../docs/COMPUTERS_PLAN.md) records installed qualification.
 
 ## Standards And Protocols
 
@@ -12,7 +12,7 @@ Installed Kubernetes and public Computers journeys remain release work.
 | OpenShell provider `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605` | Exact maintained patch trees and OCI-built binaries from the provider image; private mTLS gRPC and selected SSH transport |
 | TLS 1.3 and `veoveo.io/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
 | OCI images | Exact manifest references from one installation registry, HTTPS or explicitly declared development HTTP |
-| Linux namespaces, cgroups, signals and ext4 | One privileged compute container with an owned mount/network/PID namespace, bounded child lifetimes and persistent local ext4 data |
+| Linux namespaces, cgroup v2, signals and ext4 | One privileged compute container with owned mount/network/PID/cgroup namespaces, finite CPU/RAM ceilings and persistent local ext4 data |
 | Kubernetes Secret projection | Read-only fixed-name files, confined resolution inside the mount and bounded copies into root-owned regular files; no user-controlled paths |
 
 ## Ownership And Topology
@@ -40,6 +40,22 @@ That volume must be backed by persistent ext4. Overlay, tmpfs and remote storage
 admission. Docker data, the storage journal and provider SQLite state survive container
 replacement. `/run/veoveo-computers` is disposable private runtime state.
 
+The image starts `veoveo-computer-host init` as PID 1. Before creating runtime
+threads, Rust creates private mount and cgroup namespaces rooted at the current
+container cgroup. It makes mounts private, mounts cgroup v2 in that namespace and
+requires finite CPU and memory maximums. Upstream DinD then moves the launcher into
+`/init` and enables nested controllers. Docker's `/docker` children therefore count
+toward the host ceiling, including containers retained across host replacement.
+Direct `run` without this bootstrap fails. The launcher never configures the node's
+daemon or changes a sibling cgroup. See the kernel's
+[cgroup namespace rules](https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html#namespace).
+
+The chart defaults to zero CPU/RAM requests for both Computers services and keeps
+their maximums. Guest templates set maximums without memory reservations or pinned
+CPUs. Idle guests consume their actual working set; resource availability is not
+guaranteed in advance. Installation operators own the aggregate ceiling and pressure
+policy. A lower limit does not rewrite per-Computer template limits.
+
 Storage discovers loop devices added after container creation and creates only their
 verified block nodes inside this private `/dev`. Native qualification removes those
 nodes before allocation, then simulates an interrupted Ready publication and verifies
@@ -52,7 +68,8 @@ resource and hardware qualification; this development template runs terminal too
 
 ## Configuration And Trust
 
-`veoveo-computer-host run --config <file>` reads at most 64 KiB, rejects unknown fields
+`veoveo-computer-host init --config <file>` bootstraps the container, then `run`
+reads at most 64 KiB, rejects unknown fields
 and validates identities, capacity, image digests and private networks before startup.
 Configuration provides `providerId`, `namespace`, `defaultImage`, `images`, `templates`,
 `reserveBytes`, `registry`, `bridgeAddress` and `networkPool`. The schema value is
@@ -148,6 +165,11 @@ home capacity and both host image IDs after fixture cleanup. The template regist
 must be reachable from the private bridge namespace. A publication endpoint bound
 only to the host's loopback cannot be substituted with the host bridge's gateway;
 use the registry's inspected address and port on that bridge.
+
+The replacement fixture checks the retained guest's cgroup ancestry, both memory
+ceilings and zero memory protection. Its host has a one-CPU maximum while the guest
+allows two. A three-second guest workload must increase the host's throttling counter.
+This qualifies aggregate enforcement without exhausting installation RAM.
 Its retained template remains the 512 MiB native host profile;
 the service's separate template-transition fixture qualifies exact installation
 template capacities. This test establishes forward host replacement, not rollback

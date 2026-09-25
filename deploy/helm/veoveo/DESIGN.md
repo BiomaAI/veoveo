@@ -133,8 +133,11 @@ The default PVC is `computer-host-data`, with ReadWriteOnce access and
 `helm.sh/resource-policy: keep`. An installation may supply
 `computers.host.persistence.existingClaim`. The backing filesystem must be persistent
 ext4; a PVC capacity field alone does not prove that filesystem or enforce allocation
-quotas. The storage helper preallocates each admitted home and enforces its configured
-free-space reserve. Storage/node placement belongs to the installation. The runtime
+quotas. The storage helper creates sparse homes with fixed maximums and checks its
+free-space floor before new allocations. That floor does not reserve blocks or
+constrain existing writers. Both Computers services default to explicit zero CPU/RAM
+requests with finite limits. The private host's cgroup namespace includes nested
+Computers under its aggregate ceiling. Storage/node placement belongs to the installation. The runtime
 directory uses a bounded memory-backed volume and retains no key material after Pod
 replacement. Routine chart removal cannot purge retained Computer data.
 
