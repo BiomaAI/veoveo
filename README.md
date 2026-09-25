@@ -49,8 +49,8 @@ Photorealistic 3D Tiles, rendered on cluster GPUs.*
   streams on your own GPUs.
 - **Record field operations.** Stream camera, telemetry, and robot state
   from field producers into one timeline.
-- **Query recordings with Rerun.** Open any recording you can access in the
-  native Rerun Viewer, or load it into pandas with Rerun's Python SDK.
+- **Replay and query recordings.** Scrub any recording you can access on one
+  synchronized timeline, or load it into a Python notebook as a dataframe.
 - **Ask what happened.** Ask questions about synchronized recordings of world
   state, sensors, poses, and annotations. Each answer links back to the
   recordings it used, and each query is audited.
@@ -76,8 +76,8 @@ connected the same way, whether it is a physical system or a simulation of one:
 - An MCP server in the installation's fork owns the system's control link.
   Reads and commands become tools, long operations become tasks with a declared
   recovery behavior, and watched conditions become resources agents subscribe to.
-- The system publishes its state, sensors, and cameras to Recording Hub as Rerun
-  streams, so a rehearsal and a fielded run produce the same kind of recording.
+- The system publishes its state, sensors, and cameras to Recording Hub as
+  time-synchronized streams, so a rehearsal and a fielded run produce the same kind of recording.
 - Cameras publish through the live-view contract, which the Python SDK implements
   for Python servers.
 - The server registers in the gateway catalog. From its first request, its tools
@@ -91,27 +91,26 @@ command lease. [Fork development](docs/FORK_DEVELOPMENT.md) covers where the
 server lives, and the [reference integrations](#reference-integrations) are
 working examples.
 
-## Recordings In Rerun
+## Recordings
 
-An installation records what happens in [Rerun](https://rerun.io/)'s open format:
-sensor and camera streams from the field, world state from robots and simulators, poses
-and telemetry, Stream detections, and Reason results. Producers push data through
-the gateway from inside the cluster, a local network, or the internet, and each
-recording keeps its streams on one synchronized timeline. A rehearsal in simulation
-and a fielded run produce the same kind of recording, so they can be opened side by
-side.
+An installation keeps a continuous recording of what happens: sensor and camera
+streams from the field, world state from robots and simulators, poses and
+telemetry, Stream detections, and Reason results. Producers push data through the
+gateway from inside the cluster, a local network, or the internet. Each recording
+keeps its streams on one synchronized timeline, so a camera frame, the robot's pose
+at that instant, and the agent's decision line up.
 
-Each recording has an owner, tenant, data labels, grants, and a retention policy.
-Recordings are stored as immutable Rerun 0.38.1 files and served as Rerun datasets
-over the Rerun Data Protocol. People with access open them in the Console, in the
-native Rerun Viewer, or in a Python notebook through Rerun's Catalog SDK. Stream
-replays video from recordings, Reason answers questions grounded in them, agents
-query them, and derived results are stored back as new layers of the same recording.
+| With recordings, you can | How |
+|---|---|
+| Replay any run | Scrub the synchronized timeline in the Console, and open a rehearsal in simulation beside the fielded run it prepared for. |
+| Ask what happened | Stream re-runs perception over recorded video, Reason answers questions grounded in a recording, and agents query recordings as data. |
+| Keep results with their source | Detections and answers are stored as new layers of the recording they came from. |
+| Use your own tools | Recordings use an open robotics format, so they open in a native desktop viewer or a Python notebook as well as the Console. |
 
-That makes Veoveo ready for physical AI work: one record of what robots, simulators,
-and agents did, kept under the installation's access rules and readable by the tools
-robotics teams already use. [Use recordings with Rerun](docs/RERUN_RECORDINGS.md)
-shows how to connect.
+Each recording has an owner, tenant, data labels, grants, and a retention policy,
+and every read passes the installation's policy.
+[Open recordings from your own tools](docs/RERUN_RECORDINGS.md) shows how to
+connect.
 
 ## Identity, Policy, And Audit
 
@@ -153,8 +152,8 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
 Veoveo adds control and recording of the operations themselves: robots and
-simulators connected as governed MCP servers, live video pipelines, and a Rerun
-timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
+simulators connected as governed MCP servers, live video pipelines, and a synchronized,
+replayable timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
 Foundry is listed in the [connector catalog](docs/connectors/README.md).
 
 ## Agentic Apps
@@ -217,7 +216,7 @@ Kubernetes state that agents reach through the gateway.
 
 ### Recordings and artifacts
 
-Rerun recordings keep world, sensor, pose, and annotation data synchronized.
+Recordings keep world, sensor, pose, and annotation data synchronized.
 Recordings are stored in segments, but the Console plays each one as a single
 continuous timeline. Outputs derived from a recording are stored as artifacts
 with an owner, provenance, release state, and access list.
@@ -227,7 +226,7 @@ with an owner, provenance, release state, and access list.
 | [![Artifact catalog](docs/screenshots/gallery/console-artifacts.png)](docs/screenshots/gallery/console-artifacts.png) | [![Reasoning artifact detail](docs/screenshots/gallery/console-artifact-reason.png)](docs/screenshots/gallery/console-artifact-reason.png) |
 | Immutable outputs and release state | Reasoning result with recording provenance |
 | [![Stream detection video artifact](docs/screenshots/gallery/console-artifact-video.png)](docs/screenshots/gallery/console-artifact-video.png) | [![Continuous recording playback](docs/screenshots/gallery/console-recordings.png)](docs/screenshots/gallery/console-recordings.png) |
-| Stream-derived media preview and access | One authorized timeline in embedded Rerun |
+| Stream-derived media preview and access | One authorized timeline in the Console's recording viewer |
 
 ## Reference Integrations
 
@@ -271,7 +270,7 @@ resolved the destination through Map and flew under its existing grant for
 [Inspect the Console evidence](showcase/uav-sim/assets/uav-e2e-001-console-complete.png)
 or repeat the
 [`UAV-E2E-001` acceptance](showcase/uav-sim/ACCEPTANCE.md#uav-e2e-001-per-agent-named-location-mission-e2e).
-The flight is also a Rerun dataset that can be
+The flight is also a recording that can be
 [queried from Python](docs/RERUN_RECORDINGS.md).
 
 | San Salvador | Midtown Manhattan |
@@ -285,8 +284,8 @@ altitude. [Explore the complete UAV showcase](showcase/uav-sim/README.md).
 
 | UAV recording | SUMO traffic world |
 |---|---|
-| [![UAV simulation in Rerun](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation in Rerun](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
-| Camera, pose, telemetry, Stream detections, and reasoning results in one recording. Live processing never waits on the recording path. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and Rerun recording. [Run the SUMO showcase](showcase/sumo/README.md). |
+| [![UAV simulation recording](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation recording](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
+| Camera, pose, telemetry, Stream detections, and reasoning results in one recording. Live processing never waits on the recording path. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and recording. [Run the SUMO showcase](showcase/sumo/README.md). |
 
 ## Built On The Model Context Protocol
 
@@ -348,7 +347,7 @@ without changing the servers behind them.
 | `optimization` | NVIDIA cuOpt vehicle routing, scenario batches, convex and MILP solving, with every solution re-checked independently of the solver. |
 | `reason` | Semantic and temporal reasoning over recordings, with answers linked to their source recordings and audited. |
 | `recording` | Recording discovery, queries, subscriptions, publication as artifacts, and viewer playback. |
-| `rerun` | The bridged Rerun viewer surface. |
+| `rerun` | The recording viewer, driven over MCP through the stdio bridge. |
 | `stream` | Operator-approved live and replay GStreamer pipelines, typed detection profiles, and an MCP App for encoded video with overlays. |
 | `time` | Authority-bound civil time, calendars, clocks, timelines, and event operations. |
 | `timeseries` | Forecasting, uncertainty output, artifacts, and an interactive forecast app. |
@@ -356,7 +355,7 @@ without changing the servers behind them.
 | `view` | 3D Tiles views rendered on cluster GPUs, camera control, and reproducible offscreen frame capture. |
 
 The agent runtime adds episodes that survive restarts, detach and resume,
-wakes, budgets, analytical memory, and Rerun recording.
+wakes, budgets, analytical memory, and a recorded decision log.
 
 Your own agentic apps and domain servers live in your fork, next to the built-in
 servers, and build with the same image graph. Register each server in the gateway
@@ -446,8 +445,8 @@ their respective owners.*
 
 SurrealDB is the required coordination store. It holds identity, policy,
 task, artifact, recording, agent, audit, and outbox records. S3-compatible
-object storage holds artifact bytes, and Rerun RRD segments hold recording
-history. DuckDB runs separately as the analytical SQL engine.
+object storage holds artifact bytes, and immutable recording segments hold
+recording history. DuckDB runs separately as the analytical SQL engine.
 
 Architecture decisions and call paths are documented in
 [`docs/ARCHITECTURE_DECISIONS.md`](docs/ARCHITECTURE_DECISIONS.md) and
@@ -510,8 +509,8 @@ your own.
 
 ### GPU execution contract
 
-Optimization, simulation, perception, reasoning, 3D rendering, Rerun, and
-visual acceptance tests require a hardware GPU. Their Kubernetes workloads
+Optimization, simulation, perception, reasoning, 3D rendering, the recording
+viewer, and visual acceptance tests require a hardware GPU. Their Kubernetes workloads
 request an NVIDIA device and stop with an error when cuOpt, CUDA, Vulkan,
 WebGPU, or WebGL cannot reach the hardware. There is no CPU solver or
 software-rendering fallback.
@@ -558,8 +557,8 @@ Platform services are written in Rust. Python covers the SDK, the server
 template, and simulator adapters, and the Console and Workspace use TypeScript
 and React. Hosted MCP servers can be written in any language that speaks the
 protocol. Kubernetes and Helm run the installation, SurrealDB handles
-coordination, DuckDB handles analytics, and Rerun stores recordings and serves them
-to Rerun's own Viewer and SDK. NVIDIA
+coordination, DuckDB handles analytics, and Rerun provides the recording format and
+data protocol, so recordings also open in Rerun's own Viewer and Python SDK. NVIDIA
 runtimes power cuOpt optimization, Isaac Sim, and Stream perception.
 
 <table align="center" aria-label="Technology stack logos">
@@ -692,7 +691,7 @@ current workflow and the planned GPU CI setup are described in
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |
 | [`testing/`](testing/) | Protocol conformance and multi-process smoke harnesses. |
 | [`tools/xtask/`](tools/xtask/) | Typed repository commands: doctor, enforce, image, release, smoke, test-report. |
-| [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and Rerun captures. |
+| [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and recording viewer captures. |
 | [`docs/`](docs/) | Architecture, governance, deployment, recording, and harness documentation. |
 
 Start with the [documentation guide](docs/README.md) for tasks and delivery status,
