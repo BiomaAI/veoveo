@@ -1921,3 +1921,55 @@ Preserve queued data and per-recording sequence/acknowledgement rules. Increasin
 quota alone does not address starvation. No queue data or historical recording was
 deleted during this investigation. Both simulation Deployments returned to zero;
 the UAV HelmRelease stays suspended.
+
+### Map Explorer Recovery And Catalog Latency — September 25, 2026
+
+The reported Map Explorer stall reproduced in the authenticated Console: three
+parallel App catalog requests completed after roughly 5, 16 and 26 seconds while
+the session endpoint stayed responsive. The stopped UAV service made discovery
+partial. The Console discarded every partial snapshot, which forced each waiting
+App request to repeat discovery under the catalog mutex.
+
+The BFF now shares partial catalogs for their five-second lifetime, preserving
+their degradation metadata. Gateway discovery backs off failed sources and retries
+them without holding healthy results. Unsubscribe skips catalog discovery. The
+Console also keeps a frame's bridge alive across equivalent catalog updates and
+theme changes; replacing a descriptor replaces its iframe and bridge together.
+
+Map Explorer checks hardware WebGL2 before contacting the host, limits concurrent
+metadata reads, acknowledges MCP subscriptions and refreshes affected indexes.
+Failed reads preserve the prior data and show an error. Its Retry button repeats
+startup, and bridge requests reject after 15 seconds or when the frame closes.
+
+The first deployment eliminated the request queue, but catalog expiry still pushed
+parallel reads to 1.1–1.3 seconds. Gateway timing showed most upstream discovery at
+11–38 ms, with authorization and audit persistence taking hundreds of milliseconds.
+Bulk `INSERT` statements replace the per-record statement loops in each audit
+transaction. Every decision and outbox event still commits before catalog delivery.
+The native duplicate/rollback test also verifies retained identities, outcomes and
+timestamps. Its execution fell from 6.64 seconds to 1.70 seconds in the isolated
+fixture; installed latency is measured separately.
+
+Build and deployment observations:
+
+| Operation | Observed wall time | Detail |
+|---|---:|---|
+| Initial gateway image | 90.8 s | Only the affected image was staged |
+| Console and Map images | 476.9 s | Map's cold native dependency closure dominated; Console compilation took about two minutes |
+| Gateway timing instrumentation | 67.4 s | Cached dependencies, gateway compilation only |
+| Gateway bulk-audit image | 82.7 s | Store and its gateway consumers rebuilt; dependency caches were reused |
+
+The store-only native test selected a different Cargo feature closure and compiled
+SurrealDB core again, taking 95 seconds before test execution. `cargo tree` showed
+that the pinned SDK includes core even with only `protocol-ws` and `rustls` enabled.
+Keep this cache and investigate compatible test feature groupings before adding
+another build profile. No cache cleanup was needed for this work.
+
+Strict installation Helm lint takes about 0.2 seconds but still produces an
+unclassified receipt of roughly 24,600 lines. Source hashing and report generation
+cost more time than the check. A reviewed descriptor for installation Helm inputs
+is a follow-up. The Map Recreate rollout also waits for its 30-second termination
+period; acceptance starts after rollout and discovery recovery.
+
+The map import/export surfaces and remaining streaming opportunities are recorded
+in [Map integration](MAP_APP_INTEGRATION.md#upload-download-and-live-changes).
