@@ -25,11 +25,14 @@ its pending wire request. Partial acknowledgments fail admission and return capa
 Unexpected resource or catalog source completion invalidates this cached client's
 observers. A catalog listener requires acknowledgment of its complete requested filter.
 Catalog SSE feeds close on source loss, and reads reject the stale catalog immediately.
-Successful App snapshots expire within the gateway's five-second catalog freshness
+App snapshots expire within the gateway's five-second catalog freshness
 bound. The BFF owns that complete-snapshot cache. The SDK response cache is disabled:
 independently cached list pages can mix discovery revisions, and resource reads must
-reach current gateway authorization. A partial discovery result is never retained as
-a reusable App snapshot. The catalog feed reconciles native discovery every thirty seconds to recover
+reach current gateway authorization. Partial snapshots share that window and carry
+the unavailable servers explicitly. Concurrent App requests share one discovery result;
+an offline service does not force each resource read or frame load through a new scan.
+List-change notifications invalidate partial and complete snapshots alike.
+The catalog feed reconciles native discovery every thirty seconds to recover
 missed notifications or a read served by another gateway replica. Unchanged snapshots
 produce only an SSE comment. Ten-second transport keepalives preserve an idle feed.
 This bounded read does not invoke a model or query a provider job.

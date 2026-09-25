@@ -62,6 +62,7 @@ struct SurfaceState<T> {
     generation: u64,
     entries: BTreeMap<DiscoveryCacheKey, CachedItems<T>>,
     in_flight: BTreeMap<DiscoveryCacheKey, Uuid>,
+    failed: BTreeMap<DiscoveryCacheKey, Instant>,
 }
 
 #[derive(Debug)]
@@ -72,6 +73,7 @@ impl<T> Default for SurfaceCache<T> {
             generation: 0,
             entries: BTreeMap::new(),
             in_flight: BTreeMap::new(),
+            failed: BTreeMap::new(),
         }))
     }
 }
@@ -89,6 +91,12 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
     async fn pending(&self, keys: &[DiscoveryCacheKey]) -> bool {
         let state = self.0.lock().await;
         keys.iter().any(|key| state.in_flight.contains_key(key))
+    }
+
+    async fn awaiting_initial_result(&self, keys: &[DiscoveryCacheKey]) -> bool {
+        let state = self.0.lock().await;
+        keys.iter()
+            .any(|key| state.in_flight.contains_key(key) && !state.failed.contains_key(key))
     }
 
     async fn get(&self, key: &DiscoveryCacheKey) -> Option<Vec<T>> {
@@ -111,7 +119,16 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
         if key.catalog_generation > state.generation {
             state.entries.clear();
             state.in_flight.clear();
+            state.failed.clear();
             state.generation = key.catalog_generation;
+        }
+        if coalesce
+            && state
+                .failed
+                .get(&key)
+                .is_some_and(|retry_at| *retry_at > Instant::now())
+        {
+            return None;
         }
         if (coalesce && state.in_flight.contains_key(&key))
             || state.in_flight.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
@@ -130,6 +147,7 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
         }
         state.in_flight.remove(&fetch.key);
         if let Some(items) = items {
+            state.failed.remove(&fetch.key);
             let changed = state
                 .entries
                 .get(&fetch.key)
@@ -150,6 +168,15 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
             );
             changed
         } else {
+            if state.failed.len() >= MAX_CACHE_ENTRIES_PER_SURFACE
+                && !state.failed.contains_key(&fetch.key)
+            {
+                state.failed.pop_first();
+            }
+            state.failed.insert(
+                fetch.key.clone(),
+                Instant::now() + Duration::from_millis(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
+            );
             false
         }
     }
@@ -160,6 +187,7 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
         // A response captured before this event must not repopulate the cache,
         // even if a replacement request has already started for the same key.
         state.in_flight.retain(|key, _| &key.server != server);
+        state.failed.retain(|key, _| &key.server != server);
     }
 }
 
@@ -211,11 +239,15 @@ impl CatalogDiscoveryCache {
                 tokio::pin!(changed);
                 changed.as_mut().enable();
                 let pending = match surface {
-                    GatewayDiscoverySurface::Resources => self.resources.pending(keys).await,
-                    GatewayDiscoverySurface::ResourceTemplates => {
-                        self.resource_templates.pending(keys).await
+                    GatewayDiscoverySurface::Resources => {
+                        self.resources.awaiting_initial_result(keys).await
                     }
-                    GatewayDiscoverySurface::Tools => self.tools.pending(keys).await,
+                    GatewayDiscoverySurface::ResourceTemplates => {
+                        self.resource_templates.awaiting_initial_result(keys).await
+                    }
+                    GatewayDiscoverySurface::Tools => {
+                        self.tools.awaiting_initial_result(keys).await
+                    }
                 };
                 if !pending {
                     return;
@@ -379,6 +411,53 @@ mod tests {
             .begin(GatewayDiscoverySurface::Resources, key)
             .await
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn unavailable_sources_retry_without_delaying_healthy_catalogs() {
+        let cache = CatalogDiscoveryCache::default();
+        let failed = key(1, "offline");
+        let fetch = begin(&cache, failed.clone()).await;
+        cache
+            .finish_failure(GatewayDiscoverySurface::Resources, fetch)
+            .await;
+        assert!(
+            cache
+                .begin(GatewayDiscoverySurface::Resources, failed.clone())
+                .await
+                .is_none()
+        );
+        assert_eq!(
+            cache
+                .missing_code(GatewayDiscoverySurface::Resources, &failed)
+                .await,
+            GatewayDiscoveryFailureCode::UpstreamUnavailable
+        );
+        *cache
+            .resources
+            .0
+            .lock()
+            .await
+            .failed
+            .get_mut(&failed)
+            .unwrap() = Instant::now();
+        let retry = begin(&cache, failed.clone()).await;
+        tokio::time::timeout(
+            Duration::from_millis(50),
+            cache.settle(
+                GatewayDiscoverySurface::Resources,
+                std::slice::from_ref(&failed),
+            ),
+        )
+        .await
+        .unwrap();
+        assert!(cache.resources.pending(std::slice::from_ref(&failed)).await);
+        let mut changes = cache.subscribe();
+        let items = vec![Resource::new("offline://recovered", "recovered")];
+        cache.finish_resources(retry, items.clone()).await;
+        assert_eq!(cache.resources(&failed).await, Some(items));
+        assert!(changes.try_recv().is_ok());
+        assert!(!cache.resources.0.lock().await.failed.contains_key(&failed));
     }
 
     #[tokio::test]

@@ -98,7 +98,8 @@ type RunningMcpClient = RunningService<rmcp::RoleClient, ConsoleHostHandler>;
 
 /// The App authorization surface projected by one auth-scoped gateway client.
 /// MCP list-change notifications invalidate its successful snapshot;
-/// partial snapshots retry unavailable servers on the next explicit request.
+/// Partial snapshots keep their degradation metadata and share the same short
+/// freshness window. One unavailable server must not serialize every App read.
 #[derive(Debug)]
 pub(crate) struct McpAppCatalog {
     resources: Vec<rmcp::model::Resource>,
@@ -239,7 +240,6 @@ impl AuthScopedMcpClient {
         if let Some(cached) = cached.as_ref()
             && cached.revision == revision
             && cached.expires > tokio::time::Instant::now()
-            && cached.catalog.degradation.is_empty()
         {
             return Ok(cached.catalog.clone());
         }
@@ -647,6 +647,8 @@ mod tests {
         change: Arc<Notify>,
         end: Arc<Notify>,
         partial: bool,
+        degraded: bool,
+        reads: Arc<AtomicUsize>,
     }
 
     impl ServerHandler for CatalogMcp {
@@ -679,7 +681,22 @@ mod tests {
             _: Option<PaginatedRequestParams>,
             _: rmcp::service::RequestContext<rmcp::RoleServer>,
         ) -> Result<rmcp::model::ListResourcesResult, McpError> {
+            self.reads.fetch_add(1, Ordering::SeqCst);
             Ok(rmcp::model::ListResourcesResult {
+                meta: if self.degraded {
+                    use veoveo_mcp_contract::{
+                        GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
+                        GatewayDiscoverySurface, ServerSlug,
+                    };
+                    GatewayDiscoveryDegradation::new(vec![GatewayDiscoveryFailure {
+                        server: ServerSlug::new("offline").unwrap(),
+                        surface: GatewayDiscoverySurface::Resources,
+                        code: GatewayDiscoveryFailureCode::UpstreamUnavailable,
+                    }])
+                    .into_meta()
+                } else {
+                    None
+                },
                 resources: vec![Resource::new(
                     format!("ui://test/{}", self.version.load(Ordering::SeqCst)),
                     "catalog",
@@ -707,6 +724,39 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    async fn parallel_app_requests_share_partial_catalog_until_expiry_or_notification() {
+        let handler = CatalogMcp {
+            degraded: true,
+            ..Default::default()
+        };
+        let (_, _, client, server) =
+            subscription_test_pool(handler.clone(), ResourceCapacity::default()).await;
+        let catalogs = futures::future::join_all((0..8).map(|_| client.app_catalog())).await;
+        let first = catalogs[0].as_ref().unwrap();
+        assert!(!first.degradation().is_empty());
+        for catalog in &catalogs {
+            assert!(Arc::ptr_eq(first, catalog.as_ref().unwrap()));
+        }
+        assert_eq!(handler.reads.load(Ordering::SeqCst), 1);
+        handler.version.store(1, Ordering::SeqCst);
+        let mut changes = client.catalog_updates();
+        handler.change.notify_one();
+        tokio::time::timeout(Duration::from_secs(2), changes.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            client.app_catalog().await.unwrap().resources()[0].uri,
+            "ui://test/1"
+        );
+        client.app_catalog.lock().await.as_mut().unwrap().expires = tokio::time::Instant::now();
+        client.app_catalog().await.unwrap();
+        assert_eq!(handler.reads.load(Ordering::SeqCst), 3);
+        client.shutdown().await;
+        server.abort();
     }
 
     #[tokio::test]
