@@ -20,14 +20,15 @@ const entry = `import React from 'react';
 import {createRoot} from 'react-dom/client';
 import {AppFrame} from '/src/apps/AppFrame.tsx';
 import {ThemeContext} from '/src/theme.ts';
-import {initializeAppSession} from '/src/api.ts';
+import {initializeAppSession,loadSnapshot} from '/src/api.ts';
 initializeAppSession('fixture');
+window.failSnapshot=()=>loadSnapshot().catch(error=>error.message);
 const root=createRoot(document.querySelector('#root'));
 const app={server:'map',resourceUri:'ui://map/workspace.html',standalonePath:'/apps/map/workspace',name:'Map Explorer',tools:[{name:'query_features',inputSchema:{}}],resourceDependencies:[],toolDependencies:[],agentMessageTargets:[]};
 window.renderFrame=(theme='light',title='Map Explorer',visible=true)=>root.render(React.createElement(ThemeContext.Provider,{value:{theme,appTheme:theme,setTheme:()=>{}}},visible?React.createElement(AppFrame,{app:{...app,title},onInternalLink:()=>false}):null));
 window.renderFrame();`;
 
-test('catalog identity churn and theme changes preserve pending calls; descriptor changes and remount get fresh frames', {timeout: 60_000}, async () => {
+test('snapshot failures, catalog churn and theme changes preserve calls; descriptor changes and remount get fresh frames', {timeout: 60_000}, async () => {
   let frames = 0, opened = 0, unsubscribed = 0;
   let release, callArrived;
   const requested = new Promise(resolve => {callArrived = resolve;});
@@ -41,6 +42,7 @@ test('catalog identity churn and theme changes preserve pending calls; descripto
       server.middlewares.use(async (req,res,next)=>{
         const path=new URL(req.url,'http://fixture.test').pathname;
         if(path==='/console/fixture') {res.setHeader('Content-Type','text/html');res.end(await server.transformIndexHtml('/console/fixture','<!doctype html><div id="root"></div><script type="module" src="/console/fixture-entry.js"></script>'));}
+        else if(path==='/console/api/snapshot'){res.statusCode=503;res.setHeader('Content-Type','application/json');res.end('{"error":"fixture unavailable"}');}
         else if(path==='/console/api/apps/frame'){++frames;res.setHeader('Content-Type','text/html');res.end(frame);}
         else if(path==='/console/api/apps/call'){release=()=>{res.setHeader('Content-Type','application/json');res.end('{"content":[]}');};callArrived();}
         else if(path==='/console/api/apps/resource-events'){++opened;res.setHeader('Content-Type','text/event-stream');res.write(': connected\n\n');streams.add(res);res.on('close',()=>streams.delete(res));}
@@ -56,6 +58,7 @@ test('catalog identity churn and theme changes preserve pending calls; descripto
     await page.goto(`http://127.0.0.1:${server.httpServer.address().port}/console/fixture`);
     const app=page.frameLocator('iframe');
     await app.getByText('ready',{exact:true}).waitFor();
+    assert.match(await page.evaluate(()=>window.failSnapshot()), /couldn't load the Console/);
     await app.getByRole('button',{name:'Query'}).click();
     await app.getByText('waiting',{exact:true}).waitFor();
     await requested;
