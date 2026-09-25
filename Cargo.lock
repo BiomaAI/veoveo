@@ -6039,9 +6039,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.33.5"
+version = "0.33.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c426daf70099baff33fac0ba85151c42424861c56828cef9ba02dacb78eb6b26"
+checksum = "35accb17301a4874ea893c685ca86bc1e25f92499382adc17eec9a91f7803cfb"
 dependencies = [
  "serde_core",
 ]
@@ -9266,7 +9266,7 @@ dependencies = [
  "glam 0.30.10",
  "glam 0.31.1",
  "glam 0.32.1",
- "glam 0.33.5",
+ "glam 0.33.9",
  "matrixmultiply",
  "num-complex",
  "num-rational",
@@ -16734,7 +16734,7 @@ dependencies = [
  "clap",
  "dotenvy",
  "futures",
- "glam 0.33.5",
+ "glam 0.33.9",
  "hex",
  "rayon",
  "reqwest 0.13.5",
@@ -17355,7 +17355,7 @@ dependencies = [
  "duckdb",
  "flate2",
  "futures",
- "glam 0.33.5",
+ "glam 0.33.9",
  "hex",
  "image",
  "jsonwebtoken 11.0.0",
@@ -17660,7 +17660,7 @@ dependencies = [
  "dotenvy",
  "draco-gltf",
  "futures",
- "glam 0.33.5",
+ "glam 0.33.9",
  "gltf",
  "hex",
  "image",
