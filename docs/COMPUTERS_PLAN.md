@@ -69,6 +69,50 @@ read or browser connection to reconcile an idle run. Unresolved work requires it
 existing recovery path. The ignored detail artifact is
 `output/installed-feature-check/computers.json`.
 
+## Resource Allocation Audit — September 25, 2026
+
+This read-only inspection compared the repository configuration with the installed
+Docker controls, Linux cgroups, Kubernetes resources and retained-file block counts.
+The requested policy is maximum limits without advance resource reservations. No
+resource settings or retained files changed during this audit.
+
+| Resource | Installed behavior |
+|---|---|
+| Computer CPU | Each running container has a two-CPU quota (`cpu.max=200000 100000`), with no pinned CPU set. The runtime sends only resource limits. |
+| Computer RAM | Each container has a 2 GiB maximum. Docker `MemoryReservation`, cgroup `memory.min` and `memory.low` are zero. Docker reported approximately 18–28 MiB used per idle Computer. |
+| Temporary files | `/tmp` has a 256 MiB tmpfs maximum and `/var/log` has a 32 MiB maximum. These are growth limits, not up-front allocations. |
+| Shared service scheduling | `computer-host` requests 500m CPU and 1 GiB RAM; `computers-mcp` requests 100m and 256 MiB. Kubernetes accounts for a combined 0.6 CPU and 1.25 GiB when scheduling. This does not preallocate those physical memory pages. |
+| Service limits | The host pod has an eight-CPU/12 GiB cap and the worker has a two-CPU/1 GiB cap. Nested Docker guests use `/docker/<id>` cgroups outside the host pod's cgroup, so its aggregate cap does not include them. Guest limits are independently enforced. |
+| Retained home | Three backing files each have an 8 GiB logical size. Their allocated blocks total 221,945,856 bytes (about 212 MiB), including filesystem overhead. Stopping a Computer preserves its home. |
+| Host PVC | The nominal 100 GiB claim uses `local-path`. It is a directory on the shared filesystem, without a 100 GiB preallocation or enforced quota. |
+| Free-space admission | Before creating a new home, storage requires its full 8 GiB capacity plus the configured 8 GiB safety margin to be available. `reserveBytes` does not allocate a file or protect free space from other writers. |
+| Computer count | Per-owner two, per-tenant four and provider four are retained-resource count limits. They do not reserve CPU or RAM for four future Computers. |
+
+The [allocator](../platform/computers/storage/src/filesystem.rs) explicitly calls
+`fallocate` for the full home size, then `mkfs.ext4` without a discard override.
+The [formatter defaults to discarding unused blocks](https://man7.org/linux/man-pages/man8/mke2fs.8.html).
+That explains the observed sparse result, but this inspection did not replay a new
+allocation. The implementation and storage design describe preallocation while the
+installed files do not hold their full capacities. Neither the 8 GiB home limit nor
+the PVC declaration caps shared images and all container writable layers.
+
+Recommended follow-up:
+
+1. Keep per-Computer CPU and RAM maximums. Set explicit zero requests for the shared
+   services if installation policy requires no scheduling reservation. Merely
+   omitting requests can cause Kubernetes to
+   [copy limits into requests](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/).
+2. Declare thin allocation explicitly and remove the full-file preallocation step.
+   Keep a per-home maximum and define how the shared storage pool handles pressure
+   and exhaustion. Requiring the whole maximum at creation defeats thin admission;
+   removing that check alone does not protect later writes from a full host disk.
+3. Qualify the aggregate Computer cgroup limit and disk-pool budget independently
+   from each guest's limits. The installed
+   [local-path provisioner does not enforce PVC capacity](https://github.com/rancher/local-path-provisioner#cons).
+4. Test allocated blocks, guest limits, pool exhaustion and restart preservation.
+   Preserve the existing homes; changing allocation for new files does not require
+   deleting user data or reformatting installed files.
+
 ## Current Implementation Checkpoint
 
 On September 11, 2026, Veoveo with the Bioma configuration supports the following
