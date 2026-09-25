@@ -185,7 +185,7 @@ computers:
       size: 100Gi
       storageClass: local-path
     registryEgress:
-    - cidr: 172.18.0.3/32
+    - cidr: 172.18.0.2/32
       port: 5000
 agentManager:
   namespace: veoveo-agents
