@@ -193,7 +193,7 @@ agentManager:
   kubernetesApiEgress:
   - cidr: 10.43.0.1/32
     port: 443
-  - cidr: 172.18.0.2/32
+  - cidr: 172.18.0.3/32
     port: 6443
   modelEgress:
   - cidr: 104.19.192.174/32
