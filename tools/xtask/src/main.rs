@@ -87,6 +87,8 @@ enum EnforceScope {
     Rust,
     /// Run the locked local SDK and in-repository Python checks.
     Python,
+    /// Check relative links and heading anchors in tracked Markdown.
+    Docs,
 }
 
 #[derive(Debug, Subcommand)]
@@ -454,6 +456,7 @@ fn main() -> Result<()> {
         Command::Enforce { scope } => match scope.unwrap_or(EnforceScope::Rust) {
             EnforceScope::Rust => enforce::rust(&repository),
             EnforceScope::Python => enforce::python(&repository),
+            EnforceScope::Docs => enforce::docs(&repository),
         },
         Command::Image { command } => match command {
             ImageCommand::Builder { command } => match command {

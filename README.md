@@ -637,6 +637,7 @@ record the relevant checks with `cargo xtask test-report run`.
 ```bash
 cargo fmt --all
 cargo xtask enforce rust
+cargo xtask enforce docs
 cargo test --workspace
 cargo xtask enforce python
 cargo xtask smoke helm-config
@@ -660,6 +661,13 @@ committed so GitHub can display them:
 ```bash
 cargo xtask test-report run --name rust-workspace -- cargo xtask enforce rust
 cargo xtask test-report show
+```
+
+A documentation-only change records the link and anchor check instead of the build
+checks:
+
+```bash
+cargo xtask test-report run --name docs -- cargo xtask enforce docs
 ```
 
 The status is informational and does not block pushes or deployments. The

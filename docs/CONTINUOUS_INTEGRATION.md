@@ -78,7 +78,11 @@ snapshot and makes no adversarial concurrent-mutation guarantee.
 
 `show` evaluates each current source boundary independently. Stale rows remain
 visible; they do not erase unrelated valid observations. A current failure or the
-absence of any current passing observation returns an error. An unqualified row
+absence of any current passing observation returns an error. A documentation-only
+change leaves build checks unaffected, so it records
+`cargo xtask test-report run --name docs -- cargo xtask enforce docs` instead. That
+declared check reads the whole repository, validates every relative link and heading
+anchor in tracked Markdown, and gives the committed tree a current pass. An unqualified row
 records an observed pass without claiming environment reuse. Commit the index and
 its receipt files with the change:
 
