@@ -154,6 +154,7 @@ impl GatewayMcp {
         context: &RequestContext<RoleServer>,
         subject: &crate::AuthenticatedSubject,
     ) -> Result<Vec<rmcp::model::Resource>, McpError> {
+        let started = std::time::Instant::now();
         let manifest = catalog
             .server(server_slug)
             .ok_or_else(|| mcp_internal(format!("unknown profile server `{server_slug}`")))?;
@@ -165,6 +166,7 @@ impl GatewayMcp {
                 |upstream| async move { upstream.list_all_resources().await },
             )
             .await?;
+        let upstream_ms = started.elapsed().as_millis();
         let mut resources = Vec::with_capacity(upstream_resources.len());
         let mut targets = Vec::with_capacity(upstream_resources.len());
         for mut resource in upstream_resources {
@@ -188,9 +190,16 @@ impl GatewayMcp {
             targets.push(resource_policy_target(projection.server, &resource.uri)?);
             resources.push(resource);
         }
+        let authorization_started = std::time::Instant::now();
         let allowed = self
             .allows_catalog_targets(context, GatewayAction::ResourcesList, targets)
             .await?;
+        if started.elapsed() >= std::time::Duration::from_millis(100) {
+            tracing::info!(server = %server_slug, surface = "resources",
+                count = resources.len(), upstream_ms,
+                authorization_ms = authorization_started.elapsed().as_millis(),
+                total_ms = started.elapsed().as_millis(), "slow MCP catalog discovery");
+        }
         Ok(resources
             .into_iter()
             .zip(allowed)
