@@ -4,7 +4,7 @@ global:
   imageDigests:
     veoveo/computer-host: sha256:dda0672f6afcfa3114a3876e4fb8fbd0bbf14d3fd3729b0f86430f6a1ab7fded
     veoveo/computer-template: sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5
-    veoveo/computers-mcp: sha256:ea6961f049c33d4d844ae4af06cdf27d13c30f18cef90c69c778bf66e44194aa
+    veoveo/computers-mcp: sha256:7940434141c08edc844e828033f55ff8ce848b61b9557568859a117c13705086
     veoveo/artifact-mcp: sha256:9ab6b074916a70c903b1ffa93d1813ef9e442a887d6f1261667ed9aeef2a8fec
     veoveo/artifact-service: sha256:605ca014fcca8fa80a41ed7af3b60dd0c639ee47c9f3f430c74fd455b376c030
     veoveo/chart-mcp: sha256:996b9ebe1b78acc789e0fc92025557fe5b3a598df1c68a79ee3e13f3c85c3fc4
