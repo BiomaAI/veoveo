@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "veoveo.io/test-check-catalog/v1",
+  "checks": [
+    {
+      "arguments": ["cargo", "xtask", "enforce", "docs"],
+      "inputs": { "kind": "repository" },
+      "toolchains": ["rust"]
+    }
+  ]
+}

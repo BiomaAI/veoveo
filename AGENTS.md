@@ -199,14 +199,17 @@ The repository has no Justfile. One-step Cargo, Helm, uv, Docker, and Kubernetes
 commands remain native. Repository-specific policy and multi-step coordination belong
 in `cargo xtask`.
 
-The xtask surface is `doctor`, `enforce rust|python`, `image`, `release`, `smoke`,
+The xtask surface is `doctor`, `enforce rust|python|docs`, `image`, `release`, `smoke`,
 and `test-report`. Before committing a build-input change, run the checks it touches
 through the evidence recorder
 (`cargo xtask test-report run --name <check> -- <command>`, then
 `cargo xtask test-report show`) and commit the updated
 `testing/local-test-report.json` with the change, since the GitHub workflow only
-displays that committed evidence. Documentation-only changes do not invalidate build
-evidence. Do not commit red or stale report entries.
+displays that committed evidence. A documentation-only change needs no build checks.
+Record `cargo xtask test-report run --name docs -- cargo xtask enforce docs` for it
+instead; the check validates every relative link and heading anchor in tracked
+Markdown and gives the committed tree a current pass. Do not commit red or stale
+report entries.
 
 Tests use the maintained tooling appropriate to their boundary: Rust for service and
 process invariants, TypeScript/browser tooling for Console behavior, and the SDK's

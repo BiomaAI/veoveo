@@ -1,6 +1,10 @@
 use anyhow::Result;
 
-use crate::{commands::python as python_package, context::RepositoryContext, process};
+use crate::{
+    commands::{doc_links, python as python_package},
+    context::RepositoryContext,
+    process,
+};
 
 pub(crate) fn rust(repository: &RepositoryContext) -> Result<()> {
     let root = Some(repository.root());
@@ -34,4 +38,8 @@ pub(crate) fn rust(repository: &RepositoryContext) -> Result<()> {
 
 pub(crate) fn python(repository: &RepositoryContext) -> Result<()> {
     python_package::enforce(repository)
+}
+
+pub(crate) fn docs(repository: &RepositoryContext) -> Result<()> {
+    doc_links::enforce(repository)
 }
