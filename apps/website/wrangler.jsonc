@@ -1,10 +1,14 @@
 {
-  // Static site served by a Cloudflare Worker with static assets. build.mjs produces dist/.
+  // Static site on a Cloudflare Worker. build.mjs produces dist/. The Worker script
+  // runs only for the use-case videos, to answer Range requests.
   "name": "veoveo-website",
+  "main": "src/worker.js",
   "compatibility_date": "2026-09-26",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "404-page",
-    "html_handling": "auto-trailing-slash"
+    "html_handling": "auto-trailing-slash",
+    "run_worker_first": ["/assets/cards/*"]
   }
 }

@@ -8,7 +8,8 @@ the whitepaper from `docs/veoveo-whitepaper.html`, its figures, and its PDF, so 
 paper keeps one source in `docs/`.
 
 A Cloudflare Worker with static assets serves the site as `veoveo-website`, configured
-in `wrangler.jsonc`. Deploy with the repository's Cloudflare credentials in the
+in `wrangler.jsonc`. `src/worker.js` runs only for the use-case videos and answers HTTP
+Range requests, which Safari needs before it plays an MP4. Deploy with the repository's Cloudflare credentials in the
 environment:
 
 ```sh
@@ -25,3 +26,7 @@ prompt is in `art/generate.py`:
 ```sh
 uv run --env-file ../../.env --python 3.13 art/generate.py
 ```
+
+The use-case videos come from `art/usecases.py`: a still per use case from the same
+image model, then an 8-second, three-shot clip from Seedance 2.5 image-to-video. The
+script's docstring has the commands and the encoding settings for `public/assets/cards/`.
