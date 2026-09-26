@@ -171,6 +171,7 @@ designs above.
 | `docs/` | general architecture, code index, recording design, and rendered publications |
 | `agents/` | agent kernel and durable agent runtime |
 | `apps/` | user-facing applications and their service boundaries |
+| [`apps/website/`](../apps/website/README.md) | public veoveo.ai site, a Cloudflare Worker with static assets; serves the whitepaper from `docs/` |
 | `mcp/` | shared MCP protocol contracts, extensions, and bridges |
 | `platform/` | internal platform services, persistence, and reusable runtimes |
 | `platform/runtimes/computers/` | private OpenShell adapter, retained binding/storage protocol, terminal/exec streams, renewable attachment enforcement and SSH-only CLI bridge; the Computers plan tracks domain/service and installed qualification |

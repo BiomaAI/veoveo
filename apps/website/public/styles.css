@@ -1,0 +1,134 @@
+:root {
+  --ink: #161B22;
+  --body: #3A434D;
+  --muted: #6B7580;
+  --line: #E3DDEA;
+  --violet: #742A98;
+  --violet-deep: #4E1A6A;
+  --violet-bright: #B04BE0;
+  --violet-soft: #C9A3E6;
+  --wash: #F6F2F9;
+  --night: #020209;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 17px; scroll-behavior: smooth; }
+body { background: #fff; color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: inherit; }
+img { display: block; max-width: 100%; }
+
+.wrap { max-width: 72rem; margin: 0 auto; padding: 0 1.5rem; }
+
+/* ---------- hero ---------- */
+.hero { position: relative; background: var(--night); color: #fff; overflow: hidden; }
+.hero-art {
+  position: absolute; inset: 0;
+  background: var(--night) url("assets/hero.jpg") center bottom / cover no-repeat;
+}
+.hero-art::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, var(--night) 0%, var(--night) 12%, rgba(2,2,9,0.7) 28%, rgba(2,2,9,0) 46%, rgba(2,2,9,0) 82%, var(--night) 100%),
+    linear-gradient(90deg, rgba(2,2,9,0.6) 0%, rgba(2,2,9,0) 22%, rgba(2,2,9,0) 78%, rgba(2,2,9,0.6) 100%);
+}
+.hero-inner { position: relative; min-height: min(56rem, 100vh); display: flex; flex-direction: column; }
+.nav { display: flex; align-items: center; justify-content: space-between; padding: 1.4rem 0; }
+.brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; }
+.brand .lens { width: 2.6rem; height: 2.6rem; }
+.brand .word { height: 1.35rem; width: auto; }
+.nav-links { display: flex; gap: 1.6rem; font-size: 0.9rem; }
+.nav-links a { color: #D9D2E4; text-decoration: none; }
+.nav-links a:hover { color: #fff; }
+
+.hero h1 {
+  margin-top: 1.6rem; max-width: 52rem;
+  font-size: clamp(2.1rem, 4.6vw, 3.8rem); line-height: 1.04; letter-spacing: -0.02em; font-weight: 700;
+}
+.hero-actions { margin-top: auto; padding: 2rem 0 2.6rem; display: flex; gap: 0.8rem; flex-wrap: wrap; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem; text-decoration: none;
+  font-size: 0.95rem; font-weight: 700; padding: 0.8rem 1.3rem; border-radius: 0.5rem;
+}
+.btn-primary { background: var(--violet); color: #fff; }
+.btn-primary:hover { background: var(--violet-deep); }
+.btn-ghost { color: #fff; border: 1px solid rgba(255,255,255,0.35); }
+.btn-ghost:hover { border-color: #fff; }
+.btn-dark { background: var(--ink); color: #fff; }
+.btn svg { width: 1.1rem; height: 1.1rem; }
+
+/* ---------- lede ---------- */
+.lede-band { padding-top: 3.2rem; padding-bottom: 1rem; }
+.lede {
+  max-width: 54rem; border-left: 0.35rem solid var(--violet); padding: 0.2rem 0 0.2rem 1.3rem;
+  font-size: clamp(1.25rem, 2.6vw, 1.7rem); line-height: 1.38; letter-spacing: -0.005em;
+}
+.lede em { font-style: normal; font-weight: 700; color: var(--violet); }
+
+/* ---------- sections ---------- */
+section.block { padding: 2.6rem 0; }
+h2 {
+  font-size: 0.82rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--violet);
+  border-top: 2px solid var(--violet); padding-top: 0.8rem; margin-bottom: 1.4rem;
+}
+.cols { display: grid; grid-template-columns: 1.1fr 1fr; gap: 3rem; }
+
+ul.caps { list-style: none; }
+ul.caps li { position: relative; font-size: 1rem; line-height: 1.5; color: var(--body); margin-bottom: 1.1rem; }
+ul.caps li b { color: var(--ink); }
+ul.caps.icons li { padding-left: 3.2rem; min-height: 2.4rem; }
+ul.caps.icons svg.ico { position: absolute; left: 0; top: 0.1rem; width: 2.3rem; height: 2.3rem; }
+ul.caps.dots li { padding-left: 1.3rem; }
+ul.caps.dots li::before {
+  content: ""; position: absolute; left: 0; top: 0.5rem; width: 0.55rem; height: 0.55rem;
+  border-radius: 50%; background: var(--violet-bright);
+}
+
+/* ---------- comparison ---------- */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 40rem; }
+thead td {
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  padding: 0 1.2rem 0.6rem 0; border-bottom: 1px solid var(--line);
+}
+thead td.v { color: var(--violet); }
+tbody td { font-size: 0.95rem; line-height: 1.45; color: var(--body); padding: 0.9rem 1.2rem 0.9rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody td:first-child { font-weight: 700; color: var(--ink); width: 11rem; }
+tbody td.v { color: var(--ink); }
+
+/* ---------- factory ---------- */
+.factory {
+  display: flex; align-items: center; gap: 1.6rem; background: var(--wash);
+  border-left: 0.35rem solid var(--violet); border-radius: 0 0.6rem 0.6rem 0; padding: 1.3rem 1.6rem;
+}
+.factory .tag { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--violet); white-space: nowrap; }
+.factory p { font-size: 1.05rem; line-height: 1.5; }
+
+/* ---------- get started ---------- */
+.start { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; }
+.card { border: 1px solid var(--line); border-radius: 0.8rem; padding: 1.8rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.card.dark { background: var(--night); color: #fff; border-color: var(--night); position: relative; overflow: hidden; }
+.card.dark::before {
+  content: ""; position: absolute; inset: 0; opacity: 0.35;
+  background: url("assets/hero-1200.jpg") center 75% / cover no-repeat;
+}
+.card.dark > * { position: relative; }
+.card h3 { font-size: 1.4rem; letter-spacing: -0.01em; }
+.card p { font-size: 1rem; line-height: 1.55; color: var(--body); }
+.card.dark p { color: #D9D2E4; }
+.card .btn { align-self: flex-start; margin-top: auto; }
+
+/* ---------- footer ---------- */
+footer { border-top: 1px solid var(--line); margin-top: 2rem; padding: 1.6rem 0 2.4rem; font-size: 0.85rem; color: var(--muted); }
+footer .wrap { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+footer a { color: var(--body); }
+
+@media (max-width: 800px) {
+  html { font-size: 16px; }
+  .cols, .start { grid-template-columns: 1fr; gap: 1.6rem; }
+  .nav-links { display: none; }
+  .factory { flex-direction: column; align-items: flex-start; gap: 0.6rem; }
+  .hero-inner { min-height: 40rem; }
+  .hero-art { background-size: 210% auto; background-position: 42% 100%; }
+}

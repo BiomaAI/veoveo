@@ -1,0 +1,10 @@
+{
+  // Static site served by a Cloudflare Worker with static assets. build.mjs produces dist/.
+  "name": "veoveo-website",
+  "compatibility_date": "2026-09-26",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  }
+}
