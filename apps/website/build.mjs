@@ -1,4 +1,4 @@
-// Assembles dist/: the site in public/ plus the whitepaper and its figures from docs/.
+// Assembles dist/: the site in public/ plus the whitepaper, its figures and brand files from docs/.
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,10 +12,12 @@ cpSync(join(site, "public"), dist, { recursive: true });
 
 const paper = readFileSync(join(docs, "veoveo-whitepaper.html"), "utf8");
 const figures = new Set(
-  [...paper.matchAll(/(?:src|srcset)="(images\/[^"]+)"|url\(["']?(images\/[^"')]+)/g)].map((m) => m[1] ?? m[2]),
+  [...paper.matchAll(/(?:src|srcset)="((?:images|assets\/brand)\/[^"]+)"|url\(["']?((?:images|assets\/brand)\/[^"')]+)/g)]
+    .map((m) => m[1] ?? m[2]),
 );
 const target = join(dist, "whitepaper");
 mkdirSync(join(target, "images"), { recursive: true });
+mkdirSync(join(target, "assets", "brand"), { recursive: true });
 writeFileSync(join(target, "index.html"), paper);
 for (const figure of figures) cpSync(join(docs, figure), join(target, figure));
 cpSync(join(docs, "veoveo-whitepaper.pdf"), join(target, "veoveo-whitepaper.pdf"));

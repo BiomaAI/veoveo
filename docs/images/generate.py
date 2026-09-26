@@ -38,6 +38,9 @@ STYLE = (
     " Austere, minimal, generous white space."
 )
 
+# Rendered scenes that keep their own look instead of the schematic STYLE anchor.
+SCENES = {"cover-hero"}
+
 IMAGES = {
     "cover": (
         "1024*1536",
@@ -305,6 +308,27 @@ IMAGES = {
         "1536*1024",
         "Deployment spectrum schematic: four flat 2D installation islands in a row, each a large rounded outlined base, labeled beneath in order EDGE, CLUSTER, AIR-GAP, HYBRID. Every island carries the same stack drawn identically: one small amber diamond mark at the center of the base, and outlined agent hexagons floating above the diamond — exactly one hexagon above the EDGE island, three hexagons above the CLUSTER island, two hexagons above the AIR-GAP island, and two hexagons above the HYBRID island. The EDGE base contains a single small outlined box; the CLUSTER base contains a row of three small outlined boxes; the AIR-GAP base is drawn with a double-line sealed border and connects to nothing; the HYBRID base has one dashed line rising to a small outlined box at the upper right labeled REMOTE. One continuous baseline under all four islands labeled ONE PLATFORM. The amber accent appears only on the four identical diamond marks — the same platform in every form; everything else dark slate."
     ),
+    # The whitepaper cover and the veoveo.ai hero share this illustration. It is a
+    # rendered scene rather than a schematic, so it does not take the STYLE anchor.
+    # Save it as docs/images/cover-hero.jpg (quality 86) after review.
+    "cover-hero": (
+        "1536*1024",
+        "A single continuous city block seen from a low aerial three-quarter view. The left third is"
+        " a translucent digital twin drawn in thin glowing violet wireframe lines, the right third is"
+        " the same block as a real photographic street scene at dusk, and the middle blends smoothly"
+        " from simulation into reality. A mixed team works together across the scene: a human"
+        " operator holding a tablet, a four-legged robot, a small wheeled ground robot, a multirotor"
+        " drone in flight, and a small uncrewed boat on a canal. Thin luminous violet data lines link"
+        " every member to a floating translucent world model in the center: a stack of four glass"
+        " planes with small glowing nodes."
+        " Stylized high-quality 3D render in the look of a premium technology keynote slide:"
+        " near-black slate background, hex 0D1117, with a soft deep-violet atmospheric glow."
+        " Sleek matte graphite machines with small violet light accents, hex 742A98 and B04BE0."
+        " Clean, calm, optimistic and forward-looking; nothing military, no weapons."
+        " Wide panoramic composition: all important content sits inside the central horizontal band"
+        " covering the middle 45 percent of the image height; the top and bottom are dark, empty"
+        " background. No text, no labels, no logos, no watermarks, no user interface."
+    ),
     "operations-loop": (
         "1536*1024",
         "Dual-loop cognition schematic: two closed triangular loops side by side. Above the left loop a small heading tag reads REACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled DETECT, DECIDE, INTERVENE. Above the right loop a small heading tag reads PROACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled ANALYZE, PLAN, DISPATCH. Every word appears exactly once; every circle has one label. Between the two loops at the bottom, one small outlined tag reads NONSTOP. The amber accent appears only on the arrow from DECIDE to INTERVENE and the arrow from PLAN to DISPATCH — the two moments of action; everything else dark slate."
@@ -330,7 +354,7 @@ def main():
         if only and name not in only:
             continue
         resp = api(f"/api/v3/{MODEL}", {
-            "prompt": prompt + STYLE,
+            "prompt": prompt if name in SCENES else prompt + STYLE,
             "aspect_ratio": ASPECT_RATIOS[size],
             "resolution": "2k",
             "quality": "high",
