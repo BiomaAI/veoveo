@@ -17,7 +17,8 @@ npm ci
 npm run deploy
 ```
 
-`npm run deploy` builds `dist/` and publishes it. The `veoveo.ai` and `www.veoveo.ai`
+`npm run deploy` builds `dist/` and publishes it. Preview URLs are disabled, so the
+workers.dev address and veoveo.ai serve only the published version. The `veoveo.ai` and `www.veoveo.ai`
 custom domains route to the Worker.
 
 The hero image comes from WaveSpeed's `openai/gpt-image-2/text-to-image` model. Its
