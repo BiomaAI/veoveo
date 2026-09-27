@@ -1,0 +1,28 @@
+{
+  "schema": "veoveo.ai/installation-target/v1",
+  "kubernetes": {
+    "context": "k3d-veoveo-catalog",
+    "namespace": "veoveo"
+  },
+  "localBaseUrl": "http://127.0.0.1:8784",
+  "publicBaseUrl": "https://localhost:8785",
+  "controlPlane": "gateway.json",
+  "expectedDeployments": [
+    "mcp-gateway",
+    "artifact-service",
+    "recording"
+  ],
+  "minimumGpuShares": 0,
+  "operator": {
+    "clientId": "operator-service",
+    "profile": "operator",
+    "scopes": [
+      "operator:use"
+    ],
+    "workContext": "operations"
+  },
+  "recordingCatalog": {
+    "redapUrl": "rerun+http://localhost:8784",
+    "hostMappings": []
+  }
+}

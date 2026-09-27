@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "catalog-producer",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "zCTxQJTLE1Uu_WgnjqQoQJRdNDXzeiDKR9BQT2hxsGgqNreUiR87O7Jr0gXBZnCsP3yKyNllngWHUfDTzpBegdrTiKbRoNMQ2fKwgCXTYWKO9wXSVmWZDsQPz0HCsLFHpS8bJTk78ucqqj4gywH-smbBT8zOd9U8OJEqOgghC_J_fdLPKKFXSyQ5YvSbshAkDXQIqCWPD5DRZ_XGup4XdwMqxqxPm5JkoAM8eATxVy_qBZXPWk0Do4bzkR-8WitnfhDXeih81AP1EoMEjANN9FwPllQ-y9bmnTyDl8gpYTvDOete4BV3SRvj4nYOudaDQJP0B-F2MmCaKJBj5cwPmw",
+      "e": "AQAB"
+    }
+  ]
+}

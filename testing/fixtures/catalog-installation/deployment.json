@@ -1,0 +1,142 @@
+{
+  "schemaVersion": "veoveo.ai/deployment/v8",
+  "name": "catalog-installation",
+  "registry": {
+    "pushAddress": "127.0.0.1:5001",
+    "pullAddress": "k3d-veoveo-registry.localhost:5001",
+    "transport": "insecure-http",
+    "localConfig": "../../../deploy/local/k3d/registry.json"
+  },
+  "sources": [
+    {
+      "name": "veoveo",
+      "role": "platform",
+      "repository": {
+        "kind": "local",
+        "path": "../../.."
+      },
+      "revision": "HEAD",
+      "imageGroups": [],
+      "releases": [
+        {
+          "name": "veoveo",
+          "chart": "deploy/helm/veoveo",
+          "sourceValues": [],
+          "installationValues": [
+            "platform-values.yaml"
+          ],
+          "valuesContract": "platform",
+          "timeoutSeconds": 600
+        }
+      ]
+    }
+  ],
+  "kubernetes": {
+    "context": "k3d-veoveo-catalog",
+    "localCluster": {
+      "name": "veoveo-catalog",
+      "config": "cluster.yaml",
+      "nodeBootstrapManifests": [
+        "../../../deploy/local/k3d/node/nvidia-device-plugin.yaml"
+      ]
+    }
+  },
+  "namespace": "veoveo",
+  "resources": {
+    "manifests": [],
+    "configMaps": []
+  },
+  "platform": {
+    "installationPreset": "custom",
+    "components": [
+      "gateway",
+      "platform-store",
+      "object-store",
+      "artifact-service",
+      "recording-data-plane",
+      "ingress"
+    ],
+    "mcpServers": [
+      "recording"
+    ],
+    "artifactAudiences": []
+  },
+  "gatewayRequirements": [],
+  "waitForDeployments": [
+    "mcp-gateway",
+    "artifact-service",
+    "recording"
+  ],
+  "components": [
+    {
+      "id": "installation",
+      "owner": {
+        "kind": "installation"
+      },
+      "role": "installation",
+      "dependencies": [],
+      "namespaces": [
+        "veoveo",
+        "kube-system"
+      ],
+      "clusterObjects": [
+        {
+          "group": "",
+          "kind": "Namespace",
+          "namespace": null,
+          "name": "veoveo"
+        },
+        {
+          "group": "node.k8s.io",
+          "kind": "RuntimeClass",
+          "namespace": null,
+          "name": "nvidia"
+        }
+      ],
+      "releases": [],
+      "installationInputs": [
+        "namespace",
+        "gateway-activation",
+        "node-bootstrap"
+      ]
+    },
+    {
+      "id": "veoveo",
+      "owner": {
+        "kind": "source",
+        "name": "veoveo"
+      },
+      "role": "platform",
+      "dependencies": [
+        "installation"
+      ],
+      "namespaces": [
+        "veoveo"
+      ],
+      "clusterObjects": [],
+      "releases": [
+        "veoveo"
+      ],
+      "installationInputs": []
+    }
+  ],
+  "gatewayActivation": {
+    "configMapNamePrefix": "catalog-gateway",
+    "controlPlaneKey": "gateway.json",
+    "controlPlane": "gateway.json",
+    "publicFiles": {
+      "jwks.json": "jwks.json",
+      "operator-client-jwks.json": "operator-client-jwks.json",
+      "recording-producer-jwks.json": "recording-producer-jwks.json"
+    },
+    "confidentialSecret": "veoveo-installation-secrets",
+    "requiredSecretKeys": [
+      "authorization-server-private-key-der-b64",
+      "internal-signing-key-der-b64",
+      "internal-signing-key-id",
+      "internal-trust-jwks",
+      "oidc-client-secret",
+      "refresh-delivery-key-b64"
+    ]
+  }
+}

@@ -312,6 +312,7 @@ designs above.
 | `testing/fixtures/platform-selection/` | anonymous deployment v5 platform selection and Artifact/Frames/Map/Media/Recording/RRD image-closure acceptance |
 | `testing/fixtures/fork-workload/` | in-repository Python simulation protocol fixture with typed camera and render-product declarations; it is not visual GPU evidence |
 | `testing/fixtures/fork-installation/` | local fork workload selection, complete gateway configuration and protocol-only deployment closure |
+| `testing/fixtures/catalog-installation/` | disposable Recording catalog installation with a separate HTTPS origin, tenant and machine-client keys for native SDK acceptance |
 | `deploy/contract/tests/fork_installation.rs` | downstream workload, reviewed upstream merge, retained image revision and separate installation configuration |
 | `deploy/contract/tests/component_ownership.rs` | pure component selection, unchanged dependencies, mixed-release rejection, previous Helm inventory checks, and immutable input ownership tests |
 | `deploy/contract/tests/component_reuse.rs` and `tests/support/components.rs` | independent Git-history input reuse, content-based upgrade decisions, and shared atomic component fixtures; these tests do not execute Kubernetes mutations |

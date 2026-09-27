@@ -1,0 +1,562 @@
+{
+  "branding": {
+    "name": "Veoveo",
+    "product_label": "Catalog fixture",
+    "accent_color": "#4fa87d"
+  },
+  "identity_providers": [
+    {
+      "id": "enterprise",
+      "issuer": "https://idp.enterprise.example",
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/jwks.json"
+      },
+      "claim_mapping": {
+        "subject": "sub",
+        "tenant": {
+          "claim": "tenant",
+          "values": {
+            "enterprise": "enterprise"
+          }
+        }
+      },
+      "authorization_endpoint": "https://idp.enterprise.example/oauth2/authorize",
+      "token_endpoint": "https://idp.enterprise.example/oauth2/token",
+      "metadata": {
+        "provider": "external_oidc"
+      }
+    }
+  ],
+  "authorization_servers": [
+    {
+      "id": "veoveo",
+      "issuer": "https://localhost:8785/oauth",
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/jwks.json"
+      },
+      "access_token_key_id": "catalog-authorization",
+      "access_token_signing_key": "veoveo_access_token_private_key",
+      "identity_provider": "enterprise",
+      "authorization_endpoint": "https://localhost:8785/oauth/authorize",
+      "token_endpoint": "https://localhost:8785/oauth/token",
+      "metadata": {
+        "deployment": "enterprise"
+      }
+    }
+  ],
+  "servers": [
+    {
+      "slug": "recording",
+      "uri_scheme": "recording",
+      "mount_path": "/recording",
+      "mcp_path": "/recording/mcp",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-mcp:8796/mcp",
+        "health_url": "http://recording-mcp:8796/healthz",
+        "security": "cluster_internal_http"
+      },
+      "capabilities": {
+        "tools": true,
+        "resources": true,
+        "resource_templates": true,
+        "resource_subscriptions": true,
+        "prompts": true,
+        "completions": true,
+        "tasks": false,
+        "resources_list_changed": true,
+        "apps": true
+      },
+      "tools": [
+        "create_recording_projection",
+        "seal_recording"
+      ],
+      "prompts": [
+        "recording-inspect",
+        "recording-project",
+        "recording-seal"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "owned_routes": [
+        {
+          "path": "/recordings",
+          "purpose": "artifact_bytes"
+        }
+      ],
+      "metadata": {
+        "raw_ingest": "internal_only"
+      },
+      "resource_projection": "server_owned"
+    }
+  ],
+  "profiles": [
+    {
+      "id": "operator",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://localhost:8785/mcp/operator",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials"
+      ],
+      "required_scopes": [
+        "operator:use"
+      ],
+      "servers": [
+        {
+          "server": "recording",
+          "tools": {
+            "mode": "listed",
+            "items": [
+              "create_recording_projection"
+            ]
+          },
+          "resources": {
+            "mode": "listed",
+            "items": [
+              {
+                "kind": "scheme",
+                "scheme": "recording"
+              },
+              {
+                "kind": "uri_prefix",
+                "prefix": "ui://recording/"
+              }
+            ]
+          },
+          "prompts": {
+            "mode": "listed",
+            "items": [
+              "recording-inspect",
+              "recording-project"
+            ]
+          },
+          "completions": "enabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "enterprise"
+      },
+      "artifact_upload": {
+        "max_object_bytes": 107374182400,
+        "tenant_quota_bytes": 214748364800,
+        "max_active_uploads_per_tenant": 8,
+        "part_bytes": 16777216,
+        "max_part_bytes": 67108864,
+        "max_parts": 10000,
+        "parallel_parts": 4,
+        "max_inflight_bytes": 134217728,
+        "inactivity_seconds": 86400,
+        "lifetime_seconds": 604800,
+        "part_timeout_seconds": 120,
+        "allowed_mime_types": [
+          "application/json",
+          "application/octet-stream",
+          "application/pdf",
+          "application/vnd.apache.parquet",
+          "application/vnd.rerun.rrd",
+          "application/x-ndjson",
+          "application/zip",
+          "audio/mpeg",
+          "audio/wav",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+          "text/csv",
+          "text/markdown",
+          "text/plain",
+          "video/mp4"
+        ]
+      }
+    },
+    {
+      "id": "recording-publish",
+      "identity_provider": "enterprise",
+      "authorization_server": "veoveo",
+      "protected_resource": "https://localhost:8785/recordings/publish",
+      "policy_version": "2026-07-02",
+      "auth_modes": [
+        "oauth_client_credentials"
+      ],
+      "required_scopes": [
+        "recording:publish"
+      ],
+      "servers": [
+        {
+          "server": "recording",
+          "tools": {
+            "mode": "none"
+          },
+          "resources": {
+            "mode": "none"
+          },
+          "prompts": {
+            "mode": "none"
+          },
+          "completions": "disabled",
+          "tasks": "disabled"
+        }
+      ],
+      "metadata": {
+        "tenant": "enterprise",
+        "service_boundary": "recording_layer_publication"
+      }
+    }
+  ],
+  "tenants": [
+    {
+      "id": "enterprise",
+      "title": "Enterprise",
+      "metadata": {
+        "reference_deployment": true
+      }
+    }
+  ],
+  "work_contexts": [
+    {
+      "id": "operations",
+      "tenant": "enterprise",
+      "title": "Fixture operations",
+      "policy_revision": "2026-07-02",
+      "output_policy": {
+        "owner": {
+          "kind": "group",
+          "id": "operations"
+        },
+        "initial_grants": []
+      },
+      "memberships": [
+        {
+          "level": "contributor",
+          "oauth_clients": [
+            "recording-producer",
+            "recording-hub",
+            "recording-mcp-publisher",
+            "operator-service"
+          ]
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "version": "2026-07-02",
+      "rules": [
+        {
+          "id": "allow_recording_ingest",
+          "effect": "allow",
+          "actions": [
+            "recording_stream_open",
+            "recording_stream_status",
+            "recording_batch_append",
+            "recording_blueprint_publish",
+            "recording_stream_finish"
+          ],
+          "protected_resources": [
+            "https://localhost:8785/ingest/recordings"
+          ],
+          "principal_ids": [
+            "https://localhost:8785/oauth#recording-producer"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "required_scopes": [
+            "recording:ingest"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_recording_layer_publication",
+          "effect": "allow",
+          "actions": [
+            "recording_layer_publish"
+          ],
+          "profiles": [
+            "recording-publish"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "principal_ids": [
+            "https://localhost:8785/oauth#recording-hub",
+            "https://localhost:8785/oauth#recording-mcp-publisher"
+          ],
+          "tenant_ids": [
+            "enterprise"
+          ],
+          "required_scopes": [
+            "recording:publish"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_operator_service_recording_use",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "resources_list",
+            "resources_templates_list",
+            "resources_read",
+            "subscriptions_listen",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete",
+            "artifact_read"
+          ],
+          "profiles": [
+            "operator"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "create_recording_projection"
+          ],
+          "resource_schemes": [
+            "recording",
+            "ui"
+          ],
+          "prompts": [
+            "recording-inspect",
+            "recording-project"
+          ],
+          "principal_ids": [
+            "https://localhost:8785/oauth#operator-service"
+          ],
+          "required_scopes": [
+            "operator:use"
+          ],
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "data_labels": [
+    {
+      "id": "cui",
+      "title": "Controlled Unclassified Information",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "itar",
+      "title": "ITAR-controlled data",
+      "regulated": true,
+      "metadata": {}
+    },
+    {
+      "id": "pii",
+      "title": "Personally Identifiable Information",
+      "regulated": true,
+      "metadata": {}
+    }
+  ],
+  "oauth_clients": [
+    {
+      "id": "recording-producer",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "Recording Producer",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://localhost:8785/ingest/recordings"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:ingest"
+      ],
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/recording-producer-jwks.json"
+      },
+      "tenant": "enterprise",
+      "metadata": {
+        "client_boundary": "recording_producer"
+      }
+    },
+    {
+      "id": "recording-hub",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "Recording Hub Publisher",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://localhost:8785/recordings/publish"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:publish"
+      ],
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/recording-producer-jwks.json"
+      },
+      "tenant": "enterprise",
+      "metadata": {
+        "client_boundary": "recording_layer_publisher"
+      }
+    },
+    {
+      "id": "recording-mcp-publisher",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "Recording MCP Properties Publisher",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://localhost:8785/recordings/publish"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "recording:publish"
+      ],
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/recording-producer-jwks.json"
+      },
+      "tenant": "enterprise",
+      "metadata": {
+        "client_boundary": "recording_properties_publisher"
+      }
+    },
+    {
+      "id": "operator-service",
+      "authorization_server": "veoveo",
+      "default_work_context": "operations",
+      "invocation_mode": "automated",
+      "display_name": "Veoveo Operator Service",
+      "client_surface": "full_mcp",
+      "allowed_resources": [
+        "https://localhost:8785/mcp/operator"
+      ],
+      "grant_types": [
+        "client_credentials"
+      ],
+      "auth_methods": [
+        "private_key_jwt"
+      ],
+      "allowed_scopes": [
+        "operator:use"
+      ],
+      "metadata": {
+        "client_boundary": "operator_service"
+      },
+      "jwks": {
+        "source": "file",
+        "path": "/etc/veoveo/gateway/operator-client-jwks.json"
+      },
+      "tenant": "enterprise"
+    }
+  ],
+  "oidc_clients": [],
+  "secrets": [
+    {
+      "id": "enterprise_oidc_client_secret",
+      "source": "env",
+      "purpose": "oauth_client_secret",
+      "locator": "VEOVEO_IDP_OIDC_CLIENT_SECRET",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "veoveo_access_token_private_key",
+      "source": "env",
+      "purpose": "jwks_private_key",
+      "locator": "VEOVEO_AUTHORIZATION_SERVER_PRIVATE_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    },
+    {
+      "id": "gateway_internal_signing_private_key",
+      "source": "env",
+      "purpose": "gateway_signing_key",
+      "locator": "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+      "owner": {
+        "kind": "gateway"
+      },
+      "metadata": {}
+    }
+  ],
+  "metadata": {
+    "fixture": "catalog-installation"
+  },
+  "recording_ingest_resources": [
+    {
+      "id": "recording-ingest",
+      "protected_resource": "https://localhost:8785/ingest/recordings",
+      "authorization_server": "veoveo",
+      "policy_version": "2026-07-02",
+      "upstream": {
+        "transport": "streamable_http",
+        "url": "http://recording-hub:9878",
+        "health_url": "http://recording-hub:9878/healthz",
+        "security": "cluster_internal_http"
+      },
+      "maximum_batch_bytes": 8388608,
+      "required_scopes": [
+        "recording:ingest"
+      ],
+      "producers": [
+        {
+          "id": "recording-producer",
+          "oauth_client": "recording-producer",
+          "tenant": "enterprise",
+          "dataset": "recordings",
+          "allowed_application_ids": [
+            "veoveo-catalog-fixture"
+          ],
+          "single_recording_application_ids": [],
+          "classification": "unclassified",
+          "labels": [],
+          "quotas": {
+            "maximum_concurrent_streams": 8,
+            "maximum_batches_per_minute": 1200,
+            "maximum_bytes_per_day": 68719476736,
+            "maximum_stream_bytes": 2147483648
+          },
+          "blueprints": {
+            "enabled": true,
+            "maximum_bytes": 2097152,
+            "maximum_messages": 10000,
+            "maximum_revisions": 32
+          },
+          "retention": {
+            "open_stream_days": 7
+          },
+          "enabled": true,
+          "metadata": {}
+        }
+      ],
+      "metadata": {}
+    }
+  ]
+}

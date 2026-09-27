@@ -1,0 +1,30 @@
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+metadata:
+  name: veoveo-catalog
+servers: 1
+agents: 0
+image: veoveo/k3s-gpu:v1.37.0-k3s1-cuda13.3.0
+kubeAPI:
+  hostIP: 127.0.0.1
+ports:
+  - port: 127.0.0.1:8784:80
+    nodeFilters: [loadbalancer]
+  - port: 127.0.0.1:8785:443
+    nodeFilters: [loadbalancer]
+registries:
+  use: [k3d-veoveo-registry.localhost:5001]
+env:
+  - envVar: NVIDIA_VISIBLE_DEVICES=all
+    nodeFilters: ["server:*"]
+  - envVar: NVIDIA_DRIVER_CAPABILITIES=compute,utility
+    nodeFilters: ["server:*"]
+options:
+  k3d:
+    wait: true
+    timeout: 180s
+  runtime:
+    gpuRequest: all
+  kubeconfig:
+    updateDefaultKubeconfig: true
+    switchCurrentContext: false

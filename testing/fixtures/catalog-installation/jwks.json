@@ -1,0 +1,12 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "catalog-authorization",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "0s3AxWnXjinqgdchsO5lOzEplPN6aayaG3yus1U6EyoAPQMfOqceamjoqELXqUJeHtuLNO_teE15za22P-3pIT8QrXfjD1oC9hRNocqTQqeibydTgt0Sj3hbzCp0m1dHWL7yXwTYn1V7Ck1Cv3icHIa-S3oiZapgyVoRyWm7TQ6LXR1vGdBqmmY8PtN1t-AZlXE1_G5CTGMqT_C6EJTSACUqudfRK-X1J5BZ-gpoRNLhKF5x2yJkidsUe7_11wmpZ0Z9KcNyrcybU_l4fAuZOGNHB3QguofJ9KuWI-98ksxXlGQJ9eAtQIUe_tEyxcJYrkGYUDu5WoNc_UiTZsoRcQ",
+      "e": "AQAB"
+    }
+  ]
+}
