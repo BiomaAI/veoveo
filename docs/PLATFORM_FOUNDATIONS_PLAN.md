@@ -2,8 +2,8 @@
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
-Phases 4–9 have not started. Phase 1 installed acceptance waits for Phase 2
-installation targets.
+Phases 4–9 have not started. Phase 1 installed acceptance waits for image
+publication recovery and Phase 2 installation targets.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -651,4 +651,5 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 1 image publication and reset | `examples/bioma/README.md` | Republish the platform and UAV groups, update release locks, then reset and qualify the reference installation | BuildKit export failed with a missing history blob; Docker could not reap the idle builder during a bounded restart |
 | Phase 2 installed SDK acceptance | `testing/fixtures/catalog-installation/cluster.yaml` | Deploy the separate tenant and HTTPS origin, then verify native SDK rows and grant renewal | Docker container creation exceeded the 180-second cluster deadline while overlay unmount was blocked; retry after image publication |

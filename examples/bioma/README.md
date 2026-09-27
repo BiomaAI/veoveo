@@ -118,6 +118,10 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
+<!-- TODO(foundations): Republish the Phase 1 image groups and qualify their locks
+after the host releases the stalled BuildKit worker. Export failed with a missing
+history blob, and Docker could not reap the idle builder during a bounded restart. -->
+
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
 credential store with owner-only permissions and encrypted backup. The repository's
