@@ -36,6 +36,8 @@ use crate::{
 };
 
 mod feature_transfers;
+mod travel_models;
+pub(crate) use travel_models::complete_travel_models;
 
 const SERVER_SLUG: &str = "map";
 const ROUTE_TASK: &str = "route";
@@ -1442,7 +1444,7 @@ fn require_scope(
         })
 }
 
-fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
+pub(crate) fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
         principal_key: identity.actor.id.to_string(),
         principal_kind: match identity.actor.kind {

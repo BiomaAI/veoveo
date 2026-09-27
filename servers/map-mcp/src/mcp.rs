@@ -53,6 +53,7 @@ use crate::{
 };
 
 mod authoring;
+mod completion;
 mod derivations;
 
 const LIST_PAGE_SIZE: usize = 100;
@@ -1686,6 +1687,13 @@ impl ServerHandler for MapMcp {
         } else {
             require_scope(&context, "map:dataset:read")?
         };
+        if request.argument.value.len() > 512
+            || request.argument.value.chars().any(char::is_control)
+        {
+            return Err(invalid_params(
+                "completion search text must be at most 512 bytes without control characters",
+            ));
+        }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         if let Some(result) = self
             .complete_derivation(
@@ -1699,33 +1707,8 @@ impl ServerHandler for MapMcp {
         {
             return Ok(result);
         }
-        let values = completion_values(
-            &self.state,
-            &identity,
-            &scope,
-            &reference.uri,
-            &request.argument.name,
-        )
-        .await
-        .map_err(internal)?;
-        let needle = request.argument.value.to_ascii_lowercase();
-        let matching = values
-            .into_iter()
-            .filter(|value| value.to_ascii_lowercase().contains(&needle))
-            .collect::<Vec<_>>();
-        let total = matching.len();
-        let values = matching
-            .into_iter()
-            .take(CompletionInfo::MAX_VALUES)
-            .collect::<Vec<_>>();
-        Ok(CompleteResult::new(
-            CompletionInfo::with_pagination(
-                values,
-                Some(total as u32),
-                total > CompletionInfo::MAX_VALUES,
-            )
-            .map_err(internal)?,
-        ))
+        self.complete_index(&identity, &scope, &reference.uri, &request)
+            .await
     }
 
     fn accepted_subscription_filter(
@@ -2267,170 +2250,6 @@ fn dataset_index(
             .push(release);
     }
     index
-}
-
-async fn completion_values(
-    state: &MapApplication,
-    identity: &GatewayInternalIdentity,
-    scope: &crate::catalog::MapScope,
-    template: &str,
-    argument: &str,
-) -> anyhow::Result<Vec<String>> {
-    let values = match (template, argument) {
-        (uris::DOC_TEMPLATE, "doc_id") => SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect(),
-        (uris::SOURCE_TEMPLATE, "source_id") => state
-            .catalog
-            .list_sources(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.source_id.to_string())
-            .collect(),
-        (uris::DATASET_TEMPLATE | uris::RELEASE_TEMPLATE, "dataset_id") => state
-            .catalog
-            .list_releases(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.dataset_id.to_string())
-            .collect(),
-        (uris::RELEASE_TEMPLATE, "release_id") => state
-            .catalog
-            .list_releases(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.release_id.to_string())
-            .collect(),
-        (uris::LOCATION_TEMPLATE, "location_id") => state
-            .analytics
-            .list_locations(&scope.tenant_key(), 10_000)?
-            .into_iter()
-            .map(|value| value.location_id.to_string())
-            .collect(),
-        (uris::FACILITY_TEMPLATE, "facility_id") => state
-            .analytics
-            .list_facilities(&scope.tenant_key(), 10_000)?
-            .into_iter()
-            .map(|value| value.facility_id.to_string())
-            .collect(),
-        (uris::MOBILITY_PROFILE_TEMPLATE, "profile_id") => state
-            .catalog
-            .list_mobility_profiles(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.metadata().profile_id.to_string())
-            .collect(),
-        (uris::MOBILITY_PROFILE_TEMPLATE, "profile_version") => state
-            .catalog
-            .list_mobility_profiles(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.metadata().version.to_string())
-            .collect(),
-        (uris::RESTRICTION_TEMPLATE, "restriction_id") => state
-            .catalog
-            .list_restrictions(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.restriction_id.to_string())
-            .collect(),
-        (uris::ROUTE_TEMPLATE, "route_id") => state
-            .catalog
-            .list_routes(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.route_id.to_string())
-            .collect(),
-        (uris::MATRIX_TEMPLATE, "matrix_id") => state
-            .catalog
-            .list_matrices(scope)
-            .await?
-            .into_iter()
-            .map(|value| value.matrix_id.to_string())
-            .collect(),
-        (uris::TRAVEL_MODEL_TEMPLATE, "travel_model_id") => {
-            crate::server::tasks::visible_travel_models(state, identity)
-                .await?
-                .into_iter()
-                .map(|value| value.travel_model_id.to_string())
-                .collect()
-        }
-        (
-            uris::FEATURE_LAYER_TEMPLATE
-            | uris::FEATURE_SCHEMA_TEMPLATE
-            | uris::FEATURE_STYLE_TEMPLATE
-            | uris::FEATURES_TEMPLATE
-            | uris::FEATURE_TEMPLATE
-            | uris::FEATURE_REVISION_TEMPLATE
-            | uris::CHANGESET_TEMPLATE
-            | uris::PUBLICATION_TEMPLATE
-            | uris::LAYER_PRODUCT_TEMPLATE,
-            "layer_id",
-        ) => state
-            .authoring
-            .list_layers(identity, scope, true)
-            .await?
-            .into_iter()
-            .map(|value| value.layer_id.to_string())
-            .collect(),
-        (uris::FEATURE_SCHEMA_TEMPLATE, "schema_version") => state
-            .authoring
-            .list_layers(identity, scope, true)
-            .await?
-            .into_iter()
-            .map(|value| value.schema.version.to_string())
-            .collect(),
-        (uris::FEATURE_STYLE_TEMPLATE, "style_version") => state
-            .authoring
-            .list_layers(identity, scope, true)
-            .await?
-            .into_iter()
-            .filter_map(|value| value.style.map(|style| style.version.to_string()))
-            .collect(),
-        (uris::FEATURE_STYLE_REVISION_TEMPLATE, "style_revision_id") => state
-            .authoring
-            .list_layers(identity, scope, true)
-            .await?
-            .into_iter()
-            .filter_map(|value| value.style.map(|style| style.style_revision_id.to_string()))
-            .collect(),
-        (
-            uris::PUBLICATION_TEMPLATE | uris::FEATURES_TEMPLATE | uris::LAYER_PRODUCT_TEMPLATE,
-            "publication_id",
-        ) => state
-            .authoring
-            .list_publications(identity, scope, None)
-            .await?
-            .into_iter()
-            .map(|value| value.publication_id.to_string())
-            .collect(),
-        (uris::LAYER_PRODUCT_TEMPLATE, "product_id") => state
-            .authoring
-            .list_layer_products(identity, scope, None)
-            .await?
-            .into_iter()
-            .map(|value| value.product_id.to_string())
-            .collect(),
-        (uris::COMPOSITION_TEMPLATE | uris::COMPOSITION_REVISION_TEMPLATE, "composition_id") => {
-            state
-                .authoring
-                .list_compositions(identity, scope, true)
-                .await?
-                .into_iter()
-                .map(|value| value.composition_id.to_string())
-                .collect()
-        }
-        (uris::COMPOSITION_REVISION_TEMPLATE, "composition_revision") => state
-            .authoring
-            .list_compositions(identity, scope, true)
-            .await?
-            .into_iter()
-            .map(|value| value.current.revision.to_string())
-            .collect(),
-        _ => Vec::new(),
-    };
-    let mut values = values;
-    values.sort();
-    values.dedup();
-    Ok(values)
 }
 
 fn is_subscribable(uri: &str) -> bool {

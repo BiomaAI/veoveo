@@ -1,4 +1,7 @@
 //! Caller-scoped authoring reads. SQL owns label and parent-layer visibility.
+mod completion;
+pub use completion::MapAuthoringCompletion;
+
 use surrealdb::types::{Array, RecordId};
 
 use crate::{

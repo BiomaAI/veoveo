@@ -82,6 +82,20 @@ impl AuthoringService {
         &self.store
     }
 
+    pub async fn complete(
+        &self,
+        identity: &GatewayInternalIdentity,
+        scope: &MapScope,
+        domain: veoveo_platform_store::MapAuthoringCompletion,
+        needle: &str,
+    ) -> Result<Vec<String>> {
+        require_access(identity, AccessLevel::Read)?;
+        Ok(self
+            .store
+            .complete_map_authoring(&read_scope(identity, scope)?, domain, needle)
+            .await?)
+    }
+
     pub async fn reconcile_projection(&self) -> Result<u64> {
         self.projection.reconcile().await
     }

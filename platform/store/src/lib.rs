@@ -76,14 +76,15 @@ pub use identity::{
 };
 pub use ids::*;
 pub use map::{
-    MapAcquisitionDraft, MapAcquisitionUpdate, MapMobilityProfileDraft,
+    MapAcquisitionDraft, MapAcquisitionUpdate, MapCatalogCompletion, MapMobilityProfileDraft,
     MapOperationalSnapshotDraft, MapReleaseDraft, MapRestrictionDraft, MapRouteDependencyDraft,
     MapRouteDraft, MapRouteMatrixDraft, MapSourceDraft,
 };
 pub use map_authoring::{
-    MapAuthoringReadScope, MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
-    MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
-    MapLayerPublicationDraft, MapStyleRevisionDraft, map_authoring_idempotency_key,
+    MapAuthoringCompletion, MapAuthoringReadScope, MapFeatureCommitDraft, MapFeatureCommitResult,
+    MapFeatureLayerDraft, MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft,
+    MapFeatureSchemaDraft, MapLayerPublicationDraft, MapStyleRevisionDraft,
+    map_authoring_idempotency_key,
 };
 pub use map_derivations::{
     MapDerivationDraft, MapDerivationKind, MapDerivationRecord, MapDerivationScope,

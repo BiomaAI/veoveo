@@ -1,5 +1,5 @@
 mod reads;
-pub use reads::MapAuthoringReadScope;
+pub use reads::{MapAuthoringCompletion, MapAuthoringReadScope};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

@@ -50,7 +50,11 @@ async fn create_records(
                 digest_sha256: "a".repeat(64),
                 schema_json: "{}".into(),
             },
-            style: None,
+            style: Some(MapStyleRevisionDraft {
+                style_revision_key: format!("style-{}", Uuid::now_v7()),
+                style_version: 1,
+                style_json: "{}".into(),
+            }),
             revision: 0,
             archived_at: None,
             canonical_json: "{}".into(),
@@ -236,6 +240,106 @@ async fn qualify() {
             .await
             .unwrap(),
         vec![denied.product]
+    );
+    for (domain, expected) in [
+        (
+            MapAuthoringCompletion::Layer,
+            visible.layer.layer_key.clone(),
+        ),
+        (
+            MapAuthoringCompletion::SchemaVersion {
+                layer: Some(visible.layer.layer_key.clone()),
+            },
+            "1".into(),
+        ),
+        (
+            MapAuthoringCompletion::StyleVersion {
+                layer: Some(visible.layer.layer_key.clone()),
+            },
+            "1".into(),
+        ),
+        (
+            MapAuthoringCompletion::StyleRevision,
+            visible.layer.style_revision_key.clone().unwrap(),
+        ),
+        (
+            MapAuthoringCompletion::Publication {
+                layer: Some(visible.layer.layer_key.clone()),
+            },
+            visible.publication.publication_key.clone(),
+        ),
+        (
+            MapAuthoringCompletion::Product {
+                layer: Some(visible.layer.layer_key.clone()),
+                publication: Some(visible.publication.publication_key.clone()),
+            },
+            visible.product.product_key.clone(),
+        ),
+        (
+            MapAuthoringCompletion::Composition,
+            visible.composition.composition_key.clone(),
+        ),
+        (
+            MapAuthoringCompletion::CompositionRevision {
+                composition: Some(visible.composition.composition_key.clone()),
+            },
+            "1".into(),
+        ),
+    ] {
+        assert_eq!(
+            db.b.complete_map_authoring(&scope, domain.clone(), "")
+                .await
+                .unwrap(),
+            vec![expected.clone()]
+        );
+        assert_eq!(
+            db.b.complete_map_authoring(&scope, domain.clone(), &expected.to_uppercase())
+                .await
+                .unwrap(),
+            vec![expected]
+        );
+        assert!(
+            db.b.complete_map_authoring(&scope, domain, "' OR true --")
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+    assert!(
+        db.b.complete_map_authoring(
+            &scope,
+            MapAuthoringCompletion::Publication {
+                layer: Some(denied.layer.layer_key.clone())
+            },
+            ""
+        )
+        .await
+        .unwrap()
+        .is_empty()
+    );
+    assert!(
+        db.b.complete_map_authoring(
+            &scope,
+            MapAuthoringCompletion::Product {
+                layer: Some(visible.layer.layer_key.clone()),
+                publication: Some(private.publication.publication_key.clone())
+            },
+            ""
+        )
+        .await
+        .unwrap()
+        .is_empty()
+    );
+    // Deduplicate versions in SQL even when multiple visible layers share them.
+    assert_eq!(
+        db.b.complete_map_authoring(
+            &clearance,
+            MapAuthoringCompletion::SchemaVersion { layer: None },
+            ""
+        )
+        .await
+        .unwrap(),
+        vec!["1"]
     );
     // Removed parent records revoke both collection and exact product reads.
     db.a.client()

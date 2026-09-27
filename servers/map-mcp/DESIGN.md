@@ -1089,7 +1089,14 @@ publication, and task-based bulk transfer without granting routing authority.
 Completion applies to resource-template arguments and returns only visible ids.
 The implementation completes source, dataset, release, location, facility,
 profile, restriction, route, matrix, travel-model, layer, publication, product,
-and composition identities from the caller's scope.
+and composition identities from the caller's scope. Store and DuckDB apply scope,
+search text, and deduplication before a 101-ID query limit. MCP returns the first
+100 IDs and `hasMore`; it omits `total` when more matches exist. Dataset, profile,
+layer, publication, and composition arguments supplied in completion context
+constrain the SQL query. Schema, style, and composition versions come from their
+stored revision tables under current parent visibility. Geography completion reads
+only committed projections of active releases. Travel-model completion selects
+caller-owned Tasks in the current Work Context without loading their result documents.
 
 ### Subscriptions And Notifications
 

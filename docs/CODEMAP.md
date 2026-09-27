@@ -785,6 +785,13 @@ admission. `src/mcp/derivations.rs` owns resource and completion dispatch.
 `src/resource_changes.rs` connects catalog, authoring, derivation, and Task writes to
 each replica's resource hub through the shared Store LIVE/change-feed observer.
 
+Map completion dispatch lives in `src/mcp/completion.rs`. Store owns tenant and owner
+catalog matching in `platform/store/src/map/completion.rs` and authoring matching in
+`platform/store/src/map_authoring/reads/completion.rs`. Local active geography keys
+come from `src/analytics/completion.rs`; caller-owned travel-model Task keys come from
+`src/server/tasks/travel_models.rs`. Each database query applies matching and
+uniqueness before its 101-ID limit.
+
 ### Optimization And Travel Models
 
 | Path | Responsibility |

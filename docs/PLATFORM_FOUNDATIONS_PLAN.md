@@ -35,8 +35,11 @@ interrupted local-store transfer, and authored-feature projection recovery throu
 separate Store connection. The pinned Spatial extension passes both million-feature
 index tests. Map authoring reads apply labels in SQL, and publication/product reads select
 visible parent layers there. Native qualification checks partial clearance, foreign
-tenants and contexts, removed parents, and archive filters. Other Map catalog roots
-and completion queries still need SQL filtering and pagination; installed acceptance is pending.
+tenants and contexts, removed parents, and archive filters. Persisted Map completions
+now match and deduplicate in SQL, including parent arguments and caller-owned travel
+models. Native cases cover matches beyond the old geography cap, duplicate versions,
+and scoped catalog selection. Other Map catalog roots still need SQL filtering and
+pagination; installed acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

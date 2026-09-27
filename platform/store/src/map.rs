@@ -1,3 +1,7 @@
+mod completion;
+pub use completion::MapCatalogCompletion;
+pub(crate) use completion::validate_needle as validate_completion_needle;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};

@@ -17,7 +17,9 @@ use crate::contract::{
     SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
+mod completion;
 mod projection;
+pub(crate) use completion::GeographyCompletion;
 
 #[cfg(test)]
 #[path = "analytics/performance.rs"]
