@@ -21,7 +21,8 @@ use crate::mcp_support::{
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
 use super::{
-    GATEWAY_PAGE_SIZE, GatewayMcp, discovery::DiscoveryCacheKey,
+    GATEWAY_PAGE_SIZE, GatewayMcp,
+    discovery::{DiscoveredResource, DiscoveryCacheKey},
     invocation_authorization_fingerprint,
 };
 
@@ -103,7 +104,10 @@ impl GatewayMcp {
                     .await;
                 match result {
                     Ok(discovered) => {
-                        gateway.discovery.finish_resources(fetch, discovered).await;
+                        gateway
+                            .discovery
+                            .finish_resource_routes(fetch, discovered)
+                            .await;
                     }
                     Err(error) => {
                         gateway
@@ -153,7 +157,7 @@ impl GatewayMcp {
         server_slug: &veoveo_mcp_contract::ServerSlug,
         context: &RequestContext<RoleServer>,
         subject: &crate::AuthenticatedSubject,
-    ) -> Result<Vec<rmcp::model::Resource>, McpError> {
+    ) -> Result<Vec<DiscoveredResource>, McpError> {
         let started = std::time::Instant::now();
         let manifest = catalog
             .server(server_slug)
@@ -188,7 +192,11 @@ impl GatewayMcp {
                 &subject.actor.data_labels,
             )?;
             targets.push(resource_policy_target(projection.server, &resource.uri)?);
-            resources.push(resource);
+            resources.push(DiscoveredResource {
+                resource,
+                upstream_uri: projection.upstream_uri,
+                listed: false,
+            });
         }
         let authorization_started = std::time::Instant::now();
         let allowed = self
@@ -203,7 +211,10 @@ impl GatewayMcp {
         Ok(resources
             .into_iter()
             .zip(allowed)
-            .filter_map(|(resource, allowed)| allowed.then_some(resource))
+            .map(|(mut resource, allowed)| {
+                resource.listed = allowed;
+                resource
+            })
             .collect())
     }
 
@@ -384,21 +395,72 @@ impl GatewayMcp {
         let subject = self
             .authorize_projected_resource(&context, resource_read_action(&request.uri), &projection)
             .await?;
-        let catalog = self.catalog.current();
+        let snapshot = self.catalog.snapshot();
+        let catalog = snapshot.catalog();
         let manifest = catalog
             .server(&server)
             .ok_or_else(|| mcp_internal(format!("unknown resource server `{server}`")))?;
-        let upstream_resources = self
-            .idempotent_upstream_request(
-                &server,
-                context.peer.clone(),
-                &subject,
-                |upstream| async move { upstream.list_all_resources().await },
-            )
-            .await?;
-        let Some(upstream_uri) =
-            project_gateway_resource_uri_for_upstream(manifest, &request.uri, &upstream_resources)?
-        else {
+        let key = DiscoveryCacheKey {
+            catalog_generation: snapshot.generation(),
+            principal: subject.actor.id.clone(),
+            authorization_fingerprint: invocation_authorization_fingerprint(
+                &subject.actor,
+                &subject.authority,
+            )?,
+            server: server.clone(),
+        };
+        let routes = match self.discovery.resource_routes(&key).await {
+            Some(routes) => routes,
+            None => {
+                if let Some(fetch) = self
+                    .discovery
+                    .begin(GatewayDiscoverySurface::Resources, key.clone())
+                    .await
+                {
+                    let profile_servers = self.profile_servers().into_iter().collect();
+                    match self
+                        .discover_resources_for_server(
+                            catalog,
+                            &profile_servers,
+                            &server,
+                            &context,
+                            &subject,
+                        )
+                        .await
+                    {
+                        Ok(routes) => self.discovery.finish_resource_routes(fetch, routes).await,
+                        Err(error) => {
+                            self.discovery
+                                .finish_failure(GatewayDiscoverySurface::Resources, fetch)
+                                .await;
+                            return Err(error);
+                        }
+                    }
+                } else {
+                    self.discovery
+                        .settle(
+                            GatewayDiscoverySurface::Resources,
+                            std::slice::from_ref(&key),
+                        )
+                        .await;
+                }
+                // Read back through the cache's generation and notification fences.
+                self.discovery.resource_routes(&key).await.ok_or_else(|| {
+                    mcp_internal(format!(
+                        "resource discovery for `{server}` is unavailable; retry the read"
+                    ))
+                })?
+            }
+        };
+        let upstream_uri = routes
+            .iter()
+            .find(|route| route.resource.uri == request.uri)
+            .map(|route| route.upstream_uri.clone());
+        let Some(upstream_uri) = upstream_uri.or(project_gateway_resource_uri_for_upstream(
+            manifest,
+            &request.uri,
+            &[],
+        )?) else {
             return Err(mcp_invalid_params(format!(
                 "resource URI is not exposed: {}",
                 request.uri

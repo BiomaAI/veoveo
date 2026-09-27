@@ -8,7 +8,7 @@ use tokio::{
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-    GatewayDiscoverySurface, PrincipalId, ServerSlug,
+    GatewayDiscoverySurface, PrincipalId, ResourceUri, ServerSlug,
 };
 
 pub(super) const MAX_CONCURRENT_DISCOVERY: usize = 8;
@@ -22,6 +22,15 @@ pub(super) struct DiscoveryCacheKey {
     pub(super) principal: PrincipalId,
     pub(super) authorization_fingerprint: [u8; 32],
     pub(super) server: ServerSlug,
+}
+
+/// Keep the upstream identity beside the projected descriptor. Server-owned
+/// projection can change both the scheme and the UI authority.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct DiscoveredResource {
+    pub(super) resource: Resource,
+    pub(super) upstream_uri: ResourceUri,
+    pub(super) listed: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -193,7 +202,7 @@ impl<T: Clone + PartialEq> SurfaceCache<T> {
 
 #[derive(Debug)]
 pub(super) struct CatalogDiscoveryCache {
-    resources: SurfaceCache<Resource>,
+    resources: SurfaceCache<DiscoveredResource>,
     resource_templates: SurfaceCache<ResourceTemplate>,
     tools: SurfaceCache<Tool>,
     changes: broadcast::Sender<DiscoveryChange>,
@@ -310,6 +319,20 @@ impl CatalogDiscoveryCache {
         self.settled.notify_waiters();
     }
     pub(super) async fn resources(&self, key: &DiscoveryCacheKey) -> Option<Vec<Resource>> {
+        Some(
+            self.resources
+                .get(key)
+                .await?
+                .into_iter()
+                .filter(|item| item.listed)
+                .map(|item| item.resource)
+                .collect(),
+        )
+    }
+    pub(super) async fn resource_routes(
+        &self,
+        key: &DiscoveryCacheKey,
+    ) -> Option<Vec<DiscoveredResource>> {
         self.resources.get(key).await
     }
     pub(super) async fn resource_templates(
@@ -330,11 +353,27 @@ impl CatalogDiscoveryCache {
             self.settled.notify_waiters();
         }
     }
-    pub(super) async fn finish_resources(&self, fetch: DiscoveryFetch, items: Vec<Resource>) {
+    pub(super) async fn finish_resource_routes(
+        &self,
+        fetch: DiscoveryFetch,
+        items: Vec<DiscoveredResource>,
+    ) {
         if self.resources.finish(&fetch, Some(items)).await {
             self.publish(GatewayDiscoverySurface::Resources, fetch);
         }
         self.settled.notify_waiters();
+    }
+    #[cfg(test)]
+    pub(super) async fn finish_resources(&self, fetch: DiscoveryFetch, items: Vec<Resource>) {
+        let items = items
+            .into_iter()
+            .map(|resource| DiscoveredResource {
+                upstream_uri: ResourceUri::new(resource.uri.clone()).unwrap(),
+                resource,
+                listed: true,
+            })
+            .collect();
+        self.finish_resource_routes(fetch, items).await;
     }
     pub(super) async fn finish_resource_templates(
         &self,
@@ -411,6 +450,53 @@ mod tests {
             .begin(GatewayDiscoverySurface::Resources, key)
             .await
             .unwrap()
+    }
+
+    #[tokio::test]
+    async fn read_routes_reuse_discovery_without_crossing_authority_or_invalidation() {
+        let cache = CatalogDiscoveryCache::default();
+        let owner = key(1, "charts");
+        let route = DiscoveredResource {
+            resource: Resource::new("ui://charts/chart.html", "chart"),
+            upstream_uri: ResourceUri::new("ui://vendor/chart.html").unwrap(),
+            listed: true,
+        };
+        let fetch = begin(&cache, owner.clone()).await;
+        cache
+            .finish_resource_routes(fetch, vec![route.clone()])
+            .await;
+        assert_eq!(
+            cache.resources(&owner).await.unwrap(),
+            vec![route.resource.clone()]
+        );
+        for _ in 0..2 {
+            assert_eq!(
+                cache.resource_routes(&owner).await.unwrap(),
+                vec![route.clone()]
+            );
+        }
+        let mut other = owner.clone();
+        other.principal = PrincipalId::new("other").unwrap();
+        assert!(cache.resource_routes(&other).await.is_none());
+        other = owner.clone();
+        other.authorization_fingerprint = [8; 32];
+        assert!(cache.resource_routes(&other).await.is_none());
+        other = owner.clone();
+        other.catalog_generation += 1;
+        assert!(cache.resource_routes(&other).await.is_none());
+        cache.invalidate_resource_surfaces(&owner.server).await;
+        assert!(cache.resource_routes(&owner).await.is_none());
+
+        // Listing and reading have distinct policy actions. Retain the private
+        // route for a separately authorized read without exposing its descriptor.
+        let fetch = begin(&cache, owner.clone()).await;
+        let mut hidden = route;
+        hidden.listed = false;
+        cache
+            .finish_resource_routes(fetch, vec![hidden.clone()])
+            .await;
+        assert!(cache.resources(&owner).await.unwrap().is_empty());
+        assert_eq!(cache.resource_routes(&owner).await.unwrap(), vec![hidden]);
     }
 
     #[tokio::test]

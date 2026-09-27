@@ -203,6 +203,15 @@ The gateway applies the server's method and target policy, records the operation
 forwards the caller's short-lived internal assertion. Long-running administrative work
 uses the shared Task API.
 
+The gateway caches each discovered resource's upstream URI beside its projected
+descriptor, keyed by catalog generation, principal and invocation authority. Resource
+reads reuse that mapping and authorize each read against current policy. A cold or
+expired mapping refreshes only the owning server's discovery. List-change events
+invalidate both descriptors and routing, and an invalidated in-flight response cannot
+restore them. Listing policy controls descriptor exposure independently of read
+authorization. Template-instantiated resources under an identity-projected scheme
+remain readable without appearing as individual catalog entries.
+
 An HTTP administration API is optional and must be declared in the owning server's
 design. The gateway reads the active catalog revision, checks that the selected
 profile includes the server, classifies the method as `AdminRead` or `AdminWrite`, and

@@ -529,9 +529,9 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
 | `mcp_support.rs` | MCP URI rewriting, including declared cross-server resource identities |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
-| `mcp/discovery.rs` | discovery cache keyed by caller authority, concurrency limits, per-server failure isolation, and list-change invalidation |
+| `mcp/discovery.rs` | discovery descriptors and upstream resource mappings keyed by caller authority, concurrency limits, per-server failure isolation, and list-change invalidation |
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |
-| `mcp/resources.rs` | failure-isolated resource lists plus fail-closed read/subscribe routing |
+| `mcp/resources.rs` | failure-isolated resource lists and cached resource-read routing with fresh authorization |
 | `mcp/prompts.rs`, `completion.rs` | prompt and completion aggregation |
 | `mcp/tasks.rs` | upstream Task client and the opt-in Task tools for clients with weak Task support |
 | `mcp/health.rs` | `health_url` GET probes; only a success status counts as healthy |
