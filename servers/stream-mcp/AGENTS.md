@@ -54,7 +54,7 @@ Contract revision: 2
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: met — run and session collections use authorized cursor pages of 100; discovery does not enumerate these records
 - C05: met
 - C06: met
 - C07: met
@@ -78,7 +78,7 @@ Contract revision: 2
 - C25: met
 - C26: met
 - C27: met
-- C28: met
+- C28: met — static resource discovery declares no list-change capability; session and task changes update contents
 - C29: met
 - C30: met
 - C31: pending — installed Discover and list readiness qualification is pending

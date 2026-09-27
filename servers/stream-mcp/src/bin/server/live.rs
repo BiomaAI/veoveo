@@ -74,6 +74,11 @@ struct LiveSessionState {
     child: Option<Child>,
 }
 
+pub(super) struct LiveSessionPage {
+    pub sessions: Vec<LiveSessionView>,
+    pub next_before: Option<uuid::Uuid>,
+}
+
 #[derive(Deserialize)]
 #[serde(tag = "schema", deny_unknown_fields)]
 enum LiveRunnerEvent {
@@ -593,23 +598,61 @@ impl LiveSessionManager {
         Ok(Some(output))
     }
 
-    pub(super) async fn visible(&self, caller: &TaskOwner) -> Vec<LiveSessionView> {
-        let sessions = self
+    pub(super) async fn page(
+        &self,
+        caller: &TaskOwner,
+        before: Option<uuid::Uuid>,
+        limit: usize,
+    ) -> LiveSessionPage {
+        assert!((1..=1000).contains(&limit));
+        let before = before.map(|id| id.to_string());
+        let upper = before
+            .as_deref()
+            .map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
+        // Admission and the limit precede cloning or locking mutable session state.
+        // Session UUIDs are v7; descending keys put newer sessions first.
+        let mut sessions = self
             .sessions
             .lock()
             .await
-            .values()
-            .cloned()
+            .range::<str, _>((std::ops::Bound::Unbounded, upper))
+            .rev()
+            .filter(|(_, session)| reader_allows(&session.owner, caller))
+            .take(limit + 1)
+            .map(|(_, session)| session.clone())
             .collect::<Vec<_>>();
-        let mut views = Vec::new();
+        let more = sessions.len() > limit;
+        sessions.truncate(limit);
+        let next_before = more.then(|| {
+            uuid::Uuid::parse_str(&sessions.last().expect("nonempty page").session_id)
+                .expect("session IDs are generated UUIDs")
+        });
+        let mut views = Vec::with_capacity(sessions.len());
         for session in sessions {
-            if reader_allows(&session.owner, caller) {
-                let state = session.state.lock().await;
-                views.push(session_view(&session, &state));
-            }
+            let state = session.state.lock().await;
+            views.push(session_view(&session, &state));
         }
-        views.sort_by(|left, right| left.started_at.cmp(&right.started_at));
-        views
+        LiveSessionPage {
+            sessions: views,
+            next_before,
+        }
+    }
+
+    pub(super) async fn complete_ids(
+        &self,
+        caller: &TaskOwner,
+        needle: &str,
+        limit: usize,
+    ) -> Vec<String> {
+        assert!((1..=1000).contains(&limit));
+        self.sessions
+            .lock()
+            .await
+            .iter()
+            .filter(|(id, session)| id.contains(needle) && reader_allows(&session.owner, caller))
+            .take(limit)
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 
     pub(super) async fn view(
@@ -792,6 +835,187 @@ mod tests {
                 provenance: InvocationProvenance::Automated,
             },
         }
+    }
+
+    fn session_index() -> LiveSessionManager {
+        use veoveo_stream_mcp::catalog::{LivePipelineConfig, PipelineConfig, RtpH264UdpIngress};
+        let catalog = PipelineCatalog::new(
+            vec![],
+            vec![PipelineConfig {
+                id: "preview".to_owned(),
+                title: "Preview".to_owned(),
+                description: String::new(),
+                profile: PipelineProfileConfig::PassThrough,
+                recording_replay: None,
+                live: Some(LivePipelineConfig {
+                    input_width: 640,
+                    input_height: 480,
+                    codec: "avc1.42e01f".to_owned(),
+                    frame_rate: 30,
+                    expected_bitrate_bps: 4_000_000,
+                    ingress: RtpH264UdpIngress {
+                        advertised_host: "stream-mcp".to_owned(),
+                        port: 9001,
+                        payload_type: 97,
+                        clock_rate: 90_000,
+                    },
+                    graph: GStreamerGraphConfig {
+                        launch: "udpsrc name=source ! h264parse ! identity name=encoded-output ! fakesink".to_owned(),
+                        source_element: Some("source".to_owned()),
+                        stream_muxer_element: None,
+                        inference_element: None,
+                        tracker_element: None,
+                        results_element: None,
+                        encoded_output_element: Some("encoded-output".to_owned()),
+                    },
+                    recording_output: None,
+                }),
+            }],
+        )
+        .unwrap();
+        LiveSessionManager::new(
+            Arc::new(catalog),
+            "/unused/runner".into(),
+            Duration::from_secs(1),
+            2,
+            2,
+            2,
+            1024,
+            128,
+            Arc::new(SubscriptionHub::new()),
+        )
+        .unwrap()
+    }
+
+    fn indexed_session(id: u128, owner: TaskOwner) -> Arc<LiveSession> {
+        Arc::new(LiveSession {
+            session_id: uuid::Uuid::from_u128(id).to_string(),
+            pipeline_id: "preview".into(),
+            pipeline_uri: uris::pipeline_uri("preview"),
+            ingress: veoveo_stream_mcp::contract::LiveIngressView {
+                transport: veoveo_stream_mcp::contract::LiveTransport::RtpH264Udp,
+                host: "fixture".into(),
+                port: 9001,
+                payload_type: 97,
+                clock_rate: 90000,
+                caps: String::new(),
+            },
+            video: LiveVideoView {
+                codec: "avc1.42e01f".into(),
+                width: 640,
+                height: 480,
+                frame_rate: 30,
+                expected_bitrate_bps: 4_000_000,
+            },
+            input_width: 640,
+            input_height: 480,
+            owner,
+            recording_output: None,
+            _work: tempfile::tempdir().unwrap(),
+            state: Mutex::new(LiveSessionState {
+                lifecycle: LiveSessionLifecycle::Stopped,
+                started_at: Utc::now(),
+                stopped_at: Some(Utc::now()),
+                processed_frames: 0,
+                dropped_result_frames: 0,
+                newest_result_at: None,
+                error: None,
+                frames: VecDeque::new(),
+                video_chunks: VecDeque::new(),
+                dropped_video_chunks: 0,
+                received_video_frames: 0,
+                last_video_sequence: None,
+                child: None,
+            }),
+        })
+    }
+
+    #[tokio::test]
+    async fn session_pages_admit_before_locking_and_limit_before_materializing() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let manager = session_index();
+            let owner = task_owner(
+                "automation",
+                "flight",
+                WorkContextMembershipLevel::Contributor,
+                &["operations"],
+            );
+            let caller = task_owner(
+                "operator",
+                "flight",
+                WorkContextMembershipLevel::Viewer,
+                &["operations"],
+            );
+            let outside_page = indexed_session(1, owner.clone());
+            let outside_lock = outside_page.state.lock().await;
+            manager
+                .sessions
+                .lock()
+                .await
+                .insert(outside_page.session_id.clone(), outside_page.clone());
+            for id in 2..=107 {
+                let session = indexed_session(id, owner.clone());
+                manager
+                    .sessions
+                    .lock()
+                    .await
+                    .insert(session.session_id.clone(), session);
+            }
+            let mut private_owner = owner;
+            private_owner.data_labels.insert("secret".into());
+            let hidden = indexed_session(999, private_owner);
+            let _hidden_lock = hidden.state.lock().await;
+            manager
+                .sessions
+                .lock()
+                .await
+                .insert(hidden.session_id.clone(), hidden.clone());
+            let first = manager.page(&caller, None, 100).await;
+            assert_eq!(first.sessions.len(), 100);
+            assert_eq!(
+                first.sessions.first().unwrap().session_id,
+                uuid::Uuid::from_u128(107).to_string()
+            );
+            assert_eq!(first.next_before, Some(uuid::Uuid::from_u128(8)));
+            let values = manager.complete_ids(&caller, "", 101).await;
+            assert_eq!(values.len(), 101);
+            let last = uuid::Uuid::from_u128(107).to_string();
+            assert_eq!(manager.complete_ids(&caller, &last, 101).await, vec![last]);
+            drop(outside_lock);
+            // A new session arriving between page reads must not duplicate older IDs.
+            let newest = indexed_session(108, caller.clone());
+            manager
+                .sessions
+                .lock()
+                .await
+                .insert(newest.session_id.clone(), newest);
+            let tail = manager.page(&caller, first.next_before, 100).await;
+            assert_eq!(tail.sessions.len(), 7);
+            assert!(tail.next_before.is_none());
+            let ids = first
+                .sessions
+                .iter()
+                .chain(&tail.sessions)
+                .map(|s| &s.session_id)
+                .collect::<BTreeSet<_>>();
+            assert_eq!(ids.len(), 107);
+            let mut other_context = caller.clone();
+            other_context.authority.work_context = WorkContextId::new("other").unwrap();
+            let mut missing_labels = caller;
+            missing_labels.data_labels.clear();
+            for stranger in [other_context, missing_labels] {
+                assert!(
+                    manager
+                        .page(&stranger, first.next_before, 100)
+                        .await
+                        .sessions
+                        .is_empty()
+                );
+                assert!(manager.complete_ids(&stranger, "", 101).await.is_empty());
+            }
+        })
+        .await
+        .expect("session indexing exceeded five seconds or locked an excluded row");
     }
 
     #[test]

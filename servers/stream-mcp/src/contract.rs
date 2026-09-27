@@ -147,7 +147,7 @@ pub enum ModelFormat {
     TensorRtEngine,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct RunView {
     pub run_uri: String,
     pub results_uri: String,
@@ -164,6 +164,16 @@ pub struct RunView {
     pub output: Option<RunRecordingOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// One authorized page of durable recording runs, ordered by creation time and ID.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RunPage {
+    pub runs: Vec<RunView>,
+    pub limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 mod live;

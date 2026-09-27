@@ -944,8 +944,10 @@ and Artifact publication.
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | `stream://` URIs |
 | `src/bin/server/live.rs` | owner-scoped live runner lifecycle plus result and encoded-preview ring buffers |
+| `src/bin/server/index.rs`, `src/bin/server/index_tests.rs` | authorized run and session pages, collection cursors, bounded completion, and isolated Store qualification |
 | `src/bin/server/recording_output.rs` | optional non-blocking fan-out of existing H.264 units to the pod-local Recording forwarder |
 | `src/bin/server/app.rs`, `assets/live.html` | self-contained Stream MCP App resource for actual encoded video, typed overlays, and decode-path reporting |
+| `apps/console/web/tests/stream-pagination.test.mjs` (repository root) | headless behavioral checks for Stream App page navigation using the Console's maintained Playwright dependency |
 | `src/bin/server/` | auth, replay tasks, live sessions, prompts, resources, notifications, and composition |
 | `gst-runner/` | native operator-admitted GStreamer graph execution with NVIDIA decode/inference and typed event output |
 | `Dockerfile` | DeepStream 9 development/runtime multi-stage image |

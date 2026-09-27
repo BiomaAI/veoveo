@@ -137,6 +137,7 @@ The App reads:
 ```text
 stream://pipelines
 stream://sessions
+stream://sessions{?cursor}
 stream://session/{session_id}
 stream://session/{session_id}/results
 stream://session/{session_id}/preview
@@ -311,10 +312,29 @@ stream://session/{session_id}
 stream://session/{session_id}/results
 stream://session/{session_id}/preview
 stream://runs
+stream://runs{?cursor}
 stream://run/{run_id}
 stream://run/{run_id}/results
 stream://artifact/{artifact_id}
 ```
+
+Discovery lists collection roots and item templates without enumerating runs or
+sessions. These records do not change the discovery surface, so Stream declares no
+resource-list-change capability. Run pages contain `runs`, `limit: 100`, and an
+optional `next_cursor`. The Store applies task ownership, tenant, profile, labels,
+and task type before the page limit. Pages order creation time and Task ID ascending.
+
+Session pages contain `sessions`, `limit: 100`, and an optional `next_cursor`.
+The process-local session index orders UUIDv7 IDs newest first and checks Work Context
+membership and labels before materializing at most 100 session views. Live sessions
+belong to their running GPU process; pagination does not make them persistent.
+Versioned cursors identify their collection, and every page reapplies current caller
+authority. A cursor grants no access. Completions filter before limiting results to
+100 and report `hasMore` without an unbounded count.
+
+The Live Monitor reads one session page at a time. Newer and Older controls navigate
+its visited pages; starting a session returns to the first page. A navigation
+generation prevents an earlier response from replacing the selected page.
 
 Completed recording runs publish typed JSON results, an immutable RRD
 annotation layer, and an optional remuxed source clip through the Artifact

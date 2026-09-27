@@ -9,7 +9,9 @@ are stopped at the user's request; native acceptance, rebuild, and installed
 qualification are pending. The Phase 2 catalog fixture
 at `883a09ba` passed native SDK reads (16 rows) and grant renewal on 2026-09-27;
 reference installation acceptance is pending. Phase 3 Reason pagination
-is implemented at `3c5d914d` with native Store qualification.
+is implemented at `3c5d914d` with native Store qualification. Stream run and session
+pagination, authorized completion, and the updated Live Monitor pass local Rust,
+Store, and browser behavioral checks; installed GPU acceptance is pending.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The

@@ -10,29 +10,63 @@ pub(super) async fn prepare_live_stream_pipeline(
     operator: &OperatorClient<'_>,
     pipeline_id: &str,
 ) -> Result<AcceptanceLiveSession> {
-    let sessions: Vec<LiveSessionView> = serde_json::from_value(
-        operator
-            .resource("stream://sessions", Duration::from_secs(60))
-            .await?,
-    )
-    .context("decoding visible live Stream sessions")?;
-    if let Some(session) = reusable_live_stream_session(&sessions, pipeline_id)? {
-        eprintln!(
-            "preflight: reusing visible {} live Stream session {} for pipeline {} without taking ownership",
-            match session.lifecycle {
-                LiveSessionLifecycle::Starting => "starting",
-                LiveSessionLifecycle::Running => "running",
-                LiveSessionLifecycle::Failed | LiveSessionLifecycle::Stopped => unreachable!(),
-            },
-            session.session_id,
-            pipeline_id
+    // Bound the preflight over domain-owned pages. Exhaustion fails before starting
+    // a duplicate runner when the active session lies beyond our read budget.
+    let mut uri = "stream://sessions".to_owned();
+    let mut seen = BTreeSet::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    for page_number in 0..100 {
+        let page: crate::wire::LiveSessionsPage = serde_json::from_value(
+            operator
+                .resource(
+                    &uri,
+                    deadline.saturating_duration_since(tokio::time::Instant::now()),
+                )
+                .await?,
+        )
+        .context("decoding visible live Stream session page")?;
+        ensure!(
+            page.limit == 100 && page.sessions.len() <= page.limit,
+            "invalid Stream session page bound"
         );
-        return acceptance_live_session(
-            &session.session_id,
-            &session.results_uri,
-            &session.preview_uri,
-            false,
+        if let Some(session) = reusable_live_stream_session(&page.sessions, pipeline_id)? {
+            eprintln!(
+                "preflight: reusing visible {} live Stream session {} for pipeline {} without taking ownership",
+                match session.lifecycle {
+                    LiveSessionLifecycle::Starting => "starting",
+                    LiveSessionLifecycle::Running => "running",
+                    LiveSessionLifecycle::Failed | LiveSessionLifecycle::Stopped => unreachable!(),
+                },
+                session.session_id,
+                pipeline_id
+            );
+            return acceptance_live_session(
+                &session.session_id,
+                &session.results_uri,
+                &session.preview_uri,
+                false,
+            );
+        }
+        let Some(cursor) = page.next_cursor else {
+            break;
+        };
+        ensure!(
+            page_number < 99,
+            "Stream session preflight exceeded 100 pages"
         );
+        ensure!(
+            seen.insert(cursor.clone()),
+            "Stream session cursor repeated"
+        );
+        ensure!(
+            cursor.len() <= 1024
+                && !cursor.is_empty()
+                && cursor
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
+            "invalid Stream session cursor"
+        );
+        uri = format!("stream://sessions?cursor={cursor}");
     }
 
     let started: StartLiveSessionOutput = serde_json::from_value(

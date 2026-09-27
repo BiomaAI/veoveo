@@ -62,6 +62,8 @@ mod app_state;
 mod config;
 #[path = "server/host.rs"]
 mod host;
+#[path = "server/index.rs"]
+mod index;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
 #[path = "server/live.rs"]
@@ -84,9 +86,7 @@ use config::Args;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use live::LiveSessionManager;
-use ownership::{
-    internal_caller, internal_identity, require_task_owner, runtime_owner, task_owner_allows,
-};
+use ownership::{internal_caller, internal_identity, require_task_owner, runtime_owner};
 use prompts::StreamPrompt;
 use task_extension::StreamTaskService;
 use tasks::{
@@ -149,7 +149,6 @@ impl StreamMcp {
         .await
         .map_err(internal)?;
         let task_id = snapshot.task_id.to_string();
-        self.state.subscribers.notify_resource_list_changed().await;
         completed_payload(&self.state, &task_id).await
     }
 
@@ -171,7 +170,6 @@ impl StreamMcp {
             .start(&request.pipeline_id, owner)
             .await
             .map_err(invalid_params)?;
-        self.state.subscribers.notify_resource_list_changed().await;
         structured_result(format!("started {}", output.session_uri), &output)
     }
 
@@ -212,7 +210,6 @@ impl ServerHandler for StreamMcp {
             .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
-            .enable_resources_list_changed()
             .enable_completions()
             .build();
         extend_capabilities(&mut capabilities);
@@ -323,7 +320,7 @@ impl ServerHandler for StreamMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
+        internal_identity(&context)?;
         let mut resources = vec![
             app_resource(uris::LIVE_APP_URI, "stream-live-app")
                 .with_title("Live Monitor")
@@ -381,51 +378,6 @@ impl ServerHandler for StreamMcp {
                     .with_mime_type("application/json"),
             );
         }
-        for snapshot in visible_runs(&self.state, &identity).await? {
-            let task_id = snapshot.task_id.to_string();
-            resources.push(
-                Resource::new(uris::run_uri(&task_id), format!("run {task_id}"))
-                    .with_title(format!("Stream run {task_id}"))
-                    .with_description("Durable task state and artifact identities.")
-                    .with_mime_type("application/json"),
-            );
-            resources.push(
-                Resource::new(uris::results_uri(&task_id), format!("results {task_id}"))
-                    .with_title(format!("Stream results {task_id}"))
-                    .with_description("Typed results for one completed recording run.")
-                    .with_mime_type("application/vnd.veoveo.stream-results+json"),
-            );
-        }
-        let owner = runtime_owner(&identity);
-        for session in self.state.live.visible(&owner).await {
-            resources.push(
-                Resource::new(
-                    &session.session_uri,
-                    format!("session {}", session.session_id),
-                )
-                .with_title(format!("Live Stream session {}", session.session_id))
-                .with_description("Live pipeline lifecycle, ingress, and freshness.")
-                .with_mime_type("application/json"),
-            );
-            resources.push(
-                Resource::new(
-                    &session.results_uri,
-                    format!("live results {}", session.session_id),
-                )
-                .with_title(format!("Live Stream results {}", session.session_id))
-                .with_description("Bounded typed results produced directly from live frames.")
-                .with_mime_type("application/vnd.veoveo.stream-live-results+json"),
-            );
-            resources.push(
-                Resource::new(
-                    &session.preview_uri,
-                    format!("live preview {}", session.session_id),
-                )
-                .with_title(format!("Live Stream preview {}", session.session_id))
-                .with_description("Bounded Annex B H.264 access units from the admitted stream.")
-                .with_mime_type("application/vnd.veoveo.stream-live-preview+json"),
-            );
-        }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -453,6 +405,12 @@ impl ServerHandler for StreamMcp {
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
                 .with_title("Stream model")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::RUNS_PAGE_TEMPLATE, "recording run page")
+                .with_title("Stream recording runs")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::SESSIONS_PAGE_TEMPLATE, "live session page")
+                .with_title("Stream live sessions")
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::RUN_TEMPLATE, "run")
                 .with_title("Stream recording run")
@@ -546,8 +504,11 @@ impl ServerHandler for StreamMcp {
             }
             let identity = internal_identity(&context)?;
             let live_owner = runtime_owner(&identity);
-            if uri == uris::SESSIONS_URI {
-                return json_resource(uri, &self.state.live.visible(&live_owner).await);
+            if let Some(cursor) = index::parse_collection(uri, uris::SESSIONS_URI)? {
+                return json_resource(
+                    uri,
+                    &index::sessions_page(&self.state.live, &live_owner, cursor.as_ref()).await?,
+                );
             }
             if let Some(session_id) = uris::parse_session_uri(uri) {
                 let view = self
@@ -582,13 +543,11 @@ impl ServerHandler for StreamMcp {
                     })?;
                 return json_resource(uri, &preview);
             }
-            if uri == uris::RUNS_URI {
-                let views = visible_runs(&self.state, &identity)
-                    .await?
-                    .iter()
-                    .map(run_view)
-                    .collect::<Result<Vec<_>, _>>()?;
-                return json_resource(uri, &views);
+            if let Some(cursor) = index::parse_collection(uri, uris::RUNS_URI)? {
+                return json_resource(
+                    uri,
+                    &index::runs_page(&self.state.tasks, &live_owner, cursor.as_ref()).await?,
+                );
             }
             if let Some(task_id) = uris::parse_run_uri(uri) {
                 require_task_owner(&self.state, &context, task_id).await?;
@@ -706,16 +665,21 @@ impl ServerHandler for StreamMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
+        let needle = request.argument.value.to_ascii_lowercase();
         let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::PIPELINE_TEMPLATE, "pipeline_id") => self.state.catalog.pipeline_ids(),
             (uris::MODEL_TEMPLATE, "model_id") => self.state.catalog.model_ids(),
-            (uris::RUN_TEMPLATE | uris::RUN_RESULTS_TEMPLATE, "run_id") => {
-                let identity = internal_identity(&context)?;
-                visible_runs(&self.state, &identity)
-                    .await?
-                    .into_iter()
-                    .map(|snapshot| snapshot.task_id.to_string())
-                    .collect()
+            (uris::RUN_TEMPLATE | uris::RUN_RESULTS_TEMPLATE, "run_id")
+            | (uris::ARTIFACT_TEMPLATE, "artifact_id") => {
+                let owner = runtime_owner(&internal_identity(&context)?);
+                let domain = if reference.uri == uris::ARTIFACT_TEMPLATE {
+                    index::CompletionDomain::Artifacts
+                } else {
+                    index::CompletionDomain::Runs
+                };
+                return index::complete(&self.state.tasks, &owner, domain, &needle)
+                    .await
+                    .map(CompleteResult::new);
             }
             (
                 uris::SESSION_TEMPLATE
@@ -724,63 +688,22 @@ impl ServerHandler for StreamMcp {
                 "session_id",
             ) => {
                 let owner = runtime_owner(&internal_identity(&context)?);
-                self.state
+                let values = self
+                    .state
                     .live
-                    .visible(&owner)
-                    .await
-                    .into_iter()
-                    .map(|session| session.session_id)
-                    .collect()
-            }
-            (uris::ARTIFACT_TEMPLATE, "artifact_id") => {
-                let identity = internal_identity(&context)?;
-                visible_runs(&self.state, &identity)
-                    .await?
-                    .iter()
-                    .filter_map(run_output)
-                    .flat_map(|output| {
-                        let mut ids = vec![
-                            output.results_artifact.artifact_id.to_string(),
-                            output.annotations_artifact.artifact_id.to_string(),
-                        ];
-                        if let Some(artifact) = output.source_clip_artifact {
-                            ids.push(artifact.artifact_id.to_string());
-                        }
-                        ids
-                    })
-                    .collect()
+                    .complete_ids(&owner, &needle, CompletionInfo::MAX_VALUES + 1)
+                    .await;
+                return index::bounded_completion(values).map(CompleteResult::new);
             }
             _ => return Ok(CompleteResult::default()),
         };
-        let needle = request.argument.value.to_lowercase();
         let matches = values
             .into_iter()
             .filter(|value| value.contains(&needle))
-            .collect::<Vec<_>>();
-        let total = matches.len();
-        let completion = CompletionInfo::with_pagination(
-            matches
-                .into_iter()
-                .take(CompletionInfo::MAX_VALUES)
-                .collect(),
-            Some(total as u32),
-            total > CompletionInfo::MAX_VALUES,
-        )
-        .map_err(internal)?;
-        Ok(CompleteResult::new(completion))
+            .take(CompletionInfo::MAX_VALUES + 1)
+            .collect();
+        index::bounded_completion(matches).map(CompleteResult::new)
     }
-}
-
-async fn visible_runs(
-    state: &AppState,
-    identity: &veoveo_mcp_contract::GatewayInternalIdentity,
-) -> Result<Vec<TaskSnapshot>, McpError> {
-    let mut snapshots = state.tasks.list().await.map_err(internal)?;
-    snapshots.retain(|snapshot| {
-        snapshot.task_type == "run_recording" && task_owner_allows(&snapshot.owner, identity)
-    });
-    snapshots.sort_by_key(|snapshot| snapshot.created_at);
-    Ok(snapshots)
 }
 
 async fn run_snapshot(state: &AppState, task_id: &str) -> Result<TaskSnapshot, McpError> {

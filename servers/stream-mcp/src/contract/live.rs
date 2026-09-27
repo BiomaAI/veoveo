@@ -120,3 +120,13 @@ pub struct LiveSessionView {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+/// One authorized page of process-local live sessions, newest IDs first.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LiveSessionsPage {
+    pub sessions: Vec<LiveSessionView>,
+    pub limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}

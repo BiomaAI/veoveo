@@ -1,0 +1,98 @@
+// Behavioral acceptance of session navigation; no rendering or GPU acceptance.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {chromium} from 'playwright';
+
+const html = await readFile(new URL('../../../../servers/stream-mcp/assets/live.html', import.meta.url), 'utf8');
+const session = (number) => ({
+  session_id: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
+  pipeline_id: 'fixture', lifecycle: 'stopped',
+  ingress: {host: 'fixture', port: 9001},
+  video: {codec: 'avc1.42e01f', width: 640, height: 480, frame_rate: 30, expected_bitrate_bps: 1000000},
+});
+
+test('Live Monitor navigates one bounded page and returns to the first page after starting a session', {timeout: 45000}, async () => {
+  const browser = await chromium.launch({channel: 'chrome', headless: true});
+  try {
+    const page = await browser.newPage();
+    page.setDefaultTimeout(10000);
+    const reads = [];
+    let started = false, holdOlder = false, releaseOlder, olderArrived;
+    const olderPending = new Promise(resolve => {olderArrived = resolve;});
+    await page.exposeFunction('streamFixture', async (request) => {
+      if (request.method === 'ui/initialize') return {hostContext: {theme: 'dark'}};
+      if (request.method === 'tools/call') {
+        assert.equal(request.params.name, 'start_live_session');
+        started = true;
+        return {structuredContent: session(108)};
+      }
+      assert.equal(request.method, 'resources/read');
+      const uri = request.params.uri;
+      reads.push(uri);
+      let value;
+      if (uri === 'stream://pipelines') value = [{id: 'fixture', title: 'Fixture', supports_live_input: true}];
+      else if (uri === 'stream://sessions') {
+        const first = started ? 108 : 107;
+        value = {sessions: Array.from({length: 100}, (_, i) => session(first - i)), limit: 100, next_cursor: 'older-page'};
+      } else if (uri === 'stream://sessions?cursor=older-page') {
+        if (holdOlder) {
+          holdOlder = false;
+          await new Promise(resolve => {releaseOlder = resolve; olderArrived();});
+        }
+        value = {sessions: Array.from({length: 7}, (_, i) => session(7 - i)), limit: 100};
+      } else if (uri.endsWith('/results')) value = {frames: []};
+      else if (uri.endsWith('/preview')) value = {session_id: uri.split('/')[3], video: session(1).video, chunks: []};
+      else throw new Error(`Unexpected read: ${uri}`);
+      return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
+    });
+    await page.addInitScript(() => {
+      // Empty preview responses exercise navigation only; no video is decoded.
+      Object.defineProperty(navigator, 'mediaCapabilities', {value: {decodingInfo: async () => ({supported: true, smooth: true, powerEfficient: false})}});
+      window.VideoDecoder = class {
+        static async isConfigSupported() {return {supported: true};}
+        configure() {}
+        close() {}
+      };
+      window.addEventListener('message', async ({data}) => {
+        if (!['ui/initialize', 'resources/read', 'tools/call'].includes(data?.method) || data.id === undefined) return;
+        try {
+          const result = await window.streamFixture(data);
+          window.postMessage({jsonrpc: '2.0', id: data.id, result}, '*');
+        } catch (error) {
+          window.postMessage({jsonrpc: '2.0', id: data.id, error: {message: error.message}}, '*');
+        }
+      });
+    });
+    await page.route('http://stream.test/**', route => route.fulfill({contentType: 'text/html', body: html}));
+    await page.goto('http://stream.test/');
+    await page.waitForFunction(() => document.querySelector('#sessions').options.length === 100);
+    assert.equal(await page.locator('#page-newer').isDisabled(), true);
+    assert.equal(reads.some(uri => uri.includes('?cursor=')), false, 'older pages must not be prefetched');
+    await page.getByRole('button', {name: 'Older sessions'}).click();
+    await page.waitForFunction(() => document.querySelector('#sessions').options.length === 7);
+    assert.equal(await page.locator('#page-status').textContent(), 'Page 2');
+    assert.equal(await page.locator('#page-older').isDisabled(), true);
+    assert.equal(await page.locator('#sessions').inputValue(), session(7).session_id);
+    await page.getByRole('button', {name: 'Newer sessions'}).click();
+    await page.waitForFunction(() => document.querySelector('#sessions').options.length === 100);
+    assert.equal(await page.locator('#sessions').inputValue(), session(107).session_id);
+    await page.getByRole('button', {name: 'Older sessions'}).click();
+    await page.waitForFunction(() => document.querySelector('#sessions').options.length === 7);
+    holdOlder = true;
+    await page.evaluate(() => window.postMessage({jsonrpc: '2.0', method: 'ui/notifications/tool-result'}, '*'));
+    await olderPending;
+    await page.getByRole('button', {name: 'Start live session'}).click();
+    await page.waitForFunction(() => document.querySelector('#page-status').textContent === 'Page 1');
+    const readBoundary = reads.length;
+    releaseOlder();
+    await page.waitForFunction(id => document.querySelector('#sessions').value === id, session(108).session_id);
+    assert.equal(await page.locator('#page-status').textContent(), 'Page 1');
+    assert.equal(await page.locator('#page-newer').isDisabled(), true);
+    assert.equal(await page.locator('#error').isVisible(), false);
+    assert.equal(reads.slice(readBoundary).some(uri => uri.startsWith(`stream://session/${session(7).session_id}/`)), false, 'a stale page response must not select or read its old session');
+    await page.evaluate(() => window.postMessage({jsonrpc: '2.0', id: 'teardown', method: 'ui/resource-teardown'}, '*'));
+  } finally {
+    await browser.close();
+  }
+});
