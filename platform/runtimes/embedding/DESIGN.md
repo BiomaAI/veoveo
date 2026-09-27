@@ -29,7 +29,8 @@ The runtime is a Deployment of the official vLLM image with no Veoveo code in it
 ```text
 VLLM_API_KEY=<from Secret> HF_HUB_OFFLINE=1 \
 vllm serve /models/qwen3-embedding-0.6b --runner pooling \
-  --served-model-name qwen3-embedding-0.6b --scheduling-policy priority
+  --served-model-name qwen3-embedding-0.6b --scheduling-policy priority \
+  --gpu-memory-utilization <installation value>
 ```
 
 `--runner pooling` is required because the checkpoint declares `Qwen3ForCausalLM`;
@@ -39,8 +40,13 @@ last-token pooling with L2 normalization, which the checkpoint's sentence-transf
 configuration declares. Qualification confirms that vLLM applies it, and the
 deployment sets the pooler configuration explicitly if it does not.
 
-The checkpoint follows the `reason-mcp` model-cache pattern. The installation supplies
-the Hugging Face layout on a model-cache volume. An init container checks every file
+The runtime shares GPUs with the installation's other workloads, so it claims only the
+memory fraction the installation sets, as `reason.engine.gpuMemoryUtilization` does
+for Reason. The installation's GPU budget counts its share.
+
+The checkpoint follows the `reason-mcp` model-cache pattern. The installation stages
+the Hugging Face layout on a model-cache volume the same way it stages Reason's
+world-model checkpoint. An init container checks every file
 against its pinned SHA-256 with `sha256sum -c` before vLLM starts, and
 `HF_HUB_OFFLINE=1` forbids downloads. The Pod uses the `nvidia` runtime class and
 requests `nvidia.com/gpu`, so the runtime has no CPU path. `/health` backs readiness.
@@ -50,14 +56,18 @@ scaling, and failure behavior, shared by every consumer.
 
 ## Access
 
-Every workload in the installation's platform namespace may call the runtime. Its
-NetworkPolicy admits that namespace and nothing else. Requests carry the installation's
-embedding API key, which Helm mounts into platform workloads from one Secret. The key
-guards against a misconfigured network policy; it does not identify callers.
+Every workload in the installation's platform namespace may call the runtime, except
+the Computers compute host. Its NetworkPolicy admits pods in that namespace whose
+`app.kubernetes.io/component` is not `computer-host`, and nothing else. Agent kernels
+run in the separate `veoveo-agents` namespace, so the policy excludes them as well.
+Requests carry the installation's embedding API key, which Helm mounts from one Secret
+into the platform workloads that use embeddings. The key guards against a misconfigured
+network policy; it does not identify callers.
 
-Agent sandboxes and Computers run untrusted code and never reach the runtime directly.
-They embed through the `knowledge__embed` MCP tool, which the gateway authorizes,
-audits, and budgets like any other tool. External MCP hosts use the same tool.
+Computers run arbitrary code, and the compute host's own egress policy already keeps
+them away from cluster services. Agent kernels, Computers, and external MCP hosts embed
+through the `knowledge__embed` MCP tool, which the gateway authorizes and audits like
+any other tool and an agent's episode budget counts.
 
 ## Client
 
@@ -74,7 +84,8 @@ same rules.
 - Each request declares a priority. Interactive work, such as a search query, runs
   ahead of bulk work, such as indexing. The client maps the priority onto vLLM's
   scheduler; qualification confirms that the embeddings route honors it on the pinned
-  version.
+  version. If it does not, the client caps the number of bulk requests in flight per
+  replica instead, so interactive requests still find free capacity.
 
 Every response carries an `EmbeddingSpace`: model name, checkpoint revision,
 dimension, and the vLLM image digest. The client reads it from `/v1/models` and the
@@ -103,8 +114,8 @@ that justifies its memory on the installation's shared GPUs.
   the reported embedding space.
 - A load test records throughput and shows interactive requests completing ahead of a
   concurrent bulk load.
-- A pod outside the platform namespace cannot connect, and a request without the key
-  is rejected.
+- A pod outside the platform namespace and the compute host cannot connect, and a
+  request without the key is rejected.
 
 ## Implementation Map
 

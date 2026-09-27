@@ -37,8 +37,10 @@ cannot add an unreviewed field.
 
 The record ID is the compound `audit_record:[partition, id]`, where `id` is a UUIDv7.
 SurrealDB orders records by ID, so a partition's records in time order are a
-primary-key range, such as `audit_record:[$tenant, $from]..[$tenant, $to]`. Queries,
-the sealer, and retention read that range without a secondary time index.
+primary-key range, such as `audit_record:[$tenant, $from]..[$tenant, $to]`, and
+queries read it without a secondary time index. Sealing and retention follow commit
+order instead, as [Integrity](#integrity) describes, because writer clocks can
+disagree.
 
 | Field | Content |
 |---|---|
@@ -74,8 +76,10 @@ execution of the same request share that record.
 | Tool call or other mutation | One `allowed` record before dispatch, and one completion record after it returns |
 | Denied request of any kind | One `denied` record, before any upstream call |
 | Discovery list | One record with the visible-item count, the denied-item count, and a SHA-256 of the visible set; the policy revision in `authority` reproduces each item decision |
-| Streamed session: dictation and live views | One record when the session opens, one when it ends with counts and durations, and one for every denial or revocation; renewals and chunks write no record |
+| Dictation session | One record when the session opens, one when it ends with chunk counts and durations, and one for every denial; chunks write no record |
+| Live-view authorization | One record for each issuance, renewal, close, expiry, and revocation, and one for every denial |
 | Artifact range downloads | One record per actor, artifact, and five-minute window, and one for every denial |
+| Reads by an approved indexing client | One record per collection and five-minute window with read and outcome counts and a SHA-256 over the member URIs and revisions read; the index's chunk records hold each member's revision |
 | Token lifecycle: issue, refresh, revoke, replay, credential denial | One `authentication` record each |
 | Successful bearer verification | No record; the actor block of the request's record carries it |
 | Polling a caller's own Task or operation status | No record; the Task's creation and terminal outcome are recorded |
@@ -83,7 +87,17 @@ execution of the same request share that record.
 
 HTTP range requests have no end event, so a download is recorded by window. A replica
 records the first range request of an actor for an artifact in each five-minute
-window. A duplicate from another replica is harmless.
+window. A duplicate from another replica is harmless. Indexing reads use the same
+window rule, because one collection sync is one logical action.
+
+Each action has one owner. The gateway records requests. A domain service records the
+state changes it owns, such as an authorization issuance, a publication, or a Computer
+lifecycle change, with the request ID of the call that caused it. A tool call that
+issues a live-view authorization therefore has the gateway's two records and the
+simulator's issuance record, which describe different facts. For artifact range
+downloads, dictation chunks, and indexing reads, the window or session record is the
+only record: the gateway writes no per-request record for those requests unless it
+denies one.
 
 ## Write Path
 
@@ -133,17 +147,24 @@ evaluates no policy and writes its single record.
 
 ## Integrity
 
-A sealer runs under a store lease, so one replica seals at a time. At most once per
-second it takes each partition's unsealed records in record-ID order and writes
-an `audit_block`: partition, block sequence, first and last record ID, record count,
-the RFC 9162 Merkle root over the records' canonical hashes, the previous block's
-hash, and an Ed25519 signature over the block head. The signing key is a dedicated
-installation audit key.
+The gateway runs the sealer under a store lease, so one replica seals at a time. The
+sealer follows the `audit_record` change feed, which lists records in commit order,
+including a record whose writer clock lagged behind other writers. At most once per
+second it takes each partition's newly committed records and writes an
+`audit_block`: partition, block sequence, the change-feed versionstamp range, the IDs
+of its records in commit order, the RFC 9162 Merkle root over their canonical hashes,
+the previous block's hash, and an Ed25519 signature over the block head. The signing
+key is a dedicated installation audit key.
 
-Changing, removing, or inserting a sealed record changes a Merkle root. Removing a
-block breaks the next block's link. `audit_record` fields are `READONLY`, and only the
-retention worker deletes records. `gateway audit verify` recomputes roots,
-links, and signatures for a partition and time range.
+`gateway audit verify` recomputes each block's root from the records it lists and
+checks the links and signatures for a partition and time range. It detects a sealed
+record that was changed or deleted, a removed block, and a forged signature.
+`audit_record` fields are `READONLY`, and only the retention worker deletes records.
+A record inserted directly with database credentials is sealed like any other record,
+so verification also flags any record whose ID time precedes its block by more than
+the clock-skew bound, which is how a back-dated insertion appears. An attacker who
+holds both database root credentials and the signing key can rewrite history that has
+not been exported yet; the write-once export protects everything exported before.
 
 The sealing interval bounds the unsealed window to about one second. Sealing runs
 outside the request path, so it adds no latency to writes and needs no shared
@@ -155,8 +176,10 @@ Each installation sets audit retention in days in its configuration. The gateway
 refuses to start without it, so no default ever deletes records silently. Retention
 applies to every class.
 
-When export is configured, the retention worker deletes a record only after its
-block reached the export destination. The exporter writes one OCSF JSON Lines object
+The gateway's retention worker deletes whole blocks: a block's records, then the
+block itself, once the block is older than the retention period. When export is
+configured, it deletes only blocks that reached the export destination, and
+verification checks the oldest retained block's link against the exported copy. The exporter writes one OCSF JSON Lines object
 per sealed block, with the block head and signature beside it, and records its cursor
 in the store. An S3 bucket with Object Lock in compliance mode keeps exported blocks
 beyond the reach of installation administrators.
@@ -180,8 +203,8 @@ its own tenant. Installation administrators and the auditor role also read the
 `installation` partition. Every query is paged and bounded at the store with filters
 for class, actor, target, outcome, trace, and time. The Console's overview reads
 `audit_daily`, a table view defined with `AS SELECT … GROUP BY` that SurrealDB maintains
-incrementally with counts by partition, day, class, and outcome, so the overview scans
-no records. The Console reads records through this
+incrementally with counts of retained records by partition, day, class, and outcome, so
+the overview scans no records. The Console reads records through this
 query and exports the full filtered result on the server, not only the rows loaded in
 the browser.
 
@@ -212,7 +235,7 @@ outside it:
 | `mcp/contract/src/audit.rs` | record, actor, authority, target, detail, and outcome types |
 | `platform/audit` | writer with transactional and group-commit modes, sealer, exporter, and verification |
 | `platform/store/src/audit.rs` and its migration | `audit_record`, `audit_block`, and `audit_daily`, compound record IDs, `READONLY` fields, record links, bounded range queries, LIVE and change-feed readers, and retention |
-| `platform/gateway` | request IDs, trace context, request records, discovery aggregation, token lifecycle records, and the `audit verify` command |
+| `platform/gateway` | request IDs, trace context in the signed request context, request records, discovery aggregation, token lifecycle records, the sealer, exporter, and retention worker, and the `audit verify` command |
 | `platform/artifacts/service` | artifact activity records and download sessions |
 | `servers/uav-sim-mcp` | live-view access records |
 | `platform/computers` | Computer lifecycle records in domain transactions |

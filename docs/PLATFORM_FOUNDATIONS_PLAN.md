@@ -2,7 +2,7 @@
 
 Status: approved for implementation on 2026-09-26. No phase has started.
 
-This plan tells an implementing agent how to deliver five changes. The first moves
+This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
 reference installation. The third fixes resource contract violations found while
@@ -67,6 +67,26 @@ state after this file is gone.
   mode.
 - Keep the standards registers current. Add a standard to them in the change that
   implements it, never earlier, because each register lists what Veoveo implements.
+- Update `docs/CODEMAP.md` in the same change that adds, moves, or removes a crate,
+  component, or document.
+- Update the Status line at the top of this plan when a phase lands, naming the phase
+  and its deployed revision.
+
+## Prerequisites And Deployment
+
+The agent runs on the reference installation's GPU host, where the `k3d-veoveo-bioma`
+Kubernetes context, the local registry, and a headed browser with hardware-backed
+graphics are available. Without them, deployment and installed acceptance steps go to
+[Deferred Work](#deferred-work) while the local work continues.
+
+Deploy through the reference installation's own runbook: the Release publication
+section of [`examples/bioma/README.md`](../examples/bioma/README.md) builds and pushes
+images to the local registry, updates the release locks, and observes the rollout with
+`cargo xtask smoke gitops-converge`. Flux reconciles veoveo.bioma.ai from `main` on
+`origin`, so pushing `main` to `origin` is part of each deployment and is authorized
+by this plan. Use [`docs/DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) for
+affected-image staging. The "Create the local platform" section of the same README
+rebuilds the cluster from scratch when a phase needs a clean installation.
 
 ## Standards Registers
 
@@ -180,8 +200,11 @@ its data, so none of them needs a migration:
    run `docs/architecture/tools/render.py` and `validate.py`. Render the PDF in a headed
    browser with hardware-backed graphics, following the GPU rules in `AGENTS.md`.
 5. Add `cargo xtask enforce identifiers`. It scans tracked text files and fails on
-   `io.veoveo`, `veoveo.io`, and `ai.bioma`. Add the target to the xtask surface listed
-   in `AGENTS.md`.
+   `io.veoveo`, `veoveo.io`, and `ai.bioma`. Its allowlist names only the documents
+   that describe the cut: the Naming section of `AGENTS.md`, CE-10 in
+   `docs/CONTRACT_EVOLUTION.md`, and this plan until its deletion. Historical records
+   that stay in the repository are renamed like everything else. Add the target to the
+   xtask surface listed in `AGENTS.md`.
 6. Update the identifier rows in `mcp/contract/DESIGN.md`,
    `mcp/apps-extension/DESIGN.md`, and `deploy/contract/DESIGN.md`.
 7. Rename the identifiers in the standards registers: the Optimization row in
@@ -198,7 +221,8 @@ reinstalls from the new lock through GitOps. Run it without waiting for approval
 
 Acceptance:
 
-- `cargo xtask enforce identifiers` passes, and the grep above returns nothing.
+- `cargo xtask enforce identifiers` passes, and the grep above finds matches only in its
+  allowlist.
 - `cargo test --workspace`, the Python SDK tests, and `cargo xtask enforce rust|python|docs` pass.
 - The reference installation passes `installation-verify` from Phase 2 and live
   conformance certification after the reset.
@@ -245,7 +269,9 @@ Acceptance:
 - `installation-verify` passes against the reference installation with its target
   file.
 - The recording catalog SDK smoke runs against an installation whose hostname and
-  tenant differ from the reference, without editing Veoveo source.
+  tenant differ from the reference, without editing Veoveo source. A disposable local
+  profile from [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) serves as
+  that installation.
 
 ## Phase 3: Resource Contract Corrections
 
@@ -283,7 +309,7 @@ figure counts audit rows, and every row also wrote an outbox row until this phas
 | Gateway authentication (`platform/gateway/src/bin/gateway/auth.rs:98-380`) | One row per HTTP request, including every poll | Part of the request record; token lifecycle and credential denials only |
 | Gateway policy (`platform/gateway/src/mcp/authorization.rs:329-367`) | One row per call, and one per item for discovery, repeated for every page and on each 5 s cache expiry; prompts are not cached (`prompts.rs:35`) | One record per request; one per list |
 | Gateway tool call (`platform/gateway/src/mcp/tools.rs:410-432`) | Written after the effect, and a failed write errors the response | Completion record, retried, never fails the response |
-| Admin outcome (`platform/gateway/src/bin/gateway/admin/audit.rs:232-303`) | Extra policy row with free-form metadata | Completion record |
+| Admin outcome (`record_admin_operation_audit` in `platform/gateway/src/bin/gateway/audit.rs:236`) | Extra policy row with free-form metadata | Completion record |
 | Artifact service (`platform/artifacts/service/src/service.rs:146-199`) | One row per authorization, including each range request; no trace ID; never deleted | Download windows; trace from the request context; retention |
 | Upload completion (`platform/store/src/artifact_uploads/publication.rs:28-84`) | Same transaction as publication | Transactional writer |
 | Live views (`servers/uav-sim-mcp/src/server/live_view_audit.rs`, `platform/store/src/live_views.rs`) | Best effort; failures only logged; never deleted | Issuance requires its record; close and expiry retried; retention |
@@ -327,12 +353,16 @@ Work:
    `audit_daily` table view. Add only the secondary indexes the bounded queries use
    beyond the ID range. Existing audit rows are discarded, as CE-12 records.
 5. Create `platform/audit` with the writer's transactional and group-commit modes, the
-   sealer under a store lease, the OCSF and OpenTelemetry exporters, and verification.
+   sealer that follows the `audit_record` change feed under a store lease, block-based
+   retention, the OCSF and OpenTelemetry exporters, and verification. The gateway hosts
+   the sealer, exporter, and retention worker.
    Add the dedicated audit signing key to the installation secrets.
-6. In the gateway, assign request IDs, establish W3C trace context, record source IP
-   addresses, write one record per request, aggregate discovery lists, write tool and
-   admin completion records, write token lifecycle records, type recording ingest
-   denials, and add `gateway audit verify`. Make audit retention a required
+6. In the gateway, assign request IDs, establish W3C trace context, carry both in the
+   signed request context to upstream servers, record source IP addresses, write one
+   record per request, aggregate discovery lists, write tool and admin completion
+   records, write token lifecycle records, type recording ingest denials, and add
+   `gateway audit verify`. Write no per-request record for allowed artifact range
+   requests and dictation chunks, because their window and session records own them. Make audit retention a required
    installation value, wired from Helm, and remove the 365-day default.
 7. Cache discovery decisions by caller authority, policy revision, and catalog
    generation, and invalidate them on change events instead of the 5 s expiry. Cache
@@ -367,11 +397,16 @@ Work:
 Acceptance:
 
 - The SurrealDB 3.3 upgrade passes its qualification before any audit commit lands.
-- Tests count records for each action in the table above and match the target column.
+- Tests count records for each action in the table above and match the target column,
+  and a live-view renewal and an indexing window each produce the record the audit
+  design specifies.
 - A request fails when its record cannot commit, and a live-view authorization is not
   issued while the audit store is unavailable. An issued authorization keeps working.
-- `gateway audit verify` detects an updated, deleted, and inserted record, a removed
-  block, and a bad signature, each made with database root credentials.
+- `gateway audit verify` detects an updated and a deleted sealed record, a back-dated
+  inserted record, a removed block, and a bad signature, each made with database root
+  credentials.
+- A record committed after a later-stamped record is still sealed, because the sealer
+  follows commit order.
 - The gateway refuses to start without a retention value. Retention deletes every
   class, and with export configured it deletes only exported blocks.
 - The exporter writes OCSF JSON Lines to the bundled S3-compatible store. Object Lock
@@ -447,8 +482,9 @@ Acceptance:
 1. Create `mcp/knowledge-extension` as a workspace crate with the models, server and
    client helpers, and docs collection listed in its design's implementation map.
 2. Build the `{slug}.docs` collection into `veoveo_mcp_contract::docs`, so every Rust
-   server that uses `server_docs!` declares it. Document revisions are SHA-256 digests
-   computed at build time.
+   server that uses `server_docs!` declares it, and into `veoveo_mcp.contract.docs` in
+   `sdk/python`, so `datasheet-mcp` in `templates/python-mcp` and fork Python servers
+   declare it. Document revisions are SHA-256 digests computed at build time.
 3. Add C32 to `CHECKLIST_IDS` and declare it in every server's `AGENTS.md`.
 4. Add checks K01 through K08 to the conformance client and run them in certification
    for every server that declares the extension.
@@ -458,8 +494,9 @@ Acceptance:
    servers, attach the observation and read outcome to the read's audit record as a
    `detail` variant of the Phase 4 record type, commit that record before returning, and forward the observation only to declaring
    callers.
-7. In `agents/kernel/src/resource.rs`, keep the observation beside each admitted item
-   and render one provenance line per item inside the existing budgets.
+7. In `agents/kernel/src/resource.rs`, declare the extension on resource reads, keep
+   the observation beside each admitted item, and render one provenance line per item
+   inside the existing budgets.
 8. Update the standards registers. Add `ai.veoveo/knowledge-source` to the agent and
    app interfaces row in `README.md`. Add a `docs/TECH_DESIGN.md` row for the extension
    with its RFC 9110 validator, RFC 9111 freshness, and RFC 8246 immutability
@@ -472,7 +509,8 @@ Acceptance:
 - Gateway tests prove that a declared read's audit event carries its observation and
   outcome and commits before the result returns.
 - A kernel test shows provenance lines within the byte budget.
-- Every server passes K01 through K08 for its docs collection.
+- Every Rust server and `datasheet-mcp` pass K01 through K08 for their docs
+  collections.
 
 ## Phase 7: First Adoption Wave
 
@@ -503,10 +541,14 @@ log records the observed revision for reads of each collection.
       installation-supplied checkpoint at revision
       `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, an init container that checks
       `platform/runtimes/embedding/checkpoint.sha256`, `HF_HUB_OFFLINE=1`, the `nvidia`
-      runtime class, a `nvidia.com/gpu` request, readiness on `/health`, the
-      installation embedding API key Secret mounted into platform workloads, and a
-      NetworkPolicy that admits the platform namespace and excludes agent sandboxes and
-      Computers. Document it in `deploy/helm/veoveo/DESIGN.md`.
+      runtime class, a `nvidia.com/gpu` request, an installation-set
+      `--gpu-memory-utilization`, readiness on `/health`, the installation embedding
+      API key Secret mounted into the platform workloads that use it, and a
+      NetworkPolicy that admits platform-namespace pods except the `computer-host`
+      component. Stage the checkpoint on the reference installation the way Reason's
+      world-model checkpoint is staged, and add the runtime's GPU share and Deployment
+      to `examples/bioma/installation-target.json`. Document it in
+      `deploy/helm/veoveo/DESIGN.md`.
    2. Confirm that vLLM applies last-token pooling with L2 normalization for this
       checkpoint, and set the pooler configuration explicitly if it does not. Confirm
       that the embeddings route honors request priority on the pinned version, and
@@ -529,9 +571,12 @@ log records the observed revision for reads of each collection.
 4. Implement discovery, the catalog resources, enumeration, change subscriptions,
    reconciliation, chunking, and index generations keyed by embedding space, with
    indexing at bulk priority. Add the `embed` tool for agents and external MCP hosts.
-5. Implement `search` with BM25, HNSW, reciprocal rank fusion, effective-access
-   filtering, and query embedding at interactive priority. Share the effective-access predicate that `platform/store/src/artifacts.rs`
-   applies. Do not copy it.
+5. Implement `search` with BM25, HNSW, reciprocal rank fusion, and query embedding at
+   interactive priority. Narrow candidates inside the SurrealDB query by tenant, the
+   caller's Work Contexts and grant subjects, and clearance labels, over-fetch, and
+   decide each candidate with `veoveo_mcp_contract::access::decide` from
+   `mcp/contract/src/access.rs`, the predicate the Artifact service uses. Do not copy
+   it.
 6. Add the `knowledge-mcp` Helm chart, gateway registration, and offline image entries
    for it and the embedding runtime. `knowledge-mcp` requests no GPU.
 7. Build an evaluation set from the Phase 7 collections, and record recall at 10 for
@@ -556,7 +601,8 @@ Acceptance:
   under load, and network isolation.
 - Indexing throughput with concurrent searches and the 0.6B, 4B, and 8B comparison are
   recorded.
-- The `embed` tool is authorized, audited, and budgeted through the gateway.
+- The `embed` tool is authorized and audited through the gateway, and an agent's
+  episode budget counts it.
 - Invalidation and reconciliation tests pass.
 - The reference installation indexes the approved Phase 7 collections, and a search
   returns links an agent can read.
@@ -574,8 +620,9 @@ Acceptance:
 | uav-sim | control grants, mission plans | Live simulation state is not knowledge |
 | duckdb | database schemas with `indexing: metadata` | Table contents stay behind the `query` tool |
 
-Media, timeseries, and sumo declare only their docs collection until they hold records
-worth sharing.
+Media and timeseries declare only their docs collection until they hold records worth
+sharing. `showcase/sumo` has no well-known surface and is not part of the reference
+installation, so this plan leaves it out.
 
 Acceptance: each server passes K01 through K10, and `knowledge-mcp` indexes its
 approved collections.

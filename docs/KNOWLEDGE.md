@@ -54,8 +54,10 @@ or refuse a collection whose labels exceed the service's clearance.
 
 The service reads sources through the gateway as its own registered machine client.
 Control-plane policy grants that client read access to approved collections only.
-The gateway authorizes and audits those reads exactly as it does for any other
-caller.
+The gateway authorizes those reads exactly as it does for any other caller. It
+audits them as an approved indexing client: one record per collection and five-minute
+window, as [the audit design](AUDIT.md#event-selection) specifies, because the chunk
+records already hold each member's revision.
 
 ## Catalog
 
@@ -86,9 +88,20 @@ them only after a change event, a newer revision, or a definitive deletion from 
 owning server. The chunk records are the service's whole account of what it cached
 and from which revision.
 
+A change to a member's access descriptor is a change like any other: the owning
+server changes the revision and signals it (rule K10), and the service re-reads the
+member and replaces its chunks. For `revalidate` collections, an access change reaches
+the index within `maxAgeSeconds`.
+
+The chunker splits text along its structure, at Markdown headings and top-level JSON
+fields, and caps each chunk by characters well below the model's context. The cap and
+overlap are chunker settings that the index generation records and the evaluation set
+qualifies.
+
 Chunks carry text, member URI, revision, collection, and the observation's access
-descriptor. Each chunk has a BM25 `FULLTEXT` entry and a 1024-dimension `HNSW`
-entry with cosine distance. Search runs both indexes and fuses their rankings with
+descriptor. Each chunk has a BM25 `FULLTEXT` entry and an `HNSW` entry with cosine
+distance in its index generation's vector index, whose dimension is the embedding
+space's: 1024 for `Qwen3-Embedding-0.6B`. Search runs both indexes and fuses their rankings with
 reciprocal rank fusion.
 
 ### Embedding
@@ -117,43 +130,49 @@ collection's freshness. Its content carries one `resource_link` per result.
 
 Before returning a result, the service applies the caller's effective access to the
 chunk's access descriptor: same tenant, Work Context membership or a grant with
-`read`, and clearance for every data label. It evaluates the same predicate that the
-Artifact store applies. `profile` collections require only that the caller's profile
-exposes the source server. A result the caller may not read never appears, including
-its title and snippet.
+`read`, and clearance for every data label. The search query narrows candidates inside
+SurrealDB by tenant, the caller's Work Contexts and grant subjects, and the caller's
+clearance labels, and it fetches more candidates than the result limit because these
+filters apply after the vector search. The service then decides each remaining
+candidate with `veoveo_mcp_contract::access::decide`, the predicate the Artifact service
+uses, and fetches more when too few pass. `profile` collections require only that the
+caller's profile exposes the source server. A result the caller may not read never
+appears, including its title and snippet.
 
 A caller who needs current content reads the member URI. That read goes to the
 owning server, which applies its own authorization and returns a fresh observation.
 
 ## Embed Tool
 
-`embed` is a direct tool for callers outside the platform namespace: agents, which run
-in sandboxes, and external MCP hosts. It takes up to 32 texts and a mode, `document`
-or `query` with a task, and returns vectors with their embedding space. The gateway
-authorizes, audits, and budgets it like any other tool. Platform services call the
-runtime directly instead.
+`embed` is a direct tool for callers outside the platform namespace: agent kernels,
+which run in the `veoveo-agents` namespace, and external MCP hosts. It takes up to 32
+texts and a mode, `document` or `query` with a task, and returns vectors with their
+embedding space. The gateway authorizes and audits it like any other tool, and an
+agent's episode budget counts it. Platform services call the runtime directly instead.
 
 ## Knowledge Reads In The Audit Log
 
 Veoveo keeps [one audit log](AUDIT.md). A read of a declared collection is an ordinary
-audit record for `resources/read`, and the event carries the typed observation the owning
+audit record for `resources/read`, and the record carries the typed observation the owning
 server returned: collection, revision, `contentSha256`, `lastModified`, `modifiedBy`,
 and the read outcome (`full`, `not_modified`, `denied`, `not_found`, or
-`unavailable`). The event already names the actor, delegating principal, managed
+`unavailable`). The record already names the actor, delegating principal, managed
 agent, Work Context, profile, and trace. "What did this answer rely on?" is therefore
 an audit query by trace or agent episode.
 
 The gateway declares the extension on each upstream read of a declaring server and
 forwards the observation only to callers that declared the extension themselves. For
-these reads it commits the audit event after the upstream response arrives and before
+these reads it commits the audit record after the upstream response arrives and before
 it returns the result, so no caller receives content whose revision the log lacks.
-Denied reads are audited before any upstream call, as every denial is. The event holds
-digests and identities, never member content. Retention follows the audit log's
-policy for its event kind.
+Denied reads are audited before any upstream call, as every denial is. The record holds
+digests and identities, never member content, and follows the audit log's retention.
+Reads by the knowledge service itself use the indexing window described in
+[Sources And Approval](#sources-and-approval).
 
 ## Agent Context
 
-The governed agent read adapter keeps each observation beside the text it admits.
+The governed agent read adapter declares the extension on its reads and keeps each
+observation beside the text it admits.
 The model receives one compact provenance line per item: collection, revision,
 `lastModified`, and `observedAt`. It can therefore state how current its evidence
 is. The adapter's byte and read budgets count those lines.
@@ -167,7 +186,7 @@ is. The adapter's byte and read budgets count those lines.
 | `src/embed.rs` | index and search use of `veoveo-embedding-client`, and the `embed` tool |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
-| `platform/gateway/src/mcp/resources.rs` | observation attached to the read's audit event |
+| `platform/gateway/src/mcp/resources.rs` | observation attached to the read's audit record, and indexing-client windows |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 
 ## Verification
@@ -175,14 +194,19 @@ is. The adapter's byte and read budgets count those lines.
 - Contract rules K01 through K10 pass against this server's `knowledge.docs`
   collection.
 - Unit and store tests prove that a caller never receives a result outside its
-  effective access, including title and snippet.
-- Gateway tests prove that a declared read's audit event carries its observation and
-  outcome, and that it commits before the result returns.
+  effective access, including title and snippet, and that a restricted caller still
+  receives a full page when enough readable results exist.
+- A test revokes a grant and shows the member's results disappear after the change
+  signal.
+- Gateway tests prove that a declared read's audit record carries its observation and
+  outcome, that it commits before the result returns, and that indexing reads produce
+  one record per collection window.
 - Change-event tests prove invalidation, re-read, and reconciliation after a lost
   stream.
 - Index tests prove that a change of embedding space builds a new generation and never
   mixes vectors from two spaces.
-- An `embed` tool test proves the gateway audits and budgets each call.
+- An `embed` tool test proves the gateway authorizes and audits each call and that the
+  episode budget counts it.
 - The throughput measurement records chunks per second for each Phase 7 collection and
   for a full rebuild, with searches running concurrently.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and

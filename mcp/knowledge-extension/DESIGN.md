@@ -142,7 +142,7 @@ modification time.
 | Field | Required | Meaning |
 |---|---|---|
 | `collection` | yes | The declaring collection |
-| `revision` | yes | Opaque strong validator. It changes whenever the returned text changes. Immutable members may use their content digest |
+| `revision` | yes | Opaque strong validator. It changes whenever the returned text or the access descriptor changes. Immutable members may use their content digest |
 | `contentSha256` | yes | Lowercase hex SHA-256 of the exact UTF-8 bytes of the returned text |
 | `observedAt` | yes | Server time when the domain produced this read |
 | `modifiedBy` | when recorded | Principal kind and ID that produced the current revision |
@@ -200,8 +200,9 @@ Every server declares the `{slug}.docs` collection over `{scheme}://docs/{doc_id
 | `revision` | SHA-256 of the embedded document bytes, computed at build time |
 
 The shared crate implements this collection once for every Rust server through
-`veoveo_mcp_contract::docs`. The Node server `chart-mcp` implements the same
-declaration in its own package.
+`veoveo_mcp_contract::docs`, and the Python SDK implements it in
+`veoveo_mcp.contract.docs` for Python servers such as `datasheet-mcp`. The Node server
+`chart-mcp` implements the same declaration in its own package.
 
 ## Server Rules
 
@@ -220,7 +221,7 @@ running server. Review enforces K09 and K10.
 | K07 | MUST | For `listen` collections, make members and the collection subscribable, and emit changes from a restart-safe source. |
 | K08 | MUST | Return resource links from declared search tools, restricted to readable resources. |
 | K09 | MUST | Fill observations from domain records only, and keep caller input out of provenance. |
-| K10 | MUST | Change `revision` whenever the returned text changes. |
+| K10 | MUST | Change `revision`, and signal the change for `listen` collections, whenever the returned text or the member's access descriptor changes. |
 
 ## Implementation Map
 
