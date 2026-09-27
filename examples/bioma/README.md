@@ -247,6 +247,17 @@ with content suffixes and rewrites every Helm values reference through
 `gitops/name-references.yaml`. The root Flux artifact carries those chart selections and
 all generated values from one Git revision.
 
+Update the runtime images selected outside Pod templates in the same commit.
+`gateway.agents.templates[].workload.image` in `values.yaml` must select the published
+`veoveo/agent-kernel` digest. Computers selects its guest image through both public
+configuration files as described above. Check the complete consumed-image set before
+pushing:
+
+~~~bash
+cargo test -p veoveo-xtask commands::helm::rollout_tests::
+cargo xtask smoke helm-config
+~~~
+
 The HelmRelease update selects its chart and values together. A new values schema
 therefore waits for its matching chart source. This also prevents an intermediate
 upgrade that would otherwise combine new image pins with the previous chart.
