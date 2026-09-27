@@ -22,6 +22,14 @@ This focused Rust harness owns Helm configuration assertions, deployment-profile
 dispatch, and exact-revision GitOps observation. Installation mutation remains with
 Helm and the installation's GitOps controllers.
 
+`src/helm_config.rs` exercises generic platform contracts with the anonymous
+`testing/fixtures/platform-selection` and `testing/fixtures/fork-installation` inputs.
+`src/helm_config/bioma.rs` owns the reference installation's values, public hostname,
+control-plane bundle, cluster, and GitOps assertions. Both modules run in `helm-config`.
+Configuration rendering establishes chart behavior; installed smoke uses the
+[installation target](../../deploy/contract/DESIGN.md#installation-target) to select
+its running release explicitly.
+
 The `computers_helm` integration target renders the two standard presets and the
 configured Computers boundary with real Helm. It checks no-op configuration/Pod
 stability, unprivileged control, explicit configuration/trust references and rejected

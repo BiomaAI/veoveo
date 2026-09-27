@@ -287,6 +287,7 @@ designs above.
 | `deploy/runtime/src/gpu/workloads.rs` | typed Deployment selector, current ReplicaSet ownership, Ready Pod/container, replica-count, and in-container GPU evidence targeting |
 | `deploy/runtime/src/gpu/workloads/quiescence.rs` | child UID inventory and Pod-exit verification before retiring a device plugin |
 | `testing/deployment-smoke/` | focused Helm configuration, deployment-profile, and per-revision GitOps convergence CLI; passive observation issues no reconciliation requests; `src/helm_config.rs` owns configuration assertions shared with the full suite |
+| `testing/deployment-smoke/src/helm_config/bioma.rs` | reference-installation Helm values, control-plane bundle, edge and GitOps assertions, separate from generic fixture rendering |
 | `testing/deployment-smoke/src/helm_config/gitops.rs` | immutable OCI source and generated Helm values references, checked against the Bioma reference in both component-update directions |
 | `testing/deployment-smoke/src/helm_config/jobs.rs` | rendered initialization Job identity checks across Helm and chart revisions, complete spec changes, and long release names |
 | `testing/browser-smoke/` | focused headed-browser acceptance over an already-running simulation, mandatory Console and standalone App host preflights, and live-view recovery checks across container restarts |

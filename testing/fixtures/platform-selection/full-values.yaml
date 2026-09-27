@@ -1,0 +1,25 @@
+# Anonymous render-only installation with every first-party workload.
+gateway:
+  replicas: 1
+artifactService:
+  replicas: 1
+recording:
+  tenantKey: enterprise
+  workContext: operations
+consoleBff:
+  replicas: 1
+  oauthResource: http://localhost:8782/mcp/admin
+  mcpTransportUrl: http://mcp-gateway:8788/mcp/admin
+telemetry:
+  enabled: false
+ingress:
+  className: traefik
+  host: localhost
+  tls:
+    enabled: false
+networkPolicy:
+  enabled: false
+podDisruptionBudget:
+  enabled: false
+domainServiceReplicas:
+  chart-mcp: 1
