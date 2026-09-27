@@ -402,14 +402,21 @@ async function start() {
     const coneMaterial = new THREE.MeshBasicMaterial({ color: 0xb04be0, ...additive, opacity: 0.06, side: THREE.DoubleSide });
     const scanMaterial = new THREE.LineBasicMaterial({ color: 0xe9d5ff, ...additive, opacity: 0.55 });
     const frustumMaterial = new THREE.LineBasicMaterial({ color: 0x9ad8ff, ...additive, opacity: 0.45 });
-    const frustumGeometry = (() => {
-        const o = new THREE.Vector3(0, 1.6, 0.8);
-        // A 16:9 far plane, 9 by 5.06, tilted slightly down like a mounted camera.
-        const far = [[-4.5, 1.3], [4.5, 1.3], [4.5, -3.76], [-4.5, -3.76]].map(([x, y]) => new THREE.Vector3(x, y, 12));
+    // Each RGB-D camera sits where the model carries it, as a fraction of the model's
+    // width, height and length: the quadruped's head and the top of the rover's mast.
+    const cameraMounts = { quadruped: [0, 0.92, 0.42], rover: [0, 0.95, 0.12] };
+    function frustumGeometry(kind) {
+        const box = templates[kind].userData.box;
+        const [mx, my, mz] = cameraMounts[kind];
+        const o = new THREE.Vector3(mx * box.x, my * box.y, mz * box.z);
+        // A 16:9 far plane, 9 by 5.06, 11 ahead and tilted down toward the ground.
+        const far = [[-4.5, 2.53], [4.5, 2.53], [4.5, -2.53], [-4.5, -2.53]]
+            .map(([x, y]) => new THREE.Vector3(o.x + x, o.y - 4.5 + y, o.z + 11));
         const pts = [];
         far.forEach((c, i) => pts.push(o, c, c, far[(i + 1) % 4]));
         return new THREE.BufferGeometry().setFromPoints(pts);
-    })();
+    }
+    const frusta = { quadruped: frustumGeometry('quadruped'), rover: frustumGeometry('rover') };
 
     const agents = [];
     const names = { drone: 0, quadruped: 0, rover: 0, boat: 0, operator: 0 };
@@ -449,7 +456,7 @@ async function start() {
             scene.add(agent.cone, agent.scan);
         }
         if (kind === 'quadruped' || kind === 'rover') {
-            agent.mesh.add(new THREE.LineSegments(frustumGeometry, frustumMaterial));
+            agent.mesh.add(new THREE.LineSegments(frusta[kind], frustumMaterial));
         }
         agents.push(agent);
         return agent;

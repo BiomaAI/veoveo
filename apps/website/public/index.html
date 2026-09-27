@@ -160,18 +160,27 @@
 </footer>
 
 <script>
-  // Play each use-case video while it is on screen. Each card has a pause button.
+  // Play each use-case video while it is on or near the screen. Each card has a pause
+  // button. The poster shows behind the video until the first real frame is presented.
   (() => {
     const cards = document.querySelectorAll(".usecase");
     const paused = new WeakSet();
+    const reveal = (video) => {
+      const show = () => video.classList.add("is-live");
+      if ("requestVideoFrameCallback" in video) video.requestVideoFrameCallback(show);
+      else video.addEventListener("timeupdate", show, { once: true });
+    };
     const observer = "IntersectionObserver" in window && new IntersectionObserver((entries) => {
       for (const { target, isIntersecting } of entries) {
         if (isIntersecting && !paused.has(target)) target.play().catch(() => {});
         else target.pause();
       }
-    }, { threshold: 0.35 });
+    }, { rootMargin: "20% 0px" });
     for (const card of cards) {
       const video = card.querySelector("video");
+      const media = card.querySelector(".usecase-media");
+      media.style.backgroundImage = `url("${video.getAttribute("poster")}")`;
+      video.addEventListener("playing", () => reveal(video), { once: true });
       const button = document.createElement("button");
       button.className = "usecase-toggle";
       button.type = "button";
@@ -180,7 +189,7 @@
         if (paused.has(video)) { paused.delete(video); video.play().catch(() => {}); button.classList.remove("is-paused"); button.setAttribute("aria-label", "Pause video"); }
         else { paused.add(video); video.pause(); button.classList.add("is-paused"); button.setAttribute("aria-label", "Play video"); }
       });
-      card.querySelector(".usecase-media").append(button);
+      media.append(button);
       if (observer) observer.observe(video); else video.play().catch(() => {});
     }
   })();
