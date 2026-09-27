@@ -454,6 +454,26 @@ dependencies are optional. Binary targets require their runtime features. Adding
 feature name without removing runtime dependencies does not meet this requirement.
 A separate contract crate needs a concrete dependency or independent release reason.
 
+#### Review Each Contract Change
+
+Review the affected contract before extending its implementation. Trace a representative
+caller through construction, authorization, and persistence to identify where an API
+loses domain types or requires knowledge of another component's internals. Apply the
+following criteria throughout this plan, including audit, knowledge, and store work:
+
+| Concern | Required result |
+|---|---|
+| Ownership | Name the library that owns the vocabulary and inspect the dependency direction. A cross-server consumer imports that owner's public contract; adding the domain must not add a dependency or registry entry to MCP core. |
+| Typed interfaces | Keep specific scope, ID, resource, and query types through public and internal calls. Validate external values at admission and convert them to wire or driver representations at those adapters. |
+| Construction | Prefer a typed constructor for a simple value. Add a focused builder when options or relationships make construction difficult. Required inputs retain their types; validation checks relationships before exposing a usable value. Use typestate only when it eliminates a concrete invalid sequence. |
+| Contract adequacy | When the existing model cannot express the required invariant, change the owning contract and migrate its callers. Record the reason and material tradeoff in the owning design and this plan; update CE-13 when the ownership architecture changes. |
+| Qualification | Demonstrate valid construction and rejection of invalid combinations, plus the affected domain behavior. Prove contract feature isolation with an independent consumer; qualify published wire and persisted data transitions before claiming completion. |
+
+Make these decisions within the accepted product architecture without waiting for the
+user to identify each gap. Explain material decisions as work progresses. A new wrapper,
+builder, or trait is complete only when the affected callers use it and its promised
+invariants are checked. Record remaining adoption explicitly in the inventory below.
+
 #### Implementation
 
 1. Inventory current type ownership and Cargo dependency paths across servers,
@@ -538,6 +558,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity and Artifact metadata come from lightweight owning crates, while `CrsId` still pulls in the runtime-bearing MCP crate | Resolve the coordinate contract with its owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
+| Coordinate vocabulary | `mcp/contract/src/coordinates.rs` combines geodetic IDs, frame worlds and conversions, and recording metadata; Map has no normal dependency path to RRD, so the planned ownership split does not require new contract crates | Move CRS, datum, and ellipsoid IDs into Map's contract feature; frame worlds, addresses, and conversions into Frames' contract feature; recording-specific frame/geofence metadata into RRD. Migrate consumers directly, preserve each existing wire profile, and qualify typed frame URI construction and independent consumption |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
