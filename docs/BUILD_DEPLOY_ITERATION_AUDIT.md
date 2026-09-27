@@ -2456,7 +2456,7 @@ claim compatibility with every upstream vLLM video integration.
 
 The September 8 completion check uses the deployed Veoveo installation at
 `https://veoveo.bioma.ai`, with Bioma supplying its configuration and GitOps owner.
-The native `bioma-verify` gate passes public HTTPS health, Console and authorization
+The native `installation-verify` gate passes public HTTPS health, Console and authorization
 surfaces, GPU workload scheduling, and a governed artifact larger than 8 MiB. Full,
 HEAD, and ranged requests preserve exact content without redirects. Its 180.6 s
 command includes a 145 s rebuild of the acceptance harness. The log is

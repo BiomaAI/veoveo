@@ -159,6 +159,7 @@ designs above.
 | `platform/runtimes/simulation/contract/` | typed simulation build locks, GPU results and release qualification |
 | `deploy/contract/src/image_release.rs` | image publication records used by component publication, with build revisions and separate runnable and attested digests |
 | `deploy/contract/src/locked_images.rs` | retained qualified image versions, unique source/target repository ownership, and unambiguous build provenance |
+| `deploy/contract/src/installation_target.rs` | installed-smoke target types, origin and coordinate validation, and relative control-plane resolution |
 | `deploy/contract/src/source_chart.rs` | source chart content identity shared by release publication and installation; hashes actual files independently of commit and archive metadata |
 | `docs/GPU_PLACEMENT.md` | managed NVIDIA DRA artifacts, installation schema, lifecycle, conflict transition, validation, upgrade, rollback, and recovery contract |
 | `deploy/local/k3d/` | GPU-capable local Kubernetes cluster and values |
@@ -1120,6 +1121,7 @@ dispatch preflights and budgeted execution.
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |
 | `testing/smoke/src/bin/smoke/scenarios/artifact_consumers.rs`, `artifact_consumers/python.rs` | installed public known/unknown-length uploads, CSV/Parquet MCP interoperability, and full-size Python SDK streaming observations asserted by Rust; direct-plane fixture identities stay separate from public OAuth evidence |
+| `testing/smoke/src/bin/smoke/support/installation.rs` and `scenarios/installation.rs` | installed-target control-plane validation and installation-selected public, identity, GPU and artifact checks |
 | `testing/smoke/src/bin/smoke/scenarios/recording_catalog_sdk.rs`, `testing/recording-catalog-sdk/` | installed service-token grant and native Rerun Python Catalog SDK query against k3d, including fresh-grant reconnect |
 | `testing/smoke/src/bin/smoke/scenarios/candidate.rs` | Stream and Reason compiler candidates in their installed NVIDIA runtimes, executable and payload identities, private listeners, and verified process cleanup |
 | `testing/smoke/src/bin/smoke/scenarios/recording_fixture.rs` | authenticated completion of explicitly selected video-test recording fixtures; production recordings are rejected |

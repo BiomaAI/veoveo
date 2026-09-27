@@ -37,6 +37,7 @@ struct CallerInput {
 
 #[derive(Serialize)]
 struct Input<'a> {
+    artifact_service_url: &'a str,
     caller: CallerInput,
     foreign: CallerInput,
     large: &'a BrowserReceipt,
@@ -44,7 +45,7 @@ struct Input<'a> {
 }
 
 pub(super) async fn consume(
-    context: &str,
+    installation: &InstalledTarget,
     large: &BrowserReceipt,
     csv: &BrowserReceipt,
 ) -> Result<Observation> {
@@ -52,21 +53,32 @@ pub(super) async fn consume(
     // OAuth issuance. The preceding HTTP/MCP checks use registered machine OAuth.
     // Only the local Rust harness sees the signer; the Python child receives two
     // short-lived read identities over stdin and never receives the signing key.
-    let result = tokio::process::Command::new("kubectl")
-        .args([
-            "--context",
-            context,
-            "-n",
-            "veoveo",
-            "get",
-            "secret",
-            "veoveo-installation-secrets",
-            "-o",
-            "json",
-        ])
-        .kill_on_drop(true)
-        .output()
-        .await?;
+    let target = &installation.target;
+    let consumer = target.artifact_consumer.as_ref().context(
+        "artifact-upload-consumers requires artifactConsumer in the installation target",
+    )?;
+    let context = &target.kubernetes.context;
+    let namespace = &target.kubernetes.namespace;
+    let result = tokio::time::timeout(
+        Duration::from_secs(45),
+        tokio::process::Command::new("kubectl")
+            .args([
+                "--request-timeout=30s",
+                "--context",
+                context,
+                "-n",
+                namespace,
+                "get",
+                "secret",
+                &consumer.internal_signing_secret,
+                "-o",
+                "json",
+            ])
+            .kill_on_drop(true)
+            .output(),
+    )
+    .await
+    .context("reading installed conformance signing material timed out")??;
     ensure!(
         result.status.success(),
         "could not read installed conformance signing material"
@@ -78,21 +90,28 @@ pub(super) async fn consume(
         TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
         GatewayInternalSigningKey::new(key_id, key)?,
     );
+    let foreign_tenant = TenantId::new(format!("artifact-consumer-{}", uuid::Uuid::new_v4()))?;
+    ensure!(
+        foreign_tenant != installation.tenant,
+        "foreign fixture tenant collided"
+    );
     let input = Input {
-        caller: fixture_caller(&issuer, "bioma")?,
-        foreign: fixture_caller(&issuer, "artifact-consumer-foreign-tenant")?,
+        artifact_service_url: consumer.artifact_service_url.as_str(),
+        caller: fixture_caller(&issuer, installation, installation.tenant.clone())?,
+        foreign: fixture_caller(&issuer, installation, foreign_tenant)?,
         large,
         csv,
     };
     let mut child = tokio::process::Command::new("kubectl")
         .args([
+            "--request-timeout=30s",
             "--context",
             context,
             "-n",
-            "veoveo",
+            namespace,
             "exec",
             "-i",
-            "deployment/datasheet-mcp",
+            &format!("deployment/{}", consumer.python_deployment),
             "--",
             "python",
             "-c",
@@ -113,18 +132,24 @@ pub(super) async fn consume(
         output.status.success(),
         "installed Python consumer failed: {}",
         String::from_utf8_lossy(&output.stderr)
+            .replace(&input.caller.bearer_token, "<redacted>")
+            .replace(&input.foreign.bearer_token, "<redacted>")
     );
     serde_json::from_slice(&output.stdout).context("invalid Python consumption observations")
 }
 
-fn fixture_caller(issuer: &GatewayInternalTokenIssuer, tenant: &str) -> Result<CallerInput> {
+fn fixture_caller(
+    issuer: &GatewayInternalTokenIssuer,
+    installation: &InstalledTarget,
+    tenant: TenantId,
+) -> Result<CallerInput> {
     let actor = Principal {
         id: PrincipalId::new("https://conformance.veoveo.local#artifact-consumer")?,
         kind: PrincipalKind::Service,
         issuer: TokenIssuer::new("https://conformance.veoveo.local")?,
         subject: TokenSubject::new("artifact-consumer")?,
-        tenant: Some(TenantId::new(tenant)?),
-        groups: BTreeSet::from([GroupId::new("operations")?]),
+        tenant: Some(tenant.clone()),
+        groups: BTreeSet::new(),
         group_roles: BTreeSet::new(),
         roles: BTreeSet::new(),
         scopes: BTreeSet::new(),
@@ -133,20 +158,15 @@ fn fixture_caller(issuer: &GatewayInternalTokenIssuer, tenant: &str) -> Result<C
         authenticated_at: Some(chrono::Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: WorkContextId::new("operations")?,
-        tenant: TenantId::new(tenant)?,
+        work_context: installation.work_context.id.clone(),
+        tenant,
         membership: WorkContextMembershipLevel::Viewer,
-        policy_revision: PolicyVersion::new("installed-artifact-consumer-conformance")?,
-        output_policy: WorkContextOutputPolicy {
-            owner: AccessSubject::Group(GroupId::new("operations")?),
-            initial_grants: vec![],
-            classification: None,
-            data_labels: BTreeSet::new(),
-        },
+        policy_revision: installation.work_context.policy_revision.clone(),
+        output_policy: installation.work_context.output_policy.clone(),
         provenance: InvocationProvenance::Automated,
     };
     let token = issuer.issue(
-        GatewayProfileId::new("operator")?,
+        GatewayProfileId::new(installation.profile())?,
         ServerSlug::new("datasheet")?,
         actor,
         authority,
@@ -171,7 +191,7 @@ async def main():
     data = json.load(sys.stdin)
     caller = PlaneCaller.from_identity(GatewayInternalIdentity.model_validate(data['caller']['identity']), data['caller']['bearer_token'])
     foreign = PlaneCaller.from_identity(GatewayInternalIdentity.model_validate(data['foreign']['identity']), data['foreign']['bearer_token'])
-    plane = HttpArtifactPlane('http://artifact-service:8790')
+    plane = HttpArtifactPlane(data['artifact_service_url'])
     large, csv = data['large'], data['csv']
     observation = {}
     try:

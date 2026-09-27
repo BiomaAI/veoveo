@@ -453,6 +453,7 @@ rules as the installed server. Run this during a controlled acceptance window.
 
 ```sh
 cargo xtask smoke stream-gpu \
+    --installation examples/bioma/installation-target.json \
     --pipeline-id <installed-object-detection-pipeline> \
     --producer-key-secret <installed-recording-producer-secret> \
     --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
@@ -489,6 +490,7 @@ family or claim GPU workload execution:
 
 ```sh
 cargo xtask smoke stream-compiler-startup \
+    --installation examples/bioma/installation-target.json \
     --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
     --candidate-app output/development/common-rust-artifacts/live.html \
     --work-dir output/development/stream-compiler-startup

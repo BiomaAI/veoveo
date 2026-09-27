@@ -249,7 +249,10 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         ],
         "agent-gateway" => &[CONFORMANCE, DUCKDB, GATEWAY, ARTIFACT_SERVICE],
         "stream-gpu" | "reason-gpu" => &[RECORDING_FORWARDER],
-        "stream-compiler-startup" | "recording-fixture-finish" | "recording-catalog-sdk" => &[],
+        "stream-compiler-startup" | "recording-fixture-finish" => &[],
+        "installation-verify" | "artifact-upload-consumers" | "recording-catalog-sdk" => {
+            &[CONFORMANCE]
+        }
         "helm-config"
         | "profile-validate"
         | "profile-registry-up"
@@ -263,8 +266,6 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "gitops-cancel-verify"
         | "component-scope-verify"
         | "gpu-allocation-verify"
-        | "bioma-verify"
-        | "artifact-upload-consumers"
         | "surreal-integration"
         | "view-mcp"
         | "view-google-live"

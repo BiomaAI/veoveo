@@ -1,8 +1,9 @@
 # Platform Foundations Plan
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
-checks and reference GitOps convergence passed. Phase 1 is in progress. Phases 2–9
-have not started. Phase 1 installed acceptance waits for Phase 2 installation targets.
+checks and reference GitOps convergence passed. Phases 1 and 2 are in progress.
+Phases 3–9 have not started. Phase 1 installed acceptance waits for Phase 2
+installation targets.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The

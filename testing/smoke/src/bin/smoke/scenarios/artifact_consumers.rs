@@ -42,15 +42,10 @@ struct Evidence {
 
 pub(crate) async fn artifact_upload_consumers(
     conformance: &Path,
-    context: &str,
-    public_base: &str,
+    installation: &InstalledTarget,
     browser_evidence: &Path,
     evidence_output: &Path,
 ) -> Result<()> {
-    ensure!(
-        url::Url::parse(public_base)?.scheme() == "https",
-        "public HTTPS is required"
-    );
     ensure!(
         !evidence_output.exists(),
         "consumer evidence already exists"
@@ -60,25 +55,26 @@ pub(crate) async fn artifact_upload_consumers(
         browser.large_receipt.byte_len > u64::from(u32::MAX),
         "large fixture must exceed 4 GiB"
     );
-    let base = public_base.trim_end_matches('/');
-    let mut scopes = bioma::OPERATOR_PROFILE_SCOPES.to_vec();
-    scopes.push("artifact:upload");
-    let token = gateway_token_for_context(
-        conformance,
-        base,
-        "operator-service",
-        "operator",
-        &scopes,
-        "operations",
-    )
-    .await?;
+    let base = installation.public_base();
+    let profile = installation.profile();
+    let comparison_context = installation
+        .target
+        .operator
+        .comparison_context
+        .as_deref()
+        .context("artifact-upload-consumers requires operator.comparisonContext")?;
+    ensure!(
+        installation.target.artifact_consumer.is_some(),
+        "artifact-upload-consumers requires artifactConsumer in the installation target"
+    );
+    let token = installation.token(conformance).await?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .redirect(Policy::none())
         .build()?;
-    let upload_base = format!("{base}/artifacts/operator/uploads");
+    let upload_base = format!("{base}/artifacts/{profile}/uploads");
     let policy: EffectiveArtifactUploadPolicy = client
-        .get(format!("{base}/artifacts/operator/upload-policy"))
+        .get(format!("{base}/artifacts/{profile}/upload-policy"))
         .bearer_auth(&token)
         .send()
         .await?
@@ -104,18 +100,12 @@ pub(crate) async fn artifact_upload_consumers(
         other_actor.json::<ArtifactUploadError>().await?.code == UploadErrorCode::NotFound,
         "foreign upload response did not come from the typed upload boundary"
     );
-    let independent = gateway_token_for_context(
-        conformance,
-        base,
-        "operator-service",
-        "operator",
-        bioma::OPERATOR_PROFILE_SCOPES,
-        "independent-review",
-    )
-    .await?;
+    let independent = installation
+        .token_for_context(conformance, comparison_context)
+        .await?;
     let denied = client
         .get(format!(
-            "{base}/artifacts/operator/{}/download",
+            "{base}/artifacts/{profile}/{}/download",
             browser.large_receipt.artifact_id
         ))
         .bearer_auth(independent)
@@ -159,9 +149,10 @@ pub(crate) async fn artifact_upload_consumers(
         &unknown_length_receipt.artifact_uri,
     ] {
         let arguments = serde_json::to_string(&serde_json::json!({"dataset_uri":uri,"rows":2}))?;
-        let result = bioma::run_public_conformance(
+        let result = installation::run_public_conformance(
             conformance,
             base,
+            profile,
             &token,
             &[
                 "call",
@@ -173,7 +164,7 @@ pub(crate) async fn artifact_upload_consumers(
             Duration::from_secs(60),
         )
         .await?;
-        let result = bioma::structured_output(&result)?;
+        let result = installation::structured_output(&result)?;
         ensure!(
             result.get("row_count").and_then(Value::as_u64) == Some(2),
             "Datasheet did not consume both rows: {result}"
@@ -193,7 +184,8 @@ pub(crate) async fn artifact_upload_consumers(
         "Public known/unknown-length upload, immutable part retry, context denial, and Python CSV/Parquet MCP consumption passed"
     );
 
-    let python = python::consume(context, &browser.large_receipt, &browser.csv_receipt).await?;
+    let python =
+        python::consume(installation, &browser.large_receipt, &browser.csv_receipt).await?;
     ensure!(
         python.bytes == browser.large_receipt.byte_len
             && python.sha256 == browser.large_receipt.sha256.as_str(),

@@ -6,127 +6,94 @@ use sha2::{Digest, Sha256};
 
 use super::*;
 
-const NAMESPACE: &str = "veoveo";
 const LARGE_ARTIFACT_ROWS: u64 = 200_000;
 const LARGE_ARTIFACT_MINIMUM_BYTES: usize = 8 * 1024 * 1024;
-pub(super) const OPERATOR_PROFILE_SCOPES: &[&str] = &[
-    "operator:use",
-    "uav-sim:control",
-    "uav-sim:stream",
-    "view:read",
-    "view:write",
-    "view:capture",
-    "map:dataset:read",
-    "map:route",
-    "time:read",
-];
-const BIOMA_DEPLOYMENTS: &[&str] = &[
-    "mcp-gateway",
-    "artifact-service",
-    "console-bff",
-    "recording",
-    "artifact-mcp",
-    "media-mcp",
-    "stream-mcp",
-    "reason-mcp",
-    "timeseries-mcp",
-    "duckdb-mcp",
-    "optimization-mcp",
-    "frames-mcp",
-    "map-mcp",
-    "view-mcp",
-    "time-mcp",
-    "datasheet-mcp",
-    "chart-mcp",
-    "uav-sim",
-    "rerun-bridge",
-    "cloudflared",
-];
 
-pub(crate) async fn bioma_verify(
+pub(crate) async fn installation_verify(
     conformance: &Path,
-    context: &str,
-    local_base_url: &str,
-    public_base_url: &str,
+    installation: &InstalledTarget,
 ) -> Result<()> {
+    let target = &installation.target;
+    let context = &target.kubernetes.context;
+    let local_base_url = target.local_base_url.as_str().trim_end_matches('/');
+    let public_base_url = installation.public_base();
     assert_executable(conformance)?;
     run_checked(
         Path::new("kubectl"),
-        ["--context", context, "cluster-info"].map(OsString::from),
+        [
+            "--request-timeout=30s",
+            "--context",
+            context,
+            "cluster-info",
+        ]
+        .map(OsString::from),
         [],
     )
     .with_context(|| format!("Kubernetes context {context} is unavailable"))?;
 
-    for deployment in BIOMA_DEPLOYMENTS {
-        assert_available_deployment(context, deployment)?;
+    for deployment in &target.expected_deployments {
+        assert_available_deployment(context, &target.kubernetes.namespace, deployment)?;
     }
-    assert_gpu_capacity(context, 6)?;
+    assert_gpu_capacity(context, target.minimum_gpu_shares)?;
 
-    let public = url::Url::parse(public_base_url).context("parsing public Bioma URL")?;
-    ensure!(
-        public.scheme() == "https",
-        "public Bioma URL must use HTTPS"
-    );
-    let public_host = public
+    let public_host = target
+        .public_base_url
         .host_str()
-        .context("public Bioma URL must include a host")?;
-    let local = url::Url::parse(local_base_url).context("parsing local Bioma URL")?;
-    ensure!(
-        local.scheme() == "http" && local.host_str().is_some_and(is_loopback_host),
-        "local Bioma URL must use loopback HTTP"
-    );
+        .context("public installation URL must include a host")?;
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
         .build()?;
     wait_for_health(&client, local_base_url, Some(public_host), 30).await?;
     wait_for_health(&client, public_base_url, None, 150).await?;
-    verify_public_console(public_base_url).await?;
+    verify_public_console(
+        public_base_url,
+        &installation.identity_authorization_endpoint,
+    )
+    .await?;
 
     let jwks_url = format!("{}/oauth/jwks.json", public_base_url.trim_end_matches('/'));
     let jwks: Value = client
         .get(&jwks_url)
         .send()
         .await
-        .context("requesting the public Bioma JWKS")?
+        .context("requesting the public installation JWKS")?
         .error_for_status()
-        .context("public Bioma JWKS returned an error")?
+        .context("public installation JWKS returned an error")?
         .json()
         .await
-        .context("decoding the public Bioma JWKS")?;
+        .context("decoding the public installation JWKS")?;
     ensure!(
         jwks.get("keys")
             .and_then(Value::as_array)
             .is_some_and(|keys| {
                 keys.iter().any(|key| {
-                    key.get("kid").and_then(Value::as_str) == Some("veoveo-bioma-2026-07")
+                    key.get("kid").and_then(Value::as_str)
+                        == Some(installation.access_token_key_id.as_str())
                 })
             }),
-        "public endpoint did not expose the Bioma authorization-server key"
+        "public endpoint did not expose the installation authorization-server key"
     );
-    verify_large_artifact_delivery(conformance, public_base_url).await?;
+    verify_large_artifact_delivery(conformance, installation).await?;
 
     println!(
-        "Bioma verify ok: the full server catalog is available, both Isaac renderers, View, Stream, and Reason are concurrently schedulable, the single public origin serves console and authorization surfaces, the Bioma JWKS is authoritative, and a deterministic large governed artifact passed full, HEAD, and ranged streaming without a redirect"
+        "Installation verify ok: declared deployments and GPU capacity, public Console and authorization endpoints, configured signing key, and full/HEAD/range artifact delivery passed"
     );
     Ok(())
 }
 
-async fn verify_large_artifact_delivery(conformance: &Path, public_base_url: &str) -> Result<()> {
-    let base = public_base_url.trim_end_matches('/');
-    let token = gateway_token_for_context(
-        conformance,
-        base,
-        "operator-service",
-        "operator",
-        OPERATOR_PROFILE_SCOPES,
-        "operations",
-    )
-    .await?;
+async fn verify_large_artifact_delivery(
+    conformance: &Path,
+    installation: &InstalledTarget,
+) -> Result<()> {
+    let base = installation.public_base();
+    let profile = installation.profile();
+    let token = installation.token(conformance).await?;
 
     let execute = run_public_conformance(
         conformance,
         base,
+        profile,
         &token,
         &[
             "call",
@@ -158,6 +125,7 @@ async fn verify_large_artifact_delivery(conformance: &Path, public_base_url: &st
     let export = run_public_conformance(
         conformance,
         base,
+        profile,
         &token,
         &[
             "task-call",
@@ -201,7 +169,7 @@ async fn verify_large_artifact_delivery(conformance: &Path, public_base_url: &st
         "artifact metadata byte length does not match deterministic export"
     );
     let expected_digest = Sha256::digest(&expected);
-    let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
+    let download_url = format!("{base}/artifacts/{profile}/{artifact_id}/download");
     let public_origin = url::Url::parse(base)?.origin();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(120))
@@ -327,11 +295,12 @@ fn assert_artifact_response(
 pub(super) async fn run_public_conformance(
     conformance: &Path,
     base: &str,
+    profile: &str,
     token: &str,
     operation: &[&str],
     timeout: Duration,
 ) -> Result<String> {
-    let url = format!("{base}/mcp/operator");
+    let url = format!("{base}/mcp/{profile}");
     let mut command = tokio::process::Command::new(conformance);
     command
         .args(["--url", &url])
@@ -373,7 +342,10 @@ fn expected_large_artifact() -> Vec<u8> {
     bytes
 }
 
-async fn verify_public_console(public_base_url: &str) -> Result<()> {
+async fn verify_public_console(
+    public_base_url: &str,
+    authorization_endpoint: &url::Url,
+) -> Result<()> {
     let base = url::Url::parse(public_base_url).context("parsing public console base URL")?;
     let browser = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -385,7 +357,7 @@ async fn verify_public_console(public_base_url: &str) -> Result<()> {
         .get(base.clone())
         .send()
         .await
-        .context("requesting the public Bioma root")?;
+        .context("requesting the public installation root")?;
     ensure!(
         root.status() == StatusCode::PERMANENT_REDIRECT
             && root
@@ -393,7 +365,7 @@ async fn verify_public_console(public_base_url: &str) -> Result<()> {
                 .get(LOCATION)
                 .and_then(|value| value.to_str().ok())
                 == Some("/console/"),
-        "public Bioma root must redirect permanently to /console/"
+        "public installation root must redirect permanently to /console/"
     );
 
     let console_url = base.join("/console/")?;
@@ -401,9 +373,9 @@ async fn verify_public_console(public_base_url: &str) -> Result<()> {
         .get(console_url)
         .send()
         .await
-        .context("requesting the public Bioma console")?
+        .context("requesting the public installation console")?
         .error_for_status()
-        .context("public Bioma console returned an error")?;
+        .context("public installation console returned an error")?;
     let html = console.text().await?;
     let document = Html::parse_document(&html);
     let selector = Selector::parse("script[src], link[href]")
@@ -465,21 +437,21 @@ async fn verify_public_console(public_base_url: &str) -> Result<()> {
         .context("Veoveo authorization omitted the identity-provider redirect")?;
     let identity_provider = url::Url::parse(identity_provider)?;
     ensure!(
-        identity_provider.scheme() == "https"
-            && identity_provider.host_str() == Some("login.microsoftonline.com"),
-        "Bioma console authorization must continue at Microsoft Entra"
+        authorization_endpoint_matches(&identity_provider, authorization_endpoint),
+        "Console authorization must continue at the configured identity-provider endpoint"
     );
     Ok(())
 }
 
-fn assert_available_deployment(context: &str, deployment: &str) -> Result<()> {
+fn assert_available_deployment(context: &str, namespace: &str, deployment: &str) -> Result<()> {
     let output = run_checked(
         Path::new("kubectl"),
         [
+            "--request-timeout=30s",
             "--context",
             context,
             "--namespace",
-            NAMESPACE,
+            namespace,
             "get",
             "deployment",
             deployment,
@@ -501,6 +473,7 @@ fn assert_gpu_capacity(context: &str, minimum: u32) -> Result<()> {
     let output = run_checked(
         Path::new("kubectl"),
         [
+            "--request-timeout=30s",
             "--context",
             context,
             "get",
@@ -517,7 +490,7 @@ fn assert_gpu_capacity(context: &str, minimum: u32) -> Result<()> {
         .sum::<u32>();
     ensure!(
         capacity >= minimum,
-        "the reference profile requires at least {minimum} allocatable NVIDIA GPU shares; {context} reports {capacity}"
+        "the installation requires at least {minimum} allocatable NVIDIA GPU shares; {context} reports {capacity}"
     );
     Ok(())
 }
@@ -549,6 +522,48 @@ async fn wait_for_health(
     bail!("{url} did not become healthy after {attempts} attempts: {last}")
 }
 
-fn is_loopback_host(host: &str) -> bool {
-    matches!(host, "localhost" | "127.0.0.1" | "::1")
+fn authorization_endpoint_matches(actual: &url::Url, expected: &url::Url) -> bool {
+    actual.origin() == expected.origin()
+        && actual.path() == expected.path()
+        && actual.username().is_empty()
+        && actual.password().is_none()
+        && actual.fragment().is_none()
+        && expected.query_pairs().all(|(key, _)| {
+            let expected_values = expected
+                .query_pairs()
+                .filter(|(name, _)| name == &key)
+                .map(|(_, value)| value.into_owned())
+                .collect::<Vec<_>>();
+            let actual_values = actual
+                .query_pairs()
+                .filter(|(name, _)| name == &key)
+                .map(|(_, value)| value.into_owned())
+                .collect::<Vec<_>>();
+            actual_values == expected_values
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn identity_redirect_must_match_configured_origin_path_and_static_parameters() {
+        let expected =
+            url::Url::parse("https://identity.example.test/tenant/authorize?policy=staff").unwrap();
+        let actual = url::Url::parse("https://identity.example.test/tenant/authorize?policy=staff&state=opaque&client_id=console").unwrap();
+        assert!(authorization_endpoint_matches(&actual, &expected));
+        for wrong in [
+            "https://other.example.test/tenant/authorize?policy=staff",
+            "https://identity.example.test/other/authorize?policy=staff",
+            "https://identity.example.test/tenant/authorize?policy=guests",
+            "https://identity.example.test/tenant/authorize?policy=staff&policy=guests",
+            "http://identity.example.test/tenant/authorize?policy=staff",
+        ] {
+            assert!(!authorization_endpoint_matches(
+                &url::Url::parse(wrong).unwrap(),
+                &expected
+            ));
+        }
+    }
 }

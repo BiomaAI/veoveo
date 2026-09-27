@@ -10,8 +10,8 @@ mod helm;
 pub(crate) use helm::helm_config;
 #[path = "scenarios/artifact_consumers.rs"]
 mod artifact_consumers;
-#[path = "scenarios/bioma.rs"]
-mod bioma;
+#[path = "scenarios/installation.rs"]
+mod installation;
 pub(crate) use artifact_consumers::artifact_upload_consumers;
 #[path = "scenarios/candidate.rs"]
 mod candidate;
@@ -50,11 +50,11 @@ mod view;
 
 pub(crate) use agent_kernel::*;
 pub(crate) use basic::*;
-pub(crate) use bioma::*;
 pub(crate) use datasheet::*;
 pub(crate) use frames::*;
 pub(crate) use gateway::*;
 pub(crate) use gpu_allocation::*;
+pub(crate) use installation::*;
 pub(crate) use map::*;
 pub(crate) use media::*;
 pub(crate) use reason::*;

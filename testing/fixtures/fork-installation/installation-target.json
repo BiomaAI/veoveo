@@ -1,0 +1,23 @@
+{
+  "schema": "veoveo.ai/installation-target/v1",
+  "kubernetes": {
+    "context": "k3d-anonymous-simulation",
+    "namespace": "veoveo"
+  },
+  "localBaseUrl": "http://127.0.0.1:8782",
+  "publicBaseUrl": "https://localhost:8783",
+  "controlPlane": "gateway.json",
+  "expectedDeployments": [
+    "mcp-gateway",
+    "anonymous-simulation-mcp"
+  ],
+  "minimumGpuShares": 0,
+  "operator": {
+    "clientId": "operator-service",
+    "profile": "operator",
+    "workContext": "operations",
+    "scopes": [
+      "operator:use"
+    ]
+  }
+}

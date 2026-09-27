@@ -31,7 +31,7 @@
   "authorization_servers": [
     {
       "id": "veoveo",
-      "issuer": "http://localhost:8782/oauth",
+      "issuer": "https://localhost:8783/oauth",
       "jwks": {
         "source": "file",
         "path": "/etc/veoveo/gateway/jwks.json"
@@ -39,8 +39,8 @@
       "access_token_key_id": "veoveo-self-hosted-2026-07",
       "access_token_signing_key": "veoveo_access_token_private_key",
       "identity_provider": "enterprise",
-      "authorization_endpoint": "http://localhost:8782/oauth/authorize",
-      "token_endpoint": "http://localhost:8782/oauth/token",
+      "authorization_endpoint": "https://localhost:8783/oauth/authorize",
+      "token_endpoint": "https://localhost:8783/oauth/token",
       "metadata": {
         "deployment": "enterprise"
       }
@@ -93,7 +93,7 @@
       "id": "operator",
       "identity_provider": "enterprise",
       "authorization_server": "veoveo",
-      "protected_resource": "http://localhost:8782/mcp/operator",
+      "protected_resource": "https://localhost:8783/mcp/operator",
       "policy_version": "2026-07-02",
       "auth_modes": [
         "oauth_client_credentials"
@@ -251,7 +251,7 @@
       "display_name": "Veoveo Operator Service",
       "client_surface": "full_mcp",
       "allowed_resources": [
-        "http://localhost:8782/mcp/operator"
+        "https://localhost:8783/mcp/operator"
       ],
       "grant_types": [
         "client_credentials"

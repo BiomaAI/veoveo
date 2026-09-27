@@ -280,7 +280,7 @@ through the shared artifact plane. It asserts result structure and retained
 invocation provenance rather than exact generated text. The scenario runs
 only on a deployment whose checkpoint is present in the model cache.
 
-`cargo xtask smoke reason-gpu` also accepts `--candidate-binary` and
+`cargo xtask smoke reason-gpu --installation <installation-target.json>` also accepts `--candidate-binary` and
 `--candidate-runner`. The latter names the source root containing `reason_runner/`.
 The Rust harness packages that source, launches the candidate on a private listener
 inside the installed NVIDIA container, and records executable and runner-payload

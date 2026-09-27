@@ -8,10 +8,9 @@ use veoveo_mcp_contract::ArtifactMetadata;
 
 use super::candidate;
 use super::stream::{
-    PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs,
-    kubernetes_namespace, load_environment, optional_environment, prepare_sample_h264,
-    publish_h264_recording, recording_producer_key, required_environment,
-    wait_for_recording_forwarder, wait_for_recording_source,
+    PortForwardGuard, RECORDING_FORWARDER, issue_internal_token, kubernetes_logs, load_environment,
+    optional_environment, prepare_sample_h264, publish_h264_recording, recording_producer_key,
+    required_environment, wait_for_recording_forwarder, wait_for_recording_source,
 };
 use super::*;
 
@@ -42,6 +41,7 @@ struct ReasonSummary {
 }
 
 pub(crate) async fn reason_gpu(
+    installation: &InstalledTarget,
     env_file: &Path,
     work_dir: &Path,
     producer_key_secret: &str,
@@ -53,17 +53,18 @@ pub(crate) async fn reason_gpu(
         env_file.display()
     );
     let environment = load_environment(env_file)?;
-    let namespace = kubernetes_namespace(&environment);
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
-    let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
+    let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let producer_key = recording_producer_key(namespace, producer_key_secret, &tmpdir)?;
+    let producer_key = recording_producer_key(context, namespace, producer_key_secret, &tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
+    let gateway_url = installation.public_base();
     let producer_client_id = optional_environment(
         &environment,
         "VEOVEO_RECORDING_PRODUCER_CLIENT_ID",
@@ -95,6 +96,7 @@ pub(crate) async fn reason_gpu(
                 [],
             )?;
             candidate::Candidate::start(
+                context,
                 namespace,
                 candidate::Service::Reason,
                 binary,
@@ -107,6 +109,9 @@ pub(crate) async fn reason_gpu(
     run_checked(
         Path::new("kubectl"),
         [
+            "--context".into(),
+            context.into(),
+            "--request-timeout=30s".into(),
             "-n".into(),
             namespace.into(),
             "rollout".into(),
@@ -153,9 +158,10 @@ pub(crate) async fn reason_gpu(
         .as_ref()
         .map(candidate::Candidate::resource)
         .unwrap_or_else(|| "reason-mcp".to_owned());
-    let _reason_forward = PortForwardGuard::spawn(namespace, &resource, 8803, remote_port)?;
-    let _surreal_forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
-    wait_for_reason(namespace, &mut candidate, work_dir).await?;
+    let _reason_forward =
+        PortForwardGuard::spawn(context, namespace, &resource, 8803, remote_port)?;
+    let _surreal_forward = PortForwardGuard::spawn(context, namespace, "surrealdb", 8000, 8000)?;
+    wait_for_reason(context, namespace, &mut candidate, work_dir).await?;
     if let Some(candidate) = &candidate {
         candidate.verify_listener()?;
     }
@@ -163,7 +169,8 @@ pub(crate) async fn reason_gpu(
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
-    let recording_id = wait_for_recording_source(&environment, &recording_key, &queue_dir).await?;
+    let recording_id =
+        wait_for_recording_source(&environment, installation, &recording_key, &queue_dir).await?;
     let arguments = json!({
         "video": {
             "recording_uri": format!("recording://recordings/{recording_id}"),
@@ -185,6 +192,7 @@ pub(crate) async fn reason_gpu(
         "reason",
         "reason-gpu-smoke",
         &environment,
+        installation,
     )
     .await?;
     let task_client =
@@ -207,7 +215,7 @@ pub(crate) async fn reason_gpu(
                     work_dir.display()
                 );
             }
-            let logs = kubernetes_logs(namespace, "deployment/reason-mcp")
+            let logs = kubernetes_logs(context, namespace, "deployment/reason-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("reason MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
         }
@@ -247,11 +255,14 @@ pub(crate) async fn reason_gpu(
 }
 
 async fn wait_for_reason(
+    context: &str,
     namespace: &str,
     candidate: &mut Option<candidate::Candidate>,
     work_dir: &Path,
 ) -> Result<()> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(5))
+        .build()?;
     for _ in 0..90 {
         if let Some(candidate) = candidate {
             candidate.check_running(work_dir)?;
@@ -267,7 +278,7 @@ async fn wait_for_reason(
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs = kubernetes_logs(namespace, "deployment/reason-mcp")
+    let logs = kubernetes_logs(context, namespace, "deployment/reason-mcp")
         .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("reason MCP did not become ready\n{logs}")
 }

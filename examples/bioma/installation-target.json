@@ -1,0 +1,69 @@
+{
+  "schema": "veoveo.ai/installation-target/v1",
+  "kubernetes": {
+    "context": "k3d-veoveo-bioma",
+    "namespace": "veoveo"
+  },
+  "localBaseUrl": "http://127.0.0.1:8781",
+  "publicBaseUrl": "https://veoveo.bioma.ai",
+  "controlPlane": "gateway.json",
+  "expectedDeployments": [
+    "artifact-mcp",
+    "artifact-service",
+    "chart-mcp",
+    "cloudflared",
+    "computer-host",
+    "computers-mcp",
+    "console-bff",
+    "datasheet-mcp",
+    "duckdb-mcp",
+    "frames-mcp",
+    "map-mcp",
+    "mcp-gateway",
+    "media-mcp",
+    "optimization-mcp",
+    "reason-mcp",
+    "recording",
+    "rerun-bridge",
+    "speech-mcp",
+    "stream-mcp",
+    "time-mcp",
+    "timeseries-mcp",
+    "uav-sim",
+    "uav-sim-mcp",
+    "view-mcp"
+  ],
+  "minimumGpuShares": 7,
+  "operator": {
+    "clientId": "operator-service",
+    "profile": "operator",
+    "workContext": "operations",
+    "comparisonContext": "independent-review",
+    "scopes": [
+      "operator:use",
+      "uav-sim:control",
+      "uav-sim:stream",
+      "view:read",
+      "view:write",
+      "view:capture",
+      "map:dataset:read",
+      "map:route",
+      "time:read",
+      "artifact:upload"
+    ]
+  },
+  "recordingCatalog": {
+    "redapUrl": "rerun+http://veoveo.bioma.ai:8781",
+    "hostMappings": [
+      {
+        "hostname": "veoveo.bioma.ai",
+        "address": "127.0.0.1"
+      }
+    ]
+  },
+  "artifactConsumer": {
+    "internalSigningSecret": "veoveo-installation-secrets",
+    "pythonDeployment": "datasheet-mcp",
+    "artifactServiceUrl": "http://artifact-service:8790"
+  }
+}

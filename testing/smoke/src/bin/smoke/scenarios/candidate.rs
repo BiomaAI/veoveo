@@ -146,6 +146,7 @@ pub(crate) enum ProbeOutcome {
 }
 
 pub(crate) struct Candidate {
+    context: String,
     service: Service,
     namespace: String,
     pod: String,
@@ -161,6 +162,7 @@ pub(crate) struct Candidate {
 
 impl Candidate {
     pub(crate) fn start(
+        context: &str,
         namespace: &str,
         service: Service,
         binary: &Path,
@@ -169,6 +171,9 @@ impl Candidate {
     ) -> Result<Self> {
         let deployment: Deployment =
             serde_json::from_slice(&checked(Command::new("kubectl").args([
+                "--context",
+                context,
+                "--request-timeout=30s",
                 "-n",
                 namespace,
                 "get",
@@ -189,7 +194,17 @@ impl Candidate {
             "candidate Deployment has no label selector"
         );
         let pods: Pods = serde_json::from_slice(&checked(Command::new("kubectl").args([
-            "-n", namespace, "get", "pods", "-l", &selector, "-o", "json",
+            "--context",
+            context,
+            "--request-timeout=30s",
+            "-n",
+            namespace,
+            "get",
+            "pods",
+            "-l",
+            &selector,
+            "-o",
+            "json",
         ]))?)?;
         let pod = pods
             .items
@@ -223,13 +238,14 @@ impl Candidate {
             "candidate qualification requires the candidate container's NVIDIA GPU resource"
         );
         let candidate_sha256 = format!("sha256:{}", hex::encode(Sha256::digest(fs::read(binary)?)));
-        let deployment_spec = deployment_spec(namespace, service)?;
+        let deployment_spec = deployment_spec(context, namespace, service)?;
         let remote = format!("/tmp/veoveo-compiler-{}", uuid::Uuid::new_v4().simple());
         let remote_app = format!("{remote}-payload");
         let remote_cache = format!("{remote}-cache");
         let mut arguments = candidate_arguments(service, &container.args, &remote_cache)?;
         arguments.extend([service.asset_flag().to_owned(), remote_app.clone()]);
         let mut candidate = Self {
+            context: context.to_owned(),
             service,
             namespace: namespace.to_owned(),
             pod: pod.metadata.name,
@@ -273,6 +289,9 @@ impl Candidate {
         )?;
         let mut copy = Command::new("kubectl");
         copy.args([
+            "--context",
+            context,
+            "--request-timeout=30s",
             "-n",
             namespace,
             "exec",
@@ -300,6 +319,9 @@ impl Candidate {
         let mut copy_app = Command::new("kubectl");
         copy_app
             .args([
+                "--context",
+                context,
+                "--request-timeout=30s",
                 "-n",
                 namespace,
                 "exec",
@@ -439,6 +461,9 @@ impl Candidate {
     fn exec(&self) -> Command {
         let mut command = Command::new("kubectl");
         command.args([
+            "--context",
+            &self.context,
+            "--request-timeout=30s",
             "-n",
             &self.namespace,
             "exec",
@@ -560,10 +585,13 @@ impl Candidate {
         self.verify_listener()?;
         self.remove()?;
         ensure!(
-            deployment_spec(&self.namespace, self.service)? == self.deployment_spec,
+            deployment_spec(&self.context, &self.namespace, self.service)? == self.deployment_spec,
             "candidate Deployment changed during qualification"
         );
         let pod: Pod = serde_json::from_slice(&checked(Command::new("kubectl").args([
+            "--context",
+            &self.context,
+            "--request-timeout=30s",
             "-n",
             &self.namespace,
             "get",
@@ -618,8 +646,11 @@ fn checked(command: &mut Command) -> Result<Vec<u8>> {
     Ok(stdout)
 }
 
-fn deployment_spec(namespace: &str, service: Service) -> Result<Vec<u8>> {
+fn deployment_spec(context: &str, namespace: &str, service: Service) -> Result<Vec<u8>> {
     checked(Command::new("kubectl").args([
+        "--context",
+        context,
+        "--request-timeout=30s",
         "-n",
         namespace,
         "get",

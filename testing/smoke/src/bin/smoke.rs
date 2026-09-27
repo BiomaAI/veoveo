@@ -84,29 +84,21 @@ enum Cmd {
         #[arg(long, default_value_t = 300)]
         timeout_seconds: u64,
     },
-    /// Verify the Bioma installation and its public Cloudflare edge.
-    BiomaVerify {
+    /// Verify an installation and its public HTTPS edge.
+    InstallationVerify {
         /// Built conformance binary used as the public machine OAuth and MCP client.
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
-        /// Kubernetes context owned by the Bioma k3d cluster.
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
-        context: String,
-        /// Loopback origin projected by the Bioma k3d load balancer.
-        #[arg(long, default_value = "http://127.0.0.1:8781")]
-        local_base_url: String,
-        /// Public Cloudflare hostname for the Bioma installation.
-        #[arg(long, default_value = "https://veoveo.bioma.ai")]
-        public_base_url: String,
+        /// Installation-owned target and public control-plane coordinates.
+        #[arg(long)]
+        installation: PathBuf,
     },
     /// Verify installed upload interoperability and bounded Python streaming.
     ArtifactUploadConsumers {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
-        context: String,
-        #[arg(long, default_value = "https://veoveo.bioma.ai")]
-        public_base_url: String,
+        #[arg(long)]
+        installation: PathBuf,
         #[arg(long)]
         browser_evidence: PathBuf,
         #[arg(long)]
@@ -492,8 +484,8 @@ enum Cmd {
     },
     /// Verify a compiler candidate's initialized Stream service; this does not qualify GPU execution.
     StreamCompilerStartup {
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
+        #[arg(long)]
+        installation: PathBuf,
         #[arg(long)]
         candidate_binary: PathBuf,
         #[arg(long)]
@@ -503,6 +495,8 @@ enum Cmd {
     },
     /// Run the DeepStream GPU detector through Recording Hub and the final MCP task protocol.
     StreamGpu {
+        #[arg(long)]
+        installation: PathBuf,
         /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
@@ -524,6 +518,8 @@ enum Cmd {
     },
     /// Finish selected stale veoveo-video-test recordings through authenticated ingest.
     RecordingFixtureFinish {
+        #[arg(long)]
+        installation: PathBuf,
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
         #[arg(long)]
@@ -535,10 +531,8 @@ enum Cmd {
     RecordingCatalogSdk {
         #[arg(long, default_value = "target/debug/conformance")]
         conformance_bin: PathBuf,
-        #[arg(long, default_value = "https://veoveo.bioma.ai")]
-        public_base_url: String,
-        #[arg(long, default_value = "k3d-veoveo-bioma")]
-        context: String,
+        #[arg(long)]
+        installation: PathBuf,
         #[arg(long)]
         dataset_id: uuid::Uuid,
         #[arg(long)]
@@ -546,6 +540,8 @@ enum Cmd {
     },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
     ReasonGpu {
+        #[arg(long)]
+        installation: PathBuf,
         /// Environment file used by the active k3d profile and direct assertion signer.
         #[arg(long, default_value = ".env")]
         env_file: PathBuf,
@@ -602,31 +598,23 @@ async fn main() -> Result<()> {
             &runtime_class_name,
             Duration::from_secs(timeout_seconds),
         ),
-        Cmd::BiomaVerify {
+        Cmd::InstallationVerify {
             conformance_bin,
-            context,
-            local_base_url,
-            public_base_url,
+            installation,
         } => {
-            bioma_verify(
-                &conformance_bin,
-                &context,
-                &local_base_url,
-                &public_base_url,
-            )
-            .await
+            let target = support::InstalledTarget::load(&installation)?;
+            installation_verify(&conformance_bin, &target).await
         }
         Cmd::ArtifactUploadConsumers {
             conformance_bin,
-            context,
-            public_base_url,
+            installation,
             browser_evidence,
             evidence_output,
         } => {
+            let target = support::InstalledTarget::load(&installation)?;
             artifact_upload_consumers(
                 &conformance_bin,
-                &context,
-                &public_base_url,
+                &target,
                 &browser_evidence,
                 &evidence_output,
             )
@@ -860,14 +848,21 @@ async fn main() -> Result<()> {
             .await
         }
         Cmd::StreamCompilerStartup {
-            namespace,
+            installation,
             candidate_binary,
             candidate_app,
             work_dir,
         } => {
-            stream_compiler_startup(&namespace, &candidate_binary, &candidate_app, &work_dir).await
+            stream_compiler_startup(
+                &support::InstalledTarget::load(&installation)?,
+                &candidate_binary,
+                &candidate_app,
+                &work_dir,
+            )
+            .await
         }
         Cmd::StreamGpu {
+            installation,
             env_file,
             producer_key_secret,
             work_dir,
@@ -876,6 +871,7 @@ async fn main() -> Result<()> {
             pipeline_id,
         } => {
             stream_gpu(
+                &support::InstalledTarget::load(&installation)?,
                 &env_file,
                 &work_dir,
                 candidate_binary.as_deref().zip(candidate_app.as_deref()),
@@ -885,27 +881,35 @@ async fn main() -> Result<()> {
             .await
         }
         Cmd::RecordingFixtureFinish {
+            installation,
             env_file,
             producer_key_secret,
             stream_ids,
-        } => recording_fixture_finish(&env_file, &producer_key_secret, &stream_ids).await,
+        } => {
+            recording_fixture_finish(
+                &support::InstalledTarget::load(&installation)?,
+                &env_file,
+                &producer_key_secret,
+                &stream_ids,
+            )
+            .await
+        }
         Cmd::RecordingCatalogSdk {
             conformance_bin,
-            public_base_url,
-            context,
+            installation,
             dataset_id,
             recording_id,
         } => {
             recording_catalog_sdk(
                 &conformance_bin,
-                &public_base_url,
-                &context,
+                &support::InstalledTarget::load(&installation)?,
                 dataset_id,
                 recording_id,
             )
             .await
         }
         Cmd::ReasonGpu {
+            installation,
             env_file,
             work_dir,
             producer_key_secret,
@@ -913,6 +917,7 @@ async fn main() -> Result<()> {
             candidate_runner,
         } => {
             reason_gpu(
+                &support::InstalledTarget::load(&installation)?,
                 &env_file,
                 &work_dir,
                 &producer_key_secret,
@@ -920,5 +925,75 @@ async fn main() -> Result<()> {
             )
             .await
         }
+    }
+}
+
+#[cfg(test)]
+mod installation_cli_tests {
+    use super::*;
+
+    #[test]
+    fn installed_scenarios_require_an_installation_file() {
+        for arguments in [
+            vec!["installation-verify"],
+            vec![
+                "artifact-upload-consumers",
+                "--browser-evidence",
+                "browser.json",
+                "--evidence-output",
+                "consumer.json",
+            ],
+            vec![
+                "recording-catalog-sdk",
+                "--dataset-id",
+                "00000000-0000-0000-0000-000000000001",
+                "--recording-id",
+                "00000000-0000-0000-0000-000000000002",
+            ],
+            vec![
+                "stream-gpu",
+                "--producer-key-secret",
+                "producer",
+                "--pipeline-id",
+                "objects",
+            ],
+            vec!["reason-gpu", "--producer-key-secret", "producer"],
+            vec![
+                "recording-fixture-finish",
+                "--producer-key-secret",
+                "producer",
+                "--stream-id",
+                "00000000-0000-0000-0000-000000000001",
+            ],
+            vec![
+                "stream-compiler-startup",
+                "--candidate-binary",
+                "server",
+                "--candidate-app",
+                "app.html",
+                "--work-dir",
+                "work",
+            ],
+        ] {
+            let mut cli = vec!["smoke"];
+            cli.extend(arguments);
+            let error = Args::try_parse_from(&cli).unwrap_err();
+            assert_eq!(
+                error.kind(),
+                clap::error::ErrorKind::MissingRequiredArgument
+            );
+            assert!(error.to_string().contains("--installation"));
+            cli.extend(["--installation", "installation.json"]);
+            Args::try_parse_from(cli).unwrap();
+        }
+    }
+
+    #[test]
+    fn retired_installation_name_has_no_alias() {
+        let retired = concat!("bioma", "-verify");
+        assert_eq!(
+            Args::try_parse_from(["smoke", retired]).unwrap_err().kind(),
+            clap::error::ErrorKind::InvalidSubcommand
+        );
     }
 }

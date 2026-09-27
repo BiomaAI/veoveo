@@ -7,12 +7,14 @@ pub mod components;
 mod decoding;
 mod gateway_bundle;
 mod image_release;
+mod installation_target;
 mod locked_images;
 mod secret_closure;
 mod source_chart;
 
 pub use gateway_bundle::gateway_bundle_digest;
 pub use image_release::{IMAGE_RELEASE_EVIDENCE_SCHEMA, ImageReleaseEvidence};
+pub use installation_target::*;
 pub use source_chart::source_chart_content_digest;
 
 pub use secret_closure::{

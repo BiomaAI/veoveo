@@ -11,6 +11,9 @@ ports:
   - port: 127.0.0.1:8782:80
     nodeFilters:
       - loadbalancer
+  - port: 127.0.0.1:8783:443
+    nodeFilters:
+      - loadbalancer
   - port: 127.0.0.1:48010:31010/udp
     nodeFilters:
       - loadbalancer

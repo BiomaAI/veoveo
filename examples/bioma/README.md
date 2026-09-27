@@ -307,24 +307,24 @@ kubectl --context k3d-veoveo-bioma -n kube-system rollout status   daemonset/nvi
 kubectl --context k3d-veoveo-bioma get nodes   -o 'custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu'
 ~~~
 
-The node must report six allocatable GPU shares before application bootstrap.
+The node must report at least seven allocatable GPU shares before application bootstrap.
 The local time-slicing profile keeps the UAV simulator, View, Stream,
-Reason, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
+Reason, Speech, the cuOpt executor, and the Rerun viewer MCP in separate GPU-requesting
 workloads. Fielded installations use their measured exclusive,
 MIG, or time-slicing placement instead of inheriting this development profile.
 Each required workload still requests nvidia.com/gpu: 1 and the nvidia runtime
-class. The shares make all six render and GPU-compute workloads schedulable
+class. The shares make all seven render and GPU-compute workloads schedulable
 together; they are not a CPU fallback.
 
-The local Reason profile reserves 35% of the 24 GiB NVIDIA device for vLLM. This
+The local Reason profile reserves 42% of the 24 GiB NVIDIA device for vLLM. This
 bound preserves device-memory headroom for the six-frame multimodal pass while
 the Isaac simulator, cuOpt, Rerun, and the other GPU services stay
 resident. Installations with different checkpoints, solver pools, or GPU capacity
 size `reason.engine.gpuMemoryUtilization` and
-`VEOVEO_CUOPT_POOL_GIB` against all six concurrently resident workloads.
+`VEOVEO_CUOPT_POOL_GIB` against all seven concurrently resident workloads.
 The development chart requests 4 GiB of host memory for the cuOpt executor. The
 simulator's operator-camera products run inside the simulator allocation. Higher
-memory limits allow bursts without making the six-workload placement unschedulable on
+memory limits allow bursts without making the seven-workload placement unschedulable on
 the reference 64 GiB node.
 
 The local fixture advertises simulator-owned shared H.264 delivery through
@@ -590,7 +590,7 @@ Only the route differs.
 Verify the reconciled installation and public edge:
 
 ~~~bash
-cargo xtask smoke bioma-verify
+cargo xtask smoke installation-verify --installation examples/bioma/installation-target.json
 ~~~
 
 This gate uses the public machine-client contract to export a deterministic artifact

@@ -1,2 +1,9 @@
 global:
-  publicBaseUrl: http://localhost:8782
+  publicBaseUrl: https://localhost:8783
+consoleBff:
+  oauthResource: https://localhost:8783/mcp/admin
+ingress:
+  host: localhost
+  tls:
+    enabled: true
+    secretName: fork-ingress-tls

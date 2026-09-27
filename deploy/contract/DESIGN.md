@@ -393,9 +393,7 @@ those installation artifacts and builds no image.
 
 An installation target tells installed smoke scenarios which installation to verify.
 The installation repository owns the file. Core smoke code has no installation
-defaults, so every installed scenario requires `--installation <file>`. The
-[implementation plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-2-installation-targets-for-installed-smoke)
-tracks delivery. The reference installation keeps its target at
+defaults, so every installed scenario requires `--installation <file>`. The reference installation keeps its target at
 `examples/bioma/installation-target.json`.
 
 ```json
@@ -407,7 +405,16 @@ tracks delivery. The reference installation keeps its target at
   "controlPlane": "gateway.json",
   "expectedDeployments": ["mcp-gateway", "artifact-service", "console-bff"],
   "minimumGpuShares": 6,
-  "operator": { "profile": "operations", "scopes": ["operator:use", "time:read"] }
+  "operator": {
+    "clientId": "operations-service",
+    "profile": "operations",
+    "workContext": "inspection",
+    "scopes": ["operator:use", "time:read"]
+  },
+  "recordingCatalog": {
+    "redapUrl": "rerun+http://veoveo.example.com:8781",
+    "hostMappings": [{ "hostname": "veoveo.example.com", "address": "127.0.0.1" }]
+  }
 }
 ```
 
@@ -419,11 +426,40 @@ tracks delivery. The reference installation keeps its target at
 | `controlPlane` | Path, relative to the target file, of the installation's control-plane document |
 | `expectedDeployments` | Deployments that must be available; the installation lists its optional workloads here |
 | `minimumGpuShares` | Allocatable `nvidia.com/gpu` shares the installation requires |
-| `operator` | Gateway profile and scopes that the machine client requests |
+| `operator.clientId` | Registered private-key JWT machine client; its credential stays in the caller's environment |
+| `operator.profile`, `operator.scopes` | Gateway resource profile and complete requested scopes; the harness adds no scopes |
+| `operator.workContext` | Work Context in the service client's configured tenant |
+| `operator.comparisonContext` | Optional distinct Work Context in that tenant; required for artifact isolation acceptance |
+| `recordingCatalog` | Optional native SDK endpoint and explicit container hostname overrides; required for `recording-catalog-sdk` |
+| `artifactConsumer` | Optional internal signing Secret name, installed Python deployment, and Artifact service origin; required for `artifact-upload-consumers` |
 
 Scenarios read the access-token key ID, the identity provider's authorization
 endpoint, and the tenant from the control-plane document. The target does not repeat
-them. Decoding rejects unknown fields and any other `schema` value.
+them. Decoding rejects unknown fields and any other `schema` value. The loader checks
+that the profile's protected resource matches the public origin, the client admits its
+resource and requested scopes, and both selected Work Contexts belong to its tenant.
+Origins exclude credentials, paths, queries, and fragments. Kubernetes namespaces and
+workload names follow their DNS syntax; duplicate deployment names and scopes fail.
+
+`recordingCatalog.redapUrl` accepts `rerun+https`. It accepts `rerun+http` only when the
+endpoint is loopback or an explicit `hostMappings` entry routes it to loopback. Each
+mapping contains `hostname` and an IPv4 or IPv6 `address`; it affects only the owned SDK
+container. The target file never changes host DNS. This separate SDK route supports a
+local ingress while the machine OAuth and grant requests use the public HTTPS origin.
+
+`artifactConsumer` names `internalSigningSecret`, `pythonDeployment`, and
+`artifactServiceUrl`. The Secret must contain `internal-signing-key-id` and
+`internal-signing-key-der-b64`. These coordinates describe the private-plane conformance
+fixture. The harness sends short-lived signed read identities to Python over stdin and
+redacts them from failure output. Public upload acceptance obtains its identity through
+the registered OAuth client.
+
+The contract crate owns decoding and schema generation. The smoke harness owns loading
+the referenced control plane and executing HTTP, Kubernetes, and SDK checks. Installed
+GPU and recording fixtures also use the target's context, namespace, public origin,
+tenant, and Work Context. Their environment file supplies credentials and database
+coordinates. Local process fixtures and device-allocation probes keep their own explicit
+fixture inputs.
 
 ## Version Transition
 

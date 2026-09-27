@@ -138,7 +138,7 @@ installation hostname check.
 The installed SDK scenario requires the operator service client's private-key file
 and registered key ID in `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
 `VEOVEO_SERVICE_CLIENT_KEY_ID`. Supply those from the installation's credential
-store before running `cargo xtask smoke recording-catalog-sdk` with the admitted
+store before running `cargo xtask smoke recording-catalog-sdk --installation <installation-target.json>` with the admitted
 dataset and recording IDs. A Console browser login does not provide service-client
 credentials to this command. The scenario sends issued grants to the SDK through
 stdin and reports only query counts and renewal success.

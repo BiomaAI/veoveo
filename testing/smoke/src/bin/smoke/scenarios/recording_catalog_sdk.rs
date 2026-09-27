@@ -8,43 +8,33 @@ const UV_IMAGE: &str = "ghcr.io/astral-sh/uv:python3.12-bookworm@sha256:85d4cb1a
 
 pub(crate) async fn recording_catalog_sdk(
     conformance: &Path,
-    public_base: &str,
-    context: &str,
+    installation: &InstalledTarget,
     dataset_id: uuid::Uuid,
     recording_id: uuid::Uuid,
 ) -> Result<()> {
-    ensure!(
-        context == "k3d-veoveo-bioma",
-        "Catalog SDK smoke is qualified only for the Bioma k3d installation"
-    );
-    let current_context = run_checked(
+    let target = &installation.target;
+    let catalog = target
+        .recording_catalog
+        .as_ref()
+        .context("recording-catalog-sdk requires recordingCatalog in the installation target")?;
+    run_checked(
         Path::new("kubectl"),
-        ["config".into(), "current-context".into()],
+        [
+            "--request-timeout=30s",
+            "--context",
+            &target.kubernetes.context,
+            "cluster-info",
+        ]
+        .map(OsString::from),
         [],
     )?;
-    ensure!(
-        current_context.trim() == context,
-        "kubectl context is {}, expected {context}",
-        current_context.trim()
-    );
-    ensure!(
-        url::Url::parse(public_base)?.scheme() == "https",
-        "catalog grant requires the public HTTPS gateway"
-    );
-    let token = gateway_token_for_context(
-        conformance,
-        public_base.trim_end_matches('/'),
-        "operator-service",
-        "operator",
-        super::bioma::OPERATOR_PROFILE_SCOPES,
-        "operations",
-    )
-    .await?;
-    let base = public_base.trim_end_matches('/');
+    let token = installation.token(conformance).await?;
+    let base = installation.public_base();
+    let profile = installation.profile();
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .build()?;
-    let grant_url = format!("{base}/recordings/operator/catalog-grants");
+    let grant_url = format!("{base}/recordings/{profile}/catalog-grants");
     let grant_request = serde_json::json!({
         "dataset_id": dataset_id,
         "recording_ids": [recording_id],
@@ -74,30 +64,48 @@ pub(crate) async fn recording_catalog_sdk(
         .as_str()
         .context("renewed catalog grant has no Redap token")?;
     let grants = serde_json::to_vec(&serde_json::json!({"first": first, "renewed": renewed}))?;
+    let ingress_host = target
+        .local_base_url
+        .host()
+        .context("local ingress host is missing")?
+        .to_string();
+    let ingress_host = ingress_host.trim_matches(['[', ']']);
+    let ingress = (
+        ingress_host,
+        target
+            .local_base_url
+            .port_or_known_default()
+            .context("local ingress port is missing")?,
+    );
     tokio::time::timeout(Duration::from_secs(15), async {
         loop {
-            if tokio::net::TcpStream::connect("127.0.0.1:8781")
-                .await
-                .is_ok()
-            {
+            if tokio::net::TcpStream::connect(ingress).await.is_ok() {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(200)).await;
         }
     })
     .await
-    .context("Bioma k3d ingress did not become ready")?;
+    .context("installation loopback ingress did not become ready")?;
 
     let cwd = std::env::current_dir()?;
     let mount = format!("{0}:{0}:ro", cwd.display());
+    let container_name = format!("veoveo-catalog-sdk-{}", uuid::Uuid::now_v7().simple());
+    let _container = ContainerGuard::new(&container_name);
     let mut command = tokio::process::Command::new("docker");
+    command.args(["run", "--name", &container_name]);
+    for mapping in &catalog.host_mappings {
+        let address = match mapping.address {
+            std::net::IpAddr::V4(ip) => ip.to_string(),
+            std::net::IpAddr::V6(ip) => format!("[{ip}]"),
+        };
+        command.args(["--add-host", &format!("{}:{address}", mapping.hostname)]);
+    }
     command
         .args([
-            "run",
             "--rm",
             "--interactive",
             "--network=host",
-            "--add-host=veoveo.bioma.ai:127.0.0.1",
             "--volume",
             &mount,
             "--volume=veoveo-catalog-uv-cache:/tmp/uv-cache",
@@ -116,7 +124,7 @@ pub(crate) async fn recording_catalog_sdk(
             "python",
             "testing/recording-catalog-sdk/smoke.py",
             "--redap-url",
-            "rerun+http://veoveo.bioma.ai:8781",
+            catalog.redap_url.as_str(),
             "--dataset-id",
             &dataset_id.to_string(),
             "--recording-id",

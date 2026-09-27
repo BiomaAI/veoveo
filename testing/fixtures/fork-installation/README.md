@@ -4,6 +4,15 @@ This installation selects a platform and a domain workload from the fork checkou
 It owns the complete `gateway.json`, gateway requirements, trust references and public
 endpoints. The workload chart and image remain independently deployable components.
 
+The public origin is `https://localhost:8783`; loopback HTTP ingress uses port 8782.
+`installation-target.json` selects this control plane and the anonymous tenant. The
+profile has no GPU workload or recording catalog, and its target does not claim either.
+Before installation, provision `fork-ingress-tls` in namespace `veoveo` with a certificate
+whose SAN includes `localhost`, and trust its issuer in the client environment. On Linux,
+`SSL_CERT_FILE` can select a private CA bundle for the smoke process and its OAuth child.
+Certificate and hostname verification remain enabled. The fixture needs its installation
+Secrets from the profile; it never borrows the reference installation's credentials.
+
 Validate, publish, and install one committed revision:
 
 ```sh

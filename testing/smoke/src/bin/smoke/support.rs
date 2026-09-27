@@ -14,6 +14,8 @@ mod gateway_auth;
 mod gpu;
 #[path = "support/http.rs"]
 mod http;
+#[path = "support/installation.rs"]
+mod installation;
 #[path = "support/mcp.rs"]
 mod mcp;
 #[path = "support/process.rs"]
@@ -32,6 +34,7 @@ pub(crate) use final_tasks::*;
 pub(crate) use gateway_auth::*;
 pub(crate) use gpu::*;
 pub(crate) use http::*;
+pub(crate) use installation::InstalledTarget;
 pub(crate) use mcp::*;
 pub(crate) use process::*;
 pub(crate) use services::*;

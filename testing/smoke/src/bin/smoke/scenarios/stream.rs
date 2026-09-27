@@ -30,17 +30,19 @@ pub(crate) const RECORDING_FORWARDER: &str = "target/debug/recording-forwarder";
 const STREAM_MCP_URL: &str = "http://127.0.0.1:8797/stream/mcp";
 const STREAM_READY_URL: &str = "http://127.0.0.1:8797/stream/readyz";
 const STREAM_HOST: &str = "stream-mcp:8797";
-const DEFAULT_KUBERNETES_NAMESPACE: &str = "veoveo";
 
 use super::candidate;
 
 pub(crate) async fn stream_compiler_startup(
-    namespace: &str,
+    installation: &InstalledTarget,
     binary: &Path,
     app: &Path,
     work_dir: &Path,
 ) -> Result<()> {
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
     let mut candidate = Some(candidate::Candidate::start(
+        context,
         namespace,
         candidate::Service::Stream,
         binary,
@@ -49,12 +51,13 @@ pub(crate) async fn stream_compiler_startup(
     )?);
     let resource = candidate.as_ref().context("candidate missing")?.resource();
     let _forward = PortForwardGuard::spawn(
+        context,
         namespace,
         &resource,
         8797,
         candidate::Service::Stream.port(),
     )?;
-    wait_for_stream(namespace, &mut candidate, work_dir).await?;
+    wait_for_stream(context, namespace, &mut candidate, work_dir).await?;
     candidate
         .as_mut()
         .context("candidate missing")?
@@ -66,6 +69,7 @@ pub(crate) async fn stream_compiler_startup(
 }
 
 pub(crate) async fn stream_gpu(
+    installation: &InstalledTarget,
     env_file: &Path,
     work_dir: &Path,
     candidate_inputs: Option<(&Path, &Path)>,
@@ -78,17 +82,18 @@ pub(crate) async fn stream_gpu(
         env_file.display()
     );
     let environment = load_environment(env_file)?;
-    let namespace = kubernetes_namespace(&environment);
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
     let signing_key = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")?;
     let signing_key_id = required_environment(&environment, "VEOVEO_INTERNAL_SIGNING_KEY_ID")?;
-    let sample_h264 = prepare_sample_h264(work_dir, &environment)?;
+    let sample_h264 = prepare_sample_h264(work_dir, installation)?;
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
-    let producer_key = recording_producer_key(namespace, producer_key_secret, &tmpdir)?;
+    let producer_key = recording_producer_key(context, namespace, producer_key_secret, &tmpdir)?;
     let queue_dir = tmpdir.join("forwarder-queue");
     let forwarder_log = tmpdir.join("recording-forwarder.log");
     std::fs::create_dir_all(&queue_dir)?;
-    let gateway_url = required_environment(&environment, "PUBLIC_BASE_URL")?.trim_end_matches('/');
+    let gateway_url = installation.public_base();
     let producer_client_id = optional_environment(
         &environment,
         "VEOVEO_RECORDING_PRODUCER_CLIENT_ID",
@@ -99,6 +104,9 @@ pub(crate) async fn stream_gpu(
     run_checked(
         Path::new("kubectl"),
         [
+            "--context".into(),
+            context.into(),
+            "--request-timeout=30s".into(),
             "-n".into(),
             namespace.into(),
             "rollout".into(),
@@ -112,6 +120,7 @@ pub(crate) async fn stream_gpu(
     let mut candidate = candidate_inputs
         .map(|(binary, app)| {
             candidate::Candidate::start(
+                context,
                 namespace,
                 candidate::Service::Stream,
                 binary,
@@ -156,16 +165,18 @@ pub(crate) async fn stream_gpu(
         .as_ref()
         .map(candidate::Candidate::resource)
         .unwrap_or_else(|| "service/stream-mcp".to_owned());
-    let _stream_forward = PortForwardGuard::spawn(namespace, &resource, 8797, remote_port)?;
-    let _surreal_forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
-    wait_for_stream(namespace, &mut candidate, work_dir).await?;
+    let _stream_forward =
+        PortForwardGuard::spawn(context, namespace, &resource, 8797, remote_port)?;
+    let _surreal_forward = PortForwardGuard::spawn(context, namespace, "surrealdb", 8000, 8000)?;
+    wait_for_stream(context, namespace, &mut candidate, work_dir).await?;
     if let Some(candidate) = &candidate {
         candidate.verify_listener()?;
     }
 
     let recording_key = uuid::Uuid::now_v7().to_string();
     publish_h264_recording(&recording_key, &sample_h264).await?;
-    let recording_id = wait_for_recording_source(&environment, &recording_key, &queue_dir).await?;
+    let recording_id =
+        wait_for_recording_source(&environment, installation, &recording_key, &queue_dir).await?;
     let arguments = json!({
         "video": {
             "recording_uri": format!("recording://recordings/{recording_id}"),
@@ -184,6 +195,7 @@ pub(crate) async fn stream_gpu(
         "stream",
         "stream-gpu-smoke",
         &environment,
+        installation,
     )
     .await?;
     let task_client =
@@ -206,7 +218,7 @@ pub(crate) async fn stream_gpu(
                     work_dir.display()
                 );
             }
-            let logs = kubernetes_logs(namespace, "deployment/stream-mcp")
+            let logs = kubernetes_logs(context, namespace, "deployment/stream-mcp")
                 .unwrap_or_else(|log_error| format!("failed to collect logs: {log_error:#}"));
             bail!("Stream MCP recording run failed: {error:#}\nKubernetes logs:\n{logs}");
         }
@@ -254,6 +266,7 @@ pub(crate) fn load_environment(path: &Path) -> Result<BTreeMap<String, String>> 
 /// Keep the installed producer credential in a private file owned by the harness.
 /// `NamedTempFile` removes it on every return path, including failed acceptance.
 pub(crate) fn recording_producer_key(
+    context: &str,
     namespace: &str,
     secret_name: &str,
     directory: &Path,
@@ -271,6 +284,9 @@ pub(crate) fn recording_producer_key(
     let document = run_checked(
         Path::new("kubectl"),
         [
+            "--context".into(),
+            context.into(),
+            "--request-timeout=30s".into(),
             "-n".into(),
             namespace.into(),
             "get".into(),
@@ -318,14 +334,6 @@ pub(crate) fn optional_environment<'a>(
         .unwrap_or(default)
 }
 
-pub(crate) fn kubernetes_namespace(environment: &BTreeMap<String, String>) -> &str {
-    optional_environment(
-        environment,
-        "VEOVEO_KUBERNETES_NAMESPACE",
-        DEFAULT_KUBERNETES_NAMESPACE,
-    )
-}
-
 pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
     for _ in 0..100 {
         if tokio::net::TcpStream::connect("127.0.0.1:9876")
@@ -343,12 +351,12 @@ pub(crate) async fn wait_for_recording_forwarder(log: &Path) -> Result<()> {
 
 pub(crate) async fn wait_for_recording_source(
     environment: &BTreeMap<String, String>,
+    installation: &InstalledTarget,
     recording_key: &str,
     queue_dir: &Path,
 ) -> Result<RecordingId> {
     let store = recording_store(environment).await?;
-    let tenant_id =
-        deterministic_tenant_id(required_environment(environment, "RECORDING_TENANT_KEY")?)?;
+    let tenant_id = deterministic_tenant_id(installation.tenant.as_str())?;
     for _ in 0..80 {
         if let Some(recording) = store
             .recording_by_key(tenant_id, "veoveo-video-test", recording_key)
@@ -436,6 +444,7 @@ pub(super) async fn recording_store(
 }
 
 async fn wait_for_stream(
+    context: &str,
     namespace: &str,
     candidate: &mut Option<candidate::Candidate>,
     work_dir: &Path,
@@ -458,14 +467,14 @@ async fn wait_for_stream(
         }
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
-    let logs = kubernetes_logs(namespace, "deployment/stream-mcp")
+    let logs = kubernetes_logs(context, namespace, "deployment/stream-mcp")
         .unwrap_or_else(|error| format!("failed to collect logs: {error:#}"));
     bail!("Stream MCP did not become ready\n{logs}")
 }
 
 pub(crate) fn prepare_sample_h264(
     work_dir: &Path,
-    environment: &BTreeMap<String, String>,
+    installation: &InstalledTarget,
 ) -> Result<PathBuf> {
     std::fs::create_dir_all(work_dir)?;
     let output = work_dir.join(SAMPLE_H264_NAME);
@@ -477,8 +486,11 @@ pub(crate) fn prepare_sample_h264(
     let staging = output.with_extension("partial");
     let result = Command::new("kubectl")
         .args([
+            "--context",
+            &installation.target.kubernetes.context,
+            "--request-timeout=90s",
             "-n",
-            kubernetes_namespace(environment),
+            &installation.target.kubernetes.namespace,
             "exec",
             "deployment/stream-mcp",
             "-c",
@@ -570,9 +582,10 @@ pub(crate) async fn issue_internal_token(
     server: &str,
     subject: &str,
     environment: &BTreeMap<String, String>,
+    installation: &InstalledTarget,
 ) -> Result<String> {
-    let tenant = required_environment(environment, "RECORDING_TENANT_KEY")?;
-    let work_context = required_environment(environment, "RECORDING_WORK_CONTEXT")?;
+    let tenant = installation.tenant.as_str();
+    let work_context = installation.work_context.id.as_str();
     let context = recording_store(environment)
         .await?
         .artifact_read_context_version(tenant, work_context)
@@ -594,7 +607,11 @@ pub(crate) async fn issue_internal_token(
         groups: Default::default(),
         group_roles: Default::default(),
         roles: Default::default(),
-        scopes: [ScopeName::new("operator:use")?].into_iter().collect(),
+        scopes: installation
+            .scopes()
+            .into_iter()
+            .map(ScopeName::new)
+            .collect::<std::result::Result<_, _>>()?,
         data_labels: Default::default(),
         assurances: Default::default(),
         authenticated_at: Some(Utc::now()),
@@ -614,7 +631,7 @@ pub(crate) async fn issue_internal_token(
     };
     Ok(issuer
         .issue(
-            GatewayProfileId::new("operator")?,
+            GatewayProfileId::new(installation.profile())?,
             ServerSlug::new(server)?,
             principal,
             authority,
@@ -630,6 +647,7 @@ pub(crate) struct PortForwardGuard {
 
 impl PortForwardGuard {
     pub(crate) fn spawn(
+        context: &str,
         namespace: &str,
         resource: &str,
         local_port: u16,
@@ -642,6 +660,8 @@ impl PortForwardGuard {
         };
         let child = Command::new("kubectl")
             .args([
+                "--context",
+                context,
                 "-n",
                 namespace,
                 "port-forward",
@@ -663,7 +683,11 @@ impl Drop for PortForwardGuard {
     }
 }
 
-pub(crate) fn kubernetes_logs(namespace: &str, primary_workload: &str) -> Result<String> {
+pub(crate) fn kubernetes_logs(
+    context: &str,
+    namespace: &str,
+    primary_workload: &str,
+) -> Result<String> {
     let mut output = String::new();
     for (workload, container) in [
         (primary_workload, None),
@@ -671,6 +695,9 @@ pub(crate) fn kubernetes_logs(namespace: &str, primary_workload: &str) -> Result
         ("deployment/artifact-service", None),
     ] {
         let mut arguments = vec![
+            "--context".into(),
+            context.into(),
+            "--request-timeout=30s".into(),
             "-n".into(),
             namespace.into(),
             "logs".into(),

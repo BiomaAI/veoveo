@@ -13,11 +13,14 @@ use veoveo_recording_forwarder::{
 use veoveo_recording_protocol::v1::RecordingStreamFinishMode;
 
 use super::stream::{
-    PortForwardGuard, kubernetes_namespace, load_environment, optional_environment,
-    recording_producer_key, recording_store, required_environment,
+    PortForwardGuard, load_environment, optional_environment, recording_producer_key,
+    recording_store, required_environment,
 };
 
+use super::InstalledTarget;
+
 pub(crate) async fn recording_fixture_finish(
+    installation: &InstalledTarget,
     env_file: &Path,
     producer_key_secret: &str,
     stream_ids: &[uuid::Uuid],
@@ -27,10 +30,11 @@ pub(crate) async fn recording_fixture_finish(
         "select at least one smoke ingest stream ID"
     );
     let environment = load_environment(env_file)?;
-    let namespace = kubernetes_namespace(&environment);
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
     let temporary = tempfile::tempdir()?;
-    let key = recording_producer_key(namespace, producer_key_secret, temporary.path())?;
-    let gateway = url::Url::parse(required_environment(&environment, "PUBLIC_BASE_URL")?)?;
+    let key = recording_producer_key(context, namespace, producer_key_secret, temporary.path())?;
+    let gateway = installation.target.public_base_url.clone();
     let resource = gateway.join("/ingest/recordings")?;
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
@@ -62,7 +66,7 @@ pub(crate) async fn recording_fixture_finish(
         },
     )
     .await?;
-    let _forward = PortForwardGuard::spawn(namespace, "surrealdb", 8000, 8000)?;
+    let _forward = PortForwardGuard::spawn(context, namespace, "surrealdb", 8000, 8000)?;
     let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
     while tokio::net::TcpStream::connect("127.0.0.1:8000")
         .await
@@ -75,8 +79,7 @@ pub(crate) async fn recording_fixture_finish(
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     let store = recording_store(&environment).await?;
-    let tenant =
-        deterministic_tenant_id(required_environment(&environment, "RECORDING_TENANT_KEY")?)?;
+    let tenant = deterministic_tenant_id(installation.tenant.as_str())?;
     for stream_id in stream_ids {
         let stream_id = veoveo_platform_store::RecordingIngestStreamId::from_uuid(*stream_id);
         let stream = store
