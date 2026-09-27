@@ -1,20 +1,22 @@
-# Knowledge Sources And Identifier Cut Plan
+# Knowledge Sources, Audit Log, And Identifier Cut Plan
 
 Status: approved for implementation on 2026-09-26. No phase has started.
 
-This plan tells an implementing agent how to deliver four changes. The first moves
+This plan tells an implementing agent how to deliver five changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
 reference installation. The third fixes resource contract violations found while
-surveying the servers. The fourth makes every server a knowledge source and adds the
-`knowledge-mcp` catalog and index.
+surveying the servers. The fourth replaces the separate audit paths with one audit log.
+The fifth makes every server a knowledge source and adds the `knowledge-mcp` catalog
+and index.
 
 The target contracts live in the owning documents:
 
 - [Knowledge source extension](../mcp/knowledge-extension/DESIGN.md)
 - [Knowledge sharing](KNOWLEDGE.md)
+- [Audit log](AUDIT.md)
 - [MCP server contract](../mcp/contract/DESIGN.md), rule C32
-- [Contract evolution](CONTRACT_EVOLUTION.md), CE-10 and CE-11
+- [Contract evolution](CONTRACT_EVOLUTION.md), CE-10, CE-11, and CE-12
 - [Deployment contract](../deploy/contract/DESIGN.md#installation-target)
 - [Naming rules](../AGENTS.md#naming)
 
@@ -32,6 +34,7 @@ state after this file is gone.
 | SurrealDB 3.2.4 | Catalog, `FULLTEXT` BM25, and `HNSW` indexes |
 | candle `0.11.0`, `tokenizers` `0.23.2`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
+| OCSF 1.9.0, W3C Trace Context, RFC 9162, RFC 8785, S3 Object Lock | Audit record export, correlation, sealing, and write-once retention |
 
 ## Working Rules
 
@@ -255,7 +258,91 @@ server with a test that fails before the fix.
 Acceptance: each server's tests cover its fix, and each server's `AGENTS.md` updates
 the affected compliance entries.
 
-## Phase 4: Extension Crate And Shared Plumbing
+## Phase 4: Unified Audit Log
+
+The survey behind [the audit design](AUDIT.md) found these paths and volumes. Each
+figure counts audit rows, and every row also wrote an outbox row until this phase.
+
+| Path | Today | Target |
+|---|---|---|
+| Gateway authentication (`platform/gateway/src/bin/gateway/auth.rs:98-380`) | One row per HTTP request, including every poll | Part of the request record; token lifecycle and credential denials only |
+| Gateway policy (`platform/gateway/src/mcp/authorization.rs:329-367`) | One row per call, and one per item for discovery, repeated for every page and on each 5 s cache expiry; prompts are not cached (`prompts.rs:35`) | One record per request; one per list |
+| Gateway tool call (`platform/gateway/src/mcp/tools.rs:410-432`) | Written after the effect, and a failed write errors the response | Completion record, retried, never fails the response |
+| Admin outcome (`platform/gateway/src/bin/gateway/admin/audit.rs:232-303`) | Extra policy row with free-form metadata | Completion record |
+| Artifact service (`platform/artifacts/service/src/service.rs:146-199`) | One row per authorization, including each range request; no trace ID; never deleted | Download windows; trace from the request context; retention |
+| Upload completion (`platform/store/src/artifact_uploads/publication.rs:28-84`) | Same transaction as publication | Transactional writer |
+| Live views (`servers/uav-sim-mcp/src/server/live_view_audit.rs`, `platform/store/src/live_views.rs`) | Best effort; failures only logged; never deleted | Issuance requires its record; close and expiry retried; retention |
+| Refresh rotation (`platform/store/src/gateway_runtime.rs:504-620`) | Transactional | Transactional writer, `authentication` class |
+| Speech (`platform/gateway/src/bin/gateway/speech/authority.rs:44-87`) | Authentication and policy rows per 1 s chunk, about 124 per minute | Session open, summary, and denials |
+| Recording ingest denials (`platform/gateway/src/bin/gateway/recording_ingest.rs:449`) | Stored as authentication rows with a hard-coded `BearerJwt` method | Typed denial records |
+
+| Action | Rows today | Records after |
+|---|---|---|
+| List tools with a cold cache | 1 + one per visible tool, above 100 | 1 |
+| One tool call | 3 | 2 |
+| One minute of dictation | about 124 | 2, plus denials |
+| Video playback with 100 to 300 range requests | 300 to 900 | 1 per five-minute window |
+| Agent episode with 10 turns and 8 tool calls | about 42, plus discovery on each connection rotation | one per request, plus one completion per tool call |
+
+Other findings this phase fixes: `source_ip` is never written; trace IDs come in three
+formats, so a request's authentication and policy rows never correlate; `request_id`
+holds the event ID; rows without a tenant are invisible in the Console; the Console
+stream scans the global changefeed and filters tenants in memory; CLI summaries read
+every row without a tenant filter; `configs/deployments.json` `audit_event_days` is not
+wired to the gateway's retention flag; and no code deletes `outbox_event` rows.
+
+Work:
+
+1. Define the record types in `mcp/contract/src/audit.rs`, and delete `AuditEvent`,
+   `AuthAuditEvent`, and their metadata maps.
+2. Add a migration that removes `audit_event` and creates `audit_record` and
+   `audit_block` with `READONLY` fields and the indexes the bounded queries use. Existing
+   audit rows are discarded, as CE-12 records.
+3. Create `platform/audit` with the writer's transactional and group-commit modes, the
+   sealer under a store lease, the OCSF and OpenTelemetry exporters, and verification.
+   Add the dedicated audit signing key to the installation secrets.
+4. In the gateway, assign request IDs, establish W3C trace context, record source IP
+   addresses, write one record per request, aggregate discovery lists, write tool and
+   admin completion records, write token lifecycle records, type recording ingest
+   denials, and add `gateway audit verify`. Make audit retention a required
+   installation value, wired from Helm, and remove the 365-day default.
+5. Move the Artifact service, upload publication, Computers lifecycle changes, Work
+   Context transitions, and live views onto the writer. Live-view issuance fails when
+   its record cannot commit; close and expiry records are retried.
+6. Replace per-chunk speech records with session records.
+7. Stop writing outbox events for audit records. Add outbox retention that deletes rows
+   every consumer has checkpointed past.
+8. Replace the Console's audit reads with the paged, partition-scoped query, add
+   server-side export, show the `installation` partition to installation
+   administrators and auditors, and record audit-view access. Bound and scope the CLI
+   summaries, and update smoke assertions that counted old rows.
+9. Update the documents that describe the old behavior: the tool-call and discovery
+   paragraphs in `mcp/contract/DESIGN.md`, the audit section of
+   `servers/uav-sim-mcp/DESIGN.md`, `platform/gateway/src/bin/gateway/speech/DESIGN.md`,
+   the audit retention section of `docs/TECH_DESIGN.md`, and gap G4 with its stale
+   retention reference in `docs/REGULATED_READINESS.md`.
+10. Update the standards registers: OCSF export and W3C Trace Context in `README.md`;
+    OCSF 1.9.0, RFC 9162, RFC 8785, and S3 Object Lock in `docs/TECH_DESIGN.md`; and an
+    audit export interface in `interfaces-and-protocols.csv`.
+
+Acceptance:
+
+- Tests count records for each action in the table above and match the target column.
+- A request fails when its record cannot commit, and a live-view authorization is not
+  issued while the audit store is unavailable. An issued authorization keeps working.
+- `gateway audit verify` detects an updated, deleted, and inserted record, a removed
+  block, and a bad signature, each made with database root credentials.
+- The gateway refuses to start without a retention value. Retention deletes every
+  class, and with export configured it deletes only exported blocks.
+- The exporter writes OCSF JSON Lines to the bundled S3-compatible store. Object Lock
+  acceptance runs against a store that supports compliance mode, because the bundled
+  RustFS does not (`docs/REGULATED_READINESS.md` gap G9).
+- A repository test rejects any string field in a `detail` variant outside the
+  identifier and reason-code allowlist.
+- Installed catalog p95 is measured against the 500 ms target in
+  `docs/DEVELOPMENT_ITERATION.md` and recorded in the audit design's status.
+
+## Phase 5: Extension Crate And Shared Plumbing
 
 1. Create `mcp/knowledge-extension` as a workspace crate with the models, server and
    client helpers, and docs collection listed in its design's implementation map.
@@ -268,8 +355,8 @@ the affected compliance entries.
 5. Add `platform/store/src/knowledge.rs` and the next ordered migration for catalog,
    chunk, and index-generation records.
 6. In the gateway read path, declare the extension on upstream reads to declaring
-   servers, attach the observation and read outcome to the read's audit event, commit
-   that event before returning, and forward the observation only to declaring
+   servers, attach the observation and read outcome to the read's audit record as a
+   `detail` variant of the Phase 4 record type, commit that record before returning, and forward the observation only to declaring
    callers.
 7. In `agents/kernel/src/resource.rs`, keep the observation beside each admitted item
    and render one provenance line per item inside the existing budgets.
@@ -287,7 +374,7 @@ Acceptance:
 - A kernel test shows provenance lines within the byte budget.
 - Every server passes K01 through K08 for its docs collection.
 
-## Phase 5: First Adoption Wave
+## Phase 6: First Adoption Wave
 
 Each server below declares its collections, fills observations from existing records,
 and makes its search results resource links. When a domain has no revision, use the
@@ -304,7 +391,7 @@ content digest as the revision.
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.
 
-## Phase 6: Knowledge Service
+## Phase 7: Knowledge Service
 
 1. Create `servers/knowledge-mcp` with `DESIGN.md` and `AGENTS.md`. Move the service
    sections of [`KNOWLEDGE.md`](KNOWLEDGE.md) into its design, keeping the
@@ -330,7 +417,7 @@ log records the observed revision for reads of each collection.
    3. Package `config.json`, `tokenizer.json`, and `model.safetensors` into the image
       with their SHA-256 digests. The builder stage carries the CUDA toolkit and sets
       `CUDA_COMPUTE_CAP` for the installation's GPUs.
-   4. Measure throughput on the Phase 5 collections. If a full rebuild is too slow,
+   4. Measure throughput on the Phase 6 collections. If a full rebuild is too slow,
       propose the padding-mask change to candle upstream before changing the batching.
    5. Qualify `Qwen3-Embedding-4B` against 0.6B as
       [Model qualification](KNOWLEDGE.md#model-qualification) describes, and record
@@ -339,7 +426,7 @@ log records the observed revision for reads of each collection.
    filtering. Share the effective-access predicate that `platform/store/src/artifacts.rs`
    applies. Do not copy it.
 6. Add the Helm chart, GPU request, gateway registration, and offline image entry.
-7. Build an evaluation set from the Phase 5 collections, and record recall at 10 for
+7. Build an evaluation set from the Phase 6 collections, and record recall at 10 for
    the chosen chunk settings in the index generation.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
    3 and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
@@ -358,10 +445,10 @@ Acceptance:
   model-card vectors, and equal-length batches match single-input calls.
 - Throughput and the 0.6B-against-4B comparison are recorded in the index generation.
 - Invalidation and reconciliation tests pass.
-- The reference installation indexes the approved Phase 5 collections, and a search
+- The reference installation indexes the approved Phase 6 collections, and a search
   returns links an agent can read.
 
-## Phase 7: Second Adoption Wave
+## Phase 8: Second Adoption Wave
 
 | Server | Collections | Prerequisite |
 |---|---|---|

@@ -180,8 +180,8 @@ owning server, which applies its own authorization and returns a fresh observati
 
 ## Knowledge Reads In The Audit Log
 
-Veoveo keeps one audit log. A read of a declared collection is an ordinary audit
-event for `resources/read`, and the event carries the typed observation the owning
+Veoveo keeps [one audit log](AUDIT.md). A read of a declared collection is an ordinary
+audit record for `resources/read`, and the event carries the typed observation the owning
 server returned: collection, revision, `contentSha256`, `lastModified`, `modifiedBy`,
 and the read outcome (`full`, `not_modified`, `denied`, `not_found`, or
 `unavailable`). The event already names the actor, delegating principal, managed
@@ -233,7 +233,7 @@ is. The adapter's byte and read budgets count those lines.
   vectors are a committed fixture, generated once with `uv run`.
 - A batching test proves that equal-length batches and single-input calls produce the
   same vectors within that tolerance.
-- The throughput measurement records chunks per second for each Phase 5 collection and
+- The throughput measurement records chunks per second for each Phase 6 collection and
   for a full rebuild.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and
   each index generation records its result.

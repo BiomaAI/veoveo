@@ -297,6 +297,25 @@ observation. It reads with an installation-owned credential, and Veoveo enforces
 source's access rules through the observation's access descriptor. Per-user delegation
 to external systems requires its own decision.
 
+## CE-12: One Audit Record Per Logical Action
+
+Veoveo keeps one audit log, specified in [the audit design](AUDIT.md). The gateway,
+the Artifact service, simulator live views, Computers, and upload publication write the
+same typed record through one writer library. The earlier separate paths end with
+this decision.
+
+A request writes one record for authentication, authorization, and its outcome. A
+tool call adds one completion record. A discovery list writes one record with the
+visible-set digest in place of one record per item, because the policy revision on the
+record reproduces every item decision. A streamed session writes its opening, its
+summary, and every denial, in place of one record per chunk or range request. Every
+denial and every authorization issuance still requires a committed record.
+
+Sealed blocks with Merkle roots and signed heads make tampering detectable. Retention
+is an installation parameter with no default, and a configured export must receive a
+block before its records can be deleted. The replacement is a hard cut: the new table
+replaces `audit_event`, and existing audit rows are discarded.
+
 ## Delivery And Decision Checkpoints
 
 | Work | Owner and shortest implementation path | Acceptance and release relationship |
