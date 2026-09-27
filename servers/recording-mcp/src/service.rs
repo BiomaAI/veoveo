@@ -25,12 +25,13 @@ use crate::contract::{
 };
 use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
+mod index;
 mod projection;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
 
 use veoveo_recording_reader::{
     MAX_LAYERS,
-    access::{authorized_live_layer_path, confined_layer_path, labels_visible, record_uuid},
+    access::{authorized_live_layer_path, confined_layer_path, record_uuid},
 };
 const DEFAULT_LIVE_HISTORY_SECONDS: u64 = 1;
 const LIVE_VIDEO_PREROLL_SECONDS: u64 = 2;
@@ -271,39 +272,6 @@ impl RecordingService {
                 expires_at: Utc::now() + VIEWER_GRANT_TTL,
             })
             .await?)
-    }
-
-    pub async fn list_visible(
-        &self,
-        identity: &GatewayInternalIdentity,
-    ) -> Result<Vec<RecordingView>> {
-        let platform_identity = self.platform_identity(identity).await?;
-        let mut views = Vec::new();
-        for recording in self
-            .store
-            .list_recordings(platform_identity.tenant_id, 500)
-            .await?
-        {
-            if visible(&recording, identity) {
-                views.push(self.view(platform_identity.tenant_id, recording).await?);
-            }
-        }
-        Ok(views)
-    }
-
-    pub async fn visible_recording(
-        &self,
-        identity: &GatewayInternalIdentity,
-        recording_id: RecordingId,
-    ) -> Result<Option<(PlatformIdentity, RecordingRecord)>> {
-        let platform_identity = self.platform_identity(identity).await?;
-        let recording = self
-            .store
-            .recording(platform_identity.tenant_id, recording_id)
-            .await?;
-        Ok(recording
-            .filter(|recording| visible(recording, identity))
-            .map(|recording| (platform_identity, recording)))
     }
 
     pub async fn layer_views(
@@ -1101,9 +1069,9 @@ impl RecordingService {
             .recording_dataset(tenant_id, dataset_id)
             .await?
             .context("recording dataset is missing")?;
-        let layers = self
+        let counts = self
             .store
-            .recording_layers(tenant_id, recording_id, MAX_LAYERS)
+            .recording_layer_counts(tenant_id, recording_id)
             .await?;
         Ok(RecordingView {
             recording_id: recording_id.to_string(),
@@ -1124,11 +1092,8 @@ impl RecordingService {
                         .expect("validated platform artifact record"),
                 ))
             }),
-            layer_count: layers.len(),
-            committed_layer_count: layers
-                .iter()
-                .filter(|layer| layer.state == RecordingLayerState::Committed)
-                .count(),
+            layer_count: counts.total,
+            committed_layer_count: counts.committed,
         })
     }
 
@@ -1181,17 +1146,6 @@ fn recording_static_context_path(
 ) -> Result<PathBuf> {
     let dataset_path = confined_layer_path(spool_root, dataset_key)?;
     Ok(dataset_path.join(format!(".recording-{recording_id}.static-context")))
-}
-
-fn visible(recording: &RecordingRecord, identity: &GatewayInternalIdentity) -> bool {
-    labels_visible(
-        recording,
-        identity
-            .actor
-            .data_labels
-            .iter()
-            .map(|label| label.as_str()),
-    )
 }
 
 fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {

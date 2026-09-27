@@ -17,6 +17,11 @@ latest-epoch reads and bounded completions pass native Store qualification.
 Time collection pagination, static discovery, requested-epoch SQL batches, and
 workbench navigation pass native and browser behavioral checks; installed acceptance
 is pending.
+Recording catalog pages now apply tenant and label predicates before the SQL limit.
+Native qualification traverses 502 authorized recordings behind 110 denied rows,
+checks direct-read isolation and bounded completion, and verifies SQL layer counts.
+The shared analysis reader uses the same Store visibility query; installed acceptance
+is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

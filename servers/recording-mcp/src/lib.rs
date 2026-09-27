@@ -4,6 +4,7 @@ pub mod admin;
 mod blueprint_cache;
 pub mod blueprint_playback;
 pub mod contract;
+pub mod index;
 pub mod live_playback;
 #[cfg(feature = "redap")]
 pub mod live_stream;

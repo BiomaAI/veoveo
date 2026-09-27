@@ -18,7 +18,7 @@ use veoveo_rrd::ingest_parts::{
 use veoveo_rrd::segment::inspect_segment;
 
 use super::{MAX_LAYERS, RecordingReader};
-use crate::access::{authorized_live_layer_path, labels_visible, record_uuid};
+use crate::access::{authorized_live_layer_path, record_uuid};
 use crate::cache::CachedLayer;
 
 /// Stable identity and clearance used to reopen a governed recording.
@@ -365,17 +365,21 @@ impl RecordingReader {
             .await?;
         let Some(recording) = self
             .store
-            .recording(platform_identity.tenant_id, recording_id)
+            .visible_recording(
+                &veoveo_platform_store::RecordingReadScope {
+                    tenant_id: platform_identity.tenant_id,
+                    data_labels: authority
+                        .data_labels
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                },
+                recording_id,
+            )
             .await?
         else {
             return Ok(None);
         };
-        if !labels_visible(
-            &recording,
-            authority.data_labels.iter().map(|label| label.as_str()),
-        ) {
-            return Ok(None);
-        }
         let dataset_id =
             RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
         let dataset = self

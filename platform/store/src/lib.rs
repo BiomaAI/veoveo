@@ -106,7 +106,9 @@ pub use recording_ingest::{
     RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestQuotaCheckpoint,
     RecordingIngestStreamDraft,
 };
-pub use recordings::{RecordingDraft, RecordingSeal};
+pub use recordings::{
+    RecordingCursor, RecordingDraft, RecordingLayerCounts, RecordingReadScope, RecordingSeal,
+};
 pub use resource_changes::{ResourceChangeTable, ResourceInvalidation};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};

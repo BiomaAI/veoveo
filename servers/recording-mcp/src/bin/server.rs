@@ -50,6 +50,7 @@ use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
     contract::{CreateCatalogGrantRequest, SealRecordingOutput, SealRecordingRequest},
+    index,
     playback::{
         PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
     },
@@ -185,7 +186,6 @@ impl ServerHandler for RecordingMcp {
             .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
-            .enable_resources_list_changed()
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
@@ -287,6 +287,10 @@ impl ServerHandler for RecordingMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
         let templates = vec![
+            ResourceTemplate::new(uris::CATALOG_TEMPLATE, "recording catalog page")
+                .with_title("Recording catalog page")
+                .with_description("Authorized recordings, 100 per page. Subscribe to recording://catalog for changes.")
+                .with_mime_type("application/json"),
             ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
                 .with_title("Server document")
                 .with_description("Embedded crate document body (contract C18).")
@@ -370,15 +374,15 @@ impl ServerHandler for RecordingMcp {
                     veoveo_mcp_apps_extension::app_html_contents(uri, &html),
                 ]));
             }
-            if uri == uris::CATALOG_URI {
+            if let Some(after) = index::parse_catalog_uri(uri)? {
                 return json_resource(
                     uri,
                     &self
                         .state
                         .recordings
-                        .list_visible(&identity)
+                        .catalog_page(&identity, after.as_ref())
                         .await
-                        .map_err(internal)?,
+                        .map_err(index::query_error)?,
                 );
             }
             if let Some(value) = uris::parse_layers_uri(uri) {
@@ -495,35 +499,17 @@ impl ServerHandler for RecordingMcp {
             return Ok(CompleteResult::default());
         }
         let identity = identity(&context)?;
-        let needle = request.argument.value.to_lowercase();
-        let all = self
+        let mut values = self
             .state
             .recordings
-            .list_visible(&identity)
+            .complete_recording_ids(&identity, &request.argument.value)
             .await
-            .map_err(internal)?;
-        let total_matches = all
-            .iter()
-            .filter(|recording| {
-                recording.recording_id.to_lowercase().contains(&needle)
-                    || recording.recording_key.to_lowercase().contains(&needle)
-            })
-            .count();
-        let values = all
-            .into_iter()
-            .filter(|recording| {
-                recording.recording_id.to_lowercase().contains(&needle)
-                    || recording.recording_key.to_lowercase().contains(&needle)
-            })
-            .map(|recording| recording.recording_id)
-            .take(CompletionInfo::MAX_VALUES)
-            .collect::<Vec<_>>();
-        let completion = CompletionInfo::with_pagination(
-            values,
-            Some(total_matches as u32),
-            total_matches > CompletionInfo::MAX_VALUES,
-        )
-        .map_err(internal)?;
+            .map_err(index::query_error)?;
+        let has_more = values.len() > CompletionInfo::MAX_VALUES;
+        values.truncate(CompletionInfo::MAX_VALUES);
+        let total = (!has_more).then_some(values.len() as u32);
+        let completion =
+            CompletionInfo::with_pagination(values, total, has_more).map_err(internal)?;
         Ok(CompleteResult::new(completion))
     }
 }

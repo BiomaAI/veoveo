@@ -31,15 +31,34 @@ metadata. Every layer is decoded and verified against the dataset and recording 
 before registration. Catalog revision is deterministic over durable dataset and recording
 revisions plus the ordered layer identities and digests.
 
-`RecordingService` resolves visibility before loading layer manifests. Committed layers
+`RecordingService` and the shared analysis reader resolve visibility in Store SQL.
+The predicate requires the actor's tenant and every recording label in the actor's
+clearance. Ownership and Work Context do not further restrict this recording read
+profile. The Store applies the same predicate to direct reads, pages, and completions.
+Services load layer manifests only after the recording passes that predicate. Committed layers
 require a fresh Artifact-read caller. Writing layers may use the confined Hub spool for
 the live receiver only. A missing credential never falls back to an old local archive
 path.
 
 MCP resource discovery lists stable roots and documents. Templates describe individual
-recordings and layers; reading the catalog resource returns each recording's exact URI.
-Recording writes do not alter these discovery descriptors. Full recording views are
-assembled when the client requests the catalog content.
+recordings, layers, and `recording://catalog{?cursor}`. Recording writes invalidate
+resource contents and do not advertise or emit discovery-list changes.
+
+The catalog root returns `{items, limit, next_cursor}` with at most 100 recording
+views. SQL applies tenant, labels, and cursor predicates before fetching 101 rows.
+Pages sort by immutable `started_at` descending, then recording UUID descending. The
+versioned opaque cursor carries that pair and the collection identity. Invalid
+versions, UUIDs, shapes, and query parameters fail with invalid params. Each page
+rechecks the caller's current clearance; a cursor grants no access. Pages are live
+reads rather than a snapshot. A new recording ahead of the cursor appears on refresh.
+Clients subscribe to the catalog root for page invalidation.
+
+Catalog views obtain layer counts through SQL aggregates. Completion matches recording
+UUID or producer key case-insensitively in SQL, orders UUIDs, and fetches at most 101
+values. It returns 100 suggestions with `hasMore` and omits the total when more exist.
+The shared workbench requests one page at a time through its Previous and Next controls.
+This resource envelope is part of the coordinated foundations installation upgrade;
+clients must deploy together, with no array-response adapter.
 
 A producer Blueprint remains confined staging while its recording is live. The
 idempotent seal path validates its application, Blueprint identity, message count,
@@ -149,7 +168,8 @@ durable capture bytes are not modified by this browser adapter.
 | Path | Responsibility |
 |---|---|
 | `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
-| `service.rs` | visibility, playback plans, sealing, properties publication, and catalog revision |
+| `service.rs` | playback plans, sealing, properties publication, and catalog revision |
+| `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
 | `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |
 | `service/projection.rs` | request validation, receipts, concurrency, scratch, and Arrow download |
 | `blueprint_cache.rs` | server-owned Blueprint validation for the shared RRD cache |
@@ -159,6 +179,12 @@ durable capture bytes are not modified by this browser adapter.
 | `bin/server.rs` | thin HTTP, gRPC-Web, readiness, diagnostics, and MCP composition |
 
 ## Validation
+
+The native `tests/catalog_queries.rs` fixture proves pagination beyond 500 records,
+timestamp tie handling, label and tenant rejection before limits, current-clearance
+rechecks, bounded SQL completion, and layer counts. It requires the pinned disposable
+SurrealDB image and no GPU. Shared workbench tests provide browser behavioral evidence
+for page navigation and notification refresh.
 
 Focused component evidence includes deterministic RRD normalization and Arrow bytes,
 cache corruption and eviction behavior, scratch cleanup, manifest v9 rejection of other

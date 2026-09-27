@@ -1,10 +1,7 @@
-//! Catalog visibility and confined read access shared with the Recording service.
+//! Confined read access and recording identity shared with the Recording service.
 use anyhow::{Context, Result, ensure};
-use std::{
-    collections::BTreeSet,
-    path::{Component, Path, PathBuf},
-};
-use veoveo_platform_store::{RecordId, RecordIdKey, RecordingRecord};
+use std::path::{Component, Path, PathBuf};
+use veoveo_platform_store::{RecordId, RecordIdKey};
 use veoveo_rrd::ingest_parts::ingest_segment_parts_directory;
 
 pub fn authorized_live_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf> {
@@ -51,17 +48,6 @@ pub fn confined_layer_path(spool_root: &Path, relative: &str) -> Result<PathBuf>
         "recording layer path must be a normalized relative path"
     );
     Ok(spool_root.join(relative))
-}
-
-pub fn labels_visible<'a>(
-    recording: &RecordingRecord,
-    clearance: impl IntoIterator<Item = &'a str>,
-) -> bool {
-    let clearance: BTreeSet<&str> = clearance.into_iter().collect();
-    recording
-        .labels
-        .iter()
-        .all(|label| clearance.contains(label.as_str()))
 }
 
 pub fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {

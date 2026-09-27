@@ -39,7 +39,9 @@ and reactive Rerun live following.
 ## Module Boundaries
 
 - `contract.rs` owns recording, layer, seal, and playback-manifest types.
-- `service.rs` owns visibility, playback plans, sealing, and properties publication.
+- `service.rs` owns playback plans, sealing, and properties publication.
+- `service/index.rs` assembles SQL-authorized catalog pages, direct reads, and completions;
+  `index.rs` owns versioned catalog cursors. SQL applies tenant and label predicates before limits.
 - [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
 - `service/projection.rs` owns projection receipts and bounded scratch.
 - The shared reader cache owns verified Artifact-to-PVC materialization and eviction;
@@ -67,7 +69,7 @@ Contract revision: 2
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: met — catalog reads return 100-item cursor pages; SQL filters visibility and completion matches before limits
 - C05: met
 - C06: met
 - C07: met
@@ -91,7 +93,7 @@ Contract revision: 2
 - C25: met
 - C26: met
 - C27: met — authenticated catalog subscriptions and visibility-checked recording/layer subscriptions share the Store LIVE source
-- C28: met
+- C28: met — discovery contains static roots and templates; mutations invalidate contents, and the workbench reads one catalog page at a time
 - C29: met
 - C30: met — the endpoint is connection-stateless and derives no durable or domain authority from an MCP transport session
 - C31: pending — installed Discover and list readiness qualification is pending

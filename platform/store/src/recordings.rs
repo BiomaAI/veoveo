@@ -11,8 +11,10 @@ use crate::{
 };
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
-const MAX_RECORDING_LIMIT: u32 = 500;
 const MAX_RECORDING_LAYER_LIMIT: u32 = 10_000;
+
+mod reads;
+pub use reads::{RecordingCursor, RecordingLayerCounts, RecordingReadScope};
 
 #[derive(Clone, Debug)]
 pub struct RecordingDraft {
@@ -199,27 +201,6 @@ impl PlatformStore {
             .check()?;
         let records: Vec<RecordingRecord> = response.take(0)?;
         Ok(records.into_iter().next())
-    }
-
-    pub async fn list_recordings(
-        &self,
-        tenant_id: TenantId,
-        limit: u32,
-    ) -> Result<Vec<RecordingRecord>, StoreError> {
-        if limit == 0 || limit > MAX_RECORDING_LIMIT {
-            return Err(StoreError::InvalidRecordingField {
-                field: "limit",
-                reason: "must be in 1..=500",
-            });
-        }
-        let mut response = self
-            .db
-            .query("SELECT * FROM recording WHERE tenant = $tenant ORDER BY started_at DESC LIMIT $limit;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("limit", i64::from(limit)))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
     }
 
     pub async fn finish_recording(

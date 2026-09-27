@@ -473,7 +473,7 @@ The only durable platform persistence layer.
 | `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
 | `map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
 | `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
-| `recordings.rs` | recording lifecycle and visibility |
+| `recordings.rs`, `recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
 | `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media and Optimization resource hubs |
@@ -641,6 +641,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
+| `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/bin/server/usage_index.rs` | authorization-filtered usage discovery with stable task ordering and opaque cursors |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |

@@ -18,8 +18,10 @@
 Recording Hub or Recording MCP dependency. Service startup, producer ingest, sealing,
 Redap, projection and playback lifecycle stay in their owning services.
 
-`access.rs` holds the shared visibility and path-confinement rules. `read.rs` resolves
-the actor's tenant, checks recording labels, loads a bounded catalog layer set, and
+`access.rs` holds path-confinement and record-identity checks. `read.rs` resolves
+the actor's tenant and calls the Store's shared Recording read query. SQL requires
+that tenant and all recording labels in the actor's clearance before returning a row.
+The reader then loads a bounded catalog layer set and
 materializes committed layers through the cache. Complete acknowledged live parts are
 copied into task-local storage and rechecked against their captured length and digest.
 The plan holds cache leases for its lifetime.

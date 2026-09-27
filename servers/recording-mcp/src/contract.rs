@@ -32,6 +32,13 @@ pub struct RecordingView {
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
+pub struct RecordingCatalogPage {
+    pub items: Vec<RecordingView>,
+    pub limit: usize,
+    pub next_cursor: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct LayerView {
     pub layer_id: String,
     pub layer_name: String,
