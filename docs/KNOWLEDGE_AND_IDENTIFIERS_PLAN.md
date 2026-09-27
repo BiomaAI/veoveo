@@ -46,6 +46,22 @@ state after this file is gone.
 - Delete superseded plans as you go, following Phase 0.
 - GPU workloads request their device and fail closed. The embedding path has no CPU
   mode.
+- Keep the standards registers current. Add a standard to them in the change that
+  implements it, never earlier, because each register lists what Veoveo implements.
+
+## Standards Registers
+
+Four documents list the standards and protocols Veoveo implements. Owning designs keep
+their own Standards And Protocols sections, and these registers summarize them:
+
+| Register | Scope |
+|---|---|
+| `README.md` § Standards And Protocols | Product-level areas |
+| `docs/TECH_DESIGN.md` § Standards And Protocols | Cross-component standards and their supported subsets |
+| `docs/ARCHITECTURE_DECISIONS.md` § Standards And Protocols | Architecture boundaries |
+| `docs/architecture/catalogs/interfaces-and-protocols.csv` | Interface model; run `render.py` and `validate.py` after editing, as `docs/architecture/README.md` describes |
+
+Each phase below names the register updates it owns.
 
 ## Phase 0: Retire Finished Plans
 
@@ -149,6 +165,10 @@ its data, so none of them needs a migration:
    in `AGENTS.md`.
 6. Update the identifier rows in `mcp/contract/DESIGN.md`,
    `mcp/apps-extension/DESIGN.md`, and `deploy/contract/DESIGN.md`.
+7. Rename the identifiers in the standards registers: the Optimization row in
+   `README.md`, the cuOpt row in `docs/TECH_DESIGN.md`, the travel-model and executor
+   references in `docs/ARCHITECTURE_DECISIONS.md`, and interfaces `VV-IF-041` and
+   `VV-IF-042` in `interfaces-and-protocols.csv`.
 
 ### Reference installation reset
 
@@ -253,6 +273,12 @@ the affected compliance entries.
    observation only to declaring callers.
 7. In `agents/kernel/src/resource.rs`, keep the observation beside each admitted item
    and render one provenance line per item inside the existing budgets.
+8. Update the standards registers. Add `ai.veoveo/knowledge-source` to the agent and
+   app interfaces row in `README.md`. Add a `docs/TECH_DESIGN.md` row for the extension
+   with its RFC 9110 validator, RFC 9111 freshness, and RFC 8246 immutability
+   semantics. Add the extension to the MCP row in `docs/ARCHITECTURE_DECISIONS.md`.
+   Add an interface row for gateway-ledgered knowledge reads to
+   `interfaces-and-protocols.csv`.
 
 Acceptance:
 
@@ -298,6 +324,11 @@ gateway ledger records reads of each collection.
 6. Add the Helm chart, GPU request, gateway registration, and offline image entry.
 7. Build an evaluation set from the Phase 5 collections, and record recall at 10 for
    the chosen chunk settings in the index generation.
+8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
+   3, W3C PROV-O, and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
+   rows for DCAT 3, PROV-O, SurrealDB `FULLTEXT` and `HNSW` indexes, and the fastembed
+   and candle profile. Add `knowledge-mcp` to `software-components.csv` and its search,
+   catalog, and source-read interfaces to `interfaces-and-protocols.csv`.
 
 Acceptance:
 
