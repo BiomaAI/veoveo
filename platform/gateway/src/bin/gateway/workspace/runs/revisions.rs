@@ -1,7 +1,7 @@
 //! Only a chat owner can inspect and adopt a participant's executable revision.
 use super::*;
 use axum::extract::Query;
-use veoveo_mcp_contract::Sha256Digest;
+use veoveo_types::Sha256Digest;
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]

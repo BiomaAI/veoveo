@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     authority::LeapSecondTable,
-    catalog::{TimeCatalog, TimeScope},
+    catalog::{TimeAccessContext, TimeCatalog},
     contract::{
         AuthorityDatasetKind, AuthorityRelease, AuthorityReleaseId, AuthorityReleaseState,
         TimeAcquisition, TimeAcquisitionId, TimeAcquisitionStatus, TimeSource,
@@ -63,7 +63,7 @@ impl AcquisitionService {
 
     pub async fn start(
         &self,
-        scope: TimeScope,
+        scope: TimeAccessContext,
         source: TimeSource,
         expected_digest: Option<String>,
         idempotency_key: String,
@@ -172,7 +172,7 @@ impl AcquisitionService {
 
     pub async fn cancel(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TimeAcquisitionId,
     ) -> Result<TimeAcquisition> {
         let mut acquisition = self
@@ -199,7 +199,7 @@ impl AcquisitionService {
 
     async fn run(
         &self,
-        scope: TimeScope,
+        scope: TimeAccessContext,
         source: TimeSource,
         acquisition_id: TimeAcquisitionId,
         expected_digest: Option<String>,
@@ -389,7 +389,7 @@ impl AcquisitionService {
 
     async fn progress(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TimeAcquisitionId,
         status: TimeAcquisitionStatus,
         phase: &str,

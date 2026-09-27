@@ -79,7 +79,7 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
             "storage" => template.workload.storage_gib += 1,
             "config" => {
                 template.workload.config_digest =
-                    veoveo_mcp_contract::Sha256Digest::from_hex("d".repeat(64)).unwrap()
+                    veoveo_types::Sha256Digest::from_hex("d".repeat(64)).unwrap()
             }
             "authority" => {
                 template.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer

@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::Sha256Digest;
+use veoveo_types::Sha256Digest;
 
 use super::{
     AuthorityDatasetKind, AuthorityReleaseId, MissionEpochId, TimeAcquisitionId,

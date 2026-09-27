@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 use surrealdb::types::ToSql;
 
-use veoveo_mcp_contract::{Sha256Digest, WorkContextId, agent_management as wire};
+use veoveo_mcp_contract::{WorkContextId, agent_management as wire};
 use veoveo_mcp_gateway::GatewayCatalog;
 use veoveo_platform_store::{
     RecordId, RecordIdKey, agent_management as domain, deterministic_work_context_id,
 };
+use veoveo_types::Sha256Digest;
 
 use super::{AgentManagementState, Fault, authority::Admission};
 

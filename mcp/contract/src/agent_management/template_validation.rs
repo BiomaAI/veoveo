@@ -1,7 +1,8 @@
 use super as wire;
-use crate::{GatewayControlPlane, Principal, Sha256Digest, WorkContextId};
+use crate::{GatewayControlPlane, Principal, WorkContextId};
 use anyhow::{Context, Result, ensure};
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_types::Sha256Digest;
 
 impl wire::RuntimeTemplate {
     pub fn validate(&self, catalog: &GatewayControlPlane) -> Result<()> {

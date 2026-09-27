@@ -6,13 +6,15 @@
 |---|---|
 | JSON | Names and resource references serialize as strings; deserialization applies their constructors |
 | JSON Schema 2020-12 | Schemars emits string schemas; runtime validators apply the lexical rules below |
-| OAuth 2.0 scope values | `ScopeName` carries the repository's nonempty token profile without whitespace or control characters; it does not enumerate an authorization server's vocabulary or establish a grant |
+| [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `scope_enum!` declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | Rust extension interfaces | Public `ScopeDefinition` and `ResourceAddress` traits permit implementations in independent libraries |
+| SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
 
 ## Ownership And Dependencies
 
-`veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError`.
+`veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
+`Sha256Digest`, and `Sha256DigestError`.
 It depends on Serde and Schemars. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
 
@@ -30,6 +32,14 @@ name or reference a domain contract.
 
 ## Wire Behavior
 
+`scope_enum!` generates a domain enum from its owner's variant-to-spelling declaration.
+Its parser, serializer, schema, display, and `ScopeDefinition` implementation use that
+same declaration. Duplicate spellings and values outside the OAuth scope-token grammar
+fail compilation. Consumers need Serde and Schemars. A domain may also
+implement the public trait directly.
+Schema identities include the declaring module, so independently owned enums with
+the same Rust name keep distinct definitions in a combined schema.
+
 `ScopeName` preserves its input spelling. Its constructor accepts scopes unknown to
 Veoveo core; the owning domain determines which names its code understands.
 `ResourceScheme` requires a lowercase ASCII letter followed by lowercase ASCII
@@ -46,6 +56,10 @@ contract features are tracked in the
 `IdentifierError` carries an invalid public identifier and a static validation rule.
 Callers must not put credentials or secret material into it. Its display format is
 shared with identifier validation in higher layers.
+
+`Sha256Digest` preserves the canonical prefixed spelling and emits the corresponding
+JSON Schema pattern. Its `from_hex` constructor accepts the unprefixed lowercase
+digest produced by hashing libraries; serialization includes the `sha256:` prefix.
 
 ## Qualification
 

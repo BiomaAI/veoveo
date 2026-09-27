@@ -800,7 +800,7 @@ mod tests {
             release_id,
             dataset_kind,
             source: TimeAuthoritySource::Bootstrap,
-            source_digest: veoveo_mcp_contract::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+            source_digest: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
         }
     }
 

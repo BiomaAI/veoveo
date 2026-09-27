@@ -5,7 +5,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     authority::{AuthorityContext, LeapSecondTable},
-    catalog::{TimeCatalog, TimeScope},
+    catalog::{TimeAccessContext, TimeCatalog},
     contract::{AuthorityDatasetKind, AuthorityReleaseId, EffectiveTimeAuthority},
     engine::TemporalEngine,
 };
@@ -33,7 +33,7 @@ impl AuthorityRegistry {
     }
 
     /// Authority-only operations do not materialize the mission epoch catalog.
-    pub async fn authority_engine(&self, scope: &TimeScope) -> TemporalEngine {
+    pub async fn authority_engine(&self, scope: &TimeAccessContext) -> TemporalEngine {
         let key = scope.tenant_key();
         if let Some(engine) = self.tenants.read().await.get(&key).cloned() {
             engine
@@ -47,7 +47,11 @@ impl AuthorityRegistry {
         }
     }
 
-    pub async fn reload(&self, catalog: &TimeCatalog, scope: &TimeScope) -> Result<TemporalEngine> {
+    pub async fn reload(
+        &self,
+        catalog: &TimeCatalog,
+        scope: &TimeAccessContext,
+    ) -> Result<TemporalEngine> {
         let active = catalog.active_releases(scope).await?;
         let tzdb_release = active
             .iter()
@@ -88,7 +92,7 @@ impl AuthorityRegistry {
     pub async fn preflight_activation(
         &self,
         catalog: &TimeCatalog,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         candidate: &crate::contract::AuthorityRelease,
     ) -> Result<()> {
         let active = catalog.active_releases(scope).await?;

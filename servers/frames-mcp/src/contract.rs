@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     ArtifactMetadata, CoordinateOperationProvenance, CoordinateSpace, FrameWorldId,
     FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri,
-    Sha256Digest, Wgs84Position, WorldFrameUri,
+    Wgs84Position, WorldFrameUri,
 };
+use veoveo_types::Sha256Digest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

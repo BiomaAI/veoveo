@@ -60,7 +60,7 @@ enum Parameters {
     Search(String),
     Activity(operations::ActivityQuery),
     AgentCatalog(runs::CatalogPage),
-    AgentRevision(Option<veoveo_mcp_contract::Sha256Digest>),
+    AgentRevision(Option<veoveo_types::Sha256Digest>),
 }
 
 async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(

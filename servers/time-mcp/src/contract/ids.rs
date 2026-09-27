@@ -8,7 +8,7 @@ macro_rules! public_id {
         #[derive(
             Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
         )]
-        #[serde(transparent)]
+        #[serde(try_from = "String", into = "String")]
         pub struct $name(String);
 
         impl $name {
@@ -44,6 +44,20 @@ macro_rules! public_id {
                 Self::new(value)
             }
         }
+
+        impl TryFrom<String> for $name {
+            type Error = String;
+
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                Self::new(value)
+            }
+        }
+
+        impl From<$name> for String {
+            fn from(value: $name) -> Self {
+                value.0
+            }
+        }
     };
 }
 
@@ -63,6 +77,10 @@ pub struct TimeAuthorityReleaseUri(String);
 impl TimeAuthorityReleaseUri {
     const PREFIX: &'static str = "time://authorities/releases/";
 
+    /// ```compile_fail
+    /// use veoveo_time_mcp::contract::{CalendarId, TimeAuthorityReleaseUri};
+    /// TimeAuthorityReleaseUri::new(&CalendarId::new("calendar-example").unwrap());
+    /// ```
     pub fn new(release_id: &AuthorityReleaseId) -> Self {
         Self(format!("{}{release_id}", Self::PREFIX))
     }

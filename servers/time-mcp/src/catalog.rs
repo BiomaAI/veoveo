@@ -1,7 +1,6 @@
 mod pages;
 
 use anyhow::{Context, Result, bail};
-use veoveo_mcp_contract::Sha256Digest;
 use veoveo_platform_store::{
     PlatformIdentity, PlatformStore, TimeAcquisitionDraft, TimeAcquisitionRecord,
     TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
@@ -11,6 +10,7 @@ use veoveo_platform_store::{
     TimeSourceRecord, TimeTemporalEventDraft, TimeTemporalEventRecord,
     TimeTemporalEventState as StoreEventState,
 };
+use veoveo_types::Sha256Digest;
 
 use crate::contract::{
     AuthorityRelease, AuthorityReleaseState, CalendarId, ClockQualityPolicy, MissionEpoch,
@@ -20,11 +20,11 @@ use crate::contract::{
 };
 
 #[derive(Clone, Debug)]
-pub struct TimeScope {
+pub struct TimeAccessContext {
     pub identity: PlatformIdentity,
 }
 
-impl TimeScope {
+impl TimeAccessContext {
     pub fn tenant_key(&self) -> String {
         self.identity.tenant_id.to_string()
     }
@@ -46,7 +46,7 @@ impl TimeCatalog {
 
     pub async fn create_source(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         mut source: TimeSource,
     ) -> Result<TimeSource> {
         source.record_version = 1;
@@ -69,7 +69,7 @@ impl TimeCatalog {
 
     pub async fn replace_source(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         mut source: TimeSource,
         expected: u64,
     ) -> Result<TimeSource> {
@@ -94,7 +94,11 @@ impl TimeCatalog {
         source_from_record(record)
     }
 
-    pub async fn source(&self, scope: &TimeScope, id: &TimeSourceId) -> Result<Option<TimeSource>> {
+    pub async fn source(
+        &self,
+        scope: &TimeAccessContext,
+        id: &TimeSourceId,
+    ) -> Result<Option<TimeSource>> {
         self.store
             .time_source(scope.identity.tenant_id, id.as_str())
             .await?
@@ -102,7 +106,7 @@ impl TimeCatalog {
             .transpose()
     }
 
-    pub async fn list_sources(&self, scope: &TimeScope) -> Result<Vec<TimeSource>> {
+    pub async fn list_sources(&self, scope: &TimeAccessContext) -> Result<Vec<TimeSource>> {
         self.store
             .list_time_sources(scope.identity.tenant_id)
             .await?
@@ -113,7 +117,7 @@ impl TimeCatalog {
 
     pub async fn create_release(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         release: AuthorityRelease,
     ) -> Result<AuthorityRelease> {
         let canonical_json = serde_json::to_string(&release)?;
@@ -139,7 +143,7 @@ impl TimeCatalog {
 
     pub async fn release(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &crate::contract::AuthorityReleaseId,
     ) -> Result<Option<AuthorityRelease>> {
         self.store
@@ -149,7 +153,7 @@ impl TimeCatalog {
             .transpose()
     }
 
-    pub async fn list_releases(&self, scope: &TimeScope) -> Result<Vec<AuthorityRelease>> {
+    pub async fn list_releases(&self, scope: &TimeAccessContext) -> Result<Vec<AuthorityRelease>> {
         self.store
             .list_time_authority_releases(scope.identity.tenant_id)
             .await?
@@ -160,7 +164,7 @@ impl TimeCatalog {
 
     pub async fn activate_release(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &crate::contract::AuthorityReleaseId,
         expected_release: u64,
         expected_pointer: u64,
@@ -188,7 +192,10 @@ impl TimeCatalog {
         release_from_record(record)
     }
 
-    pub async fn active_releases(&self, scope: &TimeScope) -> Result<Vec<AuthorityRelease>> {
+    pub async fn active_releases(
+        &self,
+        scope: &TimeAccessContext,
+    ) -> Result<Vec<AuthorityRelease>> {
         let pointers = self
             .store
             .list_active_time_authorities(scope.identity.tenant_id)
@@ -208,7 +215,7 @@ impl TimeCatalog {
 
     pub async fn authority_reference(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         release: &AuthorityRelease,
     ) -> Result<TimeAuthorityReference> {
         let acquisition = self
@@ -243,7 +250,7 @@ impl TimeCatalog {
 
     pub async fn create_acquisition(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         acquisition: TimeAcquisition,
         idempotency_key: String,
     ) -> Result<TimeAcquisition> {
@@ -270,7 +277,7 @@ impl TimeCatalog {
 
     pub async fn acquisition(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TimeAcquisitionId,
     ) -> Result<Option<TimeAcquisition>> {
         self.store
@@ -282,7 +289,7 @@ impl TimeCatalog {
 
     pub async fn acquisition_for_release(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         release_id: &crate::contract::AuthorityReleaseId,
     ) -> Result<Option<TimeAcquisition>> {
         self.store
@@ -294,7 +301,7 @@ impl TimeCatalog {
 
     pub async fn acquisition_for_idempotency(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         idempotency_key: &str,
     ) -> Result<Option<TimeAcquisition>> {
         self.store
@@ -308,7 +315,10 @@ impl TimeCatalog {
             .transpose()
     }
 
-    pub async fn list_acquisitions(&self, scope: &TimeScope) -> Result<Vec<TimeAcquisition>> {
+    pub async fn list_acquisitions(
+        &self,
+        scope: &TimeAccessContext,
+    ) -> Result<Vec<TimeAcquisition>> {
         self.store
             .list_time_acquisitions(scope.identity.tenant_id)
             .await?
@@ -319,7 +329,7 @@ impl TimeCatalog {
 
     pub async fn update_acquisition(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         mut acquisition: TimeAcquisition,
     ) -> Result<TimeAcquisition> {
         let expected = acquisition.record_version;
@@ -346,7 +356,7 @@ impl TimeCatalog {
 
     pub async fn create_calendar(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         calendar: OperationalCalendar,
     ) -> Result<OperationalCalendar> {
         let canonical_json = serde_json::to_string(&calendar)?;
@@ -367,7 +377,7 @@ impl TimeCatalog {
 
     pub async fn calendar(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &CalendarId,
         version: u64,
     ) -> Result<Option<OperationalCalendar>> {
@@ -383,7 +393,7 @@ impl TimeCatalog {
 
     pub async fn create_epoch(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         epoch: MissionEpoch,
     ) -> Result<MissionEpoch> {
         let canonical_json = serde_json::to_string(&epoch)?;
@@ -404,7 +414,7 @@ impl TimeCatalog {
 
     pub async fn epoch(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &crate::contract::MissionEpochId,
     ) -> Result<Option<MissionEpoch>> {
         self.store
@@ -419,7 +429,7 @@ impl TimeCatalog {
 
     pub async fn create_event(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         event: TemporalEvent,
         idempotency_key: String,
     ) -> Result<TemporalEvent> {
@@ -442,7 +452,7 @@ impl TimeCatalog {
 
     pub async fn event(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TemporalEventId,
     ) -> Result<Option<TemporalEvent>> {
         self.store
@@ -454,7 +464,7 @@ impl TimeCatalog {
 
     pub async fn cancel_event(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TemporalEventId,
         expected: u64,
     ) -> Result<TemporalEvent> {
@@ -479,7 +489,7 @@ impl TimeCatalog {
 
     pub async fn mark_event_due(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         id: &TemporalEventId,
         expected: u64,
     ) -> Result<TemporalEvent> {
@@ -507,7 +517,7 @@ impl TimeCatalog {
 
     pub async fn clock_policy(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
     ) -> Result<Option<(ClockQualityPolicy, u64)>> {
         Ok(self
             .store
@@ -528,7 +538,7 @@ impl TimeCatalog {
 
     pub async fn replace_clock_policy(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         policy: ClockQualityPolicy,
         expected: u64,
     ) -> Result<(ClockQualityPolicy, u64)> {

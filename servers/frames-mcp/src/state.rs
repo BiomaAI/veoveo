@@ -266,7 +266,7 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
         revision_id,
         revision_uri: revision_uri.clone(),
         revision: u64::try_from(record.revision).context("negative frame world revision")?,
-        spec_digest: veoveo_mcp_contract::Sha256Digest::from_hex(record.spec_sha256)?,
+        spec_digest: veoveo_types::Sha256Digest::from_hex(record.spec_sha256)?,
         root_frame_uri: WorldFrameUri::new(&revision_uri, &root_frame_id),
         tree: serde_json::from_value(value_from_object(record.definition))
             .context("decoding frame world revision")?,

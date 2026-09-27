@@ -219,7 +219,7 @@ pub struct AgentDefinition {
     pub description: String,
     pub provider: String,
     pub model: String,
-    pub revision: crate::Sha256Digest,
+    pub revision: veoveo_types::Sha256Digest,
     pub tools: Vec<crate::GatewayToolName>,
 }
 
@@ -238,7 +238,7 @@ pub struct ChatAgent {
     pub name: String,
     pub provider: String,
     pub model: String,
-    pub revision: crate::Sha256Digest,
+    pub revision: veoveo_types::Sha256Digest,
     pub active: bool,
 }
 
@@ -307,25 +307,25 @@ pub struct AgentActivity {
 pub struct AddAgent {
     pub request_id: uuid::Uuid,
     pub definition: String,
-    pub revision: crate::Sha256Digest,
+    pub revision: veoveo_types::Sha256Digest,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateChatAgent {
     pub request_id: uuid::Uuid,
-    pub expected_revision: crate::Sha256Digest,
-    pub revision: crate::Sha256Digest,
+    pub expected_revision: veoveo_types::Sha256Digest,
+    pub revision: veoveo_types::Sha256Digest,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AgentRevisionView {
-    pub revision: crate::Sha256Digest,
+    pub revision: veoveo_types::Sha256Digest,
     pub model: crate::agent_management::ModelReference,
     pub tools: Vec<crate::GatewayToolName>,
     pub budgets: crate::agent_management::Budgets,
-    pub instructions_digest: crate::Sha256Digest,
+    pub instructions_digest: veoveo_types::Sha256Digest,
     pub instructions: Option<String>,
     pub published_by: PersonId,
     pub published_by_name: String,

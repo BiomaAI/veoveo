@@ -51,8 +51,7 @@ fn template_parameters_and_public_choices_cannot_select_credentials_or_code() {
     let admitted = templates(&template, &catalog);
     let original_revision = runtime_template_revision(&template);
     let mut changed = template.clone();
-    changed.workload.config_digest =
-        veoveo_mcp_contract::Sha256Digest::from_hex("c".repeat(64)).unwrap();
+    changed.workload.config_digest = veoveo_types::Sha256Digest::from_hex("c".repeat(64)).unwrap();
     assert_ne!(runtime_template_revision(&changed), original_revision);
     assert!(template.accepts_parameters(&BTreeMap::from([(
         "vehicle".into(),

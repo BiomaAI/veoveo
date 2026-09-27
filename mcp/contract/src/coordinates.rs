@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::Sha256Digest;
+use veoveo_types::Sha256Digest;
 
 fn validate_coordinate_id(value: &str) -> Result<(), CoordinateIdError> {
     if value.is_empty() || value.len() > 128 {

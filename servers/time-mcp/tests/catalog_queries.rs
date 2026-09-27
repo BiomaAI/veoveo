@@ -7,14 +7,14 @@ use veoveo_platform_store::{
 use veoveo_time_mcp::{
     AuthorityBinding, AuthorityReleaseId, CalendarId, MissionEpoch, MissionEpochId,
     OperationalCalendar, TemporalEvent, TemporalEventId, TemporalEventState, TimeInstant,
-    catalog::{TimeCatalog, TimeScope},
+    catalog::{TimeAccessContext, TimeCatalog},
 };
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 
-async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeScope {
-    TimeScope {
+async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeAccessContext {
+    TimeAccessContext {
         identity: store
             .ensure_identity(
                 tenant,
@@ -40,7 +40,7 @@ fn instant() -> TimeInstant {
     }
 }
 
-async fn event(catalog: &TimeCatalog, owner: &TimeScope, key: &str) -> TemporalEvent {
+async fn event(catalog: &TimeCatalog, owner: &TimeAccessContext, key: &str) -> TemporalEvent {
     catalog
         .create_event(
             owner,

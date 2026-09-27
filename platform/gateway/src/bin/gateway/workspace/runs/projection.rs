@@ -11,7 +11,7 @@ pub(super) fn agent(value: stored::WorkspaceAgent) -> Result<wire::ChatAgent, St
         provider: value.provider,
         model: value.model,
         active: value.active,
-        revision: veoveo_mcp_contract::Sha256Digest::from_hex(&value.definition_digest)
+        revision: veoveo_types::Sha256Digest::from_hex(&value.definition_digest)
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?,
     })
 }

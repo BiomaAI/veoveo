@@ -11,7 +11,7 @@ use veoveo_task_runtime::{TaskOwner, TaskRuntime};
 
 use crate::{
     acquisition::AcquisitionService,
-    catalog::{TimeCatalog, TimeScope},
+    catalog::{TimeAccessContext, TimeCatalog},
     clock::ClockMonitor,
     engine::TemporalEngine,
     registry::AuthorityRegistry,
@@ -31,7 +31,7 @@ pub struct TimeApplication {
 }
 
 impl TimeApplication {
-    pub async fn scope(&self, identity: &GatewayInternalIdentity) -> Result<TimeScope> {
+    pub async fn scope(&self, identity: &GatewayInternalIdentity) -> Result<TimeAccessContext> {
         let tenant_key = identity
             .actor
             .tenant
@@ -52,12 +52,12 @@ impl TimeApplication {
                 },
             )
             .await?;
-        Ok(TimeScope {
+        Ok(TimeAccessContext {
             identity: platform_identity,
         })
     }
 
-    pub async fn scope_from_task_owner(&self, owner: &TaskOwner) -> Result<TimeScope> {
+    pub async fn scope_from_task_owner(&self, owner: &TaskOwner) -> Result<TimeAccessContext> {
         let identity = self
             .tasks
             .platform_store()
@@ -72,16 +72,16 @@ impl TimeApplication {
                 },
             )
             .await?;
-        Ok(TimeScope { identity })
+        Ok(TimeAccessContext { identity })
     }
 
-    pub async fn engine(&self, scope: &TimeScope) -> TemporalEngine {
+    pub async fn engine(&self, scope: &TimeAccessContext) -> TemporalEngine {
         self.authorities.authority_engine(scope).await
     }
 
     pub async fn engine_for_expressions<'a>(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         expressions: impl IntoIterator<Item = &'a crate::contract::TimeExpression>,
     ) -> Result<TemporalEngine> {
         let mut keys = BTreeSet::new();
@@ -105,7 +105,7 @@ impl TimeApplication {
         Ok(engine)
     }
 
-    pub async fn restore_event_watchers(self: &Arc<Self>, scope: &TimeScope) -> Result<()> {
+    pub async fn restore_event_watchers(self: &Arc<Self>, scope: &TimeAccessContext) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(60), async {
             let mut after = None;
             loop {
@@ -132,7 +132,7 @@ impl TimeApplication {
 
     pub async fn schedule_event(
         self: &Arc<Self>,
-        scope: TimeScope,
+        scope: TimeAccessContext,
         event: crate::contract::TemporalEvent,
     ) -> Result<()> {
         if event.state != crate::contract::TemporalEventState::Scheduled {
@@ -193,7 +193,7 @@ impl TimeApplication {
 
     pub async fn cancel_event_watcher(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         event_id: &crate::contract::TemporalEventId,
     ) {
         let key = format!("{}:{event_id}", scope.tenant_key());

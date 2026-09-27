@@ -4,6 +4,9 @@ use clap::Parser;
 use secrecy::SecretString;
 use veoveo_mcp_contract::{PublicDeployment, parse_allowed_host_authority};
 use veoveo_task_runtime::StoreAuthLevel;
+use veoveo_types::{ScopeDefinition, ScopeName};
+
+use crate::contract::TimeScope;
 
 #[derive(Parser)]
 #[command(name = "server", about = "Time MCP and administrative server")]
@@ -48,8 +51,8 @@ pub(super) struct Args {
     pub allow_loopback_hosts: bool,
     #[arg(long = "allowed-host", value_name = "HOST", value_parser = parse_allowed_host)]
     pub allowed_hosts: Vec<String>,
-    #[arg(long, default_value = "time:admin")]
-    pub admin_scope: String,
+    #[arg(long, default_value_t = TimeScope::Admin.name().clone())]
+    pub admin_scope: ScopeName,
     #[arg(long = "surreal-endpoint", env = "VEOVEO_SURREAL_ENDPOINT")]
     pub surreal_endpoint: String,
     #[arg(long = "surreal-namespace", env = "VEOVEO_SURREAL_NAMESPACE")]
@@ -89,4 +92,47 @@ fn parse_allowed_host(value: &str) -> Result<String, String> {
     parse_allowed_host_authority(value)
         .map(|_| value.to_owned())
         .ok_or_else(|| "expected a host authority such as time-mcp:8800".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(extra: &[&str]) -> Result<Args, clap::Error> {
+        let mut argv = vec![
+            "time-mcp",
+            "--public-base-url",
+            "https://time.example",
+            "--surreal-endpoint",
+            "ws://127.0.0.1:1",
+            "--surreal-namespace",
+            "fixture",
+            "--surreal-database",
+            "fixture",
+            "--surreal-auth-level",
+            "database",
+            "--surreal-username",
+            "fixture",
+            "--surreal-password",
+            "fixture-only",
+            "--internal-trust-jwks",
+            "{}",
+        ];
+        argv.extend(extra);
+        Args::try_parse_from(argv)
+    }
+
+    #[test]
+    fn administrative_scope_defaults_to_the_domain_and_accepts_valid_installation_names() {
+        assert_eq!(args(&[]).unwrap().admin_scope, *TimeScope::Admin.name());
+        assert_eq!(
+            args(&["--admin-scope", "installation:time-admin"])
+                .unwrap()
+                .admin_scope
+                .as_str(),
+            "installation:time-admin"
+        );
+        assert!(args(&["--admin-scope", ""]).is_err());
+        assert!(args(&["--admin-scope", "two scopes"]).is_err());
+    }
 }

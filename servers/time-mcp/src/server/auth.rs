@@ -5,6 +5,9 @@ use axum::{
     response::IntoResponse,
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier};
+use veoveo_types::{ScopeDefinition, ScopeName};
+
+use crate::contract::TimeScope;
 
 #[derive(Clone)]
 pub(crate) struct ForwardedBearer;
@@ -14,7 +17,7 @@ pub(super) struct InternalAuthState {
 }
 #[derive(Clone)]
 pub(super) struct AdminAuthState {
-    pub required_scope: String,
+    pub required_scope: ScopeName,
 }
 
 pub(super) async fn authenticate_internal(
@@ -48,17 +51,28 @@ pub(super) async fn authorize_admin(
     let allowed = request
         .extensions()
         .get::<GatewayInternalIdentity>()
-        .is_some_and(|identity| {
-            identity
-                .actor
-                .scopes
-                .iter()
-                .any(|scope| scope.as_str() == state.required_scope)
-        });
+        .is_some_and(|identity| identity.actor.scopes.contains(&state.required_scope));
     if !allowed {
         return (StatusCode::FORBIDDEN, "time administrative scope required").into_response();
     }
     next.run(request).await
+}
+
+pub(crate) fn require_scope(
+    grants: &std::collections::BTreeSet<ScopeName>,
+    required: TimeScope,
+) -> Result<(), rmcp::ErrorData> {
+    grants
+        .contains(required.name())
+        .then_some(())
+        .ok_or_else(|| {
+            rmcp::ErrorData::invalid_request(
+                format!(
+                    "You don't have permission to make this request. Missing scope `{required}`."
+                ),
+                None,
+            )
+        })
 }
 
 fn bearer_token(header: &str) -> Option<&str> {
@@ -67,4 +81,28 @@ fn bearer_token(header: &str) -> Option<&str> {
         && !token.is_empty()
         && !token.chars().any(char::is_whitespace))
     .then_some(token)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn typed_scope_admission_preserves_independent_grants_and_denials() {
+        let mut grants = BTreeSet::from([
+            ScopeName::new("unrelated-server:custom").unwrap(),
+            TimeScope::Read.into(),
+            TimeScope::Schedule.into(),
+        ]);
+        for scope in TimeScope::ALL {
+            assert_eq!(
+                require_scope(&grants, *scope).is_ok(),
+                matches!(scope, TimeScope::Read | TimeScope::Schedule)
+            );
+        }
+        grants.remove(TimeScope::Schedule.name());
+        assert!(require_scope(&grants, TimeScope::Schedule).is_err());
+        assert!(require_scope(&BTreeSet::new(), TimeScope::Read).is_err());
+    }
 }

@@ -128,7 +128,7 @@ async fn cancel(
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RevisionTarget {
-    revision: Option<veoveo_mcp_contract::Sha256Digest>,
+    revision: Option<veoveo_types::Sha256Digest>,
 }
 async fn preview_revision(
     State(state): State<AppState>,

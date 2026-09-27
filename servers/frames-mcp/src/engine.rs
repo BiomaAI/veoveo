@@ -260,7 +260,7 @@ mod tests {
             revision_id,
             revision_uri: revision_uri.clone(),
             revision: 1,
-            spec_digest: veoveo_mcp_contract::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+            spec_digest: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
             root_frame_uri: WorldFrameUri::new(&revision_uri, &FrameId::new("earth-ecef").unwrap()),
             tree: FrameWorldTree {
                 frames: vec![

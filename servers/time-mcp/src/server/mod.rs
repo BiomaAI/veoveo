@@ -243,8 +243,7 @@ async fn bootstrap_authority_reference(
             source_path.display()
         )
     })?;
-    let source_digest =
-        veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(Sha256::digest(source)))?;
+    let source_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(source)))?;
     Ok(TimeAuthorityReference {
         release_uri: TimeAuthorityReleaseUri::new(&release_id),
         version_label: release_id.to_string(),

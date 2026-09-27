@@ -82,6 +82,36 @@ boundary.
 
 ## Architecture
 
+### Library Features
+
+The server library owns the public `contract` module. Consumers select
+`default-features = false, features = ["contract"]` to reuse temporal IDs, DTOs,
+authority references, and the `TimeScope` enum. This feature depends on
+`veoveo-types`, Serde, Schemars, and Chrono's date/time representation with clock
+support disabled. It includes no MCP transport, asynchronous runtime, database
+client, acquisition engine, or provider dependency.
+
+`runtime` adds the temporal engine, catalog, acquisition service, clock observation,
+and application state. `mcp` adds the HTTP and MCP adapters and enables `runtime`.
+The default feature is `mcp`; the binary requires it. Native catalog tests require
+`runtime`. Contract consumer tests require only `contract`. The runtime still uses
+shared task and identity contracts; only the contract feature promises dependency
+isolation from those components.
+
+`TimeScope` declares read, schedule, timeline, event-write, and administrative wire
+names once through `scope_enum!`. MCP handlers and Task admission use the enum when
+checking authenticated grants. Administrative configuration accepts a validated
+`ScopeName`, allowing installation-defined names, and defaults to `TimeScope::Admin`.
+Unrelated scope names in a caller's grant set remain valid.
+
+Temporal IDs validate their domain prefix, length, and character set during JSON
+deserialization as well as construction. `TimeAccessContext` carries tenant and
+principal selection for database access; it is distinct from an authorization scope.
+Resource builder adoption is tracked in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
+### Hosted Process
+
 ```text
 agent
   |

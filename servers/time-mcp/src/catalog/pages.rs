@@ -1,4 +1,4 @@
-use super::{TimeCatalog, TimeScope, event_from_record};
+use super::{TimeAccessContext, TimeCatalog, event_from_record};
 use crate::{
     contract::{CollectionPage, MissionEpoch, OperationalCalendar, TemporalEvent},
     index, uris,
@@ -9,7 +9,7 @@ use veoveo_platform_store::{TimeEventCursor, TimeTemporalEventState, TimeVersion
 impl TimeCatalog {
     pub async fn calendars_page(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         after: Option<&TimeVersionCursor>,
     ) -> Result<CollectionPage<OperationalCalendar>> {
         let rows = self
@@ -31,7 +31,7 @@ impl TimeCatalog {
     }
     pub async fn epochs_page(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         after: Option<&TimeVersionCursor>,
     ) -> Result<CollectionPage<MissionEpoch>> {
         let rows = self
@@ -52,7 +52,7 @@ impl TimeCatalog {
     }
     pub async fn events_page(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         after: Option<&TimeEventCursor>,
         state: Option<TimeTemporalEventState>,
     ) -> Result<CollectionPage<TemporalEvent>> {
@@ -73,7 +73,7 @@ impl TimeCatalog {
     }
     pub async fn epochs_for_keys(
         &self,
-        scope: &TimeScope,
+        scope: &TimeAccessContext,
         keys: &[String],
     ) -> Result<Vec<MissionEpoch>> {
         anyhow::ensure!(

@@ -1,10 +1,20 @@
 //! Opaque collection cursors and fixed-size resource pages.
 use crate::contract::CollectionPage;
 use anyhow::{Context, Result};
+#[cfg(feature = "mcp")]
 use rmcp::ErrorData as McpError;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 pub(crate) const PAGE_SIZE: usize = 100;
+
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum CursorError {
+    #[error("invalid Time collection cursor")]
+    Invalid,
+    #[cfg(any(feature = "mcp", test))]
+    #[error("expected one Time collection cursor")]
+    ExpectedOne,
+}
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -17,11 +27,11 @@ struct Cursor<T> {
 pub(crate) fn decode<T: DeserializeOwned>(
     root: &str,
     encoded: Option<&str>,
-) -> Result<Option<T>, McpError> {
+) -> Result<Option<T>, CursorError> {
     let Some(encoded) = encoded else {
         return Ok(None);
     };
-    let invalid = || McpError::invalid_params("invalid Time collection cursor", None);
+    let invalid = || CursorError::Invalid;
     if encoded.is_empty() || encoded.len() > 2048 {
         return Err(invalid());
     }
@@ -33,10 +43,11 @@ pub(crate) fn decode<T: DeserializeOwned>(
     Ok(Some(cursor.position))
 }
 
+#[cfg(any(feature = "mcp", test))]
 pub(crate) fn parse<T: DeserializeOwned>(
     uri: &str,
     root: &str,
-) -> Result<Option<Option<T>>, McpError> {
+) -> Result<Option<Option<T>>, CursorError> {
     if uri == root {
         return Ok(Some(None));
     }
@@ -49,7 +60,7 @@ pub(crate) fn parse<T: DeserializeOwned>(
     let encoded = query
         .strip_prefix("cursor=")
         .filter(|value| !value.contains(['&', '=', '?', '#']))
-        .ok_or_else(|| McpError::invalid_params("expected one Time collection cursor", None))?;
+        .ok_or(CursorError::ExpectedOne)?;
     decode(root, Some(encoded)).map(Some)
 }
 
@@ -78,6 +89,7 @@ pub(crate) fn page<R, T, P: Serialize>(
     })
 }
 
+#[cfg(feature = "mcp")]
 pub(crate) fn query_error(error: anyhow::Error) -> McpError {
     if matches!(
         error.downcast_ref::<veoveo_platform_store::StoreError>(),

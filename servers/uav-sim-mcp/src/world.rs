@@ -13,8 +13,7 @@ pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldB
     }
     let encoded = serde_json::to_vec(&revision.tree)
         .context("encoding frame world tree for integrity verification")?;
-    let actual_digest =
-        veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(Sha256::digest(encoded)))?;
+    let actual_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(encoded)))?;
     if actual_digest != revision.spec_digest {
         bail!("world revision tree does not match spec_digest");
     }
@@ -114,7 +113,7 @@ mod tests {
                 },
             ],
         };
-        let spec_digest = veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(Sha256::digest(
+        let spec_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(
             serde_json::to_vec(&tree).unwrap(),
         )))
         .unwrap();

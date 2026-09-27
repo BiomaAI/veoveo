@@ -42,6 +42,12 @@ leap second assumptions.
 
 - `cargo check -p veoveo-time-mcp`
 - `cargo test -p veoveo-time-mcp`
+- `cargo test -p veoveo-time-mcp --no-default-features --features contract` checks
+  public contract validation and compile-fail examples. Qualify dependency isolation
+  with a separately resolved consumer workspace; a workspace-wide build may enable
+  dependencies through other packages.
+- `cargo clippy -p veoveo-time-mcp --no-default-features --features runtime --all-targets -- -D warnings`
+  checks runtime composition independently from the MCP feature.
 - Platform store behavior lives in `platform/store` (`src/time.rs`,
   migrations `0019_time_domain.surql` and
   `0043_time_acquisition_release_index.surql`); run its tests when touching
@@ -62,6 +68,10 @@ leap second assumptions.
 ## Contract Compliance
 
 Contract revision: 3
+
+The library exposes the contract feature and owns its typed scope vocabulary.
+Shared URI builder adoption and installed qualification remain work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

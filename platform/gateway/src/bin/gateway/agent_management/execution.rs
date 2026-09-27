@@ -125,9 +125,9 @@ impl AgentManagementState {
             model: content.model,
             tools: content.tools,
             budgets: content.budgets,
-            instructions_digest: veoveo_mcp_contract::Sha256Digest::from_hex(hex::encode(
-                Sha256::digest(content.instructions.as_bytes()),
-            ))
+            instructions_digest: veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(
+                content.instructions.as_bytes(),
+            )))
             .expect("SHA256"),
             instructions: can_read.then_some(content.instructions),
             published_by: workspace::PersonId(

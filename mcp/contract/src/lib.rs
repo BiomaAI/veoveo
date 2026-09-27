@@ -18,7 +18,6 @@ pub mod bootstrap;
 pub mod catalog;
 pub mod coordinates;
 pub mod deployment;
-pub mod digest;
 pub mod docs;
 pub mod duckdb;
 pub mod gateway;
@@ -97,7 +96,6 @@ pub use deployment::{
     ServiceToServiceTransport, SurrealDbVersion, SurrealStorageEngine, TelemetryCollectorKind,
     TelemetryDeployment, TelemetrySignal, TenantModel, TenantModelKind,
 };
-pub use digest::{Sha256Digest, Sha256DigestError};
 pub use duckdb::{
     DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSqlBuildError, duckdb_quote_identifier,
     duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,

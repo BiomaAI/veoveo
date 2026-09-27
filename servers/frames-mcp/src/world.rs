@@ -5,8 +5,9 @@ use glam::{DMat3, DMat4, DQuat, DVec3};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldRevision, FrameWorldTree,
-    Sha256Digest, Wgs84Position, WorldFrameUri,
+    Wgs84Position, WorldFrameUri,
 };
+use veoveo_types::Sha256Digest;
 
 const MAX_WORLD_FRAMES: usize = 10_000;
 const UNIT_QUATERNION_TOLERANCE: f64 = 1.0e-9;

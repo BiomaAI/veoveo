@@ -115,7 +115,7 @@ library's public contract with its `contract` feature and default features disab
 
 [CE-13](../../docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts)
 defines the accepted separation of foundational types from MCP integration. The
-foundational names and reference types live in `veoveo-types`; consumers import
+foundational names, reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Its `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. URI builder adoption, MCP-specific associations, and server
 feature isolation are implementation work in the
@@ -123,6 +123,8 @@ feature isolation are implementation work in the
 MCP-specific traits associate those types with descriptors, discovery, and hosted-server
 setup. The traits are open to external implementations. A trait implementation establishes
 API structure; hosted conformance and domain tests establish the relevant behavior.
+Server contracts may use the foundation's `scope_enum!` declaration helper to generate
+their scope conversions and schemas from one set of wire spellings.
 
 Handlers, task admission, and configuration defaults share the owning definitions.
 The wire protocol still carries scope strings, and its parser validates them before

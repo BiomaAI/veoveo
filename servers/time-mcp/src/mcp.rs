@@ -27,7 +27,7 @@ use crate::{
         AssessClockRequest, CancelTemporalEventRequest, ClockAssessment, ClockQualityPolicy,
         ConvertTimeOutput, ConvertTimeRequest, CreateTemporalEventRequest, EvaluateWindowsOutput,
         EvaluateWindowsRequest, ExpandScheduleOutput, ExpandScheduleRequest, ResolveTimeOutput,
-        ResolveTimeRequest, TemporalEvent, TemporalEventId, TemporalEventState,
+        ResolveTimeRequest, TemporalEvent, TemporalEventId, TemporalEventState, TimeScope,
         ValidateTimelineOutput, ValidateTimelineRequest,
     },
     prompts::TimePrompt,
@@ -75,7 +75,7 @@ impl TimeMcp {
         Parameters(request): Parameters<ResolveTimeRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:read")?;
+        let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -98,7 +98,7 @@ impl TimeMcp {
         Parameters(request): Parameters<ConvertTimeRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:read")?;
+        let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -120,7 +120,7 @@ impl TimeMcp {
         Parameters(request): Parameters<EvaluateWindowsRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:schedule")?;
+        let identity = require_scope(&context, TimeScope::Schedule)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -145,7 +145,7 @@ impl TimeMcp {
         Parameters(request): Parameters<AssessClockRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:read")?;
+        let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let policy = match request.policy {
             Some(policy) => policy,
@@ -207,7 +207,7 @@ impl TimeMcp {
         Parameters(request): Parameters<CreateTemporalEventRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:event:write")?;
+        let identity = require_scope(&context, TimeScope::EventWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let engine = self.state.engine(&scope).await;
         engine
@@ -264,7 +264,7 @@ impl TimeMcp {
         Parameters(request): Parameters<CancelTemporalEventRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "time:event:write")?;
+        let identity = require_scope(&context, TimeScope::EventWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let event = self
             .state
@@ -387,7 +387,7 @@ impl ServerHandler for TimeMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        require_scope(&context, "time:read")?;
+        require_scope(&context, TimeScope::Read)?;
         let mut resources = root_resources();
         resources.push(
             veoveo_mcp_apps_extension::app_resource(uris::TIMELINE_APP_URI, "timeline")
@@ -431,7 +431,7 @@ impl ServerHandler for TimeMcp {
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
         async {
-        let identity = require_scope(&context, "time:read")?;
+        let identity = require_scope(&context, TimeScope::Read)?;
         let uri = request.uri.as_str();
         // Well-known surface (contract C18, C19): readable by any identity
         // that can list resources.
@@ -513,13 +513,13 @@ impl ServerHandler for TimeMcp {
             ]));
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        if let Some(after) = crate::index::parse(uri, uris::CALENDARS_URI)? {
+        if let Some(after) = crate::index::parse(uri, uris::CALENDARS_URI).map_err(invalid_params)? {
             return json_resource(uri, &self.state.catalog.calendars_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
         }
-        if let Some(after) = crate::index::parse(uri, uris::EPOCHS_URI)? {
+        if let Some(after) = crate::index::parse(uri, uris::EPOCHS_URI).map_err(invalid_params)? {
             return json_resource(uri, &self.state.catalog.epochs_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
         }
-        if let Some(after) = crate::index::parse(uri, uris::EVENTS_URI)? {
+        if let Some(after) = crate::index::parse(uri, uris::EVENTS_URI).map_err(invalid_params)? {
             let page = self.state.catalog.events_page(&scope, after.as_ref(), None).await.map_err(crate::index::query_error)?;
             for event in &page.items { self.state.schedule_event(scope.clone(), event.clone()).await.map_err(internal)?; }
             return json_resource(uri, &page);
@@ -696,7 +696,7 @@ impl ServerHandler for TimeMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let identity = require_scope(&context, "time:read")?;
+        let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let domain = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::CALENDAR_TEMPLATE, "calendar_id") => Some(TimeCompletion::CalendarId),
@@ -781,7 +781,7 @@ impl ServerHandler for TimeMcp {
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
         let request_context = context.request_context().clone();
-        let identity = require_scope(&request_context, "time:read")?;
+        let identity = require_scope(&request_context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
             if !is_subscribable(uri) {
@@ -855,20 +855,10 @@ fn internal_identity(
 }
 fn require_scope(
     context: &RequestContext<RoleServer>,
-    required: &str,
+    required: TimeScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
-    if !identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-    {
-        return Err(McpError::invalid_request(
-            format!("You don't have permission to make this request. Missing scope `{required}`."),
-            None,
-        ));
-    }
+    crate::server::auth::require_scope(&identity.actor.scopes, required)?;
     Ok(identity)
 }
 fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {

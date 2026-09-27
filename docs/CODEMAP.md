@@ -349,14 +349,16 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 ### `platform/types`
 
-The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, and
-`IdentifierError`. Its public `ScopeDefinition` and `ResourceAddress` traits let
+The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
+errors, and `Sha256Digest`. Its public `ScopeDefinition` and `ResourceAddress` traits let
 independent libraries supply domain vocabularies. It depends only on serialization
 and schema support. Consumers import its types directly. The
 [design](../platform/types/DESIGN.md) defines the implemented lexical profile;
 [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
 tracks concrete/template reference separation, URI builders, MCP integration traits,
 and server library features.
+`src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
+prefixed SHA-256 representation shared by provenance contracts.
 
 ### `mcp/apps-extension`
 
@@ -840,6 +842,7 @@ admission and recovery synchronize the local worker inventory in
 | Path | Responsibility |
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
+| `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types and `TimeScope` vocabulary; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
 | `platform/store/src/time.rs`, `platform/store/src/time/collections.rs` | tenant temporal catalog, optimistic release activation, acquisition-to-release provenance lookup, SQL-scoped owner events, bounded pages and completion, requested latest epochs, and clock policy |
 | `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | typed cursor validation, bounded collection envelopes, and Time Store projections |
@@ -865,7 +868,6 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
 | `platform/runtimes/duckdb/` | engine runtime with resource limits, closed Spatial axis policy, effective-setting verification, and sandbox primitives |
 | `mcp/contract/src/duckdb.rs` | cross-server source types |
-| `mcp/contract/src/digest.rs` | typed SHA-256 provenance digest shared by server contracts |
 | `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |

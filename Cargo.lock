@@ -16764,6 +16764,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-rrd",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17579,6 +17580,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]

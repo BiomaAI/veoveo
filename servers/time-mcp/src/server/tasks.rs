@@ -10,8 +10,8 @@ use veoveo_task_runtime::{
 };
 
 use crate::{
-    contract::{ExpandScheduleRequest, ValidateTimelineRequest},
-    server::auth::ForwardedBearer,
+    contract::{ExpandScheduleRequest, TimeScope, ValidateTimelineRequest},
+    server::auth::{ForwardedBearer, require_scope},
     state::TimeApplication,
 };
 
@@ -87,7 +87,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         let task = match request.name.as_ref() {
             EXPAND_SCHEDULE_TASK => {
-                require_scope(&caller.identity, "time:schedule")
+                require_scope(&caller.identity.actor.scopes, TimeScope::Schedule)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ExpandSchedule(Box::new(
                     serde_json::from_value(arguments).map_err(|error| {
@@ -96,7 +96,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
                 ))
             }
             VALIDATE_TIMELINE_TASK => {
-                require_scope(&caller.identity, "time:timeline")
+                require_scope(&caller.identity.actor.scopes, TimeScope::Timeline)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ValidateTimeline(
                     serde_json::from_value(arguments).map_err(|error| {
@@ -367,26 +367,6 @@ async fn update_task(state: &TimeApplication, task_id: &str, transition: TaskTra
     if let Err(error) = state.tasks.transition(task_id, transition).await {
         tracing::warn!(task_id, "Time task update failed: {error}");
     }
-}
-
-fn require_scope(
-    identity: &GatewayInternalIdentity,
-    required: &str,
-) -> Result<(), rmcp::ErrorData> {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-        .then_some(())
-        .ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
 }
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

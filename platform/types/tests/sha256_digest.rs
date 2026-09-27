@@ -1,4 +1,4 @@
-use veoveo_mcp_contract::Sha256Digest;
+use veoveo_types::Sha256Digest;
 
 #[test]
 fn sha256_digest_accepts_only_the_canonical_prefixed_lowercase_shape() {

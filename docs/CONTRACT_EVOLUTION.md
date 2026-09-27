@@ -362,7 +362,7 @@ ownership and wire contracts through their language-native types and validation.
 This decision preserves current wire spellings and policy semantics during extraction.
 Internal callers move to one implementation without compatibility aliases. Published
 wire changes and persisted format changes follow the declared transition requirements.
-Implementation and qualification are pending in the
+Implementation and remaining qualification are tracked in the
 [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Delivery And Decision Checkpoints
@@ -377,7 +377,7 @@ Implementation and qualification are pending in the
 | Qualified upgrade cadence | Dependency/image owners and release compatibility inputs | Record review date and support state; independent targeted upgrade changes; no new package pin in this change |
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |
-| Modular types and server contracts | Planned `platform/types`, shared MCP integration, and each server library | Pending foundations Phase 3: isolated contract-only builds, external extension without core edits, typed construction tests, and hosted/domain qualification |
+| Modular types and server contracts | `platform/types`, shared MCP integration, and each server library | Foundations Phase 3: foundation and Time contract isolation pass native checks; remaining server features, URI builders, and hosted extension qualification are pending |
 
 The [Computers design](../platform/computers/DESIGN.md#qualification-limits) owns its
 qualification gates. Its release

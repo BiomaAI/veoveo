@@ -238,8 +238,7 @@ async fn revisions(
     let after = page
         .after
         .map(|v| {
-            veoveo_mcp_contract::Sha256Digest::parse(v)
-                .map_err(|_| Fault::status(StatusCode::BAD_REQUEST))
+            veoveo_types::Sha256Digest::parse(v).map_err(|_| Fault::status(StatusCode::BAD_REQUEST))
         })
         .transpose()?;
     let values = state
