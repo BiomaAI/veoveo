@@ -797,6 +797,13 @@ Map release pages and parent-scoped reads live in `src/catalog/releases.rs` and
 URIs; `app/resources.js` owns the bounded client page walk. Exact layer-product reads
 bind their URI parents in `platform/store/src/map_authoring/reads.rs`.
 
+Map owner-scoped route, matrix, and acquisition reads live in
+`src/catalog/owned.rs`, with SQL selection in `platform/store/src/map/owned.rs` and
+resource dispatch in `src/mcp/owned.rs`. The catalog module also settles interrupted
+acquisitions and invalidates routes in database-selected batches. Acquisition
+admission and recovery synchronize the local worker inventory in
+`src/acquisition/service.rs`.
+
 ### Optimization And Travel Models
 
 | Path | Responsibility |

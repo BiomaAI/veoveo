@@ -107,6 +107,9 @@ impl AcquisitionService {
             bail!("source download limit exceeds the server artifact limit");
         }
         let acquisition_id = AcquisitionId::new();
+        // Admission and recovery share the inventory lock: a newly persisted job
+        // must acquire its worker before recovery can select missing workers.
+        let mut workers = self.workers.lock().await;
         let job = self
             .catalog
             .create_acquisition(&scope, request, acquisition_id.clone())
@@ -115,10 +118,8 @@ impl AcquisitionService {
             return Ok(job);
         }
         let cancellation = CancellationToken::new();
-        self.workers
-            .lock()
-            .await
-            .insert(acquisition_id.clone(), cancellation.clone());
+        workers.insert(acquisition_id.clone(), cancellation.clone());
+        drop(workers);
         let service = self.clone();
         tokio::spawn(async move {
             if let Err(error) = service
@@ -180,27 +181,12 @@ impl AcquisitionService {
     }
 
     pub async fn reconcile_interrupted(&self, scope: &MapScope) -> Result<()> {
-        let active_workers = self
-            .workers
-            .lock()
-            .await
-            .keys()
-            .cloned()
-            .collect::<BTreeSet<_>>();
-        for mut job in self.catalog.list_acquisitions(scope).await? {
-            if matches!(
-                job.status,
-                AcquisitionStatus::Queued
-                    | AcquisitionStatus::Running
-                    | AcquisitionStatus::CancelRequested
-            ) && !active_workers.contains(&job.acquisition_id)
-            {
-                job.status = AcquisitionStatus::Failed;
-                job.progress.message =
-                    "acquisition was interrupted by a Map server restart".to_owned();
-                self.catalog.update_acquisition(scope, job).await?;
-            }
-        }
+        let workers = self.workers.lock().await;
+        let active_workers = workers.keys().cloned().collect::<Vec<_>>();
+        self.catalog
+            .reconcile_interrupted_acquisitions(scope, &active_workers)
+            .await?;
+        drop(workers);
         Ok(())
     }
 

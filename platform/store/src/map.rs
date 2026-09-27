@@ -1,7 +1,9 @@
 mod completion;
+mod owned;
 mod releases;
 pub use completion::MapCatalogCompletion;
 pub(crate) use completion::validate_needle as validate_completion_needle;
+pub use owned::{MapMatrixIndexRecord, MapRouteIndexRecord};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -125,7 +127,7 @@ pub struct MapAcquisitionDraft {
 
 #[derive(Clone, Debug)]
 pub struct MapAcquisitionUpdate {
-    pub tenant_id: TenantId,
+    pub identity: PlatformIdentity,
     pub acquisition_key: String,
     pub expected_record_version: i64,
     pub status: MapAcquisitionState,
@@ -802,32 +804,11 @@ impl PlatformStore {
             updated_at: now,
         };
         create_only(self, map_record("map_route", &draft.route_key), content).await?;
-        self.map_route(draft.identity.tenant_id, &draft.route_key)
+        self.map_route(&draft.identity, &draft.route_key)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "map route creation readback",
             })
-    }
-
-    pub async fn map_route(
-        &self,
-        tenant_id: TenantId,
-        route_key: &str,
-    ) -> Result<Option<MapRouteRecord>, StoreError> {
-        validate_public_key("route_key", route_key, "route-")?;
-        select_one(self, map_record("map_route", route_key), tenant_id).await
-    }
-
-    pub async fn list_map_routes(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapRouteRecord>, StoreError> {
-        select_tenant_list(
-            self,
-            "SELECT * FROM map_route WHERE tenant = $tenant ORDER BY created_at DESC;",
-            tenant_id,
-        )
-        .await
     }
 
     pub async fn create_map_route_dependency(
@@ -862,22 +843,6 @@ impl PlatformStore {
         .ok_or(StoreError::MissingRecord {
             operation: "map route dependency creation readback",
         })
-    }
-
-    pub async fn invalidate_map_routes_by_dependency(
-        &self,
-        tenant_id: TenantId,
-        dependency_kind: crate::MapDependencyKind,
-        dependency_key: &str,
-    ) -> Result<u64, StoreError> {
-        validate_text("dependency_key", dependency_key, 256)?;
-        let mut response = self.client().query("LET $routes = SELECT VALUE route_key FROM map_route_dependency WHERE tenant = $tenant AND dependency_kind = $kind AND dependency_key = $key; UPDATE map_route SET status = 'invalidated', updated_at = time::now() WHERE tenant = $tenant AND route_key IN $routes AND status != 'invalidated' RETURN AFTER;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("kind", dependency_kind))
-            .bind(("key", dependency_key.to_owned()))
-            .await?.check()?;
-        let records: Vec<MapRouteRecord> = response.take(1)?;
-        Ok(records.len() as u64)
     }
 
     pub async fn create_map_route_matrix(
@@ -919,51 +884,15 @@ impl PlatformStore {
             content,
         )
         .await?;
-        self.map_route_matrix(draft.identity.tenant_id, &draft.matrix_key)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "map route matrix creation readback",
-            })
-    }
-
-    pub async fn map_route_matrix(
-        &self,
-        tenant_id: TenantId,
-        matrix_key: &str,
-    ) -> Result<Option<MapRouteMatrixRecord>, StoreError> {
-        validate_public_key("matrix_key", matrix_key, "matrix-")?;
-        select_one(self, map_record("map_route_matrix", matrix_key), tenant_id).await
-    }
-
-    pub async fn list_map_route_matrices(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapRouteMatrixRecord>, StoreError> {
-        select_tenant_list(
+        owned::select_owned(
             self,
-            "SELECT * FROM map_route_matrix WHERE tenant = $tenant ORDER BY created_at DESC;",
-            tenant_id,
+            &draft.identity,
+            map_record("map_route_matrix", &draft.matrix_key),
         )
-        .await
-    }
-
-    pub async fn set_map_route_state(
-        &self,
-        tenant_id: TenantId,
-        route_key: &str,
-        state: MapRouteState,
-        canonical_json: String,
-    ) -> Result<MapRouteRecord, StoreError> {
-        validate_public_key("route_key", route_key, "route-")?;
-        validate_json("canonical_json", &canonical_json, MAX_ROUTE_JSON_BYTES)?;
-        let mut response = self.client().query("UPDATE $record MERGE { status: $state, canonical_json: $canonical_json, updated_at: time::now() } WHERE tenant = $tenant RETURN AFTER;")
-            .bind(("record", map_record("map_route", route_key))).bind(("tenant", tenant_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).await?.check()?;
-        response
-            .take::<Option<MapRouteRecord>>(0)?
-            .ok_or_else(|| StoreError::MapRecordConflict {
-                entity: "route",
-                key: route_key.to_owned(),
-            })
+        .await?
+        .ok_or(StoreError::MissingRecord {
+            operation: "map route matrix creation readback",
+        })
     }
 
     pub async fn create_map_acquisition(
@@ -1010,37 +939,11 @@ impl PlatformStore {
             content,
         )
         .await?;
-        self.map_acquisition(draft.identity.tenant_id, &draft.acquisition_key)
+        self.map_acquisition(&draft.identity, &draft.acquisition_key)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "map acquisition creation readback",
             })
-    }
-
-    pub async fn map_acquisition(
-        &self,
-        tenant_id: TenantId,
-        acquisition_key: &str,
-    ) -> Result<Option<MapAcquisitionRecord>, StoreError> {
-        validate_public_key("acquisition_key", acquisition_key, "acquisition-")?;
-        select_one(
-            self,
-            map_record("map_acquisition", acquisition_key),
-            tenant_id,
-        )
-        .await
-    }
-
-    pub async fn list_map_acquisitions(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapAcquisitionRecord>, StoreError> {
-        select_tenant_list(
-            self,
-            "SELECT * FROM map_acquisition WHERE tenant = $tenant ORDER BY created_at DESC;",
-            tenant_id,
-        )
-        .await
     }
 
     pub async fn update_map_acquisition(
@@ -1057,8 +960,8 @@ impl PlatformStore {
         if let Some(key) = &update.staged_release_key {
             validate_public_key("staged_release_key", key, "release-")?;
         }
-        let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged_release_key, canonical_json: $canonical_json, record_version: $next_version, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", map_record("map_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged_release_key", update.staged_release_key)).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version)).bind(("next_version", update.expected_record_version + 1)).await?.check()?;
+        let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged_release_key, canonical_json: $canonical_json, record_version: $next_version, updated_at: time::now() } WHERE tenant = $tenant AND owner = $owner AND record_version = $expected RETURN AFTER;")
+            .bind(("record", map_record("map_acquisition", &update.acquisition_key))).bind(("tenant", update.identity.tenant_id.record_id())).bind(("owner", update.identity.principal_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged_release_key", update.staged_release_key)).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version)).bind(("next_version", update.expected_record_version + 1)).await?.check()?;
         response
             .take::<Option<MapAcquisitionRecord>>(0)?
             .ok_or(StoreError::MapRecordConflict {

@@ -42,8 +42,17 @@ and scoped catalog selection. Dataset release roots now use 100-item SQL pages a
 Map Explorer follows their cursors. Exact release and layer-product reads bind all
 URI parents in SQL. Native page checks cover 125 selected releases behind 220
 foreign-tenant or other-dataset rows; client checks cover failed pages, invalid
-shapes, cursor cycles, and traversal budgets. Other Map roots and internal catalog
-selection still need SQL filtering and pagination; installed acceptance is pending.
+shapes, cursor cycles, and traversal budgets. Route, matrix, and acquisition indexes
+now page in SQL under tenant/owner predicates; exact reads and acquisition updates
+apply those predicates there too. Route and matrix pages contain metadata summaries.
+Acquisition recovery selects pending jobs outside the synchronized worker inventory
+in batches of 100. Route invalidation selects dependencies from complete route JSON
+in SQL, preserving correctness when separately written dependency rows are missing
+or incorrect. Native cases cover 125 owned rows behind 220 denied rows in each
+catalog, matrix payload availability, all acquisition states, recovery through 140
+pending jobs, and invalidation across 235 tenant routes. Other Map roots and internal
+catalog selection still need SQL filtering and pagination; installed acceptance is
+pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

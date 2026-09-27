@@ -52,6 +52,7 @@ use crate::{
 mod authoring;
 mod completion;
 mod derivations;
+mod owned;
 mod releases;
 
 const LIST_PAGE_SIZE: usize = 100;
@@ -1062,21 +1063,8 @@ impl ServerHandler for MapMcp {
                     },
                 );
             }
-            if uri == uris::ACQUISITIONS_URI {
-                let identity = require_scope(&context, "map:admin")?;
-                let scope = self.state.scope(&identity).await.map_err(internal)?;
-                self.state
-                    .acquisitions
-                    .reconcile_interrupted(&scope)
-                    .await
-                    .map_err(internal)?;
-                let jobs = self
-                    .state
-                    .catalog
-                    .list_acquisitions(&scope)
-                    .await
-                    .map_err(internal)?;
-                return json_resource(uri, &jobs);
+            if let Some(result) = self.read_owned_page(uri, &context).await? {
+                return Ok(result);
             }
             if uri == uris::ACTIVE_RELEASES_URI {
                 let identity = require_any_scope(&context, &["map:admin", "map:dataset:read"])?;
@@ -1410,28 +1398,6 @@ impl ServerHandler for MapMcp {
                             .state
                             .catalog
                             .list_restrictions(&scope)
-                            .await
-                            .map_err(internal)?,
-                    );
-                }
-                uris::ROUTES_URI => {
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .catalog
-                            .list_routes(&scope)
-                            .await
-                            .map_err(internal)?,
-                    );
-                }
-                uris::MATRICES_URI => {
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .catalog
-                            .list_matrices(&scope)
                             .await
                             .map_err(internal)?,
                     );
@@ -1905,6 +1871,21 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::RESTRICTION_TEMPLATE,
             "Map restriction",
             "Effective restriction.",
+        ),
+        template(
+            uris::ROUTES_PAGE_TEMPLATE,
+            "Route page",
+            "100 owner-visible route summaries per page.",
+        ),
+        template(
+            uris::MATRICES_PAGE_TEMPLATE,
+            "Matrix page",
+            "100 owner-visible matrix summaries per page.",
+        ),
+        template(
+            uris::ACQUISITIONS_PAGE_TEMPLATE,
+            "Acquisition page",
+            "100 owner-visible acquisition jobs per page (map:admin).",
         ),
         template(uris::ROUTE_TEMPLATE, "Map route", "Owner-scoped route."),
         template(

@@ -6,7 +6,7 @@ const resources = [
   ["map://datasets", "datasets", "dataset_read", true, true],
   ["map://active-releases", "activeReleases", "dataset_read"],
   ["map://mobility-profiles", "profiles", "dataset_read"],
-  ["map://acquisitions", "acquisitions", "administration", false],
+  ["map://acquisitions", "acquisitions", "administration", false, true],
 ];
 
 export function mapSubscriptionUris(access) {

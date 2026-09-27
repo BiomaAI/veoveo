@@ -58,7 +58,7 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
     await new Promise(resolve => setImmediate(resolve));
     --active;
     if (uri === 'map://feature-layers') throw Error('service unavailable');
-    return uri === "map://datasets" ? {items: [], limit: 100, next_cursor: null} : [];
+    return ["map://datasets", "map://acquisitions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
   };
   await assert.rejects(readMapSnapshot(access, read), /feature-layers: service unavailable/);
   assert.equal(max, 4);
@@ -104,4 +104,17 @@ test('collection walks reject stale shapes, invalid bounds, cycles, and failed l
 
 test('collection refresh has a total deadline even if the host never answers', async () => {
   await assert.rejects(readCollection('map://datasets', () => new Promise(() => {}), {timeoutMs:10}), /time limit/);
+});
+
+
+test('administrators read acquisition pages without dataset permission', async () => {
+  const calls = [];
+  const snapshot = await readMapSnapshot({administration:true}, async uri => {
+    calls.push(uri);
+    return uri === 'map://acquisitions'
+      ? {items:[{acquisition_id:'first'}],limit:100,next_cursor:'abcd'}
+      : {items:[{acquisition_id:'last'}],limit:100,next_cursor:null};
+  });
+  assert.deepEqual(calls, ['map://acquisitions', 'map://acquisitions?cursor=abcd']);
+  assert.deepEqual(snapshot, {acquisitions:[{acquisition_id:'first'}, {acquisition_id:'last'}]});
 });

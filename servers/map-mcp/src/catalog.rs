@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
+pub mod owned;
 pub mod releases;
 use chrono::Utc;
 use veoveo_platform_store::{
@@ -433,53 +434,6 @@ impl MapCatalog {
         Ok(())
     }
 
-    pub async fn invalidate_routes_for_release(
-        &self,
-        scope: &MapScope,
-        release_id: &crate::contract::DatasetReleaseId,
-    ) -> Result<u64> {
-        self.invalidate_routes(scope, |route| {
-            route.provenance.base_release_ids.contains(release_id)
-        })
-        .await
-    }
-
-    pub async fn invalidate_routes_for_restriction(
-        &self,
-        scope: &MapScope,
-        restriction_id: &crate::contract::RestrictionId,
-    ) -> Result<u64> {
-        self.invalidate_routes(scope, |route| {
-            route.restriction_ids.contains(restriction_id)
-        })
-        .await
-    }
-
-    async fn invalidate_routes(
-        &self,
-        scope: &MapScope,
-        predicate: impl Fn(&RoutePlan) -> bool,
-    ) -> Result<u64> {
-        let mut count = 0_u64;
-        for record in self.store.list_map_routes(scope.identity.tenant_id).await? {
-            let mut route: RoutePlan = decode(&record.canonical_json, "route")?;
-            if route.status == RouteStatus::Invalidated || !predicate(&route) {
-                continue;
-            }
-            route.status = RouteStatus::Invalidated;
-            self.store
-                .set_map_route_state(
-                    scope.identity.tenant_id,
-                    route.route_id.as_str(),
-                    MapRouteState::Invalidated,
-                    encode(&route)?,
-                )
-                .await?;
-            count += 1;
-        }
-        Ok(count)
-    }
-
     pub async fn persist_matrix(
         &self,
         scope: &MapScope,
@@ -499,66 +453,6 @@ impl MapCatalog {
             })
             .await?;
         Ok(())
-    }
-
-    pub async fn matrix(
-        &self,
-        scope: &MapScope,
-        matrix_id: &crate::contract::RouteMatrixId,
-    ) -> Result<Option<RouteMatrix>> {
-        let record = self
-            .store
-            .map_route_matrix(scope.identity.tenant_id, matrix_id.as_str())
-            .await?;
-        let Some(record) = record else {
-            return Ok(None);
-        };
-        if record.owner != scope.identity.principal_id.record_id() {
-            return Ok(None);
-        }
-        record
-            .canonical_json
-            .map(|value| decode(&value, "route matrix"))
-            .transpose()
-    }
-
-    pub async fn list_matrices(&self, scope: &MapScope) -> Result<Vec<RouteMatrix>> {
-        self.store
-            .list_map_route_matrices(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .filter(|record| record.owner == scope.identity.principal_id.record_id())
-            .filter_map(|record| record.canonical_json)
-            .map(|value| decode(&value, "route matrix"))
-            .collect()
-    }
-
-    pub async fn route(
-        &self,
-        scope: &MapScope,
-        route_id: &crate::contract::RouteId,
-    ) -> Result<Option<RoutePlan>> {
-        let record = self
-            .store
-            .map_route(scope.identity.tenant_id, route_id.as_str())
-            .await?;
-        let Some(record) = record else {
-            return Ok(None);
-        };
-        if record.owner != scope.identity.principal_id.record_id() {
-            return Ok(None);
-        }
-        Ok(Some(decode(&record.canonical_json, "route")?))
-    }
-
-    pub async fn list_routes(&self, scope: &MapScope) -> Result<Vec<RoutePlan>> {
-        self.store
-            .list_map_routes(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .filter(|record| record.owner == scope.identity.principal_id.record_id())
-            .map(|record| decode(&record.canonical_json, "route"))
-            .collect()
     }
 
     pub async fn create_acquisition(
@@ -627,34 +521,6 @@ impl MapCatalog {
         Ok(job)
     }
 
-    pub async fn acquisition(
-        &self,
-        scope: &MapScope,
-        acquisition_id: &crate::contract::AcquisitionId,
-    ) -> Result<Option<AcquisitionJob>> {
-        let record = self
-            .store
-            .map_acquisition(scope.identity.tenant_id, acquisition_id.as_str())
-            .await?;
-        let Some(record) = record else {
-            return Ok(None);
-        };
-        if record.owner != scope.identity.principal_id.record_id() {
-            return Ok(None);
-        }
-        Ok(Some(decode(&record.canonical_json, "acquisition job")?))
-    }
-
-    pub async fn list_acquisitions(&self, scope: &MapScope) -> Result<Vec<AcquisitionJob>> {
-        self.store
-            .list_map_acquisitions(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .filter(|record| record.owner == scope.identity.principal_id.record_id())
-            .map(|record| decode(&record.canonical_json, "acquisition job"))
-            .collect()
-    }
-
     pub async fn update_acquisition(
         &self,
         scope: &MapScope,
@@ -665,7 +531,7 @@ impl MapCatalog {
         job.updated_at = Utc::now();
         self.store
             .update_map_acquisition(MapAcquisitionUpdate {
-                tenant_id: scope.identity.tenant_id,
+                identity: scope.identity.clone(),
                 acquisition_key: job.acquisition_id.to_string(),
                 expected_record_version: integer_version(expected)?,
                 status: acquisition_state_to_store(job.status),

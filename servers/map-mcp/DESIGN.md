@@ -54,6 +54,7 @@ the `map://` scheme.
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/workspace.html` uses the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
+| SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
@@ -1014,6 +1015,10 @@ map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}
 map://restriction/{restriction_id}
+map://routes{?cursor}
+map://matrices{?cursor}
+map://acquisitions{?cursor}
+map://acquisition/{acquisition_id}
 map://route/{route_id}
 map://matrix/{matrix_id}
 map://travel-model/{travel_model_id}
@@ -1054,13 +1059,25 @@ page. An exact release URI binds both dataset and release IDs in the database.
 A layer-product URI likewise binds its layer, publication, and product IDs in SQL
 alongside current layer visibility.
 
-Map owns the coordinated release-page transition. Installations drain Map and
+Route, matrix, and acquisition indexes return the same page envelope with up to
+100 items ordered by immutable domain ID. Their cursors bind the collection and
+are valid only at version 1. Store applies tenant and owner predicates before
+keyset selection and limits, including for direct reads. Route and matrix items
+contain status or profile metadata and a `resource_uri` for the complete document;
+index queries omit route geometry and matrix cells. Matrix reads and completion
+select only rows containing a matrix document. Acquisition pages contain job
+records, and acquisition updates enforce ownership in the same SQL write as their
+revision check.
+
+Map owns the coordinated collection-page transition. Installations drain Map and
 replace its binary and packaged Map Explorer together. Clients must consume the
-page envelope and follow `next_cursor`; grouped dataset objects and bare release
-arrays are unsupported. Rollback restores the previous binary and App together;
-this response change does not convert persisted records. Qualification covers
-multiple pages, foreign tenants, mismatched parents, and rejected cursors. No
-mixed-version response adapter is supported during this installation upgrade.
+page envelope and follow `next_cursor`; grouped dataset objects and bare arrays
+for releases, routes, matrices, or acquisition jobs are unsupported. Route and
+matrix consumers read each summary's `resource_uri` when they need the payload.
+Rollback restores the previous binary and App together; this response change does
+not convert persisted records. Qualification covers multiple pages, foreign
+tenants and owners, mismatched parents, and rejected cursors. No mixed-version
+response adapter is supported during this installation upgrade.
 
 Raster and spatial derivation indexes return up to 100 summaries with resource
 links, a `limit`, and an optional `next_cursor`. Page templates accept the version-1
@@ -1072,6 +1089,23 @@ the search term in SQL and selects at most 101 IDs to determine `hasMore`.
 Both indexes accept resource subscriptions. Raster index admission requires
 `map:dataset:read`; spatial index admission additionally requires
 `map:spatial:derive`, matching their resource reads.
+
+### Catalog Maintenance Queries
+
+Acquisition recovery selects only the owner's queued, running, or cancel-requested
+jobs without a registered worker, in batches of 100. Admission holds the worker
+inventory lock while creating a job and registering its worker. Recovery holds the
+same lock throughout selection and settlement, so a newly admitted job cannot enter
+recovery between those steps. This mechanism uses the declared single Map writer.
+
+Release and restriction administration selects dependent tenant routes across
+owners. SQL decodes dependency arrays from each complete route document before
+its 100-row limit. Map chooses those arrays because separately written dependency
+rows can be incomplete after interruption. The predicate uses database JSON
+decoding; it is not an indexed dependency lookup. Each update commits the route's
+invalidated status and complete document together and counts only a new transition.
+Native qualification removes a dependency row and adds an incorrect one, then proves
+that selection still follows the route document.
 
 ### Derivation Storage Upgrade
 
@@ -1175,7 +1209,7 @@ versions; activation also uses the expected active-pointer version.
 Validation failures surface as MCP invalid-params errors and concurrency
 conflicts name the changed version.
 
-Map Explorer traverses dataset release pages before publishing a refreshed view.
+Map Explorer traverses dataset release and acquisition pages before publishing a refreshed view.
 A refresh permits 100 pages and 60 seconds per collection, rejects malformed or
 repeated cursors, and keeps the previous view when any selected resource fails.
 The client keeps at most four host resource reads in flight.

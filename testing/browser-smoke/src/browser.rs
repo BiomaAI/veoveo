@@ -3253,7 +3253,7 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
             "release_id": "release-0198-map-workspace",
             "record_version": 1
         }],
-        "map://acquisitions": [],
+        "map://acquisitions": {"items": [], "limit": 100, "next_cursor": null},
         "map://mobility-profiles": []
     });
     let features = serde_json::json!([

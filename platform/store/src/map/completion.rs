@@ -43,9 +43,12 @@ impl PlatformStore {
                 ("map_restriction", "restriction_key", "true", None)
             }
             MapCatalogCompletion::Route => ("map_route", "route_key", "owner = $owner", None),
-            MapCatalogCompletion::Matrix => {
-                ("map_route_matrix", "matrix_key", "owner = $owner", None)
-            }
+            MapCatalogCompletion::Matrix => (
+                "map_route_matrix",
+                "matrix_key",
+                "owner = $owner AND canonical_json != NONE",
+                None,
+            ),
         };
         // Identifiers and expressions come only from the closed domain enum.
         let sql = format!(
