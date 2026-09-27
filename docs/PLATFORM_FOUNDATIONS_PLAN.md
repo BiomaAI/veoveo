@@ -1,4 +1,4 @@
-# Knowledge Sources, Audit Log, And Identifier Cut Plan
+# Platform Foundations Plan
 
 Status: approved for implementation on 2026-09-26. No phase has started.
 

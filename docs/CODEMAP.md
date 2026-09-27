@@ -65,7 +65,7 @@ planned change lands:
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work in `001`–`013`; App authority, uploads, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work in `014`–`023` |
 | [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | implementation plan for request `016`: recording datasets, immutable Artifact-backed Rerun layers, virtual catalogs, Arrow export, disk safety, activation, and acceptance |
 | [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | delivered resumable HTTP uploads, persistent browser queue, durable receipts and Python streaming; 10 GiB installed acceptance with larger-capacity measurements pending |
-| [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
+| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
 Component designs live beside the code whose contract they specify:
@@ -371,7 +371,7 @@ views are `ui://` apps rather than bespoke admin REST or hardcoded console pages
 Planned. The crate will own the typed `ai.veoveo/knowledge-source` descriptors and
 observations, server and client helpers, and the shared `{slug}.docs` collection.
 [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) defines the
-contract, and [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md)
+contract, and [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md)
 sequences delivery.
 
 ### `mcp/bridges`

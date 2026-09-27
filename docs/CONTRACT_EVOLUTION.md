@@ -276,7 +276,7 @@ recording journals, and retained Computers state and reinstalls from the new loc
 Every other store, including local development stores, is recreated. Migrations `0031`
 and `0032` therefore change in place, and fork servers release with the new
 identifiers before they rejoin an installation. The
-[implementation plan](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md#phase-1-identifier-hard-cut)
+[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-1-identifier-hard-cut)
 lists every identifier and the derived identities that change with it.
 
 ## CE-11: Knowledge Reaches Agents Through Resources

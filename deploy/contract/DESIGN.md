@@ -394,7 +394,7 @@ those installation artifacts and builds no image.
 An installation target tells installed smoke scenarios which installation to verify.
 The installation repository owns the file. Core smoke code has no installation
 defaults, so every installed scenario requires `--installation <file>`. The
-[implementation plan](../../docs/KNOWLEDGE_AND_IDENTIFIERS_PLAN.md#phase-2-installation-targets-for-installed-smoke)
+[implementation plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#phase-2-installation-targets-for-installed-smoke)
 tracks delivery. The reference installation keeps its target at
 `examples/bioma/installation-target.json`.
 

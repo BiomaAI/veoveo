@@ -14,7 +14,7 @@ freshness of the cached revision behind it.
 ## Status
 
 Designed. Neither the extension crate nor `knowledge-mcp` exists. The
-[implementation plan](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md) sequences delivery. When the
+[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md) sequences delivery. When the
 `servers/knowledge-mcp` crate is created, the service sections of this document move
 into its `DESIGN.md`, and this document keeps the cross-component flow.
 

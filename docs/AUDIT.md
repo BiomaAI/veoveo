@@ -8,7 +8,7 @@ type through one writer library. Sealed blocks make tampering detectable, and an
 installation can export the log to storage its own administrators cannot rewrite.
 
 This document is the target design. The
-[implementation plan](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md#phase-4-unified-audit-log)
+[implementation plan](PLATFORM_FOUNDATIONS_PLAN.md#phase-4-unified-audit-log)
 replaces the current `audit_event` table with it by hard cut. Contract evolution
 [CE-12](CONTRACT_EVOLUTION.md#ce-12-one-audit-record-per-logical-action) records the
 decision.
