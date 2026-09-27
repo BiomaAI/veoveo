@@ -534,6 +534,7 @@ observation lease and cancellation epoch in one transaction.
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
+| `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits; Task existence admission before the first usage row |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |
 | `recovery.rs` | restart profiles; uncertain provider outcomes and cancellations stay pending |
@@ -672,6 +673,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
 | `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
+| `servers/frames-mcp/src/contract/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
 | `servers/frames-mcp/src/bin/server/discovery.rs`, `resources.rs`, `completion.rs` | fixed discovery, resource payloads, and MCP completion adapters |

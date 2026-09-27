@@ -16,6 +16,10 @@ required-features = ["mcp"]
 name = "coordinate_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "usage_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

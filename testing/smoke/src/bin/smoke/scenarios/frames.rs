@@ -311,7 +311,8 @@ pub(crate) async fn frames_mcp(
     )?;
 
     let usage = wait_for_actual_usage_for_scheme(conformance, &mcp_url, "frames", &task_id, None)?;
-    if usage.usage_uri != format!("frames://usage/task/{task_id}") {
+    let usage_uri = veoveo_frames_mcp::contract::FrameTaskUsageUri::new(task_id.parse()?)?;
+    if usage.usage_uri != usage_uri.as_str() {
         bail!("frames usage URI was wrong: {usage:?}");
     }
     let actual = usage
@@ -333,9 +334,47 @@ pub(crate) async fn frames_mcp(
     let usage_catalog = run_frames_mcp(
         conformance,
         &mcp_url,
-        ["resource".into(), "frames://usage".into()],
+        [
+            "resource".into(),
+            veoveo_frames_mcp::contract::FrameUsageIndexUri::ROOT.into(),
+        ],
     )?;
-    contains(&usage_catalog, &usage.usage_uri)?;
+    let usage_catalog: veoveo_frames_mcp::contract::FrameUsagePage =
+        serde_json::from_str(&usage_catalog)?;
+    if usage_catalog.items().len() != 1
+        || usage_catalog.items()[0].usage_uri() != &usage_uri
+        || usage_catalog.next_cursor().is_some()
+    {
+        bail!("Frames usage page did not contain the completed task: {usage_catalog:?}");
+    }
+    for identity in [
+        vec![
+            "--internal-principal-subject",
+            "intruder",
+            "--internal-work-context",
+            "intruder-context",
+        ],
+        vec!["--internal-tenant", "other-tenant"],
+        vec!["--internal-profile", "observer"],
+    ] {
+        let mut args = vec![
+            "--scheme".into(),
+            "frames".into(),
+            "--internal-server".into(),
+            "frames".into(),
+        ];
+        args.extend(identity.into_iter().map(OsString::from));
+        args.extend(["resource".into(), usage_uri.to_string().into()]);
+        assert_direct_mcp_denied(
+            conformance,
+            &mcp_url,
+            args,
+            [(
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            )],
+        )?;
+    }
 
     frames_child.stop();
     cleanup.remove_on_drop();

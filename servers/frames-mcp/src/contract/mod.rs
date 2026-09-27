@@ -2,12 +2,14 @@ mod catalog;
 mod ids;
 mod operations;
 mod uris;
+mod usage;
 mod world;
 
 pub use catalog::*;
 pub use ids::*;
 pub use operations::*;
 pub use uris::*;
+pub use usage::*;
 pub use world::*;
 
 use chrono::{DateTime, Utc};

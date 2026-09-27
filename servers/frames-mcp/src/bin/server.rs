@@ -736,7 +736,7 @@ async fn run_task_inner(
     let result = match outputs::batch_result(
         &state,
         request.artifact_write_capability.as_ref(),
-        &task_id,
+        platform_task_id,
         &owner,
         output,
         request.args.artifact,

@@ -15,7 +15,7 @@ use super::app_state::AppState;
 pub(super) async fn batch_result(
     state: &AppState,
     capability: Option<&IssuedArtifactWriteCapability>,
-    task_id: &str,
+    task_id: TaskId,
     owner: &TaskOwner,
     mut output: BatchTransformOutput,
     write_artifact: bool,
@@ -46,7 +46,7 @@ pub(super) async fn batch_result(
 async fn store_artifact(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
-    task_id: &str,
+    task_id: TaskId,
     owner: &TaskOwner,
     output: &BatchTransformOutput,
 ) -> anyhow::Result<ArtifactMetadata> {
@@ -83,7 +83,7 @@ async fn store_artifact(
 
 async fn record_usage(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     output: &BatchTransformOutput,
 ) -> anyhow::Result<()> {
     let metadata = OpenObject::new(BTreeMap::from([
@@ -104,7 +104,7 @@ async fn record_usage(
         .tasks
         .platform_store()
         .upsert_domain_usage(DomainUsageDraft {
-            task_id: task_id.parse::<TaskId>()?,
+            task_id,
             server: "frames".to_owned(),
             source_id: Some(output.result.provenance.operation.operation_id.to_string()),
             provider_job_id: None,
@@ -121,9 +121,9 @@ async fn record_usage(
     Ok(())
 }
 
-pub(super) fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
+pub(super) fn usage_record(task_id: TaskId, record: DomainUsageRecord) -> UsageRecord {
     UsageRecord {
-        task_id: task_id.to_owned(),
+        task_id: task_id.to_string(),
         source_id: record.source_id,
         provider_job_id: record.provider_job_id,
         model_id: record.model_id,

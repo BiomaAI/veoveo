@@ -1,7 +1,10 @@
 //! The complete discovery surface is available without database or Artifact services.
 use super::{BATCH_ARTIFACT_MIME, SERVER_DOCS};
 use rmcp::model::{Resource, ResourceTemplate, ServerCapabilities};
-use veoveo_frames_mcp::{contract::FrameWorldsUri, uris};
+use veoveo_frames_mcp::{
+    contract::{FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldsUri},
+    uris,
+};
 
 pub(super) fn capabilities() -> ServerCapabilities {
     let mut caps: ServerCapabilities = ServerCapabilities::builder()
@@ -29,9 +32,9 @@ pub(super) fn resources() -> Vec<Resource> {
             .with_title("Frame worlds")
             .with_description("Visible authored worlds in pages of at most 100.")
             .with_mime_type("application/json"),
-        Resource::new(uris::USAGE_ROOT_URI, "usage")
+        Resource::new(FrameUsageIndexUri::ROOT, "usage")
             .with_title("Frames usage ledger")
-            .with_description("Index of task usage resources.")
+            .with_description("Caller-owned task usage resources in pages of at most 100.")
             .with_mime_type("application/json"),
     ]);
     resources.sort_by(|left, right| left.uri.cmp(&right.uri));
@@ -99,7 +102,11 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
             .with_title("Frames artifact")
             .with_description("Shared-plane immutable Frames artifact.")
             .with_mime_type(BATCH_ARTIFACT_MIME),
-        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+        ResourceTemplate::new(FrameUsageIndexUri::TEMPLATE, "usage pages")
+            .with_title("Frames usage ledger")
+            .with_description("Caller-owned task usage resources in pages of at most 100.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(FrameTaskUsageUri::TEMPLATE, "usage")
             .with_title("Frames task usage")
             .with_description("Usage rows for one Frames task.")
             .with_mime_type("application/json"),
@@ -117,7 +124,7 @@ mod tests {
         assert_eq!(capabilities.subscribe, Some(true));
         let mut expected = vec![
             FrameWorldsUri::ROOT.to_owned(),
-            uris::USAGE_ROOT_URI.to_owned(),
+            FrameUsageIndexUri::ROOT.to_owned(),
             uris::WORKSPACE_APP_URI.to_owned(),
             uris::DOCS_URI.to_owned(),
             uris::CONTRACT_URI.to_owned(),

@@ -25,7 +25,7 @@ server-owned `ui://frames/workspace.html` Frame Editor application.
 Published revision integrity uses SHA-256 with the repository-owned canonical
 `sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
 operation resources are Veoveo extensions rather than external protocols.
-World addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
+World and usage addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
 URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
 Resource templates use RFC 6570 path variables and the optional `cursor` query
@@ -165,6 +165,7 @@ frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}
 frames://operation/{operation_id}
 frames://artifact/{artifact_id}
 frames://usage
+frames://usage{?cursor}
 frames://usage/task/{task_id}
 ```
 
@@ -181,6 +182,21 @@ JSON. It grants no access and provides no snapshot: each page uses current autho
 and data, and clients restart at the root to observe insertions before their cursor.
 The Frame Editor's shared workbench follows the cursor with Next and Previous actions.
 
+`frames://usage` returns `FrameUsagePage`: at most 100 distinct Task references in
+`items`, the fixed `limit`, and an optional `next_cursor`. TaskRuntime checks the usage
+row and linked Task's server and tenant, then the principal, profile, optional tenant
+spelling and complete required labels in SQL before grouping, ordering and limiting.
+Exact Task usage reads use the same predicates. Deleted Tasks and inconsistent linked
+metadata provide no access. Frames preserves its owner-based Task policy; this read
+does not confer Work Context authority.
+
+The contract library owns usage cursors and addresses. A v1 hexadecimal JSON cursor
+carries the `frames://usage` collection and last native Task UUIDv7. Typed constructors
+use the shared URI builder; parsing requires a canonical lowercase hyphenated UUIDv7
+Task address and rejects aliases or extra components. Each entry's Task ID must agree
+with its address. Page construction and decoding reject oversized, duplicate or
+unordered entries, and a continuation must name the last entry of a full page.
+
 World, revision, and frame identifier completion matches case-insensitively in SQL
 before selecting at most 101 values. The MCP adapter returns at most 100 and omits
 the total when more matches exist. Revision completion requires `world_id`; frame
@@ -188,23 +204,31 @@ completion requires both `world_id` and `revision_id`. Missing parents yield an 
 completion, malformed parent IDs fail admission, and SQL applies parent visibility.
 
 The server emits resource-update notifications when mutable state changes.
-Each replica shares Store LIVE observations of world heads, revisions and domain
+Each replica shares Store LIVE observations of world heads, revisions, Tasks and domain
 usage through its resource hub. Subscriptions admit world and usage indexes, visible
 worlds and caller-owned task usage. Immutable revisions and frame definitions reject
 subscriptions. Source reconnection invalidates accepted resource contents;
-ordinary reads recheck current authority. World cursor pages admit subscriptions and
+ordinary reads recheck current authority. World and usage cursor pages admit subscriptions and
 are invalidated with the other accepted resource identities. The fixed discovery
 surface declares no list-change notifications. The observer stops with the server.
+Task-usage subscriptions may start before the first usage row; admission checks Task
+ownership in SQL. Unauthorized and missing Tasks produce the same resource-not-found
+response. Task changes invalidate accepted usage references even when no usage row changed.
 
-### World Catalog Upgrade
+### Catalog Upgrade
 
-The Frames owner requires a coordinated drain for the world collection's array-to-page
-change. Update installed clients to decode `FrameWorldPage` and follow its typed
+The Frames owner requires a coordinated drain for the world and usage collections'
+array-to-page changes. Update installed clients to decode `FrameWorldPage` and
+`FrameUsagePage` and follow their typed
 cursor, then replace the drained server and refresh discovery and embedded App caches.
 Mixed array/page servers behind one endpoint are unsupported. This transition changes
 no persisted format. Rollback drains the server and restores the previous server/client
 set with the same data. Native page and cursor cases qualify the new representation;
 installed client acceptance is a release gate in the foundations plan.
+The same drain admits the stricter usage address profile. Generated native Task
+references already use that profile. Retained caller references must parse with
+`FrameTaskUsageUri` before upgrade; rejection requires the caller to resolve the
+correct native Task identity, without rewriting persisted Tasks or usage rows.
 
 ## Prompts
 
@@ -266,9 +290,9 @@ Unknown and unauthorized worlds, revisions, frames, operations, tasks, usage,
 and artifacts are indistinguishable at their resource boundary.
 
 Operation reads currently check tenant and labels but lack owner enforcement and
-persisted profile identity. The usage collection still returns a complete array.
+persisted profile identity.
 The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
-tracks operation authority and SQL usage paging as required work before installed
+tracks operation authority as required work before installed
 acceptance. World read qualification does not establish those guarantees.
 
 ## Module layout
@@ -276,6 +300,7 @@ acceptance. World read qualification does not establish those guarantees.
 ```text
 servers/frames-mcp/src/
   contract/               public IDs, worlds, addresses, tool and result types
+  contract/usage.rs       checked Task usage addresses, cursors and pages
   engine.rs               coordinate conversion
   world.rs                tree validation, hashing, and transform resolution
   state.rs                durable world, revision, and operation access

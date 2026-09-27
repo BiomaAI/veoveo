@@ -64,7 +64,7 @@ the persisted authority contract and SQL migration before installed acceptance.
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static; world pages and identifier completions apply visibility and parent matching before SQL limits; the usage catalog still needs bounded SQL pages
+- C04: met — discovery is static; world and usage pages apply visibility before SQL limits; identifier completions bind parents and match in SQL
 - C05: met
 - C06: met
 - C07: met
