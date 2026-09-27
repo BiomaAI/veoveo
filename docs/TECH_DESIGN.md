@@ -262,6 +262,14 @@ in one transaction. Consumers checkpoint their position in the outbox. SurrealDB
 queries can cut latency, but after a reconnect a consumer always catches up from its
 checkpoint, because LIVE ordering and delivery are not guaranteed.
 
+Resource hubs share a Store LIVE source per process. Each observed write anchors its
+cursor to the database clock, with a two-second overlap. Reconnection registers LIVE
+before replaying database changefeed pages up to the new anchor. One matching mutation
+invalidates the resource set, so recovery need not retain or emit changed records.
+Every connection also invalidates the set for expired history and tables without a
+changefeed. Callers reread under current authorization. The source coalesces writes for
+100 milliseconds and issues no idle reconciliation queries.
+
 DuckDB is not used for platform coordination. It serves arbitrary analytical SQL and
 local agent analysis.
 

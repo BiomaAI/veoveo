@@ -476,7 +476,7 @@ The only durable platform persistence layer.
 | `recordings.rs` | recording lifecycle and visibility |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
-| `resource_changes.rs` | shared domain LIVE invalidations, coalescing and reconnect recovery; composed into Time, Recording and Frames resource hubs |
+| `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording and Frames resource hubs |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration and database-wide changefeed pages that complete transaction tails before cursor advancement |
 | `live_views.rs` | append-only audit records for simulator live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
@@ -487,6 +487,10 @@ never apply them; installation bootstrap does.
 
 Shared real-store integration setup lives in [`testing/fixtures/DESIGN.md`](../testing/fixtures/DESIGN.md).
 Computers admission and Task recovery reuse its isolated pinned database lifecycle.
+`platform/store/tests/resource_changes.rs` qualifies native LIVE delivery and changefeed
+recovery through an interrupted test connection. It accepts an explicit database
+endpoint and credentials, creates one disposable database, and removes it after failure
+or success.
 
 ## Durable Tasks
 
