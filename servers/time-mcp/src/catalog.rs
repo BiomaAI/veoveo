@@ -417,13 +417,9 @@ impl TimeCatalog {
         scope: &TimeScope,
         id: &crate::contract::MissionEpochId,
     ) -> Result<Option<MissionEpoch>> {
-        let records = self
-            .store
-            .list_time_mission_epochs(scope.identity.tenant_id)
-            .await?;
-        records
-            .into_iter()
-            .find(|record| record.epoch_key == id.as_str())
+        self.store
+            .latest_time_mission_epoch(scope.identity.tenant_id, id.as_str())
+            .await?
             .map(|record| {
                 serde_json::from_str(&record.canonical_json)
                     .context("decoding stored mission epoch")
@@ -471,25 +467,18 @@ impl TimeCatalog {
         scope: &TimeScope,
         id: &TemporalEventId,
     ) -> Result<Option<TemporalEvent>> {
-        let record = self
-            .store
-            .time_temporal_event(scope.identity.tenant_id, id.as_str())
-            .await?;
-        let Some(record) = record else {
-            return Ok(None);
-        };
-        if record.owner != scope.identity.principal_id.record_id() {
-            return Ok(None);
-        }
-        Ok(Some(event_from_record(record)?))
+        self.store
+            .time_temporal_event(&scope.identity, id.as_str())
+            .await?
+            .map(event_from_record)
+            .transpose()
     }
 
     pub async fn list_events(&self, scope: &TimeScope) -> Result<Vec<TemporalEvent>> {
         self.store
-            .list_time_temporal_events(scope.identity.tenant_id)
+            .list_time_temporal_events(&scope.identity)
             .await?
             .into_iter()
-            .filter(|record| record.owner == scope.identity.principal_id.record_id())
             .map(event_from_record)
             .collect()
     }
@@ -509,7 +498,7 @@ impl TimeCatalog {
         let record = self
             .store
             .transition_time_temporal_event(
-                scope.identity.tenant_id,
+                &scope.identity,
                 id.as_str(),
                 expected.try_into()?,
                 StoreEventState::Cancelled,
@@ -537,7 +526,7 @@ impl TimeCatalog {
         let record = self
             .store
             .transition_time_temporal_event(
-                scope.identity.tenant_id,
+                &scope.identity,
                 id.as_str(),
                 expected.try_into()?,
                 StoreEventState::Due,

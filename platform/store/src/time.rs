@@ -12,6 +12,15 @@ use crate::{
     TimeTemporalEventState,
 };
 
+/// Store-backed completion domains. SQL identifiers come only from this enum.
+#[derive(Clone, Debug)]
+pub enum TimeCompletion {
+    CalendarId,
+    CalendarVersion { calendar_key: Option<String> },
+    EpochId,
+    EventId,
+}
+
 const MAX_CANONICAL_JSON_BYTES: usize = 2 * 1024 * 1024;
 
 #[derive(Clone, Debug)]
@@ -692,6 +701,22 @@ impl PlatformStore {
         .await
     }
 
+    /// Read the latest version of one tenant epoch without loading other epochs.
+    pub async fn latest_time_mission_epoch(
+        &self,
+        tenant_id: TenantId,
+        epoch_key: &str,
+    ) -> Result<Option<TimeMissionEpochRecord>, StoreError> {
+        validate_key("epoch_key", epoch_key, "epoch-")?;
+        let mut response = self.client()
+            .query("SELECT * FROM time_mission_epoch WHERE tenant = $tenant AND epoch_key = $key ORDER BY epoch_version DESC LIMIT 1;")
+            .bind(("tenant", tenant_id.record_id()))
+            .bind(("key", epoch_key.to_owned()))
+            .await?.check()?;
+        let rows: Vec<TimeMissionEpochRecord> = response.take(0)?;
+        Ok(rows.into_iter().next())
+    }
+
     pub async fn list_time_mission_epochs(
         &self,
         tenant_id: TenantId,
@@ -741,7 +766,7 @@ impl PlatformStore {
             content,
         )
         .await?;
-        self.time_temporal_event(draft.identity.tenant_id, &draft.event_key)
+        self.time_temporal_event(&draft.identity, &draft.event_key)
             .await?
             .ok_or(StoreError::MissingRecord {
                 operation: "time event creation readback",
@@ -750,28 +775,36 @@ impl PlatformStore {
 
     pub async fn time_temporal_event(
         &self,
-        tenant_id: TenantId,
+        identity: &PlatformIdentity,
         event_key: &str,
     ) -> Result<Option<TimeTemporalEventRecord>, StoreError> {
         validate_key("event_key", event_key, "event-")?;
-        select_one(
-            self,
-            time_record("time_temporal_event", event_key),
-            tenant_id,
-        )
-        .await
+        let mut response = self
+            .client()
+            .query("SELECT * FROM ONLY $record WHERE tenant = $tenant AND owner = $owner;")
+            .bind(("record", time_record("time_temporal_event", event_key)))
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("owner", identity.principal_id.record_id()))
+            .await?
+            .check()?;
+        Ok(response.take(0)?)
     }
 
     pub async fn list_time_temporal_events(
         &self,
-        tenant_id: TenantId,
+        identity: &PlatformIdentity,
     ) -> Result<Vec<TimeTemporalEventRecord>, StoreError> {
-        select_list(self, "SELECT * FROM time_temporal_event WHERE tenant = $tenant ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC;", tenant_id).await
+        let mut response = self.client()
+            .query("SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC, event_key ASC;")
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("owner", identity.principal_id.record_id()))
+            .await?.check()?;
+        Ok(response.take(0)?)
     }
 
     pub async fn transition_time_temporal_event(
         &self,
-        tenant_id: TenantId,
+        identity: &PlatformIdentity,
         event_key: &str,
         expected: i64,
         state: TimeTemporalEventState,
@@ -779,8 +812,8 @@ impl PlatformStore {
     ) -> Result<TimeTemporalEventRecord, StoreError> {
         validate_key("event_key", event_key, "event-")?;
         validate_json(&canonical_json)?;
-        let mut response = self.client().query("UPDATE $record MERGE { state: $state, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_temporal_event", event_key))).bind(("tenant", tenant_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).bind(("expected", expected)).bind(("next", expected + 1)).await?.check()?;
+        let mut response = self.client().query("UPDATE $record MERGE { state: $state, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND owner = $owner AND record_version = $expected RETURN AFTER;")
+            .bind(("record", time_record("time_temporal_event", event_key))).bind(("tenant", identity.tenant_id.record_id())).bind(("owner", identity.principal_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).bind(("expected", expected)).bind(("next", expected + 1)).await?.check()?;
         response
             .take::<Option<TimeTemporalEventRecord>>(0)?
             .ok_or_else(|| conflict("temporal event", event_key.to_owned()))
@@ -788,7 +821,7 @@ impl PlatformStore {
 
     pub async fn due_time_temporal_events(
         &self,
-        tenant_id: TenantId,
+        identity: &PlatformIdentity,
         tai_seconds: i64,
         nanosecond: i64,
         limit: u32,
@@ -797,8 +830,52 @@ impl PlatformStore {
         if !(1..=10_000).contains(&limit) {
             return Err(invalid("limit", "must be in 1..=10000"));
         }
-        let mut response = self.client().query("SELECT * FROM time_temporal_event WHERE tenant = $tenant AND state = 'scheduled' AND (due_tai_seconds_since_1970 < $seconds OR (due_tai_seconds_since_1970 = $seconds AND due_nanosecond <= $nanosecond)) ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC LIMIT $limit;")
-            .bind(("tenant", tenant_id.record_id())).bind(("seconds", tai_seconds)).bind(("nanosecond", nanosecond)).bind(("limit", i64::from(limit))).await?.check()?;
+        let mut response = self.client().query("SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner AND state = 'scheduled' AND (due_tai_seconds_since_1970 < $seconds OR (due_tai_seconds_since_1970 = $seconds AND due_nanosecond <= $nanosecond)) ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC LIMIT $limit;")
+            .bind(("tenant", identity.tenant_id.record_id())).bind(("owner", identity.principal_id.record_id())).bind(("seconds", tai_seconds)).bind(("nanosecond", nanosecond)).bind(("limit", i64::from(limit))).await?.check()?;
+        Ok(response.take(0)?)
+    }
+
+    /// Match, deduplicate, sort, and cap completion candidates in SurrealDB.
+    pub async fn complete_time_values(
+        &self,
+        identity: &PlatformIdentity,
+        domain: TimeCompletion,
+        needle: &str,
+        limit: u32,
+    ) -> Result<Vec<String>, StoreError> {
+        if !(1..=101).contains(&limit) {
+            return Err(invalid("limit", "must be in 1..=101"));
+        }
+        let (table, field, predicate, calendar_key) = match domain {
+            TimeCompletion::CalendarId => ("time_calendar_version", "calendar_key", "true", None),
+            TimeCompletion::CalendarVersion { calendar_key } => {
+                if let Some(key) = calendar_key.as_deref() {
+                    validate_key("calendar_key", key, "calendar-")?;
+                }
+                (
+                    "time_calendar_version",
+                    "type::string(calendar_version)",
+                    "($calendar_key = NONE OR calendar_key = $calendar_key)",
+                    calendar_key,
+                )
+            }
+            TimeCompletion::EpochId => ("time_mission_epoch", "epoch_key", "true", None),
+            TimeCompletion::EventId => ("time_temporal_event", "event_key", "owner = $owner", None),
+        };
+        // Only fixed repository-owned expressions enter the statement. All input is bound.
+        let statement = format!(
+            "SELECT VALUE candidate FROM (SELECT {field} AS candidate FROM {table} WHERE tenant = $tenant AND {predicate} AND string::lowercase({field}) CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);"
+        );
+        let mut response = self
+            .client()
+            .query(statement)
+            .bind(("tenant", identity.tenant_id.record_id()))
+            .bind(("owner", identity.principal_id.record_id()))
+            .bind(("calendar_key", calendar_key))
+            .bind(("needle", needle.to_lowercase()))
+            .bind(("limit", limit))
+            .await?
+            .check()?;
         Ok(response.take(0)?)
     }
 

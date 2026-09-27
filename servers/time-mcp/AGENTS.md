@@ -50,6 +50,9 @@ leap second assumptions.
 - The container builds from `servers/time-mcp/Dockerfile` (needs Docker);
   Helm material is the `time-mcp` domain service in `deploy/helm/veoveo`.
   No GPU requirement.
+- `tests/catalog_queries.rs` qualifies SQL tenant and owner predicates, latest epoch
+  selection, event transition isolation, and bounded distinct completion against the
+  pinned disposable SurrealDB fixture.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -60,7 +63,7 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: pending — exact epoch and owner-event reads use SQL predicates; collection pagination and stable-only discovery are still required
 - C05: met
 - C06: met
 - C07: met

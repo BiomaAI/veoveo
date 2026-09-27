@@ -580,7 +580,7 @@ impl ServerHandler for TimeMcp {
             ]));
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let engine = self.state.engine(&scope).await.map_err(internal)?;
+        let engine = self.state.authorities.authority_engine(&scope).await;
         match uri {
             uris::CLOCK_QUALITY_URI => {
                 return json_resource(uri, &self.state.clock.quality().await.map_err(internal)?);
@@ -780,57 +780,65 @@ impl ServerHandler for TimeMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
+        use veoveo_platform_store::TimeCompletion;
+
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
         let identity = require_scope(&context, "time:read")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let engine = self.state.engine(&scope).await.map_err(internal)?;
-        let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
+        let domain = match (reference.uri.as_str(), request.argument.name.as_str()) {
+            (uris::CALENDAR_TEMPLATE, "calendar_id") => Some(TimeCompletion::CalendarId),
+            (uris::CALENDAR_TEMPLATE, "version") => Some(TimeCompletion::CalendarVersion {
+                calendar_key: request
+                    .context
+                    .as_ref()
+                    .and_then(|context| context.get_argument("calendar_id"))
+                    .map(|key| crate::contract::CalendarId::new(key.clone()))
+                    .transpose()
+                    .map_err(invalid_params)?
+                    .map(|key| key.to_string()),
+            }),
+            (uris::EPOCH_TEMPLATE, "epoch_id") => Some(TimeCompletion::EpochId),
+            (uris::EVENT_TEMPLATE, "event_id") => Some(TimeCompletion::EventId),
+            _ => None,
+        };
+        if let Some(domain) = domain {
+            let values = self
+                .state
+                .catalog
+                .store()
+                .complete_time_values(&scope.identity, domain, &request.argument.value, 101)
+                .await
+                .map_err(internal)?;
+            let has_more = values.len() > CompletionInfo::MAX_VALUES;
+            return Ok(CompleteResult::new(
+                CompletionInfo::with_pagination(
+                    values
+                        .iter()
+                        .take(CompletionInfo::MAX_VALUES)
+                        .cloned()
+                        .collect(),
+                    (!has_more).then_some(values.len() as u32),
+                    has_more,
+                )
+                .map_err(internal)?,
+            ));
+        }
+        // These catalogs are packaged with the server's documents and TZDB.
+        let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::DOC_TEMPLATE, "doc_id") => {
                 SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
             }
-            (uris::ZONE_TEMPLATE, "zone_id") => engine
+            (uris::ZONE_TEMPLATE, "zone_id") => self
+                .state
+                .authorities
+                .authority_engine(&scope)
+                .await
                 .authority()
                 .tzdb
                 .available()
                 .map(|name| name.to_string())
-                .collect(),
-            (uris::CALENDAR_TEMPLATE, "calendar_id") => self
-                .state
-                .catalog
-                .list_calendars(&scope)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .map(|value| value.calendar_id.to_string())
-                .collect(),
-            (uris::CALENDAR_TEMPLATE, "version") => self
-                .state
-                .catalog
-                .list_calendars(&scope)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .map(|value| value.version.to_string())
-                .collect(),
-            (uris::EPOCH_TEMPLATE, "epoch_id") => self
-                .state
-                .catalog
-                .list_epochs(&scope)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .map(|value| value.epoch_id.to_string())
-                .collect(),
-            (uris::EVENT_TEMPLATE, "event_id") => self
-                .state
-                .catalog
-                .list_events(&scope)
-                .await
-                .map_err(internal)?
-                .into_iter()
-                .map(|value| value.event_id.to_string())
                 .collect(),
             _ => Vec::new(),
         };

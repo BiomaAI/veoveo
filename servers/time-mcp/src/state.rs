@@ -83,7 +83,7 @@ impl TimeApplication {
         if event.state != crate::contract::TemporalEventState::Scheduled {
             return Ok(());
         }
-        let engine = self.engine(&scope).await?;
+        let engine = self.authorities.authority_engine(&scope).await;
         let now = engine
             .resolve(&crate::contract::ResolveTimeRequest {
                 expression: crate::contract::TimeExpression::Rfc3339 {

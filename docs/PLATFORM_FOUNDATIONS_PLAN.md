@@ -12,6 +12,11 @@ reference installation acceptance is pending. Phase 3 Reason pagination
 is implemented at `3c5d914d` with native Store qualification. Stream run and session
 pagination, authorized completion, and the updated Live Monitor pass local Rust,
 Store, and browser behavioral checks; installed GPU acceptance is pending.
+Time event reads and transitions now enforce tenant and owner predicates in SQL;
+latest-epoch reads and bounded completions pass native Store qualification.
+Time collection pagination and stable-only discovery are still in progress.
+The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
+and reference installation qualification are pending.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The

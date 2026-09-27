@@ -222,6 +222,9 @@ calendar chooses a supported unambiguous time.
 A mission epoch gives a named physical instant a version. Agents can then resolve
 expressions such as an offset from launch, H-hour, or the start of a convoy window.
 The active tenant engine loads the latest persisted version for each epoch id.
+An exact epoch resource read selects its tenant and epoch key in SurrealDB, orders
+versions descending, and fetches one record. Clock observations, exact resource reads,
+and zone completions use the authority cache without loading the epoch catalog.
 
 `validate_timeline` resolves named points and evaluates directed constraints. Each
 constraint identifies a predecessor, successor, minimum separation, and optional
@@ -315,7 +318,13 @@ time://epochs/{epoch_id}
 time://events/{event_id}
 ```
 
-Completions enumerate IANA zones and visible calendar, version, epoch, and event ids.
+Completions enumerate the packaged IANA zones and visible calendar, version,
+epoch, and event ids. Store-backed completion queries apply tenant and event-owner
+predicates, text matching, distinct selection, and ordering in SurrealDB before
+fetching at most 101 candidates. MCP returns 100 values and sets `hasMore` when a
+further candidate exists. It reports a total only when the complete match set fits.
+Calendar-version completion narrows its SQL query to the selected `calendar_id`
+when the client supplies that argument in completion context.
 Calendars, epochs, authorities, clock quality, and events emit resource updates.
 Subscriptions to event resources restore their due-time watcher after a process
 restart or client reconnect.
@@ -336,8 +345,10 @@ the record from `scheduled` to `due` under optimistic concurrency, then emits up
 for the collection and event URI. Cancellation updates the durable record and cancels
 the local watcher.
 
-Reading, listing, completion, and notification scheduling enforce the authenticated
-owner boundary inside the tenant.
+Event reads, collections, due queries, and optimistic transitions bind both the
+tenant and authenticated owner in SQL. Completion applies the same owner predicate
+before its limit. The catalog decodes only the records selected by those queries;
+notification scheduling uses those owner-scoped reads.
 
 ## Administrative HTTP Projection
 
