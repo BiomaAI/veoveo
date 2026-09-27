@@ -265,6 +265,17 @@ checkpoint, because LIVE ordering and delivery are not guaranteed.
 DuckDB is not used for platform coordination. It serves arbitrary analytical SQL and
 local agent analysis.
 
+### SurrealDB Features Under Watch
+
+These SurrealDB features are candidates under the Database First rule in
+[`AGENTS.md`](../AGENTS.md#database-first). The store adopts each one when its
+condition holds, and the owner reviews the table with each SurrealDB release.
+
+| Feature | Adopt when |
+|---|---|
+| File buckets (`DEFINE BUCKET`) for Artifact bytes | The feature leaves experimental status and supports range reads, streaming, multipart or resumable upload, and documented rollback semantics for object-storage backends |
+| Enterprise audit logging | An installation licenses SurrealDB Enterprise and wants a database-level record beside the application audit log; it records no application events and can drop records under overflow |
+
 ## Durable Task Runtime
 
 `veoveo-task-runtime` knows nothing about MCP. It handles UUIDv7 task creation,

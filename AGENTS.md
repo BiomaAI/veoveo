@@ -163,6 +163,24 @@ and explicit domain types whenever the shape is known or controlled by our contr
 Use raw JSON only at genuinely open-ended boundaries, such as provider-specific model
 input schemas or opaque provider payloads that cannot be modeled honestly yet.
 
+## Database First
+
+Before building a mechanism in Veoveo, check whether SurrealDB already provides it,
+and prefer the database's version. Data locality and the database's transactional
+architecture make its indexes, events, table views, record references, change
+feeds, LIVE queries, graph relations, record ID ranges, and permissions cheaper and
+more correct than application code that reimplements them. Push reactive delivery,
+derived data, referential cleanup, and relationships into the database when it can
+own them.
+
+Adopt stable features only. An experimental SurrealDB feature follows the
+pre-release dependency rules in Dependency Currency. Rust types remain the contract at
+every service boundary, and authorization decisions stay in the canonical policy
+implementation. Record why a candidate was adopted or rejected in the owning design.
+
+The [platform store design](docs/TECH_DESIGN.md#surrealdb-features-under-watch)
+lists SurrealDB features under evaluation and the conditions for adopting them.
+
 ## Module Boundaries
 
 Do not create monolithic god files. Rust files should have a focused responsibility and
