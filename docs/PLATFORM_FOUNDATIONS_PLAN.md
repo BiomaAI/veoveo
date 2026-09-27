@@ -71,6 +71,13 @@ state after this file is gone.
   reset. Check free disk space and expected build growth before large builds, because
   stopping nodes does not reclaim their volumes or build caches. Required installed
   and hardware GPU acceptance still runs against the complete deployment.
+- During this plan, clean up completed experiment containers, verified-empty unused
+  volumes, and superseded build outputs between steps. Preserve useful Rust and
+  BuildKit caches. Before retiring Docker or OCI registry images, protect current
+  installation and rollback references, reusable dependency images, and their full
+  manifest and layer closure. Old simulation experiments may be removed. This
+  resource discipline applies to this plan; it adds no repository-wide development
+  rule or background cleanup service.
 - Read `AGENTS.md` and `docs/CODEMAP.md` before each phase.
 - Work on `main` in small commits, one concern each. Run the native checks each commit
   touches, and run `cargo xtask enforce docs` for every documentation change.
