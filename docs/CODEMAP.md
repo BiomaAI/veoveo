@@ -22,7 +22,7 @@ component:
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
-| [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, gateway read ledger, and the planned `knowledge-mcp` catalog, index, and GPU embedding |
+| [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, knowledge reads in the audit log, and the planned `knowledge-mcp` catalog, index, and GPU embedding |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, fork workloads, and acceptance |
 | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) | fork layout, reviewed upstream merges, local SDK development and installation ownership |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |

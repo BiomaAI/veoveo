@@ -285,9 +285,11 @@ Every server publishes its knowledge as MCP resources, and each server remains t
 system of record for its domain. The
 [`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) extension marks
 collections, and every read of a member returns a typed observation with a revision,
-content digest, modification time, and access descriptor. The gateway ledgers reads of
-declared collections. The `knowledge-mcp` index caches content for search and returns
-links to the owning resources. It never becomes a second source of truth.
+content digest, modification time, and access descriptor. The gateway's audit event
+for each read of a declared collection records the observed revision, so Veoveo keeps
+one audit log and no separate read ledger. The `knowledge-mcp` index caches content for
+search and returns links to the owning resources. It never becomes a second source of
+truth.
 
 Connectors to external systems follow the same contract. A connector projects vendor
 records as resources, declares its collections, and names the external record in each

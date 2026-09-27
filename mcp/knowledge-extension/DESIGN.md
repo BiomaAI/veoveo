@@ -11,8 +11,8 @@ what the caller received.
 Agents, the Console, and the knowledge service consume the same resources that any
 MCP client reads. The extension adds metadata. It adds no methods, and it never
 replaces a server's resources with a second copy. The
-[knowledge sharing design](../../docs/KNOWLEDGE.md) describes the gateway ledger and
-the `knowledge-mcp` catalog and index built on this extension.
+[knowledge sharing design](../../docs/KNOWLEDGE.md) describes how the audit log records
+knowledge reads and the `knowledge-mcp` catalog and index built on this extension.
 
 The crate `veoveo-mcp-knowledge-extension` in this directory will own the typed
 models, the capability declaration, the read and search helpers, and the shared

@@ -7,7 +7,7 @@ every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. T
 second makes installed smoke checks run against any installation, not only the Bioma
 reference installation. The third fixes resource contract violations found while
 surveying the servers. The fourth makes every server a knowledge source and adds the
-`knowledge-mcp` catalog, index, and ledger.
+`knowledge-mcp` catalog and index.
 
 The target contracts live in the owning documents:
 
@@ -28,8 +28,8 @@ state after this file is gone.
 |---|---|
 | MCP `2026-07-28` extensions and `_meta` key rules | Identifier forms and the `ai.veoveo/knowledge-source` extension |
 | RFC 9110, RFC 9111, RFC 8246 | Revision, freshness, and immutability semantics for knowledge reads |
-| W3C DCAT 3 and PROV-O | Catalog and ledger models in `knowledge-mcp` |
-| SurrealDB 3.2.4 | Ledger, catalog, `FULLTEXT` BM25, and `HNSW` indexes |
+| W3C DCAT 3 | Catalog model in `knowledge-mcp` |
+| SurrealDB 3.2.4 | Catalog, `FULLTEXT` BM25, and `HNSW` indexes |
 | candle `0.11.0`, `tokenizers` `0.23.2`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
 
@@ -265,25 +265,25 @@ the affected compliance entries.
 3. Add C32 to `CHECKLIST_IDS` and declare it in every server's `AGENTS.md`.
 4. Add checks K01 through K08 to the conformance client and run them in certification
    for every server that declares the extension.
-5. Add `platform/store/src/knowledge.rs` and the next ordered migration for
-   `knowledge_observation`, `knowledge_read`, `knowledge_derivation`,
-   `knowledge_invalidation`, catalog, chunk, and index-generation records.
+5. Add `platform/store/src/knowledge.rs` and the next ordered migration for catalog,
+   chunk, and index-generation records.
 6. In the gateway read path, declare the extension on upstream reads to declaring
-   servers, write observation and read records before returning, and forward the
-   observation only to declaring callers.
+   servers, attach the observation and read outcome to the read's audit event, commit
+   that event before returning, and forward the observation only to declaring
+   callers.
 7. In `agents/kernel/src/resource.rs`, keep the observation beside each admitted item
    and render one provenance line per item inside the existing budgets.
 8. Update the standards registers. Add `ai.veoveo/knowledge-source` to the agent and
    app interfaces row in `README.md`. Add a `docs/TECH_DESIGN.md` row for the extension
    with its RFC 9110 validator, RFC 9111 freshness, and RFC 8246 immutability
    semantics. Add the extension to the MCP row in `docs/ARCHITECTURE_DECISIONS.md`.
-   Add an interface row for gateway-ledgered knowledge reads to
+   Add an interface row for audited knowledge reads to
    `interfaces-and-protocols.csv`.
 
 Acceptance:
 
-- Store tests cover observation deduplication, supersession, and every read outcome.
-- A gateway test proves that records commit before the result returns.
+- Gateway tests prove that a declared read's audit event carries its observation and
+  outcome and commits before the result returns.
 - A kernel test shows provenance lines within the byte budget.
 - Every server passes K01 through K08 for its docs collection.
 
@@ -301,8 +301,8 @@ content digest as the revision.
 | artifact | artifact metadata (`artifact://metadata/{id}`), never the bytes | compliance metadata: tenant, owner, Work Context, labels, provenance | Cursor paging for `artifact://index`; `modifiedBy` from the occurrence record |
 | map | feature layers, features, publications, locations, facilities, dataset releases | layer and feature revisions, `created_by`, Work Context, labels, changeset sequence, source digests | Return resource links from `search_locations`; declare the other collections from its templates |
 
-Acceptance: each server passes K01 through K10 review and conformance, and the
-gateway ledger records reads of each collection.
+Acceptance: each server passes K01 through K10 review and conformance, and the audit
+log records the observed revision for reads of each collection.
 
 ## Phase 6: Knowledge Service
 
@@ -342,8 +342,8 @@ gateway ledger records reads of each collection.
 7. Build an evaluation set from the Phase 5 collections, and record recall at 10 for
    the chosen chunk settings in the index generation.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
-   3, W3C PROV-O, and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
-   rows for DCAT 3, PROV-O, SurrealDB `FULLTEXT` and `HNSW` indexes, and the candle
+   3 and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
+   rows for DCAT 3, SurrealDB `FULLTEXT` and `HNSW` indexes, and the candle
    and Qwen3-Embedding profile. Add `knowledge-mcp` to `software-components.csv` and its search,
    catalog, and source-read interfaces to `interfaces-and-protocols.csv`.
 

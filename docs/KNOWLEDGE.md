@@ -35,9 +35,8 @@ health      /knowledge/healthz
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/draft) `2026-07-28` | Hosted-server profile under [contract revision 3](../mcp/contract/DESIGN.md): tools, resources, templates, completion, `subscriptions/listen`, and official Tasks |
 | `ai.veoveo/knowledge-source` | Consumed as a client on every source read; declared as a server for the `knowledge.docs` collection |
 | [W3C DCAT 3](https://www.w3.org/TR/vocab-dcat-3/) | Catalog shape: the installation catalog is a `dcat:Catalog`, each source server a `dcat:DataService`, each collection a `dcat:Dataset`. Resources return JSON with DCAT-aligned field names, not RDF |
-| [W3C PROV-O](https://www.w3.org/TR/prov-o/) | Ledger model: observations are `prov:Entity`, reads and index builds are `prov:Activity`, principals and services are `prov:Agent`, and `prov:actedOnBehalfOf`, `prov:used`, `prov:wasDerivedFrom`, and `prov:wasInvalidatedBy` name the relations. Export as PROV-O JSON-LD is future work |
 | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) and [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) | Revalidation with strong validators and freshness lifetimes, applied through the extension's conditional reads |
-| SurrealDB 3.2.4 | Catalog, index, and ledger records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
+| SurrealDB 3.2.4 | Catalog and index records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
 | candle `0.11.0`: `candle-core`, `candle-nn`, `candle-transformers` | Unmodified `candle_transformers::models::qwen3::Model` forward pass in BF16, with the `cuda` feature on `candle-core` and `candle-nn` |
 | `tokenizers` `0.23.2` | The Qwen3 tokenizer from the pinned model revision |
 | [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | Apache-2.0 embedding model: 28 layers, 1024-dimension output, 32,768-token context, last-token pooling, L2 normalization |
@@ -58,8 +57,8 @@ or refuse a collection whose labels exceed the service's clearance.
 
 The service reads sources through the gateway as its own registered machine client.
 Control-plane policy grants that client read access to approved collections only.
-The gateway authorizes, audits, and ledgers those reads exactly as it does for any
-other caller.
+The gateway authorizes and audits those reads exactly as it does for any other
+caller.
 
 ## Catalog
 
@@ -68,7 +67,6 @@ other caller.
 | `knowledge://sources{?cursor}` | Paged `DataService` entries: server slug, contract revision, and declared collections |
 | `knowledge://source/{server}` | One source with its collections and approval state |
 | `knowledge://collection/{collection}` | One `Dataset`: descriptor, approval, index generation, member count, newest observation, and last change event |
-| `knowledge://observation/{observation_id}` | One observation with its reads and derivations, paged |
 | `knowledge://docs`, `knowledge://docs/{doc_id}`, `knowledge://contract` | Well-known surface |
 
 Collection resources are subscribable, and the service notifies them as indexing
@@ -83,10 +81,13 @@ and revision. `listen` collections then stay current through `subscriptions/list
 `revalidate` collections are revalidated after their `maxAgeSeconds`. Immutable
 members are read once per revision.
 
-A change notification marks the member stale in the same transaction that records
-the invalidation. The service then re-reads the member, replaces its chunks, and
-records the new observation. A lost event stream triggers reconciliation by
-conditional reads over the collection's pages.
+A change notification marks the member's chunks stale. The service then re-reads the
+member and replaces its chunks with ones keyed by the new revision. A lost event
+stream triggers reconciliation by conditional reads over the collection's pages. A
+`not_found` or unavailable read leaves the chunks marked stale; the service removes
+them only after a change event, a newer revision, or a definitive deletion from the
+owning server. The chunk records are the service's whole account of what it cached
+and from which revision.
 
 Chunks carry text, member URI, revision, collection, and the observation's access
 descriptor. Each chunk has a BM25 `FULLTEXT` entry and a 1024-dimension `HNSW`
@@ -177,34 +178,23 @@ its title and snippet.
 A caller who needs current content reads the member URI. That read goes to the
 owning server, which applies its own authorization and returns a fresh observation.
 
-## Ledger
+## Knowledge Reads In The Audit Log
 
-The ledger records what Veoveo observed and who read it. It lives in the platform
-store and is append-only. A correction adds a record that supersedes an earlier one.
+Veoveo keeps one audit log. A read of a declared collection is an ordinary audit
+event for `resources/read`, and the event carries the typed observation the owning
+server returned: collection, revision, `contentSha256`, `lastModified`, `modifiedBy`,
+and the read outcome (`full`, `not_modified`, `denied`, `not_found`, or
+`unavailable`). The event already names the actor, delegating principal, managed
+agent, Work Context, profile, and trace. "What did this answer rely on?" is therefore
+an audit query by trace or agent episode.
 
-| Record | PROV role | Contents | Writer |
-|---|---|---|---|
-| `knowledge_observation` | `Entity` | Member URI, collection, revision, `contentSha256`, `lastModified`, `modifiedBy`, access descriptor, and first `observedAt`; unique on URI, revision, and digest | Gateway |
-| `knowledge_read` | `Activity` | Observation, actor, delegating principal, managed-agent instance and episode when present, Work Context, request ID, `traceparent`, time, and outcome: `full`, `not_modified`, `denied`, `not_found`, or `unavailable` | Gateway |
-| `knowledge_derivation` | `Activity` | Index generation, the chunks it produced, and the observations it used | Knowledge service |
-| `knowledge_invalidation` | `wasInvalidatedBy` | Superseded observation, cause (change event, revalidation, or deletion), and time | Knowledge service |
-
-The gateway writes observation and read records on the resource-read path for every
-collection that declares the extension, whether the caller is an agent, the Console,
-an external host, or this service. It declares the extension on each upstream read of
-a declaring server, records the observation, and forwards the observation only to
-callers that declared the extension themselves. It commits the records before it
-returns the result, so an answer never cites a read the ledger lacks. Authority fields come from the
-gateway's verified request context. The records hold digests and identities, never
-member content.
-
-A `not_found` or `unavailable` outcome leaves the prior observation unresolved. The
-service invalidates an observation only on a change event, a newer revision, or a
-definitive deletion from the owning server.
-
-Ledger retention follows the classification of the observed member. Deleting a
-member removes its chunks and keeps its observations and reads until retention
-expires.
+The gateway declares the extension on each upstream read of a declaring server and
+forwards the observation only to callers that declared the extension themselves. For
+these reads it commits the audit event after the upstream response arrives and before
+it returns the result, so no caller receives content whose revision the log lacks.
+Denied reads are audited before any upstream call, as every denial is. The event holds
+digests and identities, never member content. Retention follows the audit log's
+policy for its event kind.
 
 ## Agent Context
 
@@ -221,9 +211,8 @@ is. The adapter's byte and read budgets count those lines.
 | `src/index/` | enumeration, change subscriptions, reconciliation, chunking, and index generations |
 | `src/embed/` | CUDA device admission, pinned model loading, instruction formatting, equal-length batching, last-token pooling, and normalization |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
-| `src/ledger.rs` | derivation and invalidation records |
-| `platform/store/src/knowledge.rs` | typed catalog, chunk, generation, and ledger records |
-| `platform/gateway/src/mcp/resources.rs` | observation and read records on the resource-read path |
+| `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
+| `platform/gateway/src/mcp/resources.rs` | observation attached to the read's audit event |
 | `agents/kernel/src/resource.rs` | observation retention and provenance lines in model context |
 
 ## Verification
@@ -232,8 +221,8 @@ is. The adapter's byte and read budgets count those lines.
   collection.
 - Unit and store tests prove that a caller never receives a result outside its
   effective access, including title and snippet.
-- Store tests prove observation deduplication, supersession, read outcomes, and
-  commit ordering on the gateway read path.
+- Gateway tests prove that a declared read's audit event carries its observation and
+  outcome, and that it commits before the result returns.
 - Change-event tests prove invalidation, re-read, and reconciliation after a lost
   stream.
 - The embedding tests run on a hardware GPU. They prove that startup fails without
