@@ -35,7 +35,7 @@ Contract revision: 3
 - C01: met — native hosted certification and domain qualification; see DESIGN.md.
 - C02: met — native hosted certification and domain qualification; see DESIGN.md.
 - C03: met — native hosted certification and domain qualification; see DESIGN.md.
-- C04: met — native hosted certification and domain qualification; see DESIGN.md.
+- C04: met — static resources declare JSON or Markdown MIME types; transcript artifact reads preserve the published MIME type
 - C05: met — native hosted certification and domain qualification; see DESIGN.md.
 - C06: met — native hosted certification and domain qualification; see DESIGN.md.
 - C07: met — native hosted certification and domain qualification; see DESIGN.md.

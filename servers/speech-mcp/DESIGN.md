@@ -81,6 +81,11 @@ source access is lost. Static catalogs do not advertise list-change notification
 Completion returns no Artifact identifier guesses. The transcription prompt consumes
 a caller-supplied governed URI.
 
+The capabilities, document index, contract, transcript and dictation resources use
+`application/json`. Embedded document bodies use `text/markdown`. Transcript artifact
+reads preserve the Artifact plane's MIME type, including `application/json` and
+`text/vtt`; UTF-8 text without a stored MIME type uses `text/plain`.
+
 ## Private Dictation
 
 `start_dictation`, `finish_dictation` and `cancel_dictation` share the same application

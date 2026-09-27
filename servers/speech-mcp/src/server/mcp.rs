@@ -140,18 +140,8 @@ impl ServerHandler for SpeechMcp {
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         no_cursor(request.as_ref())?;
-        let mut resources = vec![
-            Resource::new("speech://capabilities", "Speech capabilities")
-                .with_mime_type("application/json"),
-        ];
-        resources.push(Resource::new("speech://docs", "Speech documents"));
-        resources.push(Resource::new("speech://contract", "Speech contract"));
-        resources.extend(SERVER_DOCS.iter().map(|doc| {
-            Resource::new(format!("speech://docs/{}", doc.id), doc.title)
-                .with_mime_type("text/markdown")
-        }));
         Ok(ListResourcesResult {
-            resources,
+            resources: static_resources(),
             next_cursor: None,
             result_type: Some(ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),
@@ -167,14 +157,16 @@ impl ServerHandler for SpeechMcp {
     ) -> Result<ListResourceTemplatesResult, McpError> {
         no_cursor(request.as_ref())?;
         let mut templates = vec![
-            ResourceTemplate::new("speech://transcript/{task_id}", "Transcription"),
-            ResourceTemplate::new("speech://dictation/{id}", "Private dictation draft"),
+            ResourceTemplate::new("speech://transcript/{task_id}", "Transcription")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new("speech://dictation/{id}", "Private dictation draft")
+                .with_mime_type("application/json"),
             ResourceTemplate::new("speech://artifact/{artifact_id}", "Transcript artifact"),
         ];
-        templates.push(ResourceTemplate::new(
-            "speech://docs/{doc_id}",
-            "Speech document",
-        ));
+        templates.push(
+            ResourceTemplate::new("speech://docs/{doc_id}", "Speech document")
+                .with_mime_type("text/markdown"),
+        );
         Ok(ListResourceTemplatesResult {
             resource_templates: templates,
             next_cursor: None,
@@ -262,9 +254,7 @@ impl ServerHandler for SpeechMcp {
                 .get(&caller, &id, AccessLevel::Read)
                 .await
                 .map_err(|_| denied())?;
-            let text = String::from_utf8(artifact.bytes)
-                .map_err(|_| McpError::invalid_params("artifact is not text", None))?;
-            ReadResourceResult::new(vec![ResourceContents::text(text, uri)])
+            text_artifact_resource(uri, artifact.bytes, artifact.metadata.mime_type.as_deref())?
         } else {
             return Err(McpError::resource_not_found(
                 "unknown Speech resource",
@@ -388,6 +378,84 @@ impl ServerHandler for SpeechMcp {
                     .map_err(|_| McpError::internal_error("subscription closed", None))?;
             }
         }
+    }
+}
+
+fn static_resources() -> Vec<Resource> {
+    let mut resources = vec![
+        Resource::new("speech://capabilities", "Speech capabilities")
+            .with_mime_type("application/json"),
+        Resource::new("speech://docs", "Speech documents").with_mime_type("application/json"),
+        Resource::new("speech://contract", "Speech contract").with_mime_type("application/json"),
+    ];
+    resources.extend(SERVER_DOCS.iter().map(|doc| {
+        Resource::new(format!("speech://docs/{}", doc.id), doc.title)
+            .with_mime_type("text/markdown")
+    }));
+    resources
+}
+
+fn text_artifact_resource(
+    uri: &str,
+    bytes: Vec<u8>,
+    mime_type: Option<&str>,
+) -> Result<ReadResourceResult, McpError> {
+    let text = String::from_utf8(bytes)
+        .map_err(|_| McpError::invalid_params("artifact is not text", None))?;
+    Ok(ReadResourceResult::new(vec![
+        ResourceContents::text(text, uri).with_mime_type(mime_type.unwrap_or("text/plain")),
+    ]))
+}
+
+#[cfg(test)]
+mod resource_tests {
+    use super::*;
+
+    #[test]
+    fn static_resource_descriptors_declare_their_content_types() {
+        let resources = static_resources();
+        for uri in [
+            "speech://capabilities",
+            "speech://docs",
+            "speech://contract",
+        ] {
+            let resource = resources
+                .iter()
+                .find(|resource| resource.uri == uri)
+                .unwrap();
+            assert_eq!(resource.mime_type.as_deref(), Some("application/json"));
+        }
+        for doc in SERVER_DOCS.iter() {
+            let uri = format!("speech://docs/{}", doc.id);
+            let resource = resources
+                .iter()
+                .find(|resource| resource.uri == uri)
+                .unwrap();
+            assert_eq!(resource.mime_type.as_deref(), Some("text/markdown"));
+        }
+    }
+
+    #[test]
+    fn transcript_artifacts_preserve_the_published_content_type() {
+        for (bytes, mime_type) in [
+            (b"{\"text\":\"hello\"}".as_slice(), Some("application/json")),
+            (b"WEBVTT\n\n".as_slice(), Some("text/vtt")),
+            (b"hello".as_slice(), None),
+        ] {
+            let result =
+                text_artifact_resource("speech://artifact/test", bytes.to_vec(), mime_type)
+                    .unwrap();
+            let json = serde_json::to_value(result).unwrap();
+            assert_eq!(
+                json["contents"][0]["mimeType"],
+                mime_type.unwrap_or("text/plain")
+            );
+            assert_eq!(
+                json["contents"][0]["text"],
+                std::str::from_utf8(bytes).unwrap()
+            );
+        }
+        assert!(text_artifact_resource("speech://artifact/test", vec![0xff], None).is_err());
     }
 }
 
