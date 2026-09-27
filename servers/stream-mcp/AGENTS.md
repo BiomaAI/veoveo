@@ -81,3 +81,4 @@ Contract revision: 2
 - C28: met
 - C29: met
 - C30: met
+- C31: pending — installed Discover and list readiness qualification is pending

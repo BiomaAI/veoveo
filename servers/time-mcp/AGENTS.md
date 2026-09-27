@@ -87,3 +87,4 @@ Contract revision: 3
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
+- C31: pending — installed Discover and list readiness qualification is pending

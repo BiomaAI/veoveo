@@ -1,9 +1,8 @@
 //! Repository-structure enforcement for the MCP server contract
 //! (`mcp/contract/DESIGN.md` C22-C29).
 //!
-//! Servers are discovered by globbing `servers/*-mcp/`; nothing here
-//! enumerates servers by hand, so adding a server extends coverage without
-//! editing this test.
+//! Servers are discovered by globbing `servers/*-mcp/`, with the hosted Python
+//! template included from `templates/python-mcp/`.
 
 use std::{fs, path::PathBuf};
 
@@ -171,7 +170,8 @@ fn optimization_completion_discovery_is_bounded_at_the_store() {
 
 #[test]
 fn every_server_crate_carries_its_contract_documents() {
-    let dirs = discovered_server_dirs();
+    let mut dirs = discovered_server_dirs();
+    dirs.push(repository_root().join("templates/python-mcp"));
     assert!(
         !dirs.is_empty(),
         "server discovery found nothing under servers/; the glob is broken"

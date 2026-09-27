@@ -1,8 +1,8 @@
 # Platform Foundations Plan
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
-checks and reference GitOps convergence passed. Phases 1 and 2 are in progress.
-Phases 3–9 have not started. Phase 1 installed acceptance waits for Phase 2
+checks and reference GitOps convergence passed. Phases 1–3 are in progress.
+Phases 4–9 have not started. Phase 1 installed acceptance waits for Phase 2
 installation targets.
 
 This plan tells an implementing agent how to deliver six changes. The first moves

@@ -24,6 +24,10 @@ The crate depends on shared MCP protocol and Veoveo contract infrastructure. It 
 not depend on a domain server, showcase, example, extension implementation, or client
 repository. Domain lifecycle smoke remains with the component that owns the domain.
 
+Repository checks discover hosted servers under `servers/*-mcp` and include the
+Python server template. Each manual declares C01–C31; a pending item states its
+qualification gap. C18–C21 must be met for every hosted server.
+
 Tool input schemas retain the ordinary SDK representation. Conformance permits
 same-document references and composition, rejects external references without fetching
 them, and applies per-document limits of 1 MiB, depth 64, 50,000 nodes, 4,096 references,

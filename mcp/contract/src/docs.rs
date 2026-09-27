@@ -31,10 +31,10 @@ pub const REQUIRED_AGENT_SECTIONS: [&str; 4] = [
 ];
 
 /// Stable identifiers of the compliance checklist in `DESIGN.md`.
-pub const CHECKLIST_IDS: [&str; 30] = [
+pub const CHECKLIST_IDS: [&str; 31] = [
     "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
     "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26",
-    "C27", "C28", "C29", "C30",
+    "C27", "C28", "C29", "C30", "C31",
 ];
 
 /// One document embedded from the server crate at build time.
@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn checklist_ids_are_dense_and_stable() {
-        assert_eq!(CHECKLIST_IDS.len(), 30);
+        assert_eq!(CHECKLIST_IDS.len(), 31);
         for (index, id) in CHECKLIST_IDS.iter().enumerate() {
             assert_eq!(*id, format!("C{:02}", index + 1));
         }

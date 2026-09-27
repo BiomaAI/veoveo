@@ -94,7 +94,7 @@ def test_declaration_derives_from_the_embedded_manual():
 
 
 def test_checklist_ids_are_dense_and_stable():
-    assert len(CHECKLIST_IDS) == 30
+    assert len(CHECKLIST_IDS) == 31
     for index, checklist_id in enumerate(CHECKLIST_IDS):
         assert checklist_id == f"C{index + 1:02}"
 
