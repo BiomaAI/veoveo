@@ -15,6 +15,11 @@ use crate::{
     world::validate_world_tree,
 };
 
+mod reads;
+
+#[cfg(test)]
+mod read_tests;
+
 #[derive(Clone, Debug)]
 pub struct FrameScope {
     pub identity: PlatformIdentity,
@@ -29,34 +34,6 @@ pub struct FramesState {
 impl FramesState {
     pub fn new(store: PlatformStore) -> Self {
         Self { store }
-    }
-
-    pub async fn list_worlds(&self, scope: &FrameScope) -> Result<Vec<FrameWorldSummary>> {
-        self.store
-            .list_frame_worlds(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .filter(|world| labels_allow(&world.labels, &scope.data_labels))
-            .map(world_summary)
-            .collect()
-    }
-
-    pub async fn get_world(
-        &self,
-        scope: &FrameScope,
-        world_id: &FrameWorldId,
-    ) -> Result<Option<FrameWorldSummary>> {
-        let Some(world) = self
-            .store
-            .frame_world_by_key(scope.identity.tenant_id, world_id.as_str())
-            .await?
-        else {
-            return Ok(None);
-        };
-        if !labels_allow(&world.labels, &scope.data_labels) {
-            return Ok(None);
-        }
-        Ok(Some(world_summary(world)?))
     }
 
     pub async fn create_world(
@@ -116,56 +93,6 @@ impl FramesState {
             revision: world_revision(publication.revision)?,
             created: publication.created,
         })
-    }
-
-    pub async fn get_revision(
-        &self,
-        scope: &FrameScope,
-        revision_uri: &FrameWorldRevisionUri,
-    ) -> Result<Option<FrameWorldRevision>> {
-        let world_id = revision_uri.world_id();
-        let Some(world) = self
-            .store
-            .frame_world_by_key(scope.identity.tenant_id, world_id.as_str())
-            .await?
-        else {
-            return Ok(None);
-        };
-        if !labels_allow(&world.labels, &scope.data_labels) {
-            return Ok(None);
-        }
-        let revision_id = revision_uri.revision_id();
-        self.store
-            .frame_world_revision_by_key(
-                scope.identity.tenant_id,
-                world_id.as_str(),
-                revision_id.as_str(),
-            )
-            .await?
-            .map(world_revision)
-            .transpose()
-    }
-
-    pub async fn get_head_revision(
-        &self,
-        scope: &FrameScope,
-        world_id: &FrameWorldId,
-    ) -> Result<Option<FrameWorldRevision>> {
-        let Some(world) = self
-            .store
-            .frame_world_by_key(scope.identity.tenant_id, world_id.as_str())
-            .await?
-        else {
-            return Ok(None);
-        };
-        if !labels_allow(&world.labels, &scope.data_labels) {
-            return Ok(None);
-        }
-        self.store
-            .frame_world_head_revision(scope.identity.tenant_id, world_id.as_str())
-            .await?
-            .map(world_revision)
-            .transpose()
     }
 
     pub async fn require_revision(

@@ -134,7 +134,7 @@ impl PlatformStore {
             })
     }
 
-    pub async fn frame_world_by_key(
+    async fn frame_world_by_key(
         &self,
         tenant_id: TenantId,
         world_key: &str,
@@ -153,20 +153,7 @@ impl PlatformStore {
         Ok(records.into_iter().next())
     }
 
-    pub async fn list_frame_worlds(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<FrameWorldRecord>, StoreError> {
-        let mut response = self
-            .client()
-            .query("SELECT * FROM frame_world WHERE tenant = $tenant ORDER BY world_key ASC;")
-            .bind(("tenant", tenant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
-    pub async fn frame_world_revision_by_key(
+    async fn frame_world_revision_by_key(
         &self,
         tenant_id: TenantId,
         world_key: &str,
@@ -184,21 +171,6 @@ impl PlatformStore {
             .check()?;
         let records: Vec<FrameWorldRevisionRecord> = response.take(0)?;
         Ok(records.into_iter().next())
-    }
-
-    pub async fn frame_world_head_revision(
-        &self,
-        tenant_id: TenantId,
-        world_key: &str,
-    ) -> Result<Option<FrameWorldRevisionRecord>, StoreError> {
-        let Some(world) = self.frame_world_by_key(tenant_id, world_key).await? else {
-            return Ok(None);
-        };
-        let Some(revision_key) = world.head_revision_key else {
-            return Ok(None);
-        };
-        self.frame_world_revision_by_key(tenant_id, world_key, &revision_key)
-            .await
     }
 
     pub async fn publish_frame_world_revision(

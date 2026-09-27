@@ -31,6 +31,9 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - Revision-scoped `frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}`
   identities are the only local-frame identities. Sessions pin one immutable
   revision and never follow a mutable world head implicitly.
+- Keep Frames read queries in the owning runtime with typed IDs through database
+  bindings. SQL applies tenant, current labels, and linked-parent checks. World reads
+  are shared within the tenant under label clearance; publication requires ownership.
 - Approximation permission is explicit per request, and every result carries
   a `CoordinateOperationProvenance` record. Results also carry canonical
   revision references and typed SHA-256 digests for only the frame-world
@@ -40,6 +43,8 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 - `cargo check -p veoveo-frames-mcp`
 - `cargo test -p veoveo-frames-mcp`
+- `cargo test -p veoveo-frames-mcp --lib state::read_tests` runs isolated SurrealDB
+  visibility, parent-integrity, head-consistency, and direct-frame selection cases.
 - Cross-server consumers enable only `contract` with default features disabled.
 - `cargo test -p veoveo-frames-mcp --no-default-features --features contract --test coordinate_contract`
   checks schema compatibility, typed world addresses, and malformed identity admission.
@@ -52,10 +57,14 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 Contract revision: 3
 
+Operation-resource owner/profile enforcement is incomplete: records have no profile
+identity and current reads apply only tenant and labels. The foundations plan tracks
+the persisted authority contract and SQL migration before installed acceptance.
+
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: pending — direct world/revision/frame reads apply SQL visibility and parent checks; world and usage catalogs still need bounded SQL pages and static discovery
 - C05: met
 - C06: met
 - C07: met

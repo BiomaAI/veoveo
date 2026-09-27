@@ -489,7 +489,7 @@ The only durable platform persistence layer.
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
 | `migrations/0050_artifact_uploads.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
-| `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus authored frame worlds and immutable tree revisions |
+| `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus frame-world mutations and private readback; Frames owns authorized world queries |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
@@ -668,6 +668,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |

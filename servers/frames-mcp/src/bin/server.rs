@@ -674,10 +674,10 @@ impl ServerHandler for FramesMcp {
                 return json_resource(uri, &entries);
             }
             if let Some(frame_uri) = uris::parse_world_frame_uri(uri) {
-                let revision = self
+                let frame = self
                     .state
                     .frames
-                    .get_revision(&scope, &frame_uri.revision_uri())
+                    .get_frame(&scope, &frame_uri)
                     .await
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?
                     .ok_or_else(|| {
@@ -686,9 +686,6 @@ impl ServerHandler for FramesMcp {
                             None,
                         )
                     })?;
-                let frame = revision.frame(&frame_uri).ok_or_else(|| {
-                    McpError::resource_not_found(format!("unknown world frame `{frame_uri}`"), None)
-                })?;
                 return json_resource(uri, &frame);
             }
             if let Some(revision_uri) = uris::parse_world_revision_uri(uri) {

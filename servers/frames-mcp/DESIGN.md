@@ -28,6 +28,8 @@ operation resources are Veoveo extensions rather than external protocols.
 World addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
 URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
+Persistence uses the shared Store's pinned SurrealDB 3.2.4 client and SurrealQL
+queries over its internal WebSocket connection.
 
 Frames owns complete spatial-frame worlds and bounded coordinate conversion.
 Map MCP owns Earth geography, projected coordinate reference systems,
@@ -164,7 +166,7 @@ frames://usage/task/{task_id}
 ```
 
 The world resource carries mutable head metadata. Revision and frame resources
-are immutable. Operations, artifacts, tasks, and usage retain owner, tenant,
+are immutable. Operations, artifacts, tasks, and usage require owner, tenant,
 profile, and data-label isolation.
 
 World identifiers support completion. Resource lists are paginated. The server
@@ -200,6 +202,20 @@ conversion returns an empty source list.
 
 ## Persistence
 
+Frames owns world read queries in `state/reads.rs` and reuses `PlatformStore`'s
+connection and driver records. The query API accepts Frames IDs and resource addresses;
+conversion to database values happens at bindings. This dependency direction lets
+cross-server consumers use the existing contract feature without introducing a Store
+dependency on the Frames library or a second identity crate.
+
+World reads select the caller's tenant and require every world label in the caller's
+clearance inside SQL. World visibility is shared within a tenant; publication requires
+the world owner. Revision reads check the linked world's tenant, key, owner, and current
+labels in the same query. Missing or inconsistent parents cannot authorize a revision.
+Head reads additionally require the linked record, revision key, and revision number
+to agree. Direct frame resources select only their requested node in SQL; coordinate
+conversion loads the visible complete revision to resolve the transform chain.
+
 SurrealDB stores:
 
 - `frame_world` authoring identities and mutable heads;
@@ -220,14 +236,22 @@ principal, tenant, labels, scopes, and expiry.
 Unknown and unauthorized worlds, revisions, frames, operations, tasks, usage,
 and artifacts are indistinguishable at their resource boundary.
 
+Operation reads currently check tenant and labels but lack owner enforcement and
+persisted profile identity. World and usage collection resources return complete
+arrays. The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+tracks operation authority and SQL catalog paging as required work before installed
+acceptance. World read qualification does not establish those guarantees.
+
 ## Module layout
 
 ```text
 servers/frames-mcp/src/
-  contract.rs             tool and result types
+  contract/               public IDs, worlds, addresses, tool and result types
   engine.rs               coordinate conversion
   world.rs                tree validation, hashing, and transform resolution
   state.rs                durable world, revision, and operation access
+  state/reads.rs          typed world queries with SQL visibility and parent checks
+  state/read_tests.rs     isolated database authorization and parent-integrity cases
   artifacts.rs            artifact-plane integration
   uris.rs                 canonical identities
   bin/server.rs           transport and MCP composition

@@ -552,14 +552,8 @@ async fn frame_world_revisions_and_operations_are_durable_and_idempotent() {
         .unwrap();
     assert_eq!(world.world_key, "integration-world");
     assert_eq!(world.revision, 0);
-    assert_eq!(
-        store
-            .list_frame_worlds(identity.tenant_id)
-            .await
-            .unwrap()
-            .len(),
-        1
-    );
+    assert!(world.head_revision.is_none());
+    assert!(world.head_revision_key.is_none());
     let revision_key = format!("revision-{}", Uuid::now_v7());
     let revision_draft = FrameWorldRevisionDraft {
         identity: identity.clone(),
