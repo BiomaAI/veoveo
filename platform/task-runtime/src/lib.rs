@@ -25,9 +25,9 @@ pub use service::{
 };
 pub use types::{
     ClaimedTask, CreateTask, CreateTaskResult, RecoveryClass, RecoveryReport, TaskError,
-    TaskFailure, TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner,
-    TaskPayloadState, TaskRetentionPin, TaskRetentionPinError, TaskRuntimeConfig, TaskSnapshot,
-    TaskTransition, TaskUpdate, TaskUpdateCursor,
+    TaskFailure, TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskPage,
+    TaskPageCursor, TaskPayloadState, TaskRetentionPin, TaskRetentionPinError, TaskRuntimeConfig,
+    TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor,
 };
 pub use veoveo_platform_store::{
     PrincipalKind, StoreAuthLevel, StoreCredentials, TaskId, TaskStatus,

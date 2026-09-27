@@ -508,6 +508,7 @@ observation lease and cancellation epoch in one transaction.
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
+| `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |
 | `recovery.rs` | restart profiles; uncertain provider outcomes and cancellations stay pending |
@@ -638,6 +639,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
 | `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
+| `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/bin/server/usage_index.rs` | authorization-filtered usage discovery with stable task ordering and opaque cursors |

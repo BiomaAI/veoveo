@@ -204,10 +204,29 @@ reason://pipeline/{pipeline_id}
 reason://models
 reason://model/{model_id}
 reason://analyses
+reason://analyses{?cursor}
 reason://analysis/{task_id}
 reason://analysis/{task_id}/results
 reason://artifact/{artifact_id}
 ```
+
+`resources/list` publishes collection roots, the embedded documents and the fixed
+pipeline and model catalogs. Analysis and result identities use templates and the
+analysis collection. Reading `reason://analyses` returns an object with `analyses`,
+`limit: 100` and an optional opaque `next_cursor`. Continue through
+`reason://analyses?cursor={next_cursor}`. The Store filters tenant, principal,
+profile, data labels and task type before applying the limit, then orders by creation
+time and Task ID. Every page uses the current caller's authority. A cursor is not a
+snapshot: retention can remove Tasks and subsequent Tasks can appear on later pages.
+The cursor version and collection identity are validated before use.
+
+Analysis and artifact completions apply their search predicate in the Store before
+reading at most 101 candidates per identity field. Artifact identities are deduplicated
+across the three output fields. A response returns at most 100 values and reports
+`hasMore`; it omits `total` when more candidates exist. Native isolated-store tests
+qualify filtered limits, owner isolation and artifact deduplication without inference.
+Install the server and collection consumers together; consumers must read the page
+object and follow its continuation cursor.
 
 Analysis publishes immutable occurrences through the shared artifact plane:
 typed JSON results, a Rerun annotation layer, and optionally the remuxed

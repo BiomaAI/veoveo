@@ -208,6 +208,20 @@ pub struct TaskSnapshot {
     pub poll_interval_ms: Option<u64>,
 }
 
+/// A stable position in a caller-owned task collection, ordered by creation and ID.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TaskPageCursor {
+    pub created_at: DateTime<Utc>,
+    pub task_id: TaskId,
+}
+
+#[derive(Clone, Debug)]
+pub struct TaskPage {
+    pub items: Vec<TaskSnapshot>,
+    pub next_cursor: Option<TaskPageCursor>,
+}
+
 impl TaskSnapshot {
     pub fn is_terminal(&self) -> bool {
         matches!(
@@ -394,6 +408,8 @@ pub enum TaskError {
     InvalidAuthority(String),
     #[error("invalid persisted task: {0}")]
     InvalidRecord(String),
+    #[error("task page requires 1..=32 task types and a limit in 1..=1000")]
+    InvalidPageQuery,
     #[error("task input key is empty, too long, or contains a control character")]
     InvalidInputKey,
     #[error("task input key `{0}` has already been used")]

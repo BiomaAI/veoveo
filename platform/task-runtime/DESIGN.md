@@ -121,6 +121,21 @@ between bounded observations handled by different replicas.
 
 ## Filtered Task Observation
 
+`runtime/task_pages` serves caller-owned collections in pages of at most 1,000
+Tasks. The database applies server, tenant, principal, profile, data-label and
+task-type filters before the limit. The optional tenant in the stored owner must
+also match, distinguishing installation-wide authority from an explicit tenant.
+Ordering uses creation time and Task ID together, preserving positions when Tasks
+share a timestamp. The query reads one extra record to establish continuation.
+Each page rechecks the caller's authority; a cursor carries only a position.
+Concurrent deletions and retention may remove items between reads, and new Tasks
+may appear after that position. The API does not promise a frozen snapshot.
+Domains with additional Work Context restrictions own their narrower queries.
+
+`tests/subscriptions.rs` qualifies collection limits against an isolated database,
+including excluded malformed envelopes, timestamp ties and cursor reuse by another
+caller.
+
 Native Task subscriptions admit at most 256 requested identities and authorize
 each before reading a baseline. The baseline selects those exact record IDs.
 Outbox replay filters those same aggregate identities and the hosted server, in

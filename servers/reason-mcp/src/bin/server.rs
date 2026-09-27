@@ -56,6 +56,8 @@ mod app_state;
 mod config;
 #[path = "server/host.rs"]
 mod host;
+#[path = "server/index.rs"]
+mod index;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
 #[path = "server/outputs.rs"]
@@ -73,7 +75,7 @@ use app_state::AppState;
 use config::Args;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use ownership::{internal_caller, internal_identity, require_task_owner, task_owner_allows};
+use ownership::{internal_caller, internal_identity, require_task_owner, runtime_owner};
 use prompts::ReasonPrompt;
 use task_extension::ReasonTaskService;
 use tasks::{
@@ -261,7 +263,7 @@ impl ServerHandler for ReasonMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
+        internal_identity(&context)?;
         let mut resources = vec![
             veoveo_mcp_apps_extension::app_resource(uris::ANALYSES_APP_URI, "analyses")
                 .with_title("Analyses")
@@ -313,21 +315,6 @@ impl ServerHandler for ReasonMcp {
                     .with_mime_type("application/json"),
             );
         }
-        for snapshot in visible_analyses(&self.state, &identity).await? {
-            let task_id = snapshot.task_id.to_string();
-            resources.push(
-                Resource::new(uris::analysis_uri(&task_id), format!("analysis {task_id}"))
-                    .with_title(format!("Reason analysis {task_id}"))
-                    .with_description("Durable task state and artifact identities.")
-                    .with_mime_type("application/json"),
-            );
-            resources.push(
-                Resource::new(uris::results_uri(&task_id), format!("results {task_id}"))
-                    .with_title(format!("Reason results {task_id}"))
-                    .with_description("Typed reasoning output for one completed analysis.")
-                    .with_mime_type("application/vnd.veoveo.reason-results+json"),
-            );
-        }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -355,6 +342,9 @@ impl ServerHandler for ReasonMcp {
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
                 .with_title("Reason model")
+                .with_mime_type("application/json"),
+            ResourceTemplate::new(uris::ANALYSES_PAGE_TEMPLATE, "analyses page")
+                .with_title("Reason analyses page")
                 .with_mime_type("application/json"),
             ResourceTemplate::new(uris::ANALYSIS_TEMPLATE, "analysis")
                 .with_title("Reason analysis")
@@ -458,13 +448,9 @@ impl ServerHandler for ReasonMcp {
                 return json_resource(uri, &model);
             }
             let identity = internal_identity(&context)?;
-            if uri == uris::ANALYSES_URI {
-                let views = visible_analyses(&self.state, &identity)
-                    .await?
-                    .iter()
-                    .map(analysis_view)
-                    .collect::<Result<Vec<_>, _>>()?;
-                return json_resource(uri, &views);
+            if let Some(cursor) = index::parse_collection(uri)? {
+                let page = index::analyses_page(&self.state.tasks, &runtime_owner(&identity), cursor.as_ref()).await?;
+                return json_resource(uri, &page);
             }
             if let Some(task_id) = uris::parse_analysis_uri(uri) {
                 require_task_owner(&self.state, &context, task_id).await?;
@@ -576,29 +562,25 @@ impl ServerHandler for ReasonMcp {
             (uris::MODEL_TEMPLATE, "model_id") => self.state.catalog.model_ids(),
             (uris::ANALYSIS_TEMPLATE | uris::RESULTS_TEMPLATE, "analysis_id") => {
                 let identity = internal_identity(&context)?;
-                visible_analyses(&self.state, &identity)
-                    .await?
-                    .into_iter()
-                    .map(|snapshot| snapshot.task_id.to_string())
-                    .collect()
+                return index::complete(
+                    &self.state.tasks,
+                    &runtime_owner(&identity),
+                    index::CompletionDomain::Analyses,
+                    &request.argument.value,
+                )
+                .await
+                .map(CompleteResult::new);
             }
             (uris::ARTIFACT_TEMPLATE, "artifact_id") => {
                 let identity = internal_identity(&context)?;
-                visible_analyses(&self.state, &identity)
-                    .await?
-                    .iter()
-                    .filter_map(analysis_output)
-                    .flat_map(|output| {
-                        let mut ids = vec![
-                            output.results_artifact.artifact_id.to_string(),
-                            output.annotations_artifact.artifact_id.to_string(),
-                        ];
-                        if let Some(artifact) = output.source_clip_artifact {
-                            ids.push(artifact.artifact_id.to_string());
-                        }
-                        ids
-                    })
-                    .collect()
+                return index::complete(
+                    &self.state.tasks,
+                    &runtime_owner(&identity),
+                    index::CompletionDomain::Artifacts,
+                    &request.argument.value,
+                )
+                .await
+                .map(CompleteResult::new);
             }
             _ => return Ok(CompleteResult::default()),
         };
@@ -619,18 +601,6 @@ impl ServerHandler for ReasonMcp {
         .map_err(internal)?;
         Ok(CompleteResult::new(completion))
     }
-}
-
-async fn visible_analyses(
-    state: &AppState,
-    identity: &veoveo_mcp_contract::GatewayInternalIdentity,
-) -> Result<Vec<TaskSnapshot>, McpError> {
-    let mut snapshots = state.tasks.list().await.map_err(internal)?;
-    snapshots.retain(|snapshot| {
-        snapshot.task_type == "analyze_recording" && task_owner_allows(&snapshot.owner, identity)
-    });
-    snapshots.sort_by_key(|snapshot| snapshot.created_at);
-    Ok(snapshots)
 }
 
 async fn analysis_snapshot(state: &AppState, task_id: &str) -> Result<TaskSnapshot, McpError> {

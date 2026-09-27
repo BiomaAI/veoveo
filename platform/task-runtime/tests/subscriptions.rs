@@ -167,3 +167,129 @@ async fn projected_resource_sources_observe_cross_replica_changes_and_reconnect(
     .await
     .unwrap();
 }
+
+#[tokio::test]
+async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let runtime = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
+        let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
+        // These records sort before the requested page. They must not consume
+        // its limit or be decoded, even when their input envelope is malformed.
+        for exclusion in ["labels", "principal", "profile", "tenant", "type"] {
+            let mut input = draft("analysis", RecoveryClass::Resume);
+            match exclusion {
+                "labels" => {
+                    input.owner.data_labels.insert("restricted".into());
+                }
+                "principal" => {
+                    input.owner.principal_key = "another-principal".into();
+                    input.owner.subject = "another-subject".into();
+                }
+                "profile" => {
+                    input.owner.profile = "another-profile".into();
+                }
+                "tenant" => {
+                    input.owner.tenant_key = Some("another-tenant".into());
+                    input.owner.authority.tenant = TenantId::new("another-tenant").unwrap();
+                }
+                "type" => {
+                    input.task_type = "unrelated".into();
+                }
+                _ => unreachable!(),
+            }
+            let task = writer
+                .create(input)
+                .await
+                .unwrap_or_else(|error| panic!("creating excluded {exclusion} task: {error}"))
+                .snapshot;
+            db.b.client()
+                .query("UPDATE ONLY $id SET request.input = NONE;")
+                .bind(("id", task.task_id.record_id()))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        }
+        let at = chrono::Utc::now();
+        let mut expected = Vec::new();
+        for _ in 0..5 {
+            let task = writer
+                .create(draft("analysis", RecoveryClass::Resume))
+                .await
+                .unwrap()
+                .snapshot;
+            db.b.client()
+                .query("UPDATE ONLY $id SET created_at = $at;")
+                .bind(("id", task.task_id.record_id()))
+                .bind(("at", at))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            expected.push(task.task_id);
+        }
+        expected.sort();
+        let mut after = None;
+        let mut actual = Vec::new();
+        for length in [2, 2, 1] {
+            let page = runtime
+                .list_page_for_owner(&owner(), &["analysis"], after.as_ref(), 2)
+                .await
+                .unwrap();
+            assert_eq!(page.items.len(), length);
+            actual.extend(page.items.into_iter().map(|task| task.task_id));
+            after = page.next_cursor;
+        }
+        assert_eq!(actual, expected);
+        assert!(after.is_none());
+        let first = runtime
+            .list_page_for_owner(&owner(), &["analysis"], None, 2)
+            .await
+            .unwrap();
+        let mut stranger = owner();
+        stranger.principal_key = "no-records".into();
+        assert!(
+            runtime
+                .list_page_for_owner(&stranger, &["analysis"], first.next_cursor.as_ref(), 2)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        assert!(
+            runtime
+                .list_page_for_owner(&owner(), &[], None, 2)
+                .await
+                .is_err()
+        );
+        assert!(
+            runtime
+                .list_page_for_owner(&owner(), &["analysis"], None, 1001)
+                .await
+                .is_err()
+        );
+        // Both forms share the deterministic installation tenant record, but
+        // TaskOwner::allows distinguishes absence from an explicit tenant.
+        let mut installation_owner = owner();
+        installation_owner.tenant_key = None;
+        installation_owner.authority.tenant = TenantId::new("installation").unwrap();
+        let mut input = draft("analysis", RecoveryClass::Resume);
+        input.owner = installation_owner.clone();
+        let absent = writer.create(input.clone()).await.unwrap().snapshot.task_id;
+        input.task_id = veoveo_task_runtime::TaskId::new();
+        input.owner.tenant_key = Some("installation".into());
+        let explicit_owner = input.owner.clone();
+        let explicit = writer.create(input).await.unwrap().snapshot.task_id;
+        for (caller, expected) in [(installation_owner, absent), (explicit_owner, explicit)] {
+            let page = runtime
+                .list_page_for_owner(&caller, &["analysis"], None, 2)
+                .await
+                .unwrap();
+            assert_eq!(page.items.len(), 1);
+            assert_eq!(page.items[0].task_id, expected);
+        }
+    })
+    .await
+    .expect("task pagination qualification exceeded 60 seconds");
+}

@@ -57,7 +57,7 @@ Contract revision: 2
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: met — analyses use Store cursor pages; discovery lists roots and fixed catalog entries
 - C05: met
 - C06: met
 - C07: met

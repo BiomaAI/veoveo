@@ -1,4 +1,5 @@
 mod subscriptions;
+mod task_pages;
 
 use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
