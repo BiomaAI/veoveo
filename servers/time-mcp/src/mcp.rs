@@ -557,9 +557,8 @@ impl ServerHandler for TimeMcp {
             }
             _ => {}
         }
-        if let Some(release_id) = uris::parse_authority_release(uri) {
-            let release_id =
-                crate::contract::AuthorityReleaseId::new(release_id).map_err(invalid_params)?;
+        if let Ok(address) = crate::contract::TimeAuthorityReleaseUri::parse(uri) {
+            let release_id = address.release_id();
             let effective = &engine.authority().effective;
             let reference = if effective.tzdb.release_id == release_id {
                 effective.tzdb.clone()

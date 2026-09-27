@@ -3,7 +3,7 @@ use veoveo_time_mcp::contract::{
     AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeAcquisitionId,
     TimeAuthorityReleaseUri, TimeExpression, TimeScope, TimeSourceId,
 };
-use veoveo_types::{ScopeDefinition, ScopeName};
+use veoveo_types::{ResourceAddress, ResourceUri, ScopeDefinition, ScopeName};
 
 #[test]
 fn scope_wire_values_match_the_published_vocabulary_and_schema() {
@@ -70,4 +70,57 @@ fn consumer_constructs_authority_identity_from_the_owning_library() {
     );
     let decoded: TimeAuthorityReleaseUri = serde_json::from_value(uri.as_str().into()).unwrap();
     assert_eq!(decoded.release_id(), id);
+    assert_eq!(uri.to_uri().unwrap().as_str(), uri.as_str());
+    assert_eq!(
+        <TimeAuthorityReleaseUri as ResourceAddress>::parse(&uri.to_uri().unwrap()).unwrap(),
+        uri
+    );
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(TimeAuthorityReleaseUri)).unwrap()["type"],
+        "string"
+    );
+}
+
+#[test]
+fn release_uri_rejects_wrong_routes_ids_queries_and_encoded_aliases() {
+    for invalid in [
+        "time://authorities/releases/calendar-one",
+        "time://authorities/releases/time-release-",
+        "map://authorities/releases/time-release-one",
+        "time://epochs/releases/time-release-one",
+        "time://authorities/release/time-release-one",
+        "time://authorities/releases/time-release-one/extra",
+        "time://authorities/releases/time-release-one/",
+        "time://authorities/releases/time-release-one?",
+        "time://authorities/releases/time-release-one?cursor=one",
+        "time://authorities/releases/time-release-one#fragment",
+        "time://authorities/releases/time-release-%6fne",
+        "time://authorities/releases/time-release-one%2Ftwo",
+        "time://authorities/releases/../releases/time-release-one",
+        "time://authorities/releases/time-release-one%",
+        "time://authorities/releases/{release_id}",
+    ] {
+        assert!(
+            TimeAuthorityReleaseUri::parse(invalid).is_err(),
+            "accepted {invalid}"
+        );
+        assert!(serde_json::from_value::<TimeAuthorityReleaseUri>(invalid.into()).is_err());
+        let reference = ResourceUri::new(invalid).unwrap();
+        assert!(<TimeAuthorityReleaseUri as ResourceAddress>::parse(&reference).is_err());
+    }
+}
+
+#[test]
+fn release_uri_preserves_every_supported_id_character() {
+    for id in [
+        "time-release-alpha",
+        "time-release-Alpha_9.2:edition",
+        "time-release-.",
+    ] {
+        let id = AuthorityReleaseId::new(id).unwrap();
+        let uri = TimeAuthorityReleaseUri::new(&id);
+        let decoded = TimeAuthorityReleaseUri::parse(uri.as_str()).unwrap();
+        assert_eq!(decoded.release_id(), id);
+        assert_eq!(decoded, uri);
+    }
 }

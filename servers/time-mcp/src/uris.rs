@@ -30,10 +30,6 @@ pub fn zone_uri(zone_id: &str) -> String {
     format!("time://zones/{zone_id}")
 }
 
-pub fn authority_release_uri(release_id: &str) -> String {
-    format!("time://authorities/releases/{release_id}")
-}
-
 pub fn calendar_uri(calendar_id: &str, version: u64) -> String {
     format!("time://calendars/{calendar_id}/versions/{version}")
 }
@@ -52,10 +48,6 @@ pub fn parse_doc(uri: &str) -> Option<&str> {
 
 pub fn parse_zone(uri: &str) -> Option<&str> {
     parse_single(uri, "time://zones/")
-}
-
-pub fn parse_authority_release(uri: &str) -> Option<&str> {
-    parse_single(uri, "time://authorities/releases/")
 }
 
 pub fn parse_calendar(uri: &str) -> Option<(&str, u64)> {
@@ -82,6 +74,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn authority_release_template_agrees_with_the_typed_builder() {
+        use veoveo_types::ResourceAddress;
+
+        let id = crate::contract::AuthorityReleaseId::new("time-release-example").unwrap();
+        let address = crate::contract::TimeAuthorityReleaseUri::new(&id);
+        let template =
+            veoveo_mcp_contract::ResourceUriTemplate::new(AUTHORITY_RELEASE_TEMPLATE).unwrap();
+        assert!(template.matches_uri(&address.to_uri().unwrap()));
+    }
+
+    #[test]
     fn canonical_resource_uris_round_trip() {
         assert_eq!(
             parse_zone(&zone_uri("America/New_York")),
@@ -90,10 +93,6 @@ mod tests {
         assert_eq!(
             parse_calendar(&calendar_uri("calendar-abc", 4)),
             Some(("calendar-abc", 4))
-        );
-        assert_eq!(
-            parse_authority_release(&authority_release_uri("time-release-abc")),
-            Some("time-release-abc")
         );
     }
 

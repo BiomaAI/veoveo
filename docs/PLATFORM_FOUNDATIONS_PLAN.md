@@ -59,8 +59,9 @@ interfaces. Foundational names, opaque references, and extension traits are extr
 wire/schema tests and an independent consumer build pass. Focused contract, policy,
 and gateway tests and strict workspace Clippy pass. Time now exposes isolated
 contract, runtime, and MCP features and owns its scope enum. Independent contract
-consumer, native server, and database qualification pass. Builders and wider
-server adoption are pending.
+consumer, native server, and database qualification pass. Shared concrete URI components
+and builders now serve Time's authority-release address. Gateway completion/audit
+reference separation, the other resource families, and wider server adoption are pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -488,9 +489,10 @@ default owner; the inventory must not become a central domain-type registry.
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
 | Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; independent consumer implementations and compile-fail cases pass | Consume them in MCP-specific setup and qualify an independent hosted fixture |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
+| Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Map | Its contract imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate; scope helpers and URI builders use strings | Resolve each type's owning contract, expose the contract feature, and migrate its scopes, addresses, and query IDs |
-| Time | The shared digest moved to `veoveo-types`; the server's contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; public IDs validate during deserialization | Migrate URI parsing/builders and typed query keys; qualify hosted behavior |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; public IDs validate during deserialization; `TimeAuthorityReleaseUri` implements `ResourceAddress` through the shared parser and builder | Migrate the other URI families and typed query keys; qualify hosted behavior |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates already separate some types from the server runtime | Qualify those dependency boundaries and expose their server library contract surfaces without duplicating types |
 | Artifact, Media, Optimization | Public types live across shared artifact/provider contracts and server domain modules | Assign each contract to its domain owner and gate runtime dependencies |
@@ -499,22 +501,42 @@ default owner; the inventory must not become a central domain-type registry.
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |
 
 The initial extraction preserves `ResourceUri`'s current opaque lexical profile and
-wire strings. It does not establish safe concrete URI parsing or builder adoption.
-The completion/audit overlap above must be resolved before that profile is narrowed.
+wire strings. Concrete validation is a separate step through `ResourceUriParts`, also
+available from `ResourceUri::components`. This lets domain contracts validate their
+addresses while historical completion and audit references retain their current decoding.
+The completion/audit overlap above must be resolved before the wire profile is narrowed.
+Do not pass a template through the concrete parser or claim the opaque constructor
+establishes route safety. The gateway transition needs a typed template representation,
+completion authorization tests, and qualification of persisted target decoding; the
+existing simple policy selector matcher is not a general RFC 6570 template parser.
 Foundation tests cover wire strings, schema descriptions, lexical rejection, independent
 trait implementations, and compile-fail examples. A separately resolved consumer builds
 without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,
 policy, and gateway library suites pass, as does strict workspace Clippy across all
 targets and features. These checks qualify the extraction. Remaining server contract-only features,
-MCP-specific traits, library-backed URI builders, and repository-wide adoption are pending.
+MCP-specific traits, and repository-wide builder adoption are pending.
 Time's independent consumer passes its public-contract tests with only the Time
-library, foundational types, serialization/schema support, and Chrono's date/time
-types. The resolved graph excludes the clock feature as well as server, database,
+library, foundational types and URI libraries, serialization/schema support, and Chrono's
+date/time types. The resolved graph excludes the clock feature as well as server, database,
 GPU, and acquisition dependencies. Its runtime feature passes strict Clippy separately.
 The default feature build, scope admission and configuration checks, public-ID
 deserialization cases, and native catalog SQL tests pass. Shared-digest contract tests
 pass with unchanged wire values. Scope schemas from independent modules stay distinct
 even when their enums have the same name. Installed conformance is still pending.
+
+The URI component tests cover all printable ASCII characters and Unicode, encoded
+separators, malformed escapes and UTF-8, duplicate decoded query names, normalization,
+and redacted validation errors. A regression exposed unescaped brackets from the URL
+custom-scheme path setter; the percent-encoding step now covers its remaining non-URL
+ASCII characters. Time release tests preserve supported ID spellings and string schemas,
+reject wrong routes, IDs, queries, and encoded aliases, and prove the public trait round
+trip. Other Time resource helpers still require migration. URL 2.5.8 and percent-encoding
+2.3.2 were verified against their upstream stable release listings before adoption;
+both versions were already present in the workspace lockfile.
+The concrete profile requires unescaped authorities because URL's opaque-host
+parser permits malformed percent escapes there. Current Time authorities and Artifact
+UUID authorities fit that profile; encoded authority use must be inventoried before
+wider adoption. Dynamic path and query components retain library encoding.
 
 ## Phase 4: Unified Audit Log
 

@@ -70,7 +70,8 @@ leap second assumptions.
 Contract revision: 3
 
 The library exposes the contract feature and owns its typed scope vocabulary.
-Shared URI builder adoption and installed qualification remain work in the
+Authority-release addresses use the shared URI builder and component parser.
+The other resource families and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

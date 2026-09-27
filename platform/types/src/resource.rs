@@ -18,6 +18,12 @@ impl ResourceUri {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Validate a concrete hierarchical address and decode its components.
+    /// Completion templates and historical opaque references may fail this check.
+    pub fn components(&self) -> Result<crate::ResourceUriParts, crate::ResourceUriError> {
+        crate::ResourceUriParts::parse(self.as_str())
+    }
 }
 
 impl AsRef<str> for ResourceUri {

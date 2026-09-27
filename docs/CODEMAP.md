@@ -71,7 +71,7 @@ Component designs live beside the code whose contract they specify:
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
-| [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent scope names, resource schemes and references, validation errors, and public extension traits |
+| [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
@@ -351,14 +351,16 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, and `Sha256Digest`. Its public `ScopeDefinition` and `ResourceAddress` traits let
-independent libraries supply domain vocabularies. It depends only on serialization
-and schema support. Consumers import its types directly. The
-[design](../platform/types/DESIGN.md) defines the implemented lexical profile;
+independent libraries supply domain vocabularies. Dependencies provide serialization,
+schemas, URL parsing, and percent encoding. Consumers import its types directly. The
+[design](../platform/types/DESIGN.md) defines the opaque reference and concrete component profiles;
 [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
-tracks concrete/template reference separation, URI builders, MCP integration traits,
+tracks concrete/template reference separation, URI builder adoption, MCP integration traits,
 and server library features.
 `src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts.
+`src/resource_components.rs` validates concrete addresses and exposes decoded components;
+`src/resource_components/builder.rs` encodes typed domain inputs at the serialization step.
 
 ### `mcp/apps-extension`
 
@@ -842,7 +844,7 @@ admission and recovery synchronize the local worker inventory in
 | Path | Responsibility |
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
-| `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types and `TimeScope` vocabulary; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
+| `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types, `TimeScope` vocabulary, and shared-builder-backed authority-release addresses in `resource.rs`; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
 | `platform/store/src/time.rs`, `platform/store/src/time/collections.rs` | tenant temporal catalog, optimistic release activation, acquisition-to-release provenance lookup, SQL-scoped owner events, bounded pages and completion, requested latest epochs, and clock policy |
 | `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | typed cursor validation, bounded collection envelopes, and Time Store projections |

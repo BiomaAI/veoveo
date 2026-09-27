@@ -17627,9 +17627,11 @@ dependencies = [
 name = "veoveo-types"
 version = "0.1.0"
 dependencies = [
+ "percent-encoding",
  "schemars 1.2.2",
  "serde",
  "serde_json",
+ "url",
 ]
 
 [[package]]

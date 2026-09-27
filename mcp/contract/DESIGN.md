@@ -117,7 +117,9 @@ library's public contract with its `contract` feature and default features disab
 defines the accepted separation of foundational types from MCP integration. The
 foundational names, reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Its `ScopeDefinition` and `ResourceAddress` traits accept independent
-domain implementations. URI builder adoption, MCP-specific associations, and server
+domain implementations. The foundation's component parser and builder support concrete
+addresses; gateway policy and stored audit references still accept completion templates.
+URI builder adoption, MCP-specific associations, and server
 feature isolation are implementation work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 MCP-specific traits associate those types with descriptors, discovery, and hosted-server

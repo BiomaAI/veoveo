@@ -4,8 +4,10 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+percent-encoding.workspace = true
 schemars.workspace = true
 serde.workspace = true
+url.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
