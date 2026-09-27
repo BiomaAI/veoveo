@@ -5,6 +5,16 @@ This disposable profile exercises the native Rerun Catalog SDK with tenant
 storage, SurrealDB and the gateway. Its producer sends text records, so this profile
 contains no rendering, perception or simulation workload.
 
+The shared Linux host needs at least 512 inotify instances and 524,288 watches per
+user while both clusters run. Check `fs.inotify.max_user_instances` and
+`fs.inotify.max_user_watches` before creating the fixture. Raise lower limits on the
+host with `sudo sysctl -w fs.inotify.max_user_instances=512
+fs.inotify.max_user_watches=524288`. These runtime settings reset on reboot unless
+the host administrator persists them. Kubernetes container runtimes share these
+limits; exhausting them prevents the CRI service from starting. The
+[kind troubleshooting guide](https://github.com/kubernetes-sigs/kind/blob/main/site/content/docs/user/known-issues.md)
+documents the same host requirement for container-based clusters.
+
 The public JWKS files identify this fixture's machine clients. Provision their matching
 private keys outside the repository, or replace the public keys with a newly generated
 fixture identity before publication. Never copy credentials from another installation.
