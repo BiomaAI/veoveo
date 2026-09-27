@@ -384,6 +384,11 @@ boundary here; an initial typed helper does not establish repository-wide comple
 Qualification must reject unknown scope spellings and wrong-domain arguments,
 preserve existing grant decisions, and verify serialization against the published
 scope vocabulary. ID and URI changes must reject malformed and mismatched parents.
+URI work also replaces manual construction and prefix/delimiter parsing with a
+shared library-backed abstraction and domain builders. The existing `ResourceUri`
+validator checks only a scheme and nonempty text; it does not establish this target.
+Qualify custom schemes, percent encoding, duplicate parameters, fragments, and
+normalization against current published URIs before broad adoption.
 
 ## Phase 4: Unified Audit Log
 

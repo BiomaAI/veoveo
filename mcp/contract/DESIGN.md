@@ -118,6 +118,17 @@ wire URI and return a typed resource variant before dispatch. Driver bindings an
 serialization may convert those types to text. This rule applies across Veoveo;
 existing string-based interfaces require migration when their contracts change.
 
+The shared resource URI abstraction delegates component parsing and encoding to a
+maintained URI library. Domain builders own route shapes and accepted parameter
+names. They must reject duplicate or unsupported parameters and validate each parent
+ID before dispatch. A generic URI parser cannot establish domain identity or parent
+relationships. Code does not use interpolation, concatenation, or delimiter chains
+to assemble or parse dynamic resource URIs. Fixed discovery literals and URI
+templates describe the same routes and require agreement tests with the builders.
+Migration must qualify existing wire spellings and normalization behavior before
+changing a published URI. The workspace already pins `url`; adopting another parser
+requires a concrete unsupported URI profile and dependency qualification.
+
 ## Protocol Surface
 
 Veoveo does not flatten MCP into a collection of convenience tools. Each

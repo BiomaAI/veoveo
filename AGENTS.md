@@ -177,6 +177,14 @@ strings for known identities, or introduce a generic ID that permits unrelated d
 to be mixed. Validate external strings once on entry. Migrate existing string-based
 paths when changing their contracts and record wider gaps in the active plan.
 
+Use a maintained URI implementation behind the shared resource URI abstraction.
+Domain builders own route shapes and typed parameters; the library owns component
+encoding and parsing. Do not construct dynamic resource URIs with interpolation,
+concatenation, or manually joined query strings. Do not parse them with prefix and
+delimiter chains. Fixed discovery literals and URI templates are declarations and
+must agree with the typed builders. Qualify round trips, reserved characters,
+duplicate or unsupported query parameters, malformed IDs, and wrong resource parents.
+
 ## Database First
 
 Before building a mechanism in Veoveo, check whether SurrealDB already provides it,
