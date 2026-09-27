@@ -40,6 +40,13 @@ Existing clients receive only implemented capabilities in discovery and actionab
 diagnostics for unsupported profiles. Historical delivery records describe their
 tested revisions and do not override these decisions for new work.
 
+Implementation includes reviewing whether the contract can express the accepted
+architecture. Owners may refine outdated contracts and implement the required changes
+without waiting for the user to identify each gap. Explain material tradeoffs, update
+the owning design and active plan, and record a decision here when ownership or a
+repository-wide guarantee changes. Qualification governs when the new behavior can be
+advertised.
+
 ## CE-01: Provider Completion Follows Qualified Semantics
 
 Completion is a durable, authenticated observation of one operation. Prefer the
@@ -316,6 +323,48 @@ records it references, and readers follow it through LIVE queries with change-fe
 recovery rather than polling. The replacement is a hard cut: the new table replaces
 `audit_event`, and existing audit rows are discarded.
 
+## CE-13: Modular Types And Server-Owned Contracts
+
+Scope names and resource identities are Veoveo concepts used by protocol adapters.
+The accepted foundation is a small `veoveo-types` crate under `platform/types`, owning
+validated names, generic resource URI handling, and protocol-independent traits.
+It has no dependency on RMCP, a server runtime, a database client, a GPU backend, or
+an individual server. MCP-specific traits and descriptor conversion stay in
+`mcp/contract` and consume the foundational types.
+
+Each server library owns its closed scope enum, domain IDs, resource variants, and
+public request and response types. A Rust server exposes these through a `contract`
+feature that builds with default features disabled. Runtime modules and their dependencies
+are optional, and binaries require the runtime features. Tests, CLI tools, and
+cross-server consumers use the owning library. A separate contract crate needs a
+concrete dependency or independent release requirement.
+
+Scope mapping has one declared wire spelling per variant. Generic policy accepts
+validated names because an installation may introduce scopes unknown to core. Domain
+authorization helpers accept the owning enum. A caller's grants remain a set of
+validated names; unrelated scopes do not need conversion into a server's closed enum.
+Resource variants carry their specific ID and query types. Domain builders select
+route shapes, while a maintained URI library handles component encoding and parsing.
+Builders validate field combinations before exposing usable values. Authorization
+and persisted parent relationships still require current policy and database checks.
+
+Shared extension traits are public and open to external implementations. Core has
+no exhaustive domain scope or resource registry. A new server adds its own library
+and registration data without changes to foundational or MCP core source. An external
+fixture must prove this, including a consumer that imports only the server contract.
+
+Compiler checks establish typed construction and API requirements. Shared server
+setup provides protocol machinery. Hosted conformance reports and owner-local tests
+qualify behavior such as authorization, SQL filtering before limits, and recovery.
+A marker trait cannot certify these behaviors. Python and other SDKs follow the same
+ownership and wire contracts through their language-native types and validation.
+
+This decision preserves current wire spellings and policy semantics during extraction.
+Internal callers move to one implementation without compatibility aliases. Published
+wire changes and persisted format changes follow the declared transition requirements.
+Implementation and qualification are pending in the
+[foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
 ## Delivery And Decision Checkpoints
 
 | Work | Owner and shortest implementation path | Acceptance and release relationship |
@@ -328,6 +377,7 @@ recovery rather than polling. The replacement is a hard cut: the new table repla
 | Qualified upgrade cadence | Dependency/image owners and release compatibility inputs | Record review date and support state; independent targeted upgrade changes; no new package pin in this change |
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |
+| Modular types and server contracts | Planned `platform/types`, shared MCP integration, and each server library | Pending foundations Phase 3: isolated contract-only builds, external extension without core edits, typed construction tests, and hosted/domain qualification |
 
 The [Computers design](../platform/computers/DESIGN.md#qualification-limits) owns its
 qualification gates. Its release

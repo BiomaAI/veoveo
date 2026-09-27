@@ -18,7 +18,7 @@ component:
 | [`docs/README.md`](README.md) | task-oriented entry point, which document governs what, and delivery status |
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
-| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, transfer profiles, the `veoveo.ai` identifier cut, knowledge through resources, and one audit record per logical action) and the implementation work that remains |
+| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, transfer profiles, the `veoveo.ai` identifier cut, knowledge through resources, one audit record per logical action, and modular types with server-owned contracts) and the implementation work that remains |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
@@ -56,7 +56,7 @@ planned change lands:
 |---|---|
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | remaining contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening and governance; implemented build mechanics live in their owning designs |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | open `014`–`023` cycle: App authority and host uploads, tracing, live-view packaging, GPU memory, reasoning and component-scoped deployment; completed cycles and recording delivery retired |
-| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | implementation in progress: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
+| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | implementation in progress: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, modular foundational types and server contract features, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
 Component designs live beside the code whose contract they specify:
@@ -345,6 +345,13 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 `servers/` names the deployable boundary without narrowing the protocol.
 
 ## Shared Contracts
+
+The planned `veoveo-types` crate at `platform/types` will own protocol-independent
+scope and resource types and reusable builders. Each server library will own its
+domain contract and expose a build through its `contract` feature without runtime
+dependencies. MCP-specific interfaces stay in `mcp/contract`. This extraction is not
+implemented; [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+defines its dependency and conformance acceptance.
 
 ### `mcp/apps-extension`
 

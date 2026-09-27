@@ -53,6 +53,9 @@ catalog, matrix payload availability, all acquisition states, recovery through 1
 pending jobs, and invalidation across 235 tenant routes. Other Map roots and internal
 catalog selection still need SQL filtering and pagination; installed acceptance is
 pending.
+Phase 3 also includes the accepted CE-13 architecture for foundational types,
+server-owned contracts, contract-only library builds, and typed scope/resource
+interfaces. The repository rules are documented; extraction and adoption are pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -98,6 +101,11 @@ state after this file is gone.
 - Work autonomously. Do not stop to ask the user questions. When a choice is open,
   take the option closest to the designs this plan links, or the best-supported guess,
   and record the choice in the commit message.
+- Evaluate contract adequacy during each change. Improve outdated or inexpressive
+  contracts when the accepted architecture requires it, without waiting for the user
+  to identify the problem. Explain material tradeoffs, update the owning design and
+  this plan, and record ownership or repository-wide decisions in
+  `docs/CONTRACT_EVOLUTION.md`. Qualify the replacement before advertising it.
 - Do not let a blocker stop progress. When one step cannot finish, work around it,
   leave a `TODO(foundations): <what remains and why>` comment at the exact code path,
   add a row to [Deferred Work](#deferred-work), and continue with the next step. Defer
@@ -367,28 +375,105 @@ server with a test that fails before the fix.
 Acceptance: each server's tests cover its fix, and each server's `AGENTS.md` updates
 the affected compliance entries.
 
-### Typed Scope And Identity Migration
+### Modular Types And Server Contracts
 
-The repository-wide Strong Types rule now requires closed enums for code-owned
-scopes, validated `ScopeName` at configurable or external scope boundaries, and
-typed IDs in query APIs, cursors, and resource URI construction and parsing.
-The shared MCP contract owns this distinction. Wire spellings and grants do not
-change during the migration.
+[CE-13](CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts) accepts
+this architecture across Veoveo. Build the foundation before continuing scope and
+URI adoption. This is required Phase 3 work; the first converted servers establish
+the pattern, and do not establish repository-wide completion.
 
-Implementation starts with Map and Time scope checks. The remaining inventory
-includes View and UAV scope helpers, configurable administrative middleware,
-gateway and policy literals, and Map URI builders and Store record-key APIs that
-erase existing domain ID types. Continue the inventory through other servers,
-shared contracts, SDKs, and clients as their phase work lands. Track each converted
-boundary here; an initial typed helper does not establish repository-wide completion.
-Qualification must reject unknown scope spellings and wrong-domain arguments,
-preserve existing grant decisions, and verify serialization against the published
-scope vocabulary. ID and URI changes must reject malformed and mismatched parents.
-URI work also replaces manual construction and prefix/delimiter parsing with a
-shared library-backed abstraction and domain builders. The existing `ResourceUri`
-validator checks only a scheme and nonempty text; it does not establish this target.
-Qualify custom schemes, percent encoding, duplicate parameters, fragments, and
-normalization against current published URIs before broad adoption.
+| Owner | Target responsibility |
+|---|---|
+| `platform/types`, crate `veoveo-types` | Protocol-independent validated names and resource URIs, focused builders, and public extension traits such as `ScopeDefinition` and `ResourceAddress` |
+| Each server library's public `contract` module | Its scope enum, domain IDs, resource address variants, and request/response types |
+| `mcp/contract` | MCP-specific traits that consume the foundational types, descriptors, discovery integration, protocol conversions, and hosted-server setup requirements |
+| Server runtime and policy owners | Domain operations, current authorization, persistence, and protocol handlers |
+
+The foundational crate has no dependency on RMCP, server implementations, database
+clients, GPU libraries, or asynchronous runtimes. Keep domain vocabulary in its owning
+library. The gateway accepts validated scope names and registration data without
+exhaustive matches on server-specific scopes or resources.
+
+Rust cross-server consumers depend on the owning library with
+`default-features = false, features = ["contract"]`. That feature exposes the public
+contract with only the foundational types and required serialization/schema support.
+MCP integration and runtime modules have separate feature gates, and their Cargo
+dependencies are optional. Binary targets require their runtime features. Adding a
+feature name without removing runtime dependencies does not meet this requirement.
+A separate contract crate needs a concrete dependency or independent release reason.
+
+#### Implementation
+
+1. Inventory current type ownership and Cargo dependency paths across servers,
+   shared contracts, gateway, policy, SDKs, tests, and CLI tools. Record the scope and
+   resource interfaces to migrate and their owning libraries. Identify contract
+   modules that currently import runtime types, and resolve dependency cycles before
+   extracting the foundation. Add its owning `DESIGN.md` and update the code map.
+2. Extract `ScopeName`, `ResourceUri`, and the supporting types required by their
+   actual consumers into `veoveo-types`. Keep the crate small; a shared use site alone
+   does not transfer domain ownership. Move internal imports in a hard cut without
+   aliases or duplicate definitions. Preserve wire spellings and current policy
+   semantics. Published protocol and persisted format changes require their declared
+   transition and rollback qualification.
+3. Define small public, unsealed traits for scope-name conversion and typed resource
+   address parsing/serialization. Each server implements them with its own enums
+   and ID types. Define MCP-specific associations in `mcp/contract` using those
+   traits and existing RMCP handlers. Shared constructors consume these interfaces;
+   adding a server cannot require a core domain registry or a new match arm.
+4. Use one server-owned declaration of each scope's wire spelling for authorization,
+   serialization, configuration defaults, and advertised vocabulary where applicable.
+   Domain helpers take the owning enum. Generic policy consumes validated names and
+   continues to admit installation-defined scopes. A caller's full grant set may
+   contain scopes outside a particular server's vocabulary.
+5. Provide ergonomic builders that preserve the types of required IDs and query
+   fields and validate field combinations before construction. Use typestate when it
+   prevents a concrete invalid construction sequence. Resource variants own route
+   shapes and supported parameters. The shared builder delegates component parsing
+   and encoding to a maintained URI library; begin with the existing pinned `url`
+   implementation and qualify its supported custom-scheme profile. Keep strings at
+   serialization and driver bindings. Typed query APIs still apply current tenant,
+   owner, context, labels, parent relationships, and filters in SQL before limits.
+6. Add and qualify contract-only library features, then migrate all owned scope and
+   resource paths in small commits. Map and Time are the first consumers. The known
+   inventory also includes View and UAV scope helpers, configurable administrative
+   middleware, gateway and policy literals, and Map URI builders and Store record-key
+   APIs that erase domain types. Complete the inventory through other servers,
+   clients, SDKs, templates, and CLI tools. Other languages use their native types and
+   builders with the same ownership and wire contracts.
+7. Extend shared conformance and template guidance. Reuse ordinary server libraries
+   for domain tests and CLI operations. Hosted checks consume a profile and the
+   discovered surface without importing server implementations. Traits establish
+   API requirements; no marker trait claims behavioral compliance.
+
+#### Acceptance
+
+- An independently defined fixture server adds a new scope and resource family,
+  implements the public traits, and passes applicable hosted conformance with only
+  registration/configuration changes. Its implementation is not added to either
+  foundational or MCP core source. A separate consumer imports only its public
+  contract and constructs typed resource addresses.
+- Isolated contract-only builds and Cargo dependency inspection prove that runtime,
+  MCP integration, database, GPU, and provider dependencies are excluded. Run these
+  checks outside a workspace feature-unified build that could conceal missing gates.
+  Run supported runtime configurations separately to prove the gates compose.
+- Compile-fail cases reject raw strings at domain authorization APIs, wrong-domain
+  scope and ID types, and invalid required builder states. Runtime cases reject
+  unknown domain scope spellings while allowing unrelated validated names in the
+  caller's grant set. Grant decisions match the existing policy.
+- URI tests cover build/parse round trips, existing published wire forms, custom
+  schemes, reserved characters, percent encoding, repeated or unsupported parameters,
+  fragments, normalization, and malformed IDs. Discovery templates agree with typed
+  builders. Database tests reject incorrect parent combinations and apply visibility
+  before limits; a URI's type alone grants no access.
+- Applicable hosted conformance and owner-local lifecycle tests pass. Qualification
+  keeps authentication, authorization, recovery, SQL selection, and required hardware
+  checks distinct from compile-time structure. Update owning designs and compliance
+  declarations with their actual implementation and qualification status.
+
+Migration status: architecture accepted; the central Map/Time scope-enum draft was
+removed before adoption. Foundational extraction, extension traits, contract features,
+and repository-wide adoption are pending. The existing `ResourceUri` validator checks
+only a scheme and nonempty text and does not satisfy the target URI profile.
 
 ## Phase 4: Unified Audit Log
 

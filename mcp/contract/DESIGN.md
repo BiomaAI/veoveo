@@ -107,6 +107,21 @@ accept that enum. A generic policy engine accepts validated `ScopeName` values b
 installations and external providers can define additional scopes. `ScopeName` validates
 syntax; it does not establish membership in a domain's supported scope vocabulary.
 
+Server libraries own their domain scope enums, IDs, and resource address variants.
+Shared infrastructure cannot require a vocabulary change when a server adds a scope
+or resource family. The gateway consumes validated names and registration data without
+a compiled registry of domain enums. Rust cross-server consumers import the owning
+library's public contract with its `contract` feature and default features disabled.
+
+[CE-13](../../docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts)
+defines the accepted separation of foundational types from MCP integration. The
+foundation extraction and feature isolation are implementation work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+Protocol-independent scope and resource traits belong below this crate. MCP-specific
+traits associate those types with descriptors, discovery, and hosted-server setup.
+The traits are open to external implementations. A trait implementation establishes
+API structure; hosted conformance and domain tests establish the relevant behavior.
+
 Handlers, task admission, and configuration defaults share the owning definitions.
 The wire protocol still carries scope strings, and its parser validates them before
 passing them into policy code. A scope name conveys no authority by itself; checks

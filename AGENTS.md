@@ -61,6 +61,13 @@ The accepted decisions and remaining implementation work are recorded in
 [`docs/CONTRACT_EVOLUTION.md`](docs/CONTRACT_EVOLUTION.md). Contract permission does not
 establish that a new runtime profile is implemented or qualified.
 
+Review contract adequacy as part of implementation. When an outdated or inexpressive
+contract prevents the accepted product architecture, improve the owning contract and
+its implementation without waiting for the user to identify the gap. Explain material
+tradeoffs as work progresses, record the decision and migration in the owning design
+and active plan, and update the decision register when an architectural boundary
+changes. Preserve existing guarantees until the replacement passes qualification.
+
 ## Dependency Currency
 
 Use exact, qualified dependency, toolchain, image, and deployment pins. For a new
@@ -184,6 +191,23 @@ concatenation, or manually joined query strings. Do not parse them with prefix a
 delimiter chains. Fixed discovery literals and URI templates are declarations and
 must agree with the typed builders. Qualify round trips, reserved characters,
 duplicate or unsupported query parameters, malformed IDs, and wrong resource parents.
+
+Foundational types and protocol-independent traits belong below protocol adapters.
+Shared infrastructure must not enumerate server-owned scopes, resource variants, or
+domain IDs. Each MCP server exposes its public contract through its library; clients,
+tests, and CLI tools reuse that library. Rust server libraries provide a `contract`
+feature that builds with default features disabled and excludes MCP integration and
+runtime dependencies.
+Gate the dependencies themselves, not only the modules. Extract a separate contract
+crate only for a demonstrated dependency or release requirement.
+
+Use focused builders to make typed APIs practical. Required values keep their domain
+types, and builders validate relationships between fields before constructing a usable
+value. Share encoding and validation mechanics without moving domain vocabulary into
+core. Public extension traits must permit an independently developed server to add its
+own types without edits to core. Compilation checks API structure; conformance and
+domain tests establish behavior. The accepted architecture and migration are recorded
+in [CE-13](docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts).
 
 ## Database First
 
