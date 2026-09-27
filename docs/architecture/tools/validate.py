@@ -8,12 +8,14 @@ import json
 import re
 import subprocess
 import sys
+import tomllib
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlparse
 
 from pypdf import PdfReader
+from render import SOURCE_COMMIT
 
 ARCH = Path(__file__).resolve().parents[1]
 REPO = ARCH.parents[1]
@@ -57,6 +59,18 @@ def validate_tool_boundary() -> None:
         fail(f"generic architecture tool boundary differs: {sorted(tools ^ EXPECTED_TOOLS)}")
 
 
+def snapshot_file(path: str) -> str:
+    """Read coverage inputs from the published model's declared source revision."""
+    return subprocess.run(
+        ["git", "show", f"{SOURCE_COMMIT}:{path}"],
+        cwd=REPO,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    ).stdout
+
+
 def main() -> None:
     validate_tool_boundary()
     components = rows("software-components.csv")
@@ -79,19 +93,11 @@ def main() -> None:
     unique(interface_ids, "interface IDs")
     unique(requirement_ids, "requirement IDs")
 
-    metadata = json.loads(
-        subprocess.run(
-            ["cargo", "metadata", "--no-deps", "--format-version", "1"],
-            cwd=REPO,
-            check=True,
-            capture_output=True,
-            text=True,
-        ).stdout
-    )
-    workspace_paths = {
-        str(Path(package["manifest_path"]).parent.relative_to(REPO))
-        for package in metadata["packages"]
-    }
+    # This publication is a snapshot, not a generated inventory of current main.
+    workspace = tomllib.loads(snapshot_file("Cargo.toml"))["workspace"]
+    workspace_paths = set(workspace["members"])
+    if any(re.search(r"[*?\[]", path) for path in workspace_paths):
+        fail("snapshot workspace uses patterns; resolve its membership before validation")
     catalog_paths = {row["repository_path"] for row in components}
     missing_workspace_paths = sorted(workspace_paths - catalog_paths)
     if missing_workspace_paths:
@@ -99,7 +105,7 @@ def main() -> None:
     if len(workspace_paths) != 42:
         fail(f"expected 42 Rust workspace packages, found {len(workspace_paths)}")
 
-    gateway = json.loads((REPO / "configs/gateway.local.json").read_text(encoding="utf-8"))
+    gateway = json.loads(snapshot_file("configs/gateway.local.json"))
     slugs = {server["slug"] for server in gateway["servers"]}
     expected_slugs = {
         "artifact",

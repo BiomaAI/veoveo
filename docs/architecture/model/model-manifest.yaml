@@ -58,10 +58,10 @@ standards:
     container_digest: sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178
     profile: routing Solve and BatchSolve; continuous LP QP QCQP and SOCP; linear MILP
   optimization_executor_protocol:
-    name: veoveo.io/cuopt-executor/v1
+    name: veoveo.ai/cuopt-executor/v1
     exposure: private_pod_local_adapter_not_public_contract
   travel_model_contract:
-    name: veoveo.io/travel-model-artifact/v1
+    name: veoveo.ai/travel-model-artifact/v1
     exposure: repository_owned_cross_server_contract
 
 model:

@@ -31,6 +31,8 @@ def render_pages(target: ReviewTarget, output: Path, scale: float) -> list[Path]
     try:
         for index in range(len(document)):
             page = document[index]
+            # TODO(GPU): replace CPU PDFium rasterization with headed hardware-backed
+            # Chrome PDF-viewer capture before using this tool for visual acceptance.
             bitmap = page.render(scale=scale)
             image = bitmap.to_pil().convert("RGB")
             path = destination / f"page-{index + 1:02d}.png"

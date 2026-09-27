@@ -51,7 +51,8 @@ UAF/SysML validation, and save the resulting native project. The published SVGs
 are the review views with fixed layout. See `model/MODEL-IMPORT.md`.
 
 This release validates XML well-formedness, unique XMI identifiers, internal
-references, catalog coverage, cross-catalog identifiers, HTML links, PDF text,
+references, catalog coverage against its declared Git source revision,
+cross-catalog identifiers, HTML links, PDF text,
 and rendered page layout. It does not claim vendor-certified UAF conformance or
 native-project round-trip fidelity before the documented import validation.
 
@@ -79,6 +80,9 @@ environment.
 
 Install the exact environment and render the generic model:
 
+The validator requires the declared source commit in local Git history. It checks
+that snapshot's workspace and gateway rather than the current checkout's inventory.
+
 ```bash
 uv sync --project docs/architecture --locked
 uv run --project docs/architecture --locked python docs/architecture/tools/render.py
@@ -92,12 +96,9 @@ API does. SwiftShader, llvmpipe, and other software renderers do not count as
 hardware. Change the sources and regenerate; never edit the generated SVG, XMI,
 HTML, PDF, or release archives by hand.
 
-Render every PDF page and a review contact sheet through the pinned PDFium and
-Pillow stack:
-
-```bash
-uv run --project docs/architecture --locked python docs/architecture/tools/qa.py --clean
-```
+Inspect every PDF page in the same qualified headed browser. The existing `qa.py`
+uses CPU PDFium rasterization and has an open GPU migration task; its output cannot
+establish visual acceptance.
 
 Client-specific generators, recipes, assets, and identifiers belong only under
 the git-ignored `docs/whitelabel/` directory. The generic architecture tools have
