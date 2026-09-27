@@ -167,7 +167,7 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Palantir product | What it does | How Veoveo compares |
 |---|---|---|
 | AIP | AI agents acting on enterprise systems through a controlled action layer | Closest match. Veoveo's gateway provides identity, policy, long-running tasks, and audit over the open Model Context Protocol, so any MCP host and any model can use it. |
-| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command robots in the field, and record every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
+| Gotham / Maven | Defense intelligence: sensor fusion, mission command, decision support | Same domain, different starting point. Veoveo starts from the runtime: agents rehearse missions in simulation, command robots in the field, and learn from every run. It has no equivalent of Gotham's intelligence-analysis tooling. |
 | Foundry | Enterprise data integration, ontology, and operational applications | Partial overlap. Work Contexts, artifacts, and analytical stores cover data ownership and access, and MCP Apps provide operational interfaces. Veoveo has no equivalent of Foundry's ontology. |
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
