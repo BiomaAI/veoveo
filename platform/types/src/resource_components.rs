@@ -124,7 +124,8 @@ impl ResourceUriParts {
     pub fn path_segments(&self) -> impl Iterator<Item = Cow<'_, str>> {
         self.url
             .path_segments()
-            .expect("validated hierarchical URI")
+            .into_iter()
+            .flatten()
             .map(|segment| {
                 percent_decode_str(segment)
                     .decode_utf8()

@@ -3,6 +3,21 @@ use veoveo_types::{
 };
 
 #[test]
+fn authority_only_roots_have_no_path_segments() {
+    for wire in ["example://items", "example://items?cursor=one"] {
+        let parts = ResourceUriParts::parse(wire).unwrap();
+        assert_eq!(parts.path_segments().count(), 0);
+    }
+    assert_eq!(
+        ResourceUriParts::parse("example://items/")
+            .unwrap()
+            .path_segments()
+            .collect::<Vec<_>>(),
+        [""]
+    );
+}
+
+#[test]
 fn component_encoding_does_not_turn_data_into_paths_or_query_arguments() {
     let id = "north/south?key=x&other=y#fragment 50%+café";
     let cursor = "abc+def/==&cursor=injected?☕%2F";

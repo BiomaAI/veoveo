@@ -66,6 +66,8 @@ the URL parser would normalize. It decodes each path segment separately, keeping
 an escaped slash inside its original segment. Query names are decoded before
 duplicate detection; empty names are invalid. The owning domain rejects unsupported
 names and validates IDs, route shapes, and field combinations.
+An authority-only root yields no path segments. An explicit trailing slash yields
+an empty segment, which lets an owner distinguish those spellings.
 The authority holds an unescaped declared name or ID. Dynamic text that requires
 encoding belongs in the path or query. The URL library's opaque-host parser permits
 malformed percent escapes, so the resource profile rejects escapes in the authority.
