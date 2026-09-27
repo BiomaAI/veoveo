@@ -379,10 +379,10 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         id: &CalendarId,
-        version: u64,
+        version: crate::contract::TimeVersion,
     ) -> Result<Option<OperationalCalendar>> {
         self.store
-            .time_calendar_version(scope.identity.tenant_id, id.as_str(), version.try_into()?)
+            .time_calendar_version(scope.identity.tenant_id, id.as_str(), version.get() as i64)
             .await?
             .map(|record| {
                 serde_json::from_str(&record.canonical_json)

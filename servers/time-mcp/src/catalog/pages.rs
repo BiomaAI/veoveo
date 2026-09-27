@@ -1,7 +1,10 @@
 use super::{TimeAccessContext, TimeCatalog, event_from_record};
 use crate::{
-    contract::{CollectionPage, MissionEpoch, OperationalCalendar, TemporalEvent},
-    index, uris,
+    contract::{
+        CalendarCursor, CalendarId, CollectionPage, EpochCursor, EventCursor, MissionEpoch,
+        MissionEpochId, OperationalCalendar, TemporalEvent, TemporalEventId, TimeVersion,
+    },
+    index,
 };
 use anyhow::{Context, Result};
 use veoveo_platform_store::{TimeEventCursor, TimeTemporalEventState, TimeVersionCursor};
@@ -10,18 +13,23 @@ impl TimeCatalog {
     pub async fn calendars_page(
         &self,
         scope: &TimeAccessContext,
-        after: Option<&TimeVersionCursor>,
-    ) -> Result<CollectionPage<OperationalCalendar>> {
+        after: Option<&CalendarCursor>,
+    ) -> Result<CollectionPage<OperationalCalendar, CalendarCursor>> {
+        let after = after.map(|cursor| TimeVersionCursor {
+            key: cursor.calendar_id().to_string(),
+            version: cursor.version().get() as i64,
+        });
         let rows = self
             .store
-            .list_time_calendar_versions(scope.identity.tenant_id, after, 101)
+            .list_time_calendar_versions(scope.identity.tenant_id, after.as_ref(), 101)
             .await?;
         index::page(
             rows,
-            uris::CALENDARS_URI,
-            |row| TimeVersionCursor {
-                key: row.calendar_key.clone(),
-                version: row.calendar_version,
+            |row| {
+                Ok(CalendarCursor::new(
+                    &CalendarId::new(&row.calendar_key).map_err(anyhow::Error::msg)?,
+                    TimeVersion::new(row.calendar_version.try_into()?)?,
+                ))
             },
             |row| {
                 serde_json::from_str(&row.canonical_json)
@@ -32,18 +40,23 @@ impl TimeCatalog {
     pub async fn epochs_page(
         &self,
         scope: &TimeAccessContext,
-        after: Option<&TimeVersionCursor>,
-    ) -> Result<CollectionPage<MissionEpoch>> {
+        after: Option<&EpochCursor>,
+    ) -> Result<CollectionPage<MissionEpoch, EpochCursor>> {
+        let after = after.map(|cursor| TimeVersionCursor {
+            key: cursor.epoch_id().to_string(),
+            version: cursor.version().get() as i64,
+        });
         let rows = self
             .store
-            .list_time_mission_epochs(scope.identity.tenant_id, after, 101)
+            .list_time_mission_epochs(scope.identity.tenant_id, after.as_ref(), 101)
             .await?;
         index::page(
             rows,
-            uris::EPOCHS_URI,
-            |row| TimeVersionCursor {
-                key: row.epoch_key.clone(),
-                version: row.epoch_version,
+            |row| {
+                Ok(EpochCursor::new(
+                    &MissionEpochId::new(&row.epoch_key).map_err(anyhow::Error::msg)?,
+                    TimeVersion::new(row.epoch_version.try_into()?)?,
+                ))
             },
             |row| {
                 serde_json::from_str(&row.canonical_json).context("decoding stored mission epoch")
@@ -53,20 +66,26 @@ impl TimeCatalog {
     pub async fn events_page(
         &self,
         scope: &TimeAccessContext,
-        after: Option<&TimeEventCursor>,
+        after: Option<&EventCursor>,
         state: Option<TimeTemporalEventState>,
-    ) -> Result<CollectionPage<TemporalEvent>> {
+    ) -> Result<CollectionPage<TemporalEvent, EventCursor>> {
+        let after = after.map(|cursor| TimeEventCursor {
+            tai_seconds: cursor.tai_seconds(),
+            nanosecond: i64::from(cursor.nanosecond()),
+            event_key: cursor.event_id().to_string(),
+        });
         let rows = self
             .store
-            .list_time_temporal_events(&scope.identity, after, state, 101)
+            .list_time_temporal_events(&scope.identity, after.as_ref(), state, 101)
             .await?;
         index::page(
             rows,
-            uris::EVENTS_URI,
-            |row| TimeEventCursor {
-                tai_seconds: row.due_tai_seconds_since_1970,
-                nanosecond: row.due_nanosecond,
-                event_key: row.event_key.clone(),
+            |row| {
+                Ok(EventCursor::new(
+                    &TemporalEventId::new(&row.event_key).map_err(anyhow::Error::msg)?,
+                    row.due_tai_seconds_since_1970,
+                    row.due_nanosecond.try_into()?,
+                )?)
             },
             event_from_record,
         )
@@ -74,7 +93,7 @@ impl TimeCatalog {
     pub async fn epochs_for_keys(
         &self,
         scope: &TimeAccessContext,
-        keys: &[String],
+        keys: &[MissionEpochId],
     ) -> Result<Vec<MissionEpoch>> {
         anyhow::ensure!(
             keys.len() <= 100_000,
@@ -82,9 +101,10 @@ impl TimeCatalog {
         );
         let mut epochs = Vec::new();
         for keys in keys.chunks(100) {
+            let keys: Vec<_> = keys.iter().map(ToString::to_string).collect();
             let rows = self
                 .store
-                .latest_time_mission_epochs(scope.identity.tenant_id, keys)
+                .latest_time_mission_epochs(scope.identity.tenant_id, &keys)
                 .await?;
             for row in rows {
                 epochs.push(

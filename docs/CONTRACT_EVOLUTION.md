@@ -377,7 +377,7 @@ Implementation and remaining qualification are tracked in the
 | Qualified upgrade cadence | Dependency/image owners and release compatibility inputs | Record review date and support state; independent targeted upgrade changes; no new package pin in this change |
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |
-| Modular types and server contracts | `platform/types`, shared MCP integration, and each server library | Foundations Phase 3: foundation and Time contract isolation pass native checks; shared URI components serve Time authority releases; other resource families, remaining server features, completion/audit reference separation, and hosted qualification are pending |
+| Modular types and server contracts | `platform/types`, shared MCP integration, and each server library | Foundations Phase 3: foundation and Time contract isolation pass native checks; typed Time resources and cursors use the shared URI components; Store key typing, remaining servers, completion/audit reference separation, and hosted qualification are pending |
 
 The [Computers design](../platform/computers/DESIGN.md#qualification-limits) owns its
 qualification gates. Its release

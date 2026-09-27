@@ -30,7 +30,7 @@ pub mod prompts;
 mod server;
 #[cfg(feature = "runtime")]
 pub mod state;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 
 #[cfg(feature = "mcp")]

@@ -42,7 +42,8 @@ retain the `time://` scheme.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`, JSON-RPC 2.0 over Streamable HTTP, under Veoveo hosted MCP contract revision 3. The server exposes tools, resources and templates, prompts, completions, subscriptions, notifications, and typed structured content. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://time/timeline.html` Timeline exposes clock authority, calendars, epochs, windows, and events. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Temporal expressions, authority bindings, calendars, epochs, windows, clock evidence, tasks, and results. |
-| [Veoveo concrete resource components](../../platform/types/DESIGN.md#concrete-resource-components) | Authority-release addresses use the shared URL 2.5.8 and percent-encoding 2.3.2 profile with Time's route and ID validation. |
+| [Veoveo concrete resource components](../../platform/types/DESIGN.md#concrete-resource-components) | All resource addresses use the shared URL 2.5.8 and percent-encoding 2.3.2 profile with Time's route, ID, and cursor validation. |
+| [URI Template RFC 6570](https://www.rfc-editor.org/rfc/rfc6570) | Discovery declares simple ID variables, reserved expansion for slash-separated zone keys, and form-style cursor queries. The server parses concrete addresses through its typed resource contract. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; schedule expansion and timeline validation use durable, resumable task operations. |
 | [RFC 3339](https://www.rfc-editor.org/rfc/rfc3339.html) | UTC and numeric-offset timestamp input and canonical UTC output, including explicit leap-second handling. |
 | [RFC 9557](https://www.rfc-editor.org/rfc/rfc9557.html) | Timestamp input with an IANA time-zone annotation and explicit ambiguity policy. |
@@ -105,11 +106,24 @@ checking authenticated grants. Administrative configuration accepts a validated
 `ScopeName`, allowing installation-defined names, and defaults to `TimeScope::Admin`.
 Unrelated scope names in a caller's grant set remain valid.
 
-`TimeAuthorityReleaseUri` requires `AuthorityReleaseId` and implements the foundation's
-`ResourceAddress` trait. Its constructor uses the shared URI builder; its parser
-validates components, the Time authority-release route, and the domain ID. It rejects
-query parameters, fragments, extra path segments, and encoded aliases of an ID.
-The public type serializes as a string with an unescaped, validated release ID.
+`TimeResource` owns every resource route and implements `ResourceAddress`. Its variants
+carry the corresponding ID, version, zone key, or collection cursor. The parser uses
+the shared URI components and the builder emits one spelling for each address. Reads
+and subscriptions use this same contract. Unsupported parameters, fragments, encoded
+ID aliases, relative paths, and incorrect ID families are rejected before dispatch.
+`TimeAuthorityReleaseUri` restricts provenance fields to the authority-release variant
+and requires an `AuthorityReleaseId` when constructed.
+
+`TimeVersion` validates the positive signed database range. `TimeZoneId` validates a
+relative TZDB key with nonempty ASCII name components and a maximum of 1024 bytes;
+the active authority determines whether that zone exists. It preserves slash-separated
+names and literal plus signs in the public resource path.
+
+`CalendarCursor`, `EpochCursor`, and `EventCursor` retain their family's typed IDs and
+validate the v1 envelope, position, and collection name during deserialization. Page
+responses serialize these types as opaque strings. Catalog methods require the matching
+cursor type; admin query extraction and event recovery use those same types. The
+contract feature includes Serde JSON and hex for this wire format.
 
 Temporal IDs validate their domain prefix, length, and character set during JSON
 deserialization as well as construction. `TimeAccessContext` carries tenant and
@@ -338,6 +352,25 @@ them every 40 seconds. Both temporal task types use `Resume` recovery because th
 outputs are deterministic under the persisted authority-bound request. Terminal task
 records retain for seven days unless a retention pin extends their lifetime.
 
+### Zone Completion Template Compatibility
+
+Time advertises `time://zones/{+zone_id}`, which preserves the slash and plus signs
+in a zone key. The public completion adapter also accepts the v1 reference spelling
+`time://zones/{zone_id}` through the 0.1.x support series. Both spellings select the
+same zone completion handler after the same `time:read` check. The adapter does not
+change resource reads, policy targets, or the concrete zone URI format.
+
+Clients refresh `resources/templates/list` and use the advertised template for new
+completion requests. The Time server owns this adapter. Removal may occur in 0.2.0
+only after installed acceptance proves refreshed discovery and completion for both
+profiles and supported clients have adopted the advertised form. Upgrade from v1-only
+servers requires a drained Time service and refreshed template discovery before
+traffic resumes; overlap with v1-only replicas is unsupported. Rollback also drains
+the service and refreshes discovery. Neither direction converts persisted data.
+Native cases qualify both exact reference spellings and leave unrelated references
+unchanged. The reference installation's rebuild must qualify that drain and discovery
+refresh before release, as tracked in the foundations plan.
+
 ### Resources
 
 | URI | Content |
@@ -371,7 +404,7 @@ notification. Selecting a different resource starts at its first page.
 Resource templates expose:
 
 ```text
-time://zones/{zone_id}
+time://zones/{+zone_id}
 time://authorities/releases/{release_id}
 time://calendars{?cursor}
 time://epochs{?cursor}

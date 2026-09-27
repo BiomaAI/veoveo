@@ -844,10 +844,11 @@ admission and recovery synchronize the local worker inventory in
 | Path | Responsibility |
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
-| `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types, `TimeScope` vocabulary, and shared-builder-backed authority-release addresses in `resource.rs`; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
+| `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types and `TimeScope`; `resource.rs` owns all resource variants and shared URI construction, while `resource/` owns typed cursors, address components, and release-only provenance; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
+| `servers/time-mcp/src/mcp/resources.rs` | resource reads through the server's typed address contract; static documentation and App reads precede state access |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
 | `platform/store/src/time.rs`, `platform/store/src/time/collections.rs` | tenant temporal catalog, optimistic release activation, acquisition-to-release provenance lookup, SQL-scoped owner events, bounded pages and completion, requested latest epochs, and clock policy |
-| `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | typed cursor validation, bounded collection envelopes, and Time Store projections |
+| `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | fixed-size collection envelopes, catalog APIs using domain cursor types, and conversion to Time Store query DTOs |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) covers the
 protocol, authority, administration, deployment, and synchronization-observation

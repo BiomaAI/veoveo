@@ -114,7 +114,7 @@ pub struct CreateCalendarRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CalendarVersionPath {
     pub calendar_id: CalendarId,
-    pub version: u64,
+    pub version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

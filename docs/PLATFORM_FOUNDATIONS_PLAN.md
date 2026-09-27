@@ -60,8 +60,8 @@ wire/schema tests and an independent consumer build pass. Focused contract, poli
 and gateway tests and strict workspace Clippy pass. Time now exposes isolated
 contract, runtime, and MCP features and owns its scope enum. Independent contract
 consumer, native server, and database qualification pass. Shared concrete URI components
-and builders now serve Time's authority-release address. Gateway completion/audit
-reference separation, the other resource families, and wider server adoption are pending.
+and builders now serve all Time resource variants and collection cursors. Gateway
+completion/audit reference separation, Store key typing, and wider server adoption are pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -113,6 +113,11 @@ state after this file is gone.
   to identify the problem. Explain material tradeoffs, update the owning design and
   this plan, and record ownership or repository-wide decisions in
   `docs/CONTRACT_EVOLUTION.md`. Qualify the replacement before advertising it.
+- Apply the [modular type architecture](#modular-types-and-server-contracts) in every
+  phase. Keep domain vocabulary with its owner, preserve specific types through
+  internal APIs, and provide focused builders where construction needs validation.
+  Phase 3 establishes the shared interfaces; later work must use and extend them
+  without adding server-specific dependencies to core.
 - Do not let a blocker stop progress. When one step cannot finish, work around it,
   leave a `TODO(foundations): <what remains and why>` comment at the exact code path,
   add a row to [Deferred Work](#deferred-work), and continue with the next step. Defer
@@ -492,7 +497,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Map | Its contract imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate; scope helpers and URI builders use strings | Resolve each type's owning contract, expose the contract feature, and migrate its scopes, addresses, and query IDs |
-| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; public IDs validate during deserialization; `TimeAuthorityReleaseUri` implements `ResourceAddress` through the shared parser and builder | Migrate the other URI families and typed query keys; qualify hosted behavior |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
+| Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates already separate some types from the server runtime | Qualify those dependency boundaries and expose their server library contract surfaces without duplicating types |
 | Artifact, Media, Optimization | Public types live across shared artifact/provider contracts and server domain modules | Assign each contract to its domain owner and gate runtime dependencies |
@@ -530,13 +536,32 @@ and redacted validation errors. A regression exposed unescaped brackets from the
 custom-scheme path setter; the percent-encoding step now covers its remaining non-URL
 ASCII characters. Time release tests preserve supported ID spellings and string schemas,
 reject wrong routes, IDs, queries, and encoded aliases, and prove the public trait round
-trip. Other Time resource helpers still require migration. URL 2.5.8 and percent-encoding
+trip. URL 2.5.8 and percent-encoding
 2.3.2 were verified against their upstream stable release listings before adoption;
 both versions were already present in the workspace lockfile.
 The concrete profile requires unescaped authorities because URL's opaque-host
 parser permits malformed percent escapes there. Current Time authorities and Artifact
 UUID authorities fit that profile; encoded authority use must be inventoried before
 wider adoption. Dynamic path and query components retain library encoding.
+
+Time's resource migration uses one enum for parsing, building, and subscription
+eligibility. Calendar, epoch, and event cursors preserve their v1 wire payloads and
+carry distinct domain ID types. Catalog and admin APIs consume those cursor types;
+event recovery follows the returned cursor directly. Native SQL cases round-trip the
+emitted tokens before following pages. The low-level Store DTOs still erase IDs to
+strings, and Time DTO zone fields outside resource addresses still need review.
+These are remaining type-adoption work, not a completed Store boundary.
+
+Authority-only root tests exposed an incorrect path-segment assumption in the
+foundation helper. Roots now yield no segments; an explicit slash is distinct. Time
+resource tests cover every family, malformed IDs and queries, cursor family mismatch,
+version bounds, subscriptions, schemas, and compile-fail construction. Discovery's
+zone template uses RFC 6570 reserved expansion to preserve slash-separated keys.
+An explicit Time completion v1 adapter keeps the old reference spelling during the
+0.1.x support window. Its owner and removal gate live in
+[Time's compatibility section](../servers/time-mcp/DESIGN.md#zone-completion-template-compatibility).
+The reference rebuild must qualify a drained Time transition and discovery refresh;
+mixed v1-only/current replicas are unsupported. Installed qualification is pending.
 
 ## Phase 4: Unified Audit Log
 

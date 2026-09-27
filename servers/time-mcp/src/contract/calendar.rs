@@ -176,8 +176,8 @@ pub struct CancelTemporalEventRequest {
 
 /// One page of a Time collection, in the order declared by its resource.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct CollectionPage<T> {
+pub struct CollectionPage<T, C> {
     pub items: Vec<T>,
     pub limit: usize,
-    pub next_cursor: Option<String>,
+    pub next_cursor: Option<C>,
 }

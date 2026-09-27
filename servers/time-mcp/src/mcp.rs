@@ -17,7 +17,6 @@ use rmcp::{
     tool_handler, tool_router,
 };
 use serde::Serialize;
-use serde_json::json;
 use uuid::Uuid;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, docs::ServerDocs, paginate};
 
@@ -35,6 +34,8 @@ use crate::{
     state::TimeApplication,
     uris,
 };
+
+mod resources;
 
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -281,7 +282,9 @@ impl TimeMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_updated(uris::event_uri(event.event_id.as_str()))
+            .notify_resource_updated(
+                crate::contract::TimeResource::Event(event.event_id.clone()).to_string(),
+            )
             .await;
         structured_result(format!("cancelled {}", event.event_id), &event)
     }
@@ -429,226 +432,7 @@ impl ServerHandler for TimeMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-        let identity = require_scope(&context, TimeScope::Read)?;
-        let uri = request.uri.as_str();
-        // Well-known surface (contract C18, C19): readable by any identity
-        // that can list resources.
-        if uri == uris::DOCS_URI {
-            return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-        }
-        if let Some(doc_id) = uris::parse_doc(uri) {
-            let doc = SERVER_DOCS
-                .doc(doc_id)
-                .ok_or_else(|| not_found("server document"))?;
-            return Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-            ]));
-        }
-        if uri == uris::CONTRACT_URI {
-            return json_resource(uri, SERVER_DOCS.contract_declaration());
-        }
-        if uri == uris::TIMELINE_APP_URI {
-            let html = veoveo_mcp_apps_extension::workbench_app_html(
-                &veoveo_mcp_apps_extension::WorkbenchApp {
-                    app_id: "time-timeline",
-                    title: "Timeline",
-                    subtitle: "Resolve times and manage scheduled events",
-                    empty_message: "No temporal resources are visible to this identity.",
-                    resources: &[
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Current time",
-                            uri: uris::CLOCK_CURRENT_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Clock quality",
-                            uri: uris::CLOCK_QUALITY_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Calendars",
-                            uri: uris::CALENDARS_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Mission epochs",
-                            uri: uris::EPOCHS_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Events",
-                            uri: uris::EVENTS_URI,
-                        },
-                    ],
-                    tools: &[
-                        veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Resolve time",
-                            name: "resolve_time",
-                            arguments_json: "{}",
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Convert time",
-                            name: "convert_time",
-                            arguments_json: "{}",
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Evaluate windows",
-                            name: "evaluate_windows",
-                            arguments_json: "{}",
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Assess clock",
-                            name: "assess_clock",
-                            arguments_json: "{}",
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Create event",
-                            name: "create_temporal_event",
-                            arguments_json: "{}",
-                        },
-                    ],
-                    stream_result: None,
-                },
-            );
-            return Ok(ReadResourceResult::new(vec![
-                veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-            ]));
-        }
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
-        if let Some(after) = crate::index::parse(uri, uris::CALENDARS_URI).map_err(invalid_params)? {
-            return json_resource(uri, &self.state.catalog.calendars_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
-        }
-        if let Some(after) = crate::index::parse(uri, uris::EPOCHS_URI).map_err(invalid_params)? {
-            return json_resource(uri, &self.state.catalog.epochs_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
-        }
-        if let Some(after) = crate::index::parse(uri, uris::EVENTS_URI).map_err(invalid_params)? {
-            let page = self.state.catalog.events_page(&scope, after.as_ref(), None).await.map_err(crate::index::query_error)?;
-            for event in &page.items { self.state.schedule_event(scope.clone(), event.clone()).await.map_err(internal)?; }
-            return json_resource(uri, &page);
-        }
-        let engine = self.state.authorities.authority_engine(&scope).await;
-        match uri {
-            uris::CLOCK_QUALITY_URI => {
-                return json_resource(uri, &self.state.clock.quality().await.map_err(internal)?);
-            }
-            uris::CLOCK_CURRENT_URI => {
-                let quality = self.state.clock.quality().await.map_err(internal)?;
-                let policy = self
-                    .state
-                    .catalog
-                    .clock_policy(&scope)
-                    .await
-                    .map_err(internal)?
-                    .map(|value| value.0)
-                    .unwrap_or_else(default_clock_policy);
-                let time = engine
-                    .resolve(&ResolveTimeRequest {
-                        expression: crate::contract::TimeExpression::Rfc3339 {
-                            value: chrono::Utc::now().to_rfc3339(),
-                        },
-                        additional_uncertainty_nanoseconds: quality.error_bound_nanoseconds,
-                    })
-                    .map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &json!({"time": time, "effective_policy": policy, "clock_quality": quality}),
-                );
-            }
-            uris::AUTHORITIES_CURRENT_URI => {
-                return json_resource(uri, &engine.authority().effective);
-            }
-            _ => {}
-        }
-        if let Ok(address) = crate::contract::TimeAuthorityReleaseUri::parse(uri) {
-            let release_id = address.release_id();
-            let effective = &engine.authority().effective;
-            let reference = if effective.tzdb.release_id == release_id {
-                effective.tzdb.clone()
-            } else if effective.leap_seconds.release_id == release_id {
-                effective.leap_seconds.clone()
-            } else {
-                let release = self
-                    .state
-                    .catalog
-                    .release(&scope, &release_id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("authority release"))?;
-                self.state
-                    .catalog
-                    .authority_reference(&scope, &release)
-                    .await
-                    .map_err(internal)?
-            };
-            return json_resource(uri, &reference);
-        }
-        if let Some(zone_id) = uris::parse_zone(uri) {
-            let now = engine
-                .resolve(&ResolveTimeRequest {
-                    expression: crate::contract::TimeExpression::Rfc3339 {
-                        value: chrono::Utc::now().to_rfc3339(),
-                    },
-                    additional_uncertainty_nanoseconds: 0,
-                })
-                .map_err(invalid_params)?;
-            let projection = engine
-                .convert(&ConvertTimeRequest {
-                    instant: now.instant,
-                    zone_ids: vec![zone_id.to_owned()],
-                    scales: Vec::new(),
-                })
-                .map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &json!({"zone_id": zone_id, "tzdb_release_id": engine.authority().binding.tzdb_release_id, "current": projection.zoned.into_iter().next()}),
-            );
-        }
-        if let Some((calendar_id, version)) = uris::parse_calendar(uri) {
-            let id = crate::contract::CalendarId::new(calendar_id).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .calendar(&scope, &id, version)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("calendar version"))?,
-            );
-        }
-        if let Some(epoch_id) = uris::parse_epoch(uri) {
-            let id = crate::contract::MissionEpochId::new(epoch_id).map_err(invalid_params)?;
-            return json_resource(
-                uri,
-                &self
-                    .state
-                    .catalog
-                    .epoch(&scope, &id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("mission epoch"))?,
-            );
-        }
-        if let Some(event_id) = uris::parse_event(uri) {
-            let id = TemporalEventId::new(event_id).map_err(invalid_params)?;
-            let event = self
-                .state
-                .catalog
-                .event(&scope, &id)
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| not_found("temporal event"))?;
-            self.state
-                .schedule_event(scope, event.clone())
-                .await
-                .map_err(internal)?;
-            return json_resource(uri, &event);
-        }
-        Err(McpError::resource_not_found(
-            format!("unknown Time resource `{uri}`"),
-            None,
-        ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        self.read_time_resource(request, context).await
     }
 
     async fn list_prompts(
@@ -697,7 +481,10 @@ impl ServerHandler for TimeMcp {
         };
         let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let domain = match (reference.uri.as_str(), request.argument.name.as_str()) {
+        let domain = match (
+            adapt_zone_completion_v1(&reference.uri),
+            request.argument.name.as_str(),
+        ) {
             (uris::CALENDAR_TEMPLATE, "calendar_id") => Some(TimeCompletion::CalendarId),
             (uris::CALENDAR_TEMPLATE, "version") => Some(TimeCompletion::CalendarVersion {
                 calendar_key: request
@@ -736,7 +523,10 @@ impl ServerHandler for TimeMcp {
             ));
         }
         // These catalogs are packaged with the server's documents and TZDB.
-        let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
+        let values: Vec<String> = match (
+            adapt_zone_completion_v1(&reference.uri),
+            request.argument.name.as_str(),
+        ) {
             (uris::DOC_TEMPLATE, "doc_id") => {
                 SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
             }
@@ -783,31 +573,33 @@ impl ServerHandler for TimeMcp {
         let identity = require_scope(&request_context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            if !is_subscribable(uri) {
+            let resource = crate::contract::TimeResource::parse(uri).map_err(invalid_params)?;
+            if !resource.is_subscribable() {
                 return Err(McpError::invalid_params(
                     "resource is immutable or not subscribable",
                     None,
                 ));
             }
-            if uri == uris::EVENTS_URI {
+            if matches!(
+                resource,
+                crate::contract::TimeResource::Events { cursor: None }
+            ) {
                 self.state
                     .restore_event_watchers(&scope)
                     .await
                     .map_err(internal)?;
-            } else if let Some(event_id) = uris::parse_event(uri) {
-                let event_id = TemporalEventId::new(event_id).map_err(invalid_params)?;
-                if let Some(event) = self
+            } else if let crate::contract::TimeResource::Event(event_id) = resource
+                && let Some(event) = self
                     .state
                     .catalog
                     .event(&scope, &event_id)
                     .await
                     .map_err(internal)?
-                {
-                    self.state
-                        .schedule_event(scope.clone(), event)
-                        .await
-                        .map_err(internal)?;
-                }
+            {
+                self.state
+                    .schedule_event(scope.clone(), event)
+                    .await
+                    .map_err(internal)?;
             }
         }
         veoveo_task_runtime::listen_durable_subscriptions(
@@ -932,10 +724,16 @@ fn well_known_resources() -> Vec<Resource> {
     )];
     for doc in SERVER_DOCS.iter() {
         resources.push(
-            Resource::new(uris::doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
+            Resource::new(
+                crate::contract::TimeResource::Document(
+                    crate::contract::TimeDocument::parse(doc.id).expect("declared Time document"),
+                )
+                .to_string(),
+                doc.title,
+            )
+            .with_title(doc.title)
+            .with_description("Crate document embedded at build time.")
+            .with_mime_type("text/markdown"),
         );
     }
     resources.push(descriptor(
@@ -996,19 +794,15 @@ fn resource_templates() -> Vec<ResourceTemplate> {
         ),
     ]
 }
-fn is_subscribable(uri: &str) -> bool {
-    matches!(
-        uri,
-        uris::CLOCK_CURRENT_URI
-            | uris::CLOCK_QUALITY_URI
-            | uris::AUTHORITIES_CURRENT_URI
-            | uris::CALENDARS_URI
-            | uris::EPOCHS_URI
-            | uris::EVENTS_URI
-    ) || uris::parse_event(uri).is_some()
-        || uris::parse_calendar(uri).is_some()
-        || uris::parse_epoch(uri).is_some()
+// Public Time completion-template v1 adapter. Its support window and retirement
+// gate are declared in Time's DESIGN.md; both spellings reach the same handler.
+fn adapt_zone_completion_v1(template: &str) -> &str {
+    match template {
+        "time://zones/{zone_id}" => uris::ZONE_TEMPLATE,
+        _ => template,
+    }
 }
+
 fn default_clock_policy() -> ClockQualityPolicy {
     ClockQualityPolicy {
         maximum_error_nanoseconds: 100_000_000,
@@ -1021,6 +815,63 @@ fn default_clock_policy() -> ClockQualityPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn zone_completion_v1_adapter_uses_the_current_reserved_expansion_template() {
+        assert_eq!(uris::ZONE_TEMPLATE, "time://zones/{+zone_id}");
+        assert_eq!(
+            adapt_zone_completion_v1("time://zones/{zone_id}"),
+            uris::ZONE_TEMPLATE
+        );
+        assert_eq!(
+            adapt_zone_completion_v1(uris::ZONE_TEMPLATE),
+            uris::ZONE_TEMPLATE
+        );
+        for unrelated in [
+            uris::EPOCH_TEMPLATE,
+            "other://zones/{zone_id}",
+            "time://zones/{other}",
+        ] {
+            assert_eq!(adapt_zone_completion_v1(unrelated), unrelated);
+        }
+    }
+
+    #[test]
+    fn advertised_resources_and_simple_templates_agree_with_typed_addresses() {
+        use crate::contract::TimeResource;
+        use veoveo_types::{ResourceAddress, ResourceUri};
+        for resource in root_resources() {
+            let address = TimeResource::parse(&resource.uri).unwrap();
+            assert_eq!(address.to_uri().unwrap().as_str(), resource.uri);
+        }
+        for (template, wire) in [
+            (uris::DOC_TEMPLATE, "time://docs/agents"),
+            (
+                uris::AUTHORITY_RELEASE_TEMPLATE,
+                "time://authorities/releases/time-release-one",
+            ),
+            (
+                uris::CALENDAR_TEMPLATE,
+                "time://calendars/calendar-one/versions/12",
+            ),
+            (uris::EPOCH_TEMPLATE, "time://epochs/epoch-one"),
+            (uris::EVENT_TEMPLATE, "time://events/event-one"),
+        ] {
+            let address = TimeResource::parse(wire).unwrap();
+            assert!(
+                veoveo_mcp_contract::ResourceUriTemplate::new(template)
+                    .unwrap()
+                    .matches_uri(&address.to_uri().unwrap())
+            );
+        }
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new("time");
+        assert_eq!(uris::DOCS_URI, conventions.docs_root_uri());
+        assert_eq!(uris::CONTRACT_URI, conventions.contract_uri());
+        assert_eq!(uris::DOC_TEMPLATE, conventions.doc_template());
+        assert!(
+            TimeResource::parse(ResourceUri::new(uris::TIMELINE_APP_URI).unwrap().as_str()).is_ok()
+        );
+    }
 
     #[test]
     fn discovery_uses_static_roots_and_templates_without_list_change_notifications() {

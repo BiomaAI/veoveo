@@ -26,8 +26,8 @@ type ApiResult<T> = Result<Json<T>, ApiError>;
 
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(super) struct CursorQuery {
-    cursor: Option<String>,
+pub(super) struct CursorQuery<C> {
+    cursor: Option<C>,
 }
 
 pub(super) async fn list_sources(
@@ -207,11 +207,15 @@ pub(super) async fn list_active_authorities(
 pub(super) async fn list_calendars(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Query(query): Query<CursorQuery>,
-) -> ApiResult<crate::contract::CollectionPage<crate::contract::OperationalCalendar>> {
+    Query(query): Query<CursorQuery<crate::contract::CalendarCursor>>,
+) -> ApiResult<
+    crate::contract::CollectionPage<
+        crate::contract::OperationalCalendar,
+        crate::contract::CalendarCursor,
+    >,
+> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
-    let after = crate::index::decode(uris::CALENDARS_URI, query.cursor.as_deref())
-        .map_err(ApiError::bad_request)?;
+    let after = query.cursor;
     Ok(Json(
         state.catalog.calendars_page(&scope, after.as_ref()).await?,
     ))
@@ -257,11 +261,10 @@ pub(super) async fn create_calendar(
 pub(super) async fn list_epochs(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Query(query): Query<CursorQuery>,
-) -> ApiResult<crate::contract::CollectionPage<MissionEpoch>> {
+    Query(query): Query<CursorQuery<crate::contract::EpochCursor>>,
+) -> ApiResult<crate::contract::CollectionPage<MissionEpoch, crate::contract::EpochCursor>> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
-    let after = crate::index::decode(uris::EPOCHS_URI, query.cursor.as_deref())
-        .map_err(ApiError::bad_request)?;
+    let after = query.cursor;
     Ok(Json(
         state.catalog.epochs_page(&scope, after.as_ref()).await?,
     ))

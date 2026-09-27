@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use veoveo_platform_store::{
-    PlatformStore, PrincipalKind, TimeCompletion, TimeEventCursor, TimeMissionEpochDraft,
-    TimeTemporalEventState as StoredEventState, TimeVersionCursor,
+    PlatformStore, PrincipalKind, TimeCompletion, TimeMissionEpochDraft,
+    TimeTemporalEventState as StoredEventState,
 };
 use veoveo_time_mcp::{
     AuthorityBinding, AuthorityReleaseId, CalendarId, MissionEpoch, MissionEpochId,
@@ -111,11 +111,13 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(page.items.len(), 100);
         assert!(page.next_cursor.is_some());
         let last = page.items.last().unwrap();
-        let cursor = TimeEventCursor {
-            tai_seconds: last.due.tai_seconds_since_1970,
-            nanosecond: i64::from(last.due.nanosecond),
-            event_key: last.event_id.to_string(),
-        };
+        let cursor: veoveo_time_mcp::EventCursor = serde_json::from_value(
+            serde_json::to_value(page.next_cursor.as_ref().unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(cursor.event_id(), &last.event_id);
+        assert_eq!(cursor.tai_seconds(), last.due.tai_seconds_since_1970);
+        assert_eq!(cursor.nanosecond(), last.due.nanosecond);
         let next = catalog
             .events_page(&owner, Some(&cursor), None)
             .await
@@ -394,10 +396,12 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(first.items[0].version, 113);
         assert!(first.next_cursor.is_some());
         let last = first.items.last().unwrap();
-        let position = TimeVersionCursor {
-            key: last.epoch_id.to_string(),
-            version: last.version as i64,
-        };
+        let position: veoveo_time_mcp::EpochCursor = serde_json::from_value(
+            serde_json::to_value(first.next_cursor.as_ref().unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(position.epoch_id(), &last.epoch_id);
+        assert_eq!(position.version().get(), last.version);
         let second = catalog.epochs_page(&owner, Some(&position)).await.unwrap();
         assert_eq!(
             second.items.iter().map(|e| e.version).collect::<Vec<_>>(),
@@ -416,10 +420,12 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(first.items.len(), 100);
         assert_eq!(first.items[0].version, 113);
         let last = first.items.last().unwrap();
-        let position = TimeVersionCursor {
-            key: last.calendar_id.to_string(),
-            version: last.version as i64,
-        };
+        let position: veoveo_time_mcp::CalendarCursor = serde_json::from_value(
+            serde_json::to_value(first.next_cursor.as_ref().unwrap()).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(position.calendar_id(), &last.calendar_id);
+        assert_eq!(position.version().get(), last.version);
         let second = catalog
             .calendars_page(&peer, Some(&position))
             .await
@@ -440,13 +446,10 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .all(|e| e.state == TemporalEventState::Scheduled && e.event_id != own_id)
         );
         let last = scheduled.items.last().unwrap();
-        let position = TimeEventCursor {
-            tai_seconds: last.due.tai_seconds_since_1970,
-            nanosecond: i64::from(last.due.nanosecond),
-            event_key: last.event_id.to_string(),
-        };
+        let position = scheduled.next_cursor.as_ref().unwrap();
+        assert_eq!(position.event_id(), &last.event_id);
         let last_scheduled = catalog
-            .events_page(&owner, Some(&position), Some(StoredEventState::Scheduled))
+            .events_page(&owner, Some(position), Some(StoredEventState::Scheduled))
             .await
             .unwrap();
         assert_eq!(last_scheduled.items.len(), 1);
@@ -465,8 +468,8 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         .await
         .unwrap();
         let requested = vec![
-            epoch_id.to_string(),
-            "epoch-00000000-0000-7000-8000-000000000099".into(),
+            epoch_id.clone(),
+            MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000099").unwrap(),
         ];
         let epochs = catalog.epochs_for_keys(&owner, &requested).await.unwrap();
         assert_eq!(epochs.len(), 1);

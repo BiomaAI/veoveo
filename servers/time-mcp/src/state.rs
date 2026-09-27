@@ -91,7 +91,7 @@ impl TimeApplication {
                 "at most 100000 temporal expressions are supported"
             );
             if let crate::contract::TimeExpression::EpochRelative { epoch_id, .. } = expression {
-                keys.insert(epoch_id.to_string());
+                keys.insert(epoch_id.clone());
             }
         }
         let keys: Vec<_> = keys.into_iter().collect();
@@ -120,7 +120,7 @@ impl TimeApplication {
                 for event in page.items {
                     self.schedule_event(scope.clone(), event).await?;
                 }
-                after = crate::index::decode(crate::uris::EVENTS_URI, page.next_cursor.as_deref())?;
+                after = page.next_cursor;
                 if after.is_none() {
                     return Ok::<(), anyhow::Error>(());
                 }
@@ -180,7 +180,7 @@ impl TimeApplication {
                             .await;
                         state
                             .subscriptions
-                            .notify_resource_updated(crate::uris::event_uri(current.event_id.as_str()))
+                            .notify_resource_updated(crate::contract::TimeResource::Event(current.event_id.clone()).to_string())
                             .await;
                     }
                 }
