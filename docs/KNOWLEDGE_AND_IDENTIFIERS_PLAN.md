@@ -6,9 +6,10 @@ This plan tells an implementing agent how to deliver five changes. The first mov
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
 reference installation. The third fixes resource contract violations found while
-surveying the servers. The fourth replaces the separate audit paths with one audit log.
-The fifth makes every server a knowledge source and adds the `knowledge-mcp` catalog
-and index.
+surveying the servers. The fourth upgrades SurrealDB to 3.3 and replaces the separate audit paths with one
+audit log. The fifth replaces the outbox with SurrealDB change feeds and moves other
+hand-built mechanisms into the database. The sixth makes every server a knowledge
+source and adds the `knowledge-mcp` catalog and index.
 
 The target contracts live in the owning documents:
 
@@ -18,7 +19,7 @@ The target contracts live in the owning documents:
 - [MCP server contract](../mcp/contract/DESIGN.md), rule C32
 - [Contract evolution](CONTRACT_EVOLUTION.md), CE-10, CE-11, and CE-12
 - [Deployment contract](../deploy/contract/DESIGN.md#installation-target)
-- [Naming rules](../AGENTS.md#naming)
+- [Naming rules](../AGENTS.md#naming) and [Database First](../AGENTS.md#database-first)
 
 Delete this plan, and its CODEMAP row, in the change that completes the last phase.
 Update each owning design when its phase lands, because the designs hold the current
@@ -31,7 +32,7 @@ state after this file is gone.
 | MCP `2026-07-28` extensions and `_meta` key rules | Identifier forms and the `ai.veoveo/knowledge-source` extension |
 | RFC 9110, RFC 9111, RFC 8246 | Revision, freshness, and immutability semantics for knowledge reads |
 | W3C DCAT 3 | Catalog model in `knowledge-mcp` |
-| SurrealDB 3.2.4 | Catalog, `FULLTEXT` BM25, and `HNSW` indexes |
+| SurrealDB 3.3 | Audit records, change feeds, LIVE queries, table views, record references, catalog, `FULLTEXT` BM25, and `HNSW` indexes |
 | candle `0.11.0`, `tokenizers` `0.23.2`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
 | OCSF 1.9.0, W3C Trace Context, RFC 9162, RFC 8785, S3 Object Lock | Audit record export, correlation, sealing, and write-once retention |
@@ -245,7 +246,7 @@ server with a test that fails before the fix.
 | media | usage URIs are notified (`usage.rs:155`) but rejected by `listen` (`server.rs:809-830`) | Make usage URIs subscribable, or stop notifying them |
 | map | spatial and raster derivations are notified but not subscribable (`mcp.rs:2487`) | Add them to the subscribable set |
 | recording | the catalog URI is notified (`server.rs:131`) but not subscribable | Make it subscribable |
-| map, media, optimization | per-process broadcast hubs do not survive restarts or reach other replicas | Feed their hubs from the Store outbox or Store LIVE, as Time and Recording do |
+| map, media, optimization | per-process broadcast hubs do not survive restarts or reach other replicas | Feed their hubs from Store LIVE queries with change-feed recovery, as Time and Recording do; do not add outbox consumers |
 | reason | the analyses index scans every analysis (`server.rs:624`) | Bounded cursor pages at the store |
 | stream | run and session lists are unbounded | Bounded cursor pages |
 | time | calendar, epoch, and event collections are unbounded (`catalog.rs:382,487`) | Bounded cursor pages |
@@ -293,40 +294,65 @@ wired to the gateway's retention flag; and no code deletes `outbox_event` rows.
 
 Work:
 
-1. Define the record types in `mcp/contract/src/audit.rs`, and delete `AuditEvent`,
+1. Upgrade SurrealDB from 3.2.4 to the latest 3.3 patch release in its own commit,
+   before any audit change. Update the Helm image pin, every `surrealdb` crate pin, and
+   the tests and documents that name the version. Check the store code against the 3.3
+   behavior changes: locked reads through `SELECT … FOR UPDATE`, and `UPDATE` and
+   `UPSERT` now evaluating `WHERE` before their data clauses. Qualify with the store and
+   gateway test suites, all migrations on a fresh store, and the installed smoke
+   scenarios.
+2. Add request timing before changing audit. Each request reports policy evaluation,
+   audit commit, and upstream time in its trace, and the gateway exports them as
+   histograms. Record a baseline for catalog lists, resource reads, and tool calls on the
+   reference installation.
+3. Define the record types in `mcp/contract/src/audit.rs`, and delete `AuditEvent`,
    `AuthAuditEvent`, and their metadata maps.
-2. Add a migration that removes `audit_event` and creates `audit_record` and
-   `audit_block` with `READONLY` fields and the indexes the bounded queries use. Existing
-   audit rows are discarded, as CE-12 records.
-3. Create `platform/audit` with the writer's transactional and group-commit modes, the
+4. Add a migration that removes `audit_event` and creates `audit_record` with compound
+   record IDs `[partition, uuidv7]`, record links for platform targets, `READONLY`
+   fields, and a change feed without `INCLUDE ORIGINAL`; `audit_block`; and the
+   `audit_daily` table view. Add only the secondary indexes the bounded queries use
+   beyond the ID range. Existing audit rows are discarded, as CE-12 records.
+5. Create `platform/audit` with the writer's transactional and group-commit modes, the
    sealer under a store lease, the OCSF and OpenTelemetry exporters, and verification.
    Add the dedicated audit signing key to the installation secrets.
-4. In the gateway, assign request IDs, establish W3C trace context, record source IP
+6. In the gateway, assign request IDs, establish W3C trace context, record source IP
    addresses, write one record per request, aggregate discovery lists, write tool and
    admin completion records, write token lifecycle records, type recording ingest
    denials, and add `gateway audit verify`. Make audit retention a required
    installation value, wired from Helm, and remove the 365-day default.
-5. Move the Artifact service, upload publication, Computers lifecycle changes, Work
-   Context transitions, and live views onto the writer. Live-view issuance fails when
-   its record cannot commit; close and expiry records are retried.
-6. Replace per-chunk speech records with session records.
-7. Stop writing outbox events for audit records. Add outbox retention that deletes rows
-   every consumer has checkpointed past.
-8. Replace the Console's audit reads with the paged, partition-scoped query, add
-   server-side export, show the `installation` partition to installation
-   administrators and auditors, and record audit-view access. Bound and scope the CLI
-   summaries, and update smoke assertions that counted old rows.
-9. Update the documents that describe the old behavior: the tool-call and discovery
-   paragraphs in `mcp/contract/DESIGN.md`, the audit section of
-   `servers/uav-sim-mcp/DESIGN.md`, `platform/gateway/src/bin/gateway/speech/DESIGN.md`,
-   the audit retention section of `docs/TECH_DESIGN.md`, and gap G4 with its stale
-   retention reference in `docs/REGULATED_READINESS.md`.
-10. Update the standards registers: OCSF export and W3C Trace Context in `README.md`;
-    OCSF 1.9.0, RFC 9162, RFC 8785, and S3 Object Lock in `docs/TECH_DESIGN.md`; and an
-    audit export interface in `interfaces-and-protocols.csv`.
+7. Cache discovery decisions by caller authority, policy revision, and catalog
+   generation, and invalidate them on change events instead of the 5 s expiry. Cache
+   prompt decisions the same way.
+8. Move the Artifact service, Computers lifecycle changes, Work Context transitions, and
+   live views onto the writer. Live-view issuance fails when its record cannot commit;
+   close and expiry records are retried. For upload publication, evaluate a synchronous
+   `DEFINE EVENT` that writes the record in the publication transaction. Keep it only if
+   it is simpler than the writer call and passes the record-type tests, and record the
+   result in the audit design.
+9. Replace per-chunk speech records with session records.
+10. Stop writing outbox events for audit records. Phase 5 removes the outbox itself.
+11. Rebuild the Console's audit views on the paged, partition-scoped range query, the
+    `audit_daily` view, and a LIVE query per partition with change-feed recovery after a
+    reconnect. Remove the global change-feed scan in
+    `platform/gateway/src/bin/gateway/admin/console/stream.rs`. Add server-side export,
+    show the `installation` partition to installation administrators and auditors, and
+    record audit-view access. Bound and scope the CLI summaries, and update smoke
+    assertions that counted old rows.
+12. Update the documents that describe the old behavior: the tool-call and discovery
+    paragraphs in `mcp/contract/DESIGN.md`, the audit section of
+    `servers/uav-sim-mcp/DESIGN.md`, `platform/gateway/src/bin/gateway/speech/DESIGN.md`,
+    the audit retention section of `docs/TECH_DESIGN.md`, and gap G4 with its stale
+    retention reference in `docs/REGULATED_READINESS.md`. Replace the 500 ms catalog
+    target in `docs/DEVELOPMENT_ITERATION.md` with a pointer to the audit design's
+    measurement section.
+13. Update the standards registers: SurrealDB 3.3, OCSF export, and W3C Trace Context in
+    `README.md`; OCSF 1.9.0, RFC 9162, RFC 8785, and S3 Object Lock in
+    `docs/TECH_DESIGN.md`; and an audit export interface in
+    `interfaces-and-protocols.csv`.
 
 Acceptance:
 
+- The SurrealDB 3.3 upgrade passes its qualification before any audit commit lands.
 - Tests count records for each action in the table above and match the target column.
 - A request fails when its record cannot commit, and a live-view authorization is not
   issued while the audit store is unavailable. An issued authorization keeps working.
@@ -339,10 +365,70 @@ Acceptance:
   RustFS does not (`docs/REGULATED_READINESS.md` gap G9).
 - A repository test rejects any string field in a `detail` variant outside the
   identifier and reason-code allowlist.
-- Installed catalog p95 is measured against the 500 ms target in
-  `docs/DEVELOPMENT_ITERATION.md` and recorded in the audit design's status.
+- A warm catalog list evaluates no policy and writes one record.
+- The Console's live audit view receives new records through its LIVE query without
+  polling, and recovers missed records from the change feed after a reconnect.
+- The before and after timing measurements are recorded in the audit design. Audit
+  commit is no longer the dominant cost of catalog and read latency. This phase sets no
+  fixed millisecond target.
 
-## Phase 5: Extension Crate And Shared Plumbing
+## Phase 5: Store Simplification
+
+This phase applies [Database First](../AGENTS.md#database-first) to the platform store.
+Veoveo keeps two event-delivery mechanisms today. The outbox writes a second row for each
+domain change and numbers it from `platform_outbox_sequence`, defined with `BATCH 1`, so
+every outbox row writes the same sequence key. Change feeds already record every table
+change in commit order, and `platform/store/src/changefeed.rs` reads them. The outbox's
+`available_at` delay is unused: every writer sets it to the current time, and only a
+test sets a future time.
+
+Work:
+
+1. Measure first. Record transaction conflicts, retries, and commit latency for outbox
+   writers, and confirm how much of that cost the shared sequence causes.
+2. Inventory every outbox writer and consumer with `git grep -n "outbox"`. Writers
+   include `agents/runtime/src/runtime.rs`, `platform/store/src/artifact_access_requests.rs`,
+   `coordinates.rs`, `frame_worlds.rs`, `map_authoring.rs`, and `map_presentations.rs`.
+   Consumers include the agent manager, the agent runtime, gateway agent events,
+   `platform/task-runtime/src/runtime/subscriptions.rs`,
+   `servers/artifact-mcp/src/bin/server/subscriptions.rs`,
+   `servers/computers-mcp/src/protocol/subscriptions.rs`,
+   `servers/media-mcp/src/bin/server/app_state.rs`, and the Map changeset projection.
+3. Move each consumer to change feeds of the tables whose changes it needs. A consumer
+   holds a LIVE query for push delivery and a persisted change-feed versionstamp cursor
+   for recovery. Typed decoders in `platform/store` turn table changes into the events
+   consumers act on, so each table's event vocabulary has one owner. A consumer whose
+   cursor falls behind the change-feed retention reconciles from current table state.
+   Migrate one consumer per commit, and keep its existing reactive tests passing.
+4. Deliver delayed agent wakes from `wake.available_at` with a timer armed for the next
+   due wake and re-armed by LIVE changes on `wake`. Do not poll.
+5. Delete `outbox_event`, `outbox_checkpoint`, `platform_outbox_sequence`,
+   `OutboxDraft`, and `platform/store/src/outbox.rs` once no consumer remains.
+6. Review the change feed on each of the tables that set `INCLUDE ORIGINAL`, about 40
+   of them. Keep it only where a consumer needs the prior state of a change, and record
+   the reason in the owning design.
+7. Survey code that deletes or repairs related records by hand, such as grants, shares,
+   and relation edges. Replace each case with `REFERENCE` fields and `ON DELETE` rules
+   where the database can enforce the same behavior, with a test per relationship.
+8. Evaluate `DEFINE EVENT … ASYNC` with `RETRY` for projections that stay inside the
+   database, starting with the Map changeset projection. Work that calls another
+   service stays in that service.
+9. Update `platform/store`, `platform/task-runtime`, `agents/runtime`, the Durable
+   Platform Store section of `docs/TECH_DESIGN.md`, every other affected design, and
+   the CODEMAP rows for `outbox.rs` and `changefeed.rs`.
+
+Acceptance:
+
+- `git grep outbox_event` returns nothing, and every former consumer passes its
+  reactive tests.
+- No consumer polls. Review confirms each wait is a LIVE query, a change-feed read after
+  a reconnect, or a timer for a known due time.
+- Write amplification, conflicts, and commit latency are measured before and after and
+  recorded in the platform store design.
+- Each `REFERENCE` adoption has a test for its `ON DELETE` behavior, and each rejected
+  candidate has its reason recorded.
+
+## Phase 6: Extension Crate And Shared Plumbing
 
 1. Create `mcp/knowledge-extension` as a workspace crate with the models, server and
    client helpers, and docs collection listed in its design's implementation map.
@@ -374,7 +460,7 @@ Acceptance:
 - A kernel test shows provenance lines within the byte budget.
 - Every server passes K01 through K08 for its docs collection.
 
-## Phase 6: First Adoption Wave
+## Phase 7: First Adoption Wave
 
 Each server below declares its collections, fills observations from existing records,
 and makes its search results resource links. When a domain has no revision, use the
@@ -391,7 +477,7 @@ content digest as the revision.
 Acceptance: each server passes K01 through K10 review and conformance, and the audit
 log records the observed revision for reads of each collection.
 
-## Phase 7: Knowledge Service
+## Phase 8: Knowledge Service
 
 1. Create `servers/knowledge-mcp` with `DESIGN.md` and `AGENTS.md`. Move the service
    sections of [`KNOWLEDGE.md`](KNOWLEDGE.md) into its design, keeping the
@@ -417,7 +503,7 @@ log records the observed revision for reads of each collection.
    3. Package `config.json`, `tokenizer.json`, and `model.safetensors` into the image
       with their SHA-256 digests. The builder stage carries the CUDA toolkit and sets
       `CUDA_COMPUTE_CAP` for the installation's GPUs.
-   4. Measure throughput on the Phase 6 collections. If a full rebuild is too slow,
+   4. Measure throughput on the Phase 7 collections. If a full rebuild is too slow,
       propose the padding-mask change to candle upstream before changing the batching.
    5. Qualify `Qwen3-Embedding-4B` against 0.6B as
       [Model qualification](KNOWLEDGE.md#model-qualification) describes, and record
@@ -426,7 +512,7 @@ log records the observed revision for reads of each collection.
    filtering. Share the effective-access predicate that `platform/store/src/artifacts.rs`
    applies. Do not copy it.
 6. Add the Helm chart, GPU request, gateway registration, and offline image entry.
-7. Build an evaluation set from the Phase 6 collections, and record recall at 10 for
+7. Build an evaluation set from the Phase 7 collections, and record recall at 10 for
    the chosen chunk settings in the index generation.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
    3 and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
@@ -445,10 +531,10 @@ Acceptance:
   model-card vectors, and equal-length batches match single-input calls.
 - Throughput and the 0.6B-against-4B comparison are recorded in the index generation.
 - Invalidation and reconciliation tests pass.
-- The reference installation indexes the approved Phase 6 collections, and a search
+- The reference installation indexes the approved Phase 7 collections, and a search
   returns links an agent can read.
 
-## Phase 8: Second Adoption Wave
+## Phase 9: Second Adoption Wave
 
 | Server | Collections | Prerequisite |
 |---|---|---|

@@ -27,16 +27,22 @@ decision.
 | [RFC 8032](https://www.rfc-editor.org/rfc/rfc8032.html) Ed25519 | Signature over each sealed block head |
 | S3 Object Lock, compliance mode | Optional write-once export destination owned by the installation |
 | OpenTelemetry Logs over OTLP/HTTP | Optional export of records as log events named `veoveo.audit.<class>` to the installation's collector |
-| SurrealDB 3.2.4 | `audit_record` and `audit_block` tables in the platform store |
+| SurrealDB 3.3 | `audit_record`, `audit_block`, and the `audit_daily` table view in the platform store; compound record IDs, record links, `READONLY` fields, change feeds, and LIVE queries |
 
 ## Record
 
-Each record is one row in `audit_record`. Its fields are typed. The record has no
-free-form metadata map, so a writer cannot add an unreviewed field.
+Each record is one row in `audit_record`, in the platform store beside the records it
+references. Its fields are typed. The record has no free-form metadata map, so a writer
+cannot add an unreviewed field.
+
+The record ID is the compound `audit_record:[partition, id]`, where `id` is a UUIDv7.
+SurrealDB orders records by ID, so a partition's records in time order are a
+primary-key range, such as `audit_record:[$tenant, $from]..[$tenant, $to]`. Queries,
+the sealer, and retention read that range without a secondary time index.
 
 | Field | Content |
 |---|---|
-| `id` | UUIDv7 that the writer generates once and reuses on every retry, so a retried write stores one record |
+| `id` | UUIDv7 that the writer generates once and reuses on every retry, so a retried write stores one record; the second element of the record ID |
 | `schema` | `veoveo.ai/audit-record/v1` |
 | `partition` | The tenant, or `installation` for events without a tenant: unauthenticated denials, client-credentials clients, and installation administration |
 | `class` | `api_activity`, `authentication`, `account_change`, `artifact_activity`, `live_view_access`, or `computer_activity` |
@@ -44,7 +50,7 @@ free-form metadata map, so a writer cannot add an unreviewed field.
 | `outcome` | `allowed`, `denied`, `succeeded`, or `failed`, plus a typed reason code |
 | `actor` | Principal ID and kind, tenant, OAuth client, session family, the delegating principal, and for managed agents the instance, generation, dispatch epoch, and episode |
 | `authority` | Profile, Work Context, policy revision, and the principal's scopes and data labels at decision time, stored once |
-| `target` | Typed target: server and tool, resource URI, artifact ID, Computer ID, live-view authorization, or administrative object |
+| `target` | Typed target. A platform record, such as an artifact occurrence, Computer, Task, principal, or Work Context, is a record link, so queries join and traverse from the record to the rest of the platform. A server and tool, a resource URI, or an administrative object uses its typed identifier |
 | `detail` | One typed variant per activity, such as a tool call's result kind, duration, and JSON-RPC error code, or a knowledge read's observation |
 | `request` | Request ID, trace ID, span ID, and source IP address |
 | `occurred_at`, `recorded_at` | Writer clock, and database time at commit |
@@ -86,8 +92,9 @@ Writers call one library, `platform/audit`, with one of two modes:
 - A transactional write commits the record inside the caller's domain transaction.
   Upload publication, Computers lifecycle changes, and Work Context transitions use it.
 - A request write joins a group commit. The writer gathers records from concurrent
-  requests for at most 5 ms or 64 records and commits them in one transaction. Each
-  caller waits for its own commit.
+  requests for a short window and commits them in one transaction. Each caller waits
+  for its own commit. The window starts at 5 ms or 64 records, and measurement tunes
+  it.
 
 A request fails when its required record cannot be committed. A completion record
 after a tool call is the exception: the effect already happened, so the writer
@@ -99,13 +106,35 @@ When the audit store is unavailable, no new authorization is issued. An authoriz
 already issued keeps working until it expires or is revoked, and viewers and
 simulation continue.
 
-Audit writes produce no outbox events. Consumers that need audit changes read the
-table's changefeed.
+Audit writes produce no outbox events. `audit_record` has a change feed without
+`INCLUDE ORIGINAL`, because a record never changes after commit. A reader that follows
+the log, such as the Console's live view or an agent that reacts to audit, holds a LIVE
+query filtered by partition and resumes from its change-feed cursor after a reconnect,
+as `platform/store/src/resource_changes.rs` does for Time and Recording. No reader
+polls or scans other partitions.
+
+Transactional records for domain changes are first evaluated as SurrealDB events. Upload
+publication tries a synchronous `DEFINE EVENT` that writes the record from the
+publication's own authority fields in the same transaction. The writer library keeps
+this path only if the event is simpler than the library call and passes the same
+record-type tests; an event cannot see the calling session, so the domain record must
+carry every actor field the audit record needs.
+
+## Measurement
+
+Each request reports its policy evaluation, audit commit, and upstream times
+separately in its trace, and the gateway exports them as histograms. Performance work
+starts from these measurements. The audit log has no fixed latency target; its
+acceptance is that audit commit is not the dominant cost of catalog and read latency.
+
+Discovery decisions are cached by caller authority, policy revision, and catalog
+generation, and change events invalidate them. A list served from that cache
+evaluates no policy and writes its single record.
 
 ## Integrity
 
 A sealer runs under a store lease, so one replica seals at a time. At most once per
-second it takes each partition's unsealed records in `recorded_at` order and writes
+second it takes each partition's unsealed records in record-ID order and writes
 an `audit_block`: partition, block sequence, first and last record ID, record count,
 the RFC 9162 Merkle root over the records' canonical hashes, the previous block's
 hash, and an Ed25519 signature over the block head. The signing key is a dedicated
@@ -149,7 +178,10 @@ duplicates identifiable.
 Reading the audit log requires the `audit:read` scope. A reader sees partitions of
 its own tenant. Installation administrators and the auditor role also read the
 `installation` partition. Every query is paged and bounded at the store with filters
-for class, actor, target, outcome, trace, and time. The Console reads through this
+for class, actor, target, outcome, trace, and time. The Console's overview reads
+`audit_daily`, a table view defined with `AS SELECT … GROUP BY` that SurrealDB maintains
+incrementally with counts by partition, day, class, and outcome, so the overview scans
+no records. The Console reads records through this
 query and exports the full filtered result on the server, not only the rows loaded in
 the browser.
 
@@ -179,7 +211,7 @@ outside it:
 |---|---|
 | `mcp/contract/src/audit.rs` | record, actor, authority, target, detail, and outcome types |
 | `platform/audit` | writer with transactional and group-commit modes, sealer, exporter, and verification |
-| `platform/store/src/audit.rs` and its migration | `audit_record` and `audit_block` tables, `READONLY` fields, indexes, bounded queries, and retention |
+| `platform/store/src/audit.rs` and its migration | `audit_record`, `audit_block`, and `audit_daily`, compound record IDs, `READONLY` fields, record links, bounded range queries, LIVE and change-feed readers, and retention |
 | `platform/gateway` | request IDs, trace context, request records, discovery aggregation, token lifecycle records, and the `audit verify` command |
 | `platform/artifacts/service` | artifact activity records and download sessions |
 | `servers/uav-sim-mcp` | live-view access records |

@@ -313,8 +313,10 @@ denial and every authorization issuance still requires a committed record.
 
 Sealed blocks with Merkle roots and signed heads make tampering detectable. Retention
 is an installation parameter with no default, and a configured export must receive a
-block before its records can be deleted. The replacement is a hard cut: the new table
-replaces `audit_event`, and existing audit rows are discarded.
+block before its records can be deleted. Audit stays in the platform store beside the
+records it references, and readers follow it through LIVE queries with change-feed
+recovery rather than polling. The replacement is a hard cut: the new table replaces
+`audit_event`, and existing audit rows are discarded.
 
 ## Delivery And Decision Checkpoints
 

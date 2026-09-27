@@ -23,7 +23,7 @@ component:
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
 | [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, knowledge reads in the audit log, and the planned `knowledge-mcp` catalog, index, and GPU embedding |
-| [`AUDIT.md`](AUDIT.md) | target design for the single audit log: typed records, one record per logical action, group-commit writer, sealed Merkle blocks, required retention, OCSF export, and partition-scoped access |
+| [`AUDIT.md`](AUDIT.md) | target design for the single audit log: typed records with compound IDs and record links, one record per logical action, group-commit writer, LIVE and change-feed readers, sealed Merkle blocks, required retention, OCSF export, and partition-scoped access |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, fork workloads, and acceptance |
 | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) | fork layout, reviewed upstream merges, local SDK development and installation ownership |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
@@ -65,7 +65,7 @@ planned change lands:
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work in `001`–`013`; App authority, uploads, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work in `014`–`023` |
 | [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | implementation plan for request `016`: recording datasets, immutable Artifact-backed Rerun layers, virtual catalogs, Arrow export, disk safety, activation, and acceptance |
 | [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | delivered resumable HTTP uploads, persistent browser queue, durable receipts and Python streaming; 10 GiB installed acceptance with larger-capacity measurements pending |
-| [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, the unified audit log, the knowledge-source extension, and `knowledge-mcp` |
+| [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
 Component designs live beside the code whose contract they specify:

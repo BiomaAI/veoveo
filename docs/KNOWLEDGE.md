@@ -36,7 +36,7 @@ health      /knowledge/healthz
 | `ai.veoveo/knowledge-source` | Consumed as a client on every source read; declared as a server for the `knowledge.docs` collection |
 | [W3C DCAT 3](https://www.w3.org/TR/vocab-dcat-3/) | Catalog shape: the installation catalog is a `dcat:Catalog`, each source server a `dcat:DataService`, each collection a `dcat:Dataset`. Resources return JSON with DCAT-aligned field names, not RDF |
 | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) and [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) | Revalidation with strong validators and freshness lifetimes, applied through the extension's conditional reads |
-| SurrealDB 3.2.4 | Catalog and index records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
+| SurrealDB 3.3 | Catalog and index records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
 | candle `0.11.0`: `candle-core`, `candle-nn`, `candle-transformers` | Unmodified `candle_transformers::models::qwen3::Model` forward pass in BF16, with the `cuda` feature on `candle-core` and `candle-nn` |
 | `tokenizers` `0.23.2` | The Qwen3 tokenizer from the pinned model revision |
 | [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | Apache-2.0 embedding model: 28 layers, 1024-dimension output, 32,768-token context, last-token pooling, L2 normalization |
@@ -233,7 +233,7 @@ is. The adapter's byte and read budgets count those lines.
   vectors are a committed fixture, generated once with `uv run`.
 - A batching test proves that equal-length batches and single-input calls produce the
   same vectors within that tolerance.
-- The throughput measurement records chunks per second for each Phase 6 collection and
+- The throughput measurement records chunks per second for each Phase 7 collection and
   for a full rebuild.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and
   each index generation records its result.

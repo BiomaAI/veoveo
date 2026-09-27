@@ -180,9 +180,9 @@ read. Knowledge content reaches a consumer through `resources/read`.
 ## Change Signals
 
 A `listen` collection makes each member URI and its `enumerate` collection URI
-subscribable through `subscriptions/listen`. Its events come from the Store outbox
-or Store LIVE through the shared `SubscriptionHub`, which satisfies contract rule
-C27 across restarts and replicas. A process-local broadcast alone does not qualify.
+subscribable through `subscriptions/listen`. Its events come from Store LIVE queries
+with change-feed recovery through the shared `SubscriptionHub`, which satisfies
+contract rule C27 across restarts and replicas. A process-local broadcast alone does not qualify.
 A notification names the changed URI, or requests reconciliation, and carries no
 content.
 
