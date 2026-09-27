@@ -37,10 +37,7 @@ health      /knowledge/healthz
 | [W3C DCAT 3](https://www.w3.org/TR/vocab-dcat-3/) | Catalog shape: the installation catalog is a `dcat:Catalog`, each source server a `dcat:DataService`, each collection a `dcat:Dataset`. Resources return JSON with DCAT-aligned field names, not RDF |
 | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) and [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) | Revalidation with strong validators and freshness lifetimes, applied through the extension's conditional reads |
 | SurrealDB 3.3 | Catalog and index records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
-| [vLLM 0.30.0](https://github.com/vllm-project/vllm/releases/tag/v0.30.0) | The official `vllm/vllm-openai:v0.30.0` image, pinned by the same OCI digest `reason-mcp` uses, serving the embedding model with the pooling runner |
-| [OpenAI Embeddings API](https://platform.openai.com/docs/api-reference/embeddings), as implemented by vLLM | Internal adapter protocol between `knowledge-mcp` and the embedding runtime: `POST /v1/embeddings` over cluster-internal HTTP; not a public contract |
-| [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | Apache-2.0 embedding model: 28 layers, 1024-dimension output, 32,768-token context, last-token pooling, L2 normalization |
-| NVIDIA CUDA | The embedding runtime runs on a hardware GPU and fails closed without one; `knowledge-mcp` needs no GPU |
+| [Embedding runtime](../platform/runtimes/embedding/DESIGN.md) | Shared vLLM service for `Qwen/Qwen3-Embedding-0.6B`, reached through `veoveo-embedding-client` |
 | [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/) | Generated schemas for every tool input, output, and resource body |
 
 ## Sources And Approval
@@ -96,59 +93,19 @@ reciprocal rank fusion.
 
 ### Embedding
 
-A dedicated embedding runtime serves `Qwen/Qwen3-Embedding-0.6B` with vLLM, and
-`knowledge-mcp` calls it over cluster-internal HTTP. vLLM owns tokenization, batching,
-padding, pooling, and GPU scheduling, so Veoveo writes no model code. The runtime is a
-separate deployment because it is a GPU workload with its own image, scaling, and
-failure behavior, and other components can share it later.
+The service embeds through the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
+with `veoveo-embedding-client`. Documents embed with `embed_documents`. Queries embed
+with `embed_query` and the task `Given a web search query, retrieve relevant passages
+that answer the query`, unless qualification selects another. Search queries run at
+interactive priority and indexing at bulk priority, so a rebuild does not delay
+searches. `knowledge-mcp` itself needs no GPU.
 
-The runtime runs the official `vllm/vllm-openai` image at the digest `reason-mcp`
-pins, with no Veoveo code in it:
-
-```text
-VLLM_API_KEY=<from Secret> HF_HUB_OFFLINE=1 \
-vllm serve /models/qwen3-embedding-0.6b --runner pooling \
-  --served-model-name qwen3-embedding-0.6b
-```
-
-`--runner pooling` is required because the checkpoint declares `Qwen3ForCausalLM`;
-without it vLLM loads a generative model and mounts no `/v1/embeddings` route. The
-pooler uses last-token pooling with L2 normalization, which the checkpoint's
-sentence-transformers configuration declares. Qualification confirms that vLLM applies
-it, and the deployment sets the pooler configuration explicitly if it does not.
-
-The checkpoint follows the `reason-mcp` model-cache pattern: the installation supplies
-the Hugging Face layout at revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` on a
-model-cache volume, an init container checks every file against its pinned SHA-256
-with `sha256sum -c` before vLLM starts, and `HF_HUB_OFFLINE=1` forbids downloads. The Pod requests `nvidia.com/gpu`, and vLLM
-fails at startup without a CUDA device, so the runtime has no CPU path.
-
-`knowledge-mcp` owns the inputs. Documents embed as plain text. A query embeds as
-`Instruct: {task}\nQuery:{query}`, with no space after `Query:`. The task is
-`Given a web search query, retrieve relevant passages that answer the query` unless
-qualification selects another, and the index generation records it. The service
-sends chunks in requests of bounded size, and vLLM batches concurrent requests on the
-GPU.
-
-Only `knowledge-mcp` may reach the runtime. A NetworkPolicy admits its Pods, and each
-request carries the runtime's API key from an installation Secret. The runtime has no
-public route. Its `/health` endpoint backs readiness, and its `/metrics` endpoint
-exports vLLM's Prometheus metrics.
-
-An index generation records the model ID, revision, file digests, dimension, query
-instruction, vLLM image digest, and chunker version. A change to any of them builds a
-new generation beside the active one. The active pointer moves when the new generation
-covers every approved collection, and vectors from different generations never share
-an index.
-
-### Model qualification
-
-Qualification compares `Qwen3-Embedding-0.6B`, `4B`, and `8B` through the same
-runtime by changing only the checkpoint. Their outputs have 1024, 2560, and 4096
-dimensions, and each needs a matching index generation. The comparison records recall
-at 10 on the evaluation set, GPU memory, and indexing throughput in chunks per second.
-The service ships 0.6B unless a larger model shows a retrieval gain that justifies its
-memory on the installation's shared GPUs.
+An index generation records the embedding space the runtime reports (model,
+revision, dimension, and vLLM image digest), the query task, and the chunker version.
+A change to any of them builds a new generation beside the active one. The active
+pointer moves when the new generation covers every approved collection, and vectors
+from different spaces never share an index. The knowledge evaluation set is the
+workload the runtime's model selection uses.
 
 ## Search
 
@@ -167,6 +124,14 @@ its title and snippet.
 
 A caller who needs current content reads the member URI. That read goes to the
 owning server, which applies its own authorization and returns a fresh observation.
+
+## Embed Tool
+
+`embed` is a direct tool for callers outside the platform namespace: agents, which run
+in sandboxes, and external MCP hosts. It takes up to 32 texts and a mode, `document`
+or `query` with a task, and returns vectors with their embedding space. The gateway
+authorizes, audits, and budgets it like any other tool. Platform services call the
+runtime directly instead.
 
 ## Knowledge Reads In The Audit Log
 
@@ -199,8 +164,7 @@ is. The adapter's byte and read budgets count those lines.
 |---|---|
 | `src/catalog/` | gateway discovery, control-plane approval, and DCAT-shaped resources |
 | `src/index/` | enumeration, change subscriptions, reconciliation, chunking, and index generations |
-| `src/embed/` | typed client for the embedding runtime, query instruction formatting, request sizing, and response validation |
-| `deploy/helm/veoveo` | the embedding runtime Deployment, model cache, GPU request, NetworkPolicy, and API key Secret |
+| `src/embed.rs` | index and search use of `veoveo-embedding-client`, and the `embed` tool |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, and index-generation records |
 | `platform/gateway/src/mcp/resources.rs` | observation attached to the read's audit event |
@@ -216,13 +180,10 @@ is. The adapter's byte and read budgets count those lines.
   outcome, and that it commits before the result returns.
 - Change-event tests prove invalidation, re-read, and reconciliation after a lost
   stream.
-- The embedding runtime runs on a hardware GPU. A test proves that it fails to become
-  ready without a CUDA device or with a checkpoint whose digests differ from the pin.
-- A reference test embeds a fixed set of queries and documents through the runtime and
-  compares each vector with one produced by the model card's `transformers` recipe at
-  the pinned revision. Each pair reaches cosine similarity of at least 0.999. The
-  reference vectors are a committed fixture, generated once with `uv run`.
+- Index tests prove that a change of embedding space builds a new generation and never
+  mixes vectors from two spaces.
+- An `embed` tool test proves the gateway audits and budgets each call.
 - The throughput measurement records chunks per second for each Phase 7 collection and
-  for a full rebuild.
+  for a full rebuild, with searches running concurrently.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and
   each index generation records its result.

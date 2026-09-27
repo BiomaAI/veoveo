@@ -493,49 +493,57 @@ log records the observed revision for reads of each collection.
 
 ## Phase 8: Knowledge Service
 
-1. Create `servers/knowledge-mcp` with `DESIGN.md` and `AGENTS.md`. Move the service
-   sections of [`KNOWLEDGE.md`](KNOWLEDGE.md) into its design, keeping the
-   cross-component flow in `KNOWLEDGE.md`.
-2. Add typed knowledge approval entries to the control-plane contract in
-   `mcp/contract/src/gateway/server_config.rs`, with validation. Register the service's
-   machine client, and grant it read access to approved collections only.
-3. Implement discovery, the catalog resources, enumeration, change subscriptions,
-   reconciliation, chunking, and index generations.
-4. Deploy the embedding runtime described in
-   [Knowledge sharing, Embedding](KNOWLEDGE.md#embedding): the official
-   `vllm/vllm-openai` image at the digest `reason-mcp` pins, run with `--runner pooling`,
-   with no Veoveo code in the image. Re-verify the latest stable vLLM release first and
-   keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed, `ort`, or a
-   Hugging Face client to `knowledge-mcp`.
+1. Deliver the shared [embedding runtime](../platform/runtimes/embedding/DESIGN.md)
+   before the knowledge service consumes it. Re-verify the latest stable vLLM release
+   first, and keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed,
+   `ort`, or a Hugging Face client to any Veoveo service.
    1. Add the runtime to `deploy/helm/veoveo` following the `reason` values pattern:
-      a model-cache volume with the installation-supplied checkpoint at revision
-      `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, an init container that checks the pinned
-      SHA-256 digests,
-      `HF_HUB_OFFLINE=1`, a `nvidia.com/gpu` request, the `nvidia` runtime class, an API
-      key Secret, readiness on `/health`, and a NetworkPolicy that admits only
-      `knowledge-mcp`. Document it in `deploy/helm/veoveo/DESIGN.md`.
+      the official `vllm/vllm-openai` image run with `--runner pooling` and
+      `--scheduling-policy priority`, a model-cache volume with the
+      installation-supplied checkpoint at revision
+      `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, an init container that checks
+      `platform/runtimes/embedding/checkpoint.sha256`, `HF_HUB_OFFLINE=1`, the `nvidia`
+      runtime class, a `nvidia.com/gpu` request, readiness on `/health`, the
+      installation embedding API key Secret mounted into platform workloads, and a
+      NetworkPolicy that admits the platform namespace and excludes agent sandboxes and
+      Computers. Document it in `deploy/helm/veoveo/DESIGN.md`.
    2. Confirm that vLLM applies last-token pooling with L2 normalization for this
-      checkpoint, and set the pooler configuration explicitly if it does not.
-   3. Implement the typed `/v1/embeddings` client in `knowledge-mcp` with the query
-      instruction, bounded request sizes, and validation of vector count and dimension.
+      checkpoint, and set the pooler configuration explicitly if it does not. Confirm
+      that the embeddings route honors request priority on the pinned version, and
+      record the result in the runtime design.
+   3. Create `platform/runtimes/embedding/client` as the `veoveo-embedding-client`
+      workspace crate: `embed_documents`, `embed_query`, priorities, request bounds,
+      response validation, and `EmbeddingSpace` read from `/v1/models`.
    4. Generate the reference vectors with the model card's `transformers` recipe
       through `uv run`, commit them as a fixture, and make the reference test pass
-      against the runtime on a hardware GPU before building the index.
-   5. Measure throughput on the Phase 7 collections and a full rebuild.
-   6. Qualify `Qwen3-Embedding-4B` and `8B` against 0.6B as
-      [Model qualification](KNOWLEDGE.md#model-qualification) describes, and record
-      the choice in the index generation.
-5. Implement `search` with BM25, HNSW, reciprocal rank fusion, and effective-access
-   filtering. Share the effective-access predicate that `platform/store/src/artifacts.rs`
+      against the runtime on a hardware GPU.
+   5. Run the load test that shows interactive requests completing ahead of bulk work,
+      and the network test that shows pods outside the platform namespace cannot
+      connect.
+2. Create `servers/knowledge-mcp` with `DESIGN.md` and `AGENTS.md`. Move the service
+   sections of [`KNOWLEDGE.md`](KNOWLEDGE.md) into its design, keeping the
+   cross-component flow in `KNOWLEDGE.md`.
+3. Add typed knowledge approval entries to the control-plane contract in
+   `mcp/contract/src/gateway/server_config.rs`, with validation. Register the service's
+   machine client, and grant it read access to approved collections only.
+4. Implement discovery, the catalog resources, enumeration, change subscriptions,
+   reconciliation, chunking, and index generations keyed by embedding space, with
+   indexing at bulk priority. Add the `embed` tool for agents and external MCP hosts.
+5. Implement `search` with BM25, HNSW, reciprocal rank fusion, effective-access
+   filtering, and query embedding at interactive priority. Share the effective-access predicate that `platform/store/src/artifacts.rs`
    applies. Do not copy it.
 6. Add the `knowledge-mcp` Helm chart, gateway registration, and offline image entries
    for it and the embedding runtime. `knowledge-mcp` requests no GPU.
 7. Build an evaluation set from the Phase 7 collections, and record recall at 10 for
-   the chosen chunk settings in the index generation.
+   the chosen chunk settings in the index generation. Measure indexing throughput with
+   concurrent searches, then qualify `Qwen3-Embedding-4B` and `8B` against 0.6B as the
+   runtime's [Model Selection](../platform/runtimes/embedding/DESIGN.md#model-selection)
+   describes, and record the choice in the runtime design.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
    3 and `Qwen/Qwen3-Embedding-0.6B` served by vLLM. Add `docs/TECH_DESIGN.md`
    rows for DCAT 3, SurrealDB `FULLTEXT` and `HNSW` indexes, and the vLLM embedding
-   runtime with its internal OpenAI Embeddings API profile. Add `knowledge-mcp` to `software-components.csv` and its search,
+   runtime with its internal OpenAI Embeddings API profile. Add the embedding runtime
+   to `software-components.csv` with its internal interface. Add `knowledge-mcp` to `software-components.csv` and its search,
    catalog, and source-read interfaces to `interfaces-and-protocols.csv`.
 
 Acceptance:
@@ -543,11 +551,12 @@ Acceptance:
 - K01 through K10 pass for `knowledge.docs`.
 - Access tests prove that no result, title, or snippet escapes the caller's effective
   access.
-- On a hardware GPU, the embedding runtime becomes ready, and it refuses readiness
-  without CUDA or with a checkpoint whose digests differ from the pin.
-- The reference test reaches cosine similarity of at least 0.999 against the committed
-  model-card vectors through the runtime.
-- Throughput and the 0.6B, 4B, and 8B comparison are recorded in the index generation.
+- The embedding runtime passes its verification on a hardware GPU: readiness, digest
+  and CUDA refusal, reference vectors at cosine similarity of at least 0.999, priority
+  under load, and network isolation.
+- Indexing throughput with concurrent searches and the 0.6B, 4B, and 8B comparison are
+  recorded.
+- The `embed` tool is authorized, audited, and budgeted through the gateway.
 - Invalidation and reconciliation tests pass.
 - The reference installation indexes the approved Phase 7 collections, and a search
   returns links an agent can read.
