@@ -80,7 +80,7 @@ Contract revision: 2
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: pending — discovery is static and derivation indexes use SQL-scoped cursor pages; other catalog roots and completions still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met
@@ -102,7 +102,7 @@ Contract revision: 2
 - C23: met
 - C25: met
 - C26: met
-- C27: pending — raster and spatial derivation indexes accept scoped subscriptions; replica delivery and change-feed recovery need qualification
+- C27: met — scoped derivation indexes and mutable resources use the shared Store LIVE/change-feed observer; native tests qualify cross-client writes, observer restart, and authoring projection recovery
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

@@ -773,7 +773,15 @@ owns the operation and persisted-result schemas. `src/spatial/derive.rs`
 implements pure geometry, `src/spatial/projection.rs` owns the local
 map-projection profile, and `src/spatial/validation.rs` resolves mobility envelopes
 and active restrictions. `src/spatial/mod.rs` binds catalog authority,
-provenance, and DuckDB persistence.
+provenance, and shared Store persistence.
+
+Map derivation storage lives in `platform/store/src/map_derivations.rs` and
+`platform/store/migrations/0094_map_derivations.surql`. The Map-owned
+`src/derivations.rs` validates domain documents and returns summary pages;
+`src/derivations/migration.rs` transfers local schema-9/10 records before service
+admission. `src/mcp/derivations.rs` owns resource and completion dispatch.
+`src/resource_changes.rs` connects catalog, authoring, derivation, and Task writes to
+each replica's resource hub through the shared Store LIVE/change-feed observer.
 
 ### Optimization And Travel Models
 

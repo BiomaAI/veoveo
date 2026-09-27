@@ -9,14 +9,12 @@ use veoveo_duckdb_runtime::{
     EngineSettings, FileAccess, SharedDatabase, SpatialAxisPolicy, TrustedExtension,
     verify_spatial_axis_policy,
 };
-use veoveo_mcp_contract::WorkContextId;
 
 use crate::contract::{
     Facility, MapBoundaryId, MapFamily, MapLocation, Meters, NearbyFacility, NearbyLocation,
-    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId,
-    RasterProduct, RasterProductId, SearchLocationsOutput, SearchLocationsRequest, SourceFeature,
-    SourceFeatureId, SourceFeatureMatch, SourceSpatialQuery, SpatialDerivation,
-    SpatialDerivationId, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
+    QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterProduct, RasterProductId,
+    SearchLocationsOutput, SearchLocationsRequest, SourceFeature, SourceFeatureId,
+    SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
 mod projection;
@@ -27,7 +25,8 @@ mod performance_tests;
 
 pub(crate) use projection::ReleaseProjectionWriter;
 
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 11;
+const DERIVATION_TRANSFER_SCHEMA_VERSION: i64 = 10;
 const REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION: i64 = 9;
 
 #[derive(Clone, Copy)]
@@ -449,134 +448,6 @@ impl MapAnalytics {
         Ok(rasters)
     }
 
-    pub fn put_raster_derivation(
-        &self,
-        tenant_key: &str,
-        derivation: &RasterDerivation,
-    ) -> Result<()> {
-        derivation.validate()?;
-        let connection = self.connection()?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_raster_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                derivation.work_context.as_str(),
-                derivation.created_by.as_str(),
-                derivation.derivation_id.as_str(),
-                derivation.source_raster_id.as_str(),
-                derivation.source_release_id.as_str(),
-                serde_json::to_string(derivation)?,
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn raster_derivation(
-        &self,
-        tenant_key: &str,
-        work_context: &WorkContextId,
-        derivation_id: &RasterDerivationId,
-    ) -> Result<Option<RasterDerivation>> {
-        let connection = self.read_connection()?;
-        let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
-        )?;
-        let mut rows = statement.query(params![
-            tenant_key,
-            work_context.as_str(),
-            derivation_id.as_str()
-        ])?;
-        let Some(row) = rows.next()? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
-    }
-
-    pub fn list_raster_derivations(
-        &self,
-        tenant_key: &str,
-        work_context: &WorkContextId,
-        limit: u32,
-    ) -> Result<Vec<RasterDerivation>> {
-        if !(1..=10_000).contains(&limit) {
-            bail!("raster derivation limit must be within 1..=10000");
-        }
-        let connection = self.read_connection()?;
-        let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_raster_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
-        )?;
-        let mut rows = statement.query(params![tenant_key, work_context.as_str(), limit])?;
-        let mut derivations = Vec::new();
-        while let Some(row) = rows.next()? {
-            derivations.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
-        }
-        Ok(derivations)
-    }
-
-    pub fn put_spatial_derivation(
-        &self,
-        tenant_key: &str,
-        derivation: &SpatialDerivation,
-    ) -> Result<()> {
-        derivation.validate()?;
-        let connection = self.connection()?;
-        connection.execute(
-            "INSERT OR REPLACE INTO map_spatial_derivation VALUES (?, ?, ?, ?, ?, ?, ?)",
-            params![
-                tenant_key,
-                derivation.work_context.as_str(),
-                derivation.created_by.as_str(),
-                derivation.derivation_id.as_str(),
-                derivation.mobility_profile_id.as_str(),
-                derivation.mobility_profile_version,
-                serde_json::to_string(derivation)?,
-            ],
-        )?;
-        Ok(())
-    }
-
-    pub fn spatial_derivation(
-        &self,
-        tenant_key: &str,
-        work_context: &WorkContextId,
-        derivation_id: &SpatialDerivationId,
-    ) -> Result<Option<SpatialDerivation>> {
-        let connection = self.read_connection()?;
-        let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? AND derivation_key = ? LIMIT 1",
-        )?;
-        let mut rows = statement.query(params![
-            tenant_key,
-            work_context.as_str(),
-            derivation_id.as_str()
-        ])?;
-        let Some(row) = rows.next()? else {
-            return Ok(None);
-        };
-        Ok(Some(serde_json::from_str(&row.get::<_, String>(0)?)?))
-    }
-
-    pub fn list_spatial_derivations(
-        &self,
-        tenant_key: &str,
-        work_context: &WorkContextId,
-        limit: u32,
-    ) -> Result<Vec<SpatialDerivation>> {
-        if !(1..=10_000).contains(&limit) {
-            bail!("spatial derivation limit must be within 1..=10000");
-        }
-        let connection = self.read_connection()?;
-        let mut statement = connection.prepare(
-            "SELECT canonical_json FROM map_spatial_derivation WHERE tenant_key = ? AND work_context_key = ? ORDER BY derivation_key LIMIT ?",
-        )?;
-        let mut rows = statement.query(params![tenant_key, work_context.as_str(), limit])?;
-        let mut derivations = Vec::new();
-        while let Some(row) = rows.next()? {
-            derivations.push(serde_json::from_str(&row.get::<_, String>(0)?)?);
-        }
-        Ok(derivations)
-    }
-
     pub fn query_source_features(
         &self,
         tenant_key: &str,
@@ -823,7 +694,7 @@ impl MapAnalytics {
                 |row| row.get(0),
             )?;
             match version {
-                Some(SCHEMA_VERSION) => {}
+                Some(SCHEMA_VERSION | DERIVATION_TRANSFER_SCHEMA_VERSION) => {}
                 Some(REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION) => {
                     rebuild_spatial_indexes_for_schema_upgrade(&connection)?;
                 }
@@ -904,28 +775,6 @@ impl MapAnalytics {
                SELECT item.* FROM map_source_feature AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.release_key AND projection.projection_attempt_key = item.projection_attempt_key;
              CREATE VIEW IF NOT EXISTS map_visible_raster_product AS
                SELECT item.* FROM map_raster_product AS item JOIN map_release_projection AS projection ON projection.tenant_key = item.tenant_key AND projection.release_key = item.release_key AND projection.projection_attempt_key = item.projection_attempt_key;
-             CREATE TABLE IF NOT EXISTS map_raster_derivation (
-               tenant_key VARCHAR NOT NULL,
-               work_context_key VARCHAR NOT NULL,
-               principal_key VARCHAR NOT NULL,
-               derivation_key VARCHAR NOT NULL,
-               raster_key VARCHAR NOT NULL,
-               release_key VARCHAR NOT NULL,
-               canonical_json JSON NOT NULL,
-               PRIMARY KEY (tenant_key, work_context_key, derivation_key)
-             );
-             CREATE INDEX IF NOT EXISTS map_raster_derivation_source ON map_raster_derivation(tenant_key, work_context_key, raster_key, derivation_key);
-             CREATE TABLE IF NOT EXISTS map_spatial_derivation (
-               tenant_key VARCHAR NOT NULL,
-               work_context_key VARCHAR NOT NULL,
-               principal_key VARCHAR NOT NULL,
-               derivation_key VARCHAR NOT NULL,
-               mobility_profile_key VARCHAR NOT NULL,
-               mobility_profile_version BIGINT NOT NULL,
-               canonical_json JSON NOT NULL,
-               PRIMARY KEY (tenant_key, work_context_key, derivation_key)
-             );
-             CREATE INDEX IF NOT EXISTS map_spatial_derivation_profile ON map_spatial_derivation(tenant_key, work_context_key, mobility_profile_key, mobility_profile_version, derivation_key);
              CREATE TABLE IF NOT EXISTS map_authored_feature_revision (
                tenant_key VARCHAR NOT NULL,
                work_context_key VARCHAR NOT NULL,
@@ -991,7 +840,7 @@ impl MapAnalytics {
         ))?;
         let version: i64 =
             connection.query_row("SELECT max(version) FROM map_schema", [], |row| row.get(0))?;
-        if version != SCHEMA_VERSION {
+        if ![SCHEMA_VERSION, DERIVATION_TRANSFER_SCHEMA_VERSION].contains(&version) {
             bail!("unsupported map analytics schema version {version}");
         }
         self.verify_spatial()?;
@@ -1041,7 +890,7 @@ fn rebuild_spatial_indexes_for_schema_upgrade(connection: &Connection) -> Result
     }
     connection.execute_batch(&drop_sql).with_context(|| {
         format!(
-            "dropping DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {SCHEMA_VERSION}"
+            "dropping DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {DERIVATION_TRANSFER_SCHEMA_VERSION}"
         )
     })?;
 
@@ -1053,11 +902,11 @@ fn rebuild_spatial_indexes_for_schema_upgrade(connection: &Connection) -> Result
         ));
     }
     create_sql.push_str(&format!(
-        "UPDATE map_schema SET version = {SCHEMA_VERSION} WHERE version = {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION};\nCOMMIT;"
+        "UPDATE map_schema SET version = {DERIVATION_TRANSFER_SCHEMA_VERSION} WHERE version = {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION};\nCOMMIT;"
     ));
     connection.execute_batch(&create_sql).with_context(|| {
         format!(
-            "rebuilding DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {SCHEMA_VERSION}"
+            "rebuilding DuckDB Spatial indexes while upgrading Map analytics schema from {REBUILD_SPATIAL_INDEXES_FROM_SCHEMA_VERSION} to {DERIVATION_TRANSFER_SCHEMA_VERSION}"
         )
     })
 }
@@ -1940,7 +1789,7 @@ mod tests {
         let version: i64 = connection
             .query_row("SELECT version FROM map_schema", [], |row| row.get(0))
             .unwrap();
-        assert_eq!(version, SCHEMA_VERSION);
+        assert_eq!(version, DERIVATION_TRANSFER_SCHEMA_VERSION);
         let stored: u64 = connection
             .query_row("SELECT count(*) FROM map_source_feature", [], |row| {
                 row.get(0)

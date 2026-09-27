@@ -8,7 +8,6 @@ use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
 use crate::{
-    analytics::MapAnalytics,
     catalog::{MapCatalog, MapScope},
     contract::{
         DatasetReleaseState, DeriveSpatialGeometryRequest, MAX_SPATIAL_OUTPUT_COORDINATES,
@@ -161,12 +160,11 @@ mod route_resampling_tests {
 #[derive(Clone, Debug)]
 pub struct SpatialService {
     catalog: MapCatalog,
-    analytics: MapAnalytics,
 }
 
 impl SpatialService {
-    pub fn new(catalog: MapCatalog, analytics: MapAnalytics) -> Self {
-        Self { catalog, analytics }
+    pub fn new(catalog: MapCatalog) -> Self {
+        Self { catalog }
     }
 
     pub async fn derive(
@@ -274,8 +272,9 @@ impl SpatialService {
             created_at: Utc::now(),
         };
         derivation.validate()?;
-        self.analytics
-            .put_spatial_derivation(&scope.tenant_key(), &derivation)?;
+        self.catalog
+            .put_spatial_derivation(scope, &derivation)
+            .await?;
         Ok(derivation)
     }
 }

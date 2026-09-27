@@ -1,9 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::Result;
-use veoveo_mcp_contract::{
-    GatewayInternalIdentity, PlaneCaller, PrincipalKind, ResourceListObservers, SubscriptionHub,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PrincipalKind, SubscriptionHub};
 use veoveo_platform_store::PrincipalKind as StorePrincipalKind;
 use veoveo_task_runtime::{TaskOwner, TaskRuntime};
 
@@ -42,7 +40,6 @@ pub struct MapApplication {
     pub valhalla_process: ValhallaProcess,
     pub activation: Arc<tokio::sync::Mutex<()>>,
     pub subscriptions: Arc<SubscriptionHub>,
-    pub resource_observers: Arc<ResourceListObservers>,
     pub authoring_task_root: PathBuf,
     pub max_artifact_bytes: u64,
 }

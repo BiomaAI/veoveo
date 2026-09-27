@@ -52,7 +52,7 @@ impl MapMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_list_changed()
+            .notify_resource_contents_changed()
             .await;
         structured_with_links(
             "created authored feature layer",
@@ -260,7 +260,7 @@ impl MapMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_list_changed()
+            .notify_resource_contents_changed()
             .await;
         structured_with_links(
             "published authored feature layer",
@@ -299,7 +299,7 @@ impl MapMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_list_changed()
+            .notify_resource_contents_changed()
             .await;
         structured_with_links(
             "archived authored feature layer",
@@ -488,7 +488,7 @@ async fn notify_composition(
     service
         .state
         .subscriptions
-        .notify_resource_list_changed()
+        .notify_resource_contents_changed()
         .await;
 }
 
@@ -526,7 +526,7 @@ async fn notify_commit(
     service
         .state
         .subscriptions
-        .notify_resource_list_changed()
+        .notify_resource_contents_changed()
         .await;
 }
 

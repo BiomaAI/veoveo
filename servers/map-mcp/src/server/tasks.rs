@@ -655,7 +655,6 @@ async fn run_map_task_inner(
                         .subscriptions
                         .notify_resource_updated(crate::uris::TRAVEL_MODELS_URI)
                         .await;
-                    state.resource_observers.notify_changed().await;
                 }
             }
             Err(error) => fail_task(&state, &task_id, "result_serialization_failed", error).await,
@@ -914,8 +913,9 @@ async fn run_raster_derivation_task(
         created_at: request.created_at,
     };
     state
-        .analytics
-        .put_raster_derivation(&scope.tenant_key(), &derivation)?;
+        .catalog
+        .put_raster_derivation(&scope, &derivation)
+        .await?;
     state
         .subscriptions
         .notify_resource_updated(crate::uris::RASTER_DERIVATIONS_URI)

@@ -29,6 +29,12 @@ covers grants behind 520 expired rows, page traversal, caller isolation, cross-r
 content invalidations, and discovery with an unreachable simulator. Mission lookups
 use qualified plan and Task indexes. Pilot instructions and the flight client consume
 the paged grant response; installed acceptance is pending.
+Map derivations now persist in Store and use SQL-scoped summary pages and completion.
+Native tests cover immutable replay/conflict, cross-replica reads and invalidations,
+interrupted local-store transfer, and authored-feature projection recovery through a
+separate Store connection. The pinned Spatial extension passes both million-feature
+index tests. Other Map catalog roots, authoring visibility, and completion queries
+still need SQL filtering and pagination; installed acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

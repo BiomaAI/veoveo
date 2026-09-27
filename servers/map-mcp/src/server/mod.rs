@@ -97,6 +97,7 @@ async fn serve(args: Args) -> Result<()> {
         threads: args.duckdb_threads,
     })?;
     analytics.verify_spatial()?;
+    catalog.migrate_local_derivations(&analytics).await?;
     let authoring = AuthoringService::new(catalog.store().clone(), analytics.clone());
     authoring.reconcile_projection().await?;
     let authoring_task_root = args.authoring_task_root.canonicalize()?;
@@ -170,20 +171,20 @@ async fn serve(args: Args) -> Result<()> {
         geography: GeographyService::new(catalog.clone(), analytics.clone()),
         raster,
         feature_packages,
-        spatial: SpatialService::new(catalog.clone(), analytics.clone()),
+        spatial: SpatialService::new(catalog.clone()),
         acquisitions,
         artifacts,
         products,
         valhalla_process: valhalla_process.clone(),
         activation: Arc::new(tokio::sync::Mutex::new(())),
         subscriptions: Arc::new(SubscriptionHub::new()),
-        resource_observers: Arc::new(veoveo_mcp_contract::ResourceListObservers::new()),
         authoring_task_root,
         max_artifact_bytes: args.max_artifact_bytes,
     });
     recover_tasks(state.clone(), recovery.resumable).await?;
 
     let cancellation = tokio_util::sync::CancellationToken::new();
+    let observer_hub = state.subscriptions.clone();
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);
@@ -271,13 +272,22 @@ async fn serve(args: Args) -> Result<()> {
         "listening"
     );
     let listener = tokio::net::TcpListener::bind(address).await?;
+    let observer = tokio::spawn(crate::resource_changes::observe(
+        catalog.store().clone(),
+        observer_hub,
+        cancellation.child_token(),
+    ));
+    let signal_cancel = cancellation.clone();
     let serve_result = axum::serve(listener, router)
         .with_graceful_shutdown(async move {
             let _ = tokio::signal::ctrl_c().await;
-            cancellation.cancel();
+            signal_cancel.cancel();
         })
         .await;
+    cancellation.cancel();
+    let observer_result = observer.await;
     valhalla_process.stop().await;
+    observer_result?;
     serve_result?;
     Ok(())
 }

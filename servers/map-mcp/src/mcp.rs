@@ -53,6 +53,7 @@ use crate::{
 };
 
 mod authoring;
+mod derivations;
 
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -308,7 +309,7 @@ impl MapMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_list_changed()
+            .notify_resource_contents_changed()
             .await;
         structured_result(
             format!(
@@ -611,7 +612,7 @@ impl MapMcp {
             .await;
         self.state
             .subscriptions
-            .notify_resource_list_changed()
+            .notify_resource_contents_changed()
             .await;
         structured_result("published restriction".to_owned(), &output)
     }
@@ -855,7 +856,6 @@ impl ServerHandler for MapMcp {
             .enable_prompts()
             .enable_resources()
             .enable_resources_subscribe()
-            .enable_resources_list_changed()
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
@@ -1354,6 +1354,12 @@ impl ServerHandler for MapMcp {
             }
             let identity = require_scope(&context, "map:dataset:read")?;
             let scope = self.state.scope(&identity).await.map_err(internal)?;
+            if let Some(result) = self
+                .read_derivation_resource(uri, &identity, &scope)
+                .await?
+            {
+                return Ok(result);
+            }
             match uri {
                 uris::SOURCES_URI => {
                     let sources = self
@@ -1464,40 +1470,6 @@ impl ServerHandler for MapMcp {
                             .map_err(internal)?,
                     );
                 }
-                uris::RASTER_DERIVATIONS_URI => {
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .analytics
-                            .list_raster_derivations(
-                                &scope.tenant_key(),
-                                &identity.authority.work_context,
-                                10_000,
-                            )
-                            .map_err(internal)?,
-                    );
-                }
-                uris::SPATIAL_DERIVATIONS_URI => {
-                    if !identity_has_scope(&identity, "map:spatial:derive") {
-                        return Err(McpError::invalid_request(
-                            "You don't have permission to make this request. Missing scope `map:spatial:derive`.",
-                            None,
-                        ));
-                    }
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .analytics
-                            .list_spatial_derivations(
-                                &scope.tenant_key(),
-                                &identity.authority.work_context,
-                                10_000,
-                            )
-                            .map_err(internal)?,
-                    );
-                }
                 _ => {}
             }
             if let Some(value) = uris::parse_single(uri, "map://source/") {
@@ -1593,44 +1565,6 @@ impl ServerHandler for MapMcp {
                         .raster_product(&scope.tenant_key(), &id)
                         .map_err(internal)?
                         .ok_or_else(|| not_found("raster product"))?,
-                );
-            }
-            if let Some(value) = uris::parse_single(uri, "map://raster-derivation/") {
-                let id = RasterDerivationId::parse(value).map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .analytics
-                        .raster_derivation(
-                            &scope.tenant_key(),
-                            &identity.authority.work_context,
-                            &id,
-                        )
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("raster derivation"))?,
-                );
-            }
-            if let Some(value) = uris::parse_single(uri, "map://spatial-derivation/") {
-                if !identity_has_scope(&identity, "map:spatial:derive") {
-                    return Err(McpError::invalid_request(
-                        "You don't have permission to make this request. Missing scope `map:spatial:derive`.",
-                        None,
-                    ));
-                }
-                let id = SpatialDerivationId::parse(value).map_err(invalid_params)?;
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .analytics
-                        .spatial_derivation(
-                            &scope.tenant_key(),
-                            &identity.authority.work_context,
-                            &id,
-                        )
-                        .map_err(internal)?
-                        .ok_or_else(|| not_found("spatial derivation"))?,
                 );
             }
             if let Some((value, version)) = uris::parse_profile(uri) {
@@ -1753,6 +1687,18 @@ impl ServerHandler for MapMcp {
             require_scope(&context, "map:dataset:read")?
         };
         let scope = self.state.scope(&identity).await.map_err(internal)?;
+        if let Some(result) = self
+            .complete_derivation(
+                &identity,
+                &scope,
+                &reference.uri,
+                &request.argument.name,
+                &request.argument.value,
+            )
+            .await?
+        {
+            return Ok(result);
+        }
         let values = completion_values(
             &self.state,
             &identity,
@@ -1811,7 +1757,7 @@ impl ServerHandler for MapMcp {
             &self.task_service,
             context,
             Some(self.state.subscriptions.as_ref()),
-            Some(self.state.resource_observers.as_ref()),
+            None,
         )
         .await
     }
@@ -1962,6 +1908,16 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             uris::RASTER_TEMPLATE,
             "Immutable raster product",
             "Release-pinned raster metadata, provenance, and artifact identity.",
+        ),
+        template(
+            uris::RASTER_DERIVATIONS_PAGE_TEMPLATE,
+            "Raster derivation page",
+            "100 Work Context-owned derivation summaries per page.",
+        ),
+        template(
+            uris::SPATIAL_DERIVATIONS_PAGE_TEMPLATE,
+            "Spatial derivation page",
+            "100 Work Context-owned derivation summaries per page.",
         ),
         template(
             uris::RASTER_DERIVATION_TEMPLATE,
@@ -2397,16 +2353,6 @@ async fn completion_values(
                 .map(|value| value.travel_model_id.to_string())
                 .collect()
         }
-        (uris::SPATIAL_DERIVATION_TEMPLATE, "spatial_derivation_id") => state
-            .analytics
-            .list_spatial_derivations(
-                &scope.tenant_key(),
-                &identity.authority.work_context,
-                10_000,
-            )?
-            .into_iter()
-            .map(|value| value.derivation_id.to_string())
-            .collect(),
         (
             uris::FEATURE_LAYER_TEMPLATE
             | uris::FEATURE_SCHEMA_TEMPLATE

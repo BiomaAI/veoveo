@@ -24,6 +24,7 @@ mod ids;
 mod live_views;
 mod map;
 mod map_authoring;
+mod map_derivations;
 mod map_presentations;
 mod map_projection;
 mod migration_preparation;
@@ -83,6 +84,10 @@ pub use map_authoring::{
     MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
     MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
     MapLayerPublicationDraft, MapStyleRevisionDraft, map_authoring_idempotency_key,
+};
+pub use map_derivations::{
+    MapDerivationDraft, MapDerivationKind, MapDerivationRecord, MapDerivationScope,
+    MapDerivationSummary,
 };
 pub use map_presentations::{
     MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,

@@ -203,7 +203,7 @@ SurrealDB is the canonical operational catalog. It stores:
 - active release pointers and optimistic record versions;
 - mobility profiles and effective restrictions;
 - operational snapshots, routes, dependencies, and matrices;
-- acquisition jobs and durable task state;
+- acquisition jobs, durable task state, and immutable raster and spatial derivations;
 - authored feature layers, schema and style revisions, feature revisions and
   heads, atomic changesets, and immutable layer publications;
 - immutable publication products, map composition heads, and composition
@@ -216,8 +216,9 @@ transactions. Task exports receive only a validated direct child of the
 installation-owned task root, while the database and spill directory remain
 outside that file surface. Its schema is tenant keyed
 and contains active-release pointers, locations, facilities, boundaries,
-governed network edges, authored feature revision and head projections, and
-Work Context-scoped raster and spatial derivations.
+governed network edges, and authored feature revision and head projections.
+SurrealDB stores immutable raster and spatial derivations by tenant, Work Context,
+kind, and derivation ID. Each Map replica reads that shared record directly.
 Spatial queries use `ST_Contains`, `ST_Intersects`, and `ST_Distance_Sphere`.
 The Spatial extension is copied into the image at build time and loaded only
 from its pinned local path. Map selects the shared runtime's closed
@@ -1038,9 +1039,40 @@ by the caller's data labels. Raster derivation resources are confined to their
 creating Work Context, while the immutable source raster remains tenant
 scoped. Spatial derivations are also confined to their creating Work Context.
 
-Raster and spatial derivation indexes accept resource subscriptions. Raster index
-admission requires `map:dataset:read`; spatial index admission additionally requires
+Raster and spatial derivation indexes return up to 100 summaries with resource
+links, a `limit`, and an optional `next_cursor`. Page templates accept the version-1
+hex-encoded cursor; its kind must match the requested collection. A page request
+always applies the current tenant and Work Context in SQL before the cursor and
+limit. Direct resources return the complete immutable document. Completion applies
+the search term in SQL and selects at most 101 IDs to determine `hasMore`.
+
+Both indexes accept resource subscriptions. Raster index admission requires
+`map:dataset:read`; spatial index admission additionally requires
 `map:spatial:derive`, matching their resource reads.
+
+### Derivation Storage Upgrade
+
+Map owns the local schema 9/10 to 11 transfer adapter. Installations must drain all
+old Map writers before starting the new binary against an existing volume. Schema 9
+first rebuilds its Spatial indexes to schema 10. Before HTTP admission, Map copies
+both derivation tables into Store in key-ordered batches of 16 records, verifies the
+typed document against its tenant, context, creator, and ID, and preserves its JSON.
+An identical Store record permits replay; a conflicting immutable record aborts startup.
+
+The adapter drops both local tables and advances the local marker to 11 in one
+DuckDB transaction after every Store write succeeds. Interruption before that commit
+preserves the old tables and permits restart from the first page. Interruption after
+commit leaves Store as the recovery source. A fresh schema-11 projection has no local
+derivation tables. Runtime reads use Store throughout.
+
+Rollback to an older binary requires restoring the pre-upgrade Store and DuckDB
+snapshots together while writers are drained. An old binary cannot read schema 11;
+changing its marker would discard the only local copy of the transferred records.
+Installations without such snapshots recover forward from Store. The disposable
+reference installation uses its authorized rebuild instead. The adapter supports
+schema 9 and 10 through the platform-foundations installation upgrade; it can retire
+only after all supported installations have reached schema 11 and a published support
+window has ended. Other local formats fail admission with a rebuild diagnostic.
 
 ### Prompts And Completions
 
@@ -1060,10 +1092,17 @@ and composition identities from the caller's scope.
 ### Subscriptions And Notifications
 
 Subscriptions cover the mutable dataset, restriction, route, travel-model,
-feature-layer, publication-product, and composition surfaces. The server emits
-resource-update and resource-list-change notifications after relevant
-mutations. Subscription state is session local; durable long-running work uses
-task subscriptions.
+feature-layer, publication-product, and composition surfaces. A Store LIVE observer
+invalidates each replica's resource hub for catalog, derivation, authoring, and Task
+writes. The shared observer uses change-feed recovery after a disconnected watch and
+requests a current read after startup or a history gap. Each listener receives only
+updates for its admitted resource URIs. Authored-feature reads reconcile the local
+DuckDB projection through the committed Map changeset head before answering.
+
+Discovery advertises fixed roots and templates. Content writes send resource updates
+without changing that inventory. Subscription state belongs to each listen request;
+long-running work uses task subscriptions. Shared derivation reads and notifications
+do not change the single-writer deployment profile for release products and Valhalla.
 
 ## Installation Bootstrap
 

@@ -1,12 +1,10 @@
 use std::collections::BTreeMap;
 
-use secrecy::SecretString;
 use tempfile::TempDir;
-use uuid::Uuid;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, MapFeatureCommitDraft,
     MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, OpenObject, OutboxDraft,
-    PrincipalKind, StoreConfig, StoreCredentials, WorkContextMembershipLevel,
+    PrincipalKind, WorkContextMembershipLevel,
 };
 
 use crate::{analytics::MapAnalyticsConfig, contract::*};
@@ -15,29 +13,18 @@ use super::*;
 
 #[tokio::test]
 async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
+    if std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION").is_none() {
         return;
     }
-    let extension = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION")
-        .expect("Map recovery integration requires the pinned Spatial extension");
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            std::env::var("VEOVEO_SURREAL_URL").expect("test database endpoint"),
-            "veoveo_integration",
-            format!("map_recovery_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(
-                std::env::var("VEOVEO_SURREAL_USER").expect("test database user"),
-                SecretString::from(
-                    std::env::var("VEOVEO_SURREAL_PASSWORD").expect("test password"),
-                ),
-            ),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(180), recovery())
+        .await
+        .expect("Map projection recovery exceeded 180 seconds");
+}
+
+async fn recovery() {
+    let extension = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION").unwrap();
+    let db = crate::test_store::TestDb::new().await;
+    let store = db.a.clone();
     let identity = store
         .ensure_identity(
             "map-recovery",
@@ -230,7 +217,7 @@ async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
         threads: 1,
     };
     let projection =
-        AuthoringProjection::new(store.clone(), MapAnalytics::open(config.clone()).unwrap());
+        AuthoringProjection::new(db.b.clone(), MapAnalytics::open(config.clone()).unwrap());
     // Recreate an interrupted page using the same atomic writer as recovery.
     let revisions = projection
         .revisions_for_commit(&first_page[0])
@@ -239,7 +226,7 @@ async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
     projection.apply_page(&revisions, first).unwrap();
     drop(projection);
     let projection =
-        AuthoringProjection::new(store.clone(), MapAnalytics::open(config.clone()).unwrap());
+        AuthoringProjection::new(db.b.clone(), MapAnalytics::open(config.clone()).unwrap());
     assert_eq!(projection.sequence().unwrap(), first as u64);
     assert_eq!(
         projection.reconcile_through(second as u64).await.unwrap(),
@@ -265,7 +252,7 @@ async fn recovery_pages_map_commits_and_resumes_the_persisted_projection() {
     assert!(projection.reconcile_through(u64::MAX).await.is_err());
     assert_eq!(projection.sequence().unwrap(), through as u64);
     drop(projection);
-    let projection = AuthoringProjection::new(store.clone(), MapAnalytics::open(config).unwrap());
+    let projection = AuthoringProjection::new(db.b.clone(), MapAnalytics::open(config).unwrap());
     assert_eq!(projection.reconcile().await.unwrap(), through as u64);
     assert_projection_rows(&projection, 2, 2);
 

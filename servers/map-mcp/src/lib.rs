@@ -11,6 +11,7 @@ pub mod artifacts;
 pub mod authoring;
 pub mod catalog;
 pub mod contract;
+pub mod derivations;
 pub mod feature_packages;
 pub mod geodesy;
 pub mod geography;
@@ -18,6 +19,7 @@ pub mod mcp;
 pub mod prompts;
 pub mod raster;
 pub mod release_products;
+mod resource_changes;
 pub mod routes;
 mod server;
 pub mod spatial;
@@ -29,3 +31,7 @@ pub async fn run() -> anyhow::Result<()> {
 }
 
 pub use contract::*;
+
+#[cfg(test)]
+#[path = "../../../testing/fixtures/store.rs"]
+mod test_store;
