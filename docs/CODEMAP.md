@@ -18,17 +18,17 @@ component:
 | [`docs/README.md`](README.md) | task-oriented entry point, which document governs what, and delivery status |
 | [`AGENTS.md`](../AGENTS.md) | mandatory contribution and implementation rules |
 | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | normative product and architecture boundaries |
-| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, and transfer profiles) and the implementation work that remains |
+| [`CONTRACT_EVOLUTION.md`](CONTRACT_EVOLUTION.md) | accepted contract decisions (provider recovery, capacity and authority, renewable access, test tooling, evidence scope, version transitions, deployment boundaries, transfer profiles, the `veoveo.ai` identifier cut, and knowledge through resources) and the implementation work that remains |
 | [`TECH_DESIGN.md`](TECH_DESIGN.md) | current implementation of those architecture decisions |
 | [`AUTONOMY_HARNESS.md`](AUTONOMY_HARNESS.md) | shared-responsibility model for containing always-on autonomous agents, and how an installation demonstrates it |
 | [`WORK_CONTEXT_GOVERNANCE.md`](WORK_CONTEXT_GOVERNANCE.md) | invocation authority, output ownership, effective access, and rollout |
+| [`KNOWLEDGE.md`](KNOWLEDGE.md) | how servers share knowledge as resources: the knowledge-source extension, gateway read ledger, and the planned `knowledge-mcp` catalog, index, and GPU embedding |
 | [`ENTERPRISE_DEPLOYMENT.md`](ENTERPRISE_DEPLOYMENT.md) | OCI release, enterprise configuration, secrets, GitOps, fork workloads, and acceptance |
 | [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md) | fork layout, reviewed upstream merges, local SDK development and installation ownership |
 | [`LOCAL_DEPLOYMENT_PROFILES.md`](LOCAL_DEPLOYMENT_PROFILES.md) | disposable k3d showcase profile contract |
 | [`CODEMAP.md`](CODEMAP.md) | documentation index, code ownership, and change routing |
 | [`RECORDINGS.md`](RECORDINGS.md) | recording datasets and layers, Artifact publication, Redap access, Arrow export, playback, disk safety, and the recording change checklist |
 | [`RERUN_RECORDINGS.md`](RERUN_RECORDINGS.md) | service catalog grants, native Rerun clients, token renewal, live following, and ingress transport requirements |
-| [`INSTALLATION_NEUTRALITY_FOLLOWUP.md`](INSTALLATION_NEUTRALITY_FOLLOWUP.md) | deferred register of Bioma-specific test and guide assumptions that should become installation profile inputs |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
 | [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | how checks run without CI today, and the direction for GPU CI workers |
@@ -64,6 +64,7 @@ planned change lands:
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work in `001`–`013`; App authority, uploads, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work in `014`–`023` |
 | [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | implementation plan for request `016`: recording datasets, immutable Artifact-backed Rerun layers, virtual catalogs, Arrow export, disk safety, activation, and acceptance |
 | [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | delivered resumable HTTP uploads, persistent browser queue, durable receipts and Python streaming; 10 GiB installed acceptance with larger-capacity measurements pending |
+| [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
 Component designs live beside the code whose contract they specify:
@@ -94,6 +95,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and data import/export |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
+| [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | planned `ai.veoveo/knowledge-source` extension: collection descriptors, read observations, conditional reads, search links, and server rules K01–K10 |
 | [`MAP_APP_INTEGRATION.md`](MAP_APP_INTEGRATION.md) | consumer guide for using Map MCP resources and the reusable Map App from another MCP server |
 | [`servers/map-mcp/DESIGN.md`](../servers/map-mcp/DESIGN.md) | Earth geography, map data administration, logistics routing, and immutable Optimization travel models |
 | [`servers/optimization-mcp/DESIGN.md`](../servers/optimization-mcp/DESIGN.md) | NVIDIA cuOpt routing, route scenarios, convex and MILP models, independent verification, and GPU execution |
@@ -362,6 +364,14 @@ adapter that carries final-profile `subscriptions/listen` wakes across the pinne
 bridge without exposing domain payloads. `mcp/apps-extension/DESIGN.md` defines the
 server↔core↔UI contract: domain reads are resources, mutations are tools, and
 views are `ui://` apps rather than bespoke admin REST or hardcoded console pages.
+
+### `mcp/knowledge-extension`
+
+Planned. The crate will own the typed `ai.veoveo/knowledge-source` descriptors and
+observations, server and client helpers, and the shared `{slug}.docs` collection.
+[`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) defines the
+contract, and [`KNOWLEDGE_AND_IDENTIFIERS_PLAN.md`](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md)
+sequences delivery.
 
 ### `mcp/bridges`
 

@@ -21,6 +21,7 @@ services, and its agents. Computers is part of every standard release.
 | Find implementation ownership | [Code map](CODEMAP.md), [contributor instructions](../AGENTS.md) |
 | Implement or integrate an MCP server | [Server contract](../mcp/contract/DESIGN.md), [fork development](FORK_DEVELOPMENT.md), [Python template](../templates/python-mcp/README.md) |
 | Build or host a capability UI | [MCP Apps contract](../mcp/apps-extension/DESIGN.md), [Map integration](MAP_APP_INTEGRATION.md), [Console development](../apps/console/web/README.md) |
+| Share knowledge between servers and agents | [Knowledge sharing](KNOWLEDGE.md), [knowledge source extension](../mcp/knowledge-extension/DESIGN.md) |
 | Understand access and output ownership | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md), [shared policy](../platform/policy/DESIGN.md) |
 | Upload and consume files | [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md), [Artifact service](../platform/artifacts/service/DESIGN.md), [Console uploads](../apps/console/web/src/uploads/DESIGN.md), [Python SDK](../sdk/python/README.md) |
 | Ingest and use recordings | [Recording model](RECORDINGS.md), [Rerun client guide](RERUN_RECORDINGS.md), [producer ingest](RECORDING_INGEST.md), [Recording MCP](../servers/recording-mcp/DESIGN.md) |

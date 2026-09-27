@@ -15,6 +15,7 @@
 | `veoveo.io/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
 | `veoveo.io/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
 | `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
+| `veoveo.ai/installation-target/v1` | installation-owned input for installed smoke scenarios: cluster context, namespace, local and public origins, expected deployments, GPU minimum, operator profile and scopes, and the control-plane document path |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.3.0 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
@@ -387,6 +388,42 @@ of an unchanged platform image.
 image. A template installation contributes its isolated namespace, admission policies,
 RBAC and network policies to the owning Helm unit. Creating an agent changes none of
 those installation artifacts and builds no image.
+
+## Installation Target
+
+An installation target tells installed smoke scenarios which installation to verify.
+The installation repository owns the file. Core smoke code has no installation
+defaults, so every installed scenario requires `--installation <file>`. The
+[implementation plan](../../docs/KNOWLEDGE_AND_IDENTIFIERS_PLAN.md#phase-2-installation-targets-for-installed-smoke)
+tracks delivery. The reference installation keeps its target at
+`examples/bioma/installation-target.json`.
+
+```json
+{
+  "schema": "veoveo.ai/installation-target/v1",
+  "kubernetes": { "context": "k3d-example", "namespace": "veoveo" },
+  "localBaseUrl": "http://127.0.0.1:8781",
+  "publicBaseUrl": "https://veoveo.example.com",
+  "controlPlane": "gateway.json",
+  "expectedDeployments": ["mcp-gateway", "artifact-service", "console-bff"],
+  "minimumGpuShares": 6,
+  "operator": { "profile": "operations", "scopes": ["operator:use", "time:read"] }
+}
+```
+
+| Field | Rule |
+|---|---|
+| `kubernetes` | Context and namespace of the installed release |
+| `localBaseUrl` | Loopback HTTP origin that reaches the installation ingress |
+| `publicBaseUrl` | HTTPS origin that users and native clients reach |
+| `controlPlane` | Path, relative to the target file, of the installation's control-plane document |
+| `expectedDeployments` | Deployments that must be available; the installation lists its optional workloads here |
+| `minimumGpuShares` | Allocatable `nvidia.com/gpu` shares the installation requires |
+| `operator` | Gateway profile and scopes that the machine client requests |
+
+Scenarios read the access-token key ID, the identity provider's authorization
+endpoint, and the tenant from the control-plane document. The target does not repeat
+them. Decoding rejects unknown fields and any other `schema` value.
 
 ## Version Transition
 

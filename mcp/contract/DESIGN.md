@@ -31,6 +31,7 @@ complies with in its crate documents and in its contract resource.
 | Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
 | `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
+| `ai.veoveo/knowledge-source` | Veoveo extension that declares resource collections as knowledge, with typed read observations and conditional reads; specified in [the knowledge source extension](../knowledge-extension/DESIGN.md) |
 
 Each hosted server manifest declares separate typed upstream URLs for MCP and
 health traffic. The health URL is an unauthenticated HTTP `GET` endpoint whose
@@ -372,6 +373,10 @@ comply.
 The Console renders these resources generically; the gateway generates an
 installation llms.txt from the catalog. Neither requires per-server work.
 
+The document bodies also form the server's `{slug}.docs` knowledge collection under
+`ai.veoveo/knowledge-source`. Each body is immutable for the running image, and its
+revision is the SHA-256 of the embedded bytes.
+
 ## Crate Documents
 
 Documentation lives beside the code it governs, written for agents first and
@@ -422,6 +427,7 @@ Server crates are named `*-mcp`.
 | C29 | MUST | Ordinary hosted servers and the gateway tolerate load-balanced replica changes; singleton workloads name the real exclusive state or GPU owner. |
 | C30 | MUST | Requests with equivalent upstream transport security share one catalog-revision-scoped HTTP connection pool and TLS trust store without sharing request authority. |
 | C31 | MUST | Readiness calls Discover and required list methods, compares the observed surface with installation allow/require policy, and fails closed on mismatch. |
+| C32 | MUST | The server declares `ai.veoveo/knowledge-source`, publishes its `{slug}.docs` collection, and satisfies rules K01–K10 for every collection it declares. |
 
 ## Enforcement
 
@@ -452,6 +458,9 @@ rules:
   response-budget middleware, gateway upstream client pool, and deployment
   checks enforce C10 and C25–C31 for first-party Rust servers. Packaged servers
   must pass the same black-box checks.
+- **Knowledge sources** — the conformance client checks K01–K08 for every
+  collection a server declares; review enforces K09 and K10. Together they
+  establish C32.
 - **Review** — C05, C06, C09, C13, and C14 are review-enforced boundaries;
   their violation is architectural, not stylistic.
 

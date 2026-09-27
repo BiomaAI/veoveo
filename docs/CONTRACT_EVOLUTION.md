@@ -261,6 +261,40 @@ establish immediate active-transfer revocation. See [S3 presigned URL semantics]
 This decision introduces no public storage hostname or redirect in the current
 implementation and does not make a transfer experiment a Computers release gate.
 
+## CE-10: Repository Identifiers Use The Veoveo Domain
+
+Veoveo owns `veoveo.ai`. MCP extension identifiers and `_meta` keys use the
+`ai.veoveo/` prefix, which follows the MCP reverse-DNS rule. Schema, format, evidence,
+and Kubernetes keys use `veoveo.ai/`, and OCI labels use `ai.veoveo.`. Installation
+domains never appear in core identifiers.
+
+Identifiers under `io.veoveo`, `veoveo.io`, and `ai.bioma.veoveo` move to these forms
+in one coordinated hard cut. The cut ships no adapters, aliases, or readers for old
+names. A component that receives an old identifier rejects it with a diagnostic that
+names the replacement. The reference installation deletes its store, object storage,
+recording journals, and retained Computers state and reinstalls from the new lock.
+Every other store, including local development stores, is recreated. Migrations `0031`
+and `0032` therefore change in place, and fork servers release with the new
+identifiers before they rejoin an installation. The
+[implementation plan](KNOWLEDGE_AND_IDENTIFIERS_PLAN.md#phase-1-identifier-hard-cut)
+lists every identifier and the derived identities that change with it.
+
+## CE-11: Knowledge Reaches Agents Through Resources
+
+Every server publishes its knowledge as MCP resources, and each server remains the
+system of record for its domain. The
+[`ai.veoveo/knowledge-source`](../mcp/knowledge-extension/DESIGN.md) extension marks
+collections, and every read of a member returns a typed observation with a revision,
+content digest, modification time, and access descriptor. The gateway ledgers reads of
+declared collections. The `knowledge-mcp` index caches content for search and returns
+links to the owning resources. It never becomes a second source of truth.
+
+Connectors to external systems follow the same contract. A connector projects vendor
+records as resources, declares its collections, and names the external record in each
+observation. It reads with an installation-owned credential, and Veoveo enforces the
+source's access rules through the observation's access descriptor. Per-user delegation
+to external systems requires its own decision.
+
 ## Delivery And Decision Checkpoints
 
 | Work | Owner and shortest implementation path | Acceptance and release relationship |

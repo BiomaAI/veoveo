@@ -228,6 +228,18 @@ should not repeat `veoveo` unless there is a concrete reason.
 
 MCP server crates use `*-mcp`, not `*-mcp-server`.
 
+Veoveo owns `veoveo.ai`, and repository-owned identifiers use it. MCP extension
+identifiers and `_meta` keys take the form `ai.veoveo/<kebab-name>`. Schema, format,
+evidence, and version tags take `veoveo.ai/<name>/v<N>`, and Kubernetes labels and
+annotations take `veoveo.ai/<name>`. OCI image labels take `ai.veoveo.<group>.<name>`.
+Contract evolution CE-10 records the cut from the older `io.veoveo` and `veoveo.io`
+forms.
+
+Core code, tests, and tooling take installation identity, including domains, cluster
+contexts, tenants, and signing key IDs, from the installation's own configuration.
+`examples/bioma` supplies these values for the reference installation at
+veoveo.bioma.ai, and documents may name it as that reference.
+
 The media MCP server may use provider-specific implementation internally, but user-facing
 names should stay provider-neutral.
 
