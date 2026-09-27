@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
 use anyhow::Result;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind, SubscriptionHub};
@@ -71,8 +75,59 @@ impl TimeApplication {
         Ok(TimeScope { identity })
     }
 
-    pub async fn engine(&self, scope: &TimeScope) -> Result<TemporalEngine> {
-        self.authorities.engine(&self.catalog, scope).await
+    pub async fn engine(&self, scope: &TimeScope) -> TemporalEngine {
+        self.authorities.authority_engine(scope).await
+    }
+
+    pub async fn engine_for_expressions<'a>(
+        &self,
+        scope: &TimeScope,
+        expressions: impl IntoIterator<Item = &'a crate::contract::TimeExpression>,
+    ) -> Result<TemporalEngine> {
+        let mut keys = BTreeSet::new();
+        for (index, expression) in expressions.into_iter().enumerate() {
+            anyhow::ensure!(
+                index < 100_000,
+                "at most 100000 temporal expressions are supported"
+            );
+            if let crate::contract::TimeExpression::EpochRelative { epoch_id, .. } = expression {
+                keys.insert(epoch_id.to_string());
+            }
+        }
+        let keys: Vec<_> = keys.into_iter().collect();
+        let engine = self.engine(scope).await.fork();
+        let epochs = tokio::time::timeout(
+            Duration::from_secs(30),
+            self.catalog.epochs_for_keys(scope, &keys),
+        )
+        .await??;
+        engine.replace_epochs(epochs);
+        Ok(engine)
+    }
+
+    pub async fn restore_event_watchers(self: &Arc<Self>, scope: &TimeScope) -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(60), async {
+            let mut after = None;
+            loop {
+                let page = self
+                    .catalog
+                    .events_page(
+                        scope,
+                        after.as_ref(),
+                        Some(veoveo_platform_store::TimeTemporalEventState::Scheduled),
+                    )
+                    .await?;
+                for event in page.items {
+                    self.schedule_event(scope.clone(), event).await?;
+                }
+                after = crate::index::decode(crate::uris::EVENTS_URI, page.next_cursor.as_deref())?;
+                if after.is_none() {
+                    return Ok::<(), anyhow::Error>(());
+                }
+            }
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("temporal event recovery exceeded 60 seconds"))?
     }
 
     pub async fn schedule_event(

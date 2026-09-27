@@ -14,7 +14,9 @@ pagination, authorized completion, and the updated Live Monitor pass local Rust,
 Store, and browser behavioral checks; installed GPU acceptance is pending.
 Time event reads and transitions now enforce tenant and owner predicates in SQL;
 latest-epoch reads and bounded completions pass native Store qualification.
-Time collection pagination and stable-only discovery are still in progress.
+Time collection pagination, static discovery, requested-epoch SQL batches, and
+workbench navigation pass native and browser behavioral checks; installed acceptance
+is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

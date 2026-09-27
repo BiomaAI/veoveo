@@ -1,3 +1,5 @@
+mod pages;
+
 use anyhow::{Context, Result, bail};
 use veoveo_mcp_contract::Sha256Digest;
 use veoveo_platform_store::{
@@ -379,18 +381,6 @@ impl TimeCatalog {
             .transpose()
     }
 
-    pub async fn list_calendars(&self, scope: &TimeScope) -> Result<Vec<OperationalCalendar>> {
-        self.store
-            .list_time_calendar_versions(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .map(|record| {
-                serde_json::from_str(&record.canonical_json)
-                    .context("decoding stored operational calendar")
-            })
-            .collect()
-    }
-
     pub async fn create_epoch(
         &self,
         scope: &TimeScope,
@@ -427,18 +417,6 @@ impl TimeCatalog {
             .transpose()
     }
 
-    pub async fn list_epochs(&self, scope: &TimeScope) -> Result<Vec<MissionEpoch>> {
-        self.store
-            .list_time_mission_epochs(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .map(|record| {
-                serde_json::from_str(&record.canonical_json)
-                    .context("decoding stored mission epoch")
-            })
-            .collect()
-    }
-
     pub async fn create_event(
         &self,
         scope: &TimeScope,
@@ -472,15 +450,6 @@ impl TimeCatalog {
             .await?
             .map(event_from_record)
             .transpose()
-    }
-
-    pub async fn list_events(&self, scope: &TimeScope) -> Result<Vec<TemporalEvent>> {
-        self.store
-            .list_time_temporal_events(&scope.identity)
-            .await?
-            .into_iter()
-            .map(event_from_record)
-            .collect()
     }
 
     pub async fn cancel_event(

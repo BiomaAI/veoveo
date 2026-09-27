@@ -89,6 +89,23 @@ server accepts an explicit asset path and reads it on each process start; its fi
 does not change the running snapshot. Deployments obtain new bytes through a new
 immutable image digest.
 
+## Workbench Collection Pages
+
+The shared operational workbench recognizes JSON collection pages with an `items`
+array, a positive integral `limit`, and a `next_cursor` string or null. The item
+count cannot exceed the declared limit. This presentation profile uses the current
+resource's configured root and a `cursor` query parameter; it accepts no replacement
+resource URL from the payload. Domains that use another page shape own their page
+navigation in their App.
+
+Previous and Next fetch one page per action. Refresh and root notifications reload
+the current cursor. Resource selection and tool completion return to the first page.
+Each read has a generation number, which prevents a late response from replacing a
+newer selection. The browser test in
+[`workbench-pagination.test.mjs`](../../apps/console/web/tests/workbench-pagination.test.mjs)
+qualifies navigation and stale-response handling headlessly. Visual acceptance uses
+the repository's headed hardware browser requirements.
+
 ## Host obligations
 
 The hosting core (gateway + console BFF + console web) stays fully generic:

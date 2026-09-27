@@ -291,15 +291,17 @@ async fn run_time_task_inner(
     }
     let result = async {
         let scope = state.scope_from_task_owner(&owner).await?;
-        let engine = state.engine(&scope).await?;
         match request {
             TimeTaskRequest::ExpandSchedule(request) => tool_result(
                 "expanded operational schedule",
-                &engine.expand_schedule(&request)?,
+                &state.engine(&scope).await.expand_schedule(&request)?,
             ),
             TimeTaskRequest::ValidateTimeline(request) => tool_result(
                 "validated mission timeline",
-                &engine.validate_timeline(&request)?,
+                &state
+                    .engine_for_expressions(&scope, request.points.iter().map(|point| &point.at))
+                    .await?
+                    .validate_timeline(&request)?,
             ),
         }
     }

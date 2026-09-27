@@ -11,6 +11,7 @@ pub use contract::*;
 
 mod acquisition;
 mod admin;
+mod index;
 pub mod mcp;
 pub mod prompts;
 mod server;

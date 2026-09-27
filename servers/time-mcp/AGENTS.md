@@ -47,11 +47,14 @@ leap second assumptions.
   `0043_time_acquisition_release_index.surql`); run its tests when touching
   persistence. The shared SurrealDB integration harness covers the store
   boundary.
+- `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` checks
+  page navigation behavior headlessly; it provides no visual or GPU acceptance.
 - The container builds from `servers/time-mcp/Dockerfile` (needs Docker);
   Helm material is the `time-mcp` domain service in `deploy/helm/veoveo`.
   No GPU requirement.
 - `tests/catalog_queries.rs` qualifies SQL tenant and owner predicates, latest epoch
-  selection, event transition isolation, and bounded distinct completion against the
+  selection, event transition isolation, page boundaries, requested epoch batches,
+  and bounded distinct completion against the
   pinned disposable SurrealDB fixture.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
@@ -63,7 +66,7 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — exact epoch and owner-event reads use SQL predicates; collection pagination and stable-only discovery are still required
+- C04: met — stable discovery, SQL-scoped pages of 100 records, exact reads, and bounded completions; native tests cover tenant/owner isolation and cursor ordering
 - C05: met
 - C06: met
 - C07: met
@@ -86,7 +89,7 @@ Contract revision: 3
 - C25: met
 - C26: met
 - C27: met
-- C28: met
+- C28: met — static discovery advertises no list-change capability; Store observations invalidate resource contents
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

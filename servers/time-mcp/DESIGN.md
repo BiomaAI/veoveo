@@ -221,7 +221,11 @@ calendar chooses a supported unambiguous time.
 
 A mission epoch gives a named physical instant a version. Agents can then resolve
 expressions such as an offset from launch, H-hour, or the start of a convoy window.
-The active tenant engine loads the latest persisted version for each epoch id.
+Each calculation forks the tenant's authority engine and loads only the epoch ids
+named by its input expressions. SurrealDB selects the latest version of each key
+inside the caller's tenant, in batches of at most 100 keys. The request has a
+30-second epoch-read deadline and accepts at most 100,000 expressions. A calculation's
+epoch set belongs to that calculation, so concurrent requests cannot replace it.
 An exact epoch resource read selects its tenant and epoch key in SurrealDB, orders
 versions descending, and fetches one record. Clock observations, exact resource reads,
 and zone completions use the authority cache without loading the epoch catalog.
@@ -304,15 +308,37 @@ records retain for seven days unless a retention pin extends their lifetime.
 | `time://clock/current` | current resolved instant with effective policy and measured clock quality |
 | `time://clock/quality` | measured clock-quality record |
 | `time://authorities/current` | effective compiler-ready authority references, including bootstrap authorities |
-| `time://calendars` | visible calendar versions |
-| `time://epochs` | visible mission epochs |
-| `time://events` | owner-scoped temporal events |
+| `time://calendars` | a page of tenant calendar versions |
+| `time://epochs` | a page of tenant mission epoch versions |
+| `time://events` | a page of owner-scoped temporal events |
+
+`resources/list` advertises the stable roots, documents, and Timeline App. Domain
+records are reached through the collection pages and exact URI templates. Changes
+to domain records invalidate resource contents; the discovery inventory is static
+and does not advertise resource-list change notifications.
+
+Calendar, epoch, and event pages contain `items`, `limit: 100`, and `next_cursor`.
+Pass the opaque cursor through the root's `?cursor=` query parameter. SurrealDB
+applies authorization and the cursor position before its 101-record lookahead.
+Calendars and epochs sort by key ascending and version descending. Events sort by
+TAI seconds, nanosecond, then event key ascending. These positions use immutable
+fields. Each page observes the records present at its read. Inserts before its position
+appear on a fresh walk. The administrative calendar and epoch lists use the same
+pages and optional cursor query parameter.
+
+Subscribe to the collection root to invalidate its pages. Cursor URIs do not accept
+separate subscriptions. Timeline uses the shared workbench's Previous and Next
+controls, reads one page at a time, and refreshes the current cursor after a root
+notification. Selecting a different resource starts at its first page.
 
 Resource templates expose:
 
 ```text
 time://zones/{zone_id}
 time://authorities/releases/{release_id}
+time://calendars{?cursor}
+time://epochs{?cursor}
+time://events{?cursor}
 time://calendars/{calendar_id}/versions/{version}
 time://epochs/{epoch_id}
 time://events/{event_id}
@@ -326,8 +352,11 @@ further candidate exists. It reports a total only when the complete match set fi
 Calendar-version completion narrows its SQL query to the selected `calendar_id`
 when the client supplies that argument in completion context.
 Calendars, epochs, authorities, clock quality, and events emit resource updates.
-Subscriptions to event resources restore their due-time watcher after a process
-restart or client reconnect.
+Reading an event or an event page restores its scheduled watchers. An event-root
+subscription restores all of its owner's scheduled events through SQL-filtered
+pages, with a 60-second deadline. A timeout rejects listener establishment instead
+of claiming complete recovery. Exact event subscriptions restore that event's
+watcher. Resource discovery does not start watchers.
 
 ### Prompts
 
@@ -469,8 +498,9 @@ Examples of agent requests include:
 | `src/authority.rs` | TZif context and IANA leap-second interpretation |
 | `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
-| `src/catalog.rs` | typed platform-store projection and owner isolation |
-| `src/registry.rs` | tenant authority caches, activation preflight, epoch loading |
+| `src/catalog.rs`, `src/catalog/pages.rs` | typed platform-store projection, owner isolation, bounded collections, and requested epoch lookup |
+| `src/index.rs` | collection-bound opaque cursors and page envelopes |
+| `src/registry.rs` | tenant authority caches and activation preflight |
 | `src/acquisition/` | bounded download, validation, compilation, staging, cancellation |
 | `src/admin/` | typed administrative routes and errors |
 | `src/mcp.rs` | MCP tools, resources, templates, completions, subscriptions |

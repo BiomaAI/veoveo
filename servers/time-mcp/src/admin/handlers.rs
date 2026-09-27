@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
@@ -23,6 +23,12 @@ use crate::{
 use super::error::ApiError;
 
 type ApiResult<T> = Result<Json<T>, ApiError>;
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct CursorQuery {
+    cursor: Option<String>,
+}
 
 pub(super) async fn list_sources(
     State(state): State<Arc<TimeApplication>>,
@@ -201,9 +207,14 @@ pub(super) async fn list_active_authorities(
 pub(super) async fn list_calendars(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-) -> ApiResult<AdminPage<crate::contract::OperationalCalendar>> {
+    Query(query): Query<CursorQuery>,
+) -> ApiResult<crate::contract::CollectionPage<crate::contract::OperationalCalendar>> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
-    Ok(Json(page(state.catalog.list_calendars(&scope).await?)))
+    let after = crate::index::decode(uris::CALENDARS_URI, query.cursor.as_deref())
+        .map_err(ApiError::bad_request)?;
+    Ok(Json(
+        state.catalog.calendars_page(&scope, after.as_ref()).await?,
+    ))
 }
 
 pub(super) async fn get_calendar(
@@ -246,9 +257,14 @@ pub(super) async fn create_calendar(
 pub(super) async fn list_epochs(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-) -> ApiResult<AdminPage<MissionEpoch>> {
+    Query(query): Query<CursorQuery>,
+) -> ApiResult<crate::contract::CollectionPage<MissionEpoch>> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
-    Ok(Json(page(state.catalog.list_epochs(&scope).await?)))
+    let after = crate::index::decode(uris::EPOCHS_URI, query.cursor.as_deref())
+        .map_err(ApiError::bad_request)?;
+    Ok(Json(
+        state.catalog.epochs_page(&scope, after.as_ref()).await?,
+    ))
 }
 
 pub(super) async fn get_epoch(

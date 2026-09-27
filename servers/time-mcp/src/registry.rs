@@ -32,12 +32,6 @@ impl AuthorityRegistry {
         }
     }
 
-    pub async fn engine(&self, catalog: &TimeCatalog, scope: &TimeScope) -> Result<TemporalEngine> {
-        let engine = self.authority_engine(scope).await;
-        engine.replace_epochs(catalog.list_epochs(scope).await?);
-        Ok(engine)
-    }
-
     /// Authority-only operations do not materialize the mission epoch catalog.
     pub async fn authority_engine(&self, scope: &TimeScope) -> TemporalEngine {
         let key = scope.tenant_key();
@@ -84,7 +78,6 @@ impl AuthorityRegistry {
         )
         .context("loading activated temporal authority")?;
         let engine = TemporalEngine::new(authority);
-        engine.replace_epochs(catalog.list_epochs(scope).await?);
         self.tenants
             .write()
             .await

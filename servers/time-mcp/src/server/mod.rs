@@ -150,7 +150,7 @@ pub async fn run() -> Result<()> {
         while changes.next().await.is_some() {
             resource_state
                 .subscriptions
-                .notify_resources_changed()
+                .notify_resource_contents_changed()
                 .await;
         }
     });

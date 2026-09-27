@@ -1,3 +1,7 @@
+mod collections;
+
+pub use collections::{TimeEventCursor, TimeVersionCursor};
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
@@ -638,13 +642,6 @@ impl PlatformStore {
         .await
     }
 
-    pub async fn list_time_calendar_versions(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<TimeCalendarVersionRecord>, StoreError> {
-        select_list(self, "SELECT * FROM time_calendar_version WHERE tenant = $tenant ORDER BY calendar_key ASC, calendar_version DESC;", tenant_id).await
-    }
-
     pub async fn create_time_mission_epoch(
         &self,
         draft: TimeMissionEpochDraft,
@@ -717,13 +714,6 @@ impl PlatformStore {
         Ok(rows.into_iter().next())
     }
 
-    pub async fn list_time_mission_epochs(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<TimeMissionEpochRecord>, StoreError> {
-        select_list(self, "SELECT * FROM time_mission_epoch WHERE tenant = $tenant ORDER BY epoch_key ASC, epoch_version DESC;", tenant_id).await
-    }
-
     pub async fn create_time_temporal_event(
         &self,
         draft: TimeTemporalEventDraft,
@@ -787,18 +777,6 @@ impl PlatformStore {
             .bind(("owner", identity.principal_id.record_id()))
             .await?
             .check()?;
-        Ok(response.take(0)?)
-    }
-
-    pub async fn list_time_temporal_events(
-        &self,
-        identity: &PlatformIdentity,
-    ) -> Result<Vec<TimeTemporalEventRecord>, StoreError> {
-        let mut response = self.client()
-            .query("SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC, event_key ASC;")
-            .bind(("tenant", identity.tenant_id.record_id()))
-            .bind(("owner", identity.principal_id.record_id()))
-            .await?.check()?;
         Ok(response.take(0)?)
     }
 

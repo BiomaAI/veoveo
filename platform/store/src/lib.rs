@@ -113,7 +113,7 @@ pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
 pub use time::{
     TimeAcquisitionDraft, TimeAcquisitionUpdate, TimeAuthorityReleaseDraft,
-    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeCompletion, TimeMissionEpochDraft,
-    TimeSourceDraft, TimeTemporalEventDraft,
+    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeCompletion, TimeEventCursor,
+    TimeMissionEpochDraft, TimeSourceDraft, TimeTemporalEventDraft, TimeVersionCursor,
 };
 pub use usage::{DomainUsageDraft, DomainUsageTaskPage};

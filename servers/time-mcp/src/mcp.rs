@@ -79,7 +79,7 @@ impl TimeMcp {
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
-            .engine(&scope)
+            .engine_for_expressions(&scope, [&request.expression])
             .await
             .map_err(internal)?
             .resolve(&request)
@@ -104,7 +104,6 @@ impl TimeMcp {
             .state
             .engine(&scope)
             .await
-            .map_err(internal)?
             .convert(&request)
             .map_err(invalid_params)?;
         structured_result("converted authority-bound time".to_owned(), &output)
@@ -127,7 +126,6 @@ impl TimeMcp {
             .state
             .engine(&scope)
             .await
-            .map_err(internal)?
             .evaluate_windows(&request)
             .map_err(invalid_params)?;
         structured_result(
@@ -211,7 +209,7 @@ impl TimeMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "time:event:write")?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let engine = self.state.engine(&scope).await.map_err(internal)?;
+        let engine = self.state.engine(&scope).await;
         engine
             .convert(&ConvertTimeRequest {
                 instant: request.due.clone(),
@@ -251,10 +249,6 @@ impl TimeMcp {
         self.state
             .subscriptions
             .notify_resource_updated(uris::EVENTS_URI)
-            .await;
-        self.state
-            .subscriptions
-            .notify_resource_list_changed()
             .await;
         structured_result(format!("scheduled {}", event.event_id), &event)
     }
@@ -302,24 +296,7 @@ impl ServerHandler for TimeMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some("Time interpretation and scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative times against versioned TZDB and leap-second releases. Call `expand_schedule` and `validate_timeline` as MCP Tasks. When you pass a time to Map or Optimization, pass the resolved TimeInstant with its uncertainty, not a plain string.".to_owned());
-        info
+        server_info()
     }
 
     async fn call_tool(
@@ -410,8 +387,7 @@ impl ServerHandler for TimeMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = require_scope(&context, "time:read")?;
-        let scope = self.state.scope(&identity).await.map_err(internal)?;
+        require_scope(&context, "time:read")?;
         let mut resources = root_resources();
         resources.push(
             veoveo_mcp_apps_extension::app_resource(uris::TIMELINE_APP_URI, "timeline")
@@ -420,49 +396,6 @@ impl ServerHandler for TimeMcp {
                     "Authoritative time, operational calendars, epochs, and temporal events.",
                 ),
         );
-        for calendar in self
-            .state
-            .catalog
-            .list_calendars(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(descriptor(
-                uris::calendar_uri(calendar.calendar_id.as_str(), calendar.version),
-                calendar.name,
-                "Versioned operational calendar.",
-            ));
-        }
-        for epoch in self
-            .state
-            .catalog
-            .list_epochs(&scope)
-            .await
-            .map_err(internal)?
-        {
-            resources.push(descriptor(
-                uris::epoch_uri(epoch.epoch_id.as_str()),
-                epoch.name,
-                "Versioned mission epoch.",
-            ));
-        }
-        for event in self
-            .state
-            .catalog
-            .list_events(&scope)
-            .await
-            .map_err(internal)?
-        {
-            self.state
-                .schedule_event(scope.clone(), event.clone())
-                .await
-                .map_err(internal)?;
-            resources.push(descriptor(
-                uris::event_uri(event.event_id.as_str()),
-                event.name,
-                "Owner-scoped temporal event.",
-            ));
-        }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -580,6 +513,17 @@ impl ServerHandler for TimeMcp {
             ]));
         }
         let scope = self.state.scope(&identity).await.map_err(internal)?;
+        if let Some(after) = crate::index::parse(uri, uris::CALENDARS_URI)? {
+            return json_resource(uri, &self.state.catalog.calendars_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
+        }
+        if let Some(after) = crate::index::parse(uri, uris::EPOCHS_URI)? {
+            return json_resource(uri, &self.state.catalog.epochs_page(&scope, after.as_ref()).await.map_err(crate::index::query_error)?);
+        }
+        if let Some(after) = crate::index::parse(uri, uris::EVENTS_URI)? {
+            let page = self.state.catalog.events_page(&scope, after.as_ref(), None).await.map_err(crate::index::query_error)?;
+            for event in &page.items { self.state.schedule_event(scope.clone(), event.clone()).await.map_err(internal)?; }
+            return json_resource(uri, &page);
+        }
         let engine = self.state.authorities.authority_engine(&scope).await;
         match uri {
             uris::CLOCK_QUALITY_URI => {
@@ -610,39 +554,6 @@ impl ServerHandler for TimeMcp {
             }
             uris::AUTHORITIES_CURRENT_URI => {
                 return json_resource(uri, &engine.authority().effective);
-            }
-            uris::CALENDARS_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_calendars(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::EPOCHS_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_epochs(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            uris::EVENTS_URI => {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .catalog
-                        .list_events(&scope)
-                        .await
-                        .map_err(internal)?,
-                );
             }
             _ => {}
         }
@@ -880,18 +791,10 @@ impl ServerHandler for TimeMcp {
                 ));
             }
             if uri == uris::EVENTS_URI {
-                for event in self
-                    .state
-                    .catalog
-                    .list_events(&scope)
+                self.state
+                    .restore_event_watchers(&scope)
                     .await
-                    .map_err(internal)?
-                {
-                    self.state
-                        .schedule_event(scope.clone(), event)
-                        .await
-                        .map_err(internal)?;
-                }
+                    .map_err(internal)?;
             } else if let Some(event_id) = uris::parse_event(uri) {
                 let event_id = TemporalEventId::new(event_id).map_err(invalid_params)?;
                 if let Some(event) = self
@@ -916,6 +819,26 @@ impl ServerHandler for TimeMcp {
         )
         .await
     }
+}
+
+fn server_info() -> ServerConfig {
+    let mut capabilities = ServerCapabilities::builder()
+        .enable_tools()
+        .enable_prompts()
+        .enable_resources()
+        .enable_resources_subscribe()
+        .enable_completions()
+        .build();
+    veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
+    capabilities.extensions.get_or_insert_default().insert(
+        rmcp::model::TASKS_EXTENSION_ID.to_owned(),
+        rmcp::model::JsonObject::new(),
+    );
+    let mut info = ServerConfig::default();
+    info.capabilities = capabilities;
+    info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
+    info.instructions = Some("Time interpretation and scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative times against versioned TZDB and leap-second releases. Call `expand_schedule` and `validate_timeline` as MCP Tasks. When you pass a time to Map or Optimization, pass the resolved TimeInstant with its uncertainty, not a plain string.".to_owned());
+    info
 }
 
 fn internal_identity(
@@ -1038,6 +961,21 @@ fn well_known_resources() -> Vec<Resource> {
 /// two cannot diverge.
 fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
+        template(
+            uris::CALENDARS_TEMPLATE,
+            "Calendar page",
+            "A page of 100 calendar versions.",
+        ),
+        template(
+            uris::EPOCHS_TEMPLATE,
+            "Epoch page",
+            "A page of 100 mission epoch versions.",
+        ),
+        template(
+            uris::EVENTS_TEMPLATE,
+            "Event page",
+            "A page of 100 owner-scoped events.",
+        ),
         ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
             .with_title("Server document")
             .with_description("Embedded crate document body (contract C18).")
@@ -1094,6 +1032,28 @@ fn default_clock_policy() -> ClockQualityPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn discovery_uses_static_roots_and_templates_without_list_change_notifications() {
+        let capabilities = server_info().capabilities.resources.unwrap();
+        assert!(!capabilities.list_changed.unwrap_or(false));
+        let roots = root_resources();
+        for root in [uris::CALENDARS_URI, uris::EPOCHS_URI, uris::EVENTS_URI] {
+            assert!(roots.iter().any(|resource| resource.uri == root));
+        }
+        let templates = resource_templates();
+        for template in [
+            uris::CALENDARS_TEMPLATE,
+            uris::EPOCHS_TEMPLATE,
+            uris::EVENTS_TEMPLATE,
+        ] {
+            assert!(
+                templates
+                    .iter()
+                    .any(|resource| resource.uri_template == template)
+            );
+        }
+    }
 
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {

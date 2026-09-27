@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use veoveo_platform_store::{
-    PlatformStore, PrincipalKind, TimeCompletion, TimeTemporalEventState as StoredEventState,
+    PlatformStore, PrincipalKind, TimeCompletion, TimeEventCursor, TimeMissionEpochDraft,
+    TimeTemporalEventState as StoredEventState, TimeVersionCursor,
 };
 use veoveo_time_mcp::{
     AuthorityBinding, AuthorityReleaseId, CalendarId, MissionEpoch, MissionEpochId,
@@ -97,15 +98,42 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .is_none()
         );
         let own =
-            db.a.list_time_temporal_events(&owner.identity)
+            db.a.list_time_temporal_events(&owner.identity, None, None, 101)
                 .await
                 .unwrap();
-        assert_eq!(own.len(), 102);
+        assert_eq!(own.len(), 101);
         assert!(
             own.iter()
                 .all(|row| row.owner == owner.identity.principal_id.record_id())
         );
-        assert_eq!(catalog.list_events(&owner).await.unwrap().len(), 102);
+        let page = catalog.events_page(&owner, None, None).await.unwrap();
+        assert_eq!(page.limit, 100);
+        assert_eq!(page.items.len(), 100);
+        assert!(page.next_cursor.is_some());
+        let last = page.items.last().unwrap();
+        let cursor = TimeEventCursor {
+            tai_seconds: last.due.tai_seconds_since_1970,
+            nanosecond: i64::from(last.due.nanosecond),
+            event_key: last.event_id.to_string(),
+        };
+        let next = catalog
+            .events_page(&owner, Some(&cursor), None)
+            .await
+            .unwrap();
+        assert_eq!(next.items.len(), 2);
+        assert!(next.next_cursor.is_none());
+        assert_eq!(
+            next.items[0].event_id.as_str(),
+            "event-ffffffff-ffff-7000-8000-000000000064"
+        );
+        assert!(
+            catalog
+                .events_page(&foreign, Some(&cursor), None)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
         let due =
             db.a.due_time_temporal_events(&owner.identity, 2_000_000_000, 17, 3)
                 .await
@@ -327,6 +355,141 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             .await
             .unwrap(),
             vec!["42"]
+        );
+
+        // Late versions and state changes preserve strict page positions.
+        for version in 13..=113 {
+            catalog
+                .create_epoch(
+                    &owner,
+                    MissionEpoch {
+                        epoch_id: epoch_id.clone(),
+                        name: "launch".into(),
+                        instant: instant(),
+                        version,
+                    },
+                )
+                .await
+                .unwrap();
+            catalog
+                .create_calendar(
+                    &owner,
+                    OperationalCalendar {
+                        calendar_id: CalendarId::new(
+                            "calendar-00000000-0000-7000-8000-000000000001",
+                        )
+                        .unwrap(),
+                        version,
+                        name: "Operations".into(),
+                        zone_id: "UTC".into(),
+                        windows: Vec::new(),
+                        excluded_dates: Vec::new(),
+                    },
+                )
+                .await
+                .unwrap();
+        }
+        let first = catalog.epochs_page(&owner, None).await.unwrap();
+        assert_eq!(first.items.len(), 100);
+        assert_eq!(first.items[0].version, 113);
+        assert!(first.next_cursor.is_some());
+        let last = first.items.last().unwrap();
+        let position = TimeVersionCursor {
+            key: last.epoch_id.to_string(),
+            version: last.version as i64,
+        };
+        let second = catalog.epochs_page(&owner, Some(&position)).await.unwrap();
+        assert_eq!(
+            second.items.iter().map(|e| e.version).collect::<Vec<_>>(),
+            vec![13, 12, 2, 1]
+        );
+        assert!(second.next_cursor.is_none());
+        assert!(
+            catalog
+                .epochs_page(&foreign, Some(&position))
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        let first = catalog.calendars_page(&owner, None).await.unwrap();
+        assert_eq!(first.items.len(), 100);
+        assert_eq!(first.items[0].version, 113);
+        let last = first.items.last().unwrap();
+        let position = TimeVersionCursor {
+            key: last.calendar_id.to_string(),
+            version: last.version as i64,
+        };
+        let second = catalog
+            .calendars_page(&peer, Some(&position))
+            .await
+            .unwrap();
+        assert_eq!(second.items.len(), 5);
+        assert!(second.next_cursor.is_none());
+        assert_eq!(second.items.last().unwrap().version, 42);
+        let scheduled = catalog
+            .events_page(&owner, None, Some(StoredEventState::Scheduled))
+            .await
+            .unwrap();
+        assert_eq!(scheduled.items.len(), 100);
+        assert!(scheduled.next_cursor.is_some());
+        assert!(
+            scheduled
+                .items
+                .iter()
+                .all(|e| e.state == TemporalEventState::Scheduled && e.event_id != own_id)
+        );
+        let last = scheduled.items.last().unwrap();
+        let position = TimeEventCursor {
+            tai_seconds: last.due.tai_seconds_since_1970,
+            nanosecond: i64::from(last.due.nanosecond),
+            event_key: last.event_id.to_string(),
+        };
+        let last_scheduled = catalog
+            .events_page(&owner, Some(&position), Some(StoredEventState::Scheduled))
+            .await
+            .unwrap();
+        assert_eq!(last_scheduled.items.len(), 1);
+        assert!(last_scheduled.next_cursor.is_none());
+
+        // An unrelated malformed payload must never reach a request's epoch decoder.
+        db.a.create_time_mission_epoch(TimeMissionEpochDraft {
+            identity: owner.identity.clone(),
+            epoch_key: "epoch-00000000-0000-7000-8000-000000000010".into(),
+            name: "unrelated".into(),
+            epoch_version: 1,
+            tai_seconds_since_1970: 0,
+            nanosecond: 0,
+            canonical_json: "{}".into(),
+        })
+        .await
+        .unwrap();
+        let requested = vec![
+            epoch_id.to_string(),
+            "epoch-00000000-0000-7000-8000-000000000099".into(),
+        ];
+        let epochs = catalog.epochs_for_keys(&owner, &requested).await.unwrap();
+        assert_eq!(epochs.len(), 1);
+        assert_eq!(epochs[0].version, 113);
+        assert!(
+            catalog
+                .epochs_for_keys(&foreign, &requested)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            db.a.latest_time_mission_epochs(
+                owner.identity.tenant_id,
+                &vec![epoch_id.to_string(); 101]
+            )
+            .await
+            .is_err()
+        );
+        assert!(
+            db.a.list_time_mission_epochs(owner.identity.tenant_id, None, 102)
+                .await
+                .is_err()
         );
     })
     .await
