@@ -22,7 +22,7 @@ pub(crate) async fn session(State(state): State<AppState>, request: Request) -> 
     }
     let session = match api::upstream_session(&state, &parts.headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let headers = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,

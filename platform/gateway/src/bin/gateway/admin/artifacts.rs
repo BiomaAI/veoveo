@@ -113,7 +113,7 @@ pub(crate) async fn set_artifact_release_state(
     .await
     {
         Ok(context) => context,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = context
         .plane
@@ -158,7 +158,7 @@ pub(crate) async fn grant_artifact(
     .await
     {
         Ok(context) => context,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = context
         .plane
@@ -192,7 +192,7 @@ pub(crate) async fn revoke_artifact_grant(
     .await
     {
         Ok(context) => context,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = context
         .plane
@@ -227,7 +227,7 @@ pub(crate) async fn create_artifact_share_link(
     .await
     {
         Ok(context) => context,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = context
         .plane
@@ -277,7 +277,7 @@ pub(crate) async fn revoke_artifact_share_link(
     .await
     {
         Ok(context) => context,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = context
         .plane
@@ -295,12 +295,12 @@ async fn authorize_artifact_operation(
     operation: ArtifactOperation,
     mut metadata: BTreeMap<String, String>,
     started_at: Instant,
-) -> Result<AuthorizedArtifactOperation, Response> {
+) -> Result<AuthorizedArtifactOperation, Box<Response>> {
     let Some(profile_id) = admin_profile_id(profile) else {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND.into_response().into());
     };
     let Ok(artifact_id) = ArtifactId::parse(artifact_id) else {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND.into_response().into());
     };
     let artifact_uri = ResourceUri::new(artifact_id.plane_uri())
         .map_err(|_| StatusCode::NOT_FOUND.into_response())?;
@@ -322,8 +322,7 @@ async fn authorize_artifact_operation(
             started_at,
         },
     )
-    .await
-    .map_err(|response| *response)?;
+    .await?;
     let expires_at = std::cmp::min(
         subject.access_token.expires_at,
         Utc::now() + TimeDelta::seconds(INTERNAL_ARTIFACT_TOKEN_TTL_SECONDS),
@@ -352,9 +351,9 @@ async fn authorize_artifact_operation(
             )
             .await
             {
-                return Err(internal_error_response(audit_error));
+                return Err(internal_error_response(audit_error).into());
             }
-            return Err(StatusCode::INTERNAL_SERVER_ERROR.into_response());
+            return Err(StatusCode::INTERNAL_SERVER_ERROR.into_response().into());
         }
     };
     let memberships = internal_token.identity.actor.group_memberships();

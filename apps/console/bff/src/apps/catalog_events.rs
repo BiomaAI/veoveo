@@ -79,7 +79,7 @@ pub(crate) async fn app_catalog_events(
         ..
     } = match subscription {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let (receiver, catalog) = match result {
         Ok(value) => value,

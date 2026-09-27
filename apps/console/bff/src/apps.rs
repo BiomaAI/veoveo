@@ -276,7 +276,7 @@ async fn with_apps_session<T, F>(
     state: &AppState,
     request_headers: &HeaderMap,
     operation: impl Fn(SharedMcpClient) -> F,
-) -> Result<AppsSessionOutcome<T>, Response>
+) -> Result<AppsSessionOutcome<T>, Box<Response>>
 where
     F: Future<Output = Result<T, rmcp::ServiceError>>,
 {
@@ -351,7 +351,7 @@ pub(crate) async fn list_apps(
         ..
     } = match listing {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let catalog = match result {
         Ok(listing) => listing,
@@ -475,7 +475,7 @@ pub(crate) async fn standalone_app_bootstrap(
         ..
     } = match listing {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let catalog = match result {
         Ok(catalog) => catalog,
@@ -528,7 +528,7 @@ pub(crate) async fn app_frame(
         ..
     } = match read {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let (resource, result) = match read {
         Ok(result) => result,
@@ -708,7 +708,7 @@ pub(crate) async fn read_app_resource(
         ..
     } = match read {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let result = match read {
         Ok(Ok(result)) => result,
@@ -822,7 +822,7 @@ pub(crate) async fn app_resource_events(
         result,
     } = match listing {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let catalog = match result {
         Ok(catalog) => catalog,
@@ -995,10 +995,7 @@ pub(crate) async fn unsubscribe_app_resource(
 ) -> Response {
     // The registration belongs to this authenticated client's UUID namespace.
     // Releasing it needs no new catalog authority or upstream discovery.
-    let listing = with_apps_session(&state, &request_headers, |_mcp| async move {
-        Ok(())
-    })
-    .await;
+    let listing = with_apps_session(&state, &request_headers, |_mcp| async move { Ok(()) }).await;
     let AppsSessionOutcome {
         client,
         response_headers,
@@ -1006,7 +1003,7 @@ pub(crate) async fn unsubscribe_app_resource(
         ..
     } = match listing {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     if let Err(error) = result {
         tracing::error!(%error, "console App unsubscribe catalog failed");
@@ -1135,7 +1132,7 @@ pub(crate) async fn call_app_tool(
         ..
     } = match listing {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let catalog = match listing {
         Ok(catalog) => catalog,
@@ -1301,7 +1298,7 @@ pub(crate) async fn get_app_task(
         ..
     } = match outcome {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let response = match result {
         Ok(rmcp::model::ServerResult::GetTaskResult(result)) => {
@@ -1341,7 +1338,7 @@ pub(crate) async fn cancel_app_task(
         ..
     } = match outcome {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let response = match result {
         Ok(()) => capped_json_response(
@@ -1385,7 +1382,7 @@ pub(crate) async fn update_app_task(
         ..
     } = match outcome {
         Ok(outcome) => outcome,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let response = match result {
         Ok(()) => capped_json_response(

@@ -43,7 +43,7 @@ async fn proxy(
     }
     let session = match api::upstream_session(&state, request.headers()).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let settled = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,

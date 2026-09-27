@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use anyhow::ensure;
-use base64::{Engine as _, engine::general_purpose::STANDARD};
+use base64::engine::general_purpose::STANDARD;
 use chrono::{TimeDelta, Utc};
 use glam::{DMat4, DVec3, DVec4};
 use rmcp::model::{CallToolRequestParams, ContentBlock};

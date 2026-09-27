@@ -58,12 +58,12 @@ async fn proxy(
     // old cookie here can replay a refresh token consumed by a concurrent short
     // request. Parts use their current access token; short control reads refresh.
     let session = match if is_part {
-        part_session(&state, &request_headers).map_err(IntoResponse::into_response)
+        part_session(&state, &request_headers).map_err(|status| Box::new(status.into_response()))
     } else {
         api::upstream_session(&state, &request_headers).await
     } {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let mut response_headers = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,

@@ -149,12 +149,12 @@ pub(crate) async fn snapshot(
 pub(crate) async fn authorize_cluster_inventory(
     state: &AppState,
     request_headers: &HeaderMap,
-) -> Result<HeaderMap, Response> {
+) -> Result<HeaderMap, Box<Response>> {
     let Some(session) = read_session(request_headers, &state.sessions) else {
-        return Err(unauthorized(state));
+        return Err(unauthorized(state).into());
     };
     if session.is_expired(Utc::now().timestamp()) {
-        return Err(unauthorized(state));
+        return Err(unauthorized(state).into());
     }
     let session = crate::oauth::upstream_session(state, session)
         .await
@@ -177,13 +177,15 @@ pub(crate) async fn authorize_cluster_inventory(
         })?;
     match classify_snapshot_upstream(upstream.status()) {
         SnapshotUpstreamDisposition::Success => Ok(response_headers),
-        SnapshotUpstreamDisposition::Unauthorized => Err(unauthorized(state)),
-        SnapshotUpstreamDisposition::Forbidden => {
-            Err((response_headers, StatusCode::FORBIDDEN).into_response())
-        }
+        SnapshotUpstreamDisposition::Unauthorized => Err(unauthorized(state).into()),
+        SnapshotUpstreamDisposition::Forbidden => Err((response_headers, StatusCode::FORBIDDEN)
+            .into_response()
+            .into()),
         SnapshotUpstreamDisposition::BadGateway => {
             tracing::warn!(status = %upstream.status(), "console Cluster authorization returned an error");
-            Err((response_headers, StatusCode::BAD_GATEWAY).into_response())
+            Err((response_headers, StatusCode::BAD_GATEWAY)
+                .into_response()
+                .into())
         }
     }
 }
@@ -498,7 +500,7 @@ pub(crate) async fn download_artifact(
     };
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -537,7 +539,7 @@ pub(crate) async fn preview_artifact(
     };
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -665,7 +667,7 @@ pub(crate) async fn stream(
 ) -> Response {
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let mut headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -748,7 +750,7 @@ async fn proxy_json<T: Serialize>(
 ) -> Response {
     let session = match upstream_session(state, request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let mut headers = match response_session_headers(state, &session) {
         Ok(headers) => headers,
@@ -794,18 +796,18 @@ async fn proxy_json<T: Serialize>(
 pub(crate) async fn upstream_session(
     state: &AppState,
     request_headers: &HeaderMap,
-) -> Result<crate::oauth::UpstreamSession, Response> {
+) -> Result<crate::oauth::UpstreamSession, Box<Response>> {
     let Some(session) = read_session(request_headers, &state.sessions) else {
-        return Err(unauthorized(state));
+        return Err(unauthorized(state).into());
     };
     if session.is_expired(Utc::now().timestamp()) {
-        return Err(unauthorized(state));
+        return Err(unauthorized(state).into());
     }
     crate::oauth::upstream_session(state, session)
         .await
         .map_err(|error| {
             tracing::warn!(%error, "console session refresh failed");
-            unauthorized(state)
+            Box::new(unauthorized(state))
         })
 }
 

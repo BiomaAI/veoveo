@@ -255,7 +255,7 @@ pub(crate) async fn stream_console(
     let store = state.control_store.platform_store().clone();
     let cursor = match resolve_cursor(&store, requested_cursor.as_deref()).await {
         Ok(cursor) => cursor,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
 
     let deadline = stream_deadline(subject.access_token.expires_at);
@@ -284,7 +284,7 @@ pub(crate) async fn stream_console(
 async fn resolve_cursor(
     store: &PlatformStore,
     requested: Option<&str>,
-) -> Result<ChangefeedCursor, Response> {
+) -> Result<ChangefeedCursor, Box<Response>> {
     match requested {
         Some(raw) => {
             let cursor = raw
@@ -292,7 +292,7 @@ async fn resolve_cursor(
                 .ok()
                 .and_then(ChangefeedCursor::from_versionstamp);
             let Some(cursor) = cursor else {
-                return Err(StatusCode::BAD_REQUEST.into_response());
+                return Err(StatusCode::BAD_REQUEST.into_response().into());
             };
             // A cursor beyond the replay horizon forces a resync: the reset
             // event tells the client to refetch the snapshot rather than
@@ -300,13 +300,13 @@ async fn resolve_cursor(
             let implied_ms = cursor.versionstamp() >> 16;
             let horizon = Utc::now() - REPLAY_HORIZON;
             if cursor.versionstamp() > 0 && implied_ms < horizon.timestamp_millis() {
-                return Err(reset_response("cursor-out-of-range"));
+                return Err(reset_response("cursor-out-of-range").into());
             }
             Ok(cursor)
         }
         None => store.changefeed_cursor_now().await.map_err(|error| {
             tracing::error!("console stream cursor anchor failed: {error}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response())
         }),
     }
 }

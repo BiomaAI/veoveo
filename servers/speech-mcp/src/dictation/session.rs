@@ -116,8 +116,8 @@ fn validate_frame(
         "dictation duration exceeded"
     );
     ensure!(
-        bytes.chunks_exact(4).all(|chunk| {
-            let sample = f32::from_le_bytes(chunk.try_into().expect("four byte chunk"));
+        bytes.as_chunks::<4>().0.iter().all(|chunk| {
+            let sample = f32::from_le_bytes(*chunk);
             sample.is_finite() && (-1.0..=1.0).contains(&sample)
         }),
         "invalid PCM sample"

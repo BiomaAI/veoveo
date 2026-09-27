@@ -67,17 +67,10 @@ fn source(root: &Path, name: &str) -> String {
         format!("apiVersion: v2\nname: {name}\nversion: 1.0.0\n"),
     )
     .unwrap();
-    let (registry, digests) = if name == "platform" {
-        (
-            ".Values.global.veoveoRegistry",
-            ".Values.global.imageDigests",
-        )
-    } else {
-        (
-            ".Values.global.veoveoRegistry",
-            ".Values.global.imageDigests",
-        )
-    };
+    let (registry, digests) = (
+        ".Values.global.veoveoRegistry",
+        ".Values.global.imageDigests",
+    );
     let target = image_target(name);
     fs::write(
         root.join("chart/templates/workload.yaml"),

@@ -81,7 +81,9 @@ fn pcm_wav(bytes: &[u8]) -> Result<Vec<u8>> {
             b"data" => {
                 ensure!(format && size.is_multiple_of(2), "invalid PCM fixture");
                 return Ok(payload
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .flat_map(|sample| {
                         (f32::from(i16::from_le_bytes([sample[0], sample[1]])) / 32768.0)
                             .to_le_bytes()

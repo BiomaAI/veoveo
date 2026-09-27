@@ -111,7 +111,7 @@ pub(crate) async fn read_agent_conversation(
             .await
         {
             Ok(context) => context,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
     match state.agent_control.conversation(&context.target).await {
         Ok(conversation) => {
@@ -146,7 +146,7 @@ pub(crate) async fn send_agent_message(
             .await
         {
             Ok(context) => context,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
     let result = state
         .agent_control
@@ -174,7 +174,7 @@ pub(crate) async fn list_agent_input_requests(
             .await
         {
             Ok(context) => context,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
     match state
         .agent_control
@@ -229,7 +229,7 @@ pub(crate) async fn decide_agent_input_request(
             .await
         {
             Ok(context) => context,
-            Err(response) => return response,
+            Err(response) => return *response,
         };
     let request_id = request.request_id();
     let (state_value, answer) = match request {
@@ -271,13 +271,13 @@ async fn authorize_agent_operation(
     subject: AuthenticatedSubject,
     operation: AgentOperation,
     started_at: Instant,
-) -> Result<AuthorizedAgentOperation, Response> {
+) -> Result<AuthorizedAgentOperation, Box<Response>> {
     let Some(profile_id) = admin_profile_id(profile) else {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND.into_response().into());
     };
     if agent_id.trim().is_empty() || agent_id.len() > 256 || agent_id.chars().any(char::is_control)
     {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND.into_response().into());
     }
     let metadata = BTreeMap::from([
         ("operation".to_owned(), operation.name().to_owned()),
@@ -295,8 +295,7 @@ async fn authorize_agent_operation(
             started_at,
         },
     )
-    .await
-    .map_err(|response| *response)?;
+    .await?;
     let target = AgentControlTarget {
         tenant_key: subject.authority.tenant.to_string(),
         work_context_key: subject.authority.work_context.to_string(),

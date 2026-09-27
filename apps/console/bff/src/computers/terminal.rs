@@ -27,14 +27,15 @@ pub(super) async fn upgrade(
     };
     let session = match api::upstream_session(&state, &headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let response_headers = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,
         Err(status) => return fault(status),
     };
     let mut response = match admitted(state, id, origin, &session.session.access_token, ws).await {
-        Ok(response) | Err(response) => response,
+        Ok(response) => response,
+        Err(response) => *response,
     };
     // WebSocket upgrades may carry the rotated cookie; the ticket is bound to its family.
     response.headers_mut().extend(response_headers);
@@ -47,7 +48,7 @@ async fn admitted(
     origin: HeaderValue,
     token: &str,
     ws: WebSocketUpgrade,
-) -> Result<Response, Response> {
+) -> Result<Response, Box<Response>> {
     let slot = state
         .computers
         .slots
@@ -61,7 +62,7 @@ async fn admitted(
         .map_err(|_| fault(StatusCode::SERVICE_UNAVAILABLE))?;
     let upstream = tokio::select! {
         biased;
-        _ = state.computers.stop.cancelled() => return Err(fault(StatusCode::SERVICE_UNAVAILABLE)),
+        _ = state.computers.stop.cancelled() => return Err(fault(StatusCode::SERVICE_UNAVAILABLE).into()),
         result = state.computers.client.connect(UpstreamRequest { url: state.config.computers_url(&format!("/{id}/terminal")), authorization, host: Some(host), origin }) => result.map_err(|_| fault(StatusCode::SERVICE_UNAVAILABLE))?,
     };
     Ok(ws

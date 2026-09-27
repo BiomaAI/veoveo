@@ -73,7 +73,7 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
 ) -> Response {
     let session = match api::upstream_session(state, headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let settled_headers = match api::response_session_headers(state, &session) {
         Ok(headers) => headers,

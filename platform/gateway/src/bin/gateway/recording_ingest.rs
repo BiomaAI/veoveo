@@ -313,7 +313,7 @@ async fn proxy_authorized(
     };
     let (subject, producer) = match authenticate(state, resource, headers, started_at).await {
         Ok(authenticated) => authenticated,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
         Ok(trace_id) => trace_id,
@@ -455,7 +455,7 @@ async fn authenticate(
     resource: &RecordingIngestResource,
     headers: &HeaderMap,
     started_at: Instant,
-) -> Result<(AuthenticatedSubject, RecordingProducerRegistration), Response> {
+) -> Result<(AuthenticatedSubject, RecordingProducerRegistration), Box<Response>> {
     let audit_target = AuthAuditTarget {
         profile: None,
         protected_resource: &resource.protected_resource,
@@ -473,7 +473,8 @@ async fn authenticate(
             StatusCode::SERVICE_UNAVAILABLE,
             "authorization server is unavailable",
         )
-        .await);
+        .await
+        .into());
     };
     let Some(raw_authorization) = headers
         .get(header::AUTHORIZATION)
@@ -487,7 +488,8 @@ async fn authenticate(
             StatusCode::UNAUTHORIZED,
             "bearer token is required",
         )
-        .await);
+        .await
+        .into());
     };
     let token = match BearerToken::from_authorization_header(raw_authorization) {
         Ok(token) => token,
@@ -500,7 +502,8 @@ async fn authenticate(
                 StatusCode::UNAUTHORIZED,
                 "bearer token is invalid",
             )
-            .await);
+            .await
+            .into());
         }
     };
     let jwks = match load_resource_authorization_jwks(
@@ -521,7 +524,8 @@ async fn authenticate(
                 StatusCode::SERVICE_UNAVAILABLE,
                 "authorization server is unavailable",
             )
-            .await);
+            .await
+            .into());
         }
     };
     let auth_config = match JwtAuthConfig::new(
@@ -531,7 +535,7 @@ async fn authenticate(
         allowed_gateway_jwt_algorithms(),
     ) {
         Ok(config) => config,
-        Err(error) => return Err(auth_audit_error_response(error.into())),
+        Err(error) => return Err(auth_audit_error_response(error.into()).into()),
     };
     let verified = match JwtVerifier::new(auth_config, jwks).verify(&token) {
         Ok(verified) => verified,
@@ -544,7 +548,8 @@ async fn authenticate(
                 StatusCode::UNAUTHORIZED,
                 "bearer token is invalid",
             )
-            .await);
+            .await
+            .into());
         }
     };
     if verified.principal.kind != PrincipalKind::Service {
@@ -556,7 +561,8 @@ async fn authenticate(
             StatusCode::FORBIDDEN,
             "recording ingest requires a service principal",
         )
-        .await);
+        .await
+        .into());
     }
     let catalog = current_catalog(&state.catalog);
     let Some(producer) =
@@ -570,7 +576,8 @@ async fn authenticate(
             StatusCode::FORBIDDEN,
             "OAuth client is not a registered recording producer",
         )
-        .await);
+        .await
+        .into());
     };
     let subject = match state
         .gateway_state
@@ -587,7 +594,8 @@ async fn authenticate(
                 StatusCode::FORBIDDEN,
                 "invocation authority is invalid",
             )
-            .await);
+            .await
+            .into());
         }
     };
     Ok((subject, producer.clone()))

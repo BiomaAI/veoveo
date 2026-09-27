@@ -125,17 +125,10 @@ impl Fixture {
                 root.join("chart/Chart.yaml"),
                 format!("apiVersion: v2\nname: {name}\nversion: 1.0.0\n"),
             )?;
-            let (registry, images) = if name == "platform" {
-                (
-                    ".Values.global.veoveoRegistry",
-                    ".Values.global.imageDigests",
-                )
-            } else {
-                (
-                    ".Values.global.veoveoRegistry",
-                    ".Values.global.imageDigests",
-                )
-            };
+            let (registry, images) = (
+                ".Values.global.veoveoRegistry",
+                ".Values.global.imageDigests",
+            );
             fs::write(
                 root.join("chart/templates/deployment.yaml"),
                 format!(

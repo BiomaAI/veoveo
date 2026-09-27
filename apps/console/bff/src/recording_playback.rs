@@ -120,7 +120,7 @@ pub(crate) async fn manifest(
     };
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let mut headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -180,7 +180,7 @@ pub(crate) async fn live_recording(
     };
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let session_headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -266,7 +266,7 @@ pub(crate) async fn blueprint(
     }
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let session_headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,
@@ -306,7 +306,7 @@ pub(crate) async fn projection(
     };
     let session = match upstream_session(&state, &request_headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let session_headers = match response_session_headers(&state, &session) {
         Ok(headers) => headers,

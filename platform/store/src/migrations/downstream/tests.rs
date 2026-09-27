@@ -33,12 +33,12 @@ fn dependencies_and_history_are_checked_before_execution() {
         applied_at: Utc::now(),
     };
     assert!(
-        history_status(&[item], &[row.clone()], Some(8))
+        history_status(&[item], std::slice::from_ref(&row), Some(8))
             .unwrap()
             .is_current()
     );
-    assert!(history_status(&[], &[row.clone()], Some(8)).is_err());
-    assert!(history_status(&[item], &[row.clone()], Some(7)).is_err());
+    assert!(history_status(&[], std::slice::from_ref(&row), Some(8)).is_err());
+    assert!(history_status(&[item], std::slice::from_ref(&row), Some(7)).is_err());
     assert!(history_status(&[item], &[row.clone(), row.clone()], Some(8)).is_err());
     let mut drift = row;
     drift.requires_upstream = 7;
@@ -61,7 +61,7 @@ fn malformed_identities_and_history_gaps_fail_closed() {
         applied_at: Utc::now(),
     };
     assert!(matches!(
-        history_status(&catalog, &[row.clone()], Some(0)),
+        history_status(&catalog, std::slice::from_ref(&row), Some(0)),
         Err(DownstreamMigrationError::HistoryGap { version: 0 })
     ));
     for version in [-1, i64::from(u32::MAX) + 1] {

@@ -168,7 +168,7 @@ pub(crate) async fn snapshot(
 ) -> Response {
     let headers = match authorize_cluster_inventory(&state, &request_headers).await {
         Ok(headers) => headers,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let Some(cluster) = &state.cluster else {
         return (headers, StatusCode::SERVICE_UNAVAILABLE).into_response();

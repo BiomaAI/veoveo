@@ -543,7 +543,7 @@ fn coverage_tracks(
                 .flat_map(|ring| scanline_intersections(ring, scan))
                 .collect::<Vec<_>>();
             intersections.sort_by(f64::total_cmp);
-            for pair in intersections.chunks_exact(2) {
+            for pair in intersections.as_chunks::<2>().0 {
                 if pair[1] - pair[0] <= 1.0e-9 {
                     continue;
                 }

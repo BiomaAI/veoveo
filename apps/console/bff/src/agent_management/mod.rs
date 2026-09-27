@@ -66,7 +66,7 @@ async fn forward<T: Serialize, R: DeserializeOwned + Serialize>(
     }
     let session = match api::upstream_session(state, headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let settled = match api::response_session_headers(state, &session) {
         Ok(headers) => headers,
@@ -293,7 +293,7 @@ mutation!(
 async fn events(State(state): State<AppState>, headers: HeaderMap) -> Response {
     let session = match api::upstream_session(&state, &headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let settled = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,

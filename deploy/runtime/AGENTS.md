@@ -13,6 +13,6 @@ namespace creation, node bootstrap, allocator releases, persistent claims, publi
 configuration, and Helm releases. A release-loop filter does not establish that boundary.
 
 The deployment smoke binary calls this library and owns scenario assertions and evidence.
-Run the library tests and the focused deployment smoke checks through the repository test
-recorder after changing this execution boundary. GPU runtime acceptance still requires
+Run the library tests and the focused deployment smoke checks with their native
+commands after changing this execution boundary. GPU runtime acceptance still requires
 hardware evidence under the repository instructions.

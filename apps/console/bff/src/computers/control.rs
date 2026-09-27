@@ -68,7 +68,7 @@ pub(super) async fn proxy(
     };
     let session = match api::upstream_session(&state, &parts.headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let response_headers = match api::response_session_headers(&state, &session) {
         Ok(headers) => headers,

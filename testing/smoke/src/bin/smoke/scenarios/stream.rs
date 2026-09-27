@@ -4,7 +4,7 @@ use std::process::{Child, Command, Stdio};
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use chrono::{TimeDelta, Utc};
 use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::VideoStream;

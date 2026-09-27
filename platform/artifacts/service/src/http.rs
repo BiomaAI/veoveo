@@ -730,7 +730,7 @@ pub(crate) mod tests {
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 
-    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
+    use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
     use chrono::{TimeDelta, Utc};
     use sha2::{Digest, Sha256};
     use veoveo_artifact_client::HttpArtifactPlane;

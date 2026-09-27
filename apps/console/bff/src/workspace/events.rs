@@ -38,7 +38,7 @@ pub(super) async fn events(
 pub(super) async fn forward(state: &AppState, headers: &HeaderMap, path: &str) -> Response {
     let session = match api::upstream_session(state, headers).await {
         Ok(session) => session,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     let settled = match api::response_session_headers(state, &session) {
         Ok(headers) => headers,

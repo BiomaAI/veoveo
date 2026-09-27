@@ -85,10 +85,10 @@ fn bearer(headers: &HeaderMap) -> Result<&str, &'static str> {
     bearer_from_name(headers, AUTHORIZATION)
 }
 
-fn bearer_from_name<'a>(
-    headers: &'a HeaderMap,
+fn bearer_from_name(
+    headers: &HeaderMap,
     name: impl axum::http::header::AsHeaderName,
-) -> Result<&'a str, &'static str> {
+) -> Result<&str, &'static str> {
     let header = headers
         .get(name)
         .and_then(|value| value.to_str().ok())

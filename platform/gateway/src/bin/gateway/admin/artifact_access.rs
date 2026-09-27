@@ -43,7 +43,7 @@ pub(crate) async fn create_artifact_access_request(
     .await
     {
         Ok(authorized) => authorized,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match plane
         .create_access_request(&caller, &artifact_id, request)
@@ -70,7 +70,7 @@ pub(crate) async fn list_artifact_access_requests(
     .await
     {
         Ok(authorized) => authorized,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match plane.list_access_requests(&caller, request).await {
         Ok(page) => Json(page).into_response(),
@@ -97,7 +97,7 @@ pub(crate) async fn decide_artifact_access_request(
     .await
     {
         Ok(authorized) => authorized,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match plane
         .decide_access_request(&caller, &request_id, decision)
@@ -126,7 +126,7 @@ pub(crate) async fn cancel_artifact_access_request(
     .await
     {
         Ok(authorized) => authorized,
-        Err(response) => return response,
+        Err(response) => return *response,
     };
     match plane.cancel_access_request(&caller, &request_id).await {
         Ok(cancelled) => Json(cancelled).into_response(),
@@ -140,9 +140,9 @@ async fn authorized_plane(
     subject: AuthenticatedSubject,
     action: GatewayAction,
     method: &str,
-) -> Result<(HttpArtifactPlane, PlaneCaller), Response> {
+) -> Result<(HttpArtifactPlane, PlaneCaller), Box<Response>> {
     let Some(profile_id) = admin_profile_id(profile) else {
-        return Err(StatusCode::NOT_FOUND.into_response());
+        return Err(StatusCode::NOT_FOUND.into_response().into());
     };
     let (_, _, subject) = authorize_admin_request(
         state,
@@ -153,8 +153,7 @@ async fn authorized_plane(
         BTreeMap::new(),
         Instant::now(),
     )
-    .await
-    .map_err(|response| *response)?;
+    .await?;
     let expires_at = std::cmp::min(
         subject.access_token.expires_at,
         Utc::now() + TimeDelta::seconds(INTERNAL_TOKEN_TTL_SECONDS),

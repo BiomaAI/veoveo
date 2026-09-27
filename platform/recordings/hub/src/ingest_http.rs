@@ -144,7 +144,7 @@ async fn open_stream(
     .await
     {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 
@@ -173,7 +173,7 @@ async fn stream_status(
     .await
     {
         Ok(stream) => protobuf_response(StatusCode::OK, &stream),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 
@@ -228,7 +228,7 @@ async fn append_batch(
     .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 
@@ -285,7 +285,7 @@ async fn publish_blueprint(
     .await
     {
         Ok(result) => protobuf_response(StatusCode::OK, &result),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 
@@ -352,18 +352,21 @@ async fn finish_stream(
                 stream: Some(stream),
             },
         ),
-        Err(response) => response,
+        Err(response) => response.into_response(),
     }
 }
 
 async fn bounded_service_operation<T>(
     operation: &'static str,
     future: impl Future<Output = anyhow::Result<T>>,
-) -> Result<T, Response> {
+) -> Result<T, HttpFailure> {
     bounded_service_operation_with_timeout(operation, STORAGE_OPERATION_TIMEOUT, future).await
 }
 
-async fn bounded_mutation_operation<T, F>(operation: &'static str, future: F) -> Result<T, Response>
+async fn bounded_mutation_operation<T, F>(
+    operation: &'static str,
+    future: F,
+) -> Result<T, HttpFailure>
 where
     T: Send + 'static,
     F: Future<Output = anyhow::Result<T>> + Send + 'static,
@@ -375,7 +378,7 @@ async fn bounded_mutation_operation_with_timeout<T, F>(
     operation: &'static str,
     timeout: Duration,
     future: F,
-) -> Result<T, Response>
+) -> Result<T, HttpFailure>
 where
     T: Send + 'static,
     F: Future<Output = anyhow::Result<T>> + Send + 'static,
@@ -383,12 +386,10 @@ where
     let mut task = tokio::spawn(future);
     match tokio::time::timeout(timeout, &mut task).await {
         Ok(Ok(Ok(value))) => Ok(value),
-        Ok(Ok(Err(error))) => Err(service_error(error)),
+        Ok(Ok(Err(error))) => Err(service_error(error).into()),
         Ok(Err(error)) => {
             tracing::warn!(operation, error = %error, "recording ingest mutation task failed");
-            Err(storage_unavailable_error(
-                "recording ingest storage operation failed",
-            ))
+            Err(storage_unavailable_error("recording ingest storage operation failed").into())
         }
         Err(_) => {
             tracing::warn!(
@@ -401,9 +402,7 @@ where
             // are coherent, while an idempotent producer retry receives a bounded
             // response and queues behind it.
             drop(task);
-            Err(storage_unavailable_error(
-                "recording ingest storage operation timed out",
-            ))
+            Err(storage_unavailable_error("recording ingest storage operation timed out").into())
         }
     }
 }
@@ -412,19 +411,17 @@ async fn bounded_service_operation_with_timeout<T>(
     operation: &'static str,
     timeout: Duration,
     future: impl Future<Output = anyhow::Result<T>>,
-) -> Result<T, Response> {
+) -> Result<T, HttpFailure> {
     match tokio::time::timeout(timeout, future).await {
         Ok(Ok(value)) => Ok(value),
-        Ok(Err(error)) => Err(service_error(error)),
+        Ok(Err(error)) => Err(service_error(error).into()),
         Err(_) => {
             tracing::warn!(
                 operation,
                 timeout_milliseconds = timeout.as_millis(),
                 "recording ingest storage operation timed out"
             );
-            Err(storage_unavailable_error(
-                "recording ingest storage operation timed out",
-            ))
+            Err(storage_unavailable_error("recording ingest storage operation timed out").into())
         }
     }
 }
@@ -734,7 +731,7 @@ mod tests {
         .await;
         let response = match result {
             Ok(()) => panic!("pending storage operation unexpectedly completed"),
-            Err(response) => response,
+            Err(response) => response.into_response(),
         };
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(
@@ -758,7 +755,7 @@ mod tests {
         .await;
         let response = match result {
             Ok(()) => panic!("slow mutation unexpectedly met its response deadline"),
-            Err(response) => response,
+            Err(response) => response.into_response(),
         };
 
         assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);

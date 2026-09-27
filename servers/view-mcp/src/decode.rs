@@ -242,6 +242,8 @@ fn convert_image(image: &gltf::image::Data) -> Result<CpuImage, DecodeError> {
     let pixel_count = (image.width as usize)
         .checked_mul(image.height as usize)
         .ok_or(DecodeError::ImageTooLarge)?;
+    // TODO(GPU): convert decoded image channels in a CUDA upload/conversion path
+    // instead of expanding each pixel on the CPU before uploading to the renderer.
     let mut rgba8 = Vec::with_capacity(pixel_count.saturating_mul(4));
     match image.format {
         Format::R8 => {
@@ -250,12 +252,12 @@ fn convert_image(image: &gltf::image::Data) -> Result<CpuImage, DecodeError> {
             }
         }
         Format::R8G8 => {
-            for pixel in image.pixels.chunks_exact(2) {
+            for pixel in image.pixels.as_chunks::<2>().0 {
                 rgba8.extend_from_slice(&[pixel[0], pixel[0], pixel[0], pixel[1]]);
             }
         }
         Format::R8G8B8 => {
-            for pixel in image.pixels.chunks_exact(3) {
+            for pixel in image.pixels.as_chunks::<3>().0 {
                 rgba8.extend_from_slice(&[pixel[0], pixel[1], pixel[2], 255]);
             }
         }
@@ -270,8 +272,10 @@ fn convert_image(image: &gltf::image::Data) -> Result<CpuImage, DecodeError> {
 }
 
 fn calculate_normals(positions: &[[f32; 3]], indices: &[u32]) -> Vec<[f32; 3]> {
+    // TODO(GPU): generate missing mesh normals in a GPU compute pass and keep the
+    // resulting attributes resident for the renderer.
     let mut normals = vec![glam::Vec3::ZERO; positions.len()];
-    for triangle in indices.chunks_exact(3) {
+    for triangle in indices.as_chunks::<3>().0 {
         let [a, b, c] = [
             triangle[0] as usize,
             triangle[1] as usize,
