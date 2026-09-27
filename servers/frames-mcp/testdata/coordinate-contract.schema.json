@@ -1,0 +1,3994 @@
+{
+  "CoordinateOperationId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinateOperationId",
+    "description": "Durable id for one coordinate transform, projection, geodesic, or validation operation.",
+    "type": "string"
+  },
+  "CoordinateOperationKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinateOperationKind",
+    "type": "string",
+    "enum": [
+      "frame_conversion",
+      "crs_transform",
+      "local_frame_derivation",
+      "geodesic_inverse",
+      "geodesic_direct",
+      "geofence_validation",
+      "batch"
+    ]
+  },
+  "CoordinateOperationProvenance": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinateOperationProvenance",
+    "type": "object",
+    "properties": {
+      "operation": {
+        "$ref": "#/$defs/CoordinateOperationRef"
+      },
+      "kind": {
+        "$ref": "#/$defs/CoordinateOperationKind"
+      },
+      "source_crs": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CrsId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "target_crs": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CrsId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "engine": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "grid_packages": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "approximation_used": {
+        "type": "boolean",
+        "default": false
+      },
+      "accuracy_m": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "double"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "operation",
+      "kind"
+    ],
+    "$defs": {
+      "CoordinateOperationRef": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "$ref": "#/$defs/CoordinateOperationId"
+          },
+          "operation_uri": {
+            "type": "string"
+          },
+          "source_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "operation_id",
+          "operation_uri",
+          "created_at"
+        ]
+      },
+      "CoordinateOperationId": {
+        "description": "Durable id for one coordinate transform, projection, geodesic, or validation operation.",
+        "type": "string"
+      },
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "CoordinateOperationKind": {
+        "type": "string",
+        "enum": [
+          "frame_conversion",
+          "crs_transform",
+          "local_frame_derivation",
+          "geodesic_inverse",
+          "geodesic_direct",
+          "geofence_validation",
+          "batch"
+        ]
+      },
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      }
+    }
+  },
+  "CoordinateOperationRef": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinateOperationRef",
+    "type": "object",
+    "properties": {
+      "operation_id": {
+        "$ref": "#/$defs/CoordinateOperationId"
+      },
+      "operation_uri": {
+        "type": "string"
+      },
+      "source_frame": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CoordinateSpace"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "target_frame": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CoordinateSpace"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "required": [
+      "operation_id",
+      "operation_uri",
+      "created_at"
+    ],
+    "$defs": {
+      "CoordinateOperationId": {
+        "description": "Durable id for one coordinate transform, projection, geodesic, or validation operation.",
+        "type": "string"
+      },
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    }
+  },
+  "CoordinateSpace": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinateSpace",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "wgs84"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "ecef_wgs84"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "kind": {
+            "type": "string",
+            "const": "world_frame"
+          }
+        },
+        "required": [
+          "kind",
+          "frame_uri"
+        ]
+      }
+    ],
+    "$defs": {
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    }
+  },
+  "FrameAxes": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameAxes",
+    "type": "object",
+    "properties": {
+      "x": {
+        "$ref": "#/$defs/FrameAxisDirection"
+      },
+      "y": {
+        "$ref": "#/$defs/FrameAxisDirection"
+      },
+      "z": {
+        "$ref": "#/$defs/FrameAxisDirection"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "x",
+      "y",
+      "z"
+    ],
+    "$defs": {
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      }
+    }
+  },
+  "FrameAxisDirection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameAxisDirection",
+    "type": "string",
+    "enum": [
+      "right",
+      "left",
+      "up",
+      "down",
+      "forward",
+      "back"
+    ]
+  },
+  "FrameBasis": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameBasis",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "ecef_wgs84"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "enu"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "ned"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "frd"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "optical_rdf"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "axes": {
+            "$ref": "#/$defs/FrameAxes"
+          },
+          "kind": {
+            "type": "string",
+            "const": "cartesian"
+          }
+        },
+        "required": [
+          "kind",
+          "axes"
+        ]
+      }
+    ],
+    "$defs": {
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      }
+    }
+  },
+  "FrameId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameId",
+    "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+    "type": "string"
+  },
+  "FrameNode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameNode",
+    "type": "object",
+    "properties": {
+      "frame_id": {
+        "$ref": "#/$defs/FrameId"
+      },
+      "basis": {
+        "$ref": "#/$defs/FrameBasis"
+      },
+      "parent_frame_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FrameId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "parent_transform": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FrameParentTransform"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "frame_id",
+      "basis"
+    ],
+    "$defs": {
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "enu"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ned"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "frd"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "optical_rdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "type": "string",
+                "const": "cartesian"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ]
+          }
+        ]
+      },
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              },
+              "kind": {
+                "type": "string",
+                "const": "geodetic_tangent"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translation_m": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "rotation_xyzw": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "kind": {
+                "type": "string",
+                "const": "static_rigid"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stream_uri": {
+                "type": "string"
+              },
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "dynamic_stream"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ]
+          }
+        ]
+      },
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "FrameParentTransform": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameParentTransform",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "kind": {
+            "type": "string",
+            "const": "geodetic_tangent"
+          }
+        },
+        "required": [
+          "kind",
+          "origin"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "translation_m": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "rotation_xyzw": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "format": "double"
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "kind": {
+            "type": "string",
+            "const": "static_rigid"
+          }
+        },
+        "required": [
+          "kind",
+          "translation_m",
+          "rotation_xyzw"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "stream_uri": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "dynamic_stream"
+          }
+        },
+        "required": [
+          "kind",
+          "stream_uri",
+          "entity_path"
+        ]
+      }
+    ],
+    "$defs": {
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "FrameWorldId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldId",
+    "description": "Stable identity of one authored coordinate-frame world.",
+    "type": "string"
+  },
+  "FrameWorldRevision": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldRevision",
+    "type": "object",
+    "properties": {
+      "world_id": {
+        "$ref": "#/$defs/FrameWorldId"
+      },
+      "world_uri": {
+        "$ref": "#/$defs/FrameWorldUri"
+      },
+      "revision_id": {
+        "$ref": "#/$defs/FrameWorldRevisionId"
+      },
+      "revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "revision": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "spec_digest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
+      "root_frame_uri": {
+        "$ref": "#/$defs/WorldFrameUri"
+      },
+      "tree": {
+        "$ref": "#/$defs/FrameWorldTree"
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world_id",
+      "world_uri",
+      "revision_id",
+      "revision_uri",
+      "revision",
+      "spec_digest",
+      "root_frame_uri",
+      "tree",
+      "created_at"
+    ],
+    "$defs": {
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "FrameWorldTree": {
+        "type": "object",
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FrameNode"
+            },
+            "minItems": 1,
+            "maxItems": 10000
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frames"
+        ]
+      },
+      "FrameNode": {
+        "type": "object",
+        "properties": {
+          "frame_id": {
+            "$ref": "#/$defs/FrameId"
+          },
+          "basis": {
+            "$ref": "#/$defs/FrameBasis"
+          },
+          "parent_frame_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_transform": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameParentTransform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frame_id",
+          "basis"
+        ]
+      },
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "enu"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ned"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "frd"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "optical_rdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "type": "string",
+                "const": "cartesian"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ]
+          }
+        ]
+      },
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              },
+              "kind": {
+                "type": "string",
+                "const": "geodetic_tangent"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translation_m": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "rotation_xyzw": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "kind": {
+                "type": "string",
+                "const": "static_rigid"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stream_uri": {
+                "type": "string"
+              },
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "dynamic_stream"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ]
+          }
+        ]
+      },
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "FrameWorldRevisionId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldRevisionId",
+    "description": "Immutable identity of one complete coordinate-frame world revision.",
+    "type": "string"
+  },
+  "FrameWorldRevisionUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldRevisionUri",
+    "type": "string"
+  },
+  "FrameWorldTree": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldTree",
+    "type": "object",
+    "properties": {
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/FrameNode"
+        },
+        "minItems": 1,
+        "maxItems": 10000
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "frames"
+    ],
+    "$defs": {
+      "FrameNode": {
+        "type": "object",
+        "properties": {
+          "frame_id": {
+            "$ref": "#/$defs/FrameId"
+          },
+          "basis": {
+            "$ref": "#/$defs/FrameBasis"
+          },
+          "parent_frame_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_transform": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameParentTransform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frame_id",
+          "basis"
+        ]
+      },
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "enu"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ned"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "frd"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "optical_rdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "type": "string",
+                "const": "cartesian"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ]
+          }
+        ]
+      },
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              },
+              "kind": {
+                "type": "string",
+                "const": "geodetic_tangent"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translation_m": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "rotation_xyzw": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "kind": {
+                "type": "string",
+                "const": "static_rigid"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stream_uri": {
+                "type": "string"
+              },
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "dynamic_stream"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ]
+          }
+        ]
+      },
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "FrameWorldUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldUri",
+    "type": "string"
+  },
+  "Wgs84Position": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Wgs84Position",
+    "type": "object",
+    "properties": {
+      "latitude_degrees": {
+        "type": "number",
+        "format": "double",
+        "minimum": -90.0,
+        "maximum": 90.0
+      },
+      "longitude_degrees": {
+        "type": "number",
+        "format": "double",
+        "minimum": -180.0,
+        "maximum": 180.0
+      },
+      "ellipsoid_height_m": {
+        "type": "number",
+        "format": "double"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "latitude_degrees",
+      "longitude_degrees",
+      "ellipsoid_height_m"
+    ]
+  },
+  "WorldFrameUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "WorldFrameUri",
+    "type": "string"
+  },
+  "EcefPosition": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "EcefPosition",
+    "type": "object",
+    "properties": {
+      "x_m": {
+        "type": "number",
+        "format": "double"
+      },
+      "y_m": {
+        "type": "number",
+        "format": "double"
+      },
+      "z_m": {
+        "type": "number",
+        "format": "double"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "x_m",
+      "y_m",
+      "z_m"
+    ]
+  },
+  "WorldFramePosition": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "WorldFramePosition",
+    "type": "object",
+    "properties": {
+      "frame_uri": {
+        "$ref": "#/$defs/WorldFrameUri"
+      },
+      "x_m": {
+        "type": "number",
+        "format": "double"
+      },
+      "y_m": {
+        "type": "number",
+        "format": "double"
+      },
+      "z_m": {
+        "type": "number",
+        "format": "double"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "frame_uri",
+      "x_m",
+      "y_m",
+      "z_m"
+    ],
+    "$defs": {
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    }
+  },
+  "CoordinatePoint": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CoordinatePoint",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "kind": {
+            "type": "string",
+            "const": "wgs84"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "x_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "y_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "z_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "kind": {
+            "type": "string",
+            "const": "ecef_wgs84"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "x_m",
+          "y_m",
+          "z_m"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "x_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "y_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "z_m": {
+            "type": "number",
+            "format": "double"
+          },
+          "kind": {
+            "type": "string",
+            "const": "world_frame"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "frame_uri",
+          "x_m",
+          "y_m",
+          "z_m"
+        ]
+      }
+    ],
+    "$defs": {
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    }
+  },
+  "ConvertFrameRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConvertFrameRequest",
+    "type": "object",
+    "properties": {
+      "target": {
+        "$ref": "#/$defs/CoordinateSpace"
+      },
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/CoordinatePoint"
+        },
+        "minItems": 1,
+        "maxItems": 10000
+      },
+      "allow_approximation": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "target",
+      "points"
+    ],
+    "$defs": {
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "CoordinatePoint": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "latitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -90.0,
+                "maximum": 90.0
+              },
+              "longitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -180.0,
+                "maximum": 180.0
+              },
+              "ellipsoid_height_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "latitude_degrees",
+              "longitude_degrees",
+              "ellipsoid_height_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "frame_uri",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "ConvertFrameOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConvertFrameOutput",
+    "type": "object",
+    "properties": {
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/CoordinatePoint"
+        }
+      },
+      "provenance": {
+        "$ref": "#/$defs/CoordinateOperationProvenance"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/FrameSourceReference"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "points",
+      "provenance",
+      "sources"
+    ],
+    "$defs": {
+      "CoordinatePoint": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "latitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -90.0,
+                "maximum": 90.0
+              },
+              "longitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -180.0,
+                "maximum": 180.0
+              },
+              "ellipsoid_height_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "latitude_degrees",
+              "longitude_degrees",
+              "ellipsoid_height_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "frame_uri",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "CoordinateOperationProvenance": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "$ref": "#/$defs/CoordinateOperationRef"
+          },
+          "kind": {
+            "$ref": "#/$defs/CoordinateOperationKind"
+          },
+          "source_crs": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrsId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_crs": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrsId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grid_packages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approximation_used": {
+            "type": "boolean",
+            "default": false
+          },
+          "accuracy_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "operation",
+          "kind"
+        ]
+      },
+      "CoordinateOperationRef": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "$ref": "#/$defs/CoordinateOperationId"
+          },
+          "operation_uri": {
+            "type": "string"
+          },
+          "source_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "operation_id",
+          "operation_uri",
+          "created_at"
+        ]
+      },
+      "CoordinateOperationId": {
+        "description": "Durable id for one coordinate transform, projection, geodesic, or validation operation.",
+        "type": "string"
+      },
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "CoordinateOperationKind": {
+        "type": "string",
+        "enum": [
+          "frame_conversion",
+          "crs_transform",
+          "local_frame_derivation",
+          "geodesic_inverse",
+          "geodesic_direct",
+          "geofence_validation",
+          "batch"
+        ]
+      },
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      },
+      "FrameSourceReference": {
+        "type": "object",
+        "properties": {
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "revision_id": {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "revision_uri",
+          "revision_id",
+          "digest"
+        ]
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      }
+    }
+  },
+  "FrameSourceReference": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameSourceReference",
+    "type": "object",
+    "properties": {
+      "revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "revision_id": {
+        "$ref": "#/$defs/FrameWorldRevisionId"
+      },
+      "digest": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "revision_uri",
+      "revision_id",
+      "digest"
+    ],
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      }
+    }
+  },
+  "CreateWorldRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CreateWorldRequest",
+    "type": "object",
+    "properties": {
+      "world_id": {
+        "$ref": "#/$defs/FrameWorldId"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world_id",
+      "display_name"
+    ],
+    "$defs": {
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      }
+    }
+  },
+  "FrameWorldSummary": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameWorldSummary",
+    "type": "object",
+    "properties": {
+      "world_id": {
+        "$ref": "#/$defs/FrameWorldId"
+      },
+      "world_uri": {
+        "$ref": "#/$defs/FrameWorldUri"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "head_revision_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "revision": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "created_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "updated_at": {
+        "type": "string",
+        "format": "date-time"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world_id",
+      "world_uri",
+      "display_name",
+      "revision",
+      "created_at",
+      "updated_at"
+    ],
+    "$defs": {
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      }
+    }
+  },
+  "CreateWorldOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CreateWorldOutput",
+    "type": "object",
+    "properties": {
+      "world": {
+        "$ref": "#/$defs/FrameWorldSummary"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world"
+    ],
+    "$defs": {
+      "FrameWorldSummary": {
+        "type": "object",
+        "properties": {
+          "world_id": {
+            "$ref": "#/$defs/FrameWorldId"
+          },
+          "world_uri": {
+            "$ref": "#/$defs/FrameWorldUri"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "head_revision_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameWorldRevisionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "world_id",
+          "world_uri",
+          "display_name",
+          "revision",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      }
+    }
+  },
+  "PublishWorldRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PublishWorldRequest",
+    "type": "object",
+    "properties": {
+      "world_id": {
+        "$ref": "#/$defs/FrameWorldId"
+      },
+      "expected_head_revision_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "tree": {
+        "$ref": "#/$defs/FrameWorldTree"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world_id",
+      "tree"
+    ],
+    "$defs": {
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      },
+      "FrameWorldTree": {
+        "type": "object",
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FrameNode"
+            },
+            "minItems": 1,
+            "maxItems": 10000
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frames"
+        ]
+      },
+      "FrameNode": {
+        "type": "object",
+        "properties": {
+          "frame_id": {
+            "$ref": "#/$defs/FrameId"
+          },
+          "basis": {
+            "$ref": "#/$defs/FrameBasis"
+          },
+          "parent_frame_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_transform": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameParentTransform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frame_id",
+          "basis"
+        ]
+      },
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "enu"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ned"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "frd"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "optical_rdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "type": "string",
+                "const": "cartesian"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ]
+          }
+        ]
+      },
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              },
+              "kind": {
+                "type": "string",
+                "const": "geodetic_tangent"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translation_m": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "rotation_xyzw": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "kind": {
+                "type": "string",
+                "const": "static_rigid"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stream_uri": {
+                "type": "string"
+              },
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "dynamic_stream"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ]
+          }
+        ]
+      },
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "PublishWorldOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PublishWorldOutput",
+    "type": "object",
+    "properties": {
+      "world": {
+        "$ref": "#/$defs/FrameWorldSummary"
+      },
+      "revision": {
+        "$ref": "#/$defs/FrameWorldRevision"
+      },
+      "created": {
+        "type": "boolean"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "world",
+      "revision",
+      "created"
+    ],
+    "$defs": {
+      "FrameWorldSummary": {
+        "type": "object",
+        "properties": {
+          "world_id": {
+            "$ref": "#/$defs/FrameWorldId"
+          },
+          "world_uri": {
+            "$ref": "#/$defs/FrameWorldUri"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "head_revision_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameWorldRevisionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "world_id",
+          "world_uri",
+          "display_name",
+          "revision",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      },
+      "FrameWorldRevision": {
+        "type": "object",
+        "properties": {
+          "world_id": {
+            "$ref": "#/$defs/FrameWorldId"
+          },
+          "world_uri": {
+            "$ref": "#/$defs/FrameWorldUri"
+          },
+          "revision_id": {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "spec_digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "root_frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "tree": {
+            "$ref": "#/$defs/FrameWorldTree"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "world_id",
+          "world_uri",
+          "revision_id",
+          "revision_uri",
+          "revision",
+          "spec_digest",
+          "root_frame_uri",
+          "tree",
+          "created_at"
+        ]
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "FrameWorldTree": {
+        "type": "object",
+        "properties": {
+          "frames": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FrameNode"
+            },
+            "minItems": 1,
+            "maxItems": 10000
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frames"
+        ]
+      },
+      "FrameNode": {
+        "type": "object",
+        "properties": {
+          "frame_id": {
+            "$ref": "#/$defs/FrameId"
+          },
+          "basis": {
+            "$ref": "#/$defs/FrameBasis"
+          },
+          "parent_frame_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_transform": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameParentTransform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "frame_id",
+          "basis"
+        ]
+      },
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "enu"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ned"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "frd"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "optical_rdf"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "type": "string",
+                "const": "cartesian"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ]
+          }
+        ]
+      },
+      "FrameAxes": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "FrameAxisDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              },
+              "kind": {
+                "type": "string",
+                "const": "geodetic_tangent"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "translation_m": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 3,
+                "maxItems": 3
+              },
+              "rotation_xyzw": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 4,
+                "maxItems": 4
+              },
+              "kind": {
+                "type": "string",
+                "const": "static_rigid"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "stream_uri": {
+                "type": "string"
+              },
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "dynamic_stream"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ]
+          }
+        ]
+      },
+      "Wgs84Position": {
+        "type": "object",
+        "properties": {
+          "latitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -90.0,
+            "maximum": 90.0
+          },
+          "longitude_degrees": {
+            "type": "number",
+            "format": "double",
+            "minimum": -180.0,
+            "maximum": 180.0
+          },
+          "ellipsoid_height_m": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ]
+      }
+    }
+  },
+  "BatchTransformRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "BatchTransformRequest",
+    "type": "object",
+    "properties": {
+      "convert": {
+        "$ref": "#/$defs/ConvertFrameRequest"
+      },
+      "artifact": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "convert"
+    ],
+    "$defs": {
+      "ConvertFrameRequest": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "$ref": "#/$defs/CoordinateSpace"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CoordinatePoint"
+            },
+            "minItems": 1,
+            "maxItems": 10000
+          },
+          "allow_approximation": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "target",
+          "points"
+        ]
+      },
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "CoordinatePoint": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "latitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -90.0,
+                "maximum": 90.0
+              },
+              "longitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -180.0,
+                "maximum": 180.0
+              },
+              "ellipsoid_height_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "latitude_degrees",
+              "longitude_degrees",
+              "ellipsoid_height_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "frame_uri",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "BatchTransformOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "BatchTransformOutput",
+    "type": "object",
+    "properties": {
+      "result": {
+        "$ref": "#/$defs/ConvertFrameOutput"
+      },
+      "artifact": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "result"
+    ],
+    "$defs": {
+      "ConvertFrameOutput": {
+        "type": "object",
+        "properties": {
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/CoordinatePoint"
+            }
+          },
+          "provenance": {
+            "$ref": "#/$defs/CoordinateOperationProvenance"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/FrameSourceReference"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "points",
+          "provenance",
+          "sources"
+        ]
+      },
+      "CoordinatePoint": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "latitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -90.0,
+                "maximum": 90.0
+              },
+              "longitude_degrees": {
+                "type": "number",
+                "format": "double",
+                "minimum": -180.0,
+                "maximum": 180.0
+              },
+              "ellipsoid_height_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "latitude_degrees",
+              "longitude_degrees",
+              "ellipsoid_height_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "x_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "y_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "z_m": {
+                "type": "number",
+                "format": "double"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "frame_uri",
+              "x_m",
+              "y_m",
+              "z_m"
+            ]
+          }
+        ]
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      },
+      "CoordinateOperationProvenance": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "$ref": "#/$defs/CoordinateOperationRef"
+          },
+          "kind": {
+            "$ref": "#/$defs/CoordinateOperationKind"
+          },
+          "source_crs": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrsId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_crs": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CrsId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "engine": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "grid_packages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "approximation_used": {
+            "type": "boolean",
+            "default": false
+          },
+          "accuracy_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "operation",
+          "kind"
+        ]
+      },
+      "CoordinateOperationRef": {
+        "type": "object",
+        "properties": {
+          "operation_id": {
+            "$ref": "#/$defs/CoordinateOperationId"
+          },
+          "operation_uri": {
+            "type": "string"
+          },
+          "source_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_frame": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CoordinateSpace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "operation_id",
+          "operation_uri",
+          "created_at"
+        ]
+      },
+      "CoordinateOperationId": {
+        "description": "Durable id for one coordinate transform, projection, geodesic, or validation operation.",
+        "type": "string"
+      },
+      "CoordinateSpace": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "ecef_wgs84"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "frame_uri": {
+                "$ref": "#/$defs/WorldFrameUri"
+              },
+              "kind": {
+                "type": "string",
+                "const": "world_frame"
+              }
+            },
+            "required": [
+              "kind",
+              "frame_uri"
+            ]
+          }
+        ]
+      },
+      "CoordinateOperationKind": {
+        "type": "string",
+        "enum": [
+          "frame_conversion",
+          "crs_transform",
+          "local_frame_derivation",
+          "geodesic_inverse",
+          "geodesic_direct",
+          "geofence_validation",
+          "batch"
+        ]
+      },
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      },
+      "FrameSourceReference": {
+        "type": "object",
+        "properties": {
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "revision_id": {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "revision_uri",
+          "revision_id",
+          "digest"
+        ]
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  }
+}

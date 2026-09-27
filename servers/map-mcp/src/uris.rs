@@ -190,9 +190,17 @@ pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
 }
 
 pub fn parse_artifact(uri: &str) -> Option<veoveo_artifact_contract::ArtifactId> {
-    veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone()).parse_artifact_uri(uri)
+    let address = veoveo_artifact_contract::ArtifactUri::parse(uri).ok()?;
+    match address.address() {
+        veoveo_artifact_contract::ArtifactAddress::Presented {
+            scheme,
+            artifact_id,
+        } if scheme == &*SCHEME => Some(*artifact_id),
+        _ => None,
+    }
 }
 
+#[cfg(feature = "mcp")]
 pub fn parse_doc(uri: &str) -> Option<&str> {
     veoveo_mcp_contract::parse_server_doc_uri("map", uri)
 }
@@ -436,6 +444,7 @@ fn parse_datetime_interval(value: &str) -> Result<crate::contract::FeatureTime, 
 mod tests {
     use super::*;
 
+    #[cfg(feature = "mcp")]
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
         let conventions = veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone());

@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
+use veoveo_frames_mcp::contract::{CoordinateOperationId, CoordinateSpace, WorldFrameUri};
 use veoveo_frames_mcp::{
     artifacts::ArtifactRepository,
     contract::{
@@ -49,10 +50,10 @@ use veoveo_frames_mcp::{
     uris,
 };
 use veoveo_mcp_contract::{
-    CoordinateOperationId, CoordinateSpace, GATEWAY_INTERNAL_TOKEN_ISSUER,
-    GatewayInternalTokenVerifier, GatewayInternalTrustBundle, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, Page, ServerSlug, TelemetryGuard, TokenIssuer, UsageReport,
-    WorldFrameUri, docs::ServerDocs, init_server_telemetry, paginate, public_allowed_hosts,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
+    TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, DurableTaskService, RecoveryClass, TaskError, TaskFailure,
@@ -260,7 +261,7 @@ fn invalid_params(err: impl std::fmt::Display) -> McpError {
 async fn record_direct_operation(
     state: &AppState,
     scope: &FrameScope,
-    provenance: &veoveo_mcp_contract::CoordinateOperationProvenance,
+    provenance: &veoveo_frames_mcp::contract::CoordinateOperationProvenance,
 ) -> Result<(), McpError> {
     state
         .frames
@@ -1372,7 +1373,7 @@ mod task_tests {
         let request = ConvertFrameRequest {
             target: CoordinateSpace::EcefWgs84,
             points: vec![veoveo_frames_mcp::contract::CoordinatePoint::Wgs84(
-                veoveo_mcp_contract::Wgs84Position {
+                veoveo_frames_mcp::contract::Wgs84Position {
                     latitude_degrees: 37.421_999_9,
                     longitude_degrees: -122.084_057_5,
                     ellipsoid_height_m: 10.0,

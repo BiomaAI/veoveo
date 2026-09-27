@@ -161,7 +161,6 @@ async fn serve(args: Args) -> Result<()> {
         },
     )?;
     let state = Arc::new(MapApplication {
-        workspace_app,
         workspace_basemap,
         tasks,
         catalog: catalog.clone(),
@@ -194,7 +193,7 @@ async fn serve(args: Args) -> Result<()> {
     let mcp_service = StreamableHttpService::new(
         {
             let state = state.clone();
-            move || Ok(MapMcp::new(state.clone()))
+            move || Ok(MapMcp::new(state.clone(), workspace_app.clone()))
         },
         veoveo_mcp_contract::stateless_session_manager(),
         veoveo_mcp_contract::canonical_streamable_http_server_config()

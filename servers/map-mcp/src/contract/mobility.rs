@@ -748,7 +748,7 @@ mod tests {
             profile_id: MobilityProfileId::new(),
             name: "pedestrian".to_owned(),
             version: 1,
-            valid_from: Utc::now(),
+            valid_from: "2026-01-01T00:00:00Z".parse().unwrap(),
             valid_until: None,
             labels: BTreeSet::new(),
         }

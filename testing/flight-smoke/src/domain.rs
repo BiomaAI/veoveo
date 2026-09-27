@@ -14,10 +14,12 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::{ffi::OsString, fs, path::Path, time::Duration};
 use tokio::sync::oneshot;
-use veoveo_mcp_contract::{
+use veoveo_frames_mcp::contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
-    FrameWorldTree, LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle,
-    LiveStreamProductState, Wgs84Position,
+    FrameWorldTree, Wgs84Position,
+};
+use veoveo_mcp_contract::{
+    LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState,
 };
 
 mod artifacts;

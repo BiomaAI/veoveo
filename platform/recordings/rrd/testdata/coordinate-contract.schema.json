@@ -1,0 +1,293 @@
+{
+  "FrameKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameKind",
+    "type": "string",
+    "enum": [
+      "wgs84",
+      "ecef",
+      "enu",
+      "ned",
+      "frd",
+      "projected_crs",
+      "simulation_world",
+      "custom"
+    ]
+  },
+  "GeofenceId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GeofenceId",
+    "description": "Geofence identity used by validation and plans.",
+    "type": "string"
+  },
+  "GeofenceRule": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GeofenceRule",
+    "type": "string",
+    "enum": [
+      "must_stay_inside",
+      "must_stay_outside"
+    ]
+  },
+  "RrdFrameDefinition": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RrdFrameDefinition",
+    "type": "object",
+    "properties": {
+      "frame_id": {
+        "$ref": "#/$defs/RrdFrameId"
+      },
+      "kind": {
+        "$ref": "#/$defs/FrameKind"
+      },
+      "view_coordinates": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RrdViewCoordinates"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "parent": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RrdFrameId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "origin": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RrdGeoPoint"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "crs": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CrsId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "datum": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DatumId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "ellipsoid": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/EllipsoidId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "epoch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "description": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "metadata": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "required": [
+      "frame_id",
+      "kind"
+    ],
+    "$defs": {
+      "RrdFrameId": {
+        "description": "Rerun transform frame id. Entity-derived ids use Rerun's `tf#/path` convention.",
+        "type": "string"
+      },
+      "FrameKind": {
+        "type": "string",
+        "enum": [
+          "wgs84",
+          "ecef",
+          "enu",
+          "ned",
+          "frd",
+          "projected_crs",
+          "simulation_world",
+          "custom"
+        ]
+      },
+      "RrdViewCoordinates": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/RrdViewDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/RrdViewDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/RrdViewDirection"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ]
+      },
+      "RrdViewDirection": {
+        "type": "string",
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ]
+      },
+      "RrdGeoPoint": {
+        "type": "object",
+        "properties": {
+          "latitude_deg": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude_deg": {
+            "type": "number",
+            "format": "double"
+          },
+          "height_m": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "double"
+          }
+        },
+        "required": [
+          "latitude_deg",
+          "longitude_deg"
+        ]
+      },
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      },
+      "DatumId": {
+        "description": "Geodetic datum id used by a CRS or coordinate operation.",
+        "type": "string"
+      },
+      "EllipsoidId": {
+        "description": "Reference ellipsoid id, such as WGS84 or GRS80.",
+        "type": "string"
+      }
+    }
+  },
+  "RrdGeofenceGeometry": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RrdGeofenceGeometry",
+    "type": "object",
+    "properties": {
+      "geofence_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/GeofenceId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "rule": {
+        "$ref": "#/$defs/GeofenceRule"
+      },
+      "polygon": {
+        "$ref": "#/$defs/RrdLocalPolygon2"
+      }
+    },
+    "required": [
+      "rule",
+      "polygon"
+    ],
+    "$defs": {
+      "GeofenceId": {
+        "description": "Geofence identity used by validation and plans.",
+        "type": "string"
+      },
+      "GeofenceRule": {
+        "type": "string",
+        "enum": [
+          "must_stay_inside",
+          "must_stay_outside"
+        ]
+      },
+      "RrdLocalPolygon2": {
+        "type": "object",
+        "properties": {
+          "frame_id": {
+            "$ref": "#/$defs/RrdFrameId"
+          },
+          "exterior": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "holes": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        },
+        "required": [
+          "frame_id",
+          "exterior"
+        ]
+      },
+      "RrdFrameId": {
+        "description": "Rerun transform frame id. Entity-derived ids use Rerun's `tf#/path` convention.",
+        "type": "string"
+      }
+    }
+  }
+}

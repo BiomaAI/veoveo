@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, anyhow, bail};
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::FrameParentTransform;
+use veoveo_frames_mcp::contract::FrameParentTransform;
 
 use crate::contract::{ConfigureWorldRequest, SimulationWorldBinding, Wgs84Position};
 
@@ -67,7 +67,7 @@ pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldB
 mod tests {
     use super::*;
     use chrono::Utc;
-    use veoveo_mcp_contract::{
+    use veoveo_frames_mcp::contract::{
         FrameAxes, FrameBasis, FrameId, FrameNode, FrameWorldId, FrameWorldRevision,
         FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, WorldFrameUri,
     };

@@ -366,7 +366,7 @@ pub struct FrameRecord {
     pub style_id: SceneStyleId,
     pub governed_inputs: Vec<GovernedSceneInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame_world_revision: Option<veoveo_mcp_contract::FrameWorldRevisionUri>,
+    pub frame_world_revision: Option<veoveo_frames_mcp::contract::FrameWorldRevisionUri>,
     pub scene_layer: LayerId,
     pub captured_at: DateTime<Utc>,
     pub scene_time: DateTime<Utc>,

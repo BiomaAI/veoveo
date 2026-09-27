@@ -1,6 +1,12 @@
+#[cfg(feature = "runtime")]
 pub mod artifacts;
+#[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "runtime")]
 pub mod engine;
+#[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "runtime")]
 pub mod uris;
+#[cfg(feature = "runtime")]
 pub mod world;

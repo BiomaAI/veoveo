@@ -122,8 +122,16 @@ and retained-data handling. These types confer no access to bytes or parent reco
 Retained Map documents must also pass their domain validators before an upgrade;
 these enforce the neutral-only rule beyond the shared Artifact address profile.
 
-Map's library still depends on the server runtime. Contract-only feature isolation,
-remaining resource families, and typed Store query keys are work in the
+The library exposes `contract`, `runtime`, and `mcp` features. Cross-server consumers
+use `default-features = false, features = ["contract"]`. This builds the public model,
+including CRS, datum, and ellipsoid IDs, without MCP, database, GPU, network client,
+or async runtime dependencies. Geometry validation uses the workspace's geo 0.32.0
+profile with default features disabled. Chrono supplies date/time values without its
+clock feature; UUID supplies the existing generated and stable ID profiles.
+The runtime owns engines and persistence. The MCP adapter owns App HTML and hosted
+protocol wiring; the default `mcp` feature includes the runtime.
+
+Remaining resource families and typed Store query keys are work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 The MCP adapter separates resource reads in `src/mcp/resources.rs` from descriptors
@@ -229,8 +237,11 @@ rejects geocentric EPSG:4978 and vertical values instead of silently copying
 or mis-transforming them. GeographicLib supplies WGS84 direct and inverse
 geodesics. Geofence validation checks segment geometry, not only vertices.
 
-The shared `mcp/contract/src/coordinates.rs` types keep WGS84 exchange
-consistent across Veoveo services.
+`src/contract/geodetic_ids.rs` owns `CrsId`, `DatumId`, and `EllipsoidId`. They preserve
+the public 1–128 byte ASCII name profile, including colons in authority codes. Frames
+and RRD import these through Map's contract feature. Frames owns its distinct WGS84
+position payload with explicit degree and height fields; Map's geographic position
+payload keeps its existing longitude, latitude, and optional height representation.
 
 ## Persistence
 

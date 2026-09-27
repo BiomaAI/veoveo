@@ -1,7 +1,7 @@
+use crate::contract::CrsId;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::CrsId;
 
 use super::{
     Degrees, Facility, LocationId, MapLocation, Meters, ProjectedPosition, Restriction,

@@ -1,7 +1,6 @@
+use crate::contract::{FrameWorldRevisionUri, FrameWorldUri, WorldFrameUri};
 use veoveo_artifact_contract::ArtifactId;
-use veoveo_mcp_contract::{
-    FrameWorldRevisionUri, FrameWorldUri, ServerResourceUris, WorldFrameUri,
-};
+use veoveo_mcp_contract::ServerResourceUris;
 
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
@@ -51,15 +50,15 @@ pub fn usage_task_uri(task_id: &str) -> String {
 }
 
 pub fn parse_world_uri(uri: &str) -> Option<FrameWorldUri> {
-    FrameWorldUri::parse(uri.to_owned()).ok()
+    FrameWorldUri::parse(uri).ok()
 }
 
 pub fn parse_world_revision_uri(uri: &str) -> Option<FrameWorldRevisionUri> {
-    FrameWorldRevisionUri::parse(uri.to_owned()).ok()
+    FrameWorldRevisionUri::parse(uri).ok()
 }
 
 pub fn parse_world_frame_uri(uri: &str) -> Option<WorldFrameUri> {
-    WorldFrameUri::parse(uri.to_owned()).ok()
+    WorldFrameUri::parse(uri).ok()
 }
 
 pub fn parse_operation_uri(uri: &str) -> Option<&str> {
@@ -78,7 +77,7 @@ pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri};
+    use crate::contract::{FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri};
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {

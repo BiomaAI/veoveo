@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use anyhow::{Context, Result, anyhow, bail};
-use veoveo_mcp_contract::{
+use crate::contract::{
     CoordinateOperationId, CoordinateOperationProvenance, FrameWorldId, FrameWorldRevision,
     FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri, WorldFrameUri,
 };
+use anyhow::{Context, Result, anyhow, bail};
 use veoveo_platform_store::{
     CoordinateOperationDraft, FrameWorldDraft, FrameWorldRecord, FrameWorldRevisionDraft,
     FrameWorldRevisionRecord, OpenObject, PlatformIdentity, PlatformStore, TaskId,
@@ -259,7 +259,7 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
     let world_id = FrameWorldId::new(record.world_key)?;
     let revision_id = FrameWorldRevisionId::new(record.revision_key)?;
     let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
-    let root_frame_id = veoveo_mcp_contract::FrameId::new(record.root_frame_key)?;
+    let root_frame_id = crate::contract::FrameId::new(record.root_frame_key)?;
     Ok(FrameWorldRevision {
         world_uri: FrameWorldUri::new(&world_id),
         world_id,

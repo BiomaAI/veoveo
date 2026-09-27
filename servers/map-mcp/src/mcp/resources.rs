@@ -39,10 +39,7 @@ impl MapMcp {
                     ],
                 )?;
                 return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(
-                        uri,
-                        self.state.workspace_app.as_str(),
-                    ),
+                    veoveo_mcp_apps_extension::app_html_contents(uri, self.workspace_app.as_str()),
                 ]));
             }
             if uri == uris::WORKSPACE_URI {

@@ -1,0 +1,240 @@
+#[test]
+fn coordinate_contract_schemas_preserve_published_wire_shapes() {
+    let baseline: serde_json::Value =
+        serde_json::from_str(include_str!("../testdata/coordinate-contract.schema.json")).unwrap();
+    macro_rules! check {
+        ($ty:ty, $name:literal) => {
+            assert_eq!(
+                serde_json::to_value(schemars::schema_for!($ty)).unwrap(),
+                baseline[$name],
+                "{}",
+                $name
+            );
+        };
+    }
+    check!(
+        veoveo_frames_mcp::contract::CoordinateOperationId,
+        "CoordinateOperationId"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CoordinateOperationKind,
+        "CoordinateOperationKind"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CoordinateOperationProvenance,
+        "CoordinateOperationProvenance"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CoordinateOperationRef,
+        "CoordinateOperationRef"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CoordinateSpace,
+        "CoordinateSpace"
+    );
+    check!(veoveo_frames_mcp::contract::FrameAxes, "FrameAxes");
+    check!(
+        veoveo_frames_mcp::contract::FrameAxisDirection,
+        "FrameAxisDirection"
+    );
+    check!(veoveo_frames_mcp::contract::FrameBasis, "FrameBasis");
+    check!(veoveo_frames_mcp::contract::FrameId, "FrameId");
+    check!(veoveo_frames_mcp::contract::FrameNode, "FrameNode");
+    check!(
+        veoveo_frames_mcp::contract::FrameParentTransform,
+        "FrameParentTransform"
+    );
+    check!(veoveo_frames_mcp::contract::FrameWorldId, "FrameWorldId");
+    check!(
+        veoveo_frames_mcp::contract::FrameWorldRevision,
+        "FrameWorldRevision"
+    );
+    check!(
+        veoveo_frames_mcp::contract::FrameWorldRevisionId,
+        "FrameWorldRevisionId"
+    );
+    check!(
+        veoveo_frames_mcp::contract::FrameWorldRevisionUri,
+        "FrameWorldRevisionUri"
+    );
+    check!(
+        veoveo_frames_mcp::contract::FrameWorldTree,
+        "FrameWorldTree"
+    );
+    check!(veoveo_frames_mcp::contract::FrameWorldUri, "FrameWorldUri");
+    check!(veoveo_frames_mcp::contract::Wgs84Position, "Wgs84Position");
+    check!(veoveo_frames_mcp::contract::WorldFrameUri, "WorldFrameUri");
+    check!(veoveo_frames_mcp::contract::EcefPosition, "EcefPosition");
+    check!(
+        veoveo_frames_mcp::contract::WorldFramePosition,
+        "WorldFramePosition"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CoordinatePoint,
+        "CoordinatePoint"
+    );
+    check!(
+        veoveo_frames_mcp::contract::ConvertFrameRequest,
+        "ConvertFrameRequest"
+    );
+    check!(
+        veoveo_frames_mcp::contract::ConvertFrameOutput,
+        "ConvertFrameOutput"
+    );
+    check!(
+        veoveo_frames_mcp::contract::FrameSourceReference,
+        "FrameSourceReference"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CreateWorldRequest,
+        "CreateWorldRequest"
+    );
+    check!(
+        veoveo_frames_mcp::contract::FrameWorldSummary,
+        "FrameWorldSummary"
+    );
+    check!(
+        veoveo_frames_mcp::contract::CreateWorldOutput,
+        "CreateWorldOutput"
+    );
+    check!(
+        veoveo_frames_mcp::contract::PublishWorldRequest,
+        "PublishWorldRequest"
+    );
+    check!(
+        veoveo_frames_mcp::contract::PublishWorldOutput,
+        "PublishWorldOutput"
+    );
+    check!(
+        veoveo_frames_mcp::contract::BatchTransformRequest,
+        "BatchTransformRequest"
+    );
+    check!(
+        veoveo_frames_mcp::contract::BatchTransformOutput,
+        "BatchTransformOutput"
+    );
+}
+
+use veoveo_frames_mcp::contract::{
+    FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri,
+    WorldFrameUri,
+};
+use veoveo_types::{ResourceAddress, ResourceUri};
+
+#[test]
+fn world_revision_and_frame_addresses_preserve_ids_and_wire_spelling() {
+    for suffix in [
+        "mission-alpha",
+        "ENU:mission.01",
+        "_",
+        "a-b.c:9",
+        &"x".repeat(128),
+    ] {
+        let world_id = FrameWorldId::new(suffix).unwrap();
+        let revision_id = FrameWorldRevisionId::new(suffix).unwrap();
+        let frame_id = FrameId::new(suffix).unwrap();
+        let world = FrameWorldUri::new(&world_id);
+        let revision = world.revision(&revision_id);
+        let frame = revision.frame(&frame_id);
+        assert_eq!(world.as_str(), format!("frames://world/{suffix}"));
+        assert_eq!(
+            revision.as_str(),
+            format!("frames://world/{suffix}/revision/{suffix}")
+        );
+        assert_eq!(
+            frame.as_str(),
+            format!("frames://world/{suffix}/revision/{suffix}/frame/{suffix}")
+        );
+        assert_eq!(world.world_id(), world_id);
+        assert_eq!(revision.world_id(), world_id);
+        assert_eq!(revision.revision_id(), revision_id);
+        assert_eq!(frame.revision_uri(), revision);
+        assert_eq!(frame.frame_id(), frame_id);
+        fn roundtrip<T: ResourceAddress + PartialEq + std::fmt::Debug>(value: &T) {
+            assert_eq!(T::parse(&value.to_uri().unwrap()).unwrap(), *value);
+        }
+        roundtrip(&world);
+        roundtrip(&revision);
+        roundtrip(&frame);
+        assert_eq!(
+            serde_json::from_value::<WorldFrameUri>(serde_json::to_value(&frame).unwrap()).unwrap(),
+            frame
+        );
+    }
+}
+
+#[test]
+fn admission_rejects_relative_and_malformed_frame_identities() {
+    for invalid in [
+        "",
+        ".",
+        "..",
+        "bad/id",
+        "bad id",
+        "bad%id",
+        "x?y",
+        "x#y",
+        "x@y",
+        "ü",
+        &"x".repeat(129),
+    ] {
+        assert!(FrameId::new(invalid).is_err(), "{invalid}");
+        assert!(veoveo_frames_mcp::contract::CoordinateOperationId::new(invalid).is_err());
+        assert!(FrameWorldId::new(invalid).is_err(), "{invalid}");
+        assert!(FrameWorldRevisionId::new(invalid).is_err(), "{invalid}");
+        assert!(serde_json::from_value::<FrameWorldId>(serde_json::json!(invalid)).is_err());
+    }
+}
+
+#[test]
+fn address_parsing_rejects_aliases_wrong_routes_and_unexpected_components() {
+    for invalid in [
+        "frames://world",
+        "frames://world/",
+        "frames://world/a/extra",
+        "map://world/a",
+        "frames://user@world/a",
+        "frames://world:123/a",
+        "frames://world/a?",
+        "frames://world/a?cursor=x",
+        "frames://world/a?x=1&x=2",
+        "frames://world/a#fragment",
+        "frames://world/%61",
+        "frames://world/a%2Fb",
+        "frames://world/../a",
+        "frames://world/a/.",
+        "frames://world/a\\b",
+        "frames://world/a%",
+        "frames://world/{id}",
+        "FRAMES://world/a",
+        " frames://world/a",
+        "frames://world/a\n",
+    ] {
+        assert!(FrameWorldUri::parse(invalid).is_err(), "{invalid}");
+    }
+    for invalid in [
+        "frames://world/a/revision/b/frame/c",
+        "frames://world/a/revisions/b",
+        "frames://world/a/revision/",
+        "frames://world/a/revision/..",
+        "frames://world/a/revision/b?x=1",
+        "frames://world/a/revision/%62",
+    ] {
+        assert!(FrameWorldRevisionUri::parse(invalid).is_err(), "{invalid}");
+    }
+    for invalid in [
+        "frames://world/a/frame/c",
+        "frames://world/a/revision/b/frames/c",
+        "frames://world/a/revision/b/frame/c/extra",
+        "frames://world/a/revision/b/frame/",
+        "frames://world/a/revision/b/frame/%2E",
+        "frames://world/a/revision/b/frame/c?x=1",
+    ] {
+        let wire = ResourceUri::new(invalid).unwrap();
+        assert!(
+            <WorldFrameUri as ResourceAddress>::parse(&wire).is_err(),
+            "{invalid}"
+        );
+        assert!(serde_json::from_value::<WorldFrameUri>(serde_json::json!(invalid)).is_err());
+    }
+}

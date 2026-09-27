@@ -12,6 +12,7 @@ name = "uav-sim-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-frames-mcp = { path = "../frames-mcp", default-features = false, features = ["contract"] }
 veoveo-types.workspace = true
 anyhow.workspace = true
 axum = { workspace = true, features = ["ws"] }
@@ -46,4 +47,4 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }
-veoveo-map-mcp = { path = "../map-mcp" }
+veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"] }

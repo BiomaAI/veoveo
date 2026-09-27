@@ -1,9 +1,9 @@
 use std::fmt;
 
+use crate::contract::CrsId;
 use geo_types::{LineString, Polygon};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::CrsId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeometryError(&'static str);

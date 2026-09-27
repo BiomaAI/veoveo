@@ -1,3 +1,6 @@
+mod spatial_metadata;
+pub use spatial_metadata::{FrameKind, GeofenceId, GeofenceIdError, GeofenceRule};
+
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use re_sdk_types::{
@@ -7,7 +10,7 @@ use re_sdk_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{CrsId, DatumId, EllipsoidId, FrameKind, GeofenceId, GeofenceRule};
+use veoveo_map_mcp::contract::{CrsId, DatumId, EllipsoidId};
 
 pub mod ingest_parts;
 pub mod projection;

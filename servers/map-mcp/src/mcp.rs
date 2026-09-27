@@ -114,6 +114,7 @@ const WORKSPACE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0
 
 #[derive(Clone)]
 pub struct MapMcp {
+    workspace_app: veoveo_mcp_apps_extension::AppHtml,
     state: Arc<MapApplication>,
     task_service: MapTaskExtension,
     #[allow(dead_code)]
@@ -122,8 +123,12 @@ pub struct MapMcp {
 
 #[tool_router]
 impl MapMcp {
-    pub fn new(state: Arc<MapApplication>) -> Self {
+    pub fn new(
+        state: Arc<MapApplication>,
+        workspace_app: veoveo_mcp_apps_extension::AppHtml,
+    ) -> Self {
         Self {
+            workspace_app,
             task_service: MapTaskExtension::new(state.clone()),
             state,
             tool_router: Self::full_tool_router(),

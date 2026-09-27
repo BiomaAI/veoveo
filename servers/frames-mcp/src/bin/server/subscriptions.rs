@@ -3,8 +3,8 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rmcp::{ErrorData as McpError, service::SubscriptionContext};
 use tokio_util::sync::CancellationToken;
+use veoveo_frames_mcp::contract::FrameWorldId;
 use veoveo_frames_mcp::uris;
-use veoveo_mcp_contract::FrameWorldId;
 use veoveo_platform_store::PlatformTable;
 
 use super::{

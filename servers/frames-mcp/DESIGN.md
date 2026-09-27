@@ -25,11 +25,58 @@ server-owned `ui://frames/workspace.html` Frame Editor application.
 Published revision integrity uses SHA-256 with the repository-owned canonical
 `sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
 operation resources are Veoveo extensions rather than external protocols.
+World addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
+URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
+with the domain restrictions described below.
 
 Frames owns complete spatial-frame worlds and bounded coordinate conversion.
 Map MCP owns Earth geography, projected coordinate reference systems,
 geodesics, geofences, and routing. High-rate transforms remain in live streams
 or governed recordings.
+
+## Public Contract And Dependencies
+
+The library's `contract` feature exposes world IDs, frame trees, resource addresses,
+conversion requests, and operation provenance. Consumers disable default features.
+The dependency graph contains foundational and Artifact value types, Map's geodetic
+contract, serialization/schema support, and value validation libraries. It excludes
+MCP integration, database clients, async runtimes, provider engines, and GPU libraries.
+`runtime` adds local math, persistence, and recording/artifact adapters. The default
+`mcp` feature adds hosted protocol wiring and enables the server binary.
+
+Map owns CRS, datum, and ellipsoid names. Frames' provenance imports `CrsId` from that
+library without calling Map. The operation-kind wire enum preserves its published
+variants; this engine emits `frame_conversion`. RRD owns recording-specific frame
+kinds and geofence metadata. MCP core imports none of these domain contracts.
+
+World, revision, and frame address constructors require their specific IDs. A world
+address builds a revision address; a revision address builds a frame address. The
+foundation's URL 2.5.8 component builder constructs their existing `frames://world`
+routes. Parsers validate the complete route and retain the decoded typed identities.
+They reject credentials, ports, queries, fragments, escaped aliases, extra segments,
+and URI spellings that require normalization. Each address implements `ResourceAddress`.
+A typed address grants no authority and does not establish persisted parent membership.
+
+### Frame Identity Admission And Upgrade
+
+Frame, world, revision, and operation IDs admit 1–128 ASCII letters, digits, underscores,
+hyphens, dots, or colons, excluding the complete values `.` and `..`. Those two values
+are relative URL components and cannot identify resources. JSON still carries strings;
+the schemas and all admitted route spellings keep the published 0.1.x representation.
+
+The Frames owner requires a coordinated drain for the stricter identity admission.
+Before upgrading an installation with retained data, decode its world records, complete
+revision trees, operation provenance, and consumer references using the new contract.
+An invalid retained identity stops the upgrade. Preserve the original data and resolve
+its references under the owning domain's recovery procedure before retrying; do not
+normalize or rewrite IDs during reads. The reference installation is rebuilt empty.
+Mixed old/current producers are unsupported during this transition.
+
+The change performs no persistent format conversion. Rollback restores the previous
+binaries and their unchanged data; values emitted by the current constructors fit the
+previous profile. Contract tests qualify the shared wire shapes, malformed admission,
+parent-specific construction, and independent library consumption. Retained-data and
+installed acceptance remain release gates in the foundations plan.
 
 ## Frame worlds
 

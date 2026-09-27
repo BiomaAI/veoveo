@@ -66,8 +66,8 @@ Map now owns its scope enum and authoring metadata request/cursor types. Layer,
 publication, product, and composition indexes use SQL-scoped pages, and Map Explorer
 follows them before publishing a refresh. Native tests cover 125 admitted records
 behind 330 records denied by tenant, context, or labels, plus parent selection and
-clearance changes between pages. Other Map resource families and contract feature
-isolation remain implementation work; installed and headed hardware acceptance is pending.
+clearance changes between pages. Other Map resource families remain implementation
+work; installed and headed hardware acceptance is pending.
 Platform identity, access subjects, and invocation provenance now live in the foundation.
 Their eleven pre-extraction schemas and existing wire forms are preserved. The independent
 consumer passes ten checks with no MCP, runtime, database, GPU, or provider dependencies;
@@ -98,8 +98,19 @@ rejects server presentations in all three neutral-only release reference fields.
 workspace Clippy and Rustdoc pass.
 External dependency versions, sources, and checksums are unchanged. Cleanup removed 37
 superseded test executables and reclaimed 28.7 GiB; build caches and Docker images were preserved.
-Map's contract still depends on MCP for `CrsId`. Download URL typing, other URI families,
-and remaining service interfaces need further work. These model changes preserve valid
+Map and Frames now expose independent contract features. Map owns geodetic IDs;
+Frames owns worlds and conversions; RRD owns its recording-specific spatial metadata.
+MCP core has no coordinate domain dependency. Typed world/revision/frame addresses use
+the shared URI builder. The independent consumer passes ten schema, admission, and
+metadata checks. Strict runtime-only and workspace Clippy checks pass. Affected
+libraries pass 400 cases, including native Map/UAV SQL cases and both million-feature
+Map index checks. Eight coordinate contract cases preserve 43 baseline schemas and
+qualify ID/URI admission. The Frames adapter's eight cases, Map metadata's four cases,
+and the Map-to-Optimization wire test pass. Three compile-fail examples reject wrong
+ID and parent types. Strict workspace Rustdoc passes. Cleanup removed 33 superseded
+test executables and reclaimed 17.8 GiB while preserving compiler caches and ordinary
+server binaries. Installed acceptance is pending for this extraction.
+Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
@@ -448,7 +459,8 @@ exhaustive matches on server-specific scopes or resources.
 
 Rust cross-server consumers depend on the owning library with
 `default-features = false, features = ["contract"]`. That feature exposes the public
-contract with only the foundational types and required serialization/schema support.
+contract with foundational types and the required value, validation, and
+serialization/schema support.
 MCP integration and runtime modules have separate feature gates, and their Cargo
 dependencies are optional. Binary targets require their runtime features. Adding a
 feature name without removing runtime dependencies does not meet this requirement.
@@ -544,9 +556,9 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 
 #### Migration Inventory And Status
 
-All 15 Rust MCP server packages under `servers/` have library targets. Time defines
-the required `contract` feature and passes independently resolved consumer checks.
-The other 14 packages still need feature isolation. Existing libraries remain the
+All 15 Rust MCP server packages under `servers/` have library targets. Time, Map, and
+Frames define the required `contract` feature and pass independently resolved consumer
+checks. The other 12 packages still need feature isolation. Existing libraries remain the
 default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
@@ -557,8 +569,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
-| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity and Artifact metadata come from lightweight owning crates, while `CrsId` still pulls in the runtime-bearing MCP crate | Resolve the coordinate contract with its owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
-| Coordinate vocabulary | `mcp/contract/src/coordinates.rs` combines geodetic IDs, frame worlds and conversions, and recording metadata; Map has no normal dependency path to RRD, so the planned ownership split does not require new contract crates | Move CRS, datum, and ellipsoid IDs into Map's contract feature; frame worlds, addresses, and conversions into Frames' contract feature; recording-specific frame/geofence metadata into RRD. Migrate consumers directly, preserve each existing wire profile, and qualify typed frame URI construction and independent consumption |
+| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
+| Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed behavior; enforce the documented retained-data preflight and coordinated drain for relative frame-ID rejection |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
@@ -569,7 +581,10 @@ default owner; the inventory must not become a central domain-type registry.
 | Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
-| DuckDB, Frames, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
+| Frames world visibility and Store inputs | World lists and reads apply labels after Store selection; public IDs become strings before the driver boundary. Direct Store dependencies on server contract features would cycle through those servers' runtime dependencies | Move visibility and pagination into SQL, qualify parent/tenant/label selection, and resolve the Store dependency direction before migrating query IDs |
+| Frames revision construction | Public revision and source-reference structs repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
+| Frames operation and stream references | World/revision/frame addresses use typed component builders; operation resource and dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
+| DuckDB, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |
 

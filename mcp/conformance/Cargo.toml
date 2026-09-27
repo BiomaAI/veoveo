@@ -17,6 +17,7 @@ name = "certify"
 path = "src/bin/certify.rs"
 
 [dependencies]
+veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true

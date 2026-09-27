@@ -1,12 +1,17 @@
+mod ids;
+mod operations;
+mod uris;
+mod world;
+
+pub use ids::*;
+pub use operations::*;
+pub use uris::*;
+pub use world::*;
+
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_mcp_contract::{
-    CoordinateOperationProvenance, CoordinateSpace, FrameWorldId, FrameWorldRevision,
-    FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, Wgs84Position,
-    WorldFrameUri,
-};
 use veoveo_types::Sha256Digest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -129,14 +134,14 @@ mod tests {
 
     #[test]
     fn world_frame_position_round_trips_with_typed_uri() {
-        let revision = veoveo_mcp_contract::FrameWorldRevisionUri::new(
+        let revision = crate::contract::FrameWorldRevisionUri::new(
             &FrameWorldId::new("uav-showcase-new-york").unwrap(),
             &FrameWorldRevisionId::new("revision-1").unwrap(),
         );
         let point = CoordinatePoint::WorldFrame(WorldFramePosition {
             frame_uri: WorldFrameUri::new(
                 &revision,
-                &veoveo_mcp_contract::FrameId::new("isaac-world").unwrap(),
+                &crate::contract::FrameId::new("isaac-world").unwrap(),
             ),
             x_m: 1.0,
             y_m: 2.0,

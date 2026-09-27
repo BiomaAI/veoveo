@@ -1,0 +1,183 @@
+{
+  "CrsId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "CrsId",
+    "description": "Coordinate reference system id, commonly EPSG:4326.",
+    "type": "string"
+  },
+  "DatumId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DatumId",
+    "description": "Geodetic datum id used by a CRS or coordinate operation.",
+    "type": "string"
+  },
+  "EllipsoidId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "EllipsoidId",
+    "description": "Reference ellipsoid id, such as WGS84 or GRS80.",
+    "type": "string"
+  },
+  "ProjectedPosition": {
+    "$defs": {
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "crs": {
+        "$ref": "#/$defs/CrsId"
+      },
+      "x": {
+        "format": "double",
+        "type": "number"
+      },
+      "y": {
+        "format": "double",
+        "type": "number"
+      },
+      "z": {
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "crs",
+      "x",
+      "y"
+    ],
+    "title": "ProjectedPosition",
+    "type": "object"
+  },
+  "TransformCrsOutput": {
+    "$defs": {
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      },
+      "ProjectedPosition": {
+        "properties": {
+          "crs": {
+            "$ref": "#/$defs/CrsId"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "crs",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "accuracy": {
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "approximation_used": {
+        "type": "boolean"
+      },
+      "engine": {
+        "type": "string"
+      },
+      "positions": {
+        "items": {
+          "$ref": "#/$defs/ProjectedPosition"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "positions",
+      "engine",
+      "approximation_used"
+    ],
+    "title": "TransformCrsOutput",
+    "type": "object"
+  },
+  "TransformCrsRequest": {
+    "$defs": {
+      "CrsId": {
+        "description": "Coordinate reference system id, commonly EPSG:4326.",
+        "type": "string"
+      },
+      "ProjectedPosition": {
+        "properties": {
+          "crs": {
+            "$ref": "#/$defs/CrsId"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "crs",
+          "x",
+          "y"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "allow_approximation": {
+        "default": false,
+        "type": "boolean"
+      },
+      "positions": {
+        "items": {
+          "$ref": "#/$defs/ProjectedPosition"
+        },
+        "type": "array"
+      },
+      "source_crs": {
+        "$ref": "#/$defs/CrsId"
+      },
+      "target_crs": {
+        "$ref": "#/$defs/CrsId"
+      }
+    },
+    "required": [
+      "source_crs",
+      "target_crs",
+      "positions"
+    ],
+    "title": "TransformCrsRequest",
+    "type": "object"
+  }
+}

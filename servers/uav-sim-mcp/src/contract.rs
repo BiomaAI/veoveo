@@ -3,11 +3,9 @@ use std::{collections::BTreeMap, fmt, str::FromStr};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-pub use veoveo_mcp_contract::Wgs84Position;
-use veoveo_mcp_contract::{
-    FrameWorldRevision, FrameWorldRevisionUri, LiveCameraDescriptor, LiveStreamProductState,
-    WorldFrameUri,
-};
+pub use veoveo_frames_mcp::contract::Wgs84Position;
+use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
     if value.is_empty() || value.len() > 128 {

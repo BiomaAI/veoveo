@@ -782,7 +782,7 @@ mod tests {
         QuaternionXyzw, SessionId, SimulationWorldBinding, StepSimulationRequest, TileLifecycle,
         TileState, VehicleId, VehicleState, Wgs84Position,
     };
-    use veoveo_mcp_contract::{
+    use veoveo_frames_mcp::contract::{
         FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
     };
 

@@ -23,7 +23,6 @@ use crate::{
 
 #[derive(Clone)]
 pub struct MapApplication {
-    pub workspace_app: veoveo_mcp_apps_extension::AppHtml,
     pub workspace_basemap: MapWorkspaceBasemap,
     pub tasks: TaskRuntime,
     pub catalog: MapCatalog,

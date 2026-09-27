@@ -54,25 +54,25 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
 use veoveo_artifact_contract::{ArtifactMetadata, ComplianceMetadata};
+use veoveo_frames_mcp::contract::CoordinateOperationProvenance;
 use veoveo_mcp_contract::{
     AccessTokenSubject, AnalyticalRuntimeDeployment, AuditEvent, AuthAuditEvent,
-    CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
-    GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
-    GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,
-    GatewayInternalTrustBundle, GatewayJwtRevocation, GatewayJwtRevocationApplyResult,
-    GatewayJwtRevocationPruneResult, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId,
-    GatewayResourceProjection, GatewayResourceSubscription, GenerationPredictionSummary,
-    GenerationRunOutput, IdentityProvider, IdentityProviderDeployment,
-    IdentityProviderOidcClientRegistration, IngressDeployment, InvocationAuthority,
-    McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
-    PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, Principal,
-    PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure, ResourceAuthorizationServer,
-    SecretManagerDeployment, SecretReference, SelfHostedDeploymentPlan,
-    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
-    ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel, TokenIssuer,
-    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport, WorkContextMembershipLevel,
-    WorkContextOutputPolicy,
+    DataLabelDefinition, DataRetentionPolicy, GATEWAY_INTERNAL_TOKEN_ISSUER,
+    GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest, GatewayControlPlane,
+    GatewayControlPlaneRevision, GatewayInternalIdentity, GatewayInternalSigningKey,
+    GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
+    GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
+    GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
+    GatewayResourceSubscription, GenerationPredictionSummary, GenerationRunOutput,
+    IdentityProvider, IdentityProviderDeployment, IdentityProviderOidcClientRegistration,
+    IngressDeployment, InvocationAuthority, McpSurfaceCapabilities, OAuthClientRegistration,
+    ObjectStoreDeployment, PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet,
+    Principal, PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure,
+    ResourceAuthorizationServer, SecretManagerDeployment, SecretReference,
+    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
+    ServerSlug, ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel,
+    TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
+    WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,

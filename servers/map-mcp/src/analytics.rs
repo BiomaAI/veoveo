@@ -17,8 +17,10 @@ use crate::contract::{
     SourceFeatureMatch, SourceSpatialQuery, Wgs84BoundingBox, Wgs84LineString, Wgs84Position,
 };
 
+#[cfg(any(test, feature = "mcp"))]
 mod completion;
 mod projection;
+#[cfg(feature = "mcp")]
 pub(crate) use completion::GeographyCompletion;
 
 #[cfg(test)]

@@ -124,7 +124,9 @@ That owner also supplies `ArtifactUri`. Artifact service interfaces and server U
 conventions consume it and the foundational `ResourceScheme`; MCP does not enumerate
 producing domains. Metadata JSON keeps its published identity fields with checked
 ID/URI agreement. Other generic URI convention families still need builder adoption.
-Coordinate contracts remain outside the foundation.
+Coordinate contracts belong to the Map and Frames library contract features, with
+recording-specific spatial metadata in RRD. MCP core has no coordinate domain registry
+or dependency on those libraries.
 Its `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete
 addresses; gateway policy and stored audit references still accept completion templates.

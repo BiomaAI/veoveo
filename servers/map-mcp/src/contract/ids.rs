@@ -161,7 +161,13 @@ mod tests {
     #[test]
     fn ids_reject_wrong_prefix_and_uuid_version() {
         assert!(RouteId::parse(format!("location-{}", Uuid::now_v7())).is_err());
-        assert!(RouteId::parse(format!("route-{}", Uuid::new_v4())).is_err());
+        assert!(
+            RouteId::parse(format!(
+                "route-{}",
+                Uuid::parse_str("c5efe3f7-8e96-4e49-b4f2-36cdf383fe34").unwrap()
+            ))
+            .is_err()
+        );
     }
 
     #[test]

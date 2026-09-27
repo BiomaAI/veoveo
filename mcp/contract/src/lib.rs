@@ -16,7 +16,6 @@ pub mod analytics;
 pub mod artifact_service;
 pub mod bootstrap;
 pub mod catalog;
-pub mod coordinates;
 pub mod deployment;
 pub mod docs;
 pub mod duckdb;
@@ -73,14 +72,6 @@ pub use bootstrap::{
 pub use catalog::{
     GATEWAY_DISCOVERY_DEGRADATION_META_KEY, GatewayDiscoveryDegradation, GatewayDiscoveryFailure,
     GatewayDiscoveryFailureCode, GatewayDiscoverySurface,
-};
-pub use coordinates::{
-    CoordinateIdError, CoordinateOperationId, CoordinateOperationKind,
-    CoordinateOperationProvenance, CoordinateOperationRef, CoordinateSpace, CrsId, DatumId,
-    EllipsoidId, FrameAxes, FrameAxisDirection, FrameBasis, FrameId, FrameKind, FrameNode,
-    FrameParentTransform, FrameWorldId, FrameWorldRevision, FrameWorldRevisionId,
-    FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, GeofenceId, GeofenceRule,
-    GeofenceViolation, TrajectoryId, Wgs84Position, WorldFrameUri,
 };
 pub use deployment::{
     AnalyticalRuntimeDeployment, AnalyticalRuntimeEngine, AnalyticalRuntimePurpose,

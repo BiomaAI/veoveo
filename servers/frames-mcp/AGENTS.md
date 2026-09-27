@@ -40,6 +40,9 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 - `cargo check -p veoveo-frames-mcp`
 - `cargo test -p veoveo-frames-mcp`
+- Cross-server consumers enable only `contract` with default features disabled.
+- `cargo test -p veoveo-frames-mcp --no-default-features --features contract --test coordinate_contract`
+  checks schema compatibility, typed world addresses, and malformed identity admission.
 - Docker is required for SurrealDB backed smoke tests (root README, Develop
   And Verify).
 - A plain workspace Rust build; no extra native toolchain beyond the

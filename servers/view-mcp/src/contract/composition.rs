@@ -7,7 +7,8 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::parse_artifact_plane_uri;
-use veoveo_mcp_contract::{FrameWorldRevisionUri, InvocationAuthority, WorldFrameUri};
+use veoveo_frames_mcp::contract::{FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_mcp_contract::InvocationAuthority;
 use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};
@@ -959,7 +960,7 @@ pub enum SceneCompositionError {
 mod tests {
     use super::*;
     use serde_json::json;
-    use veoveo_mcp_contract::{FrameId, FrameWorldId, FrameWorldRevisionId};
+    use veoveo_frames_mcp::contract::{FrameId, FrameWorldId, FrameWorldRevisionId};
 
     fn position() -> ScenePosition {
         ScenePosition::Wgs84 {

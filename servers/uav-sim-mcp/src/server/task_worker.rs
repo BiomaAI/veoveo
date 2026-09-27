@@ -423,9 +423,9 @@ mod tests {
     #[test]
     fn admitted_map_path_becomes_one_private_vehicle_mission() {
         let now = Utc::now();
-        let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(
-            &veoveo_mcp_contract::FrameWorldId::new("nyc").unwrap(),
-            &veoveo_mcp_contract::FrameWorldRevisionId::new("revision-1").unwrap(),
+        let revision_uri = veoveo_frames_mcp::contract::FrameWorldRevisionUri::new(
+            &veoveo_frames_mcp::contract::FrameWorldId::new("nyc").unwrap(),
+            &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-1").unwrap(),
         );
         let plan = VehicleMissionPlan {
             plan_id: MissionPlanId::new("plan-1").unwrap(),

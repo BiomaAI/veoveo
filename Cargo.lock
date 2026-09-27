@@ -16750,6 +16750,7 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
+ "veoveo-frames-mcp",
  "veoveo-mcp-contract",
 ]
 
@@ -16784,6 +16785,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
@@ -16894,6 +16896,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-frames-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-types",
@@ -17381,7 +17384,7 @@ dependencies = [
  "sha2 0.11.0",
  "tempfile",
  "uuid",
- "veoveo-mcp-contract",
+ "veoveo-map-mcp",
 ]
 
 [[package]]
@@ -17717,6 +17720,7 @@ dependencies = [
  "tracing",
  "url",
  "uuid",
+ "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
@@ -17764,6 +17768,7 @@ dependencies = [
  "uuid",
  "veoveo-artifact-client",
  "veoveo-artifact-contract",
+ "veoveo-frames-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-task-runtime",

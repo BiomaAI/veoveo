@@ -1,12 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{Context, Result, anyhow, bail};
-use glam::{DMat3, DMat4, DQuat, DVec3};
-use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{
+use crate::contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldRevision, FrameWorldTree,
     Wgs84Position, WorldFrameUri,
 };
+use anyhow::{Context, Result, anyhow, bail};
+use glam::{DMat3, DMat4, DQuat, DVec3};
+use sha2::{Digest, Sha256};
 use veoveo_types::Sha256Digest;
 
 const MAX_WORLD_FRAMES: usize = 10_000;
@@ -311,7 +311,7 @@ pub fn wgs84_to_ecef(position: &Wgs84Position) -> DVec3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{FrameAxes, FrameWorldId, FrameWorldRevisionId};
+    use crate::contract::{FrameAxes, FrameWorldId, FrameWorldRevisionId};
 
     fn new_york_tree() -> FrameWorldTree {
         FrameWorldTree {
@@ -413,10 +413,10 @@ mod tests {
         let validated = validate_world_tree(new_york_tree()).unwrap();
         let world_id = FrameWorldId::new("uav-showcase-new-york").unwrap();
         let revision_id = FrameWorldRevisionId::new("revision-1").unwrap();
-        let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(&world_id, &revision_id);
+        let revision_uri = crate::contract::FrameWorldRevisionUri::new(&world_id, &revision_id);
         let revision = FrameWorldRevision {
             world_id: world_id.clone(),
-            world_uri: veoveo_mcp_contract::FrameWorldUri::new(&world_id),
+            world_uri: crate::contract::FrameWorldUri::new(&world_id),
             revision_id,
             revision_uri: revision_uri.clone(),
             revision: 1,

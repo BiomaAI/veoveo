@@ -8,6 +8,7 @@ name = "veoveo_rrd"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
 anyhow.workspace = true
 hex.workspace = true
 h264-reader.workspace = true
@@ -24,7 +25,6 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 uuid.workspace = true
-veoveo-mcp-contract = { workspace = true }
 
 [dev-dependencies]
 re_sdk.workspace = true

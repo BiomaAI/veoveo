@@ -1051,9 +1051,9 @@ impl ServerHandler for UavSimMcp {
 }
 
 pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
-    let revision_uri = veoveo_mcp_contract::FrameWorldRevisionUri::new(
-        &veoveo_mcp_contract::FrameWorldId::new("test-world")?,
-        &veoveo_mcp_contract::FrameWorldRevisionId::new("revision-1")?,
+    let revision_uri = veoveo_frames_mcp::contract::FrameWorldRevisionUri::new(
+        &veoveo_frames_mcp::contract::FrameWorldId::new("test-world")?,
+        &veoveo_frames_mcp::contract::FrameWorldRevisionId::new("revision-1")?,
     );
     Ok(SimulationState {
         session_id: SessionId::new("session-alpha")?,
@@ -1082,9 +1082,9 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
         world: Some(crate::contract::SimulationWorldBinding {
             revision_uri: revision_uri.clone(),
             spec_sha256: "a".repeat(64),
-            simulation_frame_uri: veoveo_mcp_contract::WorldFrameUri::new(
+            simulation_frame_uri: veoveo_frames_mcp::contract::WorldFrameUri::new(
                 &revision_uri,
-                &veoveo_mcp_contract::FrameId::new("isaac-world")?,
+                &veoveo_frames_mcp::contract::FrameId::new("isaac-world")?,
             ),
             georeference_origin: Wgs84Position {
                 latitude_degrees: 13.6929,

@@ -1,13 +1,14 @@
 use std::collections::{BTreeSet, HashMap};
 
+use crate::contract::{
+    CoordinateOperationId, CoordinateOperationKind, CoordinateOperationProvenance,
+    CoordinateOperationRef, CoordinateSpace, FrameWorldRevision, FrameWorldRevisionUri,
+    Wgs84Position, WorldFrameUri,
+};
 use anyhow::{Result, anyhow, bail};
 use chrono::Utc;
 use glam::DVec3;
-use veoveo_mcp_contract::{
-    CoordinateOperationId, CoordinateOperationKind, CoordinateOperationProvenance,
-    CoordinateOperationRef, CoordinateSpace, CrsId, FrameWorldRevision, FrameWorldRevisionUri,
-    Wgs84Position, WorldFrameUri,
-};
+use veoveo_map_mcp::contract::CrsId;
 
 use crate::{
     contract::{
@@ -244,11 +245,11 @@ fn provenance(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
-    use veoveo_mcp_contract::{
+    use crate::contract::{
         FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevisionId,
         FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri,
     };
+    use chrono::Utc;
 
     fn revision() -> FrameWorldRevision {
         let world_id = FrameWorldId::new("new-york-showcase").unwrap();

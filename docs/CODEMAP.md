@@ -414,7 +414,6 @@ even when that server is first-party.
 | `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
-| `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
@@ -440,7 +439,8 @@ even when that server is first-party.
 Owns cross-domain Rerun/RRD spacetime types, adapters, encoded-video boundary
 inspection, encoded-video extraction and MP4 remux, ingest-part discovery, segment
 verification, recording-layer Store ID normalization, deterministic properties layers,
-and Arrow IPC export.
+and Arrow IPC export. `spatial_metadata.rs` owns recording-specific frame kinds and
+geofence metadata; geodetic names come from Map's contract feature.
 [`DESIGN.md`](../platform/recordings/rrd/DESIGN.md) specifies these shared file operations. Domain results that do not overlap Rerun
 concepts stay local to their MCP crate.
 
@@ -667,6 +667,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
+| `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
