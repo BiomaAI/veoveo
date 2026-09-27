@@ -1,3 +1,4 @@
+use crate::task_record_id;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -6,9 +7,10 @@ use surrealdb::types::{RecordId, SurrealValue};
 use crate::{
     ArtifactId, InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity,
     PlatformStore, RecordingDatasetId, RecordingId, RecordingLayerState, RecordingRecord,
-    RecordingState, StoreError, TaskId, TenantId, deterministic_principal_id,
+    RecordingState, StoreError, TenantId, deterministic_principal_id,
     deterministic_work_context_id,
 };
+use veoveo_types::TaskId;
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_RECORDING_LAYER_LIMIT: u32 = 10_000;
@@ -370,7 +372,7 @@ impl PlatformStore {
             .await?
             .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
         if existing.state == RecordingState::Sealing
-            && existing.seal_task == task_id.map(TaskId::record_id)
+            && existing.seal_task == task_id.map(task_record_id)
         {
             return Ok(existing);
         }
@@ -409,7 +411,7 @@ impl PlatformStore {
             .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $recording); IF $current.revision != $revision OR $current.state NOT IN ['ready', 'interrupted'] { THROW 'recording_revision_conflict'; }; UPDATE ONLY $recording SET state = 'sealing', seal_task = $task, failure_reason = NONE, updated_at = time::now(), revision += 1 RETURN AFTER; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
             .bind(("recording", recording_id.record_id()))
             .bind(("revision", existing.revision))
-            .bind(("task", task_id.map(TaskId::record_id)))
+            .bind(("task", task_id.map(task_record_id)))
             .bind(("outbox", outbox))
             .await?
             .check()?;
@@ -434,7 +436,7 @@ impl PlatformStore {
             return Ok(existing);
         }
         if existing.state != RecordingState::Sealing
-            || existing.seal_task != seal.task_id.map(TaskId::record_id)
+            || existing.seal_task != seal.task_id.map(task_record_id)
             || existing.manifest_artifact != Some(seal.manifest_artifact_id.record_id())
         {
             return Err(StoreError::RecordingStateConflict {

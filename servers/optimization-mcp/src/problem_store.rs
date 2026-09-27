@@ -6,7 +6,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
-use veoveo_task_runtime::TaskId;
+use veoveo_types::TaskId;
 
 use crate::{
     domain::{

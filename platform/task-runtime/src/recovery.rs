@@ -8,6 +8,7 @@ use crate::{
     },
 };
 use chrono::Utc;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
 impl TaskRuntime {
     pub async fn recover(&self) -> Result<RecoveryReport, TaskError> {
@@ -138,7 +139,7 @@ impl TaskRuntime {
             .query(
                 "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, error = $error, lease_owner = NONE, lease_expires_at = NONE, completed_at = $completed_at, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND (lease_expires_at = NONE OR lease_expires_at <= $now) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
             )
-            .bind(("task", task.task_id.record_id()))
+            .bind(("task", task_record_id(task.task_id)))
             .bind(("status", status))
             .bind(("request", envelope.into_open_object()?))
             .bind(("error", failure.as_ref().map(failure_to_open_object)))

@@ -6,7 +6,8 @@ use veoveo_platform_store::{
     PlatformStore, RecordId, TaskRecord, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id,
 };
-use veoveo_task_runtime::{TaskId, TaskPageCursor, TaskRuntime, TaskSnapshot};
+use veoveo_task_runtime::{TaskPageCursor, TaskRuntime, TaskSnapshot};
+use veoveo_types::TaskId;
 
 use super::{index, ownership::runtime_owner};
 use crate::{
@@ -98,7 +99,7 @@ pub(super) async fn task(
         .query(format!(
             "SELECT * FROM ONLY $task WHERE {VISIBLE} AND task_type IN $types;"
         ))
-        .bind(("task", id.record_id()))
+        .bind(("task", veoveo_platform_store::task_record_id(id)))
         .bind(scope(identity)?)
         .bind(("types", TASK_TYPES.to_vec()))
         .await?

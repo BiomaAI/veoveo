@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
-use veoveo_task_runtime::{TaskId, TaskOwner};
+use veoveo_platform_store::task_record_id;
+use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskId;
 
 /// Installation-selected template; public callers never supply its fingerprint.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -192,7 +194,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             || !fingerprint(&op.source_template_fingerprint)
             || op.source_template_id.is_empty()
             || op.source_template_id.len() > 64
-            || row.task != op.task_id().record_id()
+            || row.task != task_record_id(op.task_id())
             || owner_key(&op.actor)? != row.owner_key
             || op.execution_authority.task_owner() != op.actor
             || matches!(op.source, MaintenanceSource::InitialFailure { .. })

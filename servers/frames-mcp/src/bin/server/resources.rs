@@ -195,7 +195,7 @@ impl FramesMcp {
             if let Some(task_id) = uris::parse_usage_task_uri(uri) {
                 require_task_owner(&self.state, &context, task_id).await?;
                 let task_uuid = task_id
-                    .parse::<veoveo_platform_store::TaskId>()
+                    .parse::<veoveo_types::TaskId>()
                     .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
                 let records = self
                     .state

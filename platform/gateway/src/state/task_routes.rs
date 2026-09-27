@@ -2,10 +2,12 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::{DateTime, Utc};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_mcp_contract::CanonicalTaskId;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{
-    PrincipalKind, RecordIdKey, StoreError, TaskId, deterministic_principal_id,
-    deterministic_tenant_id, deterministic_work_context_id,
+    PrincipalKind, RecordIdKey, StoreError, deterministic_principal_id, deterministic_tenant_id,
+    deterministic_work_context_id,
 };
+use veoveo_types::TaskId;
 
 use super::GatewayState;
 
@@ -104,7 +106,7 @@ impl GatewayState {
             profile: RecordId::new("profile", draft.profile),
             server: RecordId::new("mcp_server", draft.server),
             source_task_id: draft.source_task_id,
-            source_task: draft.source_task.map(|task| task.record_id()),
+            source_task: draft.source_task.map(task_record_id),
             authority_digest: draft.authority_digest,
             ownership: draft.ownership,
             created_at: now,

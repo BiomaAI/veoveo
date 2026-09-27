@@ -10,6 +10,7 @@ use serde::Serialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
 
@@ -149,7 +150,7 @@ impl ComputersStore {
         let content = Content {
             operation_id: id,
             computer_id,
-            task: veoveo_task_runtime::TaskId::from_uuid(id).record_id(),
+            task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
             actor_context: object(caller)?,
             owner_context: object(&computer.owner)?,
             automation_grant_id: grant_id,

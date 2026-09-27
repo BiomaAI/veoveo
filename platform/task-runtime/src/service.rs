@@ -160,7 +160,7 @@ pub async fn authorized_snapshot(
     task_id: &str,
 ) -> Result<TaskSnapshot, McpError> {
     task_id
-        .parse::<crate::TaskId>()
+        .parse::<veoveo_types::TaskId>()
         .map_err(|_| McpError::invalid_params("unknown task id", None))?;
     let snapshot = runtime
         .get(task_id)

@@ -6,10 +6,9 @@ use veoveo_frames_mcp::contract::BatchTransformOutput;
 use veoveo_mcp_contract::{
     ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, UsageKind, UsageRecord, now_utc,
 };
-use veoveo_platform_store::{
-    DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject, TaskId,
-};
+use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
 use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskId;
 
 use super::app_state::AppState;
 

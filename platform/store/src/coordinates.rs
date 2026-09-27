@@ -1,3 +1,4 @@
+use crate::task_record_id;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
@@ -7,8 +8,9 @@ use uuid::Uuid;
 
 use crate::{
     CoordinateOperationId, CoordinateOperationRecord, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, StoreError, TaskId, TaskRecord, TenantId,
+    PlatformStore, StoreError, TaskRecord, TenantId,
 };
+use veoveo_types::TaskId;
 
 const COORDINATE_EVENT_SCHEMA_VERSION: i64 = 1;
 
@@ -63,7 +65,7 @@ impl PlatformStore {
         let content = CoordinateOperationContent {
             tenant: draft.identity.tenant_id.record_id(),
             owner: draft.identity.principal_id.record_id(),
-            task: draft.task_id.map(TaskId::record_id),
+            task: draft.task_id.map(task_record_id),
             operation_key: draft.operation_key.clone(),
             kind: draft.kind,
             provenance: draft.provenance,
@@ -130,7 +132,7 @@ impl PlatformStore {
         let mut response = self
             .client()
             .query("SELECT * FROM ONLY $task;")
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         Ok(response.take(0)?)

@@ -11,9 +11,8 @@ use veoveo_mcp_contract::{
     IssueArtifactWriteCapabilityRequest, PlaneCaller, PrincipalKind,
 };
 use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscribeRequest, validate_source};
-use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskId, TaskOwner, TaskRetentionPin, TaskSnapshot,
-};
+use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskSnapshot};
+use veoveo_types::TaskId;
 
 pub fn owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {

@@ -7,6 +7,7 @@ use std::{collections::BTreeSet, time::Duration};
 use veoveo_mcp_contract::{
     InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
     subscribe_durable_tasks,
@@ -48,7 +49,7 @@ fn owner() -> TaskOwner {
 
 fn draft(task_type: &str, recovery_class: RecoveryClass) -> CreateTask {
     CreateTask {
-        task_id: veoveo_task_runtime::TaskId::new(),
+        task_id: veoveo_types::TaskId::new(),
         owner: owner(),
         server: "integration-server".to_owned(),
         task_type: task_type.to_owned(),
@@ -75,7 +76,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         // A server-wide baseline would try to decode this unrelated envelope.
         db.b.client()
             .query("UPDATE ONLY $id SET request = {};")
-            .bind(("id", unrelated.task_id.record_id()))
+            .bind(("id", task_record_id(unrelated.task_id)))
             .await
             .unwrap()
             .check()
@@ -207,7 +208,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                 .snapshot;
             db.b.client()
                 .query("UPDATE ONLY $id SET request.input = NONE;")
-                .bind(("id", task.task_id.record_id()))
+                .bind(("id", task_record_id(task.task_id)))
                 .await
                 .unwrap()
                 .check()
@@ -223,7 +224,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                 .snapshot;
             db.b.client()
                 .query("UPDATE ONLY $id SET created_at = $at;")
-                .bind(("id", task.task_id.record_id()))
+                .bind(("id", task_record_id(task.task_id)))
                 .bind(("at", at))
                 .await
                 .unwrap()
@@ -279,7 +280,7 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
         let mut input = draft("analysis", RecoveryClass::Resume);
         input.owner = installation_owner.clone();
         let absent = writer.create(input.clone()).await.unwrap().snapshot.task_id;
-        input.task_id = veoveo_task_runtime::TaskId::new();
+        input.task_id = veoveo_types::TaskId::new();
         input.owner.tenant_key = Some("installation".into());
         let explicit_owner = input.owner.clone();
         let explicit = writer.create(input).await.unwrap().snapshot.task_id;

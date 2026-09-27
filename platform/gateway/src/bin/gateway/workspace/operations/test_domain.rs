@@ -9,9 +9,8 @@ use rmcp::{
 };
 use serde_json::json;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskId, TaskInputRequest, TaskOwner, TaskRuntime,
-};
+use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskInputRequest, TaskOwner, TaskRuntime};
+use veoveo_types::TaskId;
 
 #[derive(Clone)]
 pub(crate) struct Domain {

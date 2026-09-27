@@ -129,6 +129,15 @@ ID types. The native Frames MCP smoke passes world authoring, paged catalog read
 conversion, batch tasks, Artifact access, and usage reads. Strict workspace Clippy passes.
 Operation authority and usage paging remain implementation work; installed acceptance
 is pending, including the declared world array-to-page coordinated upgrade.
+Native Task identity now belongs to `veoveo-types`; Store owns its explicit UUID record
+adapter and all consumers import the foundational type directly. UUID wire admission
+and generation are preserved, including TaskRuntime's external v7 check. Seventy-five
+unit cases and 32 native database cases pass across identity, lifecycle, recovery,
+subscriptions, Store bindings, and Media webhooks. The independent foundation consumer
+passes 13 cases and verifies schema/JSON admission on 44 samples; the Map/Frames consumer
+passes 12 cases with no runtime dependencies. Foundation's 13 doctests and strict
+workspace Clippy pass. This supplies the identity needed by Frames usage cursors;
+usage query authorization and paging remain work for the owning Frames contract.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -605,7 +614,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Frames world metadata construction | Public world summaries, revisions, and source references repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
 | Frames operation and stream references | World/revision/frame addresses use typed component builders; operation resource and dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
 | Frames operation and usage visibility | Operation reads post-filter labels and do not enforce the owner/profile isolation promised by the design; usage indexes load task ownership after unbounded selection | Define persisted operation authority for direct and Task execution, enforce it and usage visibility in SQL, and qualify retained-data admission and caller isolation |
-| Native Task identity | TaskRuntime reexports Store's UUID `TaskId`, including database traits and record construction; protocol-level opaque Task handles have a different ownership and wire profile | Expose native Task identity through a lightweight owning contract and keep Store record conversion in its driver adapter; use that contract for typed usage cursors without adding database dependencies to server contract features |
+| Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Runtime external lookups still require v7; opaque MCP handles keep their own profile | Use this identity for typed usage cursors without adding database dependencies to server contract features; migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | DuckDB, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |

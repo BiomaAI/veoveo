@@ -6,11 +6,13 @@ use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_optimization_mcp::domain::{
     OptimizationSolutionUri, OptimizationToolOutput, ProblemId, RunId,
 };
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{
-    RecordId, TaskId, TaskRecord, deterministic_principal_id, deterministic_tenant_id,
+    RecordId, TaskRecord, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskSnapshot;
+use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,
@@ -277,7 +279,7 @@ pub(super) async fn visible_task_page(
     if let Some(cursor) = &request.cursor {
         query = query
             .bind(("after_created_at", cursor.created_at))
-            .bind(("after_task", cursor.task_id.record_id()));
+            .bind(("after_task", task_record_id(cursor.task_id)));
     }
     let mut response = query.await.map_err(internal)?.check().map_err(internal)?;
     let records: Vec<TaskRecord> = response.take(0).map_err(internal)?;

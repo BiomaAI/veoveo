@@ -21,9 +21,10 @@ use veoveo_stream_mcp::{
     contract::{RecordingVideoSelection, RunRecordingRequest, SamplingPolicy},
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState,
+    CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
     TaskRetentionPin, TaskSnapshot, TaskTransition,
 };
+use veoveo_types::TaskId;
 
 use super::app_state::{AppState, update_task};
 use super::outputs::{AnalysisProducts, publish_analysis};

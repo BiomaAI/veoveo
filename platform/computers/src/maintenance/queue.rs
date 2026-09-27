@@ -2,6 +2,7 @@ use super::{MaintenanceOperation, MaintenanceStage, model::MaintenanceRecord, re
 use crate::{ComputerError, ComputersStore, Result};
 use surrealdb::types::SurrealValue;
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 
 impl ComputersStore {
     /// Bounded private worker discovery. Recovery rows do not query the provider.
@@ -41,7 +42,7 @@ impl ComputersStore {
             include_str!("../../queries/acknowledge_task_projection.surql"),
             vec![
                 ("operation", record(operation.operation_id).into_value()),
-                ("task", operation.task_id().record_id().into_value()),
+                ("task", task_record_id(operation.task_id()).into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 ("status", status.into_value()),
             ],

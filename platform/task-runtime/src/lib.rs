@@ -29,6 +29,4 @@ pub use types::{
     TaskPageCursor, TaskPayloadState, TaskRetentionPin, TaskRetentionPinError, TaskRuntimeConfig,
     TaskSnapshot, TaskTransition, TaskUpdate, TaskUpdateCursor,
 };
-pub use veoveo_platform_store::{
-    PrincipalKind, StoreAuthLevel, StoreCredentials, TaskId, TaskStatus,
-};
+pub use veoveo_platform_store::{PrincipalKind, StoreAuthLevel, StoreCredentials, TaskStatus};

@@ -12,6 +12,7 @@ use veoveo_artifact_service::{
     ArtifactService, ObjectStoreConfig, PlaneAuthenticator, SurrealArtifactRepository,
 };
 use veoveo_mcp_contract::*;
+use veoveo_platform_store::task_record_id;
 use veoveo_speech_contract::{TranscribeRequest, TranscriptDocument};
 use veoveo_speech_mcp::{
     application::{SpeechService, owner},
@@ -224,7 +225,7 @@ async fn exercise() -> Result<()> {
     // Fault injection represents a process dying after Artifact publication but
     // before its terminal Task transition. A fresh owner must reuse the output IDs.
     runtime.reap_workers().await;
-    let record_id = finished.task_id.record_id();
+    let record_id = task_record_id(finished.task_id);
     let mut record: veoveo_platform_store::TaskRecord =
         db.a.client()
             .select(record_id.clone())

@@ -29,6 +29,7 @@ mod provenance;
 mod resource;
 mod resource_components;
 mod scopes;
+mod task;
 
 pub use digest::{Sha256Digest, Sha256DigestError};
 pub use error::IdentifierError;
@@ -43,3 +44,4 @@ pub use identity::{
     TenantId, WorkContextId,
 };
 pub use provenance::{InvocationMode, InvocationProvenance};
+pub use task::TaskId;

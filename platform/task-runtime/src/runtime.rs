@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_platform_store::task_record_id;
 
 use chrono::{DateTime, TimeDelta, Utc};
 use futures::{Stream, StreamExt};
@@ -17,11 +18,12 @@ use veoveo_mcp_contract::{AccessLevel, InvocationAuthority, WorkContextMembershi
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
     InvocationMode as StoreInvocationMode, LiveStream, OpenObject, OutboxDraft, OutboxEventRecord,
-    PlatformStore, PlatformTable, RecoveryClass as StoreRecoveryClass, TaskId, TaskInputRecord,
-    TaskRecord, TaskStatus as StoreTaskStatus, WorkContextInitialGrantRecord,
+    PlatformStore, PlatformTable, RecoveryClass as StoreRecoveryClass, TaskInputRecord, TaskRecord,
+    TaskStatus as StoreTaskStatus, WorkContextInitialGrantRecord,
     WorkContextMembershipLevel as StoreMembershipLevel, deterministic_principal_id,
     deterministic_tenant_id, deterministic_work_context_id,
 };
+use veoveo_types::TaskId;
 use veoveo_types::{AccessSubject, InvocationProvenance};
 
 use crate::types::{
@@ -186,7 +188,7 @@ impl TaskRuntime {
             .await?;
 
         let task_id = draft.task_id;
-        let record = task_id.record_id();
+        let record = task_record_id(task_id);
         let now = Utc::now();
         let retention = draft
             .ttl_ms
@@ -288,7 +290,7 @@ impl TaskRuntime {
                     )
                     .bind(("idempotency", idempotency.clone()))
                     .bind(("link", link.clone()))
-                    .bind(("task", task_id.record_id()))
+                    .bind(("task", task_record_id(task_id)))
                     .bind(("content", content.clone()))
                     .bind(("outbox", outbox.clone()))
                     .await
@@ -342,7 +344,7 @@ impl TaskRuntime {
             .store
             .client()
             .query("SELECT * FROM ONLY $task;")
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         let record: Option<TaskRecord> = response.take(0)?;
@@ -407,7 +409,7 @@ impl TaskRuntime {
             .query(
                 "UPDATE ONLY $task SET retention_pins += $pin WHERE server = $server AND !(retention_pins CONTAINS $pin) RETURN AFTER;",
             )
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .bind(("pin", pin.as_str().to_owned()))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .await?
@@ -435,7 +437,7 @@ impl TaskRuntime {
             .query(
                 "UPDATE ONLY $task SET retention_pins -= $pin WHERE server = $server AND retention_pins CONTAINS $pin RETURN AFTER;",
             )
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .bind(("pin", pin.as_str().to_owned()))
             .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .await?
@@ -479,7 +481,7 @@ impl TaskRuntime {
 
         let input_id = task_input_record(current.task_id, key);
         let content = TaskInputContent {
-            task: current.task_id.record_id(),
+            task: task_record_id(current.task_id),
             request_key: key.to_owned(),
             request: task_input_request_to_open_object(&request)?,
             response: None,
@@ -504,7 +506,7 @@ impl TaskRuntime {
             .query(
                 "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, updated_at = $now WHERE updated_at = $expected_updated_at AND status IN ['queued', 'running', 'waiting'] AND server = $server AND tenant = $tenant AND owner = $owner AND lease_owner = $worker AND lease_expires_at > $now RETURN AFTER); IF $updated = NONE { THROW 'task input transition conflict'; }; CREATE ONLY $input CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $event RETURN NONE; COMMIT TRANSACTION;",
             )
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("request", envelope.into_open_object()?))
             .bind(("now", now))
             .bind(("expected_updated_at", current.updated_at))
@@ -550,7 +552,7 @@ impl TaskRuntime {
             .query(
                 "SELECT * FROM task_input WHERE task = $task AND response = NONE ORDER BY created_at ASC;",
             )
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         let records: Vec<TaskInputRecord> = response.take(0)?;
@@ -594,7 +596,7 @@ impl TaskRuntime {
                     .bind(("input", task_input_record(current.task_id, &key)))
                     .bind(("response", OpenObject::new(response_value.clone())))
                     .bind(("now", now))
-                    .bind(("task", current.task_id.record_id()))
+                    .bind(("task", task_record_id(current.task_id)))
                     .bind(("server", RecordId::new("mcp_server", self.server.clone())))
                     .bind(("event", event))
                     .await
@@ -833,7 +835,7 @@ impl TaskRuntime {
             .query(
                 "BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $next, request = $request, progress = $progress, result = $result, error = $error, cancel_requested_at = $cancel_requested_at, completed_at = $completed_at, lease_owner = IF $terminal { NONE } ELSE { lease_owner }, lease_expires_at = IF $terminal { NONE } ELSE { lease_expires_at }, updated_at = $now WHERE status = $expected AND updated_at = $expected_updated_at AND server = $server AND tenant = $tenant AND owner = $owner AND ($control_transition OR (lease_owner = $worker AND lease_expires_at > $now) OR ($expired_cancellation AND (lease_expires_at = NONE OR lease_expires_at <= $now))) RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
             )
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("next", next))
             .bind(("request", envelope.into_open_object()?))
             .bind(("progress", progress))

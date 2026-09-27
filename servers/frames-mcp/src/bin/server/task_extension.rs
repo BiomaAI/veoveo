@@ -11,9 +11,10 @@ use rmcp::{
 use veoveo_frames_mcp::contract::BatchTransformRequest;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_task_runtime::{
-    DurableTaskService, DurableTaskSubscription, TaskId, TaskSnapshot, durable_input_responses,
+    DurableTaskService, DurableTaskSubscription, TaskSnapshot, durable_input_responses,
     project_snapshot, retention_pins, task_seed,
 };
+use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,

@@ -9,6 +9,7 @@ use crate::{
 };
 use chrono::{TimeDelta, Utc};
 use std::time::Duration;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{TaskRecord, TaskStatus as StoreTaskStatus};
 #[derive(Clone, Copy, PartialEq)]
 enum ClaimKind {
@@ -30,7 +31,7 @@ impl TaskRuntime {
         }
         let mut response = self.platform_store().client().query(
             "UPDATE ONLY $task SET lease_owner = NONE, lease_expires_at = NONE WHERE server = $server AND recovery_class = 'provider_wait' AND lease_owner = $worker AND lease_expires_at = $expiry AND lease_expires_at > time::now() AND status IN ['queued', 'running', 'waiting', 'cancel_requested'] RETURN AFTER;"
-        ).bind(("task", claimed.snapshot.task_id.record_id()))
+        ).bind(("task", task_record_id(claimed.snapshot.task_id)))
             .bind(("server", surrealdb::types::RecordId::new("mcp_server", self.server().to_owned())))
             .bind(("worker", self.worker_id().to_owned())).bind(("expiry", claimed.lease_expires_at))
             .await?.check()?;
@@ -101,7 +102,7 @@ impl TaskRuntime {
         let lease_expires_at = now
             + TimeDelta::from_std(lease_duration)
                 .map_err(|_| TaskError::InvalidRecord("lease duration is too large".to_owned()))?;
-        let task = snapshot.task_id.record_id();
+        let task = task_record_id(snapshot.task_id);
         let mut event_snapshot = snapshot.clone();
         if !observation {
             event_snapshot.status = StoreTaskStatus::Running;
@@ -180,7 +181,7 @@ impl TaskRuntime {
             .query(
                 "UPDATE ONLY $task SET lease_expires_at = $lease_expires WHERE lease_owner = $worker AND lease_expires_at > $now AND (status IN ['running', 'waiting', 'cancel_requested'] OR (status = 'queued' AND recovery_class = 'provider_wait')) RETURN AFTER;",
             )
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .bind(("worker", self.worker_id().to_owned()))
             .bind(("lease_expires", lease_expires))
             .bind(("now", now))

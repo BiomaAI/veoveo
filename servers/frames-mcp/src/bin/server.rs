@@ -53,8 +53,9 @@ use veoveo_mcp_contract::{
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, DurableTaskService, RecoveryClass, TaskError, TaskFailure,
-    TaskId, TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
+use veoveo_types::TaskId;
 
 #[path = "server/admin.rs"]
 mod admin;
@@ -717,7 +718,7 @@ async fn run_task_inner(
         request.operation_id,
         request.operation_created_at,
     );
-    let platform_task_id = match task_id.parse::<veoveo_platform_store::TaskId>() {
+    let platform_task_id = match task_id.parse::<veoveo_types::TaskId>() {
         Ok(task_id) => task_id,
         Err(error) => fail!(format!("invalid durable task id: {error}")),
     };

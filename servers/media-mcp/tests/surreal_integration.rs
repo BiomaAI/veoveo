@@ -16,8 +16,9 @@ use veoveo_platform_store::{
     PlatformStore, ProviderJobState, StoreConfig, StoreCredentials, StoreError, TaskStatus,
 };
 use veoveo_task_runtime::{
-    CreateTask, PrincipalKind, RecoveryClass, TaskFailure, TaskId, TaskOwner, TaskRuntime,
+    CreateTask, PrincipalKind, RecoveryClass, TaskFailure, TaskOwner, TaskRuntime,
 };
+use veoveo_types::TaskId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };

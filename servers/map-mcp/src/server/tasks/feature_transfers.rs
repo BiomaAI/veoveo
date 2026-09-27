@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_task_runtime::TaskId;
+use veoveo_types::TaskId;
 
 use crate::{
     authoring::GeneratedLayerProduct,

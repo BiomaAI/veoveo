@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
-use veoveo_task_runtime::{TaskId, TaskOwner};
+use veoveo_platform_store::task_record_id;
+use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskId;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -211,7 +213,7 @@ impl TryFrom<Record> for CommandOperation {
             || command.binding.provider_instance_id != row.provider_instance_id
             || row.actor_key != super::actor_key(&command.authority)?
             || command.binding.actor_key != row.actor_key
-            || row.task != command.task_id().record_id()
+            || row.task != task_record_id(command.task_id())
         {
             return Err(ComputerError::Unavailable);
         }

@@ -10,7 +10,9 @@ use std::time::{Duration, Instant};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
-use veoveo_task_runtime::{TaskId, TaskOwner};
+use veoveo_platform_store::task_record_id;
+use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskId;
 
 #[derive(Clone, Copy)]
 pub enum CommandTaskAction {
@@ -110,7 +112,7 @@ impl ComputersStore {
             || row.provider_instance_id != binding.provider_instance_id
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
-            || row.task != TaskId::from_uuid(execution).record_id()
+            || row.task != task_record_id(TaskId::from_uuid(execution))
         {
             return Err(ComputerError::Unavailable);
         }

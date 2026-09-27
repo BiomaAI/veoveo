@@ -44,8 +44,8 @@ use veoveo_mcp_contract::{
     public_allowed_hosts,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
-    TaskPayloadState, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskPayloadState,
+    TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
 use veoveo_timeseries_mcp::{
     artifacts::ArtifactRepository,
@@ -53,6 +53,7 @@ use veoveo_timeseries_mcp::{
     forecast::{RRD_MIME_TYPE, run_forecast},
     uris,
 };
+use veoveo_types::TaskId;
 
 #[path = "server/admin.rs"]
 mod admin;

@@ -7,8 +7,9 @@ use crate::contract::{
 use anyhow::{Context, Result, anyhow, bail};
 use veoveo_platform_store::{
     CoordinateOperationDraft, FrameWorldDraft, FrameWorldRecord, FrameWorldRevisionDraft,
-    FrameWorldRevisionRecord, OpenObject, PlatformIdentity, PlatformStore, TaskId,
+    FrameWorldRevisionRecord, OpenObject, PlatformIdentity, PlatformStore,
 };
+use veoveo_types::TaskId;
 
 use crate::{
     contract::{CreateWorldRequest, FrameWorldSummary, PublishWorldOutput, PublishWorldRequest},

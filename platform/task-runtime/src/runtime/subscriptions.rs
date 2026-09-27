@@ -1,6 +1,7 @@
 //! Exact-filter Task observation. One projected database wake serves all listeners.
 use super::*;
 use surrealdb::Notification;
+use veoveo_platform_store::task_record_id;
 
 // Read the committed tail in sequence order. The available-at index scans and
 // sorts the entire historical outbox before LIMIT, delaying leases and readers.
@@ -68,7 +69,7 @@ impl TaskRuntime {
         ids.dedup();
         let records: Vec<_> = ids
             .iter()
-            .map(|id| parse_task_id(id).map(|id| id.record_id()))
+            .map(|id| parse_task_id(id).map(task_record_id))
             .collect::<Result<_, _>>()?;
         let mut wake = self
             .subscription_wake

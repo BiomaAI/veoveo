@@ -12,6 +12,7 @@
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | Rust extension interfaces | Public `ScopeDefinition` and `ResourceAddress` traits permit implementations in independent libraries |
 | SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
+| Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
 
 ## Ownership And Dependencies
 
@@ -22,7 +23,8 @@ Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
 `DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
 and `InvocationProvenance` describe direct, delegated, or automated attribution.
-It depends on Serde, Schemars, URL, and percent encoding. It contains no protocol transport, asynchronous
+`TaskId` identifies a native platform Task independently of its database record or MCP handle.
+It depends on Serde, Schemars, URL, percent encoding, and UUID. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
 
 Identity syntax and attribution establish no authority. Authentication, policy
@@ -58,6 +60,22 @@ and Serde use the same validator; the distinct types survive until serialization
 requires an initiator, delegated provenance also requires a delegation ID, and
 automated provenance carries neither field. Services must authenticate this attribution
 before trusting it.
+
+`TaskId` holds a UUID. Its parser admits simple, hyphenated, braced, and lowercase-prefix
+URN spellings, including uppercase hexadecimal digits and existing non-v7 values.
+Display and JSON serialization emit lowercase hyphenated UUIDs. Its string schema
+describes these admitted spellings. Serde delegates to UUID, preserving that library's
+behavior for binary and other deserializers. `new` and `default` generate v7 values.
+The Task runtime checks its narrower v7 profile at external lookup admission.
+Store's `task_record_id` adapter binds the value to the `task` table with a UUID key.
+The foundational type has no database traits or table knowledge. Opaque MCP Task
+handles and gateway route identities keep their separate protocol contracts.
+
+UUID is pinned to the already-qualified 1.25.0 parser used by native Tasks and Map.
+The [upstream registry](https://crates.io/crates/uuid) reports 1.26.1 as stable on
+2026-09-27. Retaining 1.25.0 keeps the ownership extraction independent from a parser
+upgrade; dependency currency work must qualify newer admission and serialization
+behavior before changing that pin.
 
 `scope_enum!` generates a domain enum from its owner's variant-to-spelling declaration.
 Its parser, serializer, schema, display, and `ScopeDefinition` implementation use that

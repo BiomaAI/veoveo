@@ -2,6 +2,7 @@ use super::FileOperation;
 use crate::{ComputerError, ComputersStore, Result};
 use std::collections::BTreeSet;
 use surrealdb::types::SurrealValue;
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime};
 
 impl ComputersStore {
@@ -101,7 +102,7 @@ impl ComputersStore {
             include_str!("../../queries/acknowledge_file_task.surql"),
             vec![
                 ("execution", super::record(file.transfer_id()).into_value()),
-                ("task", file.task_id().record_id().into_value()),
+                ("task", task_record_id(file.task_id()).into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),

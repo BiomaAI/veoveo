@@ -6,6 +6,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use surrealdb::types::SurrealValue;
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -89,7 +90,7 @@ impl ComputersStore {
                     "operation",
                     operation_record(operation.operation_id).into_value(),
                 ),
-                ("task", operation.task_id().record_id().into_value()),
+                ("task", task_record_id(operation.task_id()).into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 ("status", status.into_value()),
             ],

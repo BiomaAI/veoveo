@@ -8,6 +8,7 @@
 | SurrealDB / SurrealQL `3.2.4` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations |
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
+| Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
 
 This library is the shared Task authority used by hosted domain services. Public
 handlers delegate protocol projection to the official RMCP types and the shared
@@ -23,6 +24,12 @@ the owning domain.
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
+
+Consumers import native `TaskId` directly from `veoveo-types`. Store's `task_record_id`
+function performs the database conversion at bindings. TaskRuntime owns Task lifecycle
+and external lookup admission; public identity consumers do not depend on this runtime
+or Store. UUID generation, serialization, persisted UUID keys and admission profiles
+are unchanged by this ownership split. It requires no data conversion or deployment drain.
 
 Subscription baselines read the newest available outbox sequence through the
 sequence index in reverse order. The available-time index would scan and sort

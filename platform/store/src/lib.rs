@@ -38,6 +38,7 @@ mod recordings;
 mod resource_changes;
 mod store;
 mod table;
+mod task_ids;
 mod time;
 mod usage;
 pub mod workspace;
@@ -120,6 +121,7 @@ pub use resource_changes::{ResourceChangeTable, ResourceInvalidation};
 pub use store::{PlatformClient, PlatformStore};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
+pub use task_ids::task_record_id;
 pub use time::{
     TimeAcquisitionDraft, TimeAcquisitionUpdate, TimeAuthorityReleaseDraft,
     TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeCompletion, TimeEventCursor,

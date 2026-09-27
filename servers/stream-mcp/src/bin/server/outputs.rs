@@ -12,8 +12,8 @@ use veoveo_stream_mcp::{
     contract::{AnalysisResults, AnalysisSummary, RunRecordingOutput},
     uris,
 };
-use veoveo_task_runtime::TaskId;
 use veoveo_types::DataLabelId;
+use veoveo_types::TaskId;
 
 use super::app_state::AppState;
 

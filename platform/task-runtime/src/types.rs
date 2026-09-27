@@ -12,9 +12,10 @@ use surrealdb::types::{RecordId, RecordIdKey};
 use veoveo_mcp_contract::InvocationAuthority;
 use veoveo_platform_store::{
     OpenObject, PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel,
-    StoreCredentials, TaskId, TaskRecord, TaskStatus as StoreTaskStatus,
-    deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
+    StoreCredentials, TaskRecord, TaskStatus as StoreTaskStatus, deterministic_principal_id,
+    deterministic_tenant_id, deterministic_work_context_id,
 };
+use veoveo_types::TaskId;
 
 /// Stable internal pin that prevents pruning while another durable owner needs a task result.
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]

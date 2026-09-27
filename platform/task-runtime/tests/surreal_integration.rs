@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::time::Duration;
+use veoveo_platform_store::task_record_id;
 
 use futures::StreamExt;
 use secrecy::SecretString;
@@ -52,7 +53,7 @@ fn owner() -> TaskOwner {
 
 fn draft(task_type: &str, recovery_class: RecoveryClass) -> CreateTask {
     CreateTask {
-        task_id: veoveo_task_runtime::TaskId::new(),
+        task_id: veoveo_types::TaskId::new(),
         owner: owner(),
         server: "integration-server".to_owned(),
         task_type: task_type.to_owned(),
@@ -369,7 +370,7 @@ async fn concurrent_idempotent_creates_converge_on_one_uuid_v7_task() {
     let mut request = draft("forecast", RecoveryClass::Resume);
     request.idempotency_key = Some("concurrent-create".to_owned());
     let left_request = request.clone();
-    request.task_id = veoveo_task_runtime::TaskId::new();
+    request.task_id = veoveo_types::TaskId::new();
     let (left, right) = tokio::join!(first.create(left_request), second.create(request));
     let left = left.unwrap();
     let right = right.unwrap();
@@ -691,14 +692,14 @@ async fn pruning_a_terminal_task_also_releases_its_idempotency_key() {
         .platform_store()
         .client()
         .query("SELECT VALUE id FROM task_input WHERE task = $task;")
-        .bind(("task", first.task_id.record_id()))
+        .bind(("task", task_record_id(first.task_id)))
         .await
         .unwrap()
         .check()
         .unwrap();
     let input_ids: Vec<surrealdb::types::RecordId> = response.take(0).unwrap();
     assert!(input_ids.is_empty());
-    request.task_id = veoveo_task_runtime::TaskId::new();
+    request.task_id = veoveo_types::TaskId::new();
     let second = runtime.create(request).await.unwrap();
     assert!(second.created);
     assert_ne!(second.snapshot.task_id, first.task_id);

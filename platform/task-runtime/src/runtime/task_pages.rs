@@ -1,5 +1,6 @@
 use super::{TaskRuntime, owner_record, tenant_record};
 use crate::types::{TaskError, TaskOwner, TaskPage, TaskPageCursor, record_to_snapshot};
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{RecordId, TaskRecord};
 
 const PAGE_QUERY: &str = "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type IN $task_types ORDER BY created_at ASC, id ASC LIMIT $limit;";
@@ -47,7 +48,7 @@ impl TaskRuntime {
         if let Some(after) = after {
             query = query
                 .bind(("after_created_at", after.created_at))
-                .bind(("after_task", after.task_id.record_id()));
+                .bind(("after_task", task_record_id(after.task_id)));
         }
         let mut response = query.await?.check()?;
         let mut records: Vec<TaskRecord> = response.take(0)?;

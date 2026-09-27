@@ -31,9 +31,10 @@ use veoveo_optimization_mcp::{
     },
 };
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
-    TaskSnapshot, TaskTransition,
+    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
+use veoveo_types::TaskId;
 
 use super::{
     app_state::{AppState, update_task},

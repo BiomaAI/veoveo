@@ -59,9 +59,10 @@ use veoveo_mcp_contract::{
     public_allowed_hosts,
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskId,
-    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskRetentionPin,
+    TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskTransition,
 };
+use veoveo_types::TaskId;
 
 #[path = "server/admin.rs"]
 mod admin;

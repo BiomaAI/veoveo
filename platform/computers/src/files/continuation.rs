@@ -4,6 +4,7 @@ use chrono::{DateTime, TimeDelta, Utc};
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
 use veoveo_platform_store::OpenObject;
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
 pub(super) const AUTHORITY_WINDOW: Duration = Duration::from_secs(5);
@@ -66,7 +67,7 @@ impl ComputersStore {
                         super::record(operation.transfer_id()).into_value(),
                     ),
                     ("provider", self.provider_instance_id.into_value()),
-                    ("task", operation.task_id().record_id().into_value()),
+                    ("task", task_record_id(operation.task_id()).into_value()),
                     ("dispatch_id", operation.dispatch_id.into_value()),
                     (
                         "stage",

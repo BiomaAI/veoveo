@@ -5,10 +5,12 @@ mod store;
 use std::{collections::BTreeSet, time::Duration};
 use store::TestDb;
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{
-    CreateTask, ProviderCommit, RecoveryClass, TaskError, TaskId, TaskOwner, TaskRetentionPin,
-    TaskRuntime, TaskSnapshot, TaskStatus, TaskTransition,
+    CreateTask, ProviderCommit, RecoveryClass, TaskError, TaskOwner, TaskRetentionPin, TaskRuntime,
+    TaskSnapshot, TaskStatus, TaskTransition,
 };
+use veoveo_types::TaskId;
 
 fn draft(class: RecoveryClass) -> CreateTask {
     let owner: TaskOwner = serde_json::from_value(serde_json::json!({
@@ -179,7 +181,7 @@ async fn expire(runtime: &TaskRuntime, task: &TaskSnapshot) {
         .platform_store()
         .client()
         .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
-        .bind(("task", task.task_id.record_id()))
+        .bind(("task", task_record_id(task.task_id)))
         .await
         .unwrap()
         .check()

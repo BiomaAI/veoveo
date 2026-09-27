@@ -16,7 +16,7 @@ use veoveo_optimization_mcp::{
     uris,
 };
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
-use veoveo_task_runtime::TaskId;
+use veoveo_types::TaskId;
 
 use super::app_state::AppState;
 

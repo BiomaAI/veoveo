@@ -1,5 +1,6 @@
 //! Durable-route authorization against an isolated store and the current policy catalog.
 use std::collections::BTreeSet;
+use veoveo_platform_store::task_record_id;
 
 use base64::Engine as _;
 use chrono::{TimeDelta, Utc};
@@ -7,8 +8,9 @@ use veoveo_mcp_contract::{
     AccessTokenSubject, GatewayAction, GatewayControlPlane, GatewayInternalSigningKey,
     OAuthClientId, ProtectedResourceId, TaskExposure, TokenIssuer, WorkContextMembershipLevel,
 };
-use veoveo_platform_store::{PrincipalKind, TaskId};
+use veoveo_platform_store::PrincipalKind;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
+use veoveo_types::TaskId;
 use veoveo_types::{
     DataLabelId, DelegationId, InvocationMode, InvocationProvenance, PolicyVersion, PrincipalId,
     ScopeName, TenantId, WorkContextId,
@@ -311,7 +313,7 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
     // A linked record from another server cannot supply ownership evidence.
     db.a.client()
         .query("UPDATE ONLY $source SET server = mcp_server:other;")
-        .bind(("source", task_id.record_id()))
+        .bind(("source", task_record_id(task_id)))
         .await
         .unwrap()
         .check()

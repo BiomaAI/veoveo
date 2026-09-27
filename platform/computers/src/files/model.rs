@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
-use veoveo_task_runtime::{TaskId, TaskOwner};
+use veoveo_platform_store::task_record_id;
+use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskId;
 
 use crate::api::FileTransferStage;
 
@@ -211,7 +213,7 @@ impl TryFrom<Record> for FileOperation {
             || row.actor_key != super::actor_key(&file.authority)?
             || file.binding.actor_key != row.actor_key
             || file.binding.owner_key != row.owner_key
-            || row.task != file.task_id().record_id()
+            || row.task != task_record_id(file.task_id())
         {
             return Err(ComputerError::Unavailable);
         }

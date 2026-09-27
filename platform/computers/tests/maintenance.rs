@@ -14,6 +14,7 @@ use veoveo_computers::{
     maintenance::{MaintenanceSource, MaintenanceStage, MaintenanceTarget},
 };
 use veoveo_mcp_contract::{GatewayControlPlane, LocalToolName};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{RecoveryClass, TaskRuntime};
 
 fn control() -> GatewayControlPlane {
@@ -124,7 +125,7 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
     // original maintenance and target rather than allocating another instance.
     db.a.client()
         .query("BEGIN TRANSACTION; DELETE task_idempotency WHERE task = $task; DELETE $task; COMMIT TRANSACTION;")
-        .bind(("task", expected.task_id().record_id()))
+        .bind(("task", task_record_id(expected.task_id())))
         .await
         .unwrap().check().unwrap();
     let repaired = b

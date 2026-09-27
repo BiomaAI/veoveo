@@ -10,6 +10,7 @@ use crate::{
 use serde::Serialize;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 
 #[derive(Serialize, SurrealValue)]
@@ -135,7 +136,7 @@ impl ComputersStore {
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
             sealed: object(&sealed)?,
-            task: veoveo_task_runtime::TaskId::from_uuid(binding.execution_id).record_id(),
+            task: task_record_id(veoveo_types::TaskId::from_uuid(binding.execution_id)),
         };
         #[derive(Serialize)]
         struct Event<'a> {

@@ -1,6 +1,7 @@
 //! Compose a domain journal write with the current shared observation lease.
 use crate::{ClaimedTask, RecoveryClass, TaskError, TaskRuntime};
 use surrealdb::types::{RecordId, Value};
+use veoveo_platform_store::task_record_id;
 
 /// Cancellation prevents new dispatch; observation may still settle an old effect.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -68,7 +69,7 @@ impl TaskRuntime {
             .platform_store()
             .client()
             .query(sql)
-            .bind(("_provider_task", snapshot.task_id.record_id()))
+            .bind(("_provider_task", task_record_id(snapshot.task_id)))
             .bind((
                 "_provider_server",
                 RecordId::new("mcp_server", self.server().to_owned()),

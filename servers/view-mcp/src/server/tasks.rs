@@ -4,10 +4,11 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
-    TaskSnapshot, TaskTransition,
+    CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
 use veoveo_types::PrincipalId;
+use veoveo_types::TaskId;
 
 use crate::{
     contract::CaptureFrameRequest,

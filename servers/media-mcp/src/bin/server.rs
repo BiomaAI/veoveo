@@ -897,7 +897,7 @@ async fn start_media_task(
     args: RunArgs,
     retention_pins: std::collections::BTreeSet<TaskRetentionPin>,
 ) -> Result<TaskSnapshot, String> {
-    let task_id = veoveo_task_runtime::TaskId::new();
+    let task_id = veoveo_types::TaskId::new();
     let task_id_text = task_id.to_string();
     let capability = state
         .artifacts

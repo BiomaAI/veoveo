@@ -12,9 +12,10 @@ use crate::{
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ArtifactWriteRedemptionRecord,
     ArtifactWriteRedemptionState, AuditEventId, AuditEventRecord, AuditOutcome, GrantPermission,
     InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore,
-    PrincipalId, PrincipalKind, ShareLinkId, ShareLinkRecord, StoreError, TaskId, TenantId,
-    TenantRecord, deterministic_principal_id, deterministic_work_context_id,
+    PrincipalId, PrincipalKind, ShareLinkId, ShareLinkRecord, StoreError, TenantId, TenantRecord,
+    deterministic_principal_id, deterministic_work_context_id,
 };
+use veoveo_types::TaskId;
 
 use crate::identity::PLATFORM_ID_NAMESPACE;
 use crate::store::primary_transaction_error;
@@ -454,12 +455,11 @@ impl PlatformStore {
             id: redemption_id.record_id(),
             capability: capability_id.record_id(),
             tenant: RecordId::new("tenant", "placeholder"),
-            task: task_id
-                .parse::<TaskId>()
-                .map_err(|_| StoreError::ArtifactWriteConflict {
+            task: crate::task_record_id(task_id.parse::<TaskId>().map_err(|_| {
+                StoreError::ArtifactWriteConflict {
                     key: idempotency_key.to_owned(),
-                })?
-                .record_id(),
+                }
+            })?),
             task_id: task_id.to_owned(),
             idempotency_key: idempotency_key.to_owned(),
             request_hash: request_hash.to_owned(),

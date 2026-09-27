@@ -33,6 +33,7 @@ use veoveo_computers::{
 };
 use veoveo_computers_mcp::{LifecycleWorker, Preflight, PreflightError, RetainedHomes, WorkerStep};
 use veoveo_computers_runtime::{Binding, DevelopmentTemplate, ExecIntent, PERSISTENT_HOME};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 
 /// Counts entry to production preflight without replacing its allocation or the
@@ -65,7 +66,7 @@ async fn expire(tasks: &TaskRuntime, operation: &Operation) {
         .platform_store()
         .client()
         .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
-        .bind(("task", operation.task_id().record_id()))
+        .bind(("task", task_record_id(operation.task_id())))
         .await
         .unwrap()
         .check()

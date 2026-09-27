@@ -1,3 +1,4 @@
+use crate::task_record_id;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
@@ -6,8 +7,9 @@ use uuid::Uuid;
 
 use crate::{
     DomainUsageId, DomainUsageKind, DomainUsageRecord, OpenObject, OutboxDraft, PlatformStore,
-    StoreError, TaskId, TaskRecord,
+    StoreError, TaskRecord,
 };
+use veoveo_types::TaskId;
 
 const DOMAIN_USAGE_EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_DOMAIN_USAGE_TASK_PAGE_SIZE: usize = 1_000;
@@ -73,7 +75,7 @@ impl PlatformStore {
         let now = Utc::now();
         let content = DomainUsageContent {
             tenant: task.tenant.clone(),
-            task: draft.task_id.record_id(),
+            task: task_record_id(draft.task_id),
             server,
             source_id: draft.source_id.clone(),
             provider_job_id: draft.provider_job_id.clone(),
@@ -136,7 +138,7 @@ impl PlatformStore {
             .client()
             .query("SELECT * FROM domain_usage WHERE server = $server AND task = $task ORDER BY recorded_at ASC, id ASC;")
             .bind(("server", RecordId::new("mcp_server", server.to_owned())))
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         Ok(response.take(0)?)
@@ -181,7 +183,7 @@ impl PlatformStore {
             .bind(("server", RecordId::new("mcp_server", server.to_owned())))
             .bind(("limit", (page_size + 1) as i64));
         if let Some(after) = after {
-            request = request.bind(("after", after.record_id()));
+            request = request.bind(("after", task_record_id(after)));
         }
         let mut response = request.await?.check()?;
         let mut task_ids = response
@@ -206,7 +208,7 @@ impl PlatformStore {
         let mut response = self
             .client()
             .query("SELECT * FROM ONLY $task;")
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         Ok(response.take(0)?)
@@ -290,7 +292,7 @@ fn usage_kind_name(kind: DomainUsageKind) -> &'static str {
 }
 
 fn task_id_from_record(record: RecordId) -> Result<TaskId, StoreError> {
-    if record.table.as_str() != TaskId::TABLE {
+    if record.table.as_str() != "task" {
         return Err(StoreError::MissingRecord {
             operation: "domain usage task identity",
         });

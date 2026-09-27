@@ -2,7 +2,7 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rmcp::ErrorData as McpError;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_task_runtime::TaskId;
+use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,

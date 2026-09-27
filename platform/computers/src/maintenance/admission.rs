@@ -13,6 +13,7 @@ use serde::Serialize;
 use std::{collections::BTreeSet, time::Duration};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{
     OpenObject, OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id,
     gateway_refresh_family_record_id,
@@ -276,7 +277,7 @@ impl ComputersStore {
             operation_id: id,
             request_id,
             computer_id,
-            task: veoveo_task_runtime::TaskId::from_uuid(id).record_id(),
+            task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
             owner_key: owner_key(caller)?,
             actor_context: object(caller)?,
             execution_authority: object(actor.accepted())?,

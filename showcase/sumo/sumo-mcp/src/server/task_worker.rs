@@ -17,10 +17,11 @@ use veoveo_mcp_contract::{
     RedeemArtifactWriteCapabilityRequest,
 };
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState, TaskRetentionPin,
-    TaskSnapshot, TaskTransition,
+    CreateTask, RecoveryClass, TaskFailure, TaskPayloadState, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
 use veoveo_types::DataLabelId;
+use veoveo_types::TaskId;
 
 use crate::contract::{
     DurableOperation, DurableTaskRequest, OfflineOperation, OfflineOperationRequest,

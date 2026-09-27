@@ -7,9 +7,10 @@ use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::PlaneCaller;
 use veoveo_task_runtime::{
-    CreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState, TaskRetentionPin,
-    TaskSnapshot, TaskTransition,
+    CreateTask, RecoveryClass, TaskFailure, TaskPayloadState, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
+use veoveo_types::TaskId;
 
 use crate::contract::{
     DurableOperation, DurableOperationResult, ExecuteMissionRequest,

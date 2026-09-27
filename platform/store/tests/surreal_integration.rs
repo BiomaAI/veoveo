@@ -18,11 +18,12 @@ use veoveo_platform_store::{
     RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
     RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
     RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
-    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError, TaskId,
+    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
     TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
     WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
     deterministic_work_context_id, gateway_replay_record_id, migrations,
 };
+use veoveo_types::TaskId;
 
 #[path = "surreal_integration/changefeed.rs"]
 mod changefeed;

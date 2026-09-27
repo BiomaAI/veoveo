@@ -11,11 +11,12 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_task_runtime::{
-    DurableTaskService, DurableTaskSubscription, TaskId, TaskRetentionPin, TaskSnapshot,
+    DurableTaskService, DurableTaskSubscription, TaskRetentionPin, TaskSnapshot,
     cancel_durable_task, get_durable_task, project_snapshot, retention_pins,
     subscribe_durable_tasks, task_seed, update_durable_task,
 };
 use veoveo_timeseries_mcp::contract::TimeseriesForecastRequest;
+use veoveo_types::TaskId;
 
 use super::{
     TASK_RETENTION_PIN_META_KEY,

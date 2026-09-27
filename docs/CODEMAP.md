@@ -363,6 +363,8 @@ and server library features.
 prefixed SHA-256 representation shared by provenance contracts.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
+`src/task.rs` owns native Task UUID identity; `platform/store/src/task_ids.rs` binds it
+to database record keys. TaskRuntime owns lifecycle and its external v7 admission profile.
 `src/identifier_syntax.rs` shares lexical validation with other owners' newtypes.
 `src/resource_components.rs` validates concrete addresses and exposes decoded components;
 `src/resource_components/authority.rs` validates unescaped authorities, and
@@ -528,6 +530,7 @@ observation lease and cancellation epoch in one transaction.
 | File | Responsibility |
 |---|---|
 | `types.rs` | runtime configuration, recovery classes, pins, claims, outcomes |
+| `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |

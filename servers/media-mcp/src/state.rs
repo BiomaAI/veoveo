@@ -1,6 +1,7 @@
 //! Durable media task state backed by the installation SurrealDB.
 
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_platform_store::task_record_id;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -14,10 +15,11 @@ use veoveo_platform_store::{
     ArtifactWriteCapabilityId as StoreCapabilityId, MediaTaskContextId, MediaTaskContextRecord,
     MediaUsageId, MediaUsageKind, MediaUsageRecord, OpenObject, OutboxDraft, PlatformStore,
     ProviderEventId, ProviderEventRecord, ProviderJobId, ProviderJobRecord, ProviderJobState,
-    RecordId, RecordIdKey, RedactedSecret, StoreError, TaskId, TaskStatus,
+    RecordId, RecordIdKey, RedactedSecret, StoreError, TaskStatus,
 };
 use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::DataLabelId;
+use veoveo_types::TaskId;
 
 use crate::provider::Prediction;
 
@@ -153,7 +155,7 @@ impl MediaState {
         let now = Utc::now();
         let content = MediaTaskContextRecord {
             id: context_id.record_id(),
-            task: task_id.record_id(),
+            task: task_record_id(task_id),
             tenant: tenant_record(owner)?,
             capability: StoreCapabilityId::from_uuid(capability.capability_id.as_uuid())
                 .record_id(),
@@ -268,7 +270,7 @@ impl MediaState {
         let job = ProviderJobRecord {
             id: job_id.record_id(),
             tenant: tenant.clone(),
-            task: current.task_id.record_id(),
+            task: task_record_id(current.task_id),
             provider: PROVIDER.to_owned(),
             external_job_id: prediction.id.clone(),
             state: ProviderJobState::Waiting,
@@ -294,7 +296,7 @@ impl MediaState {
             .query("BEGIN TRANSACTION; CREATE ONLY $job CONTENT $job_content RETURN NONE; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE status = $expected_status AND updated_at = $expected_updated AND recovery_class = 'webhook_wait' AND lease_owner = $worker RETURN AFTER); IF $updated = NONE { THROW 'media task changed before provider binding'; }; CREATE outbox_event CONTENT $job_outbox RETURN NONE; CREATE outbox_event CONTENT $task_outbox RETURN NONE; COMMIT TRANSACTION;")
             .bind(("job", job_id.record_id()))
             .bind(("job_content", job))
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request))
             .bind(("progress", waiting.progress))
             .bind(("now", now))
@@ -386,7 +388,7 @@ impl MediaState {
         let job = ProviderJobRecord {
             id: job_id.record_id(),
             tenant: tenant.clone(),
-            task: current.task_id.record_id(),
+            task: task_record_id(current.task_id),
             provider: PROVIDER.to_owned(),
             external_job_id: prediction.id.clone(),
             state: job_state,
@@ -433,7 +435,7 @@ impl MediaState {
             .bind(("job", job_id.record_id()))
             .bind(("job_content", job))
             .bind(("update_task", waiting.is_some()))
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request))
             .bind(("progress", waiting.as_ref().map_or(current.progress, |task| task.progress)))
             .bind(("now", now))
@@ -559,7 +561,7 @@ impl MediaState {
             .store
             .client()
             .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = $status, request = $request, progress = $progress, result = $result, error = $error, completed_at = $now, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running', 'waiting'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated = NONE { THROW 'media webhook completion conflict'; }; UPDATE ONLY $event SET processed_at = $now, processing_error = NONE WHERE processed_at = NONE RETURN NONE; UPDATE ONLY $job SET state = $job_state, completed_at = $now, updated_at = $now RETURN NONE; CREATE outbox_event CONTENT $task_outbox RETURN NONE; CREATE outbox_event CONTENT $processed_outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("status", status))
             .bind(("request", request))
             .bind(("progress", progress))
@@ -649,7 +651,7 @@ impl MediaState {
             .client()
             .query("SELECT * FROM provider_job WHERE provider = $provider AND task = $task ORDER BY submitted_at ASC LIMIT 1;")
             .bind(("provider", PROVIDER.to_owned()))
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         response
@@ -695,7 +697,7 @@ impl MediaState {
             .bind(("terminal", state == ProviderJobState::Cancelled))
             .bind(("now", now))
             .bind(("tenant", tenant_record(&task.owner)?))
-            .bind(("task", task.task_id.record_id()))
+            .bind(("task", task_record_id(task.task_id)))
             .bind(("provider", PROVIDER.to_owned()))
             .bind(("outbox", outbox))
             .await?
@@ -776,7 +778,7 @@ impl MediaState {
             .store
             .client()
             .query("SELECT * FROM media_usage WHERE task = $task ORDER BY recorded_at ASC; SELECT * FROM provider_job WHERE task = $task;")
-            .bind(("task", task_id.record_id()))
+            .bind(("task", task_record_id(task_id)))
             .await?
             .check()?;
         let records = response.take::<Vec<MediaUsageRecord>>(0)?;
@@ -827,7 +829,7 @@ impl MediaState {
         let record = MediaUsageRecord {
             id: id.record_id(),
             tenant: tenant_record(&task.owner)?,
-            task: task.task_id.record_id(),
+            task: task_record_id(task.task_id),
             provider_job: provider_job.map(|job| job.job_id.record_id()),
             source_id: usage.source_id.clone(),
             model_id: usage.model_id.clone(),
@@ -879,7 +881,7 @@ impl MediaState {
             .store
             .client()
             .query("RETURN count((SELECT VALUE id FROM media_usage WHERE task = $task AND provider_job = $job AND kind = 'actual' LIMIT 1)) > 0;")
-            .bind(("task", task.record_id()))
+            .bind(("task", task_record_id(task)))
             .bind(("job", job.job_id.record_id()))
             .await?
             .check()?;
@@ -934,7 +936,7 @@ impl MediaState {
         self.store
             .client()
             .query("BEGIN TRANSACTION; LET $updated = (UPDATE ONLY $task SET status = 'waiting', request = $request, progress = $progress, lease_owner = NONE, lease_expires_at = NONE, updated_at = $now WHERE updated_at = $expected_updated AND status IN ['queued', 'running'] AND recovery_class = 'webhook_wait' RETURN AFTER); IF $updated != NONE { CREATE outbox_event CONTENT $outbox RETURN NONE; }; COMMIT TRANSACTION;")
-            .bind(("task", current.task_id.record_id()))
+            .bind(("task", task_record_id(current.task_id)))
             .bind(("request", request_envelope(&waiting)?))
             .bind(("progress", waiting.progress))
             .bind(("now", now))

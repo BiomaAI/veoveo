@@ -5,6 +5,7 @@ mod managed;
 
 use std::collections::BTreeSet;
 use std::time::Duration;
+use veoveo_platform_store::task_record_id;
 
 use chrono::Utc;
 use serde_json::json;
@@ -582,7 +583,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
     let task = fixture
         .tasks
         .create(CreateTask {
-            task_id: veoveo_task_runtime::TaskId::new(),
+            task_id: veoveo_types::TaskId::new(),
             owner,
             server: "integration-server".to_owned(),
             task_type: "durability".to_owned(),
@@ -635,7 +636,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
             surrealdb::types::RecordId::new("mcp_server", "integration-server"),
         ))
         .bind(("source_task_id", task.task_id.to_string()))
-        .bind(("source_task", task.task_id.record_id()))
+        .bind(("source_task", task_record_id(task.task_id)))
         .bind(("authority_digest", "0".repeat(64)))
         .bind(("now", Utc::now()))
         .bind(("expires_at", Utc::now() + chrono::TimeDelta::days(1)))

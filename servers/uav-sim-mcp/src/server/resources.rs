@@ -546,8 +546,8 @@ fn discovery_roots(identity: &GatewayInternalIdentity) -> Vec<Resource> {
     roots
 }
 
-fn parse_task_id(value: &str) -> Result<veoveo_task_runtime::TaskId, McpError> {
-    let id: veoveo_task_runtime::TaskId = value.parse().map_err(invalid)?;
+fn parse_task_id(value: &str) -> Result<veoveo_types::TaskId, McpError> {
+    let id: veoveo_types::TaskId = value.parse().map_err(invalid)?;
     if id.as_uuid().get_version_num() != 7 {
         return Err(McpError::invalid_params("task ID must be UUIDv7", None));
     }

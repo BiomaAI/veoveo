@@ -6,6 +6,7 @@ use veoveo_computers::{
     CapacityPolicy, ComputersStore, OperationStage, Reservation, UndispatchedOutcome,
     api::{Action, ComputerPhase},
 };
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransition};
 
 #[tokio::test]
@@ -132,7 +133,7 @@ async fn queued_cancellation_is_atomic_and_projection_ack_survives_pin_interrupt
         // Later Task retention cleanup cannot reconstruct completed work.
         db.a.client()
             .query("DELETE ONLY $task;")
-            .bind(("task", op.task_id().record_id()))
+            .bind(("task", task_record_id(op.task_id())))
             .await
             .unwrap()
             .check()

@@ -1,4 +1,5 @@
 use std::{collections::BTreeMap, time::Instant};
+use veoveo_platform_store::task_record_id;
 
 use axum::{
     extract::{Extension, Path as AxumPath, State},
@@ -9,8 +10,9 @@ use veoveo_mcp_contract::{
     CanonicalTaskId, GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
-use veoveo_platform_store::{TaskId, TaskRecord};
+use veoveo_platform_store::TaskRecord;
 use veoveo_task_runtime::{TaskRuntime, TaskSnapshot};
+use veoveo_types::TaskId;
 use veoveo_types::TenantId;
 
 use crate::{
@@ -173,7 +175,7 @@ async fn load_task(state: &AdminState, task_id: TaskId) -> anyhow::Result<Option
         .platform_store()
         .client()
         .query("SELECT * FROM ONLY $task;")
-        .bind(("task", task_id.record_id()))
+        .bind(("task", task_record_id(task_id)))
         .await?
         .check()?;
     let record: Option<TaskRecord> = response.take(0)?;

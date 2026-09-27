@@ -1,10 +1,12 @@
 use std::{collections::BTreeSet, time::Duration};
+use veoveo_platform_store::task_record_id;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
     InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
-use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskId};
+use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass};
+use veoveo_types::TaskId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
@@ -166,7 +168,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             );
             db.b.client()
                 .query("UPDATE ONLY $id SET result = $result;")
-                .bind(("id", task.task_id.record_id()))
+                .bind(("id", task_record_id(task.task_id)))
                 .bind(("result", result))
                 .await
                 .unwrap()

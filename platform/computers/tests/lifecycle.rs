@@ -7,6 +7,7 @@ use veoveo_computers::{
     ReachedState, Reservation,
     api::{Action, ComputerPhase},
 };
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{ClaimedTask, TaskRuntime, TaskStatus};
 
 async fn setup(db: &TestDb) -> (ComputersStore, ComputersStore, TaskRuntime) {
@@ -248,7 +249,7 @@ async fn lost_dispatch_receipt_recovers_by_one_charged_observation_without_repla
     support::policy::install(&db.b, denied).await;
     db.a.client()
         .query("UPDATE ONLY $task SET lease_expires_at = time::now() - 1s;")
-        .bind(("task", op.task_id().record_id()))
+        .bind(("task", task_record_id(op.task_id())))
         .await
         .unwrap()
         .check()

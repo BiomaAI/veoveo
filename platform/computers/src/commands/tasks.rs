@@ -2,6 +2,7 @@ use super::CommandOperation;
 use crate::{ComputerError, ComputersStore, Result};
 use std::collections::BTreeSet;
 use surrealdb::types::SurrealValue;
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime};
 
 impl ComputersStore {
@@ -110,7 +111,7 @@ impl ComputersStore {
                     "execution",
                     super::record(command.execution_id()).into_value(),
                 ),
-                ("task", command.task_id().record_id().into_value()),
+                ("task", task_record_id(command.task_id()).into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 ("status", status.into_value()),
                 ("stage", stage.into_value()),

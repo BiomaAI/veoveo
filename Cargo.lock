@@ -17113,6 +17113,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-artifact-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17688,6 +17689,7 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
+ "uuid",
 ]
 
 [[package]]

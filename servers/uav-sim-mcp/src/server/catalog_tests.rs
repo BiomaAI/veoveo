@@ -15,7 +15,8 @@ use chrono::{TimeDelta, Utc};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use veoveo_mcp_contract::{GatewayInternalIdentity, SubscriptionHub};
 use veoveo_platform_store::PlatformStore;
-use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskId, TaskRuntime};
+use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRuntime};
+use veoveo_types::TaskId;
 
 use crate::server::test_support::fixture;
 

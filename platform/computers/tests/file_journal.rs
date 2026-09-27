@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 use veoveo_computer_execution::{FileFailure, FileReceipt};
 use veoveo_computers::{ComputerActor, api::*, files::*, secrets::FileTransferPayload};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskTransition};
 
 async fn slots(db: &support::TestDb) -> usize {
@@ -208,7 +209,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
                 .query("UPDATE $task SET result.structuredContent.artifactId=$wrong;")
-                .bind(("task", completed.task_id().record_id()))
+                .bind(("task", task_record_id(completed.task_id())))
                 .bind(("wrong", Uuid::now_v7().to_string()))
                 .await
                 .unwrap()
@@ -217,7 +218,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             assert!(b.acknowledge_file_task(&completed).await.is_err());
             db.a.client()
                 .query("UPDATE $task SET result.structuredContent.artifactId=$correct;")
-                .bind(("task", completed.task_id().record_id()))
+                .bind(("task", task_record_id(completed.task_id())))
                 .bind(("correct", artifact.to_string()))
                 .await
                 .unwrap()

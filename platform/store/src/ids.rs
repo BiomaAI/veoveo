@@ -86,7 +86,6 @@ domain_id!(McpServerId, "mcp_server");
 domain_id!(ProfileId, "profile");
 domain_id!(PolicyRevisionId, "policy_revision");
 domain_id!(WorkContextId, "work_context");
-domain_id!(TaskId, "task");
 domain_id!(ProviderJobId, "provider_job");
 domain_id!(ProviderEventId, "provider_event");
 domain_id!(ArtifactBlobId, "artifact_blob");
@@ -143,9 +142,9 @@ mod tests {
 
     #[test]
     fn ids_round_trip_through_json() {
-        let id = TaskId::new();
+        let id = ArtifactId::new();
         let encoded = serde_json::to_string(&id).unwrap();
-        let decoded: TaskId = serde_json::from_str(&encoded).unwrap();
+        let decoded: ArtifactId = serde_json::from_str(&encoded).unwrap();
         assert_eq!(decoded, id);
     }
 }

@@ -33,10 +33,9 @@ use veoveo_optimization_mcp::{
     profiles::profiles,
     uris,
 };
-use veoveo_platform_store::{
-    DomainUsageKind as StoreUsageKind, DomainUsageRecord, TaskId as StoreTaskId, TaskStatus,
-};
+use veoveo_platform_store::{DomainUsageKind as StoreUsageKind, DomainUsageRecord, TaskStatus};
 use veoveo_task_runtime::TaskSnapshot;
+use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,
@@ -641,7 +640,7 @@ impl ServerHandler for OptimizationMcp {
                     .domain_usage_for_task(
                         SERVER_SLUG,
                         task_id
-                            .parse::<StoreTaskId>()
+                            .parse::<TaskId>()
                             .map_err(|error| McpError::invalid_params(error.to_string(), None))?,
                     )
                     .await

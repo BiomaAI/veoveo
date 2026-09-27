@@ -55,7 +55,8 @@ mod tests {
     use veoveo_mcp_contract::{
         InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
-    use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskId, TaskRuntime};
+    use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskRuntime};
+    use veoveo_types::TaskId;
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
@@ -144,7 +145,7 @@ mod tests {
                 .platform_store()
                 .client()
                 .query("UPDATE ONLY $task SET result = $result;")
-                .bind(("task", id.record_id()))
+                .bind(("task", veoveo_platform_store::task_record_id(id)))
                 .bind(("result", result))
                 .await
                 .unwrap()

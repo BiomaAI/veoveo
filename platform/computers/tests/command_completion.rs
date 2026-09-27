@@ -4,6 +4,7 @@ mod support;
 use command_support::*;
 use uuid::Uuid;
 use veoveo_computers::{api::*, commands::*};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{TaskRetentionPin, TaskRuntime, TaskStatus, TaskTransition};
 
 fn output(byte_count: u32) -> ExecutionOutput {
@@ -79,7 +80,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         // acknowledge a substituted output occurrence or wrong tool-error flag.
         db.a.client()
             .query("UPDATE $task SET result.isError = $wrong;")
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .bind(("wrong", code == 0))
             .await
             .unwrap()
@@ -89,7 +90,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
             .query("UPDATE $task SET result.isError = $correct;")
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .bind(("correct", code != 0))
             .await
             .unwrap()
@@ -100,7 +101,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         // qualify the coordinated data/Task projection migration twice.
         db.a.client().query("BEGIN; UPDATE computer_execution SET result.result_uri = NONE WHERE execution_id = $execution; UPDATE $task SET result.structuredContent.result_uri = NONE; COMMIT;")
             .bind(("execution", completed.execution_id()))
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .await.unwrap().check().unwrap();
         let migrate = format!(
             "BEGIN; {} COMMIT;",
@@ -108,7 +109,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         );
         db.a.client()
             .query("UPDATE $task SET result.isError = $wrong;")
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .bind(("wrong", code == 0))
             .await
             .unwrap()
@@ -128,7 +129,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
             .query(
                 "RETURN (SELECT VALUE result.structuredContent.result_uri FROM ONLY $task) = NONE;",
             )
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .await
             .unwrap()
             .check()
@@ -136,7 +137,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert_eq!(untouched.take::<Option<bool>>(0).unwrap(), Some(true));
         db.a.client()
             .query("UPDATE $task SET result.isError = $correct;")
-            .bind(("task", completed.task_id().record_id()))
+            .bind(("task", task_record_id(completed.task_id())))
             .bind(("correct", code != 0))
             .await
             .unwrap()
