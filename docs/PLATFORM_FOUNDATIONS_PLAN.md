@@ -3,7 +3,10 @@
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
 Phases 4–9 have not started. Phase 1 images and charts are published at `faa1fed3`;
-native acceptance and the reference reset are pending. The Phase 2 catalog fixture
+the old reference node and its five owned volumes have been removed. Cleanup
+reclaimed about 416 GiB, leaving 570 GiB free on 2026-09-27. The reference workloads
+are stopped at the user's request; native acceptance, rebuild, and installed
+qualification are pending. The Phase 2 catalog fixture
 at `883a09ba` passed native SDK reads (16 rows) and grant renewal on 2026-09-27;
 reference installation acceptance is pending. Phase 3 Reason pagination
 is implemented at `3c5d914d` with native Store qualification.
@@ -654,4 +657,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance and removal of the old node and its volumes, rebuild from the published platform and UAV locks, then qualify the reference installation | Docker cannot reap the terminated node's nested runtime while its remaining threads wait in disk I/O; image and chart publication is complete |
+| Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |

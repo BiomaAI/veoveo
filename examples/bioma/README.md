@@ -120,8 +120,8 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 <!-- TODO(foundations): Finish native acceptance, reset the reference installation
 from the published Phase 1 images and charts, and qualify the installed workloads.
-The old node has received termination, but Docker cannot reap its nested runtime
-while its remaining threads wait in disk I/O; finish node and volume removal first. -->
+The old node and its volumes are removed. Keep reference workloads stopped while
+local qualification finishes, and verify host free space before reactivation. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
