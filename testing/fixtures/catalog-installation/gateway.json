@@ -233,6 +233,10 @@
       "memberships": [
         {
           "level": "contributor",
+          "principals": [
+            "https://veoveo.local/services#recording-hub",
+            "https://veoveo.local/services#recording-mcp-publisher"
+          ],
           "oauth_clients": [
             "recording-producer",
             "recording-hub",

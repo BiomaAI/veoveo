@@ -20,6 +20,15 @@ private keys outside the repository, or replace the public keys with a newly gen
 fixture identity before publication. Never copy credentials from another installation.
 The operator key ID is `catalog-operator`; producer, hub and properties-publisher
 clients use `catalog-producer`. The authorization server uses `catalog-authorization`.
+These OAuth keys use RSA. The separate internal gateway signing key uses Ed25519;
+provision its PKCS#8 DER as standard base64 and its public JWKS as an `OKP` key with
+curve `Ed25519`, algorithm `EdDSA` and key ID `catalog-internal`. The playback token
+key is 32 random bytes encoded in padded standard base64. Internal signing and
+playback keys belong only in the installation Secret.
+
+The operations Work Context admits the hub and properties publisher's local service
+principals as contributors, alongside their OAuth clients. The hub constructs catalog
+authority directly from its local service identity during startup.
 
 Create the installation Secrets required by the rendered profile. Provision
 `catalog-ingress-tls` with a certificate whose SAN includes `localhost`, and set
