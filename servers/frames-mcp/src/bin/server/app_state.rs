@@ -6,6 +6,7 @@ pub(super) struct AppState {
     pub(super) frames: FramesState,
     pub(super) artifacts: ArtifactRepository,
     pub(super) max_artifact_bytes: u64,
+    pub(super) subscriptions: veoveo_mcp_contract::SubscriptionHub,
 }
 
 pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {

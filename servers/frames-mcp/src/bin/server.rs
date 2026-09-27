@@ -75,6 +75,8 @@ mod outputs;
 mod ownership;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/subscriptions.rs"]
+mod subscriptions;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 
@@ -318,6 +320,8 @@ impl ServerHandler for FramesMcp {
             .enable_tools()
             .enable_prompts()
             .enable_resources()
+            .enable_resources_subscribe()
+            .enable_resources_list_changed()
             .enable_completions()
             .build();
         veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
@@ -398,8 +402,14 @@ impl ServerHandler for FramesMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        veoveo_task_runtime::listen_durable_subscriptions(&self.task_service, context, None, None)
-            .await
+        subscriptions::authorize(&self.state, &context).await?;
+        veoveo_task_runtime::listen_durable_subscriptions(
+            &self.task_service,
+            context,
+            Some(&self.state.subscriptions),
+            None,
+        )
+        .await
     }
 
     async fn list_tools(
@@ -1222,6 +1232,7 @@ async fn main() -> anyhow::Result<()> {
         frames,
         artifacts: ArtifactRepository::new(args.artifact_service_url.clone()),
         max_artifact_bytes: args.max_artifact_bytes,
+        subscriptions: veoveo_mcp_contract::SubscriptionHub::new(),
     });
     for snapshot in recovery.resumable {
         if let Err(error) = resume_batch_task(state.clone(), snapshot).await {
@@ -1235,6 +1246,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
+    let _resource_observer = subscriptions::spawn_observer(state.clone(), ct.clone());
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);

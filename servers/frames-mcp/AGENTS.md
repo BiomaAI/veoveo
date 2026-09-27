@@ -74,8 +74,8 @@ Contract revision: 3
 - C23: met
 - C25: met
 - C26: met
-- C27: met
-- C28: met
+- C27: pending — world and usage subscriptions use Store LIVE observations; replica and reconnect qualification is pending
+- C28: met — the Store observer feeds resource contents and discovery-list invalidation into the shared hub
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

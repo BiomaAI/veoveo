@@ -476,7 +476,7 @@ The only durable platform persistence layer.
 | `recordings.rs` | recording lifecycle and visibility |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
-| `resource_changes.rs` | shared domain LIVE invalidations, coalescing and reconnect recovery; composed into Time and Recording resource hubs |
+| `resource_changes.rs` | shared domain LIVE invalidations, coalescing and reconnect recovery; composed into Time, Recording and Frames resource hubs |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration and database-wide changefeed pages that complete transaction tails before cursor advancement |
 | `live_views.rs` | append-only audit records for simulator live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
@@ -628,6 +628,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
+| `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |

@@ -122,6 +122,11 @@ profile, and data-label isolation.
 
 World identifiers support completion. Resource lists are paginated. The server
 emits resource-update notifications when mutable state changes.
+Each replica shares Store LIVE observations of world heads, revisions and domain
+usage through its resource hub. Subscriptions admit world and usage indexes, visible
+worlds and caller-owned task usage. Immutable revisions and frame definitions reject
+subscriptions. Source reconnection invalidates accepted resources and discovery;
+ordinary reads recheck current authority. The observer stops with the server.
 
 ## Prompts
 

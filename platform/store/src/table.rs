@@ -45,6 +45,8 @@ pub enum PlatformTable {
     MediaUsage,
     DomainUsage,
     Frame,
+    FrameWorld,
+    FrameWorldRevision,
     CoordinateOperation,
     MapSource,
     MapDatasetRelease,
@@ -82,7 +84,7 @@ pub enum PlatformTable {
 }
 
 impl PlatformTable {
-    pub const ALL: [Self; 73] = [
+    pub const ALL: [Self; 75] = [
         Self::Enterprise,
         Self::Tenant,
         Self::Principal,
@@ -122,6 +124,8 @@ impl PlatformTable {
         Self::MediaUsage,
         Self::DomainUsage,
         Self::Frame,
+        Self::FrameWorld,
+        Self::FrameWorldRevision,
         Self::CoordinateOperation,
         Self::MapSource,
         Self::MapDatasetRelease,
@@ -199,6 +203,8 @@ impl PlatformTable {
             Self::MediaUsage => "media_usage",
             Self::DomainUsage => "domain_usage",
             Self::Frame => "frame",
+            Self::FrameWorld => "frame_world",
+            Self::FrameWorldRevision => "frame_world_revision",
             Self::CoordinateOperation => "coordinate_operation",
             Self::MapSource => "map_source",
             Self::MapDatasetRelease => "map_dataset_release",
