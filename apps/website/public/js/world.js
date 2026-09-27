@@ -368,7 +368,9 @@ async function start() {
         ['drone', 'quadruped', 'rover', 'boat', 'operator'].map(load),
     );
     const sizes = { drone: 7, quadruped: 6.5, rover: 7, boat: 13, operator: 5.2 };
-    function prepare(src, size, useHeight = false) {
+    // Models face +z when they move. The generated quadruped and rover face -z, so they turn around.
+    function prepare(src, size, useHeight = false, flip = false) {
+        src.rotation.y = flip ? Math.PI : 0;
         const box = new THREE.Box3().setFromObject(src);
         const dims = box.getSize(new THREE.Vector3());
         src.scale.setScalar(size / (useHeight ? dims.y : Math.max(dims.x, dims.z)));
@@ -388,8 +390,8 @@ async function start() {
     }
     const templates = {
         drone: prepare(droneSrc, sizes.drone),
-        quadruped: prepare(quadSrc, sizes.quadruped),
-        rover: prepare(roverSrc, sizes.rover),
+        quadruped: prepare(quadSrc, sizes.quadruped, false, true),
+        rover: prepare(roverSrc, sizes.rover, false, true),
         boat: prepare(boatSrc, sizes.boat),
         operator: prepare(operatorSrc, sizes.operator, true),
     };
