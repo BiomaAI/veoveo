@@ -64,6 +64,13 @@ state after this file is gone.
   wipe, and rebuild its cluster whenever a phase needs it, without backups, data
   migration, backward compatibility, or approval. Deploy each phase there once its
   local checks pass, and run its installed acceptance there.
+- Keep the reference cluster stopped during editing, compilation, and image builds.
+  Start only the isolated services a focused check requires. Start the full reference
+  cluster for installed acceptance and stop it when those checks finish. Use node
+  stop/start for routine development; delete and rebuild when the phase requires a
+  reset. Check free disk space and expected build growth before large builds, because
+  stopping nodes does not reclaim their volumes or build caches. Required installed
+  and hardware GPU acceptance still runs against the complete deployment.
 - Read `AGENTS.md` and `docs/CODEMAP.md` before each phase.
 - Work on `main` in small commits, one concern each. Run the native checks each commit
   touches, and run `cargo xtask enforce docs` for every documentation change.
