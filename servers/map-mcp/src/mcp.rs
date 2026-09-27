@@ -1802,6 +1802,9 @@ impl ServerHandler for MapMcp {
                 require_scope(&request_context, "map:feature:read")?;
             } else {
                 require_scope(&request_context, "map:dataset:read")?;
+                if uri == uris::SPATIAL_DERIVATIONS_URI {
+                    require_scope(&request_context, "map:spatial:derive")?;
+                }
             }
         }
         veoveo_task_runtime::listen_durable_subscriptions(
@@ -2493,6 +2496,8 @@ fn is_subscribable(uri: &str) -> bool {
             | uris::RESTRICTIONS_URI
             | uris::ROUTES_URI
             | uris::TRAVEL_MODELS_URI
+            | uris::RASTER_DERIVATIONS_URI
+            | uris::SPATIAL_DERIVATIONS_URI
     ) || uris::parse_profile(uri).is_some()
         || uris::parse_single(uri, "map://restriction/").is_some()
         || uris::parse_single(uri, "map://route/").is_some()
@@ -2529,6 +2534,14 @@ mod well_known_tests {
         ResourceDiscoveryAccess, SERVER_DOCS, discoverable_resources, stable_resource_uris,
     };
     use crate::{contract::MapWorkspaceBasemap, uris};
+
+    #[test]
+    fn derivation_collections_accept_the_notifications_the_workers_emit() {
+        assert!(super::is_subscribable(uris::RASTER_DERIVATIONS_URI));
+        assert!(super::is_subscribable(uris::SPATIAL_DERIVATIONS_URI));
+        assert!(!super::is_subscribable("map://spatial-derivations/extra"));
+        assert!(!super::is_subscribable(uris::DOCS_URI));
+    }
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {

@@ -1038,6 +1038,10 @@ by the caller's data labels. Raster derivation resources are confined to their
 creating Work Context, while the immutable source raster remains tenant
 scoped. Spatial derivations are also confined to their creating Work Context.
 
+Raster and spatial derivation indexes accept resource subscriptions. Raster index
+admission requires `map:dataset:read`; spatial index admission additionally requires
+`map:spatial:derive`, matching their resource reads.
+
 ### Prompts And Completions
 
 Map exposes `prepare_route_request`, `review_route`,
