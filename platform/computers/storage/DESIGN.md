@@ -1,7 +1,7 @@
 # Retained Computer Storage
 
 The Rust allocator owns retained-home allocation, recovery and physical writer
-admission. The [Computers plan](../../../docs/COMPUTERS_PLAN.md) records qualification.
+admission. The [Computers design](../DESIGN.md#qualification-limits) records qualification.
 
 ## Standards And Protocols
 

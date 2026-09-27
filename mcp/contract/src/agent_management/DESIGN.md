@@ -21,8 +21,8 @@ permission. Publication binds both a management revision and an executable diges
 Every mutation carries a UUIDv7 request identity; it is independent of the definition
 ID. Native MCP Tasks keep their own identities and cancellation semantics.
 
-The [delivery plan](../../../../docs/AGENT_MANAGEMENT_PLAN.md) describes the full
-feature. These types do not establish installed route, client or lifecycle support.
+The [manager design](../../../../agents/manager/DESIGN.md) owns lifecycle behavior
+and qualification. These types alone do not establish installed support.
 
 `templates.rs` separates installation-owned runtime packages from their public
 authoring projection. Parameter inputs have closed scalar shapes. Public choices

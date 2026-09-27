@@ -3,7 +3,7 @@
 Status: native lifecycle, retained terminal and renewable runtime leases are qualified
 in isolated fixtures. The owning service composes browser grants with this adapter;
 public ingress and installed qualification remain in
-[Computers](../../../docs/COMPUTERS_PLAN.md).
+[Computers](../../computers/DESIGN.md#qualification-limits).
 
 ## Standards And Protocols
 

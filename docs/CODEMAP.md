@@ -54,18 +54,9 @@ planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`FORK_DEVELOPMENT_PLAN.md`](FORK_DEVELOPMENT_PLAN.md) | deployed fork development: upstream merges, downstream migrations, and the Bioma rollout record |
-| [`SPEECH_PLAN.md`](SPEECH_PLAN.md) | deployed GPU speech: private Workspace dictation, recording transcription as Tasks, timestamp playback, and JSON/WebVTT output; installed acceptance passed, with physical-microphone, scale, and C31 qualification limits recorded |
-| [`AGENT_MANAGEMENT_PLAN.md`](AGENT_MANAGEMENT_PLAN.md) | delivered API and Console/Workspace authoring, revision adoption and managed lifecycle, verified with four UAV pilots; simulator flight, managed Computer templates and broader qualification are open follow-ups |
-| [`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md) | delivered shared-chat client: owner-controlled membership, isolated agent context, concurrent runs, acceptance evidence, and pending installed follow-ups |
-| [`REACTIVE_UX_PLAN.md`](REACTIVE_UX_PLAN.md) | delivered catalog recovery, agent feedback, personal event feed, RMCP 3.4.0 and shared subscriptions; installed acceptance and remaining cold-catalog/performance work |
-| [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) | deployed Computers capability: Console and CLI access, named agent grants, retained storage, provider recovery and Bioma acceptance; clean/offline and broader qualification are still open |
 | [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
-| [`RMCP_3_MIGRATION.md`](RMCP_3_MIGRATION.md) | hard cut to MCP `2026-07-28` and `rmcp` 3, official Tasks and multi-round requests, stateless transport, subscription and replica redesign, Rig migration, duplicate protocol deletion, and acceptance |
 | [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work in `001`–`013`; App authority, uploads, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work in `014`–`023` |
-| [`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) | implementation plan for request `016`: recording datasets, immutable Artifact-backed Rerun layers, virtual catalogs, Arrow export, disk safety, activation, and acceptance |
-| [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) | delivered resumable HTTP uploads, persistent browser queue, durable receipts and Python streaming; 10 GiB installed acceptance with larger-capacity measurements pending |
-| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | approved, not started: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
+| [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | implementation in progress: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 
 Component designs live beside the code whose contract they specify:
@@ -84,7 +75,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
-| [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; delivery tracked in `SPEECH_PLAN.md` |
+| [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; device, scale, release and readiness qualification limits recorded in its design |
 | [`platform/gateway/src/bin/gateway/speech/DESIGN.md`](../platform/gateway/src/bin/gateway/speech/DESIGN.md) | per-chunk Speech policy checks, audit and signed internal forwarding |
 | [`servers/speech-mcp/contract/DESIGN.md`](../servers/speech-mcp/contract/DESIGN.md) | lightweight public Speech types shared by service, gateway and browser edge |
 | [`servers/recording-mcp/DESIGN.md`](../servers/recording-mcp/DESIGN.md) | recording catalog, queries and the Recording Explorer App |

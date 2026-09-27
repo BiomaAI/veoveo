@@ -3,8 +3,6 @@
 Customization happens in forks, as described in
 [`FORK_DEVELOPMENT.md`](FORK_DEVELOPMENT.md). The MCP protocol surface, runtime policy,
 and separate component deployments are the same for fork code as for upstream code.
-[`FORK_DEVELOPMENT_PLAN.md`](FORK_DEVELOPMENT_PLAN.md) records the implementation and
-installed rollout.
 
 Status: accepted policy direction on 2026-09-09 following the user's request to
 renegotiate contracts for ecosystem usefulness, Computers, UX, performance, and
@@ -331,7 +329,8 @@ recovery rather than polling. The replacement is a hard cut: the new table repla
 | Deployment and storage efficiency | Image planner, Computers/provider package, installation owner | Asset-only and no-op runs reuse unchanged artifacts; retained homes survive maintenance; required affected-path acceptance |
 | Artifact route experiment | Artifact service, upload client, installation ingress | Matched performance/security comparison first; a separate implementation decision follows measured evidence |
 
-The Computers sequence is in [COMPUTERS_PLAN.md](COMPUTERS_PLAN.md). Its release
+The [Computers design](../platform/computers/DESIGN.md#qualification-limits) owns its
+qualification gates. Its release
 must pass the supported user journey on a clean installation and on Veoveo with
 the Bioma configuration. Broader provider matrices, throughput experiments, and
 future CI infrastructure have separate checkpoints. Functional or security failures
@@ -346,10 +345,10 @@ with the native runtime and production retained allocator. Current dispatch auth
 and public action/read projection use the same fresh policy and directory snapshot.
 Durable browser, CLI and named automation grants now have installed public
 observations. Agent execution publishes governed output Artifacts and rejects a
-revoked grant or a different Computer. The current checkpoint in
-[COMPUTERS_PLAN.md](COMPUTERS_PLAN.md) records those observations and their limits.
-Governed Artifact import/export and named Start/Stop authority also have installed
-acceptance in that checkpoint. Clean/offline release closure, broader provider
+revoked grant or a different Computer. Governed Artifact import/export and named
+Start/Stop authority also have installed acceptance. The
+[Computers design](../platform/computers/DESIGN.md#qualification-limits) records the
+qualification limits. Clean/offline release closure, broader provider
 qualification and full installed-evidence composition remain work. Store-backed
 fixtures exercise competing replicas and unchanged existing profiles.
 

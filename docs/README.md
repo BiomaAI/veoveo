@@ -24,7 +24,7 @@ services, and its agents. Computers is part of every standard release.
 | Share knowledge between servers and agents | [Knowledge sharing](KNOWLEDGE.md), [knowledge source extension](../mcp/knowledge-extension/DESIGN.md) |
 | Review who did what | [Audit log](AUDIT.md) |
 | Understand access and output ownership | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md), [shared policy](../platform/policy/DESIGN.md) |
-| Upload and consume files | [Artifact uploads](ARTIFACT_UPLOAD_PLAN.md), [Artifact service](../platform/artifacts/service/DESIGN.md), [Console uploads](../apps/console/web/src/uploads/DESIGN.md), [Python SDK](../sdk/python/README.md) |
+| Upload and consume files | [Artifact service](../platform/artifacts/service/DESIGN.md), [Console uploads](../apps/console/web/src/uploads/DESIGN.md), [Python SDK](../sdk/python/README.md) |
 | Ingest and use recordings | [Recording model](RECORDINGS.md), [Rerun client guide](RERUN_RECORDINGS.md), [producer ingest](RECORDING_INGEST.md), [Recording MCP](../servers/recording-mcp/DESIGN.md) |
 | Configure GPU placement | [GPU placement](GPU_PLACEMENT.md), [simulation runtime](../platform/runtimes/simulation/DESIGN.md) |
 | Run a reference integration or inspect the UI | [Reference integrations](../showcase/README.md), [screenshot gallery](screenshots/GALLERY.md), [architecture views](architecture/README.md) |

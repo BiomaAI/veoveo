@@ -13,7 +13,8 @@
 
 Computers is separately adopted as a core Veoveo capability in
 [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md#computers), with its personal
-development lifecycle planned in [`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md). This
+development lifecycle defined in the
+[Computers design](../platform/computers/DESIGN.md). This
 factory plan governs disposable author/verifier jobs and their broker authority.
 
 Future implementation follows the accepted [contract evolution](CONTRACT_EVOLUTION.md)

@@ -116,8 +116,8 @@ membership and the latest 64 runs; stable IDs replace updated output in place.
 Human-history pagination remains independent from the active run window.
 
 Stopping a response is distinct from requesting MCP Task cancellation. The accepted
-first-class Task behavior is in
-[`WORKSPACE_PLAN.md`](../../../../../../../docs/WORKSPACE_PLAN.md#first-class-mcp-tasks).
+first-class Task behavior is in the
+[Workspace design](../../../../../../../apps/workspace/DESIGN.md#embedded-apps-and-durable-tasks).
 Task references, native Tasks input rounds, private results and cross-restart
 activity have local runtime and browser qualification. Public releases also qualify
 real Task completion, cancellation and recovery. Installed native-input acceptance

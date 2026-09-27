@@ -54,6 +54,6 @@ chat title, inviter name and invitation metadata before acceptance.
 
 Domain and browser-edge stream tests pass. Installed acceptance also qualifies
 Workspace authentication, real concurrent agents, independent cancellation, stream
-reconnection and worker-loss recovery. The current release evidence and nonblocking
-distinct-person and production Task-input follow-ups are tracked in
-[`WORKSPACE_PLAN.md`](../../../../../../docs/WORKSPACE_PLAN.md).
+reconnection and worker-loss recovery. The
+[Workspace design](../../../../../../apps/workspace/DESIGN.md#qualification-limits)
+tracks distinct-person and production Task-input qualification.

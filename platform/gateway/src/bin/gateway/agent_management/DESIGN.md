@@ -1,7 +1,8 @@
 # Agent Management Gateway
 
-Status: authoring/publication handlers implemented with isolated database acceptance. The [delivery plan](../../../../../../docs/AGENT_MANAGEMENT_PLAN.md)
-tracks client, runtime and installation work separately.
+Status: authoring and publication are deployed with the shared client and managed
+lifecycle. The [manager design](../../../../../../agents/manager/DESIGN.md#qualification-limits)
+records the qualification limits.
 
 ## Standards And Protocols
 

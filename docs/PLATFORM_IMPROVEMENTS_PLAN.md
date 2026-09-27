@@ -4,7 +4,7 @@ The extension-release sections below record an earlier design. The accepted
 [Fork Development](FORK_DEVELOPMENT.md) model supersedes external source packages,
 compatibility manifests, gateway fragments/bindings and a separately published Helm
 library. Current removal and qualification work is in
-[FORK_DEVELOPMENT_PLAN.md](FORK_DEVELOPMENT_PLAN.md).
+[FORK_DEVELOPMENT.md](FORK_DEVELOPMENT.md).
 
 Status: canonical multi-cycle implementation plan and delivery record. The `001`–`013`
 cycle is closed. Nine requests are delivered, three unfinished themes have one explicit
@@ -1197,7 +1197,7 @@ Required documentation updates include:
 
 - `mcp/contract/DESIGN.md` for resource errors, canonical URI handoff, shared bounds, and
   conformance without a universal resource identity.
-- `docs/RMCP_3_MIGRATION.md` if the post-migration listener repair changes its
+- `mcp/contract/DESIGN.md` if the post-migration listener repair changes its
   implementation report or remaining rollout evidence.
 - `docs/AUTONOMY_HARNESS.md` and `docs/TECH_DESIGN.md` for delivered continuation and
   model behavior.
@@ -1586,14 +1586,14 @@ web client. Retain `app_catalog()` only for gallery listing and gallery change e
 ### Phase 2: Recording Catalog Hard Cut
 
 Status: complete. The focused implementation and acceptance record is in
-[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md). It includes
+[`DESIGN.md`](../servers/recording-mcp/DESIGN.md). It includes
 Artifact-backed seal and cache-loss recovery, governed Redap and Arrow reads, manifest
 v9 activation, disk safety, and headed RTX 4090 Console/Rerun inspection.
 
 This phase replaces `RECORDING-PROJECTION-016` and the current archive architecture. It is one
 activation boundary even when implementation is divided into reviewable commits.
 
-[`RECORDING_CATALOG_HARD_CUT_PLAN.md`](RECORDING_CATALOG_HARD_CUT_PLAN.md) records the implemented
+[`DESIGN.md`](../servers/recording-mcp/DESIGN.md) records the implemented
 sequence, initial resource limits, verification matrix, and activation runbook for this phase.
 The broader plan remains the product scope. The focused plan does not authorize work from another
 request.
@@ -1844,7 +1844,7 @@ both cutover choices.
 ### Phase 3: Host-Mediated Streaming Artifact Upload
 
 The first-release public HTTP upload and Console queue were deployed and verified
-on September 9; [`ARTIFACT_UPLOAD_PLAN.md`](ARTIFACT_UPLOAD_PLAN.md) records the
+on September 9; [`DESIGN.md`](../platform/artifacts/service/DESIGN.md#upload-qualification-limits) records the
 resumed 10 GiB browser acceptance and Python streaming. Direct API and Console
 uploads are independent of exact MCP App resolution. This phase still owns the
 embedded App host-picker integration and consumes that delivered ingestion foundation.

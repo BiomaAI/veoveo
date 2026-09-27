@@ -19,8 +19,8 @@ without reissuing the operation. Native MCP continues to own Task state.
 
 The shared store owns chat records and atomic membership/message transitions.
 Gateway handlers own OAuth admission and current Work Context policy evaluation.
-The accepted product and remaining delivery gates are in
-[`WORKSPACE_PLAN.md`](../../../../docs/WORKSPACE_PLAN.md).
+The [Workspace design](../../../../apps/workspace/DESIGN.md) owns the product
+and its qualification limits.
 
 `WorkspaceAuthority` is trusted server input, never a request-body DTO. Its caller
 must evaluate the authenticated human against the current Work Context and provide

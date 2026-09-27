@@ -43,7 +43,7 @@ configured for this development origin. Vite leaves redirects and cookie policy 
 
 Computers is a native Console workspace. Its [design](src/computers/DESIGN.md) describes
 lifecycle recovery, terminal input and authority deadlines. Installed evidence and
-remaining release gates are in the [Computers plan](../../../docs/COMPUTERS_PLAN.md).
+remaining release gates are in the [Computers design](../../../platform/computers/DESIGN.md#qualification-limits).
 Session bootstrap opens Computers and permitted Apps without loading
 administrator inventory. Terminal assets load as a separate chunk.
 
@@ -87,3 +87,17 @@ The sidebar renders each discovered `ui://` resource once, including when a cata
 refresh repeats an entry across pages. Installed browser acceptance checks that the
 catalog and the rendered navigation have the same number of distinct Apps over
 successive refreshes.
+
+## Catalog Qualification Limits
+
+Cold federated discovery can exceed the gateway's two-second settlement budget.
+The App feed converges, but a pending source can briefly appear as
+`upstream_unavailable`. Distinguish pending discovery from confirmed failure and
+measure authorization/discovery cost before changing the budget. Required agent
+tool surfaces must still be complete before model admission.
+
+An opaque `Object` page error while opening Datasheet needs diagnosis despite
+successful preview and navigation. Subscription scale needs query-work and event-rate
+measurements. Domain resource recovery currently relies on reconnection invalidation
+and client reads; persisted per-domain cursors need qualification for replay after
+silent delivery loss, without periodic synthetic changes while idle.

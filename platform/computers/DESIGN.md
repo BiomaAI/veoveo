@@ -23,8 +23,8 @@
 The domain owns retained Computer identity. Provider transport belongs to
 `platform/runtimes/computers`. Native Console and MCP project these commands
 through the Computers worker service. No provider dependency enters the gateway.
-Installed journey evidence and remaining release gates are recorded in the
-[Computers plan](../../docs/COMPUTERS_PLAN.md#current-implementation-checkpoint).
+[Qualification Limits](#qualification-limits) records the installed acceptance scope
+and remaining release gates.
 
 ## Admission And Ownership
 
@@ -187,15 +187,16 @@ import/export results, helper rejection, cancellation, original-run containment,
 replacement refusal and bounded recovery. The fixture supplies private native
 receipts and Artifact issuance records. The service composes this journal with actual
 Artifact redemption and native byte movement. Public file controls and supervised
-startup use that same path; installed import/export evidence is recorded in the plan.
+startup use that same path. Installed import/export falls within the
+[qualification scope](#qualification-limits).
 
 The current checkpoint implements private collection admission, operation admission
 and shared Task linking, dispatch receipts, durable observation budgets and correlated
 domain settlement. The native worker lives in `servers/computers-mcp`. The browser terminal and stock CLI project durable renewable grants through the
 installed service. Named automation grants now have a durable ledger and current
 authority checks. Their public command and grant projection shares this domain.
-The plan distinguishes domain fixtures, native provider qualification and installed
-journeys. Domain tests alone do not establish installed acceptance.
+Domain fixtures, native provider qualification and installed journeys each establish
+the behavior they exercise. Domain tests alone do not establish installed acceptance.
 
 ## Verification
 
@@ -329,7 +330,7 @@ They do not establish terminal behavior, public routing, CLI pairing or agent de
 
 `cli_grants` implements the private ledger for the stock OpenShell `0.0.116` adapter.
 The public pairing, restricted tunnel and grant panel consume these domain APIs;
-installed qualification is recorded in `docs/COMPUTERS_PLAN.md`. The wire adapter
+installed qualification has the [limits below](#qualification-limits). The wire adapter
 preserves the client's binary stream:
 its SDK writes received text frames into gRPC bytes as well. Browser terminal controls
 cannot enter that stream. This custom pairing is not an OAuth device authorization flow
@@ -944,3 +945,32 @@ transfer and stored Task owner; the service enforces their deadline during proje
 The metadata projection checks each slot's Computer and target record identity. It
 loads neither sealed intent nor capability secrets. Public action flags use this view;
 transactional admission still arbitrates concurrent commands and file transfers.
+
+## Qualification Limits
+
+The selected profile has installed browser and stock CLI continuity, named agent
+execution, lifecycle authority, retained maintenance and governed file handoff.
+Backup/key ownership and restore acceptance, clean/offline installation and full
+release qualification need separate checks. Comparative performance and additional
+provider profiles are also unqualified.
+
+After a host restart, the first automation or CLI request needs an individual resource
+read or browser attachment to reconcile an idle Ready run. Pending operations keep
+their existing recovery and fencing requirements. The sparse retained-home profile
+has per-home maximums and a free-space admission floor; the reference local-path PVC
+provides no aggregate disk quota. An enforced pool budget requires a qualified backend.
+
+| Follow-on profile | Admission requirement |
+|---|---|
+| Team collaboration | Group grants, per-session attribution and terminal writer arbitration |
+| Remote editor | Actual SSH process/subsystem and forwarding requirements, renewal and interruption |
+| Private app preview | Per-Computer/port grants, isolated browser origin, WebSocket support and destination restrictions |
+| GPU Computer | Qualified device isolation and NVIDIA hardware execution |
+| Additional providers or on-demand hosts | Lifecycle, recovery, retention, authority and capacity qualification, including cold start and scale to zero |
+| Persistent CLI device grant | Consent, device binding where supported, independent lifetime and revocation |
+| Unattended factory | Factory broker and independent verification/promotion authority |
+
+The current grant form selects registrations admitted to the caller's profile. A
+cross-profile authority transition requires its own contract. Managed Computer
+registrations need the authority-reader work in the
+[manager design](../../agents/manager/DESIGN.md#qualification-limits).

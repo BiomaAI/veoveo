@@ -119,8 +119,9 @@ typed document; both publication paths use that document. The regression test ch
 nested metadata, objects inside arrays, and the digest after a storage round trip.
 The coordinated installation update republishes the same configuration through
 bootstrap. Existing Computer homes and identities require no conversion. The
-[September 24 browser checkpoint](COMPUTERS_PLAN.md#installed-upgrade-check--september-24-2026)
-passed after also repairing stale process identities left by the host restart.
+September 24 browser checkpoint passed after also repairing stale process identities
+left by the host restart. The [Computers design](../platform/computers/DESIGN.md#qualification-limits)
+records the qualification limits.
 
 The follow-up Computers image stage took 306.117 seconds, including a 270.221-second
 compiler window. It selected only `computers-mcp` and reused the existing BuildKit
@@ -1258,7 +1259,7 @@ The final requested GitOps observation is recorded in
 `output/development/speech/transcript-convergence.json`. These convergence clocks
 start at observation; Flux may already have begun applying the push. Test receipts,
 GPU results and browser artifacts retain their recorded scope. Physical microphone
-and larger performance runs remain listed in `SPEECH_PLAN.md` without blocking this
+and larger performance runs remain listed in `servers/speech-mcp/DESIGN.md` without blocking this
 installed delivery.
 
 ## Console Discovery And Markdown Delivery — September 22, 2026
@@ -1440,7 +1441,7 @@ The migration SQL catalog currently compiles into the shared platform-store crat
 A downstream schema addition therefore rebuilds service consumers of that crate.
 An independently qualified extraction of bootstrap-owned migration execution could
 reduce that coupling without adding a service. These follow-ups do not expand the
-completed [fork development rollout](FORK_DEVELOPMENT_PLAN.md#installed-acceptance).
+[fork development model](FORK_DEVELOPMENT.md).
 
 ## Rerun 0.38 Build Iteration — 2026-09-23
 
@@ -1866,8 +1867,8 @@ The installed Isaac Sim 6.1 runtime started in about 40 seconds using its retain
 cache; no simulator image rebuild was needed. The Console published the prepared
 UAV Pilot definition and all four existing instances adopted generation 10. Each
 completed the same read-only grant and simulation-state inspection. The
-[agent-management checkpoint](AGENT_MANAGEMENT_PLAN.md#upgrade-recheck--september-25-2026)
-records identities, deployment and the remaining cluster routing issue.
+[manager design](../agents/manager/DESIGN.md#qualification-limits)
+records the remaining cluster routing issue.
 
 Rollout exposed an installation address mismatch. The manager's NetworkPolicy
 permitted the old API node IP, which now belongs to the registry. Correcting the

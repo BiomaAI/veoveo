@@ -98,7 +98,7 @@ window limitation visible. Exact server truncation metadata remains a release it
 Node behavior tests qualify protocol ordering, callback drain, bounded buffers,
 lease loss, lifecycle recovery and stale epochs. They do not establish interactive
 browser behavior, headed GPU presentation, actual SSO or public deployment. Those
-remain acceptance gates in `docs/COMPUTERS_PLAN.md`.
+remain acceptance gates in `platform/computers/DESIGN.md`.
 
 `AutomationPanel.tsx` shows named grants, application scope, original bounds and expiry.
 Issuance uses current server limits and explicit consent for whole-run Stop on command

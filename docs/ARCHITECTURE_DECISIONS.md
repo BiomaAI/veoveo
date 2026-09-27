@@ -81,7 +81,7 @@ like it does for any server and contains no provider controller. Build publicati
 and production promotion keep their own separate authority.
 
 The selected profile is deployed with the Bioma configuration.
-[`COMPUTERS_PLAN.md`](COMPUTERS_PLAN.md) tracks the remaining gates: clean and offline
+The [Computers design](../platform/computers/DESIGN.md#qualification-limits) tracks the remaining gates: clean and offline
 installation, broader provider profiles, performance qualification, and installed MCP
 conformance.
 

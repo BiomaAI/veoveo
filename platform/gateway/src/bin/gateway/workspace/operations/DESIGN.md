@@ -136,8 +136,9 @@ fixture. Installed public acceptance qualifies native Task completion, cancellat
 and recovery, governed Artifact preview, App invocation and inline capture images.
 A production Task input round remains a nonblocking installed follow-up under the
 user’s September 16 delivery decision: current domains do not issue input requests.
-Local native input qualification and installed outcomes remain distinct. Evidence is tracked in
-[`WORKSPACE_PLAN.md`](../../../../../../../docs/WORKSPACE_PLAN.md).
+Local native input qualification and installed outcomes have distinct scopes. The
+[Workspace design](../../../../../../../apps/workspace/DESIGN.md#qualification-limits)
+records their limits.
 
 ## Native App Adapter
 

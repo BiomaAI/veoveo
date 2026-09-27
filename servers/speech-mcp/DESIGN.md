@@ -1,7 +1,8 @@
 # Speech MCP
 
-Status: native CUDA, recovery and hosted MCP qualification passed; image assembly and installed browser acceptance in progress. Public MCP, browser and deployment
-acceptance remain tracked in [the delivery plan](../../docs/SPEECH_PLAN.md).
+Status: private dictation and recording transcription are deployed. Native CUDA,
+recovery, hosted MCP and installed browser acceptance pass within the
+[qualification limits](#qualification-limits).
 
 ## Standards And Protocols
 
@@ -124,3 +125,16 @@ supply the Rust executable, Python worker and attribution; ordinary application 
 reuse the parent by immutable digest without unpacking its filesystem. Image recipes
 are runtime assets, outside the Rust compiler source context. Worker startup creates
 private writable PyTorch and Triton cache directories on the temporary volume.
+
+## Qualification Limits
+
+Installed browser acceptance uses fixture microphone audio. Physical devices,
+permission prompts and additional browser/OS combinations need device qualification.
+Long recordings, video-container diversity, full capacity, sustained dictation and
+concurrent-client latency need performance runs; the configured two-hour recording
+limit has not been qualified at installation scale.
+
+Installed catalog readiness under C31 is pending. Cold/offline packaging and full
+release provenance need separate qualification; the installed development images do
+not establish those release properties. Speaker attribution, translation, meeting
+capture and spoken replies require separate product work.

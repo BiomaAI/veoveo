@@ -34,8 +34,8 @@ read. When the recent window is full, Activity explains how to follow older work
 
 The application serves `/workspace/` independently of the administrative Console.
 Its source and asset bundle are separate; both applications share the existing Rust
-browser-edge deployment. The complete accepted product and delivery gates are in
-[`WORKSPACE_PLAN.md`](../../docs/WORKSPACE_PLAN.md).
+browser-edge deployment. Its [qualification limits](#qualification-limits) distinguish
+installed acceptance from fixture coverage.
 
 Chat IDs select authoritative server state. Messages retain their author and stable
 ID, and replay follows committed sequence order. The client may retain unsent text
@@ -93,9 +93,8 @@ and runs falling outside the recent conversation window. Agent
 admission discloses the configured capability scope before sharing history. The gateway
 has native protocol/runtime acceptance. Installed qualification covers real model
 responses, native Task completion and cancellation, Apps, governed uploads and
-retained Computer terminals. Public acceptance and the nonblocking distinct-person and
-production Task-input follow-ups are recorded in the Workspace plan under the
-user’s September 16 delivery decision.
+retained Computer terminals. Distinct-person and production Task-input journeys
+need the separate installed checks listed in [Qualification Limits](#qualification-limits).
 
 Each native Task input request has its own form and decision. An unsupported form
 can be declined while other requests remain answerable. Unchanged requests keep
@@ -300,3 +299,16 @@ and transcript links grant no access by themselves. Artifact classification, lab
 and Work Context policy remain authoritative even when the operation is private.
 Transcript previews bound the decoded response by the Artifact's declared size, capped
 at 4 MiB. The browser does not require HTTP Content-Length, which compression can omit.
+
+## Qualification Limits
+
+| Work | Existing coverage | Completion condition |
+|---|---|---|
+| Distinct-person installed collaboration | Independent identity/store/API tests and a two-human/two-agent browser fixture; installed owner sessions in concurrent tabs | A second authenticated person accepts an invitation, exchanges messages, exercises ownership transfer and loses access after removal |
+| Installed domain Task input | Native MCP and client input fixtures | A production Task requests input, an authorized person answers in Workspace, and reload preserves the same Task and consumed decision |
+| Activity and people-read availability | Installed journeys can complete despite intermittent HTTP 503 responses | Identify the transient read failures and qualify recovery under load |
+| Subscription scale | Functional reconnect and authority fixtures | Measure query work and event rates with thousands of Tasks and concurrent people before changing caps or retention |
+
+Desktop packaging and selective-history sharing require separate product work.
+The [Console development guide](../console/web/README.md#catalog-qualification-limits)
+tracks shared catalog presentation and diagnostics.

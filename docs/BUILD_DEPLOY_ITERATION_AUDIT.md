@@ -682,8 +682,8 @@ The expanded four-author browser fixture takes 20 s and uses the existing headed
 RTX 4090 browser. The initial image measurements are recorded above; model response and public rollout
 measurements follow installed acceptance.
 
-The active product and acceptance sequence are in
-[`WORKSPACE_PLAN.md`](WORKSPACE_PLAN.md). Older measurements below retain their
+The [Workspace design](../apps/workspace/DESIGN.md#qualification-limits) describes
+the product and its qualification limits. Older measurements below retain their
 original scope and dates.
 
 Status: completed and accepted on September 8, 2026, at `https://veoveo.bioma.ai`.

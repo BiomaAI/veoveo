@@ -45,8 +45,7 @@ the ordinary client and verifies it on full, range and HEAD download responses.
 ## Resumable Upload Contract
 
 The public upload contract is defined in
-`mcp/contract/src/artifact_service/upload.rs`; its implementation is tracked in
-[`ARTIFACT_UPLOAD_PLAN.md`](../../../docs/ARTIFACT_UPLOAD_PLAN.md). The typed contract
+`mcp/contract/src/artifact_service/upload.rs`. The typed contract
 requires an explicit installation quota and transfer policy, validates MIME admission,
 and negotiates part size within the S3 multipart profile. The `artifact_upload` gateway
 action has no MCP method. Public routes require both durable S3 storage and an
@@ -254,3 +253,18 @@ an occurrence. The reader uses that verified actor and byte ceiling before readi
 catalog state or copying live parts that have no Artifact occurrence yet. It does
 not convert that scope into a gateway identity. Hardware workload acceptance remains
 required before admitting the common compiler images.
+
+## Upload Qualification Limits
+
+Installed resumable upload and download acceptance covers 10 GiB with interruption,
+session recovery and independently verified bytes. Qualification at 100 GiB requires
+a suitably provisioned installation. Compare native multipart throughput, independent
+storage and public ingress/uplink behavior, measuring memory, concurrency, verification
+traffic, retries and cleanup latency.
+
+A second interactive identity and a browser Work Context switch need installed
+qualification. Service and queue-controller tests cover their authorization boundaries.
+An embedded MCP App host picker is separate work: intersect its explicit App grant
+with installation policy, bind the App URI and grant revision to trusted authority,
+and return only the receipt to the App. Bytes stay in the host origin. The
+[upload client design](../../../apps/console/web/src/uploads/DESIGN.md) owns that UI.

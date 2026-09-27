@@ -1,8 +1,9 @@
 # Managed Agent Lifecycle Manager
 
-Status: controller composition and store recovery are qualified locally. Namespace
-admission has native Kubernetes fixture coverage; installed lifecycle qualification
-and UAV adoption are pending.
+Status: governed authoring, revision adoption and managed lifecycle are deployed.
+Installed qualification covers model execution, retained identity and memory,
+credential renewal, stop, archive and revocation. The
+[qualification limits](#qualification-limits) identify additional work.
 
 ## Standards And Protocols
 
@@ -77,3 +78,20 @@ Executable workloads use server dry-run. One zero-replica Deployment qualifies d
 after the fixture revokes executable admission. This is admission evidence, not installed reconciliation,
 network enforcement or model execution evidence. YAML parsing uses serde_yaml_ng
 0.10.0, verified as its latest stable release on September 19, 2026.
+
+## Qualification Limits
+
+| Work | Required qualification |
+|---|---|
+| Simulation and Map mission completion | Complete an installed flight with the selected mobility profile; investigate the Isaac/Cesium crash and `ClimbLimitExceeded` handoff failures without replaying interrupted work or weakening admission |
+| Current recording delivery | Resolve forwarder backlog and ingest batch-quota failures, then qualify live catalog delivery; archived playback alone does not establish it |
+| Kubernetes API routing | Find why the reference cluster controller reinstates stale API endpoint addresses; a corrected manager egress rule does not resolve intermittent API routing |
+| Managed Computer templates | Extend the Computers authority reader and grant choices to resolve governed managed registrations before admitting Computer tools; chat agents currently use the human's explicit grant |
+| Installed multi-round input | Exercise a production tool that emits an input request; existing ownership, forms and continuation checks are native fixtures |
+| Load and human collaboration | Measure p95 under load and run a separately authenticated second-person usability journey |
+
+A standalone draft-test endpoint is optional future product work. Published chat
+agents and managed messages already provide explicit runs under their admitted
+budgets and authority. Immutable development images do not establish full release
+qualification. The [iteration record](../../docs/DEVELOPMENT_ITERATION.md#installed-pilot-and-rerun-recheck--september-25-2026)
+contains the simulator and recording diagnostic measurements.

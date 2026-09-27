@@ -4,7 +4,7 @@ The extension-release sections below record an earlier design. The accepted
 [Fork Development](FORK_DEVELOPMENT.md) model supersedes external source packages,
 compatibility manifests, gateway fragments/bindings and a separately published Helm
 library. Current removal and qualification work is in
-[FORK_DEVELOPMENT_PLAN.md](FORK_DEVELOPMENT_PLAN.md).
+[FORK_DEVELOPMENT.md](FORK_DEVELOPMENT.md).
 
 Status: approved implementation direction.
 

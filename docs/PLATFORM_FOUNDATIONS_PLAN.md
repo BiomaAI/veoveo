@@ -1,6 +1,7 @@
 # Platform Foundations Plan
 
-Status: approved for implementation on 2026-09-26. No phase has started.
+Status: implementation started on 2026-09-27. Phase 0 is in progress; no phase is
+accepted or deployed yet.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -113,15 +114,15 @@ link to the owning design, and remove its rows from `docs/CODEMAP.md` and
 
 | Plan | Verdict | Open items go to |
 |---|---|---|
-| `RECORDING_CATALOG_HARD_CUT_PLAN.md` | Delete | `docs/RECORDINGS.md`, `servers/recording-mcp/DESIGN.md` |
-| `RMCP_3_MIGRATION.md` | Delete | `mcp/contract/DESIGN.md` |
-| `REACTIVE_UX_PLAN.md` | Delete | `apps/console/web` and `apps/workspace/DESIGN.md` |
-| `SPEECH_PLAN.md` | Delete | `servers/speech-mcp/DESIGN.md` |
-| `WORKSPACE_PLAN.md` | Delete | `apps/workspace/DESIGN.md` |
-| `ARTIFACT_UPLOAD_PLAN.md` | Delete | `platform/artifacts/service/DESIGN.md`; replace the `docs/README.md` guide link with that design and `apps/console/web/src/uploads/DESIGN.md` |
-| `AGENT_MANAGEMENT_PLAN.md` | Delete | `agents/manager/DESIGN.md` |
-| `FORK_DEVELOPMENT_PLAN.md` | Delete | `docs/FORK_DEVELOPMENT.md`; drop the pointer at the top of `CONTRACT_EVOLUTION.md` |
-| `COMPUTERS_PLAN.md` | Delete | `platform/computers/DESIGN.md`; rewrite the `CONTRACT_EVOLUTION.md` sentences that cite it |
+| `RECORDING_CATALOG_HARD_CUT_PLAN.md` | Retired | `docs/RECORDINGS.md`, `servers/recording-mcp/DESIGN.md` |
+| `RMCP_3_MIGRATION.md` | Retired | `mcp/contract/DESIGN.md` |
+| `REACTIVE_UX_PLAN.md` | Retired | `apps/console/web` and `apps/workspace/DESIGN.md` |
+| `SPEECH_PLAN.md` | Retired | `servers/speech-mcp/DESIGN.md` |
+| `WORKSPACE_PLAN.md` | Retired | `apps/workspace/DESIGN.md` |
+| `ARTIFACT_UPLOAD_PLAN.md` | Retired | `platform/artifacts/service/DESIGN.md`; replace the `docs/README.md` guide link with that design and `apps/console/web/src/uploads/DESIGN.md` |
+| `AGENT_MANAGEMENT_PLAN.md` | Retired | `agents/manager/DESIGN.md` |
+| `FORK_DEVELOPMENT_PLAN.md` | Retired | `docs/FORK_DEVELOPMENT.md`; drop the pointer at the top of `CONTRACT_EVOLUTION.md` |
+| `COMPUTERS_PLAN.md` | Retired | `platform/computers/DESIGN.md`; rewrite the `CONTRACT_EVOLUTION.md` sentences that cite it |
 | `PLATFORM_IMPROVEMENTS_PLAN.md` | Delete when every cycle record is delivered; otherwise keep the open cycles only | owning designs named in each cycle |
 | `REPOSITORY_HARDENING_PLAN.md` | Keep while any item is open; delete delivered sections | `tools/xtask`, `testing/` designs |
 | `CAPABILITY_ADOPTION_PLAN.md` | Keep; its proposals are unapproved | none |

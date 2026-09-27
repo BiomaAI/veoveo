@@ -1,7 +1,7 @@
 # Private Computer Host
 
 The Rust launcher owns private Docker, provider and storage process management.
-The [Computers plan](../../../docs/COMPUTERS_PLAN.md) records installed qualification.
+The [Computers design](../DESIGN.md#qualification-limits) records installed qualification.
 
 ## Standards And Protocols
 
