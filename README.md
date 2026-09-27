@@ -63,6 +63,15 @@ Agents work from data the installation manages: map releases and routing,
 civil time and calendars, coordinate frames, photorealistic 3D Tiles scenes,
 simulated worlds, and continuous recordings of fielded operations.
 
+<a href="docs/images/world-model.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/world-model-dark.png">
+    <img src="docs/images/world-model.png" alt="Sensors, agent memories, and decisions feed the world model, and each agent draws its context from it.">
+  </picture>
+</a>
+
+*Sensors, agent memories, and decisions feed one world model. Each agent episode draws its context from it, and the episode's decisions flow back in.*
+
 Robots, fleets, and simulators join an installation as MCP servers. Each one is
 connected the same way, whether it is a physical system or a simulation of one:
 
@@ -93,6 +102,15 @@ gateway from inside the cluster, a local network, or the internet. Each recordin
 keeps its streams on one synchronized timeline, so a camera frame, the robot's pose
 at that instant, and the agent's decision line up.
 
+<a href="docs/images/capture-pipeline.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/capture-pipeline-dark.png">
+    <img src="docs/images/capture-pipeline.png" alt="Sensors, agents, and simulation send data through a local forwarder to Recording Hub, which journals and checkpoints each batch before acknowledging it, then writes immutable parts and indexed archive shards listed in the catalog.">
+  </picture>
+</a>
+
+*A local forwarder queues each producer's data and resumes after a restart. Recording Hub writes every batch to disk before it acknowledges it, then compacts the parts into indexed archive shards that the catalog lists.*
+
 | With recordings, you can | How |
 |---|---|
 | Replay any run | Scrub the synchronized timeline in the Console, and open a rehearsal in simulation beside the fielded run it prepared for. |
@@ -113,6 +131,15 @@ policy, and records the decision in the audit log. Long-running work runs as
 an MCP Task that survives client disconnects. Its outputs are stored as
 recordings and artifacts that name who requested them. Operators see the same
 tasks, artifacts, and audit records in the Console that agents act on.
+
+<a href="docs/images/gateway-gauntlet.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/gateway-gauntlet-dark.png">
+    <img src="docs/images/gateway-gauntlet.png" alt="Agents, browsers, and clients enter through ingress. The gateway authenticates each request, checks policy, and writes an audit record before forwarding a signed identity to the servers on the internal network.">
+  </picture>
+</a>
+
+*The gateway authenticates each request, checks policy, and writes an audit record. It refuses by default and forwards a signed identity to the servers behind it.*
 
 Authority sits in the gateway and the servers behind it. The agent harness
 holds none, so any compatible MCP host can drive an installation without
@@ -279,6 +306,15 @@ altitude. [Explore the complete UAV showcase](showcase/uav-sim/README.md).
 |---|---|
 | [![UAV simulation recording](docs/screenshots/gallery/rerun-uav.png)](docs/screenshots/gallery/rerun-uav.png) | [![SUMO traffic simulation recording](docs/screenshots/gallery/rerun-sumo.png)](docs/screenshots/gallery/rerun-sumo.png) |
 | Camera, pose, telemetry, Stream detections, and reasoning results in one recording. Live processing never waits on the recording path. | A pinned SUMO and LuST Luxembourg world exposes traffic reads, signal and vehicle control, network generation, durable batches, live subscriptions, and recording. [Run the SUMO showcase](showcase/sumo/README.md). |
+
+<a href="docs/images/sumo-loop.png">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/sumo-loop-dark.png">
+    <img src="docs/images/sumo-loop.png" alt="A traffic agent perceives congestion from the recorded city, decides, and changes signals in the simulated street grid.">
+  </picture>
+</a>
+
+*In the SUMO world, an agent reads congestion from the recording, decides, and changes signals and routes in the simulated city.*
 
 ## Built On The Model Context Protocol
 
