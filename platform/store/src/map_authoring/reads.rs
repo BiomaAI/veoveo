@@ -125,12 +125,16 @@ impl PlatformStore {
     pub async fn map_layer_product(
         &self,
         scope: &MapAuthoringReadScope,
+        layer: &str,
+        publication: &str,
         key: &str,
     ) -> Result<Option<MapLayerProductRecord>, StoreError> {
         let mut response = self
             .client()
-            .query(format!("SELECT * FROM ONLY $record WHERE {CHILD_VISIBLE};"))
+            .query(format!("SELECT * FROM ONLY $record WHERE {CHILD_VISIBLE} AND layer_key = $layer AND publication_key = $publication;"))
             .bind(("record", scope.record("map_layer_product", key)))
+            .bind(("layer", layer.to_owned()))
+            .bind(("publication", publication.to_owned()))
             .bind(("tenant", scope.tenant.clone()))
             .bind(("context", scope.context.clone()))
             .bind(("labels", scope.labels.clone()))

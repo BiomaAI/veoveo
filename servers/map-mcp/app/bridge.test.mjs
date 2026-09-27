@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createBridge} from './bridge.js';
-import {mapSubscriptionUris, readMapSnapshot} from './resources.js';
+import {mapSubscriptionUris, readMapSnapshot, readCollection} from './resources.js';
 
 function fixture(timeout = 200) {
   const sent = [];
@@ -58,7 +58,7 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
     await new Promise(resolve => setImmediate(resolve));
     --active;
     if (uri === 'map://feature-layers') throw Error('service unavailable');
-    return [];
+    return uri === "map://datasets" ? {items: [], limit: 100, next_cursor: null} : [];
   };
   await assert.rejects(readMapSnapshot(access, read), /feature-layers: service unavailable/);
   assert.equal(max, 4);
@@ -69,4 +69,39 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
   assert.deepEqual(calls, ['map://sources']);
   assert.deepEqual(snapshot, {sources:[{id:1}]});
   assert.deepEqual(mapSubscriptionUris({feature_read:true}), ['map://feature-layers','map://publications','map://compositions']);
+});
+
+
+test('dataset refresh walks pages before publishing a flat release collection', async () => {
+  const calls = [];
+  const read = async uri => {
+    calls.push(uri);
+    if (uri === 'map://datasets') return {items:[{release_id:'first'}], limit:100, next_cursor:'aabb'};
+    if (uri === 'map://datasets?cursor=aabb') return {items:[{release_id:'last'}], limit:100, next_cursor:null};
+    return [];
+  };
+  const snapshot = await readMapSnapshot({dataset_read:true}, read, new Set(['map://active-releases']));
+  assert.deepEqual(snapshot.datasets, [{release_id:'first'}, {release_id:'last'}]);
+  assert.deepEqual(new Set(calls), new Set(['map://sources', 'map://datasets', 'map://datasets?cursor=aabb', 'map://active-releases']));
+  assert.equal(calls.length, 4);
+});
+
+test('collection walks reject stale shapes, invalid bounds, cycles, and failed later pages', async () => {
+  for (const page of [[], {}, {items:[],limit:100}, {items:[],limit:101,next_cursor:null},
+    {items:Array(101).fill({}),limit:100,next_cursor:null},
+    {items:[],limit:100,next_cursor:'bad cursor'}, {items:[],limit:100,next_cursor:'ab'}]) {
+    await assert.rejects(readCollection('map://datasets', async () => page));
+  }
+  await assert.rejects(readCollection('map://datasets', async () => ({items:[{}],limit:100,next_cursor:'aabb'})), /did not advance/);
+  await assert.rejects(readCollection('map://datasets', async uri => {
+    if (uri === 'map://datasets') return {items:[{}],limit:100,next_cursor:'aabb'};
+    throw Error('second page failed');
+  }), /second page failed/);
+  let calls = 0;
+  await assert.rejects(readCollection('map://datasets', async () => ({items:[{}],limit:100,next_cursor:(++calls).toString(16).padStart(4,'0')}), {maxPages:2}), /exceeded 2 pages/);
+  assert.equal(calls, 2);
+});
+
+test('collection refresh has a total deadline even if the host never answers', async () => {
+  await assert.rejects(readCollection('map://datasets', () => new Promise(() => {}), {timeoutMs:10}), /time limit/);
 });

@@ -792,6 +792,11 @@ come from `src/analytics/completion.rs`; caller-owned travel-model Task keys com
 `src/server/tasks/travel_models.rs`. Each database query applies matching and
 uniqueness before its 101-ID limit.
 
+Map release pages and parent-scoped reads live in `src/catalog/releases.rs` and
+`platform/store/src/map/releases.rs`. `src/mcp/releases.rs` dispatches their resource
+URIs; `app/resources.js` owns the bounded client page walk. Exact layer-product reads
+bind their URI parents in `platform/store/src/map_authoring/reads.rs`.
+
 ### Optimization And Travel Models
 
 | Path | Responsibility |

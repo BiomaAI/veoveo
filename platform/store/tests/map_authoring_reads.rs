@@ -186,10 +186,15 @@ async fn qualify() {
                 .is_none()
         );
         assert!(
-            db.b.map_layer_product(&scope, &hidden.product.product_key)
-                .await
-                .unwrap()
-                .is_none()
+            db.b.map_layer_product(
+                &scope,
+                &hidden.layer.layer_key,
+                &hidden.publication.publication_key,
+                &hidden.product.product_key
+            )
+            .await
+            .unwrap()
+            .is_none()
         );
         assert!(
             db.b.list_map_layer_publications(&scope, Some(&hidden.layer.layer_key))
@@ -204,6 +209,35 @@ async fn qualify() {
                 .is_empty()
         );
     }
+    // A nested product URI must name both of its actual parents.
+    for (layer, publication) in [
+        (
+            &visible.layer.layer_key,
+            &denied.publication.publication_key,
+        ),
+        (
+            &denied.layer.layer_key,
+            &visible.publication.publication_key,
+        ),
+    ] {
+        assert!(
+            db.b.map_layer_product(&scope, layer, publication, &visible.product.product_key)
+                .await
+                .unwrap()
+                .is_none()
+        );
+    }
+    assert_eq!(
+        db.b.map_layer_product(
+            &scope,
+            &visible.layer.layer_key,
+            &visible.publication.publication_key,
+            &visible.product.product_key
+        )
+        .await
+        .unwrap(),
+        Some(visible.product.clone())
+    );
     let clearance = MapAuthoringReadScope::new(
         "map-read",
         "operations",
@@ -218,9 +252,14 @@ async fn qualify() {
         2
     );
     assert_eq!(
-        db.b.map_layer_product(&clearance, &denied.product.product_key)
-            .await
-            .unwrap(),
+        db.b.map_layer_product(
+            &clearance,
+            &denied.layer.layer_key,
+            &denied.publication.publication_key,
+            &denied.product.product_key
+        )
+        .await
+        .unwrap(),
         Some(denied.product.clone())
     );
     assert_eq!(
@@ -362,10 +401,15 @@ async fn qualify() {
             .is_empty()
     );
     assert!(
-        db.b.map_layer_product(&scope, &visible.product.product_key)
-            .await
-            .unwrap()
-            .is_none()
+        db.b.map_layer_product(
+            &scope,
+            &visible.layer.layer_key,
+            &visible.publication.publication_key,
+            &visible.product.product_key
+        )
+        .await
+        .unwrap()
+        .is_none()
     );
     // Archive filtering composes with visibility inside the same query.
     db.a.client()

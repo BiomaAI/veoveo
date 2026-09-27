@@ -1003,7 +1003,8 @@ Resource templates are:
 
 ```text
 map://source/{source_id}
-map://dataset/{dataset_id}
+map://datasets{?cursor}
+map://dataset/{dataset_id}{?cursor}
 map://dataset/{dataset_id}/release/{release_id}
 map://source-feature/{release_id}/{source_feature_id}
 map://raster/{raster_id}
@@ -1040,6 +1041,26 @@ layer and composition records. Publication and product queries select visible pa
 layers in SQL, including direct product reads. Raster derivation resources are confined to their
 creating Work Context, while the immutable source raster remains tenant
 scoped. Spatial derivations are also confined to their creating Work Context.
+
+`map://datasets` and `map://dataset/{dataset_id}` return release pages with
+`items`, `limit: 100`, and `next_cursor`. Items are release documents in ascending
+release-ID order. The root includes all tenant-visible datasets. A dataset URI
+selects its parent in SQL before the keyset predicate and limit. A version-1
+hex-encoded cursor binds the release collection and optional dataset ID; it does
+not confer access. Each page applies the current tenant again. These reads observe
+current committed rows, without a snapshot across page requests. An empty first
+page for a dataset returns not-found; an exhausted continuation returns an empty
+page. An exact release URI binds both dataset and release IDs in the database.
+A layer-product URI likewise binds its layer, publication, and product IDs in SQL
+alongside current layer visibility.
+
+Map owns the coordinated release-page transition. Installations drain Map and
+replace its binary and packaged Map Explorer together. Clients must consume the
+page envelope and follow `next_cursor`; grouped dataset objects and bare release
+arrays are unsupported. Rollback restores the previous binary and App together;
+this response change does not convert persisted records. Qualification covers
+multiple pages, foreign tenants, mismatched parents, and rejected cursors. No
+mixed-version response adapter is supported during this installation upgrade.
 
 Raster and spatial derivation indexes return up to 100 summaries with resource
 links, a `limit`, and an optional `next_cursor`. Page templates accept the version-1
@@ -1153,6 +1174,11 @@ Creation tools use idempotency keys; source and release mutations use expected r
 versions; activation also uses the expected active-pointer version.
 Validation failures surface as MCP invalid-params errors and concurrency
 conflicts name the changed version.
+
+Map Explorer traverses dataset release pages before publishing a refreshed view.
+A refresh permits 100 pages and 60 seconds per collection, rejects malformed or
+repeated cursors, and keeps the previous view when any selected resource fails.
+The client keeps at most four host resource reads in flight.
 
 The Map workspace ships as `ui://map/workspace.html` from
 `assets/workspace-app.html`. It is listed when the caller has

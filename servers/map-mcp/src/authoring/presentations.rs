@@ -286,11 +286,18 @@ impl AuthoringService {
         &self,
         identity: &GatewayInternalIdentity,
         scope: &MapScope,
+        layer_id: &crate::contract::FeatureLayerId,
+        publication_id: &crate::contract::LayerPublicationId,
         product_id: &LayerProductId,
     ) -> Result<Option<LayerProduct>> {
         require_access(identity, AccessLevel::Read)?;
         self.store()
-            .map_layer_product(&read_scope(identity, scope)?, product_id.as_str())
+            .map_layer_product(
+                &read_scope(identity, scope)?,
+                layer_id.as_str(),
+                publication_id.as_str(),
+                product_id.as_str(),
+            )
             .await?
             .map(|record| decode(&record.canonical_json, "map layer product"))
             .transpose()

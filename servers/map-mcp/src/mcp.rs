@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, LazyLock},
-};
+use std::sync::{Arc, LazyLock};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::tool;
@@ -55,6 +52,7 @@ use crate::{
 mod authoring;
 mod completion;
 mod derivations;
+mod releases;
 
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -1311,12 +1309,9 @@ impl ServerHandler for MapMcp {
                     let product = self
                         .state
                         .authoring
-                        .layer_product(&identity, &scope, &product_id)
+                        .layer_product(&identity, &scope, &layer_id, &publication_id, &product_id)
                         .await
                         .map_err(internal)?
-                        .filter(|product| {
-                            product.layer_id == layer_id && product.publication_id == publication_id
-                        })
                         .ok_or_else(|| not_found("map layer product"))?;
                     return json_resource(uri, &product);
                 }
@@ -1355,6 +1350,9 @@ impl ServerHandler for MapMcp {
             }
             let identity = require_scope(&context, "map:dataset:read")?;
             let scope = self.state.scope(&identity).await.map_err(internal)?;
+            if let Some(result) = self.read_release_page(uri, &scope).await? {
+                return Ok(result);
+            }
             if let Some(result) = self
                 .read_derivation_resource(uri, &identity, &scope)
                 .await?
@@ -1372,18 +1370,6 @@ impl ServerHandler for MapMcp {
                     return json_resource(
                         uri,
                         &sources.iter().map(public_source).collect::<Vec<_>>(),
-                    );
-                }
-                uris::DATASETS_URI => {
-                    return json_resource(
-                        uri,
-                        &dataset_index(
-                            self.state
-                                .catalog
-                                .list_releases(&scope)
-                                .await
-                                .map_err(internal)?,
-                        ),
                     );
                 }
                 uris::LOCATIONS_URI => {
@@ -1490,10 +1476,9 @@ impl ServerHandler for MapMcp {
                 let release = self
                     .state
                     .catalog
-                    .release(&scope, &release_id)
+                    .release_in_dataset(&scope, &dataset_id, &release_id)
                     .await
                     .map_err(internal)?
-                    .filter(|release| release.dataset_id == dataset_id)
                     .ok_or_else(|| not_found("release"))?;
                 return json_resource(uri, &release);
             }
@@ -1515,22 +1500,6 @@ impl ServerHandler for MapMcp {
                         .map_err(internal)?
                         .ok_or_else(|| not_found("source feature"))?,
                 );
-            }
-            if let Some(value) = uris::parse_single(uri, "map://dataset/") {
-                let id = MapDatasetId::parse(value).map_err(invalid_params)?;
-                let releases = self
-                    .state
-                    .catalog
-                    .list_releases(&scope)
-                    .await
-                    .map_err(internal)?
-                    .into_iter()
-                    .filter(|release| release.dataset_id == id)
-                    .collect::<Vec<_>>();
-                if releases.is_empty() {
-                    return Err(not_found("dataset"));
-                }
-                return json_resource(uri, &releases);
             }
             if let Some(value) = uris::parse_single(uri, "map://location/") {
                 let id = LocationId::parse(value).map_err(invalid_params)?;
@@ -1873,9 +1842,14 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             "Governed acquisition job (map:admin).",
         ),
         template(
+            uris::DATASETS_PAGE_TEMPLATE,
+            "Dataset release page",
+            "100 tenant-visible releases per page, ordered by release ID.",
+        ),
+        template(
             uris::DATASET_TEMPLATE,
             "Map dataset",
-            "Release index for one dataset.",
+            "100 releases per page for one dataset, ordered by release ID.",
         ),
         template(
             uris::RELEASE_TEMPLATE,
@@ -2237,19 +2211,6 @@ fn public_source(source: &RegisteredSource) -> serde_json::Value {
         "created_at": source.created_at,
         "updated_at": source.updated_at,
     })
-}
-
-fn dataset_index(
-    releases: Vec<crate::contract::DatasetRelease>,
-) -> BTreeMap<String, Vec<crate::contract::DatasetRelease>> {
-    let mut index = BTreeMap::new();
-    for release in releases {
-        index
-            .entry(release.dataset_id.to_string())
-            .or_insert_with(Vec::new)
-            .push(release);
-    }
-    index
 }
 
 fn is_subscribable(uri: &str) -> bool {

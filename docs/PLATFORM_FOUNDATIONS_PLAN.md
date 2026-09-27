@@ -38,8 +38,12 @@ visible parent layers there. Native qualification checks partial clearance, fore
 tenants and contexts, removed parents, and archive filters. Persisted Map completions
 now match and deduplicate in SQL, including parent arguments and caller-owned travel
 models. Native cases cover matches beyond the old geography cap, duplicate versions,
-and scoped catalog selection. Other Map catalog roots still need SQL filtering and
-pagination; installed acceptance is pending.
+and scoped catalog selection. Dataset release roots now use 100-item SQL pages and
+Map Explorer follows their cursors. Exact release and layer-product reads bind all
+URI parents in SQL. Native page checks cover 125 selected releases behind 220
+foreign-tenant or other-dataset rows; client checks cover failed pages, invalid
+shapes, cursor cycles, and traversal budgets. Other Map roots and internal catalog
+selection still need SQL filtering and pagination; installed acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

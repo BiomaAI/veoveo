@@ -3234,7 +3234,7 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
             "record_version": 1
         }],
         "map://datasets": {
-            "dataset-0198-map-workspace": [{
+            "items": [{
                 "release_id": "release-0198-map-workspace",
                 "dataset_id": "dataset-0198-map-workspace",
                 "source_id": "source-0198-map-workspace",
@@ -3244,7 +3244,9 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
                 "state": "active",
                 "record_version": 1,
                 "updated_at": "2026-08-25T00:00:00Z"
-            }]
+            }],
+            "limit": 100,
+            "next_cursor": null
         },
         "map://active-releases": [{
             "dataset_id": "dataset-0198-map-workspace",

@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
+pub mod releases;
 use chrono::Utc;
 use veoveo_platform_store::{
     MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,

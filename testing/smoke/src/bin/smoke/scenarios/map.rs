@@ -130,7 +130,8 @@ pub(crate) async fn map_mcp(
         "tool `register_source`",
         "tool `activate_release`",
         "prompt `prepare_route_request`",
-        "template: map://dataset/{dataset_id}",
+        "template: map://datasets{?cursor}",
+        "template: map://dataset/{dataset_id}{?cursor}",
         "template: map://acquisition/{acquisition_id}",
         "template: map://feature-style/{style_revision_id}",
     ] {

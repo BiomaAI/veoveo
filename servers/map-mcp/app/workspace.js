@@ -25,7 +25,7 @@ const state = {
   compositions: [],
   styles: new Map(),
   sources: [],
-  datasets: {},
+  datasets: [],
   activeReleases: [],
   acquisitions: [],
   profiles: [],
@@ -168,7 +168,7 @@ function latestPublication(layerId) {
 }
 
 function allDatasetReleases() {
-  return Object.values(state.datasets || {}).flat().filter(Boolean);
+  return state.datasets;
 }
 
 function activeReleaseEntries() {
@@ -1501,7 +1501,7 @@ function bindManageData(root) {
     acquisitions.append(record);
   }
 
-  const releases = allDatasetReleases().sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")));
+  const releases = [...allDatasetReleases()].sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")));
   const releaseHost = el("manage-releases");
   releaseHost.replaceChildren();
   if (!releases.length) releaseHost.append(node("div", "No dataset releases.", "muted"));

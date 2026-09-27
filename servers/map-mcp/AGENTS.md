@@ -80,7 +80,7 @@ Contract revision: 2
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static, derivation indexes use SQL-scoped cursor pages, and persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static, derivation and dataset-release indexes use SQL-scoped cursor pages, and persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met

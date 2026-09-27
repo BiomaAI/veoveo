@@ -1,4 +1,5 @@
 mod completion;
+mod releases;
 pub use completion::MapCatalogCompletion;
 pub(crate) use completion::validate_needle as validate_completion_needle;
 
