@@ -30,7 +30,7 @@ state after this file is gone.
 | RFC 9110, RFC 9111, RFC 8246 | Revision, freshness, and immutability semantics for knowledge reads |
 | W3C DCAT 3 and PROV-O | Catalog and ledger models in `knowledge-mcp` |
 | SurrealDB 3.2.4 | Ledger, catalog, `FULLTEXT` BM25, and `HNSW` indexes |
-| fastembed `7.1.0`, candle `0.11.0`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
+| candle `0.11.0`, `tokenizers` `0.23.2`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
 
 ## Working Rules
@@ -314,10 +314,27 @@ gateway ledger records reads of each collection.
    machine client, and grant it read access to approved collections only.
 3. Implement discovery, the catalog resources, enumeration, change subscriptions,
    reconciliation, chunking, and index generations.
-4. Add fastembed with default features disabled and the `qwen3` and `cuda` features.
-   Package the `Qwen/Qwen3-Embedding-0.6B` files pinned by revision and SHA-256. The
-   builder stage needs the CUDA toolkit for candle's kernels. Record the `ort`
-   pre-release pin beside the dependency.
+4. Build the embedder described in
+   [Knowledge sharing, Embedding](KNOWLEDGE.md#embedding). Start from candle's
+   `gte-qwen` example and change what the section lists: the `qwen3` module in place
+   of `qwen2`, the checkpoint key mapping, the query instruction, equal-length batches,
+   and `clear_kv_cache()` before each batch. Depend on `candle-core`, `candle-nn`, and
+   `candle-transformers` `0.11.0` with the `cuda` feature, and on `tokenizers`
+   `0.23.2`. Do not add fastembed, `ort`, or `hf-hub`.
+   1. Check the pinned revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` first. List
+      the checkpoint keys, confirm that `config.json` deserializes into
+      `qwen3::Config`, and confirm how the tokenizer ends an input.
+   2. Generate the reference vectors with the model card's `transformers` recipe
+      through `uv run`, commit them as a fixture, and make the reference test pass on a
+      hardware GPU before building the index.
+   3. Package `config.json`, `tokenizer.json`, and `model.safetensors` into the image
+      with their SHA-256 digests. The builder stage carries the CUDA toolkit and sets
+      `CUDA_COMPUTE_CAP` for the installation's GPUs.
+   4. Measure throughput on the Phase 5 collections. If a full rebuild is too slow,
+      propose the padding-mask change to candle upstream before changing the batching.
+   5. Qualify `Qwen3-Embedding-4B` against 0.6B as
+      [Model qualification](KNOWLEDGE.md#model-qualification) describes, and record
+      the choice in the index generation.
 5. Implement `search` with BM25, HNSW, reciprocal rank fusion, and effective-access
    filtering. Share the effective-access predicate that `platform/store/src/artifacts.rs`
    applies. Do not copy it.
@@ -326,8 +343,8 @@ gateway ledger records reads of each collection.
    the chosen chunk settings in the index generation.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
    3, W3C PROV-O, and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
-   rows for DCAT 3, PROV-O, SurrealDB `FULLTEXT` and `HNSW` indexes, and the fastembed
-   and candle profile. Add `knowledge-mcp` to `software-components.csv` and its search,
+   rows for DCAT 3, PROV-O, SurrealDB `FULLTEXT` and `HNSW` indexes, and the candle
+   and Qwen3-Embedding profile. Add `knowledge-mcp` to `software-components.csv` and its search,
    catalog, and source-read interfaces to `interfaces-and-protocols.csv`.
 
 Acceptance:
@@ -337,6 +354,9 @@ Acceptance:
   access.
 - A test on a hardware GPU proves that startup fails without CUDA and that the loaded
   model matches its digests.
+- The reference test reaches cosine similarity of at least 0.999 against the committed
+  model-card vectors, and equal-length batches match single-input calls.
+- Throughput and the 0.6B-against-4B comparison are recorded in the index generation.
 - Invalidation and reconciliation tests pass.
 - The reference installation indexes the approved Phase 5 collections, and a search
   returns links an agent can read.

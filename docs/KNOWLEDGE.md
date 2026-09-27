@@ -38,8 +38,9 @@ health      /knowledge/healthz
 | [W3C PROV-O](https://www.w3.org/TR/prov-o/) | Ledger model: observations are `prov:Entity`, reads and index builds are `prov:Activity`, principals and services are `prov:Agent`, and `prov:actedOnBehalfOf`, `prov:used`, `prov:wasDerivedFrom`, and `prov:wasInvalidatedBy` name the relations. Export as PROV-O JSON-LD is future work |
 | [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html) and [RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html) | Revalidation with strong validators and freshness lifetimes, applied through the extension's conditional reads |
 | SurrealDB 3.2.4 | Catalog, index, and ledger records in the platform store; `FULLTEXT` BM25 and `HNSW` vector indexes |
-| fastembed `7.1.0` with candle `0.11.0` | `Qwen/Qwen3-Embedding-0.6B` through the `qwen3` and `cuda` features, with default features disabled |
-| `ort` `2.0.0-rc.13` | Compiled only because fastembed requires it; this service loads no ONNX model. The pre-release pin record is below |
+| candle `0.11.0`: `candle-core`, `candle-nn`, `candle-transformers` | Unmodified `candle_transformers::models::qwen3::Model` forward pass in BF16, with the `cuda` feature on `candle-core` and `candle-nn` |
+| `tokenizers` `0.23.2` | The Qwen3 tokenizer from the pinned model revision |
+| [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B), revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` | Apache-2.0 embedding model: 28 layers, 1024-dimension output, 32,768-token context, last-token pooling, L2 normalization |
 | NVIDIA CUDA | Embedding runs on a hardware GPU and fails closed without one |
 | [JSON Schema 2020-12](https://json-schema.org/draft/2020-12/) | Generated schemas for every tool input, output, and resource body |
 
@@ -94,33 +95,69 @@ reciprocal rank fusion.
 
 ### Embedding
 
-The service embeds with `Qwen/Qwen3-Embedding-0.6B` on candle's CUDA backend.
-Documents embed without an instruction. Queries embed with one fixed retrieval
-instruction, recorded in the index generation. Chunk length and overlap are index
-generation settings, qualified on an evaluation set drawn from the first adopting
-collections.
+The service embeds with `Qwen/Qwen3-Embedding-0.6B` through candle's unmodified Qwen3
+model. The service owns a small embedder module around it and no model code. The
+candle example
+[`gte-qwen`](https://github.com/huggingface/candle/blob/main/candle-examples/examples/gte-qwen/main.rs)
+implements the same recipe for the Qwen2-based gte models and is the reference for
+this module. The recipe follows the
+[model card](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B):
+
+1. Load `config.json` into `candle_transformers::models::qwen3::Config` and the
+   BF16 `model.safetensors` into `qwen3::Model::new`. The checkpoint stores keys
+   without the `model.` prefix that `Model::new` requests, such as
+   `embed_tokens.weight` and `norm.weight`, so the loader maps the prefix away when
+   it builds the `VarBuilder`. The model's tied `lm_head` is never loaded.
+2. Tokenize with `tokenizer.json` from the same revision. Every input ends with
+   exactly one `<|endoftext|>` token, ID 151643. The embedder appends it unless the
+   pinned tokenizer's post-processor already does, and it asserts the result.
+3. Documents embed as plain text. A query embeds as
+   `Instruct: {task}\nQuery:{query}`, with no space after `Query:`. The task is
+   `Given a web search query, retrieve relevant passages that answer the query`
+   unless qualification selects another, and the index generation records it.
+4. Group chunks into batches of identical token length. Candle's `qwen3::Model::forward`
+   takes no padding mask, so a padded batch would let real tokens attend to padding.
+   Equal-length batches need no padding and produce the same vectors as single-input
+   calls. A query always embeds alone.
+5. Call `clear_kv_cache()` before each batch, then `forward(&input_ids, 0)`. The
+   result has shape `[batch, tokens, 1024]` after the model's final RMSNorm.
+6. Take the hidden state at the last position, which is the appended
+   `<|endoftext|>` token, and L2-normalize it into the stored vector.
+
+The chunker cuts text to a fixed token budget, so most chunks share one length and
+fill whole batches. Only the final chunk of each member varies. Short, varied records
+such as events and features form smaller batches, which lowers indexing throughput but
+leaves vectors unchanged.
+
+If measured throughput cannot keep up with a full index rebuild, the fix is a padding
+mask for `qwen3::Model::forward`, contributed upstream to candle to match
+`qwen2::Model`. Padded batches then replace equal-length batches behind the same
+embedder interface. Maintaining a private copy of the model code is not the fix.
 
 The container requests `nvidia.com/gpu` and opens the CUDA device before it reports
 ready. A missing device, driver capability, or CUDA context is a startup failure.
-The service has no CPU embedding path.
+The service has no CPU embedding path. The image build compiles candle's CUDA kernels
+with the CUDA toolkit and sets `CUDA_COMPUTE_CAP` for the target GPUs, because the
+builder has no GPU to detect.
 
 Model files are pinned by Hugging Face revision and SHA-256 and packaged into the
-image. The service never downloads a model at runtime. fastembed's default features
-stay disabled, which also removes the build-time ONNX Runtime download.
+image. The service never downloads a model at runtime and depends on no Hugging Face
+client crate.
 
 An index generation records the model ID, revision, file digests, dimension, query
 instruction, and chunker version. A change to any of them builds a new generation
 beside the active one. The active pointer moves when the new generation covers every
 approved collection, and vectors from different generations never share an index.
 
-### `ort` pre-release pin
+### Model qualification
 
-fastembed `7.1.0` depends unconditionally on `ort` `=2.0.0-rc.13`, and `ort` has
-published no stable 2.x release. This service compiles `ort` without its download
-feature and executes no ONNX Runtime session. The pin follows fastembed exactly.
-Removal happens when fastembed moves to a stable `ort` release or makes it
-optional, whichever comes first. The owner reviews the pin with each fastembed
-release.
+Qualification compares `Qwen3-Embedding-0.6B` with `Qwen3-Embedding-4B` through the
+same embedder. The 4B model has a 2560-dimension output and needs a matching index
+generation. The comparison records recall at 10 on the evaluation set, GPU memory,
+and indexing throughput in chunks per second. The service ships 0.6B unless 4B shows a
+retrieval gain that justifies its memory on the installation's shared GPUs. A model of
+8B or more would move embedding to a batching inference server such as the vLLM runner
+that `reason-mcp` already uses. That move requires its own decision.
 
 ## Search
 
@@ -182,7 +219,7 @@ is. The adapter's byte and read budgets count those lines.
 |---|---|
 | `src/catalog/` | gateway discovery, control-plane approval, and DCAT-shaped resources |
 | `src/index/` | enumeration, change subscriptions, reconciliation, chunking, and index generations |
-| `src/embed/` | CUDA device admission and the Qwen3 embedding model |
+| `src/embed/` | CUDA device admission, pinned model loading, instruction formatting, equal-length batching, last-token pooling, and normalization |
 | `src/search.rs` | hybrid query, rank fusion, effective-access filtering, and result links |
 | `src/ledger.rs` | derivation and invalidation records |
 | `platform/store/src/knowledge.rs` | typed catalog, chunk, generation, and ledger records |
@@ -199,7 +236,15 @@ is. The adapter's byte and read budgets count those lines.
   commit ordering on the gateway read path.
 - Change-event tests prove invalidation, re-read, and reconciliation after a lost
   stream.
-- The embedding test runs on a hardware GPU. It proves that startup fails without
+- The embedding tests run on a hardware GPU. They prove that startup fails without
   a CUDA device and that the loaded model matches its pinned digests.
+- A reference test embeds a fixed set of queries and documents and compares each
+  vector with one produced by the model card's `transformers` recipe at the pinned
+  revision. Each pair reaches cosine similarity of at least 0.999. The reference
+  vectors are a committed fixture, generated once with `uv run`.
+- A batching test proves that equal-length batches and single-input calls produce the
+  same vectors within that tolerance.
+- The throughput measurement records chunks per second for each Phase 5 collection and
+  for a full rebuild.
 - The evaluation set measures recall at 10 for the qualified chunk settings, and
   each index generation records its result.
