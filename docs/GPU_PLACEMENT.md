@@ -41,8 +41,10 @@ The GPU-only installation keeps a host-installed driver mounted at `/`. It does 
 install or upgrade the driver, Container Toolkit, container runtime, or Kubernetes.
 The qualified field tuple is Kubernetes/K3s v1.36.2, NVIDIA driver 610.43.02,
 Container Toolkit package 1.19.1-1, and a CDI-enabled runtime. `profile-up` requires the
-exact Kubernetes and driver versions. The repository-managed K3s node image pins the
-Toolkit package; claim preparation and the final workload UUID gate prove CDI injection.
+exact Kubernetes and driver versions. The general repository-managed K3s node image has its own pins and does not qualify
+this allocator tuple. A DRA destination must supply the pinned Toolkit package; the
+installer verifies it before claim preparation. The final workload UUID gate proves
+CDI injection.
 ComputeDomains are disabled and impose no IMEX or NVLink prerequisite.
 
 Helm v4 reports release state and chart identity through the exact release row returned

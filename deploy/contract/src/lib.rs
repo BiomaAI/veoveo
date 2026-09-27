@@ -2330,11 +2330,9 @@ mod tests {
         GpuSamePhysicalDeviceGroup, GpuSchedulingProfile, GpuTimeSliceInterval,
         GpuWorkloadPlacement, InstallationPreset, LoadedProfile, ManagedGpuAllocatorInstallation,
         ManagedOciChart, ManagedOciImage, NVIDIA_DRA_CHART_CONTENT_DIGEST,
-        NVIDIA_DRA_CHART_COORDINATE, NVIDIA_DRA_CHART_DIGEST,
-        NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION, NVIDIA_DRA_HELM_VERSION,
-        NVIDIA_DRA_IMAGE_AMD64_DIGEST, NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST,
-        NVIDIA_DRA_IMAGE_REPOSITORY, NVIDIA_DRA_KUBERNETES_VERSION, NVIDIA_DRA_VERSION,
-        PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
+        NVIDIA_DRA_CHART_COORDINATE, NVIDIA_DRA_CHART_DIGEST, NVIDIA_DRA_IMAGE_AMD64_DIGEST,
+        NVIDIA_DRA_IMAGE_ARM64_DIGEST, NVIDIA_DRA_IMAGE_DIGEST, NVIDIA_DRA_IMAGE_REPOSITORY,
+        NVIDIA_DRA_VERSION, PlannedImage, PlatformCapability, PlatformComponent, PlatformSelection,
         deployment_lock_schema, deployment_profile_schema, development_image_lock_schema,
         validate_managed_gpu_allocator,
     };
@@ -2398,21 +2396,6 @@ mod tests {
                 .to_string()
                 .contains("image digest")
         );
-    }
-
-    #[test]
-    fn managed_gpu_allocator_uses_repository_runtime_pins() {
-        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let versions = fs::read_to_string(repository.join("deploy/local/k3d/versions.env"))
-            .expect("read local runtime versions");
-
-        assert!(versions.contains(&format!(
-            "K3S_VERSION=v{NVIDIA_DRA_KUBERNETES_VERSION}-k3s1"
-        )));
-        assert!(versions.contains(&format!("HELM_VERSION=v{NVIDIA_DRA_HELM_VERSION}")));
-        assert!(versions.contains(&format!(
-            "NVIDIA_CONTAINER_TOOLKIT_VERSION={NVIDIA_DRA_CONTAINER_TOOLKIT_PACKAGE_VERSION}"
-        )));
     }
 
     fn exclusive_gpu_scheduling(

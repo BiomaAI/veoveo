@@ -249,6 +249,10 @@ fn validate_kubernetes_version(context: &str) -> Result<()> {
         .pointer("/serverVersion/gitVersion")
         .and_then(Value::as_str)
         .context("Kubernetes server version has no gitVersion")?;
+    validate_kubernetes_runtime(context, raw)
+}
+
+fn validate_kubernetes_runtime(context: &str, raw: &str) -> Result<()> {
     let parsed = parse_version(raw).with_context(|| format!("parsing Kubernetes version {raw}"))?;
     let qualified = parse_version(NVIDIA_DRA_KUBERNETES_VERSION)
         .expect("qualified Kubernetes version constant is valid");
@@ -1096,8 +1100,9 @@ mod tests {
     use serde_json::json;
 
     use super::{
-        canonical_resource_claim_devices, conflicting_device_plugin_pods, debian_package_version,
-        parse_version, validate_resource_slices,
+        NVIDIA_DRA_KUBERNETES_VERSION, canonical_resource_claim_devices,
+        conflicting_device_plugin_pods, debian_package_version, parse_version,
+        validate_kubernetes_runtime, validate_resource_slices,
     };
 
     #[test]
@@ -1155,6 +1160,19 @@ mod tests {
             .unwrap()
             .remove("productName");
         assert!(validate_resource_slices(&incomplete, &nodes, 2).is_err());
+    }
+
+    #[test]
+    fn managed_allocator_rejects_unqualified_kubernetes_before_installation() {
+        validate_kubernetes_runtime("qualified", "v1.36.2+k3s1").unwrap();
+        for version in ["v1.36.1+k3s1", "v1.36.3+k3s1", "v1.37.0+k3s1"] {
+            let error = validate_kubernetes_runtime("local-node", version)
+                .expect_err("a general node upgrade cannot qualify the allocator");
+            let message = error.to_string();
+            assert!(message.contains("local-node"));
+            assert!(message.contains(version));
+            assert!(message.contains(NVIDIA_DRA_KUBERNETES_VERSION));
+        }
     }
 
     #[test]
