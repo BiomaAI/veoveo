@@ -629,6 +629,17 @@ installation, so this plan leaves it out.
 Acceptance: each server passes K01 through K10, and `knowledge-mcp` indexes its
 approved collections.
 
+## Accepted Risks
+
+The user accepted these risks on 2026-09-26. They do not block completion, and they
+are recorded in the owning designs instead of Deferred Work:
+
+| Risk | Handling |
+|---|---|
+| The bundled RustFS store has no Object Lock, so compliance-mode export cannot be qualified on the reference installation (`docs/REGULATED_READINESS.md` gap G9) | Export to the bundled store is still required. When no compliance-mode store is available, record the unqualified Object Lock path in the audit design's status and in gap G9 |
+| vLLM may not honor request priority on the embeddings route | The client caps bulk requests in flight, as the embedding runtime design specifies, and the runtime design records which mechanism shipped |
+| The plan spans ten phases | The Status line and Deferred Work record progress; phases land and deploy one at a time |
+
 ## Deferred Work
 
 The implementing agent adds a row for every step it defers, and removes the row when
