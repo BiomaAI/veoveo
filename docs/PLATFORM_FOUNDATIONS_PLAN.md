@@ -367,6 +367,24 @@ server with a test that fails before the fix.
 Acceptance: each server's tests cover its fix, and each server's `AGENTS.md` updates
 the affected compliance entries.
 
+### Typed Scope And Identity Migration
+
+The repository-wide Strong Types rule now requires closed enums for code-owned
+scopes, validated `ScopeName` at configurable or external scope boundaries, and
+typed IDs in query APIs, cursors, and resource URI construction and parsing.
+The shared MCP contract owns this distinction. Wire spellings and grants do not
+change during the migration.
+
+Implementation starts with Map and Time scope checks. The remaining inventory
+includes View and UAV scope helpers, configurable administrative middleware,
+gateway and policy literals, and Map URI builders and Store record-key APIs that
+erase existing domain ID types. Continue the inventory through other servers,
+shared contracts, SDKs, and clients as their phase work lands. Track each converted
+boundary here; an initial typed helper does not establish repository-wide completion.
+Qualification must reject unknown scope spellings and wrong-domain arguments,
+preserve existing grant decisions, and verify serialization against the published
+scope vocabulary. ID and URI changes must reject malformed and mismatched parents.
+
 ## Phase 4: Unified Audit Log
 
 The survey behind [the audit design](AUDIT.md) found these paths and volumes. Each

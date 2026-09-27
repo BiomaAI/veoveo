@@ -99,6 +99,25 @@ gateway projects only dependencies admitted by the caller's active profile,
 scopes, and labels; the eventual resource read remains subject to ordinary
 Work Context and resource authority.
 
+## Typed Scopes And Resource Identities
+
+Each owning contract declares a closed enum for the scopes its code understands.
+The enum maps each variant to one OAuth wire spelling. Domain authorization helpers
+accept that enum. A generic policy engine accepts validated `ScopeName` values because
+installations and external providers can define additional scopes. `ScopeName` validates
+syntax; it does not establish membership in a domain's supported scope vocabulary.
+
+Handlers, task admission, and configuration defaults share the owning definitions.
+The wire protocol still carries scope strings, and its parser validates them before
+passing them into policy code. A scope name conveys no authority by itself; checks
+compare it with the authenticated caller's current grants.
+
+Domain IDs keep their specific types in internal requests, cursors, and query APIs.
+Resource URI constructors require the corresponding ID types. Parsers validate the
+wire URI and return a typed resource variant before dispatch. Driver bindings and
+serialization may convert those types to text. This rule applies across Veoveo;
+existing string-based interfaces require migration when their contracts change.
+
 ## Protocol Surface
 
 Veoveo does not flatten MCP into a collection of convenience tools. Each

@@ -163,6 +163,20 @@ and explicit domain types whenever the shape is known or controlled by our contr
 Use raw JSON only at genuinely open-ended boundaries, such as provider-specific model
 input schemas or opaque provider payloads that cannot be modeled honestly yet.
 
+Code-owned authorization scopes use closed enums with one wire spelling per variant.
+Authorization helpers accept those enums, not string literals. Installation-defined
+and external scopes enter through the validated `ScopeName` type; syntax validation
+does not make a string a known domain scope. Keep each scope definition in its owning
+contract and reuse it across handlers, task admission, and configuration defaults.
+
+Keep domain IDs typed through internal APIs, including cursors and database query
+parameters. URI constructors accept the specific ID types for their path segments;
+URI parsers return typed resource variants. Convert to text at serialization and
+database-driver boundaries. Do not erase types early with `as_str()`, accept arbitrary
+strings for known identities, or introduce a generic ID that permits unrelated domains
+to be mixed. Validate external strings once on entry. Migrate existing string-based
+paths when changing their contracts and record wider gaps in the active plan.
+
 ## Database First
 
 Before building a mechanism in Veoveo, check whether SurrealDB already provides it,
