@@ -65,7 +65,7 @@ Contract revision: 2
 - C23: met
 - C25: met
 - C26: met
-- C27: met
+- C27: met — authenticated usage indexes and owner-checked prediction and task-usage filters share the qualified Store LIVE and changefeed source
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

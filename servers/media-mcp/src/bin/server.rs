@@ -810,14 +810,22 @@ impl ServerHandler for MediaMcp {
         let request_context = context.request_context().clone();
         let identity = internal_identity(&request_context)?;
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let prediction_id = uris::parse_prediction_uri(uri)
+            let resource = uris::subscription_resource(uri)
                 .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
-            let owner = prediction_owner(&self.state, prediction_id).await?;
-            if !task_owner_allows(&owner, &identity) {
-                return Err(McpError::invalid_request(
-                    "You don't have permission to subscribe to this prediction.",
-                    None,
-                ));
+            match resource {
+                uris::SubscriptionResource::UsageIndex => {}
+                uris::SubscriptionResource::Prediction(prediction_id) => {
+                    let owner = prediction_owner(&self.state, prediction_id).await?;
+                    if !task_owner_allows(&owner, &identity) {
+                        return Err(McpError::invalid_request(
+                            "You don't have permission to subscribe to this prediction.",
+                            None,
+                        ));
+                    }
+                }
+                uris::SubscriptionResource::TaskUsage(task_id) => {
+                    require_task_owner(&self.state, &request_context, task_id).await?;
+                }
             }
         }
         veoveo_task_runtime::listen_durable_subscriptions(
@@ -1075,7 +1083,6 @@ async fn main() -> anyhow::Result<()> {
     run_retention_gc(&state).await?;
     spawn_retention_gc_loop(state.clone());
     spawn_provider_event_reconciliation(state.clone());
-    spawn_subscription_projection(state.clone());
     spawn_missing_actual_usage_reconciliations(state.clone()).await;
 
     // Warm the registry so first completions/reads are instant.
@@ -1090,6 +1097,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let ct = tokio_util::sync::CancellationToken::new();
+    let _resource_observer = spawn_subscription_projection(state.clone(), ct.child_token());
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);

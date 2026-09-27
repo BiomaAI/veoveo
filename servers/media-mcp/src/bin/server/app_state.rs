@@ -237,43 +237,27 @@ pub(super) fn spawn_provider_event_reconciliation(state: Arc<AppState>) {
     });
 }
 
-/// Every replica projects committed provider outbox events into its local MCP
-/// session subscriptions. Polling the outbox is reconciliation, not provider
-/// status polling; SurrealDB remains the only completion source of truth.
-pub(super) fn spawn_subscription_projection(state: Arc<AppState>) {
+/// Every replica observes committed prediction and billing changes through one
+/// shared Store LIVE source. Resource reads still enforce the caller's authority.
+pub(super) fn spawn_subscription_projection(
+    state: Arc<AppState>,
+    cancellation: tokio_util::sync::CancellationToken,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut cursor = match state.durable.store().latest_outbox_sequence().await {
-            Ok(cursor) => cursor,
-            Err(error) => {
-                tracing::warn!("media subscription outbox baseline failed: {error}");
-                0
-            }
-        };
+        use futures::StreamExt;
+        use veoveo_platform_store::PlatformTable::{MediaUsage, ProviderJob};
+        let mut changes = state
+            .durable
+            .store()
+            .resource_changes(vec![ProviderJob, MediaUsage]);
         loop {
-            match state.durable.store().read_outbox(cursor, 1_000).await {
-                Ok(page) => {
-                    cursor = page.next_sequence;
-                    for event in page.events {
-                        if !matches!(
-                            event.aggregate_type.as_str(),
-                            "provider_job" | "provider_event"
-                        ) {
-                            continue;
-                        }
-                        let payload = Value::Object(event.payload.into_map().into_iter().collect());
-                        if let Some(external_job_id) =
-                            payload.get("external_job_id").and_then(Value::as_str)
-                        {
-                            state
-                                .subscribers
-                                .notify_resource_updated(uris::prediction_uri(external_job_id))
-                                .await;
-                        }
-                    }
+            tokio::select! {
+                () = cancellation.cancelled() => break,
+                change = changes.next() => {
+                    if change.is_none() { break; }
+                    state.subscribers.notify_resources_changed().await;
                 }
-                Err(error) => tracing::warn!("media subscription outbox replay failed: {error}"),
             }
-            tokio::time::sleep(RECONCILIATION_INTERVAL).await;
         }
-    });
+    })
 }

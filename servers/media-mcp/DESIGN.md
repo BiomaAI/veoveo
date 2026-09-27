@@ -16,6 +16,14 @@ task runtime; provider completion arrives through webhook waiters, and a
 missing webhook delivery is an operational failure rather than a silent
 retry.
 
+Prediction resources and per-task usage resources accept subscriptions. Admission
+checks the same task owner as a resource read. The usage index also accepts
+subscriptions; its reads filter tasks by current authority. Usage updates cover
+provider billing settlement after generation completes.
+Each replica shares Store LIVE observations of provider jobs and media usage across
+its listeners. Reconnection invalidates accepted resources, and idle connections
+emit no periodic resource notifications. Change-feed recovery qualification is pending.
+
 ## Boundaries
 
 - Provider credentials and provider-specific request shapes stay inside the

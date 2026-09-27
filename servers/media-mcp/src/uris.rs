@@ -69,9 +69,49 @@ pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
     media_uris().parse_usage_task_uri(uri)
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum SubscriptionResource<'a> {
+    Prediction(&'a str),
+    UsageIndex,
+    TaskUsage(&'a str),
+}
+
+pub fn subscription_resource(uri: &str) -> Option<SubscriptionResource<'_>> {
+    if uri == USAGE_ROOT_URI {
+        return Some(SubscriptionResource::UsageIndex);
+    }
+    parse_prediction_uri(uri)
+        .map(SubscriptionResource::Prediction)
+        .or_else(|| parse_usage_task_uri(uri).map(SubscriptionResource::TaskUsage))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn subscriptions_admit_predictions_and_usage_resources() {
+        assert_eq!(
+            subscription_resource("media://prediction/job-1"),
+            Some(SubscriptionResource::Prediction("job-1"))
+        );
+        assert_eq!(
+            subscription_resource("media://usage/task/task-1"),
+            Some(SubscriptionResource::TaskUsage("task-1"))
+        );
+        assert_eq!(
+            subscription_resource(USAGE_ROOT_URI),
+            Some(SubscriptionResource::UsageIndex)
+        );
+        for uri in [
+            MODELS_URI,
+            "media://usage/task/",
+            "media://usage/task/task-1/extra",
+            "other://usage/task/task-1",
+        ] {
+            assert_eq!(subscription_resource(uri), None, "{uri}");
+        }
+    }
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
