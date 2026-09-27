@@ -11,13 +11,9 @@ import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 const canvas = document.getElementById('world');
 const small = window.matchMedia('(max-width: 760px)').matches;
 
-function hasWebGL() {
-    try {
-        return !!document.createElement('canvas').getContext('webgl2');
-    } catch {
-        return false;
-    }
-}
+// The inline script in index.html adds has-world before the first paint when WebGL2
+// is available. The scene fades in with world-live once its first frame is ready.
+const root = document.documentElement;
 
 
 /* ---------- terrain field ---------- */
@@ -939,9 +935,18 @@ async function start() {
         }
     });
 
-    document.documentElement.classList.add('has-world');
-    requestAnimationFrame(frame);
+    requestAnimationFrame((t) => {
+        frame(t);
+        root.classList.add('world-live');
+    });
 }
 
-if (canvas && hasWebGL()) start();
-else if (canvas) canvas.remove();
+// Without a working scene the page falls back to the static hero art.
+function fallback() {
+    root.classList.remove('has-world');
+    canvas?.remove();
+    document.getElementById('world-veil')?.remove();
+}
+
+if (canvas && root.classList.contains('has-world')) start().catch(fallback);
+else fallback();

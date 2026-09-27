@@ -161,7 +161,8 @@ footer a { color: var(--body); }
 }
 
 /* ---------- live world: the whole page sits over the 3D scene ---------- */
-#world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; display: block; }
+#world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; display: block; opacity: 0; transition: opacity 0.6s ease-out; }
+html.world-live #world { opacity: 1; }
 body > header, body > main, body > footer { position: relative; z-index: 1; }
 html.has-world body { background: #04030a; color: #EDE8F5; }
 html.has-world .hero { background: transparent; }
