@@ -37,6 +37,12 @@ stream:
   modelCache:
     size: 5Gi
 reason:
+  model:
+    title: Qwen3 VL 4B Instruct FP8
+    description: Video reasoning with the installation-pinned Qwen3 VL checkpoint.
+    path: /models/qwen3-vl-4b-instruct-fp8-fefbb44cbcce8d1bb7e20b920b94f77432b3446d
+    # SHA-256 of reason-model.sha256, whose entries verify the checkpoint files.
+    digest: sha256:ade82a1c4a95530cab23bd9b74daab8c1093cd6cbb8066145ac0862dcf79da6f
   engine:
     # Reserve 42% for vLLM so its 8192-token world-model pass has a complete KV
     # cache while all seven required GPU workloads remain on the shared 24 GiB

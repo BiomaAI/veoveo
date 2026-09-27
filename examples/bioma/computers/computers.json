@@ -38,98 +38,8 @@
     "templates": [
       {
         "id": "development",
-        "fingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
-        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
-        "cpus": 2,
-        "memoryMib": 2048,
-        "homeCapacityMib": 8192,
-        "temporaryMib": 256,
-        "policy": {
-          "version": 1,
-          "filesystem": {
-            "includeWorkdir": false,
-            "readOnly": [
-              "/usr",
-              "/lib",
-              "/lib64",
-              "/bin",
-              "/etc/passwd",
-              "/etc/group",
-              "/etc/profile",
-              "/etc/profile.d",
-              "/etc/bash.bashrc",
-              "/etc/nsswitch.conf",
-              "/etc/resolv.conf",
-              "/etc/ssl/certs",
-              "/proc",
-              "/sandbox"
-            ],
-            "readWrite": [
-              "/sandbox/persistent",
-              "/tmp",
-              "/dev/null",
-              "/dev/tty",
-              "/dev/pts"
-            ]
-          },
-          "landlock": {
-            "compatibility": "hard_requirement"
-          },
-          "process": {
-            "runAsUser": "10001",
-            "runAsGroup": "10001"
-          }
-        }
-      },
-      {
-        "id": "development-20260910",
-        "fingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
-        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
-        "cpus": 2,
-        "memoryMib": 2048,
-        "homeCapacityMib": 8192,
-        "temporaryMib": 256,
-        "policy": {
-          "version": 1,
-          "filesystem": {
-            "includeWorkdir": false,
-            "readOnly": [
-              "/usr",
-              "/lib",
-              "/lib64",
-              "/bin",
-              "/etc/passwd",
-              "/etc/group",
-              "/etc/profile",
-              "/etc/profile.d",
-              "/etc/bash.bashrc",
-              "/etc/nsswitch.conf",
-              "/etc/resolv.conf",
-              "/etc/ssl/certs",
-              "/proc",
-              "/sandbox"
-            ],
-            "readWrite": [
-              "/sandbox/persistent",
-              "/tmp",
-              "/dev/null",
-              "/dev/tty",
-              "/dev/pts"
-            ]
-          },
-          "landlock": {
-            "compatibility": "hard_requirement"
-          },
-          "process": {
-            "runAsUser": "10001",
-            "runAsGroup": "10001"
-          }
-        }
-      },
-      {
-        "id": "development-20260911",
-        "fingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
-        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5",
+        "fingerprint": "315a601977c11114769fc8260886ba2c7193cf163e4dd06f47a3af0cc909870a",
+        "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:e3cbc7de048c3342d1d588ee18fa32e1e0fecb687f5d4c8b163a8582d89ea622",
         "cpus": 2,
         "memoryMib": 2048,
         "homeCapacityMib": 8192,
@@ -172,7 +82,7 @@
         }
       }
     ],
-    "defaultTemplate": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
+    "defaultTemplate": "315a601977c11114769fc8260886ba2c7193cf163e4dd06f47a3af0cc909870a",
     "execution": {
       "policy": {
         "maxGrants": 8,
@@ -181,46 +91,20 @@
         "maximumOutputBytes": 8388608
       },
       "artifactEndpoint": "http://artifact-service:8790",
-      "activeKeyId": "0c136d15-0682-41c4-ab2f-eb8c999965ef",
+      "activeKeyId": "01a0e1f4-abae-76e2-853f-6a09689f1c88",
       "keys": [
         {
-          "id": "0c136d15-0682-41c4-ab2f-eb8c999965ef",
+          "id": "01a0e1f4-abae-76e2-853f-6a09689f1c88",
           "file": "/etc/veoveo/computers/trust/command-key.bin"
         }
       ],
       "templateFingerprints": [
-        "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
-        "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
+        "315a601977c11114769fc8260886ba2c7193cf163e4dd06f47a3af0cc909870a"
       ],
       "fileTemplateFingerprints": [
-        "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
+        "315a601977c11114769fc8260886ba2c7193cf163e4dd06f47a3af0cc909870a"
       ]
     },
-    "maintenanceTransitions": [
-      {
-        "sourceFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
-        "targetFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d"
-      },
-      {
-        "sourceFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
-        "targetFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
-      },
-      {
-        "sourceFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
-        "targetFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
-      },
-      {
-        "sourceFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
-        "targetFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
-      },
-      {
-        "sourceFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
-        "targetFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
-      },
-      {
-        "sourceFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
-        "targetFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d"
-      }
-    ]
+    "maintenanceTransitions": []
   }
 }

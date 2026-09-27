@@ -19,26 +19,21 @@ use veoveo_computers_mcp::config::Configuration;
 use veoveo_task_runtime::TaskRuntime;
 
 #[tokio::test]
-async fn bioma_reference_configuration_admits_retained_and_execution_templates() {
+async fn bioma_reference_configuration_admits_its_selected_execution_template() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let files = configuration::Files::new();
     let mut input: Value = serde_json::from_str(include_str!(
         "../../../examples/bioma/computers/computers.json"
     ))
     .unwrap();
-    let retained = input["capacity"]["templates"]
+    let selected = input["capacity"]["templates"]
         .as_array()
         .unwrap()
         .iter()
-        .find(|template| {
-            template["fingerprint"]
-                == "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
-        })
-        .expect("installed retained template must remain admitted");
-    assert_eq!(
-        retained["id"], "development",
-        "retained Computers resolve the original catalog ID"
-    );
+        .find(|template| template["fingerprint"] == input["capacity"]["defaultTemplate"])
+        .expect("the selected default template must be admitted")
+        .clone();
+    assert_eq!(selected["id"], "development");
     input["capacity"]["gateway"]["transport"] = files.tls();
     input["capacity"]["allocator"] = files.tls();
     input["capacity"]["execution"]["keys"][0]["file"] = files
@@ -48,7 +43,14 @@ async fn bioma_reference_configuration_admits_retained_and_execution_templates()
         .into_owned()
         .into();
     let mut duplicate = input.clone();
-    duplicate["capacity"]["templates"][1]["id"] = input["capacity"]["templates"][0]["id"].clone();
+    let second =
+        files.configured("127.0.0.1:8787".parse().unwrap())["capacity"]["templates"][0].clone();
+    assert_eq!(second["id"], selected["id"]);
+    assert_ne!(second["fingerprint"], selected["fingerprint"]);
+    duplicate["capacity"]["templates"]
+        .as_array_mut()
+        .unwrap()
+        .push(second);
     assert!(matches!(
         serde_json::from_value::<Configuration>(duplicate)
             .unwrap()

@@ -178,13 +178,13 @@ computers:
   resources:
     requests: {cpu: "0", memory: "0"}
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 8a18ba9879c159c1de06628a92cb4f92060feeed37d4d6056720bbf337d93a84
+  configurationRevision: 4ba8ee8ba8ccec4aecab2fcf2cc0f5f9814fb5654b2e81abde9acf8fa8a35ca7
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration
     resources:
       requests: {cpu: "0", memory: "0"}
-    configurationRevision: 2a38da565f6fac95d1897075b355c871efe43919bd354a80178dfa42e9b0513b
+    configurationRevision: 8d4d5ef2497f547f681f12b0b0cccd6ca81b4b83036effe330b6f44dba0a1416
     existingTrustSecret: bioma-computer-host-trust
     persistence:
       size: 100Gi

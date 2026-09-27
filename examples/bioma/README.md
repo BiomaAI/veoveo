@@ -118,9 +118,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-<!-- TODO(foundations): Republish the Phase 1 image groups and qualify their locks
-after the host releases the stalled BuildKit worker. Export failed with a missing
-history blob, and Docker could not reap the idle builder during a bounded restart. -->
+<!-- TODO(foundations): Finish native acceptance, reset the reference installation
+from the published Phase 1 images and charts, and qualify the installed workloads.
+Publication recovered after the missing BuildKit history blob and stalled worker. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
@@ -145,8 +145,8 @@ credentials must be provisioned by the installation owner; copying this public e
 does not grant service access.
 
 Computers capacity is selected by `computerCapacity: openshell-docker`. Its public
-JSON files pin one provider identity and retain the previous template beside the
-new command-capable default. Existing Computers keep their original template. This initial development template
+JSON files pin one provider identity and one command-capable `development` template.
+This development template
 has Python, Git and shell tools, an 8 GiB retained home, two CPUs and 2 GiB memory.
 It grants no outbound network access. Admission allows two Computers per owner and
 four for this installation. Console and Computers control each use one replica;
@@ -168,23 +168,12 @@ file contains exactly 32 random bytes and is mounted only in Computers workers.
 
 The parent directory must already exist. Keep the operator CA keys outside the
 cluster and protect the bundle with installation-owned encrypted backup. Leaf
-certificates expire after 90 days; enrollment on 2026-09-10 requires renewal before
-2026-12-09. Qualify the rotation as maintenance before that date.
-Existing retained providers preserve their trust and JWT identity across rollouts.
-For an existing v1 installation, enroll only the new command key in its worker Secret;
-do not replace provider, storage or JWT trust. Drain v1 workers and apply migrations
-through 0071 before starting the v2 service. Admit the added template on the host through
-qualified retained maintenance before selecting it as the default. These source inputs
-are candidates until their installed checks pass.
-The admitted `development` ↔ `development-20260910` pair has passed the native
-8192 MiB retained-home upgrade, explicit recovery and reverse-replacement fixture.
-Initial Create recovery uses the qualified allocator Abandon path and keeps the
-unknown original operation. The staged host image has also passed forward replacement
-from the installed host image, preserving Docker/provider identity and retained bytes.
-Keep the new worker/schema when reversing a Computer template; older readers cannot
-interpret the maintenance recovery journal. Apply the new key and drain old Computers
-workers before the schema/configuration rollout. Stop the running Computer through its
-existing authorized lifecycle before replacing the private host.
+certificates expire after 90 days. Inspect their `notAfter` dates and qualify rotation
+as maintenance before expiry. Existing retained providers preserve their trust and JWT
+identity across ordinary rollouts. Stop a running Computer through its authorized
+lifecycle before replacing the private host. The disposable identifier-cut reset
+enrolls fresh trust and selects only the current template after deleting all retained
+homes and provider journals. Its installation has no template maintenance pairs.
 The command refuses existing output, and these Secret commands refuse existing names.
 
 Compute the admitted template fingerprint with the production encoder whenever a
@@ -515,6 +504,10 @@ Apply only the Git source and root Kustomization:
 kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/bootstrap.yaml
 ~~~
 
+A fresh installation needs its Reason checkpoint before the release can become Ready.
+Complete [Provision the Reason checkpoint](#provision-the-reason-checkpoint) while
+Helm waits for the workloads.
+
 Flux creates the namespace configuration, gateway and immutable UAV-world ConfigMaps,
 Cloudflare connector, OCI sources, and the two Helm releases. Inspect reconciliation
 through the standard Flux resources:
@@ -530,6 +523,101 @@ kubectl --context k3d-veoveo-bioma -n veoveo get deployments,statefulsets,pods
 The Git source and root Kustomization must be Ready at the same revision. Both
 HelmReleases must be Ready with non-empty inventories. Do not operate concurrent Helm
 releases for the same resources.
+
+## Provision the Reason checkpoint
+
+Reason uses [Qwen3-VL-4B-Instruct-FP8 at revision
+`fefbb44cbcce8d1bb7e20b920b94f77432b3446d`](https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-FP8/tree/fefbb44cbcce8d1bb7e20b920b94f77432b3446d).
+The checkpoint uses the `Qwen3VLForConditionalGeneration` adapter supported by Reason.
+The installation selects FP8 to reduce checkpoint memory. The
+[file manifest](reason-model.sha256) pins every upstream snapshot file. Its own SHA-256
+is the model identity in `k3d-values.yaml`.
+
+Download the snapshot on the host, or reuse a directory that passes the same manifest:
+
+~~~bash
+set -euo pipefail
+bioma_model_revision=fefbb44cbcce8d1bb7e20b920b94f77432b3446d
+bioma_model_name=qwen3-vl-4b-instruct-fp8-$bioma_model_revision
+bioma_model_dir="$PWD/output/models/$bioma_model_name"
+mkdir -p "$bioma_model_dir"
+while read -r checksum filename; do
+  curl --fail --location --proto '=https' --proto-redir '=https' \
+    --max-time 600 --retry 2 --retry-max-time 620 \
+    "https://huggingface.co/Qwen/Qwen3-VL-4B-Instruct-FP8/resolve/$bioma_model_revision/$filename" \
+    --output "$bioma_model_dir/$filename"
+done < examples/bioma/reason-model.sha256
+cp examples/bioma/reason-model.sha256 "$bioma_model_dir/SHA256SUMS"
+(cd "$bioma_model_dir" && sha256sum --check SHA256SUMS)
+~~~
+
+After Helm creates `reason-model-cache` and the Reason Deployment, use its pinned image
+for a temporary file-transfer pod. This pod only copies checkpoint files. Reason loads
+them in its separate GPU-requesting workload. The helper expires after 15 minutes.
+
+~~~bash
+bioma_reason_image=$(kubectl --context k3d-veoveo-bioma -n veoveo \
+  get deployment reason-mcp -o jsonpath='{.spec.template.spec.containers[0].image}')
+kubectl --context k3d-veoveo-bioma apply -f - <<YAML
+apiVersion: v1
+kind: Pod
+metadata:
+  name: reason-model-stage
+  namespace: veoveo
+  labels:
+    app.kubernetes.io/managed-by: bioma-checkpoint-provisioning
+spec:
+  restartPolicy: Never
+  activeDeadlineSeconds: 900
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: transfer
+      image: $bioma_reason_image
+      command: [/bin/sh, -c, "sleep 900"]
+      resources:
+        requests: {cpu: 100m, memory: 128Mi}
+        limits: {cpu: "1", memory: 512Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+      volumeMounts:
+        - name: model-cache
+          mountPath: /models
+  volumes:
+    - name: model-cache
+      persistentVolumeClaim:
+        claimName: reason-model-cache
+YAML
+kubectl --context k3d-veoveo-bioma -n veoveo wait \
+  --for=condition=Ready pod/reason-model-stage --timeout=5m
+kubectl --context k3d-veoveo-bioma -n veoveo exec reason-model-stage -- \
+  mkdir /models/.checkpoint-staging
+kubectl --context k3d-veoveo-bioma -n veoveo cp \
+  "$bioma_model_dir/." reason-model-stage:/models/.checkpoint-staging
+kubectl --context k3d-veoveo-bioma -n veoveo exec reason-model-stage -- \
+  /bin/sh -c 'cd /models/.checkpoint-staging && sha256sum --check SHA256SUMS'
+kubectl --context k3d-veoveo-bioma -n veoveo exec reason-model-stage -- \
+  /bin/sh -c 'test ! -e "/models/$1" && mv /models/.checkpoint-staging "/models/$1"' \
+  stage "$bioma_model_name"
+kubectl --context k3d-veoveo-bioma -n veoveo delete pod reason-model-stage --wait=true --timeout=1m
+kubectl --context k3d-veoveo-bioma -n veoveo rollout restart deployment/reason-mcp
+kubectl --context k3d-veoveo-bioma -n veoveo rollout status deployment/reason-mcp --timeout=5m
+~~~
+
+Publish a different checkpoint with a new manifest, digest and directory. Never replace
+files under a directory that a running Reason workload reads. A failed transfer leaves
+`.checkpoint-staging` for inspection; remove only that incomplete directory before
+retrying. A cluster reset deletes the model PVC, so repeat this step during each rebuild.
 
 ## Public edge
 
