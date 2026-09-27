@@ -1,5 +1,3 @@
-# TODO(foundations): Run the second-tenant SDK acceptance after Docker container
-# creation recovers; the first attempt exceeded 180 seconds in overlay unmount.
 apiVersion: k3d.io/v1alpha5
 kind: Simple
 metadata:
