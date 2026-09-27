@@ -1,9 +1,11 @@
+use futures::StreamExt;
 use veoveo_mcp_contract::{ResourceListObservers, SubscriptionHub};
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
     executor::{ExecutorClient, ExecutorHealth},
     problem_store::ProblemStore,
 };
+use veoveo_platform_store::PlatformTable;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
 pub(super) struct AppState {
@@ -17,6 +19,27 @@ pub(super) struct AppState {
     pub(super) resource_observers: std::sync::Arc<ResourceListObservers>,
     pub(super) max_artifact_bytes: u64,
     pub(super) max_executor_frame_bytes: u64,
+}
+
+pub(super) fn spawn_resource_observer(
+    state: std::sync::Arc<AppState>,
+    cancellation: tokio_util::sync::CancellationToken,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut changes = state
+            .tasks
+            .platform_store()
+            .resource_changes(vec![PlatformTable::Task, PlatformTable::DomainUsage]);
+        loop {
+            tokio::select! {
+                () = cancellation.cancelled() => break,
+                change = changes.next() => {
+                    if change.is_none() { break; }
+                    state.subscriptions.notify_resources_changed().await;
+                }
+            }
+        }
+    })
 }
 
 pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {

@@ -96,7 +96,7 @@ Contract revision: 3
 - C24: met
 - C25: met
 - C26: met
-- C27: met
+- C27: met — authorized subscriptions share committed task and usage changes through the qualified Store LIVE and changefeed source
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

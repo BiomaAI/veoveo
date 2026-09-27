@@ -133,6 +133,8 @@ async fn main() -> anyhow::Result<()> {
     recover_tasks(state.clone(), recovery.resumable).await?;
 
     let cancellation = tokio_util::sync::CancellationToken::new();
+    let _resource_observer =
+        app_state::spawn_resource_observer(state.clone(), cancellation.child_token());
     let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
     allowed_hosts.extend(args.allowed_hosts.iter().cloned());
     let allowed_hosts = Arc::new(allowed_hosts);

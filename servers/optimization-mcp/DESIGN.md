@@ -348,6 +348,11 @@ authorization and never turn a denial into a missing object.
 
 ## Prompts, Completions, And Notifications
 
+Each replica feeds its resource hub from committed Store task and domain-usage
+changes. The shared LIVE source replays changefeeds after a reconnect and invalidates
+the visible resource set before resuming. Reads recheck the caller's authority.
+The observer stops with the server's cancellation token.
+
 The server provides three prompts:
 
 - `formulate_routing_problem`;
