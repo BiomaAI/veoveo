@@ -34,6 +34,10 @@ cross-worktree synchronization easier. Each commit should capture one completed 
 and leave the repository in a coherent state. Do not mix unrelated changes into a commit,
 and do not use commits to conceal incomplete or failing work.
 
+Commits, pull requests, and release notes carry no AI or tool attribution. Do not add
+`Co-Authored-By` trailers for an agent or model, "Generated with" lines, or any other
+credit to an AI system. The person who commits the change is its author.
+
 ## Contract Evolution
 
 Internal refactors use a hard cut: replace obsolete names and behavior, update callers,
