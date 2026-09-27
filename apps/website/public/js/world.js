@@ -404,7 +404,8 @@ async function start() {
     const frustumMaterial = new THREE.LineBasicMaterial({ color: 0x9ad8ff, ...additive, opacity: 0.45 });
     const frustumGeometry = (() => {
         const o = new THREE.Vector3(0, 1.6, 0.8);
-        const far = [[-4.5, -0.2], [4.5, -0.2], [4.5, -1.6], [-4.5, -1.6]].map(([x, y]) => new THREE.Vector3(x, y, 12));
+        // A 16:9 far plane, 9 by 5.06, tilted slightly down like a mounted camera.
+        const far = [[-4.5, 1.3], [4.5, 1.3], [4.5, -3.76], [-4.5, -3.76]].map(([x, y]) => new THREE.Vector3(x, y, 12));
         const pts = [];
         far.forEach((c, i) => pts.push(o, c, c, far[(i + 1) % 4]));
         return new THREE.BufferGeometry().setFromPoints(pts);
