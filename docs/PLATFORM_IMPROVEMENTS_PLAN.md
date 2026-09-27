@@ -1461,8 +1461,7 @@ module, or conformance component is placed.
 
 Tests remain focused at their owning boundary. Linux deployment, GPU, and headed-browser failures
 are recorded only in the applicable remote acceptance environment. Expected failures may be
-captured locally to prove the missing behavior, but commits and `testing/local-test-report.json`
-remain green. A focused regression test lands with the implementation that makes it pass.
+captured locally to prove the missing behavior, but commits stay green. A focused regression test lands with the implementation that makes it pass.
 
 ### Phase 1: Exact App Authority And Recovering Hosts
 
@@ -2164,9 +2163,8 @@ internals, and hidden resource identities are absent from every unauthorized sur
 
 #### Test evidence discipline
 
-Every build-input change runs its affected checks through `cargo xtask test-report`. The committed
-`testing/local-test-report.json` contains only green current entries. Documentation-only commits do
-not replace or invalidate build evidence.
+Every build-input change runs its affected checks with their native commands before it is
+committed.
 
 New smoke work follows [Contract Evolution](CONTRACT_EVOLUTION.md): the owning Rust, browser,
 or SDK harness supplies bounded lifecycle, assertions, cleanup and evidence. Visual browser

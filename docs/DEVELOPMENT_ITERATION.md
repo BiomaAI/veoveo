@@ -33,10 +33,8 @@ changed. Qualification adds supply-chain attestations after behavior is accepted
 The accepted [contract evolution](CONTRACT_EVOLUTION.md) permits maintained browser
 and SDK harnesses and headless checks for nonvisual behavior. Required visual and GPU
 acceptance retain hardware proof. Dependency upgrades are separately qualified work;
-an ordinary consumer edit may retain its supported pins. The v3 report now supports
-per-check source reuse through owner-reviewed input declarations, as described in
-[Continuous Integration](CONTINUOUS_INTEGRATION.md). Unclassified commands retain a
-conservative repository boundary and cannot claim reusable environment coverage.
+an ordinary consumer edit may retain its supported pins. Checks run locally with
+native commands; [Continuous Integration](CONTINUOUS_INTEGRATION.md) describes how.
 
 Select checks from the changed input closure. Run focused feedback while editing,
 qualify the changed component before deployment, and compose the complete supported
@@ -257,8 +255,7 @@ run because a retry does not erase the cost or the cause.
 - [ ] Start from a clean commit and resolve the complete source revision from Git.
 - [ ] Run `cargo xtask image affected --since <accepted-revision>` and publish only its
       image, chart, SDK, or compatibility closure.
-- [ ] Run package and contract checks through `cargo xtask test-report run`; inspect the
-      committed green report before publication.
+- [ ] Run package and contract checks with their native commands before publication.
 - [ ] Verify the host budget, managed BuildKit cache, node Ready condition, disk pressure,
       and retained Evicted pod inventory with `cargo xtask release preflight`.
 - [ ] Confirm that the host push registry and cluster pull registry are reachable through
@@ -1047,10 +1044,7 @@ never advance. One database replay cursor removes the thirteen repeated table sc
 and completes transaction tails before advancing. The native regression uses a
 one-entry page to exercise both starvation and split transactions.
 
-Keep report recording and `test-report show` sequential. Running the latter before
-the recorder published its receipt produced a transient unindexed-receipt failure.
-A separate activation receipt was initially left untracked and required an immediate
-follow-up commit; commit the indexed receipt and report together. Disk remained above
+Disk remained above
 280 GiB free, with no cache purge or DiskPressure. The simulator Pod did not change.
 
 
@@ -1187,10 +1181,7 @@ Recording recovered automatically after free space again exceeded its existing
 The chart publication command also waited behind the build's repository-source lock;
 independent source-materialization leases remain a separate coordination improvement.
 
-The new routing, worker-control and normalized-parent regression commands now have
-owner-declared Cargo input scopes in `testing/evidence-checks/speech-iteration.json`.
-They include their actual package dependencies and external build recipes. Unrelated
-repository documentation no longer invalidates those checks. GPU and installed browser
+GPU and installed browser
 runs retain their explicit runtime qualification limits; source scoping does not grant
 installed evidence or hide a failed attempt.
 

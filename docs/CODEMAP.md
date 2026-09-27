@@ -31,7 +31,7 @@ component:
 | [`INSTALLATION_NEUTRALITY_FOLLOWUP.md`](INSTALLATION_NEUTRALITY_FOLLOWUP.md) | deferred register of Bioma-specific test and guide assumptions that should become installation profile inputs |
 | [`RECORDING_INGEST.md`](RECORDING_INGEST.md) | external/LAN producer protocol, auth, durability, and routing |
 | [`DEVELOPMENT_ITERATION.md`](DEVELOPMENT_ITERATION.md) | affected-target staging, digest-locked development rollout, focused acceptance, runtime pressure diagnostics, and iteration budgets |
-| [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | temporary host-local test reporting, informational GitHub presentation, and the future full GPU CI architecture |
+| [`CONTINUOUS_INTEGRATION.md`](CONTINUOUS_INTEGRATION.md) | how checks run without CI today, and the direction for GPU CI workers |
 | [`MCP_APPS_LIVE_AUDIT.md`](MCP_APPS_LIVE_AUDIT.md) | non-normative live investigation register for MCP App usefulness, Console behavior, authorization, and cluster evidence |
 | [`connectors/README.md`](connectors/README.md) | third-party MCP connector catalog, recipe format, and gateway-registered upstream path |
 
@@ -211,7 +211,6 @@ designs above.
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
-| [`tools/xtask/src/commands/test_report/`](../tools/xtask/src/commands/test_report/DESIGN.md) | CE-06 immutable receipts, per-command source planning, publication and integrity checks, and coverage verification; installed adapters and release-lock coverage are not built yet |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `workspace/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |
@@ -1122,9 +1121,6 @@ dispatch preflights and budgeted execution.
 | `testing/smoke/src/bin/smoke/support/` | process, HTTP, auth, fixture, usage helpers |
 | `testing/smoke/tests/` | static deployment/offline contract tests |
 | component-local `tests/` | focused live SurrealDB and service integration tests |
-| `testing/local-test-report.json` and `testing/test-receipts/` | committed v3 per-check index and immutable attempt history, with materialized input manifests and observed toolchains |
-| `testing/evidence-checks/` and `testing/coverage/` | owner-reviewed source commands, Cargo dependency selection, external test inputs and explicit required coverage profiles |
-| `.github/workflows/local-test-report.yml` | lightweight presentation of the committed local test report; it performs no substantive build, deployment, GPU, or browser acceptance |
 
 Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness, not in shell recipes.
 

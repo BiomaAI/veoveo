@@ -45,11 +45,9 @@ Resolve conflicts in code, schema and deployment configuration together. Review 
 upstream migration sequence before running it against downstream data. A clean Git
 merge does not establish that two schema changes compose safely.
 
-Run the owning component checks and record them with `cargo xtask test-report run`.
-Review `cargo xtask test-report show`, including each check's input scope. Changes to
-shared contracts broaden the checks and images affected. Commit the report and its
-new receipt files with build-input changes. Integrate the reviewed branch using the
-fork's normal pull-request process.
+Run the owning component checks with their native commands. Changes to shared
+contracts broaden the checks and images affected. Integrate the reviewed branch using
+the fork's normal pull-request process.
 
 `deploy/contract/tests/fork_installation.rs` exercises a downstream workload followed
 by an upstream merge. It verifies that the workload survives and that the installation

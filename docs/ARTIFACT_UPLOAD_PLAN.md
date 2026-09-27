@@ -428,10 +428,7 @@ for UI acceptance.
 
 Smoke orchestration, assertions, retries and cleanup belong to the owning harness under
 [Contract Evolution](CONTRACT_EVOLUTION.md). Headless behavior checks cannot replace the
-visual acceptance above. Record affected
-checks through `cargo xtask test-report run --name <check> -- <command>`, inspect
-`cargo xtask test-report show`, and commit passing evidence with build-input changes.
-Include Console build/lint, BFF tests, affected Rust crates, and Python enforcement.
+visual acceptance above. Run the affected checks with their native commands. Include Console build/lint, BFF tests, affected Rust crates, and Python enforcement.
 
 Deploy through the component-scoped workflow: bootstrap Store, activate Artifact,
 Gateway, and Console, then enable explicit policy. Validate actual ingress/proxy part

@@ -548,22 +548,19 @@ commit. The exact package set may be narrowed per commit, but the final activati
 include at least:
 
 ```sh
-cargo xtask test-report run --name recording-store -- cargo test -p veoveo-platform-store recordings
-cargo xtask test-report run --name recording-rrd -- cargo test -p veoveo-rrd
-cargo xtask test-report run --name artifact-plane -- cargo test -p veoveo-artifact-service
-cargo xtask test-report run --name recording-hub -- cargo test -p veoveo-recording-hub
-cargo xtask test-report run --name recording-mcp -- cargo test -p veoveo-recording-mcp
-cargo xtask test-report run --name console-bff -- cargo test -p veoveo-console-bff
-cargo xtask test-report run --name console-web -- npm --prefix apps/console/web test
-cargo xtask test-report run --name console-web-build -- npm --prefix apps/console/web run build
-cargo xtask test-report show
+cargo test -p veoveo-platform-store recordings
+cargo test -p veoveo-rrd
+cargo test -p veoveo-artifact-service
+cargo test -p veoveo-recording-hub
+cargo test -p veoveo-recording-mcp
+cargo test -p veoveo-console-bff
+npm --prefix apps/console/web test
+npm --prefix apps/console/web run build
 ```
 
 Confirm package names with Cargo metadata when each package begins; do not copy a stale
-name into test evidence. Run the existing typed deployment and browser smoke entrypoints
-after the digest-locked images are installed. Commit only green, current
-`testing/local-test-report.json` entries for build-input changes. Documentation-only
-planning commits do not invalidate build evidence.
+name into a command. Run the existing typed deployment and browser smoke entrypoints
+after the digest-locked images are installed.
 
 ## Activation And Recovery
 

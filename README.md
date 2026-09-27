@@ -9,10 +9,6 @@
   </picture>
 </p>
 
-<p align="center">
-  <a href="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml"><img src="https://github.com/BiomaAI/veoveo/actions/workflows/local-test-report.yml/badge.svg?branch=main" alt="Build"></a>
-</p>
-
 <h3 align="center">Autonomous operations on infrastructure you own.</h3>
 
 Veoveo is a self-hosted autonomy harness for physical AI, where humans, robots and
@@ -627,8 +623,8 @@ and PROJ's build dependencies.
 
 Pick the checks for the component you changed using the
 [iteration runbook](docs/DEVELOPMENT_ITERATION.md). The commands below are
-examples, not a required sequence. Before committing changes to build inputs,
-record the relevant checks with `cargo xtask test-report run`.
+examples, not a required sequence. Run the checks your change touches before
+committing it.
 
 ```bash
 cargo fmt --all
@@ -651,24 +647,7 @@ scenario needs, then runs the scenario. Local deployment profiles use the tool
 versions pinned in
 [`deploy/local/k3d/versions.env`](deploy/local/k3d/versions.env).
 
-For now, checks run on a single development host, and their results are
-committed so GitHub can display them:
-
-```bash
-cargo xtask test-report run --name rust-workspace -- cargo xtask enforce rust
-cargo xtask test-report show
-```
-
-A documentation-only change records the link and anchor check instead of the build
-checks:
-
-```bash
-cargo xtask test-report run --name docs -- cargo xtask enforce docs
-```
-
-The status is informational and does not block pushes or deployments. The
-current workflow and the planned GPU CI setup are described in
-[`docs/CONTINUOUS_INTEGRATION.md`](docs/CONTINUOUS_INTEGRATION.md).
+The repository has no CI. Checks run on a development host before each commit.
 
 ## Repository Guide
 
@@ -687,7 +666,7 @@ current workflow and the planned GPU CI setup are described in
 | [`deploy/`](deploy/) | Helm, local k3d, and offline installation material. |
 | [`examples/bioma/`](examples/bioma/) | Enterprise GitOps reference installation. |
 | [`testing/`](testing/) | Protocol conformance and multi-process smoke harnesses. |
-| [`tools/xtask/`](tools/xtask/) | Typed repository commands: doctor, enforce, image, release, smoke, test-report. |
+| [`tools/xtask/`](tools/xtask/) | Typed repository commands: doctor, enforce, image, release, smoke. |
 | [`tools/screenshots/`](tools/screenshots/) | Repeatable authenticated Console, MCP App, and recording viewer captures. |
 | [`docs/`](docs/) | Architecture, governance, deployment, recording, and harness documentation. |
 

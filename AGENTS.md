@@ -203,38 +203,23 @@ The repository has no Justfile. One-step Cargo, Helm, uv, Docker, and Kubernetes
 commands remain native. Repository-specific policy and multi-step coordination belong
 in `cargo xtask`.
 
-The xtask surface is `doctor`, `enforce rust|python|docs`, `image`, `release`, `smoke`,
-and `test-report`. Before committing a build-input change, run the checks it touches
-through the evidence recorder
-(`cargo xtask test-report run --name <check> -- <command>`, then
-`cargo xtask test-report show`) and commit the updated
-`testing/local-test-report.json` with the change, since the GitHub workflow only
-displays that committed evidence. A documentation-only change needs no build checks.
-Record `cargo xtask test-report run --name docs -- cargo xtask enforce docs` for it
-instead; the check validates every relative link and heading anchor in tracked
-Markdown and gives the committed tree a current pass. Do not commit red or stale
-report entries.
+The xtask surface is `doctor`, `enforce rust|python|docs`, `image`, `release`, and
+`smoke`. Before committing a change, run the checks it touches with their native
+commands. `cargo xtask enforce docs` validates every relative link and heading anchor
+in tracked Markdown. The repository has no CI and records no test evidence, so a
+commit carries only the change itself.
 
 Tests use the maintained tooling appropriate to their boundary: Rust for service and
 process invariants, TypeScript/browser tooling for Console behavior, and the SDK's
 language for consumer acceptance. Keep domain assertions in one owning harness.
 `cargo xtask smoke` dispatches scenarios and their required build prerequisites; it
-does not reimplement their lifecycle, assertions, retries, or cleanup. Until a new
-dispatcher is implemented, native framework commands run through `test-report`.
+does not reimplement their lifecycle, assertions, retries, or cleanup.
 
 Every harness must provide bounded timeouts, isolated fixtures, owned cleanup, secret
 redaction, useful failure diagnostics, and machine-readable results. Declare hardware,
 network, identity, and service prerequisites explicitly. Prefer existing framework
 behavior over custom browser synchronization or protocol clients. Add dependencies
 only when they remove concrete complexity from our tests.
-
-Evidence reuse must follow each check's actual inputs and execution environment. Shared
-contract or toolchain changes broaden that dependency closure. Unknown dependencies
-require conservative rechecking. The current v3 report indexes immutable v1 receipts.
-Owner-reviewed descriptors select scoped inputs and qualified environments; unclassified
-commands retain a repository-wide input boundary and are unqualified for reuse. Follow
-[`docs/CONTINUOUS_INTEGRATION.md`](docs/CONTINUOUS_INTEGRATION.md) for the implemented
-recorder and the remaining installed/release coverage work.
 
 ## Naming
 

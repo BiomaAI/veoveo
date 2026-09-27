@@ -151,8 +151,7 @@ four, twelve, twelve, four CPUs. Repeated `--cpus` options select another order 
 the declared resource budget.
 
 ```sh
-cargo xtask test-report run --name builder-cpu-comparison -- \
-  cargo xtask image builder benchmark \
+cargo xtask image builder benchmark \
     --target console-bff --target mcp-gateway \
     --source apps/console/bff/src/main.rs \
     --source platform/gateway/src/bin/gateway.rs \
@@ -183,8 +182,7 @@ SHA-256; it uses the upstream-recommended client-side mode with incremental comp
 disabled. Ordinary image builds retain their existing compiler invocation.
 
 ```sh
-cargo xtask test-report run --name compiler-cache-comparison -- \
-  cargo xtask image builder cache-benchmark \
+cargo xtask image builder cache-benchmark \
     --target console-bff --target mcp-gateway \
     --output output/development/compiler-cache-comparison
 ```
@@ -206,8 +204,7 @@ into an empty worker, and compares identical source edits on the primary and sec
 workers. It uses the existing family recipe and declared resource budget.
 
 ```sh
-cargo xtask test-report run --name compiler-worker-comparison -- \
-  cargo xtask image builder worker-benchmark \
+cargo xtask image builder worker-benchmark \
     --target console-bff --target mcp-gateway \
     --source apps/console/bff/src/main.rs \
     --source platform/gateway/src/bin/gateway.rs \
@@ -455,8 +452,7 @@ HTTP port. It joins the existing task store as another replica, with the same le
 rules as the installed server. Run this during a controlled acceptance window.
 
 ```sh
-cargo xtask test-report run --name stream-compiler-gpu -- \
-  cargo xtask smoke stream-gpu \
+cargo xtask smoke stream-gpu \
     --pipeline-id <installed-object-detection-pipeline> \
     --producer-key-secret <installed-recording-producer-secret> \
     --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
@@ -492,8 +488,7 @@ probe. This command produces `startup_verified`, which does not admit a compiler
 family or claim GPU workload execution:
 
 ```sh
-cargo xtask test-report run --name stream-compiler-startup -- \
-  cargo xtask smoke stream-compiler-startup \
+cargo xtask smoke stream-compiler-startup \
     --candidate-binary output/development/common-rust-artifacts/bin/stream-mcp \
     --candidate-app output/development/common-rust-artifacts/live.html \
     --work-dir output/development/stream-compiler-startup

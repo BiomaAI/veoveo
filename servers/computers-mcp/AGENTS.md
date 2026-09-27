@@ -18,7 +18,6 @@ preflight is test-only; production requires current policy and retained allocati
 Run the application and domain store cases before protocol integration. The native
 worker fixture owns its provider, allocator and private Docker daemon. Use the exact
 qualified binaries and image; its synthetic policy is not installed-user evidence.
-Record affected checks with `cargo xtask test-report` as required by root instructions.
 
 ## Contract Compliance
 

@@ -56,7 +56,6 @@ Git push credentials never enter an author job.
 | Git object identity and SHA-256 | Source bases, candidate trees, patches, policies, images, evidence, evaluations, and promotion inputs carry immutable identities. |
 | OCI Image and Distribution Specifications | Factory and harness images are prebuilt and selected by digest. Veoveo runtime images retain their existing runnable-manifest and publication-index identities. |
 | SPDX SBOM and SLSA provenance | Qualified Veoveo publications retain the attestations required by [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). A candidate or staging build is not release evidence. |
-| [`veoveo.io/local-test-report/v3`](CONTINUOUS_INTEGRATION.md) | The committed local report remains an engineering status note. The factory never treats it as independent verification, release provenance, or a security boundary. |
 | [`veoveo.io/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Qualified release closure for installation promotion. Development image locks remain ineligible for production release. |
 | Helm, Kubernetes, and Flux 2.9.4 | Installation-owned desired state and reconciliation. The factory does not patch live Kubernetes workloads or become a second reconciliation owner. |
 | NVIDIA CUDA, Vulkan, RTX, NVENC, WebGPU, WebGL, and Chrome DevTools Protocol | Hardware-GPU execution and headed-browser proof remain mandatory for visual, simulation, perception, rendering, encode, and visual-verification acceptance. |
@@ -126,8 +125,7 @@ who proposed the work.
   outcomes.
 - Run untrusted source, dependencies, build scripts, tests, and harness binaries in
   disposable environments without engineering-host credentials.
-- Preserve Veoveo's current OCI, deployment-lock, GitOps, GPU, smoke, and test-report
-  contracts.
+- Preserve Veoveo's current OCI, deployment-lock, GitOps, GPU, and smoke contracts.
 - Make a denied request, failed check, exhausted budget, or missing capability an
   ordinary visible state rather than a reason to widen policy.
 - Support skill-first improvement without letting a candidate skill change the policy
@@ -511,8 +509,7 @@ Protected changes include:
 - factory supervisor, verifier, check catalog, promotion broker, schemas, and admission
   code;
 - `AGENTS.md`, harness settings, skills, plugins, prompts, and model-routing policy;
-- held-out evaluations, conformance rules, test-report implementation, and smoke
-  orchestration;
+- held-out evaluations, conformance rules, and smoke orchestration;
 - CI workflows, repository permissions, branch protection, and source-broker code;
 - dependencies, lockfiles, build scripts, proc macros, Dockerfiles, and package-source
   configuration;
@@ -876,8 +873,8 @@ and produce separate candidates against the same specification and base.
 ## Independent Verification
 
 The verifier starts from the recorded base and exact collected patch. It does not trust
-the author's repository metadata, claimed changed paths, test output, exit status
-interpretation, or committed `testing/local-test-report.json`.
+the author's repository metadata, claimed changed paths, test output, or exit status
+interpretation.
 
 Verification has three layers:
 
@@ -892,7 +889,7 @@ Verification has three layers:
 The trusted check catalog lives outside the candidate lineage. A candidate may update
 repository tests as part of the product change, but it cannot remove the external check
 selection or change held-out assertions. When a candidate changes `tools/xtask`, smoke
-code, conformance code, or the test-report recorder, the risk classifier requires
+code, or conformance code, the risk classifier requires
 independent base-owned checks and protected review.
 
 Cargo build scripts, proc macros, npm lifecycle scripts, Python build backends,

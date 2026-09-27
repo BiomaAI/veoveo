@@ -260,8 +260,8 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   Reusing the same sequence coordinates exercises Rerun conflict resolution and can hide
   an otherwise durable earlier layer from the projected result.
 - Run deterministic RRD, Artifact streaming, layer cache, projection cancellation,
-  selected Redap, BFF, bridge, Helm lint, and Helm render checks through
-  `cargo xtask test-report`.
+  selected Redap, BFF, bridge, Helm lint, and Helm render checks with their native
+  commands.
 - Reopen a long-running live recording after committed layers have filled most of the
   managed archive cache. Require the manifest and Blueprint requests to succeed without
   an archive materialization, prove the live channel remains open, and visually inspect

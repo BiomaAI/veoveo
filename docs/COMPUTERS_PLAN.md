@@ -378,8 +378,7 @@ main, preserving unrelated history and local changes.
 
 Create focused domain and provider tests and one maintained Console browser harness.
 Use existing Rust fixture ownership through a narrow launcher when needed. Native
-framework commands may run through the current test-report wrapper before new xtask
-routing is implemented. Do not make rewriting existing smokes a prerequisite.
+framework commands run directly. Do not make rewriting existing smokes a prerequisite.
 
 Scoped source evidence now uses immutable v1 receipts indexed by a v3 report, with
 owner-declared Cargo and Console closures. The recorder and coverage verifier qualify
@@ -591,7 +590,7 @@ Use three checkpoints: focused feedback during edits, affected-component qualifi
 and full supported release acceptance. Dependency upgrades and broader performance
 experiments run separately unless they resolve a selected-profile failure. Shortened
 lease lifetimes accelerate routine fault cases; final qualification crosses real token
-renewals. The v2 test-report workflow remains in force until scoped evidence ships.
+renewals.
 
 | Measurement | Initial target and measurement boundary |
 |---|---|

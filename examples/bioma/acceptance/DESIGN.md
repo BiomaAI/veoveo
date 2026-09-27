@@ -61,8 +61,7 @@ Ordinary composition tests run with `cargo test -p veoveo-bioma-acceptance`.
 Installed migration tests are explicitly ignored by default. The operator supplies
 the private export directory and database connection through environment variables;
 credentials are never written to the source tree or printed as command arguments.
-Record each installed command through `cargo xtask test-report run` before committing
-its implementation and evidence.
+Run each installed command before committing its implementation.
 
 ## Definition Consolidation
 

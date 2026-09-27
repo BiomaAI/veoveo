@@ -963,10 +963,6 @@
         SUMO world in a disposable k3d cluster. The Map scenario acquires and activates fixture
         data, runs Valhalla and network routes as tasks, and checks that restriction and release
         changes invalidate dependent resources.</li>
-    <li><b>Test report.</b> Developers run each check through
-        <code>cargo xtask test-report</code>, which stores an immutable receipt per run, and
-        commit the updated report with the change. The GitHub workflow displays the committed
-        report.</li>
     <li><b>Hardware visual acceptance.</b> Headed browser checks probe WebGPU and WebGL and
         require at least one hardware-backed path. They reject SwiftShader, llvmpipe, and other
         software rasterizers. GPU workloads request their accelerator and have no CPU
