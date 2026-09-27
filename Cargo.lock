@@ -17440,6 +17440,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-deploy-contract",
  "veoveo-deploy-runtime",
+ "veoveo-frames-mcp",
  "veoveo-image-build-control",
  "veoveo-mcp-contract",
  "veoveo-platform-store",

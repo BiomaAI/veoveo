@@ -20,6 +20,7 @@ required-features = ["contract"]
 default = ["mcp"]
 contract = [
     "dep:chrono",
+    "dep:hex",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
@@ -32,7 +33,6 @@ runtime = [
     "chrono/clock",
     "dep:anyhow",
     "dep:glam",
-    "dep:hex",
     "dep:rayon",
     "dep:reqwest",
     "dep:sguaba",

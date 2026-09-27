@@ -99,7 +99,10 @@ pub(crate) async fn frames_mcp(
         &mcp_url,
         ["resource".into(), "frames://worlds".into()],
     )?;
-    contains(&worlds, "[]")?;
+    let worlds: veoveo_frames_mcp::contract::FrameWorldPage = serde_json::from_str(&worlds)?;
+    if !worlds.items.is_empty() || worlds.limit != 100 || worlds.next_cursor.is_some() {
+        bail!("fresh Frames world catalog must return an empty bounded page");
+    }
 
     let prompt = run_frames_mcp(
         conformance,
@@ -126,6 +129,17 @@ pub(crate) async fn frames_mcp(
         ],
     )?;
     contains(&create, "created frame world smoke-world")?;
+    let resources = run_frames_mcp(conformance, &mcp_url, ["resources".into()])?;
+    not_contains(&resources, "frames://world/smoke-world")?;
+    let worlds = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        ["resource".into(), "frames://worlds".into()],
+    )?;
+    let worlds: veoveo_frames_mcp::contract::FrameWorldPage = serde_json::from_str(&worlds)?;
+    if worlds.items.len() != 1 || worlds.items[0].world_id.as_str() != "smoke-world" {
+        bail!("Frames world catalog must contain the authored world");
+    }
 
     let publish = run_frames_mcp(
         conformance,
@@ -314,11 +328,14 @@ pub(crate) async fn frames_mcp(
     }
 
     let post_run_resources = run_frames_mcp(conformance, &mcp_url, ["resources".into()])?;
-    contains(
-        &post_run_resources,
-        &format!("frames://usage/task/{task_id}"),
-    )?;
+    not_contains(&post_run_resources, &usage.usage_uri)?;
     not_contains(&post_run_resources, &artifact.artifact_uri)?;
+    let usage_catalog = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        ["resource".into(), "frames://usage".into()],
+    )?;
+    contains(&usage_catalog, &usage.usage_uri)?;
 
     frames_child.stop();
     cleanup.remove_on_drop();

@@ -117,9 +117,18 @@ Four isolated SurrealDB cases pass through separate write/read clients, covering
 shared tenant visibility, changed clearance, wrong or deleted parents, inconsistent
 heads, and node selection without decoding unrelated data. All 15 Frames library
 cases, 21 affected adapter/contract cases, ten independent-consumer cases, and strict
-workspace Clippy pass. World catalog paging,
-static discovery, completion, and operation/usage authorization remain implementation
-work; installed acceptance is pending.
+workspace Clippy pass. The world catalog now returns 100-item keyset pages with typed
+world cursors and resource builders. Two native cases traverse 126 visible worlds
+behind 220 denied rows, recheck clearance between pages, and qualify SQL completion
+across 125 revisions and 128 frame nodes with their required visible parents. Discovery
+uses fixed roots and templates without Store reads; data changes invalidate contents
+without announcing list changes. The shared workbench's headless paging behavior passes.
+All 17 Frames library cases and 11 adapter cases pass. Twelve independently resolved
+consumer cases preserve contract isolation, and four compile-fail cases reject wrong
+ID types. The native Frames MCP smoke passes world authoring, paged catalog reads,
+conversion, batch tasks, Artifact access, and usage reads. Strict workspace Clippy passes.
+Operation authority and usage paging remain implementation work; installed acceptance
+is pending, including the declared world array-to-page coordinated upgrade.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -591,11 +600,12 @@ default owner; the inventory must not become a central domain-type registry.
 | Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
-| Frames world reads | Frames owns typed read queries over the existing Store client; world/revision/frame reads apply tenant, labels, and linked-parent checks in SQL, and head reads require pointer/key/number agreement. Four isolated native cases pass. Store's unscoped world readbacks are private to mutations | Add SQL catalog paging, static discovery, and completion; qualify installed behavior |
+| Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static and Store's unscoped world readbacks are private to mutations | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
 | Frames mutation inputs | Store mutation drafts still accept raw world/revision keys and complete definition objects | Keep the public mutation contract in Frames and move domain admission to its repository adapter without making Store depend on a server runtime |
-| Frames revision construction | Public revision and source-reference structs repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
+| Frames world metadata construction | Public world summaries, revisions, and source references repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
 | Frames operation and stream references | World/revision/frame addresses use typed component builders; operation resource and dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
 | Frames operation and usage visibility | Operation reads post-filter labels and do not enforce the owner/profile isolation promised by the design; usage indexes load task ownership after unbounded selection | Define persisted operation authority for direct and Task execution, enforce it and usage visibility in SQL, and qualify retained-data admission and caller isolation |
+| Native Task identity | TaskRuntime reexports Store's UUID `TaskId`, including database traits and record construction; protocol-level opaque Task handles have a different ownership and wire profile | Expose native Task identity through a lightweight owning contract and keep Store record conversion in its driver adapter; use that contract for typed usage cursors without adding database dependencies to server contract features |
 | DuckDB, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |

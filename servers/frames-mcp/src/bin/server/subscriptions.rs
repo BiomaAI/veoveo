@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use rmcp::{ErrorData as McpError, service::SubscriptionContext};
 use tokio_util::sync::CancellationToken;
-use veoveo_frames_mcp::contract::FrameWorldId;
+use veoveo_frames_mcp::contract::{FrameWorldId, FrameWorldsUri};
 use veoveo_frames_mcp::uris;
 use veoveo_platform_store::PlatformTable;
 
@@ -21,10 +21,11 @@ enum Resource<'a> {
 }
 
 fn parse_resource(uri: &str) -> Result<Resource<'_>, McpError> {
-    match uri {
-        uris::WORLDS_URI => return Ok(Resource::Worlds),
-        uris::USAGE_ROOT_URI => return Ok(Resource::Usage),
-        _ => {}
+    if FrameWorldsUri::parse(uri).is_ok() {
+        return Ok(Resource::Worlds);
+    }
+    if uri == uris::USAGE_ROOT_URI {
+        return Ok(Resource::Usage);
     }
     if let Some(world) = uris::parse_world_uri(uri) {
         return Ok(Resource::World(world.world_id()));
@@ -90,7 +91,7 @@ pub(super) fn spawn_observer(
                 () = cancellation.cancelled() => break,
                 change = changes.next() => {
                     if change.is_none() { break; }
-                    state.subscriptions.notify_resources_changed().await;
+                    state.subscriptions.notify_resource_contents_changed().await;
                 }
             }
         }
@@ -103,7 +104,17 @@ mod tests {
 
     #[test]
     fn subscriptions_admit_mutable_worlds_and_usage() {
-        assert_eq!(parse_resource(uris::WORLDS_URI).unwrap(), Resource::Worlds);
+        assert_eq!(
+            parse_resource(FrameWorldsUri::ROOT).unwrap(),
+            Resource::Worlds
+        );
+        let cursor = veoveo_frames_mcp::contract::FrameWorldCursor::new(
+            &FrameWorldId::new("world").unwrap(),
+        );
+        assert_eq!(
+            parse_resource(FrameWorldsUri::new(Some(&cursor)).as_str()).unwrap(),
+            Resource::Worlds
+        );
         assert_eq!(
             parse_resource(uris::USAGE_ROOT_URI).unwrap(),
             Resource::Usage
@@ -122,6 +133,8 @@ mod tests {
             "frames://world/fixture/revision/rev-1/frame/body",
             "frames://usage/task/task-1/extra",
             "other://world/fixture",
+            "frames://worlds?cursor=bad",
+            "frames://worlds?unknown=x",
         ] {
             assert!(parse_resource(uri).is_err(), "{uri}");
         }

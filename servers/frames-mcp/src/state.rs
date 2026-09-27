@@ -15,8 +15,11 @@ use crate::{
     world::validate_world_tree,
 };
 
+mod completion;
 mod reads;
 
+#[cfg(test)]
+mod catalog_tests;
 #[cfg(test)]
 mod read_tests;
 

@@ -28,6 +28,8 @@ operation resources are Veoveo extensions rather than external protocols.
 World addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
 URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
+Resource templates use RFC 6570 path variables and the optional `cursor` query
+expansion. The concrete parser admits only each route's declared parameters.
 Persistence uses the shared Store's pinned SurrealDB 3.2.4 client and SurrealQL
 queries over its internal WebSocket connection.
 
@@ -156,6 +158,7 @@ rejected. Large results go through the artifact plane.
 
 ```text
 frames://worlds
+frames://worlds{?cursor}
 frames://world/{world_id}
 frames://world/{world_id}/revision/{revision_id}
 frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}
@@ -169,13 +172,39 @@ The world resource carries mutable head metadata. Revision and frame resources
 are immutable. Operations, artifacts, tasks, and usage require owner, tenant,
 profile, and data-label isolation.
 
-World identifiers support completion. Resource lists are paginated. The server
-emits resource-update notifications when mutable state changes.
+Discovery advertises fixed roots, documents, and templates without accessing Store
+or the Artifact service. Clients browse authored worlds through `frames://worlds`,
+which returns `{items, limit, next_cursor}` with at most 100 summaries ordered by
+world ID. SQL applies tenant, label, and keyset predicates before the limit.
+A v1 cursor carries its collection and typed last world ID as hexadecimal
+JSON. It grants no access and provides no snapshot: each page uses current authority
+and data, and clients restart at the root to observe insertions before their cursor.
+The Frame Editor's shared workbench follows the cursor with Next and Previous actions.
+
+World, revision, and frame identifier completion matches case-insensitively in SQL
+before selecting at most 101 values. The MCP adapter returns at most 100 and omits
+the total when more matches exist. Revision completion requires `world_id`; frame
+completion requires both `world_id` and `revision_id`. Missing parents yield an empty
+completion, malformed parent IDs fail admission, and SQL applies parent visibility.
+
+The server emits resource-update notifications when mutable state changes.
 Each replica shares Store LIVE observations of world heads, revisions and domain
 usage through its resource hub. Subscriptions admit world and usage indexes, visible
 worlds and caller-owned task usage. Immutable revisions and frame definitions reject
-subscriptions. Source reconnection invalidates accepted resources and discovery;
-ordinary reads recheck current authority. The observer stops with the server.
+subscriptions. Source reconnection invalidates accepted resource contents;
+ordinary reads recheck current authority. World cursor pages admit subscriptions and
+are invalidated with the other accepted resource identities. The fixed discovery
+surface declares no list-change notifications. The observer stops with the server.
+
+### World Catalog Upgrade
+
+The Frames owner requires a coordinated drain for the world collection's array-to-page
+change. Update installed clients to decode `FrameWorldPage` and follow its typed
+cursor, then replace the drained server and refresh discovery and embedded App caches.
+Mixed array/page servers behind one endpoint are unsupported. This transition changes
+no persisted format. Rollback drains the server and restores the previous server/client
+set with the same data. Native page and cursor cases qualify the new representation;
+installed client acceptance is a release gate in the foundations plan.
 
 ## Prompts
 
@@ -237,9 +266,9 @@ Unknown and unauthorized worlds, revisions, frames, operations, tasks, usage,
 and artifacts are indistinguishable at their resource boundary.
 
 Operation reads currently check tenant and labels but lack owner enforcement and
-persisted profile identity. World and usage collection resources return complete
-arrays. The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
-tracks operation authority and SQL catalog paging as required work before installed
+persisted profile identity. The usage collection still returns a complete array.
+The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+tracks operation authority and SQL usage paging as required work before installed
 acceptance. World read qualification does not establish those guarantees.
 
 ## Module layout
@@ -251,18 +280,23 @@ servers/frames-mcp/src/
   world.rs                tree validation, hashing, and transform resolution
   state.rs                durable world, revision, and operation access
   state/reads.rs          typed world queries with SQL visibility and parent checks
+  state/completion.rs     scoped matching with typed parents before SQL limits
   state/read_tests.rs     isolated database authorization and parent-integrity cases
+  state/catalog_tests.rs  keyset paging and completion beyond initial result windows
   artifacts.rs            artifact-plane integration
   uris.rs                 canonical identities
   bin/server.rs           transport and MCP composition
   bin/server/
     app_state.rs
     config.rs
+    completion.rs
+    discovery.rs
     host.rs
     internal_auth.rs
     outputs.rs
     ownership.rs
     prompts.rs
+    resources.rs
     task_extension.rs
 ```
 

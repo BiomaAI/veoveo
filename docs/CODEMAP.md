@@ -668,7 +668,10 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
+| `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
+| `servers/frames-mcp/src/bin/server/discovery.rs`, `resources.rs`, `completion.rs` | fixed discovery, resource payloads, and MCP completion adapters |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |

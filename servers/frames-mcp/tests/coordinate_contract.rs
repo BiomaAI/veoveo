@@ -122,6 +122,73 @@ use veoveo_frames_mcp::contract::{
 use veoveo_types::{ResourceAddress, ResourceUri};
 
 #[test]
+fn world_catalog_cursors_preserve_typed_positions_and_round_trip() {
+    use veoveo_frames_mcp::contract::{FrameWorldCursor, FrameWorldsUri};
+    let root = FrameWorldsUri::new(None);
+    assert_eq!(root.as_str(), FrameWorldsUri::ROOT);
+    assert_eq!(FrameWorldsUri::parse(root.as_str()).unwrap(), root);
+    for value in ["mission-alpha", "ENU:mission.01", &"x".repeat(128)] {
+        let id = FrameWorldId::new(value).unwrap();
+        let cursor = FrameWorldCursor::new(&id);
+        assert_eq!(cursor.after(), &id);
+        assert_eq!(FrameWorldCursor::parse(cursor.as_str()).unwrap(), cursor);
+        let uri = FrameWorldsUri::new(Some(&cursor));
+        assert_eq!(FrameWorldsUri::parse(uri.as_str()).unwrap(), uri);
+        assert_eq!(uri.cursor(), Some(&cursor));
+        assert_eq!(
+            serde_json::from_str::<FrameWorldsUri>(&serde_json::to_string(&uri).unwrap()).unwrap(),
+            uri
+        );
+        assert_eq!(
+            <FrameWorldsUri as ResourceAddress>::parse(&uri.to_uri().unwrap()).unwrap(),
+            uri
+        );
+    }
+}
+
+#[test]
+fn world_catalog_rejects_wrong_cursor_envelopes_and_ambiguous_uris() {
+    use veoveo_frames_mcp::contract::{FrameWorldCursor, FrameWorldsUri};
+    for value in [
+        serde_json::json!({"version":2,"collection":"frames://worlds","after":"world"}),
+        serde_json::json!({"version":1,"collection":"frames://usage","after":"world"}),
+        serde_json::json!({"version":1,"collection":"frames://worlds","after":".."}),
+        serde_json::json!({"version":1,"collection":"frames://worlds","after":"world","extra":true}),
+    ] {
+        let wire = hex::encode(serde_json::to_vec(&value).unwrap());
+        assert!(FrameWorldCursor::parse(wire).is_err());
+    }
+    for wire in ["", "zz", "a", &"00".repeat(513)] {
+        assert!(FrameWorldCursor::parse(wire).is_err());
+    }
+    let cursor = FrameWorldCursor::new(&FrameWorldId::new("world").unwrap());
+    for value in [
+        "frames://worlds/".to_owned(),
+        "frames://worlds?".to_owned(),
+        "frames://worlds?cursor=".to_owned(),
+        "frames://worlds?unknown=1".to_owned(),
+        "frames://user@worlds".to_owned(),
+        "frames://worlds:42".to_owned(),
+        "frames://worlds#fragment".to_owned(),
+        "other://worlds".to_owned(),
+        format!(
+            "frames://worlds?cursor={}&cursor={}",
+            cursor.as_str(),
+            cursor.as_str()
+        ),
+        format!(
+            "frames://worlds?cursor={}&%63ursor={}",
+            cursor.as_str(),
+            cursor.as_str()
+        ),
+        format!("frames://worlds?cursor={}&unknown=1", cursor.as_str()),
+        format!("frames://worlds?%63ursor={}", cursor.as_str()),
+    ] {
+        assert!(FrameWorldsUri::parse(&value).is_err(), "{value}");
+    }
+}
+
+#[test]
 fn world_revision_and_frame_addresses_preserve_ids_and_wire_spelling() {
     for suffix in [
         "mission-alpha",

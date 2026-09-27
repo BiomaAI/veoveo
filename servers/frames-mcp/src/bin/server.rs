@@ -14,7 +14,6 @@ use std::{
 };
 
 use axum::{Router, middleware, routing::get};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{DateTime, TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
@@ -23,22 +22,19 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        CompleteRequestParams, CompleteResult, ContentBlock, GetPromptRequestParams, GetTaskParams,
+        GetTaskResult, ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult,
+        ListToolsResult, PaginatedRequestParams, Prompt, ReadResourceRequestParams, ServerConfig,
+        SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_frames_mcp::contract::{CoordinateOperationId, CoordinateSpace, WorldFrameUri};
+use veoveo_frames_mcp::contract::{CoordinateOperationId, CoordinateSpace};
 use veoveo_frames_mcp::{
     artifacts::ArtifactRepository,
     contract::{
@@ -52,7 +48,7 @@ use veoveo_frames_mcp::{
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs, init_server_telemetry, paginate,
+    TelemetryGuard, TokenIssuer, docs::ServerDocs, init_server_telemetry, paginate,
     public_allowed_hosts,
 };
 use veoveo_task_runtime::{
@@ -64,8 +60,12 @@ use veoveo_task_runtime::{
 mod admin;
 #[path = "server/app_state.rs"]
 mod app_state;
+#[path = "server/completion.rs"]
+mod completion;
 #[path = "server/config.rs"]
 mod config;
+#[path = "server/discovery.rs"]
+mod discovery;
 #[path = "server/host.rs"]
 mod host;
 #[path = "server/internal_auth.rs"]
@@ -76,6 +76,8 @@ mod outputs;
 mod ownership;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/resources.rs"]
+mod resources;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
 #[path = "server/task_extension.rs"]
@@ -85,10 +87,8 @@ use app_state::{AppState, update_task};
 use config::Cli;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use outputs::usage_record;
 use ownership::{
-    frame_scope_from_identity, frame_scope_from_runtime, internal_caller, internal_identity,
-    optional_task_owner, require_task_owner, runtime_owner, task_owner_allows,
+    frame_scope_from_identity, frame_scope_from_runtime, internal_identity, runtime_owner,
 };
 use prompts::FramesPrompt;
 use task_extension::FramesTaskService;
@@ -317,21 +317,8 @@ impl ServerHandler for FramesMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut caps: ServerCapabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
-        caps.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
         let mut info = ServerConfig::default();
-        info.capabilities = caps;
+        info.capabilities = discovery::capabilities();
         info.server_info = rmcp::model::Implementation::new("frames", env!("CARGO_PKG_VERSION"));
         info.instructions = Some(
             "Coordinate frames and frame worlds. Create a world, publish its frame tree as a \
@@ -449,97 +436,8 @@ impl ServerHandler for FramesMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let scope = frame_scope_from_identity(&self.state, &identity).await?;
-        let mut resources = well_known_resources();
-        resources.extend([
-            veoveo_mcp_apps_extension::app_resource(uris::WORKSPACE_APP_URI, "workspace")
-                .with_title("Frame Editor")
-                .with_description("Author frame worlds and run bounded coordinate transforms."),
-            Resource::new(uris::WORLDS_URI, "worlds")
-                .with_title("Frame worlds")
-                .with_description("Visible authored frame worlds and their current revisions.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::USAGE_ROOT_URI, "usage")
-                .with_title("Frames usage ledger")
-                .with_description("Index of task usage resources.")
-                .with_mime_type("application/json"),
-        ]);
-        for world in self
-            .state
-            .frames
-            .list_worlds(&scope)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?
-        {
-            resources.push(
-                Resource::new(
-                    world.world_uri.to_string(),
-                    format!("world {}", world.world_id),
-                )
-                .with_description(
-                    world
-                        .description
-                        .unwrap_or_else(|| "Coordinate frame.".into()),
-                )
-                .with_mime_type("application/json"),
-            );
-            if let Some(revision) = self
-                .state
-                .frames
-                .get_head_revision(&scope, &world.world_id)
-                .await
-                .map_err(|error| McpError::internal_error(error.to_string(), None))?
-            {
-                resources.push(
-                    Resource::new(
-                        revision.revision_uri.to_string(),
-                        format!("world {} revision {}", revision.world_id, revision.revision),
-                    )
-                    .with_description("Immutable complete frame-world tree.")
-                    .with_mime_type("application/json"),
-                );
-                for frame in &revision.tree.frames {
-                    let frame_uri = WorldFrameUri::new(&revision.revision_uri, &frame.frame_id);
-                    resources.push(
-                        Resource::new(frame_uri.to_string(), format!("frame {}", frame.frame_id))
-                            .with_description(
-                                frame
-                                    .description
-                                    .clone()
-                                    .unwrap_or_else(|| "World frame.".into()),
-                            )
-                            .with_mime_type("application/json"),
-                    );
-                }
-            }
-        }
-        for task_id in self
-            .state
-            .tasks
-            .platform_store()
-            .domain_usage_task_ids(SERVER_SLUG)
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?
-        {
-            let task_id = task_id.to_string();
-            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                continue;
-            };
-            if !task_owner_allows(&owner, &identity) {
-                continue;
-            }
-            resources.push(
-                Resource::new(
-                    uris::usage_task_uri(&task_id),
-                    format!("usage for task {task_id}"),
-                )
-                .with_description("Usage rows for one Frames task.")
-                .with_mime_type("application/json"),
-            );
-        }
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        let page = mcp_page(resources, request.as_ref())?;
+        internal_identity(&context)?;
+        let page = mcp_page(discovery::resources(), request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
@@ -555,7 +453,7 @@ impl ServerHandler for FramesMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(discovery::resource_templates(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -571,229 +469,7 @@ impl ServerHandler for FramesMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let uri = request.uri.as_str();
-            let identity = internal_identity(&context)?;
-            // Well-known surface (contract C18, C19): readable by any
-            // authenticated identity, like `list_resources`.
-            if uri == uris::DOCS_URI {
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc_uri(uri) {
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found(
-                        format!("unknown server document `{doc_id}`"),
-                        None,
-                    )
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                return json_resource(uri, SERVER_DOCS.contract_declaration());
-            }
-            if uri == uris::WORKSPACE_APP_URI {
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id: "frames-workspace",
-                        title: "Frame Editor",
-                        subtitle: "Build frame worlds and convert coordinates between frames",
-                        empty_message: "No frame worlds are visible to this identity.",
-                        resources: &[
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Frame worlds",
-                                uri: uris::WORLDS_URI,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Usage",
-                                uri: uris::USAGE_ROOT_URI,
-                            },
-                        ],
-                        tools: &[
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Convert frame",
-                                name: "convert_frame",
-                                arguments_json: "{}",
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Create world",
-                                name: "create_world",
-                                arguments_json: "{}",
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Publish world",
-                                name: "publish_world",
-                                arguments_json: "{}",
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Batch transform",
-                                name: "batch_transform",
-                                arguments_json: "{}",
-                            },
-                        ],
-                        stream_result: None,
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            let scope = frame_scope_from_identity(&self.state, &identity).await?;
-            if uri == uris::WORLDS_URI {
-                let worlds = self
-                    .state
-                    .frames
-                    .list_worlds(&scope)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-                return json_resource(uri, &worlds);
-            }
-            if uri == uris::USAGE_ROOT_URI {
-                let mut entries = Vec::new();
-                for task_id in self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_task_ids(SERVER_SLUG)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                {
-                    let task_id = task_id.to_string();
-                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                        continue;
-                    };
-                    if task_owner_allows(&owner, &identity) {
-                        entries.push(json!({
-                            "task_id": task_id,
-                            "usage_uri": uris::usage_task_uri(&task_id),
-                        }));
-                    }
-                }
-                return json_resource(uri, &entries);
-            }
-            if let Some(frame_uri) = uris::parse_world_frame_uri(uri) {
-                let frame = self
-                    .state
-                    .frames
-                    .get_frame(&scope, &frame_uri)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown world frame `{frame_uri}`"),
-                            None,
-                        )
-                    })?;
-                return json_resource(uri, &frame);
-            }
-            if let Some(revision_uri) = uris::parse_world_revision_uri(uri) {
-                let revision = self
-                    .state
-                    .frames
-                    .get_revision(&scope, &revision_uri)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown frame world revision `{revision_uri}`"),
-                            None,
-                        )
-                    })?;
-                return json_resource(uri, &revision);
-            }
-            if let Some(world_uri) = uris::parse_world_uri(uri) {
-                let world_id = world_uri.world_id();
-                let world = self
-                    .state
-                    .frames
-                    .get_world(&scope, &world_id)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown frame world `{world_id}`"),
-                            None,
-                        )
-                    })?;
-                return json_resource(uri, &world);
-            }
-            if let Some(operation_id) = uris::parse_operation_uri(uri) {
-                let operation_id = CoordinateOperationId::new(operation_id)
-                    .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-                let operation = self
-                    .state
-                    .frames
-                    .get_operation(&scope, &operation_id)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown operation `{operation_id}`"),
-                            None,
-                        )
-                    })?;
-                return json_resource(uri, &operation);
-            }
-            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let task_uuid = task_id
-                    .parse::<veoveo_platform_store::TaskId>()
-                    .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
-                let records = self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_for_task(SERVER_SLUG, task_uuid)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-                let report: UsageReport = UsageReport::new(task_id, uris::usage_task_uri(task_id))
-                    .with_records(
-                        records
-                            .into_iter()
-                            .map(|record| usage_record(task_id, record))
-                            .collect(),
-                    );
-                if report.records.is_empty() {
-                    return Err(McpError::resource_not_found(
-                        format!("unknown usage task `{task_id}`"),
-                        None,
-                    ));
-                }
-                return json_resource(uri, &report);
-            }
-            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-                let caller = internal_caller(&context)?;
-                let artifact = self
-                    .state
-                    .artifacts
-                    .get(&caller, &artifact_id)
-                    .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown artifact `{artifact_id}`"),
-                            None,
-                        )
-                    })?;
-                let blob = BASE64_STANDARD.encode(&artifact.bytes);
-                let mut content = ResourceContents::blob(blob, uri);
-                content = content.with_mime_type(
-                    artifact
-                        .metadata
-                        .mime_type
-                        .unwrap_or_else(|| BATCH_ARTIFACT_MIME.to_string()),
-                );
-                return Ok(ReadResourceResult::new(vec![content]));
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown resource uri: {uri}"),
-                None,
-            ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        self.read_frames_resource(request, context).await
     }
 
     async fn list_prompts(
@@ -836,114 +512,8 @@ impl ServerHandler for FramesMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        let Reference::Resource(res_ref) = &request.r#ref else {
-            return Ok(CompleteResult::default());
-        };
-        let values = if res_ref.uri == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
-            let needle = request.argument.value.to_lowercase();
-            SERVER_DOCS
-                .iter()
-                .map(|doc| doc.id.to_owned())
-                .filter(|doc_id| doc_id.contains(&needle))
-                .collect::<Vec<_>>()
-        } else if res_ref.uri == uris::WORLD_TEMPLATE && request.argument.name == "world_id" {
-            let needle = request.argument.value.to_lowercase();
-            let identity = internal_identity(&context)?;
-            let scope = frame_scope_from_identity(&self.state, &identity).await?;
-            self.state
-                .frames
-                .list_worlds(&scope)
-                .await
-                .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                .into_iter()
-                .map(|world| world.world_id.to_string())
-                .filter(|world| world.to_lowercase().contains(&needle))
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
-        let total = values.len() as u32;
-        let values = values
-            .into_iter()
-            .take(CompletionInfo::MAX_VALUES)
-            .collect::<Vec<_>>();
-        let has_more = (values.len() as u32) < total;
-        let completion = CompletionInfo::with_pagination(values, Some(total), has_more)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-        Ok(CompleteResult::new(completion))
+        self.complete_frames(request, context).await
     }
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    let text = serde_json::to_string(value)
-        .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(text, uri).with_mime_type("application/json"),
-    ]))
-}
-
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authenticated identity and `capability_inventory` declares
-/// them at `frames://contract`, so the two cannot diverge.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![
-        Resource::new(uris::DOCS_URI, "docs")
-            .with_title("Server documents")
-            .with_description("Index of the crate documents embedded at build time.")
-            .with_mime_type("application/json"),
-    ];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(uris::doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(
-        Resource::new(uris::CONTRACT_URI, "contract")
-            .with_title("Contract declaration")
-            .with_description(
-                "Machine-readable contract revision, compliance, and capability inventory.",
-            )
-            .with_mime_type("application/json"),
-    );
-    resources
-}
-
-/// Templates served by `list_resource_templates` and declared in the
-/// `frames://contract` capability inventory.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        ResourceTemplate::new(uris::WORLD_TEMPLATE, "world")
-            .with_title("Frame world")
-            .with_description("Mutable world head and authoring metadata.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::WORLD_REVISION_TEMPLATE, "world revision")
-            .with_title("Frame world revision")
-            .with_description("Immutable complete rooted frame tree.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::WORLD_FRAME_TEMPLATE, "world frame")
-            .with_title("Revision-scoped world frame")
-            .with_description("Typed frame node inside one immutable world revision.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::OPERATION_TEMPLATE, "operation")
-            .with_title("Coordinate operation")
-            .with_description("Recorded operation provenance.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-            .with_title("Frames artifact")
-            .with_description("Shared-plane immutable Frames artifact.")
-            .with_mime_type(BATCH_ARTIFACT_MIME),
-        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
-            .with_title("Frames task usage")
-            .with_description("Usage rows for one Frames task.")
-            .with_mime_type("application/json"),
-    ]
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

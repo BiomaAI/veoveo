@@ -7,7 +7,6 @@ pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
         veoveo_types::ResourceScheme::new("frames").expect("declared server resource scheme")
     });
 
-pub const WORLDS_URI: &str = "frames://worlds";
 pub const WORKSPACE_APP_URI: &str = "ui://frames/workspace.html";
 pub const WORLD_TEMPLATE: &str = "frames://world/{world_id}";
 pub const WORLD_REVISION_TEMPLATE: &str = "frames://world/{world_id}/revision/{revision_id}";

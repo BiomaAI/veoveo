@@ -64,7 +64,7 @@ the persisted authority contract and SQL migration before installed acceptance.
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — direct world/revision/frame reads apply SQL visibility and parent checks; world and usage catalogs still need bounded SQL pages and static discovery
+- C04: pending — discovery is static; world pages and identifier completions apply visibility and parent matching before SQL limits; the usage catalog still needs bounded SQL pages
 - C05: met
 - C06: met
 - C07: met
@@ -87,7 +87,7 @@ the persisted authority contract and SQL migration before installed acceptance.
 - C25: met
 - C26: met
 - C27: pending — world and usage subscriptions use Store LIVE observations; replica and reconnect qualification is pending
-- C28: met — the Store observer feeds resource contents and discovery-list invalidation into the shared hub
+- C28: met — the Store observer invalidates accepted resource contents; the fixed discovery surface declares no list-change notifications
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

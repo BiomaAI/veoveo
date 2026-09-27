@@ -8,7 +8,7 @@ use crate::{
 use std::time::Duration;
 use veoveo_platform_store::PrincipalKind;
 
-async fn scope(
+pub(super) async fn scope(
     store: &PlatformStore,
     tenant: &str,
     principal: &str,
@@ -29,7 +29,7 @@ async fn scope(
     }
 }
 
-fn tree() -> FrameWorldTree {
+pub(super) fn tree() -> FrameWorldTree {
     FrameWorldTree {
         frames: vec![
             FrameNode {
@@ -53,7 +53,7 @@ fn tree() -> FrameWorldTree {
     }
 }
 
-async fn create(state: &FramesState, scope: &FrameScope, name: &str) -> FrameWorldId {
+pub(super) async fn create(state: &FramesState, scope: &FrameScope, name: &str) -> FrameWorldId {
     let world_id = FrameWorldId::new(name).unwrap();
     state
         .create_world(
@@ -139,18 +139,18 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
         for allowed in [&owner, &peer] {
             assert!(reader.get_world(allowed, &world_id).await.unwrap().is_some());
             assert_revision_visible(&reader, allowed, &revision, true).await;
-            assert_eq!(reader.list_worlds(allowed).await.unwrap().len(), 2);
+            assert_eq!(reader.worlds_page(allowed, None).await.unwrap().items.len(), 2);
         }
         for denied in [&partial, &public] {
             assert!(reader.get_world(denied, &world_id).await.unwrap().is_none());
             assert_revision_visible(&reader, denied, &revision, false).await;
-            let worlds = reader.list_worlds(denied).await.unwrap();
+            let worlds = reader.worlds_page(denied, None).await.unwrap().items;
             assert_eq!(worlds.len(), 1);
             assert_eq!(worlds[0].world_id, public_id);
         }
         assert_revision_visible(&reader, &foreign, &revision, false).await;
         assert!(reader.get_world(&foreign, &public_id).await.unwrap().is_none());
-        assert_eq!(reader.list_worlds(&foreign).await.unwrap().len(), 1);
+        assert_eq!(reader.worlds_page(&foreign, None).await.unwrap().items.len(), 1);
 
         // Same-tenant readers need not own a world, but publication still does.
         assert!(writer.publish_world(&peer, PublishWorldRequest {
@@ -166,7 +166,7 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
             .await.unwrap().check().unwrap();
         assert_revision_visible(&reader, &owner, &revision, false).await;
         assert!(reader.get_world(&owner, &world_id).await.unwrap().is_none());
-        assert_eq!(reader.list_worlds(&owner).await.unwrap().len(), 1);
+        assert_eq!(reader.worlds_page(&owner, None).await.unwrap().items.len(), 1);
         let mut newly_cleared = owner.clone();
         newly_cleared.data_labels.insert("restricted".to_owned());
         assert_revision_visible(&reader, &newly_cleared, &revision, true).await;
