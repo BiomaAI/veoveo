@@ -16,6 +16,9 @@ use crate::contract::{
     SessionId, VehicleControlGrant, VehicleControlPermission, VehicleId, VehicleMissionPlan,
 };
 
+mod reads;
+pub(super) use reads::{ControlCollection, grant_collection};
+
 const PLAN_VALIDATION_MAX_AGE: Duration = Duration::minutes(5);
 const PLAN_TTL: Duration = Duration::minutes(15);
 const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
@@ -68,6 +71,8 @@ pub(super) enum ControlAuthorityError {
     Database(#[from] surrealdb::Error),
     #[error(transparent)]
     Json(#[from] serde_json::Error),
+    #[error(transparent)]
+    Index(#[from] anyhow::Error),
 }
 
 type Result<T> = std::result::Result<T, ControlAuthorityError>;
@@ -269,73 +274,6 @@ impl VehicleControlAuthority {
         grant_view(record.ok_or(ControlAuthorityError::Conflict)?)
     }
 
-    pub(super) async fn visible_grants(
-        &self,
-        identity: &GatewayInternalIdentity,
-        include_all: bool,
-    ) -> Result<Vec<VehicleControlGrant>> {
-        let (tenant, work_context) = context_records(identity)?;
-        let query = if include_all {
-            "SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND work_context = $work_context ORDER BY created_at ASC LIMIT 512;"
-        } else {
-            "SELECT * FROM uav_vehicle_control_grant WHERE tenant = $tenant AND work_context = $work_context AND principal_key = $principal ORDER BY created_at ASC LIMIT 512;"
-        };
-        let mut request = self
-            .store
-            .client()
-            .query(query)
-            .bind(("tenant", tenant))
-            .bind(("work_context", work_context));
-        if !include_all {
-            request = request.bind(("principal", identity.actor.id.to_string()));
-        }
-        let mut response = request.await?.check()?;
-        let records: Vec<GrantRecord> = response.take(0)?;
-        records.into_iter().map(grant_view).collect()
-    }
-
-    pub(super) async fn active_visible_grants(
-        &self,
-        identity: &GatewayInternalIdentity,
-        session_id: &SessionId,
-        include_all: bool,
-    ) -> Result<Vec<VehicleControlGrant>> {
-        let now = Utc::now();
-        Ok(self
-            .visible_grants(identity, include_all)
-            .await?
-            .into_iter()
-            .filter(|grant| {
-                grant.session_id == *session_id
-                    && grant.revoked_at.is_none()
-                    && grant.valid_from <= now
-                    && grant.valid_until.is_none_or(|until| now < until)
-            })
-            .collect())
-    }
-
-    pub(super) async fn require_permission(
-        &self,
-        identity: &GatewayInternalIdentity,
-        session_id: &SessionId,
-        vehicle_id: &VehicleId,
-        permission: VehicleControlPermission,
-    ) -> Result<VehicleControlGrant> {
-        let now = Utc::now();
-        self.visible_grants(identity, false)
-            .await?
-            .into_iter()
-            .find(|grant| {
-                grant.session_id == *session_id
-                    && grant.vehicle_id == *vehicle_id
-                    && grant.revoked_at.is_none()
-                    && grant.valid_from <= now
-                    && grant.valid_until.is_none_or(|until| now < until)
-                    && grant.permissions.contains(&permission)
-            })
-            .ok_or(ControlAuthorityError::Forbidden)
-    }
-
     pub(super) async fn prepare_plan(
         &self,
         identity: &GatewayInternalIdentity,
@@ -479,34 +417,6 @@ impl VehicleControlAuthority {
             .await?
             .check()?;
         self.release_lease(&guard.lease).await
-    }
-
-    pub(super) async fn visible_plans(
-        &self,
-        identity: &GatewayInternalIdentity,
-        include_all: bool,
-    ) -> Result<Vec<VehicleMissionPlan>> {
-        let (tenant, work_context) = context_records(identity)?;
-        let query = if include_all {
-            "SELECT * FROM uav_vehicle_mission_plan WHERE tenant = $tenant AND work_context = $work_context ORDER BY created_at ASC LIMIT 512;"
-        } else {
-            "SELECT * FROM uav_vehicle_mission_plan WHERE tenant = $tenant AND work_context = $work_context AND principal_key = $principal ORDER BY created_at ASC LIMIT 512;"
-        };
-        let mut request = self
-            .store
-            .client()
-            .query(query)
-            .bind(("tenant", tenant))
-            .bind(("work_context", work_context));
-        if !include_all {
-            request = request.bind(("principal", identity.actor.id.to_string()));
-        }
-        let mut response = request.await?.check()?;
-        let records: Vec<PlanRecord> = response.take(0)?;
-        records
-            .into_iter()
-            .map(|record| serde_json::from_str(&record.canonical_json).map_err(Into::into))
-            .collect()
     }
 
     async fn acquire_lease(

@@ -1,0 +1,229 @@
+//! SQL owns grant/plan visibility and selection before page and completion limits.
+use super::*;
+use crate::{contract::CollectionPage, server::index, uris};
+
+const VISIBLE: &str = "tenant = $tenant AND work_context = $work_context AND ($include_all OR principal_key = $principal)";
+const ACTIVE: &str =
+    "revoked_at = NONE AND valid_from <= $now AND (valid_until = NONE OR valid_until > $now)";
+
+impl VehicleControlAuthority {
+    pub(in crate::server) async fn grants_page(
+        &self,
+        identity: &GatewayInternalIdentity,
+        include_all: bool,
+        active_session: Option<&SessionId>,
+        after: Option<&ControlGrantId>,
+    ) -> Result<CollectionPage<VehicleControlGrant>> {
+        let (tenant, context) = context_records(identity)?;
+        let mut response = self
+            .store
+            .client()
+            .query(format!(
+                "SELECT * FROM uav_vehicle_control_grant WHERE {VISIBLE}
+             AND ($simulation_session = NONE OR (session_id = $simulation_session AND {ACTIVE}))
+             AND ($after = NONE OR grant_id > $after) ORDER BY grant_id ASC LIMIT $limit;"
+            ))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("include_all", include_all))
+            .bind((
+                "simulation_session",
+                active_session.map(ToString::to_string),
+            ))
+            .bind(("now", Utc::now()))
+            .bind(("after", after.map(ToString::to_string)))
+            .bind(("limit", index::PAGE_SIZE + 1))
+            .await?
+            .check()?;
+        let records: Vec<GrantRecord> = response.take(0)?;
+        index::page(
+            records,
+            &grant_collection(active_session),
+            |row| row.grant_id.clone(),
+            |row| Ok(grant_view(row)?),
+        )
+        .map_err(ControlAuthorityError::Index)
+    }
+
+    pub(in crate::server) async fn plans_page(
+        &self,
+        identity: &GatewayInternalIdentity,
+        include_all: bool,
+        after: Option<&MissionPlanId>,
+    ) -> Result<CollectionPage<VehicleMissionPlan>> {
+        let (tenant, context) = context_records(identity)?;
+        let mut response = self
+            .store
+            .client()
+            .query(format!(
+                "SELECT * FROM uav_vehicle_mission_plan WHERE {VISIBLE}
+             AND ($after = NONE OR plan_id > $after) ORDER BY plan_id ASC LIMIT $limit;"
+            ))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("include_all", include_all))
+            .bind(("after", after.map(ToString::to_string)))
+            .bind(("limit", index::PAGE_SIZE + 1))
+            .await?
+            .check()?;
+        let records: Vec<PlanRecord> = response.take(0)?;
+        index::page(
+            records,
+            uris::MISSION_PLANS,
+            |row| row.plan_id.clone(),
+            |row| Ok(serde_json::from_str(&row.canonical_json)?),
+        )
+        .map_err(ControlAuthorityError::Index)
+    }
+
+    pub(in crate::server) async fn visible_grant(
+        &self,
+        identity: &GatewayInternalIdentity,
+        include_all: bool,
+        id: &ControlGrantId,
+    ) -> Result<Option<VehicleControlGrant>> {
+        let (tenant, context) = context_records(identity)?;
+        let mut response = self
+            .store
+            .client()
+            .query(format!("SELECT * FROM ONLY $record WHERE {VISIBLE};"))
+            .bind((
+                "record",
+                scoped_record_id("uav_vehicle_control_grant", identity, id.as_str()),
+            ))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("include_all", include_all))
+            .await?
+            .check()?;
+        response
+            .take::<Option<GrantRecord>>(0)?
+            .map(grant_view)
+            .transpose()
+    }
+
+    pub(in crate::server) async fn visible_plan(
+        &self,
+        identity: &GatewayInternalIdentity,
+        include_all: bool,
+        id: &MissionPlanId,
+    ) -> Result<Option<VehicleMissionPlan>> {
+        let (tenant, context) = context_records(identity)?;
+        let mut response = self
+            .store
+            .client()
+            .query(format!("SELECT * FROM ONLY $record WHERE {VISIBLE};"))
+            .bind((
+                "record",
+                scoped_record_id("uav_vehicle_mission_plan", identity, id.as_str()),
+            ))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("include_all", include_all))
+            .await?
+            .check()?;
+        response
+            .take::<Option<PlanRecord>>(0)?
+            .map(|row| serde_json::from_str(&row.canonical_json).map_err(Into::into))
+            .transpose()
+    }
+
+    pub(in crate::server) async fn require_permission(
+        &self,
+        identity: &GatewayInternalIdentity,
+        session: &SessionId,
+        vehicle: &VehicleId,
+        permission: VehicleControlPermission,
+    ) -> Result<VehicleControlGrant> {
+        let (tenant, context) = context_records(identity)?;
+        let mut response = self.store.client().query(format!(
+            "SELECT * FROM uav_vehicle_control_grant WHERE {VISIBLE} AND {ACTIVE}
+             AND session_id = $simulation_session AND vehicle_id = $vehicle AND permissions CONTAINSALL $permissions
+             ORDER BY created_at ASC, grant_id ASC LIMIT 1;"
+        )).bind(("tenant", tenant)).bind(("work_context", context)).bind(("include_all", false))
+            .bind(("principal", identity.actor.id.to_string())).bind(("now", Utc::now()))
+            .bind(("simulation_session", session.to_string())).bind(("vehicle", vehicle.to_string()))
+            .bind(("permissions", permission_strings(&BTreeSet::from([permission]))))
+            .await?.check()?;
+        let records: Vec<GrantRecord> = response.take(0)?;
+        grant_view(
+            records
+                .into_iter()
+                .next()
+                .ok_or(ControlAuthorityError::Forbidden)?,
+        )
+    }
+
+    pub(in crate::server) async fn inspectable_vehicles(
+        &self,
+        identity: &GatewayInternalIdentity,
+        session: &SessionId,
+        vehicles: &[VehicleId],
+    ) -> Result<BTreeSet<VehicleId>> {
+        let (tenant, context) = context_records(identity)?;
+        #[derive(SurrealValue)]
+        struct Vehicle {
+            vehicle_id: String,
+        }
+        let mut response = self.store.client().query(format!(
+            "SELECT vehicle_id FROM uav_vehicle_control_grant WHERE {VISIBLE} AND {ACTIVE}
+             AND session_id = $simulation_session AND vehicle_id IN $vehicles AND permissions CONTAINS 'inspect'
+             GROUP BY vehicle_id;"
+        )).bind(("tenant", tenant)).bind(("work_context", context)).bind(("include_all", false))
+            .bind(("principal", identity.actor.id.to_string())).bind(("now", Utc::now()))
+            .bind(("simulation_session", session.to_string())).bind(("vehicles", vehicles.iter().map(ToString::to_string).collect::<Vec<_>>()))
+            .await?.check()?;
+        let records: Vec<Vehicle> = response.take(0)?;
+        records
+            .into_iter()
+            .map(|row| {
+                VehicleId::new(row.vehicle_id)
+                    .map_err(|e| ControlAuthorityError::Invalid(e.to_string()))
+            })
+            .collect()
+    }
+
+    pub(in crate::server) async fn complete_ids(
+        &self,
+        identity: &GatewayInternalIdentity,
+        include_all: bool,
+        domain: ControlCollection,
+        needle: &str,
+    ) -> Result<Vec<String>> {
+        let (tenant, context) = context_records(identity)?;
+        let (table, field) = match domain {
+            ControlCollection::Grants => ("uav_vehicle_control_grant", "grant_id"),
+            ControlCollection::Plans => ("uav_vehicle_mission_plan", "plan_id"),
+        };
+        // Both SQL identifiers come only from the closed domain enum.
+        #[derive(SurrealValue)]
+        struct Completion {
+            value: String,
+        }
+        let mut response = self.store.client().query(format!(
+            "SELECT {field} AS value FROM {table} WHERE {VISIBLE}
+             AND string::contains(string::lowercase({field}), $needle) ORDER BY value ASC LIMIT $limit;"
+        )).bind(("tenant", tenant)).bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string())).bind(("include_all", include_all))
+            .bind(("needle", needle.to_lowercase())).bind(("limit", index::PAGE_SIZE + 1))
+            .await?.check()?;
+        let rows: Vec<Completion> = response.take(0)?;
+        Ok(rows.into_iter().map(|row| row.value).collect())
+    }
+}
+
+pub(in crate::server) enum ControlCollection {
+    Grants,
+    Plans,
+}
+
+pub(in crate::server) fn grant_collection(active_session: Option<&SessionId>) -> String {
+    active_session.map_or_else(
+        || uris::CONTROL_GRANTS.to_owned(),
+        |session| format!("{}?active_session={session}", uris::CONTROL_GRANTS),
+    )
+}

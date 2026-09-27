@@ -289,22 +289,25 @@ impl LiveViewService {
         })
     }
 
-    pub(super) async fn list(
+    pub(super) async fn page(
         &self,
         owner: &LiveViewOwner,
         viewer_actor: &PrincipalId,
         session_id: &LiveSessionId,
+        after: Option<&LiveViewId>,
     ) -> Vec<LiveViewState> {
+        use std::ops::Bound::{Excluded, Unbounded};
         let state = self.state.lock().await;
         state
             .sessions
-            .values()
-            .filter(|session| {
+            .range((after.map_or(Unbounded, Excluded), Unbounded))
+            .filter(|(_, session)| {
                 session.state.owner == *owner
                     && session.state.viewer_actor == *viewer_actor
                     && session.state.session_id == *session_id
             })
-            .map(|session| session.state.clone())
+            .take(super::index::PAGE_SIZE + 1)
+            .map(|(_, session)| session.state.clone())
             .collect()
     }
 
@@ -676,6 +679,77 @@ mod tests {
             .unwrap();
         assert_eq!(product.active_viewers, 25);
         assert_eq!(product.nvenc_sessions, 1);
+    }
+
+    #[tokio::test]
+    async fn viewer_pages_apply_ownership_before_the_limit() {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let (service, _) = service().await;
+            let actor = PrincipalId::new("alice").unwrap();
+            let other = PrincipalId::new("bob").unwrap();
+            for i in 0..102 {
+                service
+                    .open(owner(), other.clone(), request(&format!("other-{i}")))
+                    .await
+                    .unwrap();
+            }
+            let mut expected = std::collections::BTreeSet::new();
+            for i in 0..102 {
+                let connection = service
+                    .open(owner(), actor.clone(), request(&format!("own-{i}")))
+                    .await
+                    .unwrap();
+                expected.insert(connection.stream.live_view_id);
+            }
+            let session = LiveSessionId::new("session-alpha").unwrap();
+            let root = crate::uris::live_views(&session);
+            let rows = service.page(&owner(), &actor, &session, None).await;
+            assert_eq!(rows.len(), 101);
+            let first =
+                super::super::index::page(rows, &root, |view| view.live_view_id.clone(), Ok)
+                    .unwrap();
+            assert_eq!(first.items.len(), 100);
+            let after =
+                super::super::index::decode::<LiveViewId>(&root, first.next_cursor.as_deref())
+                    .unwrap();
+            let rows = service
+                .page(&owner(), &actor, &session, after.as_ref())
+                .await;
+            assert_eq!(rows.len(), 2);
+            let last = super::super::index::page(rows, &root, |view| view.live_view_id.clone(), Ok)
+                .unwrap();
+            assert!(last.next_cursor.is_none());
+            assert_eq!(
+                first
+                    .items
+                    .into_iter()
+                    .chain(last.items)
+                    .map(|view| view.live_view_id)
+                    .collect::<std::collections::BTreeSet<_>>(),
+                expected
+            );
+            assert!(
+                service
+                    .page(
+                        &owner(),
+                        &actor,
+                        &LiveSessionId::new("other-session").unwrap(),
+                        None
+                    )
+                    .await
+                    .is_empty()
+            );
+            let mut denied = owner();
+            denied.work_context = WorkContextId::new("other-context").unwrap();
+            assert!(
+                service
+                    .page(&denied, &actor, &session, None)
+                    .await
+                    .is_empty()
+            );
+        })
+        .await
+        .expect("live-view page test exceeded 10 seconds");
     }
 
     #[tokio::test]

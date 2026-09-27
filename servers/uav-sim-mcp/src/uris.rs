@@ -10,6 +10,11 @@ pub const SCHEME: &str = "uav-sim";
 pub const DOCS: &str = "uav-sim://docs";
 pub const CONTRACT: &str = "uav-sim://contract";
 pub const SESSIONS: &str = "uav-sim://sessions";
+pub const MISSIONS: &str = "uav-sim://missions";
+pub const USAGE_PAGE_TEMPLATE: &str = "uav-sim://usage{?cursor}";
+pub const MISSIONS_PAGE_TEMPLATE: &str = "uav-sim://missions{?cursor}";
+pub const CONTROL_GRANTS_PAGE_TEMPLATE: &str = "uav-sim://control-grants{?cursor}";
+pub const MISSION_PLANS_PAGE_TEMPLATE: &str = "uav-sim://mission-plans{?cursor}";
 pub const USAGE: &str = "uav-sim://usage";
 pub const CONTROL_GRANTS: &str = "uav-sim://control-grants";
 pub const MISSION_PLANS: &str = "uav-sim://mission-plans";
@@ -31,6 +36,7 @@ pub const STREAM_PRODUCTS_TEMPLATE: &str = "uav-sim://session/{session_id}/strea
 pub const STREAM_PRODUCT_TEMPLATE: &str =
     "uav-sim://session/{session_id}/stream-product/{product_id}";
 pub const LIVE_VIEWS_TEMPLATE: &str = "uav-sim://session/{session_id}/live-views";
+pub const LIVE_VIEWS_PAGE_TEMPLATE: &str = "uav-sim://session/{session_id}/live-views{?cursor}";
 pub const LIVE_VIEW_TEMPLATE: &str = "uav-sim://session/{session_id}/live-view/{live_view_id}";
 
 pub fn session(session_id: &SessionId) -> String {

@@ -1,10 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 
-use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
 use chrono::Utc;
-use clap::Parser;
 use rmcp::tool;
 use rmcp::{
     ErrorData as McpError, RoleServer, ServerHandler,
@@ -20,24 +17,16 @@ use rmcp::{
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
-    transport::streamable_http_server::StreamableHttpService,
 };
 use serde::Serialize;
 use serde_json::json;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
-use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
-    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayInternalTokenVerifier,
-    GatewayInternalTrustBundle, LiveSessionId, LiveViewOwner, Page, ServerSlug, SubscriptionHub,
-    TelemetryGuard, TokenIssuer, UsageKind, UsageRecord, UsageReport, docs::ServerDocs,
-    init_server_telemetry, paginate, public_allowed_hosts,
+    GatewayInternalIdentity, LiveSessionId, LiveViewOwner, Page, SubscriptionHub, UsageKind,
+    UsageRecord, UsageReport, docs::ServerDocs, paginate,
 };
-use veoveo_task_runtime::{
-    TaskRetentionPin, TaskRuntime, TaskRuntimeConfig, TaskSnapshot, TaskStatus,
-};
+use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot, TaskStatus};
 
-use crate::adapter::{Adapter, FakeAdapter, HttpAdapter};
 use crate::contract::{
     CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
     CloseLiveViewRequest, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
@@ -49,19 +38,20 @@ use crate::contract::{
 };
 use crate::uris;
 
-use super::auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use super::config::{AdapterKind, Args};
-use super::control_authority::{ControlAuthorityError, VehicleControlAuthority};
-use super::host::validate_host;
-use super::live_view::{LiveViewConfig, LiveViewError, LiveViewService};
-use super::live_view_audit::LiveViewAudit;
-use super::ownership::{internal_caller, internal_identity, runtime_owner};
+use super::control_authority::ControlAuthorityError;
+use super::index;
+#[path = "bootstrap.rs"]
+mod bootstrap;
+#[path = "resources.rs"]
+pub(super) mod resources;
+use super::live_view::LiveViewError;
+use super::ownership::{internal_caller, internal_identity};
 use super::prompts::UavSimPrompt;
 use super::state::AppState;
 use super::task_extension::UavSimTaskExtension;
-use super::task_worker::{
-    await_result, resume_queued_operation, start_operation, start_vehicle_mission_plan,
-};
+use super::task_worker::{await_result, start_operation, start_vehicle_mission_plan};
+pub(super) use bootstrap::serve;
+use resources::resource_templates;
 
 const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
@@ -71,43 +61,13 @@ const LIVE_APP_TOOLS: &[&str] = &[
     "renew_live_view",
     "close_live_view",
 ];
-const LIVE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NmU0ZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxwYXRoIGQ9Im04IDlsNiAzLTYgM3oiLz48L3N2Zz4=";
-
-fn live_app_resource(connect_origin: &str, agent_message_targets: &[String]) -> Resource {
-    let resource = veoveo_mcp_apps_extension::app_resource_with_meta(
-        uris::LIVE_APP_URI,
-        "uav-sim-live-app",
-        veoveo_mcp_apps_extension::ResourceUiMeta {
-            csp: Some(veoveo_mcp_apps_extension::UiCsp {
-                connect_domains: vec![connect_origin.to_owned()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-    )
-    .with_title("Live Cameras")
-    .with_description(
-        "Authoritative simulator cameras tiled into one native NVIDIA NVENC product shared across viewers.",
-    )
-    .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]);
-    if agent_message_targets.is_empty() {
-        resource
-    } else {
-        veoveo_mcp_apps_extension::with_agent_message_targets(
-            resource,
-            agent_message_targets.iter().cloned(),
-        )
-        .expect("validated UAV App agent message targets")
-    }
-}
-
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `uav-sim://docs`, `uav-sim://docs/{doc_id}`, `uav-sim://contract`,
 /// and the administrative `admin/docs` routes (contract C18-C21).
 pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
     LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 #[derive(Clone)]
-struct UavSimMcp {
+pub(super) struct UavSimMcp {
     state: Arc<AppState>,
     task_service: UavSimTaskExtension,
     #[allow(dead_code)]
@@ -115,7 +75,7 @@ struct UavSimMcp {
 }
 
 impl UavSimMcp {
-    fn new(state: Arc<AppState>) -> Self {
+    pub(super) fn new(state: Arc<AppState>) -> Self {
         Self {
             task_service: UavSimTaskExtension::new(state.clone()),
             state,
@@ -160,25 +120,20 @@ impl UavSimMcp {
                 None,
             ));
         }
-        let now = Utc::now();
         let visible_vehicle_ids = self
             .state
             .control_authority
-            .visible_grants(identity, false)
+            .inspectable_vehicles(
+                identity,
+                &state.session_id,
+                &state
+                    .vehicles
+                    .iter()
+                    .map(|vehicle| vehicle.vehicle_id.clone())
+                    .collect::<Vec<_>>(),
+            )
             .await
-            .map_err(authority_error)?
-            .into_iter()
-            .filter(|grant| {
-                grant.session_id == state.session_id
-                    && grant.revoked_at.is_none()
-                    && grant.valid_from <= now
-                    && grant.valid_until.is_none_or(|until| now < until)
-                    && grant
-                        .permissions
-                        .contains(&VehicleControlPermission::Inspect)
-            })
-            .map(|grant| grant.vehicle_id)
-            .collect::<BTreeSet<_>>();
+            .map_err(authority_error)?;
         state
             .vehicles
             .retain(|vehicle| visible_vehicle_ids.contains(&vehicle.vehicle_id));
@@ -304,26 +259,35 @@ impl UavSimMcp {
 
     #[tool(
         title = "List active vehicle control grants",
-        description = "Read the vehicle grants you can see in one session. Each grant gives the vehicle id, the permissions, and the Map mobility-profile URI to use in Map route requests. Only a grant gives you control of a vehicle; naming a vehicle id in your input does not.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<crate::contract::VehicleControlGrant>>(),
+        description = "Read up to 100 active vehicle grants in one session. Pass next_cursor back as cursor until it is null to traverse all grants. Each grant gives the vehicle id, the permissions, and the Map mobility-profile URI to use in Map route requests. Only a grant gives you control of a vehicle; naming a vehicle id in your input does not.",
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::CollectionPage<crate::contract::VehicleControlGrant>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn list_active_vehicle_control_grants(
         &self,
-        Parameters(request): Parameters<SessionRequest>,
+        Parameters(request): Parameters<crate::contract::ActiveVehicleGrantsRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
         self.state_for(&request.session_id).await?;
         let include_all = identity_has_scope(&identity, "uav-sim:admin");
+        let after: Option<ControlGrantId> = index::decode(
+            &super::control_authority::grant_collection(Some(&request.session_id)),
+            request.cursor.as_deref(),
+        )?;
         let grants = self
             .state
             .control_authority
-            .active_visible_grants(&identity, &request.session_id, include_all)
+            .grants_page(
+                &identity,
+                include_all,
+                Some(&request.session_id),
+                after.as_ref(),
+            )
             .await
             .map_err(authority_error)?;
         structured_result(
-            format!("{} active vehicle control grant(s)", grants.len()),
+            format!("{} active vehicle control grant(s)", grants.items.len()),
             &grants,
         )
     }
@@ -986,103 +950,7 @@ impl ServerHandler for UavSimMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let state = self.visible_state(&identity).await?;
-        let owner = runtime_owner(&identity);
-        let tasks = self
-            .state
-            .tasks
-            .list_for_owner(&owner)
-            .await
-            .map_err(internal)?;
-        let mut resources = session_resources(&state);
-        resources.extend(well_known_resources());
-        if identity_has_scope(&identity, "uav-sim:control")
-            || identity_has_scope(&identity, "uav-sim:admin")
-        {
-            let include_all = identity_has_scope(&identity, "uav-sim:admin");
-            let grants = self
-                .state
-                .control_authority
-                .visible_grants(&identity, include_all)
-                .await
-                .map_err(authority_error)?;
-            let plans = self
-                .state
-                .control_authority
-                .visible_plans(&identity, include_all)
-                .await
-                .map_err(authority_error)?;
-            resources.push(descriptor(
-                uris::CONTROL_GRANTS.to_owned(),
-                "Vehicle control grants".to_owned(),
-                "Caller-visible UAV principal-to-vehicle authority grants.",
-            ));
-            resources.push(descriptor(
-                uris::MISSION_PLANS.to_owned(),
-                "Vehicle mission plans".to_owned(),
-                "Caller-visible UAV mission plans admitted from Map route handoffs.",
-            ));
-            resources.extend(grants.iter().map(|grant| {
-                descriptor(
-                    uris::control_grant(&grant.grant_id),
-                    format!("Vehicle control grant {}", grant.grant_id),
-                    "One UAV-owned principal-to-vehicle authority grant.",
-                )
-            }));
-            resources.extend(plans.iter().map(|plan| {
-                descriptor(
-                    uris::mission_plan(&plan.plan_id),
-                    format!("Vehicle mission plan {}", plan.plan_id),
-                    "One UAV-owned mission plan admitted from a Map route handoff.",
-                )
-            }));
-        }
-        if identity_has_scope(&identity, "uav-sim:stream") {
-            let targets = super::agent_targets::targets(
-                self.state.tasks.platform_store(),
-                &identity,
-                &state.session_id,
-            )
-            .await
-            .map_err(internal)?;
-            resources.push(live_app_resource(
-                &self.state.live_view_connect_origin,
-                &targets,
-            ));
-            let live_session_id: LiveSessionId =
-                state.session_id.as_str().parse().map_err(invalid)?;
-            let owner = LiveViewOwner::from_identity(&identity);
-            resources.extend(live_view_resources(
-                &state,
-                &self
-                    .state
-                    .live_views
-                    .list(&owner, &identity.actor.id, &live_session_id)
-                    .await,
-            ));
-        }
-        resources.push(descriptor(
-            uris::USAGE.to_owned(),
-            "UAV simulation task usage".to_owned(),
-            "Index of authorized task usage resources.",
-        ));
-        for task in &tasks {
-            resources.push(descriptor(
-                uris::usage_task(&task.task_id.to_string()),
-                format!("Usage for task {}", task.task_id),
-                "Usage report for one authorized UAV simulation task.",
-            ));
-            if let Some(mission_id) = mission_id(task) {
-                resources.push(descriptor(
-                    uris::mission(&mission_id),
-                    format!("Mission {mission_id}"),
-                    "Authorized durable mission task state.",
-                ));
-            }
-        }
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        resources.dedup_by(|left, right| left.uri == right.uri);
+        let resources = self.resource_descriptors(&context).await?;
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
@@ -1115,207 +983,7 @@ impl ServerHandler for UavSimMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let uri = request.uri.as_str();
-            if uri == uris::LIVE_APP_URI {
-                require_scope(&context, "uav-sim:stream")?;
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
-                ]));
-            }
-            // Well-known surface (contract C18, C19): readable by any identity
-            // that can list resources.
-            if uri == uris::DOCS {
-                internal_identity(&context)?;
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc(uri) {
-                internal_identity(&context)?;
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found("unknown UAV simulation document", None)
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT {
-                internal_identity(&context)?;
-                return json_resource(uri, SERVER_DOCS.contract_declaration());
-            }
-            if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
-                let grants = self
-                    .state
-                    .control_authority
-                    .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                    .await
-                    .map_err(authority_error)?;
-                if uri == uris::CONTROL_GRANTS {
-                    return json_resource(uri, &grants);
-                }
-                let grant_id = ControlGrantId::new(
-                    uris::parse_control_grant(uri).expect("checked control grant URI"),
-                )
-                .map_err(invalid)?;
-                let grant = grants
-                    .iter()
-                    .find(|grant| grant.grant_id == grant_id)
-                    .ok_or_else(|| McpError::resource_not_found("control grant not found", None))?;
-                return json_resource(uri, grant);
-            }
-            if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
-                let plans = self
-                    .state
-                    .control_authority
-                    .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                    .await
-                    .map_err(authority_error)?;
-                if uri == uris::MISSION_PLANS {
-                    return json_resource(uri, &plans);
-                }
-                let plan_id = MissionPlanId::new(
-                    uris::parse_mission_plan(uri).expect("checked mission plan URI"),
-                )
-                .map_err(invalid)?;
-                let plan = plans
-                    .iter()
-                    .find(|plan| plan.plan_id == plan_id)
-                    .ok_or_else(|| McpError::resource_not_found("mission plan not found", None))?;
-                return json_resource(uri, plan);
-            }
-            let identity = require_any_scope(
-                &context,
-                &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
-            )?;
-            let state = self.visible_state(&identity).await?;
-            if let Some(session_id) = uris::parse_live_cameras(uri) {
-                require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                return json_resource(uri, &state.live_cameras);
-            }
-            if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
-                require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                let camera = state
-                    .live_cameras
-                    .iter()
-                    .find(|camera| camera.camera_id == camera_id)
-                    .ok_or_else(|| McpError::resource_not_found("live camera not found", None))?;
-                return json_resource(uri, camera);
-            }
-            if let Some(session_id) = uris::parse_stream_products(uri) {
-                require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                return json_resource(uri, &state.stream_products);
-            }
-            if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
-                require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                let product = state
-                    .stream_products
-                    .iter()
-                    .find(|product| product.stream_product_id == product_id)
-                    .ok_or_else(|| {
-                        McpError::resource_not_found("stream product not found", None)
-                    })?;
-                return json_resource(uri, product);
-            }
-            if let Some(session_id) = uris::parse_live_views(uri) {
-                let identity = require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                let owner = LiveViewOwner::from_identity(&identity);
-                let views = self
-                    .state
-                    .live_views
-                    .list(&owner, &identity.actor.id, &session_id)
-                    .await;
-                return json_resource(uri, &views);
-            }
-            if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
-                let identity = require_scope(&context, "uav-sim:stream")?;
-                require_session(&state, session_id.as_str())?;
-                let owner = LiveViewOwner::from_identity(&identity);
-                let view = self
-                    .state
-                    .live_views
-                    .get(&owner, &identity.actor.id, &live_view_id)
-                    .await
-                    .map_err(live_view_error)?;
-                return json_resource(uri, &view);
-            }
-            if uri == uris::SESSIONS {
-                return json_resource(uri, &vec![session_summary(&state)]);
-            }
-            if let Some(session_id) = uris::parse_session(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state);
-            }
-            if let Some(session_id) = uris::parse_world(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &world_view(&state));
-            }
-            if let Some(session_id) = uris::parse_tiles(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.tiles);
-            }
-            if let Some(session_id) = uris::parse_vehicles(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.vehicles);
-            }
-            if let Some((session_id, vehicle_id)) = uris::parse_vehicle(uri) {
-                require_session(&state, session_id)?;
-                let vehicle = state
-                    .vehicles
-                    .iter()
-                    .find(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("Vehicle `{}` was not found in this session.", vehicle_id),
-                            None,
-                        )
-                    })?;
-                return json_resource(uri, vehicle);
-            }
-            if let Some(session_id) = uris::parse_recordings(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.recordings);
-            }
-            let owner = runtime_owner(&internal_identity(&context)?);
-            let tasks = self
-                .state
-                .tasks
-                .list_for_owner(&owner)
-                .await
-                .map_err(internal)?;
-            if uri == uris::USAGE {
-                let values = tasks
-                    .iter()
-                    .map(|task| uris::usage_task(&task.task_id.to_string()))
-                    .collect::<Vec<_>>();
-                return json_resource(uri, &values);
-            }
-            if let Some(task_id) = uris::parse_usage_task(uri) {
-                let task = require_task(&tasks, task_id)?;
-                return json_resource(uri, &task_usage(task, uri));
-            }
-            if let Some(value) = uris::parse_mission(uri) {
-                let requested_mission_id =
-                    crate::contract::MissionId::new(value).map_err(invalid)?;
-                let task = tasks
-                    .iter()
-                    .find(|task| mission_id(task).as_ref() == Some(&requested_mission_id))
-                    .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
-                return json_resource(uri, task);
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown UAV simulation resource `{uri}`"),
-                None,
-            ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        self.resource_read(request, context).await
     }
 
     async fn list_prompts(
@@ -1378,395 +1046,7 @@ impl ServerHandler for UavSimMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        let Reference::Resource(reference) = &request.r#ref else {
-            return Ok(CompleteResult::default());
-        };
-        let identity = internal_identity(&context)?;
-        let state = self.visible_state(&identity).await?;
-        let owner = runtime_owner(&identity);
-        let tasks = self
-            .state
-            .tasks
-            .list_for_owner(&owner)
-            .await
-            .map_err(internal)?;
-        let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
-            (uris::SESSION_TEMPLATE, "session_id")
-            | (uris::WORLD_TEMPLATE, "session_id")
-            | (uris::TILES_TEMPLATE, "session_id")
-            | (uris::VEHICLES_TEMPLATE, "session_id")
-            | (uris::RECORDINGS_TEMPLATE, "session_id")
-            | (uris::LIVE_CAMERAS_TEMPLATE, "session_id")
-            | (uris::LIVE_CAMERA_TEMPLATE, "session_id")
-            | (uris::STREAM_PRODUCTS_TEMPLATE, "session_id")
-            | (uris::STREAM_PRODUCT_TEMPLATE, "session_id")
-            | (uris::LIVE_VIEWS_TEMPLATE, "session_id")
-            | (uris::LIVE_VIEW_TEMPLATE, "session_id")
-            | (uris::VEHICLE_TEMPLATE, "session_id") => vec![state.session_id.to_string()],
-            (uris::VEHICLE_TEMPLATE, "vehicle_id") => state
-                .vehicles
-                .iter()
-                .map(|vehicle| vehicle.vehicle_id.to_string())
-                .collect(),
-            (uris::LIVE_CAMERA_TEMPLATE, "camera_id") => state
-                .live_cameras
-                .iter()
-                .map(|camera| camera.camera_id.to_string())
-                .collect(),
-            (uris::STREAM_PRODUCT_TEMPLATE, "product_id") => state
-                .stream_products
-                .iter()
-                .map(|product| product.stream_product_id.to_string())
-                .collect(),
-            (uris::MISSION_TEMPLATE, "mission_id") => tasks
-                .iter()
-                .filter_map(mission_id)
-                .map(|id| id.to_string())
-                .collect(),
-            (uris::CONTROL_GRANT_TEMPLATE, "grant_id") => {
-                require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
-                self.state
-                    .control_authority
-                    .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                    .await
-                    .map_err(authority_error)?
-                    .into_iter()
-                    .map(|grant| grant.grant_id.to_string())
-                    .collect()
-            }
-            (uris::MISSION_PLAN_TEMPLATE, "plan_id") => {
-                require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
-                self.state
-                    .control_authority
-                    .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                    .await
-                    .map_err(authority_error)?
-                    .into_iter()
-                    .map(|plan| plan.plan_id.to_string())
-                    .collect()
-            }
-            (uris::USAGE_TASK_TEMPLATE, "task_id") => {
-                tasks.iter().map(|task| task.task_id.to_string()).collect()
-            }
-            (uris::DOC_TEMPLATE, "doc_id") => {
-                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
-            }
-            _ => return Ok(CompleteResult::default()),
-        };
-        complete_values(values, &request.argument.value)
-    }
-}
-
-impl UavSimMcp {
-    async fn require_subscribable(
-        &self,
-        uri: &str,
-        context: &RequestContext<RoleServer>,
-    ) -> Result<(), McpError> {
-        let identity = internal_identity(context)?;
-        let state = self.visible_state(&identity).await?;
-        if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
-            let identity = require_any_scope(context, &["uav-sim:control", "uav-sim:admin"])?;
-            if uri == uris::CONTROL_GRANTS {
-                return Ok(());
-            }
-            let requested = uris::parse_control_grant(uri).expect("checked control grant URI");
-            if self
-                .state
-                .control_authority
-                .visible_grants(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                .await
-                .map_err(authority_error)?
-                .iter()
-                .any(|grant| grant.grant_id.as_str() == requested)
-            {
-                return Ok(());
-            }
-            return Err(McpError::resource_not_found(
-                "control grant not found",
-                None,
-            ));
-        }
-        if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
-            let identity = require_any_scope(context, &["uav-sim:control", "uav-sim:admin"])?;
-            if uri == uris::MISSION_PLANS {
-                return Ok(());
-            }
-            let requested = uris::parse_mission_plan(uri).expect("checked mission plan URI");
-            if self
-                .state
-                .control_authority
-                .visible_plans(&identity, identity_has_scope(&identity, "uav-sim:admin"))
-                .await
-                .map_err(authority_error)?
-                .iter()
-                .any(|plan| plan.plan_id.as_str() == requested)
-            {
-                return Ok(());
-            }
-            return Err(McpError::resource_not_found("mission plan not found", None));
-        }
-        if let Some(session_id) = live_session_from_subscribable(uri) {
-            require_scope(context, "uav-sim:stream")?;
-            require_session(&state, session_id.as_str())?;
-            if let Some((_, camera_id)) = uris::parse_live_camera(uri)
-                && !state
-                    .live_cameras
-                    .iter()
-                    .any(|camera| camera.camera_id == camera_id)
-            {
-                return Err(McpError::resource_not_found("live camera not found", None));
-            }
-            if let Some((_, product_id)) = uris::parse_stream_product(uri)
-                && !state
-                    .stream_products
-                    .iter()
-                    .any(|product| product.stream_product_id == product_id)
-            {
-                return Err(McpError::resource_not_found(
-                    "stream product not found",
-                    None,
-                ));
-            }
-            if let Some((_, live_view_id)) = uris::parse_live_view(uri) {
-                let identity = internal_identity(context)?;
-                let owner = LiveViewOwner::from_identity(&identity);
-                self.state
-                    .live_views
-                    .get(&owner, &identity.actor.id, &live_view_id)
-                    .await
-                    .map_err(live_view_error)?;
-            }
-            return Ok(());
-        }
-        if let Some(session_id) = session_from_subscribable(uri) {
-            require_session(&state, session_id)?;
-            if let Some((_, vehicle_id)) = uris::parse_vehicle(uri)
-                && !state
-                    .vehicles
-                    .iter()
-                    .any(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-            {
-                return Err(McpError::resource_not_found(
-                    format!("Vehicle `{}` was not found in this session.", vehicle_id),
-                    None,
-                ));
-            }
-            return Ok(());
-        }
-        if let Some(mission) = uris::parse_mission(uri) {
-            let owner = runtime_owner(&internal_identity(context)?);
-            let tasks = self
-                .state
-                .tasks
-                .list_for_owner(&owner)
-                .await
-                .map_err(internal)?;
-            if tasks
-                .iter()
-                .filter_map(mission_id)
-                .any(|id| id.as_str() == mission)
-            {
-                return Ok(());
-            }
-        }
-        Err(McpError::resource_not_found(
-            "resource is not subscribable",
-            None,
-        ))
-    }
-}
-
-pub(super) async fn serve() -> anyhow::Result<()> {
-    let _ = dotenvy::dotenv();
-    let _telemetry: TelemetryGuard =
-        init_server_telemetry("veoveo-uav-sim-mcp", "info,veoveo_uav_sim_mcp=debug")?;
-    let args = Args::parse();
-    let public_deployment = args.public_deployment()?;
-    let public_endpoint = public_deployment.server(SERVER_SLUG)?;
-    let tasks = TaskRuntime::connect(
-        TaskRuntimeConfig::new(
-            args.surreal_endpoint.clone(),
-            args.surreal_namespace.clone(),
-            args.surreal_database.clone(),
-            args.surreal_auth_level,
-            args.surreal_username.clone(),
-            args.surreal_password.clone(),
-        ),
-        SERVER_SLUG,
-        format!("{SERVER_SLUG}-{}", uuid::Uuid::now_v7()),
-    )
-    .await?;
-    let recovery = tasks.recover().await?;
-    let control_authority = VehicleControlAuthority::new(tasks.platform_store().clone());
-    let adapter = match args.adapter {
-        AdapterKind::Http => Adapter::Http(Box::new(HttpAdapter::new(
-            args.adapter_url()?,
-            args.adapter_timeout()?,
-            args.adapter_operation_timeout()?,
-            args.adapter_bearer_token.clone(),
-            tasks.platform_store().clone(),
-            &args.recording_tenant_key,
-        )?)),
-        AdapterKind::Fake => Adapter::Fake(Arc::new(Mutex::new(FakeAdapter::new(fake_state()?)))),
-    };
-    let adapter = Arc::new(adapter);
-    if let Some(path) = args.world_bootstrap_file.as_deref() {
-        super::world_bootstrap::apply(path, &adapter).await?;
-    }
-    let runtime_session_id = LiveSessionId::new(adapter.state().await?.session_id.to_string())?;
-    let live_view_audit = LiveViewAudit::new(tasks.platform_store().clone());
-    let live_views = LiveViewService::new(
-        adapter.clone(),
-        live_view_audit.clone(),
-        LiveViewConfig {
-            session_duration: args.live_view_session_duration()?,
-            public_stream_url: args.public_stream_url.clone(),
-            maximum_frame_age_ms: args.live_view_maximum_frame_age_ms,
-        },
-    )?;
-    let stream_url = url::Url::parse(&args.public_stream_url)?;
-    let live_view_connect_origin = stream_url.origin().ascii_serialization();
-    anyhow::ensure!(
-        live_view_connect_origin != "null",
-        "public live-stream URL must have an HTTP(S) origin"
-    );
-    let subscribers = Arc::new(SubscriptionHub::new());
-    let runtime_event_listener = (args.adapter == AdapterKind::Http).then(|| {
-        super::runtime_events::RuntimeEventListener::new(
-            runtime_session_id,
-            args.world_bootstrap_file.clone(),
-            adapter.clone(),
-        )
-    });
-    let state = Arc::new(AppState {
-        adapter,
-        tasks,
-        control_authority,
-        subscribers: subscribers.clone(),
-        live_views: live_views.clone(),
-        live_view_audit,
-        live_view_connect_origin,
-    });
-    for snapshot in recovery.resumable {
-        resume_queued_operation(state.clone(), snapshot)
-            .await
-            .map_err(anyhow::Error::msg)?;
-    }
-
-    let shutdown = CancellationToken::new();
-    let target_observer = tokio::spawn(super::agent_targets::observe(
-        state.tasks.platform_store().clone(),
-        subscribers.clone(),
-        shutdown.child_token(),
-    ));
-    let runtime_event_task = runtime_event_listener
-        .map(|listener| tokio::spawn(listener.run(subscribers.clone(), shutdown.child_token())));
-    let verifier = GatewayInternalTokenVerifier::new(
-        TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER)?,
-        ServerSlug::new(SERVER_SLUG)?,
-        GatewayInternalTrustBundle::from_json(&args.internal_trust_jwks)?,
-    );
-    let mut allowed_hosts = public_allowed_hosts(&public_deployment, args.allow_loopback_hosts);
-    allowed_hosts.extend(args.allowed_hosts.iter().cloned());
-    let allowed_hosts = Arc::new(allowed_hosts);
-    let mcp_service = StreamableHttpService::new(
-        {
-            let state = state.clone();
-            move || Ok(UavSimMcp::new(state.clone()))
-        },
-        veoveo_mcp_contract::stateless_session_manager(),
-        veoveo_mcp_contract::canonical_streamable_http_server_config()
-            .with_allowed_hosts(allowed_hosts.iter().cloned())
-            .with_cancellation_token(shutdown.child_token()),
-    );
-    let mcp_router = Router::new()
-        .route_service("/", mcp_service.clone())
-        .route_service("/{*path}", mcp_service)
-        .layer(middleware::from_fn(
-            veoveo_mcp_contract::enforce_serialized_mcp_response,
-        ))
-        .layer(middleware::from_fn_with_state(
-            InternalMcpAuthState {
-                verifier: verifier.clone(),
-            },
-            authenticate_internal_mcp,
-        ));
-    // Read-only well-known projection (contract C20) behind the same gateway
-    // authentication as the MCP surface.
-    let admin_router = super::admin::router().layer(middleware::from_fn_with_state(
-        InternalMcpAuthState { verifier },
-        authenticate_internal_mcp,
-    ));
-    anyhow::ensure!(
-        args.live_stream_gate_port != args.port,
-        "live-stream gate port must differ from the MCP port"
-    );
-    let live_stream_gate = super::live_stream::LiveStreamGate::new(
-        live_views,
-        subscribers,
-        &args.public_stream_url,
-        &args.runtime_stream_url,
-        args.adapter_bearer_token.clone(),
-    )?;
-    let router = Router::new()
-        .nest(
-            public_endpoint.mount_path(),
-            Router::new()
-                .route("/healthz", get(|| async { "ok" }))
-                .route("/readyz", get(ready))
-                .nest("/admin", admin_router)
-                .nest("/mcp", mcp_router),
-        )
-        .with_state(state)
-        .layer(middleware::from_fn_with_state(allowed_hosts, validate_host))
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(DefaultMakeSpan::new().level(tracing::Level::INFO)),
-        );
-
-    let address = SocketAddr::from(([0, 0, 0, 0], args.port));
-    let live_stream_address = SocketAddr::from(([0, 0, 0, 0], args.live_stream_gate_port));
-    tracing::info!(%address, public_url = public_endpoint.public_url(), "UAV simulation MCP listening");
-    let listener = tokio::net::TcpListener::bind(address).await?;
-    let server = std::future::IntoFuture::into_future(
-        axum::serve(listener, router).with_graceful_shutdown({
-            let shutdown = shutdown.clone();
-            async move {
-                let _ = tokio::signal::ctrl_c().await;
-                shutdown.cancel();
-            }
-        }),
-    );
-    let mut live_stream_task =
-        tokio::spawn(live_stream_gate.run(live_stream_address, shutdown.child_token()));
-    tokio::pin!(server);
-    let result = tokio::select! {
-        result = &mut server => result.map_err(Into::into),
-        result = &mut live_stream_task => match result {
-            Ok(result) => result,
-            Err(error) => Err(error.into()),
-        },
-    };
-    shutdown.cancel();
-    if !live_stream_task.is_finished() {
-        live_stream_task.await??;
-    }
-    target_observer.await?;
-    if let Some(task) = runtime_event_task {
-        task.await?;
-    }
-    result
-}
-
-async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
-    match state.adapter.state().await {
-        Ok(simulation) if simulation.lifecycle != SimulationLifecycle::Failed => StatusCode::OK,
-        Ok(_) => StatusCode::SERVICE_UNAVAILABLE,
-        Err(error) => {
-            tracing::warn!(%error, "UAV simulation MCP readiness failed");
-            StatusCode::SERVICE_UNAVAILABLE
-        }
+        self.resource_complete(request, context).await
     }
 }
 
@@ -1937,225 +1217,6 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
     })
 }
 
-fn session_resources(state: &SimulationState) -> Vec<Resource> {
-    let session_id = &state.session_id;
-    let mut resources = vec![
-        descriptor(
-            uris::SESSIONS.to_owned(),
-            "UAV simulation sessions".to_owned(),
-            "Authorized simulation session index.",
-        ),
-        descriptor(
-            uris::session(session_id),
-            format!("Session {session_id}"),
-            "Typed simulation session state.",
-        ),
-        descriptor(
-            uris::world(session_id),
-            format!("World {session_id}"),
-            "Frame, georeference, and simulation clock.",
-        ),
-        descriptor(
-            uris::tiles(session_id),
-            format!("Tiles {session_id}"),
-            "Google Photorealistic 3D Tiles load state inside the simulator.",
-        ),
-        descriptor(
-            uris::vehicles(session_id),
-            format!("Vehicles {session_id}"),
-            "Vehicle inventory for one simulation session.",
-        ),
-        descriptor(
-            uris::recordings(session_id),
-            format!("Recordings {session_id}"),
-            "Governed recording identities emitted by the session.",
-        ),
-        descriptor(
-            uris::live_cameras(
-                &session_id
-                    .as_str()
-                    .parse()
-                    .expect("session IDs share the live-view identifier profile"),
-            ),
-            format!("Live cameras {session_id}"),
-            "Authoritative operator-camera inventory.",
-        ),
-        descriptor(
-            uris::stream_products(
-                &session_id
-                    .as_str()
-                    .parse()
-                    .expect("session IDs share the live-view identifier profile"),
-            ),
-            format!("Stream products {session_id}"),
-            "Stable one-per-camera render and NVIDIA NVENC product inventory.",
-        ),
-    ];
-    resources.extend(state.vehicles.iter().map(|vehicle| {
-        descriptor(
-            uris::vehicle(session_id, &vehicle.vehicle_id),
-            format!("Vehicle {}", vehicle.vehicle_id),
-            "Typed simulated vehicle state.",
-        )
-    }));
-    resources
-}
-
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authorized identity; `capability_inventory` declares the
-/// same URIs at `uav-sim://contract`.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![descriptor(
-        uris::DOCS.to_owned(),
-        "Server documents".to_owned(),
-        "Index of the crate documents embedded at build time.",
-    )];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(uris::doc(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(descriptor(
-        uris::CONTRACT.to_owned(),
-        "Contract declaration".to_owned(),
-        "Machine-readable contract revision, compliance, and capability inventory.",
-    ));
-    resources
-}
-
-/// Every advertised resource template. `list_resource_templates` serves this
-/// list and the `uav-sim://contract` capability inventory declares it, so the
-/// two cannot diverge.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        template(
-            uris::SESSION_TEMPLATE,
-            "Simulation session",
-            "Typed session state.",
-        ),
-        template(
-            uris::WORLD_TEMPLATE,
-            "Simulation world",
-            "Frame, georeference, and world clock state.",
-        ),
-        template(
-            uris::TILES_TEMPLATE,
-            "Simulation tiles",
-            "Google Photorealistic 3D Tiles load state inside the simulator.",
-        ),
-        template(
-            uris::VEHICLES_TEMPLATE,
-            "Simulation vehicles",
-            "Vehicle inventory for one session.",
-        ),
-        template(
-            uris::VEHICLE_TEMPLATE,
-            "Simulation vehicle",
-            "Typed state for one simulated vehicle.",
-        ),
-        template(
-            uris::RECORDINGS_TEMPLATE,
-            "Simulation recordings",
-            "Governed recording identities emitted by one session.",
-        ),
-        template(
-            uris::LIVE_CAMERAS_TEMPLATE,
-            "Live cameras",
-            "Authoritative operator-camera inventory.",
-        ),
-        template(
-            uris::LIVE_CAMERA_TEMPLATE,
-            "Live camera",
-            "One authoritative operator camera.",
-        ),
-        template(
-            uris::STREAM_PRODUCTS_TEMPLATE,
-            "Stream products",
-            "Stable camera-owned rendered and encoded products.",
-        ),
-        template(
-            uris::STREAM_PRODUCT_TEMPLATE,
-            "Stream product",
-            "One camera-owned RTX render and NVIDIA NVENC product shared across viewers.",
-        ),
-        template(
-            uris::LIVE_VIEWS_TEMPLATE,
-            "Live views",
-            "Caller-visible live-view authorizations without secret tokens.",
-        ),
-        template(
-            uris::LIVE_VIEW_TEMPLATE,
-            "Live view",
-            "One caller-visible live-view authorization without its token.",
-        ),
-        template(
-            uris::MISSION_TEMPLATE,
-            "Simulation mission",
-            "Authorized durable mission task state.",
-        ),
-        template(
-            uris::CONTROL_GRANT_TEMPLATE,
-            "Vehicle control grant",
-            "One UAV-owned principal-to-vehicle authority grant.",
-        ),
-        template(
-            uris::MISSION_PLAN_TEMPLATE,
-            "Vehicle mission plan",
-            "One UAV-owned plan admitted from a Map route handoff.",
-        ),
-        template(
-            uris::USAGE_TASK_TEMPLATE,
-            "Simulation task usage",
-            "Usage report for one authorized task.",
-        ),
-    ]
-}
-
-fn descriptor(uri: String, title: String, description: &str) -> Resource {
-    Resource::new(uri, title.clone())
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
-}
-
-fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
-    ResourceTemplate::new(uri, title)
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
-}
-
-fn session_summary(state: &SimulationState) -> serde_json::Value {
-    json!({
-        "session_id": state.session_id,
-        "lifecycle": state.lifecycle,
-        "world": state.world,
-        "tile_lifecycle": state.tiles.lifecycle,
-        "vehicle_count": state.vehicles.len(),
-        "recording_count": state.recordings.len(),
-        "timing": state.timing,
-        "updated_at": state.updated_at,
-    })
-}
-
-fn world_view(state: &SimulationState) -> serde_json::Value {
-    json!({
-        "session_id": state.session_id,
-        "simulation_time_s": state.simulation_time_s,
-        "physics_step": state.physics_step,
-        "timing": state.timing,
-        "world": state.world,
-        "updated_at": state.updated_at,
-    })
-}
-
 fn command_session(command: &SimulationCommand) -> &SessionId {
     match command {
         SimulationCommand::Pause(request)
@@ -2167,56 +1228,6 @@ fn command_session(command: &SimulationCommand) -> &SessionId {
     }
 }
 
-fn mission_id(task: &TaskSnapshot) -> Option<crate::contract::MissionId> {
-    match serde_json::from_value::<DurableOperation>(task.request.clone()).ok()? {
-        DurableOperation::ExecuteMission(request) => Some(request.mission_id),
-        _ => None,
-    }
-}
-
-fn task_usage(task: &TaskSnapshot, uri: &str) -> UsageReport {
-    let operation = serde_json::from_value::<DurableOperation>(task.request.clone()).ok();
-    let declared_duration = match operation.as_ref() {
-        Some(DurableOperation::RunScenario(request)) => Some(request.duration_seconds),
-        Some(DurableOperation::CaptureDataset(request)) => Some(request.duration_seconds),
-        Some(DurableOperation::ExecuteMission(_)) | None => None,
-    };
-    let completed_duration = task
-        .started_at
-        .zip(task.completed_at)
-        .map(|(started, completed)| (completed - started).num_milliseconds() as f64 / 1_000.0);
-    let (kind, quantity) = if task.status == TaskStatus::Succeeded {
-        (UsageKind::Actual, completed_duration.or(declared_duration))
-    } else {
-        (UsageKind::Estimate, declared_duration)
-    };
-    UsageReport::new(task.task_id.to_string(), uri).with_records(vec![UsageRecord {
-        task_id: task.task_id.to_string(),
-        source_id: None,
-        provider_job_id: None,
-        model_id: "isaac-sim-6.0.1".to_owned(),
-        kind,
-        quantity,
-        unit: Some("gpu_second".to_owned()),
-        amount: None,
-        currency: None,
-        recorded_at: task.completed_at.unwrap_or(task.updated_at),
-        metadata: json!({"gpu_count": 1, "task_type": task.task_type}),
-    }])
-}
-
-fn require_task<'a>(
-    tasks: &'a [TaskSnapshot],
-    task_id: &str,
-) -> Result<&'a TaskSnapshot, McpError> {
-    tasks
-        .iter()
-        .find(|task| task.task_id.to_string() == task_id)
-        .ok_or_else(|| {
-            McpError::resource_not_found(format!("Task `{task_id}` was not found."), None)
-        })
-}
-
 fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpError> {
     if state.session_id.as_str() == session_id {
         Ok(())
@@ -2226,74 +1237,6 @@ fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpE
             None,
         ))
     }
-}
-
-fn session_from_subscribable(uri: &str) -> Option<&str> {
-    uris::parse_session(uri)
-        .or_else(|| uris::parse_world(uri))
-        .or_else(|| uris::parse_tiles(uri))
-        .or_else(|| uris::parse_vehicles(uri))
-        .or_else(|| uris::parse_recordings(uri))
-        .or_else(|| uris::parse_vehicle(uri).map(|(session_id, _)| session_id))
-}
-
-fn live_session_from_subscribable(uri: &str) -> Option<LiveSessionId> {
-    uris::parse_live_cameras(uri)
-        .or_else(|| uris::parse_live_camera(uri).map(|(session, _)| session))
-        .or_else(|| uris::parse_stream_products(uri))
-        .or_else(|| uris::parse_stream_product(uri).map(|(session, _)| session))
-        .or_else(|| uris::parse_live_views(uri))
-        .or_else(|| uris::parse_live_view(uri).map(|(session, _)| session))
-}
-
-fn live_view_resources(
-    state: &SimulationState,
-    views: &[veoveo_mcp_contract::LiveViewState],
-) -> Vec<Resource> {
-    let session_id: LiveSessionId = state
-        .session_id
-        .as_str()
-        .parse()
-        .expect("session IDs share the live-view identifier profile");
-    let mut resources = vec![
-        descriptor(
-            uris::live_cameras(&session_id),
-            format!("Live cameras {session_id}"),
-            "Authoritative operator-camera inventory.",
-        ),
-        descriptor(
-            uris::stream_products(&session_id),
-            format!("Stream products {session_id}"),
-            "Stable one-per-camera rendered and encoded product inventory.",
-        ),
-        descriptor(
-            uris::live_views(&session_id),
-            format!("Live views {session_id}"),
-            "Caller-visible live-view authorizations without secret tokens.",
-        ),
-    ];
-    resources.extend(state.live_cameras.iter().map(|camera| {
-        descriptor(
-            uris::live_camera(&session_id, &camera.camera_id),
-            format!("Live camera {}", camera.camera_id),
-            "One authoritative operator camera.",
-        )
-    }));
-    resources.extend(state.stream_products.iter().map(|product| {
-        descriptor(
-            uris::stream_product(&session_id, &product.stream_product_id),
-            format!("Stream product {}", product.stream_product_id),
-            "One stable camera render and NVIDIA NVENC product.",
-        )
-    }));
-    resources.extend(views.iter().map(|view| {
-        descriptor(
-            uris::live_view(&session_id, &view.live_view_id),
-            format!("Live view {}", view.live_view_id),
-            "One caller-visible live-view authorization without its token.",
-        )
-    }));
-    resources
 }
 
 fn require_scope(
@@ -2354,7 +1297,8 @@ fn authority_error(error: ControlAuthorityError) -> McpError {
         }
         ControlAuthorityError::Store(_)
         | ControlAuthorityError::Database(_)
-        | ControlAuthorityError::Json(_) => McpError::internal_error(error.to_string(), None),
+        | ControlAuthorityError::Json(_)
+        | ControlAuthorityError::Index(_) => McpError::internal_error(error.to_string(), None),
     }
 }
 
@@ -2415,36 +1359,10 @@ fn live_view_error(error: LiveViewError) -> McpError {
     }
 }
 
-fn complete_values(values: Vec<String>, needle: &str) -> Result<CompleteResult, McpError> {
-    let needle = needle.to_lowercase();
-    let mut matches = values
-        .into_iter()
-        .filter(|value| value.to_lowercase().contains(&needle))
-        .collect::<Vec<_>>();
-    matches.sort();
-    matches.dedup();
-    let total = matches.len();
-    matches.truncate(CompletionInfo::MAX_VALUES);
-    let completion = CompletionInfo::with_pagination(
-        matches,
-        Some(total as u32),
-        total > CompletionInfo::MAX_VALUES,
-    )
-    .map_err(internal)?;
-    Ok(CompleteResult::new(completion))
-}
-
 fn structured_result<T: Serialize>(message: String, value: &T) -> Result<CallToolResult, McpError> {
     let mut result = CallToolResult::success(vec![ContentBlock::text(message)]);
     result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
     Ok(result)
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
 }
 
 fn mcp_page<T>(
@@ -2502,14 +1420,15 @@ mod tests {
 
     #[test]
     fn world_view_never_contains_a_credential() {
-        let text = serde_json::to_string(&world_view(&fake_state().unwrap())).unwrap();
+        let text = serde_json::to_string(&resources::world_view(&fake_state().unwrap())).unwrap();
         assert!(!text.contains("token"));
         assert!(!text.contains("CESIUM_ION_ACCESS_TOKEN"));
     }
 
     #[test]
     fn live_app_uses_the_default_complete_console_content_workspace() {
-        let resource = live_app_resource("wss://stream.example.com", &["uav-1-pilot".to_owned()]);
+        let resource =
+            resources::live_app_resource("wss://stream.example.com", &["uav-1-pilot".to_owned()]);
         let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&resource)
             .expect("live App UI metadata is valid");
         assert_eq!(metadata.prefers_border, None);

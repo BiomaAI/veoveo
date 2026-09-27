@@ -81,7 +81,7 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: met — grant, plan, mission, and usage collections use 100-item SQL pages; direct reads use domain identities
 - C05: met
 - C06: met
 - C07: met
@@ -103,9 +103,9 @@ Contract revision: 3
 - C23: met
 - C25: met
 - C26: met
-- C27: met
-- C28: met
+- C27: met — Store LIVE sources with changefeed recovery invalidate durable collection and exact-resource subscriptions
+- C28: met — discovery lists roots and templates without simulator reads or dynamic record enumeration; agent-target metadata retains its declared invalidation source
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met
-- C31: met
+- C31: pending — native discovery is qualified with an unreachable simulator; installed readiness qualification is pending

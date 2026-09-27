@@ -22,6 +22,7 @@ use veoveo_mcp_contract::{
 
 mod artifacts;
 mod client;
+mod control_grants;
 mod scenario;
 mod showcase;
 mod stream;

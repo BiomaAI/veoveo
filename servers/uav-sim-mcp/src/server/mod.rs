@@ -5,6 +5,7 @@ mod auth;
 mod config;
 mod control_authority;
 mod host;
+mod index;
 mod live_stream;
 mod live_view;
 mod live_view_audit;
@@ -14,6 +15,7 @@ mod runtime_events;
 mod service;
 mod state;
 mod task_extension;
+mod task_index;
 mod task_worker;
 mod world_bootstrap;
 
@@ -24,3 +26,8 @@ pub fn run() -> anyhow::Result<()> {
         .build()?;
     runtime.block_on(service::serve())
 }
+
+#[cfg(test)]
+mod catalog_tests;
+#[cfg(test)]
+mod test_support;

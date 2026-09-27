@@ -22,6 +22,13 @@ Native qualification traverses 502 authorized recordings behind 110 denied rows,
 checks direct-read isolation and bounded completion, and verifies SQL layer counts.
 The shared analysis reader uses the same Store visibility query; installed acceptance
 is pending.
+UAV discovery now advertises roots and templates. Grant, plan, mission, and usage
+pages apply visibility in SQL before their limits; active-grant checks also apply
+session, permission, revocation, and time predicates there. Native qualification
+covers grants behind 520 expired rows, page traversal, caller isolation, cross-replica
+content invalidations, and discovery with an unreachable simulator. Mission lookups
+use qualified plan and Task indexes. Pilot instructions and the flight client consume
+the paged grant response; installed acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

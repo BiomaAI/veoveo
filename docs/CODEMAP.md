@@ -476,7 +476,7 @@ The only durable platform persistence layer.
 | `recordings.rs`, `recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
-| `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media and Optimization resource hubs |
+| `resource_changes.rs` | shared domain LIVE invalidations, coalescing, database-clock checkpoints and changefeed recovery; composed into Time, Recording, Frames, Media, Optimization, and UAV resource hubs |
 | `outbox.rs`, `changefeed.rs` | transactional events, checkpoints, LIVE acceleration and database-wide changefeed pages that complete transaction tails before cursor advancement |
 | `live_views.rs` | append-only audit records for simulator live-view products and ephemeral viewer authorizations |
 | `migrations/0040_uav_vehicle_authority.surql` | UAV-owned principal-to-vehicle grants, admitted single-vehicle mission plans, and exclusive command leases scoped by tenant and Work Context |
@@ -646,6 +646,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/timeseries-mcp/src/bin/server/usage_index.rs` | authorization-filtered usage discovery with stable task ordering and opaque cursors |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
+| `servers/uav-sim-mcp/src/server/resources.rs`, `index.rs`, `task_index.rs`, `control_authority/reads.rs`, `bootstrap.rs` | service construction and shutdown, static domain discovery, SQL-scoped pages and completions, direct mission/Task reads, and resource invalidation |
 | `servers/uav-sim-mcp` | provider-neutral UAV simulation sessions, principal-to-vehicle grants, Map route admission, exclusive command leases, missions, telemetry, tasks, recording references, simulator-owned logical cameras, one shared tiled GPU product, authenticated H.264 fanout, and the UAV App |
 
 The packaged Node chart server keeps its Veoveo boundary beside the image:
@@ -690,6 +691,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference camera, product, public gateway origin, and recording tenant binding |
 | `testing/flight-smoke/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
+| `testing/flight-smoke/src/domain/control_grants.rs` | client-only UAV grant page decoding and bounded authority qualification |
 | `testing/flight-smoke/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
 | `testing/browser-smoke/src/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
 | `testing/flight-smoke/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |

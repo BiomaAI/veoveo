@@ -520,40 +520,16 @@ pub(super) async fn ensure_operator_control_grant(
     let granted =
         structured_output(&granted).context("admin control grant returned invalid output")?;
 
-    let visible = operator
-        .call_tool(
-            "uav-sim__list_active_vehicle_control_grants",
-            serde_json::json!({ "session_id": scenario.session_id }),
-        )
-        .await?;
-    let grant = visible
-        .as_array()
-        .and_then(|grants| {
-            grants.iter().find(|grant| {
-                grant.get("grant_id") == granted.get("grant_id")
-                    && grant.get("principal_key").and_then(Value::as_str)
-                        == Some(principal_key.as_str())
-                    && grant.get("vehicle_id").and_then(Value::as_str)
-                        == Some(scenario.vehicle_id.as_str())
-            })
-        })
-        .context("operator profile did not expose its active UAV control grant")?;
-    ensure!(
-        grant
-            .get("permissions")
-            .and_then(Value::as_array)
-            .is_some_and(|permissions| {
-                ["inspect", "plan", "execute", "abort"]
-                    .into_iter()
-                    .all(|required| permissions.iter().any(|permission| permission == required))
-            })
-            && grant
-                .get("map_mobility_profile_uri")
-                .and_then(Value::as_str)
-                == Some(scenario.map_mobility_profile_uri.as_str()),
-        "operator UAV control grant does not carry the canonical permissions and Map profile: {grant}"
-    );
-    Ok(grant.clone())
+    super::control_grants::find(
+        operator,
+        scenario,
+        granted
+            .get("grant_id")
+            .and_then(Value::as_str)
+            .context("admin grant omitted its ID")?,
+        &principal_key,
+    )
+    .await
 }
 
 pub(super) fn parse_mobility_profile_uri(value: &str) -> Result<(&str, u64)> {

@@ -10,6 +10,7 @@ use super::{
 use crate::adapter::Adapter;
 
 pub(super) struct AppState {
+    pub(super) session_id: crate::contract::SessionId,
     pub(super) adapter: Arc<Adapter>,
     pub(super) tasks: TaskRuntime,
     pub(super) control_authority: VehicleControlAuthority,

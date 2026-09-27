@@ -17,6 +17,7 @@ for visualization.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
+| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
@@ -90,6 +91,52 @@ applies the same tenant, Work Context, caller-visibility, session, revocation, a
 validity filters as the resource surface. Its Map mobility-profile URI is an authority
 binding, not a copy of Map work data. Map MCP remains authoritative for the referenced
 profile and every route derived from it.
+
+`resources/list` advertises collection roots, documents, and the Live Cameras App.
+Templates describe exact records and cursor pages. Discovery uses the session identity
+captured at server startup and the existing 32-target agent query; it does not read
+simulator state or enumerate grants, plans, Tasks, vehicles, cameras, or viewer sessions.
+Agent-target metadata still invalidates discovery when its Store inputs change.
+
+The `control-grants`, `mission-plans`, `missions`, and `usage` roots return
+`{items, limit, next_cursor}` with at most 100 items. Their `{?cursor}` templates accept
+one versioned opaque cursor. Grant and plan pages order their immutable domain IDs.
+Mission pages order distinct mission IDs; usage pages order Task creation time and UUID.
+SQL applies caller visibility and cursor predicates before fetching the extra row used
+to detect a following page. A cursor carries a position and collection identity, with
+no authorization. These are live reads; callers refresh the root to see inserts ahead
+of their position and subscribe to the root for invalidation.
+
+Live-view collections use the same page envelope, ordered by live-view ID. The
+process-owned viewer map applies owner, viewer actor, session, and cursor selection
+before collecting 101 entries. These authorizations expire with the hosting process.
+
+Grant and plan SQL scopes include tenant, Work Context, and principal. The admin scope
+admits other principals within that same tenant and context. Direct reads and completion
+use those predicates too. Completion searches case-insensitively before its 101-row SQL
+limit, returns up to 100 suggestions, and omits a total when more exist. Vehicle
+permission queries select a current grant for the requested session, vehicle, and
+permission directly. Simulator inspection queries only grants for the current inventory.
+
+`list_active_vehicle_control_grants` accepts `session_id` and optional `cursor` and
+returns the same page envelope. It applies session, validity, and revocation predicates
+in SQL. Its cursor is bound to that session and cannot be used on the historical grant
+collection. Consumers follow all pages before deciding that only one active grant exists.
+The flight smoke consumes the typed envelope with a 60-second, 100-page bound.
+This response change is a coordinated foundations installation upgrade: deploy the
+server, pilot instructions, and consumer harness together.
+
+Mission resource URIs resolve the latest caller-owned execution Task for that mission
+in the current Work Context. The query follows `ExecuteVehicleMissionPlanRequest`'s
+stored plan ID to the UAV-owned plan. A tenant/context/principal/mission index selects
+matching plans before the Task query uses its server/plan index. Native `EXPLAIN FULL`
+qualification checks both access paths. An admitted plan without an execution Task is
+absent from the mission collection. These indexes add no new persisted mission state.
+Usage resources preserve the shared Task read profile:
+server, actor, tenant, gateway profile, and data-label clearance. Their reads can span
+the same actor's Work Contexts. Native Store invalidations for grants, plans, and Tasks
+refresh subscribed contents across replicas and reconnects. They do not change discovery
+descriptors.
 
 The old public multi-vehicle `execute_mission` surface does not exist. The simulator's
 typed multi-vehicle adapter request is cluster-private and cannot establish principal
@@ -508,3 +555,12 @@ PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
 The server implements MCP contract revision 2. Its control-plane registration declares
 that revision and the complete tool, resource, subscription, task, and App capabilities.
 Compliance gaps are not hidden in deployment values or fixture behavior.
+
+## Resource Query Modules
+
+`server/control_authority/reads.rs` owns SQL grant and plan selection.
+`server/task_index.rs` owns Task usage and mission correlations. `server/index.rs`
+encodes collection cursors, and `server/resources.rs` composes discovery, reads,
+completion, and subscription admission. `server/bootstrap.rs` constructs the service,
+wires HTTP, and owns observer shutdown. `server/catalog_tests.rs` qualifies these
+paths against a disposable pinned Store; it performs no simulation or GPU work.

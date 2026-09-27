@@ -16,6 +16,7 @@ pub enum ResourceChangeTable {
     ManagedAgent,
     WorkContext,
     UavVehicleControlGrant,
+    UavVehicleMissionPlan,
 }
 impl From<PlatformTable> for ResourceChangeTable {
     fn from(table: PlatformTable) -> Self {
@@ -30,6 +31,7 @@ impl ResourceChangeTable {
             Self::ManagedAgent => "managed_agent",
             Self::WorkContext => "work_context",
             Self::UavVehicleControlGrant => "uav_vehicle_control_grant",
+            Self::UavVehicleMissionPlan => "uav_vehicle_mission_plan",
         }
     }
 }

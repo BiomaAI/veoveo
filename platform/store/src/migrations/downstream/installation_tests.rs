@@ -211,7 +211,13 @@ async fn production_upgrade_preserves_existing_history_and_runtime_authority() {
         store.migrate_catalogs(&upstream[..92], &[]).await.unwrap();
         let before = store.migration_history().await.unwrap();
         let report = store.migrate().await.unwrap();
-        assert_eq!(report.applied_versions, [92]);
+        assert_eq!(
+            report.applied_versions,
+            upstream[92..]
+                .iter()
+                .map(|migration| migration.version)
+                .collect::<Vec<_>>()
+        );
         assert!(report.downstream_applied_versions.is_empty());
         assert!(report.status.is_current());
         assert_eq!(

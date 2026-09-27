@@ -7,8 +7,7 @@ use veoveo_platform_store::{
     PrincipalKind, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
 };
 
-#[path = "../../../../testing/fixtures/store.rs"]
-mod fixture;
+use crate::server::test_support::fixture;
 
 async fn pilot(
     store: &PlatformStore,
