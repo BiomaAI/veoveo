@@ -3,7 +3,7 @@
 
 The STYLE anchor and per-figure prompts below are the canonical Veoveo doc-image
 style: engineering schematic, white background, uniform thin dark slate line
-work, flat 2D, and exactly one amber accent placed only where it carries
+work, flat 2D, and exactly one violet accent placed only where it carries
 meaning. Keep new figures in this voice.
 
 Usage:
@@ -28,42 +28,29 @@ ASPECT_RATIOS = {
 }
 
 STYLE = (
-    " Style: precise engineering schematic, like a figure in a technical standards document."
-    " Clean white background. Uniform thin dark slate line work, hex 17212B, single stroke weight,"
-    " flat 2D orthographic drawing, no perspective, no shading, no gradients, no glow, no 3D,"
-    " no decorative icons, no fills except where specified. Exactly one accent color, amber hex B87514,"
-    " used only where stated; everything else is dark slate line on white."
-    " Small all-caps dark slate sans-serif labels, perfectly spelled, high legibility."
-    " Only the exact labels specified appear; no other text, no lorem ipsum, no logos, no humans."
-    " Austere, minimal, generous white space."
+    " Style: clean, modern engineering schematic for a premium technical whitepaper. Pure white"
+    " background. Crisp vector line work in one uniform medium stroke weight, dark slate hex 17212B,"
+    " perfectly straight lines and precise right angles, rounded corners of one consistent small radius,"
+    " no sketchy or hand-drawn lines, no texture, no noise. Flat 2D orthographic, no perspective, no 3D,"
+    " no shading, no gradients, no glow, no drop shadows. Exactly one accent color, violet hex 742A98,"
+    " used only where stated, plus a very light violet fill hex F1E8F7 allowed only inside the accented"
+    " shapes. Labels in a clean geometric sans-serif, all caps, large and highly legible, generous letter"
+    " spacing, every label perfectly spelled and appearing exactly once. Only the exact labels specified"
+    " appear; no other text, no logos, no people. Balanced composition centered on the canvas with"
+    " generous white margins, the diagram filling about 85 percent of the width."
 )
 
 # Rendered scenes that keep their own look instead of the schematic STYLE anchor.
 SCENES = {"cover-hero"}
 
 IMAGES = {
-    "cover": (
-        "1024*1536",
-        "Vertical layered architecture schematic on a deep slate blue-black background, hex 0e141b,"
-        " drawn in uniform thin pale gray lines with one amber accent, hex e2a14e. The dark background"
-        " is mandatory and overrides any general white-background style instruction. Four tiers are"
-        " connected by thin vertical arrows flowing downward. Top tier: exactly four small outlined"
-        " hexagons in one row, never five, with the single group label AGENTS. Second tier: exactly one"
-        " large outlined circle, labeled GATEWAY, with exactly two small outlined tags beside it reading"
-        " POLICY and AUDIT. Third tier: exactly nine small outlined rectangles in one horizontal row,"
-        " never ten, with the single group label TOOLS. No other hexagons or rectangles appear in those"
-        " two rows. Bottom tier: five stacked horizontal outlined layers, labeled RECORD. One thin amber"
-        " arrow rises along the right side from the bottom tier back to the top tier, labeled WAKES —"
-        " the amber line is the only colored element. Flat 2D, no glow, no fills, no icons. Small"
-        " all-caps pale gray labels, perfectly spelled. Keep the lower quarter empty."
-    ),
     "system-map": (
         "1536*1024",
         "High-level system topology in a strict left-to-right layout. Far left, one outlined camera"
-        " labeled LIVE H264 sends one amber right-pointing arrow labeled DIRECT into an outlined"
+        " labeled LIVE H264 sends one violet right-pointing arrow labeled DIRECT into an outlined"
         " chamber labeled STREAM. A second thin dashed arrow labeled OPTIONAL RECORDING drops from"
         " LIVE H264 into a small outlined box labeled FORWARDER, which sends a dark right-pointing"
-        " arrow into a stack of layered strata labeled RECORD. STREAM sends one amber arrow into a"
+        " arrow into a stack of layered strata labeled RECORD. STREAM sends one violet arrow into a"
         " small outlined box labeled RESULTS. RECORD sends exactly one dark arrow labeled SNAPSHOT"
         " into an outlined chamber labeled REASON. RESULTS sends exactly one separate dark arrow"
         " labeled GROUNDING directly into REASON. Both arrowheads visibly touch REASON. RESULTS"
@@ -83,12 +70,12 @@ IMAGES = {
         "World model schematic, the centerpiece drawn large. Left: three outlined boxes stacked"
         " vertically labeled SENSORS, MEMORIES, DECISIONS, each with a thin arrow converging into"
         " the center. Center: one large dominant sphere drawn as a thin-line hexagonal wireframe"
-        " lattice, labeled WORLD MODEL in larger letters beneath it — the only amber-outlined"
-        " element. Right: one outlined hexagon labeled AGENT, receiving one amber arrow from the"
+        " lattice, labeled WORLD MODEL in larger letters beneath it — the only violet-outlined"
+        " element. Right: one outlined hexagon labeled AGENT, receiving one violet arrow from the"
         " sphere labeled CONTEXT. From the AGENT hexagon one thin plain dark curved arrow returns"
         " to the DECISIONS box on the left — the agent's own choices become part of the model."
         " Exactly six labels: SENSORS, MEMORIES, DECISIONS, WORLD MODEL, CONTEXT, AGENT, each"
-        " appearing exactly once. The amber accent appears only on the wireframe sphere and the"
+        " appearing exactly once. The violet accent appears only on the wireframe sphere and the"
         " CONTEXT arrow; everything else dark slate."
     ),
     "context-queried": (
@@ -100,9 +87,9 @@ IMAGES = {
         " stack of layered strata labeled RECORD with two tiny tags reading LATEST-AT and RANGE,"
         " and a horizontal filmstrip band labeled DECISION LOG. Between them: three thin dark"
         " arrows run left from the EPISODE chamber, one to each source, collectively labeled QUERY"
-        " with one label; and from each source one amber arrow returns right into the chamber"
+        " with one label; and from each source one violet arrow returns right into the chamber"
         " carrying two or three tiny row glyphs, collectively labeled ANSWERS with one label."
-        " Each label appears exactly once. The amber accent appears only on the three returning"
+        " Each label appears exactly once. The violet accent appears only on the three returning"
         " answer arrows — tokens carry answers; everything else dark slate."
     ),
     "agent-loop": (
@@ -119,13 +106,13 @@ IMAGES = {
         " inside the loop and must never touch or cross a lifecycle arrow, circle, or outer edge."
         " Outside the loop at upper left, place three small outlined tags labeled TASK"
         " RESULT, TIMER, MESSAGE, each with a thin arrow pointing only to the WAKE circle. Exactly one"
-        " element in the whole image is amber: the outline of the EPISODE circle. Every arrow and every"
+        " element in the whole image is violet: the outline of the EPISODE circle. Every arrow and every"
         " other outline is dark slate."
     ),
     "harness-poster": (
         "1536*1024",
         "The complete system as a single poster schematic, one grand loop. Far left: a region labeled"
-        " WORLD — a small flat street grid with a few sensor dots and one camera glyph. Amber arrows"
+        " WORLD — a small flat street grid with a few sensor dots and one camera glyph. Violet arrows"
         " labeled LIVE flow from WORLD into a small chamber labeled STREAM, then continue into the"
         " centerpiece: a large, perfectly circular thin-line wireframe sphere — a true circle, never"
         " stretched or oval — dominant at the center, with the mandatory text WORLD MODEL in large"
@@ -135,98 +122,39 @@ IMAGES = {
         " outlined chamber labeled REASON beside the sphere; one plain arrow from REASON enters the"
         " sphere. One small outlined tag attached to the sphere's upper"
         " right is labeled MISSION. Above it, an outlined rounded box labeled OPERATOR sends one short"
-        " thin arrow labeled ASSIGN down to the MISSION tag. From the sphere one amber arrow labeled"
-        " CONTEXT runs right into an outlined hexagon labeled AGENT. From AGENT one amber arrow enters"
+        " thin arrow labeled ASSIGN down to the MISSION tag. From the sphere one violet arrow labeled"
+        " CONTEXT runs right into an outlined hexagon labeled AGENT. From AGENT one violet arrow enters"
         " a tall chamber labeled GATEWAY containing three small checkpoint stages stacked vertically"
         " and labeled AUTHENTICATE, POLICY, AUDIT. It exits into a region labeled CAPABILITIES. That"
         " region contains exactly eight solid outlined glyph cells arranged four by two — camera,"
         " compass rose, database drum, route with waypoints, rising chart, chain link, filmstrip, eye —"
-        " followed below by exactly two dashed empty cells. One continuous long amber arrow labeled ACT"
+        " followed below by exactly two dashed empty cells. One continuous long violet arrow labeled ACT"
         " has its tail visibly touching the top edge of CAPABILITIES, rises vertically, bends left, and"
         " sweeps across the top of the poster from right to left. The CAPABILITIES end is a plain tail"
         " with no arrowhead. The path ends above WORLD with its only arrowhead visibly touching and"
         " pointing down onto WORLD. HARD INVARIANT: the entire ACT path has exactly one arrowhead, at"
         " WORLD, and no arrowhead at CAPABILITIES. The ACT path has no dangling segment and no second"
         " arrow. Bottom center: one outlined database"
-        " cylinder labeled EVIDENCE, connected by thin plain dark lines up to RECORD, REASON, AGENT, and"
-        " GATEWAY. Each label appears exactly once. The amber accent appears only on the wireframe"
+        " cylinder labeled EVIDENCE. Four thin dark arrows run down into EVIDENCE, one each from RECORD,"
+        " REASON, AGENT, and GATEWAY; every one of these arrowheads points down and touches EVIDENCE,"
+        " and no arrow leaves EVIDENCE. Each label appears exactly once. The violet accent appears only on the wireframe"
         " sphere and the loop arrows LIVE, CONTEXT, ACT; everything else dark slate. Crisp uniform line"
         " weight, sharp vector-like edges, high resolution."
     ),
-    "capability-map": (
-        "1536*1024",
-        "Hosted capability schematic in three parts. Center: one outlined circle labeled GATEWAY;"
-        " directly beneath it, four stacked wide horizontal bars drawn as thin amber outlines with"
-        " white interiors, labeled from top to bottom FULL MCP, DOMAIN ADMIN, DURABLE TASKS, ARTIFACTS"
-        " + POLICY. Left of the gateway: one large dashed rounded boundary labeled HOSTED containing"
-        " a rigid grid of exactly sixteen equal outlined rectangles. The first five rows contain"
-        " three aligned boxes each; a sixth centered row contains exactly one aligned box."
-        " HARD LAYOUT INVARIANT: the HOSTED boundary must be large enough for all six rows. Reading"
-        " left to right, top to bottom: row one MEDIA, STREAM, REASON; row two TIMESERIES, DUCKDB,"
-        " OPTIMIZATION; row three FRAMES, MAP, DATASHEET; row four ARTIFACT, RECORDING, CHARTS;"
-        " row five RERUN, TIME, VIEW; row six UAV SIM. Draw all six rows inside"
-        " the boundary. Every one of those sixteen labels is mandatory. Do not omit or duplicate"
-        " any label, create a seventh row, or draw any extra capability"
-        " box. Right of the"
-        " gateway: one large dashed"
-        " rounded boundary labeled REMOTE containing three stacked rectangles: the top one outlined"
-        " and labeled MCP SERVER, the middle one outlined and labeled PROVIDER, and the bottom one"
-        " drawn with a dashed outline, empty except for one plus symbol — an open slot. One trunk line"
-        " connects the HOSTED boundary to the GATEWAY circle and one trunk line connects the REMOTE"
-        " boundary to the GATEWAY circle. Every specified label appears exactly once. The amber accent"
-        " appears only on the four contract bars and the plus symbol; everything else is dark slate."
-    ),
-    "stream-flow": (
-        "1536*1024",
-        "Live and replay stream-processing schematic. Left: one outlined camera labeled LIVE"
-        " sends a right-pointing arrow labeled H264 into a large central chamber labeled STREAM."
-        " Directly beneath STREAM, centered and fully inside the canvas, place one stack of layered"
-        " strata labeled RECORD. Draw one short dark arrow labeled REPLAY from RECORD upward into"
-        " STREAM. Draw a second, parallel thin dark dashed arrow labeled OPTIONAL from STREAM"
-        " downward into RECORD, with its arrowhead visibly touching the RECORD stack. These two"
-        " vertical arrows point in opposite directions and must both end on their destination."
-        " Inside STREAM, place exactly"
-        " three small stages left to right labeled GRAPH, DETECT, TRACK. From STREAM, one amber"
-        " arrow goes right into a wide outlined screen labeled APP; inside that screen draw one"
-        " plain video frame rectangle with two small outline boxes over it and the single label"
-        " OVERLAYS. A second amber arrow goes down-right into an outlined box labeled RESULTS."
-        " No arrow leaves the canvas and no arrow runs between RECORD and LIVE. Every label"
-        " appears exactly once. The amber accent appears only on the APP and RESULTS arrows;"
-        " everything else dark slate."
-    ),
-    "planning-flow": (
-        "1536*1024",
-        "Capability schematic for planning. Left: a small thin-line wireframe sphere labeled WORLD"
-        " MODEL, and beneath it a small grid of table rows labeled OPTIONS with a gray tag reading"
-        " SQL. Both send thin plain arrows right into a central outlined chamber labeled PLANNING,"
-        " with one small outlined tag attached to its top edge labeled OBJECTIVE. One amber arrow"
-        " leaves the chamber rightward into an outlined box labeled PLAN. From PLAN, one thin plain"
-        " arrow runs up-right to an outlined hexagon labeled AGENT with the label EXECUTE on the"
-        " arrow, and one thin plain arrow runs down-right to a small outlined database cylinder"
-        " labeled MEMORY with the label WAYPOINTS on the arrow. Each label appears exactly once."
-        " The amber accent appears only on the arrow from PLANNING to PLAN and the PLAN box outline"
-        " — the decision; everything else dark slate."
-    ),
     "gateway-gauntlet": (
         "1536*1024",
-        "Defense-in-depth architecture schematic, read left to right as one continuous flow."
-        " Far left: three client shapes stacked vertically — an outlined hexagon labeled AGENT, an"
-        " outlined rounded rectangle labeled BROWSER, an outlined rectangle labeled CLIENT — each"
-        " sending one thin arrow that converges on a single narrow opening in a tall vertical wall"
-        " labeled INGRESS; the wall has exactly one opening. Center: one large outlined chamber"
-        " labeled GATEWAY containing exactly three checkpoint stages in sequence connected by arrows,"
-        " labeled in order AUTHENTICATE, POLICY, AUDIT; the flow enters the chamber on the left,"
-        " passes through all three stages, and exits on the right. From the POLICY stage one short"
-        " amber arrow deflects downward, ends at the label REFUSED, and stops. It never touches"
-        " EVIDENCE. Right: one large dashed boundary"
-        " region labeled INTERNAL NETWORK containing a three by three grid of nine small unlabeled"
-        " outlined rectangles; the single arrow from the gateway chamber into this region is labeled"
-        " SIGNED IDENTITY. Below the gateway chamber, one outlined database cylinder labeled EVIDENCE"
-        " receives a separate dark vertical arrow whose source visibly touches AUDIT and whose"
-        " arrowhead visibly touches EVIDENCE. The POLICY-to-REFUSED and AUDIT-to-EVIDENCE paths remain"
-        " distinct and never join. The amber accent appears only on the"
-        " three checkpoint stage outlines and the REFUSED deflection arrow — the enforcement path;"
-        " every other line is dark slate."
+        "Architecture schematic of a security gateway, read left to right as one continuous flow."
+        " Left: three client shapes stacked vertically, an outlined hexagon labeled AGENT, an outlined"
+        " rounded rectangle labeled BROWSER, and an outlined rectangle labeled CLIENT; each sends one arrow"
+        " converging on a single opening in a tall vertical bar labeled INGRESS. Center: one large outlined"
+        " rounded chamber labeled GATEWAY containing exactly three stages in a row connected by arrows,"
+        " labeled in order AUTHENTICATE, POLICY, AUDIT. From POLICY one short violet arrow points straight"
+        " down to the label REFUSED. From AUDIT a separate dark arrow points straight down to one outlined"
+        " database cylinder labeled EVIDENCE; the REFUSED and EVIDENCE paths never touch. Right: one dashed"
+        " rounded region labeled INTERNAL NETWORK containing a neat three by three grid of nine small"
+        " unlabeled rounded squares; the single arrow from the gateway into this region is labeled SIGNED"
+        " IDENTITY. The violet accent and light violet fill appear only on the three stage boxes"
+        " AUTHENTICATE, POLICY and AUDIT and on the REFUSED arrow; every other line is dark slate."
     ),
     "capture-pipeline": (
         "1536*1024",
@@ -237,28 +165,31 @@ IMAGES = {
         " place exactly three stages left to right labeled JOURNAL, MATERIALIZE, CHECKPOINT. A dark"
         " arrow labeled ACK returns from CHECKPOINT to LOCAL FORWARDER. From CHECKPOINT one arrow"
         " continues right into a stack of exactly three small layers labeled IMMUTABLE PARTS."
-        " Then one amber arrow labeled 1 HOUR OR 192 MIB enters a small diamond labeled IDR, followed"
-        " by one amber arrow into a stack of exactly three larger layers labeled ARCHIVE SHARDS."
+        " Then one violet arrow labeled 1 HOUR OR 192 MIB enters a small diamond labeled IDR, followed"
+        " by one violet arrow into a stack of exactly three larger layers labeled ARCHIVE SHARDS."
         " Below ARCHIVE SHARDS place one outlined box labeled CATALOG joined by one plain dark line."
         " HARD INVARIANT: ACK happens only after JOURNAL, MATERIALIZE, and CHECKPOINT. No live segment,"
-        " frozen segment, ingest socket, persist-first, or verify label appears. The amber accent is"
+        " frozen segment, ingest socket, persist-first, or verify label appears. The violet accent is"
         " used only for the IDR boundary and archive-shard path; everything else dark slate."
     ),
     "grounding-flow": (
         "1536*1024",
         "Grounded video reasoning schematic in a strict left-to-right layout. Far left top: one"
-        " outlined camera labeled LIVE H264 sends one amber arrow labeled DIRECT into a chamber"
+        " outlined camera labeled LIVE H264 sends one violet arrow labeled DIRECT into a chamber"
         " labeled STREAM. Far left bottom: one stack of layered strata labeled RECORD sends one"
         " dark arrow labeled REPLAY upward into STREAM. STREAM sends one arrow right into an"
         " outlined box labeled TYPED RESULTS, containing three tiny unlabelled row glyphs. RECORD"
         " also sends one dark arrow labeled SNAPSHOT directly into a large chamber labeled REASON"
-        " on the right. TYPED RESULTS sends one dark arrow labeled OPTIONAL GROUNDING into REASON."
+        " on the right. TYPED RESULTS sends one dark arrow labeled OPTIONAL GROUNDING that bends down"
+        " and ends with its arrowhead touching the top edge of the REASON chamber; this arrow never"
+        " ends in empty space."
         " Inside REASON place exactly three small stages labeled SAMPLE, WORLD MODEL, VALIDATE."
-        " From REASON one amber arrow exits right into a stack of three outlined result cards"
+        " From REASON one violet arrow exits right into a stack of three outlined result cards"
         " collectively labeled GROUNDED OUTPUT. Beneath GROUNDED OUTPUT place exactly three tiny"
         " tags labeled EVENTS, ANSWERS, RRD. HARD INVARIANT: live media reaches STREAM directly and"
         " never passes through RECORD; REASON always receives SNAPSHOT while grounding is optional."
-        " Every specified label appears exactly once. No extra nodes, arrows, or text."
+        " Every specified label appears exactly once, in the same regular-width sans-serif as every other"
+        " label. No extra nodes, arrows, or text."
     ),
     "task-sleepwake": (
         "1536*1024",
@@ -268,7 +199,7 @@ IMAGES = {
         " return arrow right to left labeled TASK HANDLE, then the left lifeline becomes a dotted"
         " segment labeled SLEEP while the right lifeline shows a narrow activation bar labeled RUNNING,"
         " then a solid arrow right to left labeled WAKE, then a small outlined box on the left lifeline"
-        " labeled RESULT. One thin downward arrow on the far left labeled TIME. The amber accent is"
+        " labeled RESULT. One thin downward arrow on the far left labeled TIME. The violet accent is"
         " used only for the WAKE arrow; everything else dark slate."
     ),
     "sumo-loop": (
@@ -278,7 +209,7 @@ IMAGES = {
         " circles form a clockwise triangular loop connected by curved arrows, labeled PERCEIVE,"
         " DECIDE, ACT — each label exactly once, no duplicates. A thin arrow rises from the street grid"
         " into PERCEIVE labeled RECORD, and a thin arrow descends from ACT to the marked intersection"
-        " labeled SIGNALS. One small outlined tag beside PERCEIVE reads CONGESTION. The amber accent is"
+        " labeled SIGNALS. One small outlined tag beside PERCEIVE reads CONGESTION. The violet accent is"
         " used only for the descending SIGNALS arrow and the marked intersection — the intervention;"
         " everything else dark slate."
     ),
@@ -295,18 +226,18 @@ IMAGES = {
         " touching the bottom edge of a top square and ends visibly touching the top edge of a"
         " bottom square. Beneath the left panel one small outlined tag reads N × M INTEGRATIONS."
         " Right panel: one small heading tag at top reads ONE PROTOCOL. Between the two rows spans"
-        " one wide horizontal bar drawn as a thin amber outline with white interior, labeled"
+        " one wide horizontal bar drawn as a thin violet outline with white interior, labeled"
         " MCP + HARNESS. Each top square sends exactly one thin dark vertical line down whose ends"
         " visibly touch the square and the top edge of the bar; each bottom square sends exactly"
         " one thin dark vertical line up whose ends visibly touch the square and the bottom edge of"
         " the bar; no line crosses another and no line stops short of the bar."
         " Beneath the right panel one small outlined tag reads N + M CONTRACTS."
-        " Each specified label appears exactly once, no duplicates. The amber accent appears only"
+        " Each specified label appears exactly once, no duplicates. The violet accent appears only"
         " on the MCP + HARNESS bar outline in the right panel; every other line is dark slate."
     ),
     "deployment-map": (
         "1536*1024",
-        "Deployment spectrum schematic: four flat 2D installation islands in a row, each a large rounded outlined base, labeled beneath in order EDGE, CLUSTER, AIR-GAP, HYBRID. Every island carries the same stack drawn identically: one small amber diamond mark at the center of the base, and outlined agent hexagons floating above the diamond — exactly one hexagon above the EDGE island, three hexagons above the CLUSTER island, two hexagons above the AIR-GAP island, and two hexagons above the HYBRID island. The EDGE base contains a single small outlined box; the CLUSTER base contains a row of three small outlined boxes; the AIR-GAP base is drawn with a double-line sealed border and connects to nothing; the HYBRID base has one dashed line rising to a small outlined box at the upper right labeled REMOTE. One continuous baseline under all four islands labeled ONE PLATFORM. The amber accent appears only on the four identical diamond marks — the same platform in every form; everything else dark slate."
+        "Deployment spectrum schematic: four flat 2D installation islands in a row, each a large rounded outlined base, labeled beneath in order EDGE, CLUSTER, AIR-GAP, HYBRID. Every island carries the same stack drawn identically: one small violet diamond mark at the center of the base, and outlined agent hexagons floating above the diamond — exactly one hexagon above the EDGE island, three hexagons above the CLUSTER island, two hexagons above the AIR-GAP island, and two hexagons above the HYBRID island. The EDGE base contains a single small outlined box; the CLUSTER base contains a row of three small outlined boxes; the AIR-GAP base is drawn with a double-line sealed border and connects to nothing; the HYBRID base has one dashed line rising to a small outlined box at the upper right labeled REMOTE. One continuous baseline under all four islands labeled ONE PLATFORM. The violet accent appears only on the four identical diamond marks — the same platform in every form; everything else dark slate."
     ),
     # The whitepaper cover and the veoveo.ai hero share this illustration. It is a
     # rendered scene rather than a schematic, so it does not take the STYLE anchor.
@@ -331,7 +262,7 @@ IMAGES = {
     ),
     "operations-loop": (
         "1536*1024",
-        "Dual-loop cognition schematic: two closed triangular loops side by side. Above the left loop a small heading tag reads REACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled DETECT, DECIDE, INTERVENE. Above the right loop a small heading tag reads PROACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled ANALYZE, PLAN, DISPATCH. Every word appears exactly once; every circle has one label. Between the two loops at the bottom, one small outlined tag reads NONSTOP. The amber accent appears only on the arrow from DECIDE to INTERVENE and the arrow from PLAN to DISPATCH — the two moments of action; everything else dark slate."
+        "Dual-loop cognition schematic: two closed triangular loops side by side. Above the left loop a small heading tag reads REACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled DETECT, DECIDE, INTERVENE. Above the right loop a small heading tag reads PROACTIVE; the loop has exactly three outlined circles connected clockwise by curved arrows, labeled ANALYZE, PLAN, DISPATCH. Every word appears exactly once; every circle has one label. Between the two loops at the bottom, one small outlined tag reads NONSTOP. The violet accent appears only on the arrow from DECIDE to INTERVENE and the arrow from PLAN to DISPATCH — the two moments of action; everything else dark slate."
     ),
 }
 

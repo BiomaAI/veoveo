@@ -4,8 +4,8 @@
 Each `<name>.png` produced by `generate.py` gets a `<name>-dark.png` sibling
 for GitHub's `<picture>` prefers-color-scheme switch. The recolor estimates
 per-pixel ink coverage against the white canvas, maps neutral slate ink to
-light slate, brightens the amber accent, and composites everything over the
-GitHub dark canvas. Antialiasing survives; no re-generation is involved.
+light slate, maps the violet accent to the brand's dark-mode violet, and
+composites everything over the GitHub dark canvas. Antialiasing survives; no re-generation is involved.
 
 Usage:
     uv run --with numpy --with pillow --python 3.13 docs/images/darken.py [figure ...]
@@ -41,7 +41,7 @@ FIGURES = [
 DARK_CANVAS = np.array([13, 17, 23], np.float32)  # GitHub dark background
 LIGHT_INK = np.array([201, 209, 217], np.float32)  # light slate line work
 NEUTRAL_SAT = 34  # channel spread below this counts as neutral ink
-ACCENT_GAIN = 1.35  # amber brightens for contrast on the dark canvas
+ACCENT_DARK = np.array([201, 163, 230], np.float32)  # brand violet on dark backgrounds
 
 
 def darken(name: str) -> None:
@@ -52,10 +52,7 @@ def darken(name: str) -> None:
     sat = im.max(axis=2) - mn
     alpha = np.clip((255.0 - mn) / 235.0, 0.0, 1.0)[..., None]
     neutral = (sat < NEUTRAL_SAT)[..., None]
-    safe_a = np.maximum(alpha, 1e-3)
-    accent = np.clip((im - 255.0 * (1 - safe_a)) / safe_a, 0, 255)
-    accent = np.clip(accent * ACCENT_GAIN, 0, 255)
-    ink = np.where(neutral, LIGHT_INK, accent)
+    ink = np.where(neutral, LIGHT_INK, ACCENT_DARK)
     out = DARK_CANVAS * (1 - alpha) + ink * alpha
     Image.fromarray(out.astype(np.uint8)).save(dst)
     print(f"{name}-dark.png")
