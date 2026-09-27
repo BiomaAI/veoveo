@@ -651,3 +651,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 2 installed SDK acceptance | `testing/fixtures/catalog-installation/cluster.yaml` | Deploy the separate tenant and HTTPS origin, then verify native SDK rows and grant renewal | Docker container creation exceeded the 180-second cluster deadline while overlay unmount was blocked; retry after image publication |
