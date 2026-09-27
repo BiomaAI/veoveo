@@ -158,7 +158,7 @@ impl GatewayLayerPublisher {
             .await
             .context("decoding recording layer Artifact metadata")?;
         ensure!(
-            metadata.artifact_id == artifact_id
+            metadata.artifact_id() == artifact_id
                 && metadata.byte_len == expected_byte_len
                 && metadata.download_url.is_none(),
             "Artifact service returned mismatched recording layer metadata"

@@ -116,7 +116,7 @@ pub struct MapLayerPublicationDraft {
     pub layer_revision: i64,
     pub schema_version: i64,
     pub style_revision_key: Option<String>,
-    pub artifact_uris: Vec<String>,
+    pub artifact_uris: Vec<veoveo_artifact_contract::ArtifactUri>,
     pub canonical_json: String,
     pub published_at: DateTime<Utc>,
 }
@@ -913,7 +913,7 @@ impl PlatformStore {
             layer_revision: draft.layer_revision,
             schema_version: draft.schema_version,
             style_revision_key: draft.style_revision_key,
-            artifact_uris: draft.artifact_uris,
+            artifact_uris: draft.artifact_uris.into_iter().map(String::from).collect(),
             canonical_json: draft.canonical_json,
             published_at: draft.published_at,
         };

@@ -28,7 +28,7 @@ pub struct LayerProduct {
     pub layer_id: FeatureLayerId,
     pub layer_revision: u64,
     pub format: LayerProductFormat,
-    pub artifact_uri: String,
+    pub artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub mime_type: String,
     pub digest_sha256: String,
     pub size_bytes: u64,

@@ -1,6 +1,85 @@
 use veoveo_types::{
-    ResourceUri, ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriSegment,
+    ResourceScheme, ResourceUri, ResourceUriBuilder, ResourceUriError, ResourceUriParts,
+    UriAuthority, UriSegment,
 };
+
+#[test]
+fn typed_scheme_and_authority_build_without_interpolation() {
+    for scheme in [
+        "artifact",
+        "my-server.v2+ext",
+        "http",
+        "https",
+        "ftp",
+        "ws",
+        "wss",
+        "file",
+    ] {
+        let scheme = ResourceScheme::new(scheme).unwrap();
+        let uri =
+            ResourceUriBuilder::from_components(&scheme, UriAuthority::new("occurrence").unwrap())
+                .unwrap()
+                .segment(UriSegment::new("one/two?three").unwrap())
+                .build()
+                .unwrap();
+        let parts = uri.components().unwrap();
+        assert_eq!(parts.scheme(), scheme.as_str());
+        assert_eq!(parts.authority(), "occurrence");
+        assert_eq!(parts.path_segments().collect::<Vec<_>>(), ["one/two?three"]);
+        assert!(!parts.has_query());
+    }
+    let uri = ResourceUriBuilder::from_components(
+        &ResourceScheme::new("artifact").unwrap(),
+        UriAuthority::new("0197f78e-f2f0-7a6e-8a5d-f41c691e4471").unwrap(),
+    )
+    .unwrap()
+    .build()
+    .unwrap();
+    assert_eq!(
+        uri.as_str(),
+        "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471"
+    );
+    assert_eq!(uri.components().unwrap().path_segments().count(), 0);
+}
+
+#[test]
+fn authority_admission_rejects_injection_encoding_and_normalization() {
+    for value in [
+        "",
+        "user@host",
+        "user:SECRET@host",
+        "host:123",
+        "host/path",
+        "host?query",
+        "host#fragment",
+        "host%41",
+        "ho st",
+        "café",
+        "host\n",
+        "{id}",
+    ] {
+        let error = UriAuthority::new(value).unwrap_err();
+        assert!(!format!("{error:?} {error}").contains("SECRET"));
+    }
+    for value in ["UPPERCASE", "0x7f.1"] {
+        let authority = UriAuthority::new(value).unwrap();
+        assert!(
+            ResourceUriBuilder::from_components(
+                &ResourceScheme::new("https").unwrap(),
+                authority.clone()
+            )
+            .is_err()
+        );
+        let uri = ResourceUriBuilder::from_components(
+            &ResourceScheme::new("example").unwrap(),
+            authority,
+        )
+        .unwrap()
+        .build()
+        .unwrap();
+        assert_eq!(uri.components().unwrap().authority(), value);
+    }
+}
 
 #[test]
 fn authority_only_roots_have_no_path_segments() {

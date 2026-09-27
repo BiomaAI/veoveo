@@ -27,18 +27,26 @@ impl ArtifactId {
 
     pub fn parse(value: impl AsRef<str>) -> Result<Self, ArtifactIdError> {
         let value = uuid::Uuid::parse_str(value.as_ref()).map_err(|_| ArtifactIdError)?;
-        if value.get_version_num() != 7 {
-            return Err(ArtifactIdError);
-        }
-        Ok(Self(value))
+        Self::try_from(value)
     }
 
     pub fn as_uuid(self) -> uuid::Uuid {
         self.0
     }
 
-    pub fn plane_uri(self) -> String {
-        format!("{ARTIFACT_PLANE_SCHEME}://{self}")
+    pub fn plane_uri(self) -> crate::ArtifactUri {
+        crate::ArtifactUri::plane(self)
+    }
+}
+
+impl TryFrom<uuid::Uuid> for ArtifactId {
+    type Error = ArtifactIdError;
+
+    fn try_from(value: uuid::Uuid) -> Result<Self, Self::Error> {
+        if value.get_version_num() != 7 || value.get_variant() != uuid::Variant::RFC4122 {
+            return Err(ArtifactIdError);
+        }
+        Ok(Self(value))
     }
 }
 
@@ -82,13 +90,9 @@ pub const ARTIFACT_PLANE_SCHEME: &str = "artifact";
 /// Parse the canonical occurrence identity from either `artifact://{id}` or a
 /// server presentation such as `media://artifact/{id}`.
 pub fn parse_artifact_plane_uri(uri: &str) -> Option<ArtifactId> {
-    if let Some(rest) = uri.strip_prefix(&format!("{ARTIFACT_PLANE_SCHEME}://"))
-        && !rest.contains('/')
-    {
-        return ArtifactId::parse(rest).ok();
-    }
-    let rest = uri.rsplit_once("://artifact/").map(|(_, id)| id)?;
-    ArtifactId::parse(rest).ok()
+    crate::ArtifactUri::parse(uri)
+        .ok()
+        .map(|uri| uri.artifact_id())
 }
 
 #[cfg(test)]
@@ -120,7 +124,7 @@ mod tests {
     #[test]
     fn occurrence_uri_is_uuid_v7() {
         let artifact_id = ArtifactId::new();
-        let parsed = parse_artifact_plane_uri(&artifact_id.plane_uri()).unwrap();
+        let parsed = parse_artifact_plane_uri(artifact_id.plane_uri().as_str()).unwrap();
         assert_eq!(parsed, artifact_id);
         assert!(parse_artifact_plane_uri("artifact://bad").is_none());
         assert!(parse_artifact_plane_uri("media://artifact/x").is_none());

@@ -41,14 +41,14 @@ async fn immutable_blob_registration_survives_concurrent_writers_and_failed_publ
     assert!(retained_key.starts_with("tenants/acme/uploads/"));
     let ids: BTreeSet<_> = results
         .iter()
-        .map(|result| result.metadata.artifact_id)
+        .map(|result| result.metadata.artifact_id())
         .collect();
     assert_eq!(ids.len(), 8);
     for result in &results {
         assert_eq!(result.object_key, retained_key);
         assert_eq!(result.metadata.byte_len, bytes.len() as u64);
         let downloaded = second
-            .get(&alice, &result.metadata.artifact_id, AccessLevel::Read)
+            .get(&alice, &result.metadata.artifact_id(), AccessLevel::Read)
             .await
             .unwrap();
         assert_eq!(downloaded.bytes, bytes);
@@ -61,7 +61,7 @@ async fn immutable_blob_registration_survives_concurrent_writers_and_failed_publ
         .unwrap();
     let ordinary = first
         .repository
-        .get_artifact(ordinary.artifact_id)
+        .get_artifact(ordinary.artifact_id())
         .await
         .unwrap()
         .unwrap();
@@ -97,7 +97,7 @@ async fn immutable_blob_registration_survives_concurrent_writers_and_failed_publ
     for result in results {
         let stored = first
             .repository
-            .get_artifact(result.metadata.artifact_id)
+            .get_artifact(result.metadata.artifact_id())
             .await
             .unwrap()
             .unwrap();

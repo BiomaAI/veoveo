@@ -307,7 +307,7 @@ impl ServerHandler for SpeechMcp {
             .and_then(|v| v.as_str())
             .ok_or_else(|| McpError::invalid_params("artifact_uri is required", None))?;
         TranscribeRequest {
-            artifact_uri: uri.into(),
+            artifact_uri: uri.parse().map_err(|_| denied())?,
         }
         .source()
         .map_err(|_| denied())?;

@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{ArtifactId, ArtifactProvenance};
+use crate::{ArtifactId, ArtifactProvenance, ArtifactUri};
 use veoveo_types::{AccessSubject, DataLabelId, TenantId, WorkContextId};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -46,14 +46,14 @@ pub struct ComplianceMetadata {
 /// `download_url` is optional bulk-transfer plumbing for large artifacts and
 /// must not become a discovery API.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "ArtifactMetadataWire", into = "ArtifactMetadataWire")]
 pub struct ArtifactMetadata {
-    pub artifact_id: ArtifactId,
     pub byte_len: u64,
     #[serde(default)]
     pub mime_type: Option<String>,
     #[serde(default)]
     pub filename: Option<String>,
-    pub artifact_uri: String,
+    pub artifact_uri: ArtifactUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub download_url: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -66,6 +66,10 @@ pub struct ArtifactMetadata {
 }
 
 impl ArtifactMetadata {
+    pub fn artifact_id(&self) -> ArtifactId {
+        self.artifact_uri.artifact_id()
+    }
+
     pub fn without_download_url(mut self) -> Self {
         self.download_url = None;
         self
@@ -78,9 +82,77 @@ impl ArtifactMetadata {
     /// each domain server presents artifacts under its own scheme (matching its
     /// resource templates and read paths), so callers get a URI the same server
     /// can resolve back. The neutral form remains valid cross-server input.
-    pub fn presented_under_scheme(mut self, scheme: &str) -> Self {
-        self.artifact_uri = format!("{scheme}://artifact/{}", self.artifact_id);
+    pub fn presented_under_scheme(mut self, scheme: &veoveo_types::ResourceScheme) -> Self {
+        self.artifact_uri = ArtifactUri::presented(scheme, self.artifact_id());
         self
+    }
+}
+
+// The public JSON profile repeats the occurrence identity. Internally it comes
+// from the typed URI, so independent ID/URI mutations cannot create a mismatch.
+#[derive(Clone, Serialize, Deserialize, JsonSchema)]
+struct ArtifactMetadataWire {
+    artifact_id: ArtifactId,
+    byte_len: u64,
+    #[serde(default)]
+    mime_type: Option<String>,
+    #[serde(default)]
+    filename: Option<String>,
+    artifact_uri: ArtifactUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    download_url: Option<String>,
+    created_at: DateTime<Utc>,
+    #[serde(default)]
+    release_state: ArtifactReleaseState,
+    #[serde(default)]
+    compliance: ComplianceMetadata,
+    #[serde(default)]
+    metadata: Value,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ArtifactMetadataError;
+impl std::fmt::Display for ArtifactMetadataError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("artifact metadata id and URI must identify the same occurrence")
+    }
+}
+impl std::error::Error for ArtifactMetadataError {}
+
+impl TryFrom<ArtifactMetadataWire> for ArtifactMetadata {
+    type Error = ArtifactMetadataError;
+    fn try_from(value: ArtifactMetadataWire) -> Result<Self, Self::Error> {
+        if value.artifact_id != value.artifact_uri.artifact_id() {
+            return Err(ArtifactMetadataError);
+        }
+        Ok(Self {
+            byte_len: value.byte_len,
+            mime_type: value.mime_type,
+            filename: value.filename,
+            artifact_uri: value.artifact_uri,
+            download_url: value.download_url,
+            created_at: value.created_at,
+            release_state: value.release_state,
+            compliance: value.compliance,
+            metadata: value.metadata,
+        })
+    }
+}
+
+impl From<ArtifactMetadata> for ArtifactMetadataWire {
+    fn from(value: ArtifactMetadata) -> Self {
+        Self {
+            artifact_id: value.artifact_id(),
+            byte_len: value.byte_len,
+            mime_type: value.mime_type,
+            filename: value.filename,
+            artifact_uri: value.artifact_uri,
+            download_url: value.download_url,
+            created_at: value.created_at,
+            release_state: value.release_state,
+            compliance: value.compliance,
+            metadata: value.metadata,
+        }
     }
 }
 
@@ -121,7 +193,6 @@ mod presentation_tests {
     fn presented_under_scheme_rewrites_uri_to_server_scheme() {
         let artifact_id = ArtifactId::new();
         let meta = ArtifactMetadata {
-            artifact_id,
             byte_len: 3,
             mime_type: None,
             filename: None,
@@ -134,13 +205,14 @@ mod presentation_tests {
             metadata: Value::Null,
         };
         // ...and each server re-presents it under its own scheme.
-        let presented = meta.presented_under_scheme("media");
+        let presented =
+            meta.presented_under_scheme(&veoveo_types::ResourceScheme::new("media").unwrap());
         assert_eq!(
-            presented.artifact_uri,
+            presented.artifact_uri.as_str(),
             format!("media://artifact/{artifact_id}")
         );
         assert_eq!(
-            crate::parse_artifact_plane_uri(&presented.artifact_uri)
+            crate::parse_artifact_plane_uri(presented.artifact_uri.as_str())
                 .unwrap()
                 .to_string(),
             artifact_id.to_string()

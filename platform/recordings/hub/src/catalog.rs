@@ -339,7 +339,7 @@ impl PlatformCatalog {
             )
             .await?;
         let artifact_id =
-            veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id.as_uuid());
+            veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id().as_uuid());
         self.store
             .commit_recording_layer(&self.identity, layer_id, artifact_id)
             .await?;

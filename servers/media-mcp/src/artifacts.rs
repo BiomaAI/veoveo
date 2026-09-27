@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{
 /// The scheme this server presents artifacts under to clients
 /// (`media://artifact/{artifact_id}`). The plane stores the neutral `artifact://`
 /// identity; we re-stamp on the way out so a returned URI resolves here.
-const SCHEME: &str = "media";
+use crate::uris::SCHEME;
 
 /// Thin handle to the shared artifact plane. Cloneable; wraps a pooled client.
 #[derive(Clone)]
@@ -52,7 +52,7 @@ impl ArtifactRepository {
         self.plane
             .put(caller, request, bytes)
             .await
-            .map(|m| m.presented_under_scheme(SCHEME))
+            .map(|m| m.presented_under_scheme(&SCHEME))
             .map_err(plane_err)
     }
 
@@ -83,7 +83,7 @@ impl ArtifactRepository {
         self.plane
             .redeem_write_capability(&capability.secret, &request, bytes)
             .await
-            .map(|m| m.presented_under_scheme(SCHEME))
+            .map(|m| m.presented_under_scheme(&SCHEME))
             .map_err(plane_err)
     }
 
@@ -97,7 +97,7 @@ impl ArtifactRepository {
     ) -> Result<Option<ArtifactObject>> {
         match self.plane.get(caller, artifact_id, AccessLevel::Read).await {
             Ok(mut object) => {
-                object.metadata = object.metadata.presented_under_scheme(SCHEME);
+                object.metadata = object.metadata.presented_under_scheme(&SCHEME);
                 Ok(Some(object))
             }
             Err(ArtifactPlaneError::NotFound) => Ok(None),
@@ -112,7 +112,7 @@ impl ArtifactRepository {
         artifact_id: &ArtifactId,
     ) -> Result<Option<ArtifactMetadata>> {
         match self.plane.head(caller, artifact_id).await {
-            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(SCHEME))),
+            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(&SCHEME))),
             Err(ArtifactPlaneError::NotFound) => Ok(None),
             Err(other) => Err(plane_err(other)),
         }
@@ -120,9 +120,13 @@ impl ArtifactRepository {
 
     /// Resolve a neutral `artifact://{artifact_id}` plane URI to bytes on the caller's
     /// behalf through the canonical cross-server input path.
-    pub async fn resolve(&self, caller: &PlaneCaller, uri: &str) -> Result<ArtifactObject> {
+    pub async fn resolve(
+        &self,
+        caller: &PlaneCaller,
+        uri: &veoveo_artifact_contract::ArtifactUri,
+    ) -> Result<ArtifactObject> {
         let mut object = self.plane.resolve(caller, uri).await.map_err(plane_err)?;
-        object.metadata = object.metadata.presented_under_scheme(SCHEME);
+        object.metadata = object.metadata.presented_under_scheme(&SCHEME);
         Ok(object)
     }
 }

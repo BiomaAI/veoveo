@@ -47,7 +47,7 @@ fn raster(n: usize) -> RasterDerivation {
             positions: vec![Wgs84Position::new(-89., 13., None).unwrap()],
         },
         algorithm_revision: RASTER_DERIVATION_ALGORITHM_REVISION.into(),
-        output_artifact_uri: format!("artifact://{}", uuid::Uuid::now_v7()),
+        output_artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
         output_mime_type: "application/json".into(),
         output_crs: "EPSG:4326".into(),
         output_transform: None,

@@ -191,7 +191,7 @@ async fn exercise() -> Result<()> {
         "source identity changed"
     );
     let bytes = plane
-        .get(&alice, &output.transcript.artifact_id, AccessLevel::Read)
+        .get(&alice, &output.transcript.artifact_id(), AccessLevel::Read)
         .await?;
     let document: TranscriptDocument = serde_json::from_slice(&bytes.bytes)?;
     ensure!(
@@ -209,13 +209,13 @@ async fn exercise() -> Result<()> {
     );
     ensure!(
         plane
-            .head(&bob, &output.transcript.artifact_id)
+            .head(&bob, &output.transcript.artifact_id())
             .await
             .is_err(),
         "transcript Artifact leaked"
     );
     let captions = plane
-        .get(&alice, &output.captions.artifact_id, AccessLevel::Read)
+        .get(&alice, &output.captions.artifact_id(), AccessLevel::Read)
         .await?;
     ensure!(
         captions.bytes.starts_with(b"WEBVTT\n"),
@@ -264,8 +264,8 @@ async fn exercise() -> Result<()> {
                 );
                 let again = SpeechService::output(&snapshot)?.unwrap();
                 ensure!(
-                    again.transcript.artifact_id == output.transcript.artifact_id
-                        && again.captions.artifact_id == output.captions.artifact_id,
+                    again.transcript.artifact_id() == output.transcript.artifact_id()
+                        && again.captions.artifact_id() == output.captions.artifact_id(),
                     "recovery duplicated output"
                 );
                 break Ok::<_, anyhow::Error>(());

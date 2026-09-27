@@ -577,7 +577,7 @@ pub trait ArtifactPlane {
     fn resolve(
         &self,
         caller: &PlaneCaller,
-        uri: &str,
+        uri: &veoveo_artifact_contract::ArtifactUri,
     ) -> impl std::future::Future<Output = Result<ArtifactObject, ArtifactPlaneError>> + Send;
 
     /// Add or raise a grant. Requires the caller to hold `Admin` on the artifact.

@@ -358,7 +358,7 @@ pub(crate) mod testing {
             artifact: NewArtifact,
         ) -> Result<StoredArtifact, RepositoryError> {
             let mut state = self.state.lock().unwrap();
-            let id = artifact.stored.metadata.artifact_id;
+            let id = artifact.stored.metadata.artifact_id();
             if state.artifacts.contains_key(&id) {
                 return Err(RepositoryError::Conflict("duplicate occurrence id".into()));
             }
@@ -398,9 +398,9 @@ pub(crate) mod testing {
                 })
                 .cloned()
                 .collect::<Vec<_>>();
-            artifacts.sort_by_key(|artifact| std::cmp::Reverse(artifact.metadata.artifact_id));
+            artifacts.sort_by_key(|artifact| std::cmp::Reverse(artifact.metadata.artifact_id()));
             if let Some(cursor) = query.cursor {
-                artifacts.retain(|artifact| artifact.metadata.artifact_id < cursor);
+                artifacts.retain(|artifact| artifact.metadata.artifact_id() < cursor);
             }
             artifacts.truncate(query.limit);
             Ok(artifacts)

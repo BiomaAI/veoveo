@@ -74,7 +74,7 @@ impl FileWorker {
         let floor = &preparation.retained_labels;
         // Imported data becomes retained Computer data. Its complete label floor
         // must already be covered by this Computer, even when the caller has more clearance.
-        if metadata.artifact_id != source
+        if metadata.artifact_id() != source
             || metadata.artifact_uri != source.plane_uri()
             || metadata.compliance.tenant_id.as_ref() != Some(&actor.authority.tenant)
             || !metadata.compliance.data_labels.is_subset(floor)
@@ -164,7 +164,7 @@ impl FileWorker {
             .map_err(|_| FileWorkerError::ArtifactUnavailable)?;
         let actor = operation.actor();
         if metadata.byte_len != receipt.bytes
-            || metadata.artifact_uri != metadata.artifact_id.plane_uri()
+            || metadata.artifact_uri != metadata.artifact_id().plane_uri()
             || metadata.metadata != descriptor
             || metadata.filename.as_ref() != Some(filename)
             || metadata.mime_type.as_ref() != Some(media_type)
@@ -177,7 +177,7 @@ impl FileWorker {
         {
             return Err(FileWorkerError::ArtifactUnavailable);
         }
-        Ok(Some(metadata.artifact_id.as_uuid()))
+        Ok(Some(metadata.artifact_id().as_uuid()))
     }
 }
 

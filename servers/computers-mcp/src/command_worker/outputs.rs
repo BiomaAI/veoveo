@@ -110,7 +110,7 @@ impl CommandWorker {
             })?;
         let actor = operation.actor();
         if metadata.byte_len != count
-            || metadata.artifact_uri != metadata.artifact_id.plane_uri()
+            || metadata.artifact_uri != metadata.artifact_id().plane_uri()
             || metadata.metadata != descriptor
             || metadata.compliance.tenant_id.as_ref() != Some(&actor.authority.tenant)
             || metadata.compliance.work_context.as_ref() != Some(&actor.authority.work_context)
@@ -123,7 +123,7 @@ impl CommandWorker {
             return Err(CommandWorkerError::OutputUnavailable);
         }
         Ok(ExecutionOutput {
-            artifact_id: metadata.artifact_id.as_uuid(),
+            artifact_id: metadata.artifact_id().as_uuid(),
             byte_count: count as u32,
         })
     }

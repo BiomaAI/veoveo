@@ -89,7 +89,7 @@ pub struct AcquisitionJob {
     pub status: AcquisitionStatus,
     pub progress: AcquisitionProgress,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub raw_artifact_uri: Option<String>,
+    pub raw_artifact_uri: Option<veoveo_artifact_contract::ArtifactUri>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub staged_release_id: Option<DatasetReleaseId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

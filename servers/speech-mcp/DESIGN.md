@@ -73,6 +73,13 @@ reruns only accepted resumable work. Stable publication keys prevent duplicate
 transcript and caption Artifacts. Output inherits the current source classification,
 data labels and retention deadline under the Work Context output policy.
 
+The lightweight Speech contract uses the Artifact owner's
+[`ArtifactUri`](../../platform/artifacts/contract/DESIGN.md#wire-and-construction)
+for source references in requests, transcript documents, and results. JSON decoding
+validates the address once; admission also enforces the 256-byte source URI limit.
+Speech declares its presentation scheme with the foundational `ResourceScheme`.
+These contracts have no dependency on MCP or the inference runtime.
+
 `speech://transcript/{task_id}` resolves the authorized
 Task and its output metadata. Task subscriptions and transcript resource updates use
 the shared durable event source. Every observation rechecks the same actor, profile,

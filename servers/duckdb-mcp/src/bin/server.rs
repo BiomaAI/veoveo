@@ -1058,7 +1058,7 @@ async fn run_task_inner(
                         &task_id,
                         "export",
                         output.rows_exported,
-                        json!({ "db": output.db.as_str(), "artifact": output.artifact.artifact_id }),
+                        json!({ "db": output.db.as_str(), "artifact": output.artifact.artifact_id() }),
                     )
                     .await
                     {
@@ -1115,7 +1115,7 @@ fn output_db_meta(output: &DuckDbQueryOutput) -> Value {
     output
         .artifact
         .as_ref()
-        .map(|artifact| json!({ "artifact": artifact.artifact_id }))
+        .map(|artifact| json!({ "artifact": artifact.artifact_id() }))
         .unwrap_or_else(|| json!({ "inline_rows": output.rows.len() }))
 }
 

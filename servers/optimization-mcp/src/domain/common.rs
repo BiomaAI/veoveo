@@ -3,7 +3,6 @@ use std::{fmt, num::NonZeroU32};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_artifact_contract::parse_artifact_plane_uri;
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum OptimizationContractError {
@@ -200,9 +199,6 @@ fn valid_uri_segment(value: &str) -> bool {
         && !value.chars().any(char::is_control)
 }
 
-uri_type!(ArtifactUri, "artifact", |value: &str| {
-    parse_artifact_plane_uri(value).is_some()
-});
 uri_type!(MapTravelModelUri, "Map travel-model", |value: &str| {
     value
         .strip_prefix("map://travel-model/")

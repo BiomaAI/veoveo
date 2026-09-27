@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
+use veoveo_artifact_contract::ArtifactUri;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ArtifactUri, CONVEX_PROBLEM_VERSION, ConstraintId, FiniteF64, MAX_INLINE_MODEL_NONZEROS,
+    CONVEX_PROBLEM_VERSION, ConstraintId, FiniteF64, MAX_INLINE_MODEL_NONZEROS,
     MILP_PROBLEM_VERSION, NonNegativeF64, OptimizationContractError, OptimizationProblemUri,
     OptimizationSolutionUri, SolverPolicyRef, VariableId, require_collection,
 };

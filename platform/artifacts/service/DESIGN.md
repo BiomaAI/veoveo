@@ -22,6 +22,13 @@ public MCP projection. Occurrence identity and metadata come from the lightweigh
 types and access evaluator live in `mcp/contract`; the HTTP client lives in
 `platform/artifacts/client`.
 
+Resolution and streaming client methods accept the domain's `ArtifactUri`. HTTP query
+decoding validates external addresses before service resolution. The occurrence comes
+from that parsed address; authorization still uses the current caller and ledger.
+Metadata derives its ID from the URI and rejects mismatched pairs on wire decoding.
+The domain's [identity and address compatibility profile](../contract/DESIGN.md#address-and-identity-compatibility)
+declares supported spellings, retained-data checks, and rollback semantics.
+
 Occurrence publication and repository reads construct Artifact provenance from the
 checked invocation authority. The domain contract preserves the flat metadata wire
 profile while using `InvocationProvenance` internally. Stored authority reconstruction

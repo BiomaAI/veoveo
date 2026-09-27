@@ -169,7 +169,7 @@ pub enum DuckDbSource {
     /// grant + label checks as any other plane read. The server resolves and
     /// materializes the bytes; the SQL engine never touches the network.
     Artifact {
-        uri: String,
+        uri: veoveo_artifact_contract::ArtifactUri,
         format: DuckDbFormat,
         #[serde(default)]
         options: DuckDbReadOptions,
@@ -202,7 +202,7 @@ mod tests {
         let DuckDbSource::Artifact { uri, format, .. } = &source else {
             panic!("expected artifact source");
         };
-        assert_eq!(uri, &format!("artifact://{artifact_id}"));
+        assert_eq!(uri.as_str(), format!("artifact://{artifact_id}"));
         assert_eq!(format, &DuckDbFormat::Parquet);
         // round-trips
         let back: DuckDbSource =

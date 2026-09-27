@@ -1,5 +1,5 @@
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("recording")`; a unit test
+/// `ServerResourceUris` with the validated `recording` scheme; a unit test
 /// below pins that equivalence.
 pub const DOCS_URI: &str = "recording://docs";
 pub const CONTRACT_URI: &str = "recording://contract";
@@ -41,7 +41,9 @@ mod tests {
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new("recording");
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new("recording").expect("declared resource scheme"),
+        );
         assert_eq!(DOCS_URI, conventions.docs_root_uri());
         assert_eq!(CONTRACT_URI, conventions.contract_uri());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());

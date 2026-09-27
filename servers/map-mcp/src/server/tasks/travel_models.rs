@@ -108,14 +108,13 @@ mod tests {
             .unwrap();
         if let Some(key) = key {
             let now = chrono::Utc::now();
-            let artifact_id = uuid::Uuid::now_v7().to_string().parse().unwrap();
-            let uri = format!("artifact://{artifact_id}");
+            let artifact_id = veoveo_artifact_contract::ArtifactId::new();
+            let uri = artifact_id.plane_uri();
             let record = crate::contract::TravelModelRecord {
                 travel_model_id: key.parse().unwrap(),
                 travel_model_uri: format!("map://travel-model/{key}"),
                 manifest_uri: uri.clone(),
                 artifact: veoveo_artifact_contract::ArtifactMetadata {
-                    artifact_id,
                     byte_len: 128,
                     mime_type: Some("application/json".into()),
                     filename: None,

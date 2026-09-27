@@ -461,9 +461,9 @@ pub struct DatasetRelease {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub routing_build_version: Option<String>,
     pub license: DatasetLicense,
-    pub raw_artifact_uri: String,
-    pub normalized_artifact_uris: Vec<String>,
-    pub quality_report_uri: String,
+    pub raw_artifact_uri: veoveo_artifact_contract::ArtifactUri,
+    pub normalized_artifact_uris: Vec<veoveo_artifact_contract::ArtifactUri>,
+    pub quality_report_uri: veoveo_artifact_contract::ArtifactUri,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub supersedes_release_id: Option<DatasetReleaseId>,
     pub state: DatasetReleaseState,
@@ -492,14 +492,19 @@ impl DatasetRelease {
         validate_artifact_uri(&self.raw_artifact_uri)?;
         self.normalized_artifact_uris
             .iter()
-            .try_for_each(|uri| validate_artifact_uri(uri))?;
+            .try_for_each(validate_artifact_uri)?;
         validate_artifact_uri(&self.quality_report_uri)?;
         self.license.validate()
     }
 }
 
-fn validate_artifact_uri(value: &str) -> Result<(), SourceContractError> {
-    if !value.starts_with("artifact://") || value.len() > 512 || value.chars().any(char::is_control)
+fn validate_artifact_uri(
+    value: &veoveo_artifact_contract::ArtifactUri,
+) -> Result<(), SourceContractError> {
+    if !matches!(
+        value.address(),
+        veoveo_artifact_contract::ArtifactAddress::Plane(_)
+    ) || value.as_str().len() > 512
     {
         return Err(SourceContractError::InvalidArtifactUri);
     }

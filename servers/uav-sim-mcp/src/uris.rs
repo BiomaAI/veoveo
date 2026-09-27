@@ -5,7 +5,7 @@ use veoveo_mcp_contract::{
 
 pub const SCHEME: &str = "uav-sim";
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `ServerResourceUris::new(SCHEME)`; a unit test below pins that
+/// `ServerResourceUris::new(veoveo_types::ResourceScheme::new(SCHEME).expect("declared UAV scheme"))`; a unit test below pins that
 /// equivalence.
 pub const DOCS: &str = "uav-sim://docs";
 pub const CONTRACT: &str = "uav-sim://contract";
@@ -181,7 +181,8 @@ pub fn parse_mission_plan(uri: &str) -> Option<&str> {
 }
 
 pub fn parse_usage_task(uri: &str) -> Option<&str> {
-    ServerResourceUris::new(SCHEME).parse_usage_task_uri(uri)
+    ServerResourceUris::new(veoveo_types::ResourceScheme::new(SCHEME).expect("declared UAV scheme"))
+        .parse_usage_task_uri(uri)
 }
 
 fn parse_one<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
@@ -238,7 +239,9 @@ mod tests {
 
     #[test]
     fn well_known_uris_match_the_shared_conventions() {
-        let conventions = ServerResourceUris::new(SCHEME);
+        let conventions = ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new(SCHEME).expect("declared UAV scheme"),
+        );
         assert_eq!(DOCS, conventions.docs_root_uri());
         assert_eq!(CONTRACT, conventions.contract_uri());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());

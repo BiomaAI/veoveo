@@ -1,5 +1,5 @@
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("time")`; a unit test below
+/// `ServerResourceUris` with the validated `time` scheme; a unit test below
 /// pins that equivalence.
 pub const DOCS_URI: &str = "time://docs";
 pub const CONTRACT_URI: &str = "time://contract";

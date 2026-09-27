@@ -316,7 +316,7 @@ impl AcquisitionService {
                     }),
                 )
                 .await?;
-            normalized_uris.push(artifact.artifact_id.plane_uri());
+            normalized_uris.push(artifact.artifact_id().plane_uri());
         }
         if let Some(path) = &normalized.routing_build_path {
             let artifact = self
@@ -331,7 +331,7 @@ impl AcquisitionService {
                     }),
                 )
                 .await?;
-            normalized_uris.push(artifact.artifact_id.plane_uri());
+            normalized_uris.push(artifact.artifact_id().plane_uri());
         }
         let quality = self
             .put_file(
@@ -368,9 +368,9 @@ impl AcquisitionService {
                 .is_some()
                 .then(|| ROUTING_BUILD_VERSION.to_owned()),
             license: source.license.clone(),
-            raw_artifact_uri: raw.artifact_id.plane_uri(),
+            raw_artifact_uri: raw.artifact_id().plane_uri(),
             normalized_artifact_uris: normalized_uris,
-            quality_report_uri: quality.artifact_id.plane_uri(),
+            quality_report_uri: quality.artifact_id().plane_uri(),
             supersedes_release_id: self
                 .catalog
                 .list_releases(scope)
@@ -410,7 +410,7 @@ impl AcquisitionService {
         job.progress.completed_units = 1;
         job.progress.total_units = Some(1);
         job.progress.message = "staged release created".to_owned();
-        job.raw_artifact_uri = Some(raw.artifact_id.plane_uri());
+        job.raw_artifact_uri = Some(raw.artifact_id().plane_uri());
         job.staged_release_id = Some(release.release_id);
         self.catalog.update_acquisition(scope, job).await?;
         Ok(())

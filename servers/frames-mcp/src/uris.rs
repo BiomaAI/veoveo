@@ -3,6 +3,11 @@ use veoveo_mcp_contract::{
     FrameWorldRevisionUri, FrameWorldUri, ServerResourceUris, WorldFrameUri,
 };
 
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("frames").expect("declared server resource scheme")
+    });
+
 pub const WORLDS_URI: &str = "frames://worlds";
 pub const WORKSPACE_APP_URI: &str = "ui://frames/workspace.html";
 pub const WORLD_TEMPLATE: &str = "frames://world/{world_id}";
@@ -15,14 +20,14 @@ pub const USAGE_ROOT_URI: &str = "frames://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "frames://usage/task/{task_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `ServerResourceUris::new("frames")`; a unit test below pins the
+/// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins the
 /// equivalence.
 pub const DOCS_URI: &str = "frames://docs";
 pub const CONTRACT_URI: &str = "frames://contract";
 pub const DOC_TEMPLATE: &str = "frames://docs/{doc_id}";
 
 fn frames_uris() -> ServerResourceUris {
-    ServerResourceUris::new("frames")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
 pub fn operation_uri(operation_id: &str) -> String {
@@ -37,7 +42,7 @@ pub fn parse_doc_uri(uri: &str) -> Option<&str> {
     veoveo_mcp_contract::parse_server_doc_uri("frames", uri)
 }
 
-pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     frames_uris().artifact_uri(artifact_id)
 }
 
@@ -106,7 +111,7 @@ mod tests {
 
         let artifact_id = ArtifactId::new();
         assert_eq!(
-            parse_artifact_uri(&artifact_uri(artifact_id)),
+            parse_artifact_uri(artifact_uri(artifact_id).as_str()),
             Some(artifact_id)
         );
     }

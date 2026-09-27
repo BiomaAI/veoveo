@@ -178,7 +178,7 @@ pub(super) async fn load_solution(
     let output = task
         .output
         .ok_or_else(|| anyhow::anyhow!("solution task has no terminal output"))?;
-    let artifact_id = uris::parse_artifact_uri(&output.solution_artifact.artifact_uri)
+    let artifact_id = uris::parse_artifact_uri(output.solution_artifact.artifact_uri.as_str())
         .ok_or_else(|| anyhow::anyhow!("solution artifact has an invalid URI"))?;
     let artifact = state
         .artifacts
@@ -226,7 +226,7 @@ async fn materialize_routing_source(
             problem
         }
         RoutingProblemSource::Artifact { manifest_uri } => {
-            read_json_artifact(state, caller, manifest_uri.as_str()).await?
+            read_json_artifact(state, caller, manifest_uri).await?
         }
     };
     materialize_travel_model(state, caller, &mut problem).await?;
@@ -239,12 +239,13 @@ async fn materialize_travel_model(
     caller: &PlaneCaller,
     problem: &mut RoutingProblem,
 ) -> anyhow::Result<()> {
-    let (artifact_uri, expected_map_uri): (&str, Option<&MapTravelModelUri>) = match &problem
-        .travel_model
-    {
+    let (artifact_uri, expected_map_uri): (
+        &veoveo_artifact_contract::ArtifactUri,
+        Option<&MapTravelModelUri>,
+    ) = match &problem.travel_model {
         TravelModelSource::Inline { .. } => return Ok(()),
-        TravelModelSource::Artifact { manifest_uri } => (manifest_uri.as_str(), None),
-        TravelModelSource::MapResource { uri, manifest_uri } => (manifest_uri.as_str(), Some(uri)),
+        TravelModelSource::Artifact { manifest_uri } => (manifest_uri, None),
+        TravelModelSource::MapResource { uri, manifest_uri } => (manifest_uri, Some(uri)),
     };
     let artifact: TravelModelArtifact = read_json_artifact(state, caller, artifact_uri).await?;
     if artifact.version != TRAVEL_MODEL_ARTIFACT_VERSION {
@@ -283,7 +284,7 @@ async fn materialize_convex_source(
             if model.format != ArtifactModelFormat::OptimizationJsonV1 {
                 anyhow::bail!("unsupported convex artifact format");
             }
-            read_json_artifact(state, caller, model.uri.as_str()).await?
+            read_json_artifact(state, caller, &model.uri).await?
         }
     };
     problem.validate()?;
@@ -309,7 +310,7 @@ async fn materialize_milp_source(
             if model.format != ArtifactModelFormat::OptimizationJsonV1 {
                 anyhow::bail!("unsupported MILP artifact format");
             }
-            read_json_artifact(state, caller, model.uri.as_str()).await?
+            read_json_artifact(state, caller, &model.uri).await?
         }
     };
     problem.validate()?;
@@ -319,7 +320,7 @@ async fn materialize_milp_source(
 async fn read_json_artifact<T: serde::de::DeserializeOwned>(
     state: &AppState,
     caller: &PlaneCaller,
-    uri: &str,
+    uri: &veoveo_artifact_contract::ArtifactUri,
 ) -> anyhow::Result<T> {
     let artifact = state.artifacts.resolve(caller, uri).await?;
     if artifact.bytes.len() as u64 > state.max_artifact_bytes {

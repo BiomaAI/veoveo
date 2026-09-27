@@ -14,7 +14,7 @@ use veoveo_speech_contract::{TranscriptDocument, TranscriptionOutput, transcript
 #[derive(Serialize)]
 #[serde(deny_unknown_fields)]
 struct Provenance<'a> {
-    source_artifact_uri: &'a str,
+    source_artifact_uri: &'a veoveo_artifact_contract::ArtifactUri,
     source_sha256: &'a str,
     model: &'a str,
     model_revision: &'a str,
@@ -74,7 +74,7 @@ impl SpeechService {
                 self.artifacts
                     .redeem_write_capability(&capability.secret, &request, bytes)
                     .await?
-                    .presented_under_scheme("speech"),
+                    .presented_under_scheme(&veoveo_speech_contract::ARTIFACT_SCHEME),
             );
         }
         let output = TranscriptionOutput {

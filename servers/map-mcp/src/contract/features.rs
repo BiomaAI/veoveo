@@ -729,7 +729,7 @@ pub struct LayerPublication {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub artifact_uris: Vec<String>,
+    pub artifact_uris: Vec<veoveo_artifact_contract::ArtifactUri>,
     pub published_by: PrincipalId,
     pub work_context: WorkContextId,
     pub published_at: DateTime<Utc>,

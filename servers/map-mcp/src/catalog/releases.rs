@@ -142,13 +142,50 @@ mod tests {
                 offline_bundle_allowed: true,
                 expires_at: None,
             },
-            raw_artifact_uri: "artifact://fixture-raw".into(),
-            normalized_artifact_uris: vec!["artifact://fixture-normalized".into()],
-            quality_report_uri: "artifact://fixture-quality".into(),
+            raw_artifact_uri: "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4471"
+                .parse()
+                .unwrap(),
+            normalized_artifact_uris: vec![
+                "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4472"
+                    .parse()
+                    .unwrap(),
+            ],
+            quality_report_uri: "artifact://0197f78e-f2f0-7a6e-8a5d-f41c691e4473"
+                .parse()
+                .unwrap(),
             supersedes_release_id: None,
             state: DatasetReleaseState::Staged,
             record_version: 1,
             updated_at: now,
+        }
+    }
+
+    #[test]
+    fn artifact_references_require_neutral_plane_addresses() {
+        let dataset: MapDatasetId = key("dataset", 1).parse().unwrap();
+        let valid = release(1, &dataset);
+        valid.validate().unwrap();
+        for scheme in ["map", "artifact"] {
+            let scheme = veoveo_types::ResourceScheme::new(scheme).unwrap();
+            let presented = veoveo_artifact_contract::ArtifactUri::presented(
+                &scheme,
+                valid.raw_artifact_uri.artifact_id(),
+            );
+            // Even a well-formed presentation under the Artifact scheme is not
+            // the neutral plane variant required by the release contract.
+            for field in 0..3 {
+                let mut candidate = valid.clone();
+                match field {
+                    0 => candidate.raw_artifact_uri = presented.clone(),
+                    1 => candidate.normalized_artifact_uris = vec![presented.clone()],
+                    2 => candidate.quality_report_uri = presented.clone(),
+                    _ => unreachable!(),
+                }
+                assert_eq!(
+                    candidate.validate(),
+                    Err(crate::contract::SourceContractError::InvalidArtifactUri)
+                );
+            }
         }
     }
 

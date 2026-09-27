@@ -675,7 +675,7 @@ impl RecordingService {
             let metadata = self
                 .publish_manifest(&recording, dataset_id, recording_id, &manifest)
                 .await?;
-            let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid());
+            let artifact_id = PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid());
             self.store
                 .stage_recording_manifest(&platform_identity, recording_id, artifact_id)
                 .await?;
@@ -822,7 +822,7 @@ impl RecordingService {
             )
             .await?;
         ensure!(
-            metadata.artifact_id.as_uuid() == uuid::Uuid::parse_str(&layer_id.to_string())?
+            metadata.artifact_id().as_uuid() == uuid::Uuid::parse_str(&layer_id.to_string())?
                 && metadata.byte_len == byte_len,
             "published properties occurrence does not match its reserved layer"
         );
@@ -830,7 +830,7 @@ impl RecordingService {
             .commit_recording_layer(
                 identity,
                 layer_id,
-                PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+                PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid()),
             )
             .await?;
         match std::fs::remove_file(&path) {
@@ -919,7 +919,8 @@ impl RecordingService {
             )
             .await?;
         ensure!(
-            metadata.artifact_id.as_uuid() == blueprint_occurrence && metadata.byte_len == byte_len,
+            metadata.artifact_id().as_uuid() == blueprint_occurrence
+                && metadata.byte_len == byte_len,
             "published Blueprint occurrence does not match its reserved identity"
         );
         self.store
@@ -928,7 +929,7 @@ impl RecordingService {
                 recording_id,
                 u64::try_from(blueprint.revision)
                     .context("recording Blueprint revision is negative")?,
-                PlatformArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+                PlatformArtifactId::from_uuid(metadata.artifact_id().as_uuid()),
             )
             .await?;
         self.remove_spool_staging_file(&blueprint.relative_path)?;

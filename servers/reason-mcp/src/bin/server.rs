@@ -465,7 +465,7 @@ impl ServerHandler for ReasonMcp {
                 })?;
                 let caller = internal_caller(&context)?;
                 let artifact =
-                    inline_artifact(&self.state, &caller, &output.results_artifact.artifact_id)
+                    inline_artifact(&self.state, &caller, &output.results_artifact.artifact_id())
                         .await?;
                 let text = String::from_utf8(artifact.bytes)
                     .map_err(|_| McpError::internal_error("results artifact is not UTF-8", None))?;

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
-use veoveo_artifact_contract::{ArtifactId, ArtifactProvenance, ArtifactPut, ComplianceMetadata};
+use veoveo_artifact_contract::{ArtifactProvenance, ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{
     ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
@@ -762,14 +762,14 @@ async fn prepare_raster_request(
             "full-raster derivations are limited to {MAX_RASTER_FULL_DERIVATION_PIXELS} source pixels"
         );
     }
-    let artifact_id = raster
-        .artifact_uri
-        .strip_prefix("artifact://")
-        .context("raster source is not an Artifact-plane URI")
-        .and_then(|value| ArtifactId::parse(value).map_err(anyhow::Error::from))?;
+    let veoveo_artifact_contract::ArtifactAddress::Plane(artifact_id) =
+        raster.artifact_uri.address()
+    else {
+        bail!("raster source is not an Artifact-plane URI");
+    };
     let artifact = state
         .artifacts
-        .get(&caller.caller, &artifact_id)
+        .get(&caller.caller, artifact_id)
         .await?
         .context("raster source artifact is unavailable or unauthorized")?;
     if artifact.metadata.byte_len > state.max_artifact_bytes
@@ -1100,7 +1100,7 @@ async fn run_travel_model_task(
     let record = TravelModelRecord {
         travel_model_id: request.travel_model_id,
         travel_model_uri: travel_model_uri.clone(),
-        manifest_uri: artifact.artifact_id.plane_uri(),
+        manifest_uri: artifact.artifact_id().plane_uri(),
         artifact: artifact.clone(),
         cost_metric,
         time_model,
@@ -1120,7 +1120,7 @@ async fn run_travel_model_task(
         &record,
         [
             (travel_model_uri, "cuOpt travel model"),
-            (artifact.artifact_uri, "travel-model artifact"),
+            (artifact.artifact_uri.to_string(), "travel-model artifact"),
         ],
     )
 }

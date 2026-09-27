@@ -1,6 +1,11 @@
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("map")`; a unit test below
+/// `veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone())`; a unit test below
 /// pins that equivalence.
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("map").expect("declared server resource scheme")
+    });
+
 pub const DOCS_URI: &str = "map://docs";
 pub const CONTRACT_URI: &str = "map://contract";
 
@@ -185,7 +190,7 @@ pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
 }
 
 pub fn parse_artifact(uri: &str) -> Option<veoveo_artifact_contract::ArtifactId> {
-    veoveo_mcp_contract::ServerResourceUris::new("map").parse_artifact_uri(uri)
+    veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone()).parse_artifact_uri(uri)
 }
 
 pub fn parse_doc(uri: &str) -> Option<&str> {
@@ -433,7 +438,7 @@ mod tests {
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new("map");
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone());
         assert_eq!(DOCS_URI, conventions.docs_root_uri());
         assert_eq!(CONTRACT_URI, conventions.contract_uri());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());

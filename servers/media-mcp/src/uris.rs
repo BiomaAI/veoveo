@@ -9,6 +9,11 @@
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
 
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("media").expect("declared server resource scheme")
+    });
+
 pub const MODELS_URI: &str = "media://models";
 pub const STUDIO_APP_URI: &str = "ui://media/studio.html";
 pub const MODEL_TEMPLATE: &str = "media://model/{model_id}";
@@ -18,14 +23,14 @@ pub const USAGE_ROOT_URI: &str = "media://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "media://usage/task/{task_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `ServerResourceUris::new("media")`; a unit test below pins the
+/// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins the
 /// equivalence.
 pub const DOCS_URI: &str = "media://docs";
 pub const CONTRACT_URI: &str = "media://contract";
 pub const DOC_TEMPLATE: &str = "media://docs/{doc_id}";
 
 fn media_uris() -> ServerResourceUris {
-    ServerResourceUris::new("media")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
 pub fn model_uri(model_id: &str) -> String {
@@ -36,7 +41,7 @@ pub fn prediction_uri(id: &str) -> String {
     media_uris().prediction_uri(id)
 }
 
-pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     media_uris().artifact_uri(artifact_id)
 }
 
@@ -145,8 +150,8 @@ mod tests {
     fn artifact_uri_round_trip() {
         let artifact_id = ArtifactId::new();
         let uri = artifact_uri(artifact_id);
-        assert_eq!(uri, format!("media://artifact/{artifact_id}"));
-        assert_eq!(parse_artifact_uri(&uri), Some(artifact_id));
+        assert_eq!(uri.as_str(), format!("media://artifact/{artifact_id}"));
+        assert_eq!(parse_artifact_uri(uri.as_str()), Some(artifact_id));
         assert_eq!(parse_artifact_uri("media://artifact/not-a-sha"), None);
     }
 

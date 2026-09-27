@@ -245,7 +245,7 @@ fn metadata_headers(metadata: &ArtifactMetadata) -> Result<HeaderMap, ApiError> 
     );
     headers.insert(
         "x-artifact-id",
-        HeaderValue::from_str(&metadata.artifact_id.to_string())
+        HeaderValue::from_str(&metadata.artifact_id().to_string())
             .map_err(|error| ArtifactPlaneError::Transport(error.to_string()))?,
     );
     headers.insert(
@@ -492,7 +492,7 @@ async fn download_artifact<R: ArtifactRepository, S: BlobStore>(
 
 #[derive(Deserialize)]
 struct ResolveQuery {
-    uri: String,
+    uri: veoveo_artifact_contract::ArtifactUri,
 }
 
 async fn resolve_artifact<R: ArtifactRepository, S: BlobStore>(
@@ -728,6 +728,7 @@ async fn redeem_public_share<R: ArtifactRepository, S: BlobStore>(
 #[cfg(test)]
 pub(crate) mod tests {
     mod read_capability;
+    mod uri;
     use std::collections::BTreeSet;
     use std::num::{NonZeroU32, NonZeroU64};
 
@@ -867,11 +868,11 @@ pub(crate) mod tests {
             .await
             .unwrap();
         assert_eq!(listed.artifacts.len(), 1);
-        assert_eq!(listed.artifacts[0].artifact_id, metadata.artifact_id);
+        assert_eq!(listed.artifacts[0].artifact_id(), metadata.artifact_id());
         plane
             .set_release_state(
                 &caller,
-                &metadata.artifact_id,
+                &metadata.artifact_id(),
                 ArtifactReleaseState::Releasable,
             )
             .await
@@ -879,7 +880,7 @@ pub(crate) mod tests {
         let link = plane
             .create_share_link(
                 &caller,
-                &metadata.artifact_id,
+                &metadata.artifact_id(),
                 CreateArtifactShareLinkRequest {
                     expires_at: None,
                     max_downloads: NonZeroU64::new(1),
@@ -926,7 +927,7 @@ pub(crate) mod tests {
             )
             .await
             .unwrap();
-        let url = format!("{base}/artifacts/{}/download", metadata.artifact_id);
+        let url = format!("{base}/artifacts/{}/download", metadata.artifact_id());
 
         let full = http
             .get(&url)

@@ -209,7 +209,7 @@ pub struct TravelModelProfileProvenance {
 pub struct TravelModelRecord {
     pub travel_model_id: TravelModelId,
     pub travel_model_uri: String,
-    pub manifest_uri: String,
+    pub manifest_uri: veoveo_artifact_contract::ArtifactUri,
     pub artifact: ArtifactMetadata,
     pub cost_metric: TravelCostMetric,
     pub time_model: TravelTimeModel,

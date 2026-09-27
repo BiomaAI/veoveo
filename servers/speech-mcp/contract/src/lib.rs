@@ -4,7 +4,12 @@ use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use transcript::Transcript;
-use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactUri};
+
+pub static ARTIFACT_SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("speech").expect("declared Speech scheme")
+    });
 
 pub const MAX_SOURCE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const TRANSCRIPT_MIME: &str = "application/json";
@@ -28,14 +33,16 @@ pub fn schema_bundle() -> schemars::Schema {
 #[serde(deny_unknown_fields)]
 pub struct TranscribeRequest {
     /// `artifact://` URI of an uploaded audio or video file you can read.
-    pub artifact_uri: String,
+    pub artifact_uri: ArtifactUri,
 }
 
 impl TranscribeRequest {
     pub fn source(&self) -> Result<ArtifactId> {
-        ensure!(self.artifact_uri.len() <= 256, "source URI exceeds limit");
-        parse_artifact_plane_uri(&self.artifact_uri)
-            .ok_or_else(|| anyhow::anyhow!("a canonical Artifact URI is required"))
+        ensure!(
+            self.artifact_uri.as_str().len() <= 256,
+            "source URI exceeds limit"
+        );
+        Ok(self.artifact_uri.artifact_id())
     }
 }
 
@@ -43,7 +50,7 @@ impl TranscribeRequest {
 #[serde(deny_unknown_fields)]
 pub struct TranscriptionOutput {
     pub result_uri: String,
-    pub source_artifact_uri: String,
+    pub source_artifact_uri: ArtifactUri,
     pub transcript: ArtifactMetadata,
     pub captions: ArtifactMetadata,
     pub duration_seconds: f64,
@@ -53,7 +60,7 @@ pub struct TranscriptionOutput {
 #[serde(deny_unknown_fields)]
 pub struct TranscriptDocument {
     pub schema: String,
-    pub source_artifact_uri: String,
+    pub source_artifact_uri: ArtifactUri,
     pub source_sha256: String,
     pub model: String,
     pub model_revision: String,
@@ -94,10 +101,9 @@ mod tests {
             "speech://transcript/anything",
         ] {
             assert!(
-                TranscribeRequest {
-                    artifact_uri: uri.into()
-                }
-                .source()
+                serde_json::from_value::<TranscribeRequest>(
+                    serde_json::json!({"artifact_uri": uri})
+                )
                 .is_err()
             );
         }

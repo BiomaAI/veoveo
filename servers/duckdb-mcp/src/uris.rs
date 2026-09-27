@@ -1,6 +1,11 @@
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
 
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("duckdb").expect("declared server resource scheme")
+    });
+
 pub const DBS_ROOT_URI: &str = "duckdb://dbs";
 pub const WORKBENCH_APP_URI: &str = "ui://duckdb/workbench.html";
 pub const DB_TEMPLATE: &str = "duckdb://db/{db_id}";
@@ -9,14 +14,14 @@ pub const USAGE_ROOT_URI: &str = "duckdb://usage";
 pub const USAGE_TASK_TEMPLATE: &str = "duckdb://usage/task/{task_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `ServerResourceUris::new("duckdb")`; a unit test below pins the
+/// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins the
 /// equivalence.
 pub const DOCS_URI: &str = "duckdb://docs";
 pub const CONTRACT_URI: &str = "duckdb://contract";
 pub const DOC_TEMPLATE: &str = "duckdb://docs/{doc_id}";
 
 fn duckdb_uris() -> ServerResourceUris {
-    ServerResourceUris::new("duckdb")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
 pub fn db_uri(db_id: &str) -> String {
@@ -40,7 +45,7 @@ pub fn parse_doc_uri(uri: &str) -> Option<&str> {
     veoveo_mcp_contract::parse_server_doc_uri("duckdb", uri)
 }
 
-pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     duckdb_uris().artifact_uri(artifact_id)
 }
 
@@ -86,7 +91,7 @@ mod tests {
     fn artifact_uri_round_trips() {
         let artifact_id = ArtifactId::new();
         let uri = artifact_uri(artifact_id);
-        assert_eq!(uri, format!("duckdb://artifact/{artifact_id}"));
-        assert_eq!(parse_artifact_uri(&uri), Some(artifact_id));
+        assert_eq!(uri.as_str(), format!("duckdb://artifact/{artifact_id}"));
+        assert_eq!(parse_artifact_uri(uri.as_str()), Some(artifact_id));
     }
 }

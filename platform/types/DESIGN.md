@@ -17,7 +17,7 @@
 
 `veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
 `Sha256Digest`, and `Sha256DigestError`. `ResourceUriParts`, `ResourceUriBuilder`,
-`UriSegment`, and `ResourceUriError` implement concrete component handling.
+`UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
 Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
 `DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
@@ -96,12 +96,17 @@ The authority holds an unescaped declared name or ID. Dynamic text that requires
 encoding belongs in the path or query. The URL library's opaque-host parser permits
 malformed percent escapes, so the resource profile rejects escapes in the authority.
 
-`ResourceUriBuilder` starts from a declared route and appends decoded `UriSegment`
+`ResourceUriBuilder` starts from a declared route or typed scheme and `UriAuthority`,
+then appends decoded `UriSegment`
 values through the URL path setter. A segment rejects empty text, dot-only relative
 components, and controls. The percent-encoding library escapes the non-URL ASCII
 characters that the custom-scheme setter leaves literal. Query pairs use the URL
 serializer and require unique nonempty names. Bases cannot already carry a query.
 `build` validates the resulting concrete profile before returning a wire reference.
+`from_components` uses URL setters for dynamic schemes and authorities. It selects a
+fixed base for the URL standard's special schemes because those setters cannot cross
+between special and ordinary schemes. An authority that needs normalization for the
+chosen scheme is rejected. Component helpers contain no domain vocabulary.
 
 Domain constructors expose their specific ID types and convert them to segments at
 this serialization step. `UriSegment` is an encoding helper and cannot establish a

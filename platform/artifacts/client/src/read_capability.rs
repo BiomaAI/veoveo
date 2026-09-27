@@ -118,7 +118,8 @@ impl HttpArtifactPlane {
                 }
             }
         };
-        if metadata.artifact_id != artifact_id || metadata.artifact_uri != artifact_id.plane_uri() {
+        if metadata.artifact_id() != artifact_id || metadata.artifact_uri != artifact_id.plane_uri()
+        {
             return Err(ArtifactPlaneError::Transport(
                 "artifact metadata identity does not match the requested occurrence".into(),
             ));

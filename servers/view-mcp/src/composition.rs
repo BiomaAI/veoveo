@@ -175,8 +175,12 @@ async fn resolve_artifact_input(
     if let Some(bytes) = cache.get(&input.input_id) {
         return Ok(bytes.0.clone());
     }
+    let artifact_uri = input
+        .resource_uri
+        .artifact()
+        .ok_or_else(|| anyhow::anyhow!("scene input does not address an Artifact occurrence"))?;
     let object = artifacts
-        .resolve(caller, input.resource_uri.as_str())
+        .resolve(caller, &artifact_uri)
         .await
         .map_err(|error| anyhow::anyhow!("artifact resolution failed: {error}"))?;
     anyhow::ensure!(

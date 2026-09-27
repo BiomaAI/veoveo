@@ -112,6 +112,16 @@ components. `MapMetadataCursor` validates its version-1 envelope and typed posit
 then checks the collection and parent again when resumed. Serialization emits a hex
 string. A cursor grants no access; every page applies current database visibility.
 
+Artifact references in releases, raster products and derivations, publications,
+layer products, compositions, and travel-model outputs use the Artifact owner's
+[`ArtifactUri`](../../platform/artifacts/contract/DESIGN.md#wire-and-construction).
+Release and raster validators require the neutral plane variant. Publication and
+product Store inputs preserve that type until driver serialization. Stored JSON keeps
+the same string fields; the Artifact owner's compatibility profile defines admission
+and retained-data handling. These types confer no access to bytes or parent records.
+Retained Map documents must also pass their domain validators before an upgrade;
+these enforce the neutral-only rule beyond the shared Artifact address profile.
+
 Map's library still depends on the server runtime. Contract-only feature isolation,
 remaining resource families, and typed Store query keys are work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).

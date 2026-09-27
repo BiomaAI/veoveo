@@ -149,7 +149,7 @@ pub struct CompleteArtifactUpload {
 pub struct ArtifactUploadReceipt {
     pub upload_id: ArtifactUploadId,
     pub artifact_id: ArtifactId,
-    pub artifact_uri: String,
+    pub artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub sha256: UploadSha256,
     pub byte_len: u64,
     pub mime_type: String,

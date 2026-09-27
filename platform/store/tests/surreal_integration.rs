@@ -191,7 +191,7 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         layer_key: layer_key.clone(),
         layer_revision: 1,
         format: "geojson_seq".to_owned(),
-        artifact_uri: format!("artifact://artifact-{}", Uuid::now_v7()),
+        artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
         mime_type: "application/geo+json-seq".to_owned(),
         digest_sha256: "d".repeat(64),
         size_bytes: 128,

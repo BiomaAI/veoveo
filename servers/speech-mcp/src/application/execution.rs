@@ -119,11 +119,11 @@ impl SpeechService {
         };
         let download = self
             .artifacts
-            .download_with_authority(authority, request.source.artifact_id)
+            .download_with_authority(authority, request.source.artifact_id())
             .await?;
         validate_source(&download.metadata)?;
         ensure!(
-            download.metadata.artifact_id == request.source.artifact_id
+            download.metadata.artifact_id() == request.source.artifact_id()
                 && download.metadata.byte_len == request.source.byte_len,
             "source identity changed"
         );
@@ -191,7 +191,7 @@ impl SpeechService {
         // The read capability rechecks current source access before output publication.
         let current = self
             .artifacts
-            .read_metadata(authority, source.artifact_id)
+            .read_metadata(authority, source.artifact_id())
             .await?;
         self.tasks.renew_lease(task, LEASE).await?;
         self.publish(

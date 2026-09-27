@@ -4,11 +4,12 @@
 
 | Standard or format | Supported profile |
 |---|---|
-| UUID, RFC 9562 | UUID 1.25.0 parses occurrence identities; admission checks the version field equals 7 without a separate variant check. Serialization uses lowercase hyphenated form. `ArtifactId::new` generates a v7 identity using the system clock and entropy. |
+| UUID, RFC 9562 | UUID 1.25.0 parses occurrence identities; admission requires version 7 and the RFC variant. Serialization uses lowercase hyphenated form. `ArtifactId::new` generates a v7 identity using the system clock and entropy. |
 | JSON | Serde string identities and structured metadata; constructors validate nested identity fields during deserialization |
 | JSON Schema 2020-12 | Schemars schemas for public identity, metadata, compliance, provenance, and release-state values; provenance uses mode-specific alternatives with required attribution identities |
 | RFC 3339 timestamps | Chrono 0.4.45 date/time values with Serde support; this crate excludes Chrono's clock feature |
 | Veoveo Artifact addresses | Neutral `artifact://{id}` occurrences and server presentations such as `media://artifact/{id}` |
+| [Veoveo concrete resource profile](../../types/DESIGN.md#concrete-resource-components) | URL 2.5.8 parses components and builds addresses; Artifact addresses exclude escapes, queries, fragments, credentials, ports, templates, and additional path segments |
 
 ## Ownership And Dependencies
 
@@ -33,7 +34,7 @@ Artifact service continues to enforce current tenant, context, clearance, and gr
 
 ## Wire And Construction
 
-`ArtifactId` parses the UUID library's supported textual spellings, checks the version field,
+`ArtifactId` parses the UUID library's supported textual spellings, checks version and variant,
 and emits the lowercase hyphenated identity. A content hash never identifies an
 occurrence. `ArtifactIdError` describes the required version without echoing input.
 
@@ -49,12 +50,50 @@ Services establish the truth of those claims; typed construction grants no autho
 byte vectors and metadata without transport machinery. A streaming transport may
 use its own declared streaming interface.
 
-URI presentation helpers currently return strings. Their parser recognizes the
-neutral occurrence and server-presented forms; it is not a general URI validator.
-`artifact_uri` and optional `download_url` remain string fields. Typed address and
-builder adoption, including admission of existing UUID spellings and variant validation, is explicit work
-in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+`ArtifactUri` owns a validated wire reference and its parsed `ArtifactAddress` variant.
+`plane(ArtifactId)` constructs a neutral address; `presented(&ResourceScheme, ArtifactId)`
+constructs a server presentation. Both use the foundation's typed authority and path
+builder. A new server supplies its own scheme without changing this library or MCP core.
+`ResourceAddress` parsing returns the same typed model. A presentation identifies an
+occurrence; it never directs the Artifact client to fetch from that URI's host.
 The server's scheme and metadata confer no permission to read the occurrence.
+
+`ArtifactMetadata::artifact_id()` derives the occurrence from its typed `artifact_uri`.
+Serialization emits the public `artifact_id` field, and decoding verifies that it
+agrees with the URI. Internally there is one identity source. The HTTP client and
+service resolution interfaces require `ArtifactUri`; strings enter at HTTP and JSON
+decoding. `TryFrom<Uuid>` checks version and variant when a driver provides a UUID.
+Optional `download_url` typing and remaining access/service contracts are work in the
+[foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
+## Address And Identity Compatibility
+
+The 0.1.x metadata profile keeps its field names and string representations. Generated
+URIs use lowercase hyphenated UUIDs. The parser preserves accepted input spelling,
+including uppercase and simple UUID forms in neutral or presented addresses and
+`urn:uuid:` inside a presentation's path segment. Standalone occurrence IDs also
+accept the UUID library's braced and URN spellings. Those spellings are not valid
+neutral URI authorities. Encoded aliases and braced URI templates are rejected.
+
+Readers compare occurrence identities through `artifact_id()` and resource spelling
+through `ArtifactUri` equality. The download client additionally requires the Artifact
+service's canonical neutral metadata address. JSON schemas describe string references;
+domain decoding enforces the route, UUID, and cross-field relationship requirements.
+
+The Artifact owner supports mixed 0.1.x readers and writers for these valid metadata
+forms. No wire conversion or drain is required for service-generated occurrences,
+which already use RFC-variant UUIDv7 identities and the neutral URI builder's spelling.
+The private metadata wire adapter stays for the lifetime of this public profile;
+removing its repeated ID requires a separately versioned metadata protocol.
+
+The coordinated foundations upgrade rejects previously permissive malformed URI
+input, non-RFC UUID variants, and contradictory ID/URI pairs. Producers must use the
+actual occurrence's returned identity and a supported address form. Before an upgrade
+over retained data, operators must validate stored references with these decoders and
+investigate rejected rows. Do not mint replacement IDs or reinterpret a contradictory
+pair. This change performs no persistent rewrite; repair requires an explicit owner
+decision and recoverable data procedure. Rollback reads unchanged valid records.
+Reference-installation rebuild and installed consumers still require qualification.
 
 ## Attribution Wire Compatibility
 
@@ -94,7 +133,10 @@ that public profile is supported; removal requires a versioned metadata protocol
 
 Tests compare the five public schemas with the captured contract fixture, check
 UUID admission and canonical serialization, round-trip nested metadata, and reject
-invalid nested identities. URI and presentation tests belong here with their types.
+invalid nested identities. URI tests cover independent and standard schemes, accepted
+UUID spellings, version/variant admission, malformed components, input-free errors,
+and metadata identity agreement. Compile-fail cases reject raw or unrelated IDs and
+unvalidated schemes. A previous metadata schema qualifies valid 0.1.x output.
 An independently resolved consumer must exclude service and adapter dependencies.
 MCP and service tests qualify authorization and transport behavior separately.
 Attribution checks cover schema/decoder agreement for all mode and identity-presence

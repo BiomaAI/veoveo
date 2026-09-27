@@ -81,15 +81,27 @@ preserves valid flat metadata while both decoding and schemas enforce mode-speci
 identity requirements. Tests cover 196 field combinations, existing 0.1.x wire forms,
 a compile-time incomplete-delegation rejection, and publication/readback through memory
 and separate SurrealDB 3.2.4 connections. The fixture database is cleaned up after the check.
-Native Artifact-contract, Speech-contract, and MCP suites pass 172 cases. Artifact
-service/MCP, Map, gateway, policy, and Time library suites pass 280 cases. Thirteen
-native database cases are ignored in that library command; the new attribution case
-passes separately, while the other twelve are not counted as acceptance. Strict workspace
-Clippy and Rustdoc pass. External dependency versions, sources, and checksums are unchanged.
-Map's contract still depends on MCP for `CrsId`. Artifact URI fields/builders, UUID
-variant admission, and remaining service interfaces need further work. These model
-changes preserve valid persisted representations and current authorization rules;
-reference installation qualification is pending.
+Artifact occurrence IDs now require RFC-variant UUIDv7 values. The Artifact owner supplies
+neutral and server-presented `ArtifactUri` variants through foundational component builders.
+Metadata derives its internal ID from that URI, checks repeated wire identity, and keeps
+valid 0.1.x JSON fields. Resolution interfaces, Map artifact references and publication/product
+Store inputs, Optimization model inputs, and Speech source references use the typed address.
+Foundation, Artifact, Speech-contract, and MCP suites pass 215 cases, including URI/UUID
+admission, schema compatibility, and compile-fail examples. Migrated consumer libraries pass
+302 cases, including Artifact HTTP resolution and malformed-input rejection. Thirteen database
+cases are ignored in that library command; Artifact publication/readback through separate
+SurrealDB connections passes separately, and the other twelve are not counted as acceptance.
+Map's two native Store cases pass with typed Artifact projection inputs and SQL visibility
+before limits. The separately resolved Artifact/Speech consumer passes five checks and excludes
+MCP, runtime, database, GPU, and provider dependencies. An additional Map regression
+rejects server presentations in all three neutral-only release reference fields. Strict
+workspace Clippy and Rustdoc pass.
+External dependency versions, sources, and checksums are unchanged. Cleanup removed 37
+superseded test executables and reclaimed 28.7 GiB; build caches and Docker images were preserved.
+Map's contract still depends on MCP for `CrsId`. Download URL typing, other URI families,
+and remaining service interfaces need further work. These model changes preserve valid
+persisted representations and current authorization rules; reference installation qualification
+is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -522,7 +534,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
 | Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; independent consumer implementations and compile-fail cases pass | Consume them in MCP-specific setup and qualify an independent hosted fixture |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
-| Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
+| Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity and Artifact metadata come from lightweight owning crates, while `CrsId` still pulls in the runtime-bearing MCP crate | Resolve the coordinate contract with its owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
@@ -531,8 +543,9 @@ default owner; the inventory must not become a central domain-type registry.
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
-| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Adopt typed Artifact URI fields and builders, preserving declared wire profiles; separate remaining access and service request contracts |
-| Artifact identity and URI admission | `ArtifactId` checks the UUID version field without validating its variant; occurrence parsing accepts the UUID library's alternative text forms; URI helpers still assemble strings and do not validate server-scheme syntax | Define and qualify the accepted UUID and URI profiles, require the RFC variant at public ID admission, and declare handling of any persisted out-of-profile identities before narrowing decoding |
+| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |
+| Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Contract, HTTP, native Store, independent-consumer, and strict workspace Clippy checks pass; qualify installed consumption; retain the documented preflight and recovery requirements for existing data |
+| Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
 | DuckDB, Frames, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |

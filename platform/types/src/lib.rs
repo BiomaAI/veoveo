@@ -34,7 +34,9 @@ pub use digest::{Sha256Digest, Sha256DigestError};
 pub use error::IdentifierError;
 pub use names::{ResourceScheme, ScopeDefinition, ScopeName};
 pub use resource::{ResourceAddress, ResourceUri};
-pub use resource_components::{ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriSegment};
+pub use resource_components::{
+    ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriAuthority, UriSegment,
+};
 
 pub use identity::{
     AccessSubject, DataLabelId, DelegationId, GroupId, PolicyVersion, PrincipalId, RoleId,

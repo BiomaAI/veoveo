@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use veoveo_artifact_contract::parse_artifact_plane_uri;
+use veoveo_artifact_contract::ArtifactAddress;
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use super::{
@@ -303,7 +303,7 @@ pub struct RasterProduct {
     pub raster_id: RasterProductId,
     pub source_id: MapSourceId,
     pub release_id: DatasetReleaseId,
-    pub artifact_uri: String,
+    pub artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub checksum_sha256: String,
     pub crs: String,
     /// GDAL geotransform `[origin_x, pixel_width, row_rotation,
@@ -332,8 +332,7 @@ impl RasterProduct {
             || self.resolution.iter().any(|value| !value.is_finite())
             || self.resolution.iter().any(|value| *value <= 0.0)
             || !valid_transform(&self.transform)
-            || !self.artifact_uri.starts_with("artifact://")
-            || parse_artifact_plane_uri(&self.artifact_uri).is_none()
+            || !matches!(self.artifact_uri.address(), ArtifactAddress::Plane(_))
         {
             return Err(SourceProductError::InvalidRaster);
         }
@@ -522,7 +521,7 @@ pub struct RasterDerivation {
     pub source_transform: [f64; 6],
     pub operation: RasterDerivationOperation,
     pub algorithm_revision: String,
-    pub output_artifact_uri: String,
+    pub output_artifact_uri: veoveo_artifact_contract::ArtifactUri,
     pub output_mime_type: String,
     pub output_crs: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -548,8 +547,10 @@ impl RasterDerivation {
             || self
                 .output_transform
                 .is_some_and(|transform| !valid_transform(&transform))
-            || !self.output_artifact_uri.starts_with("artifact://")
-            || parse_artifact_plane_uri(&self.output_artifact_uri).is_none()
+            || !matches!(
+                self.output_artifact_uri.address(),
+                ArtifactAddress::Plane(_)
+            )
         {
             return Err(SourceProductError::InvalidRaster);
         }

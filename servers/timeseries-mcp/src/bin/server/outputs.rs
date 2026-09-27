@@ -45,7 +45,7 @@ pub(super) async fn forecast_result(
     let public_metadata = metadata
         .clone()
         .without_download_url()
-        .presented_under_scheme("timeseries");
+        .presented_under_scheme(&veoveo_timeseries_mcp::uris::SCHEME);
     let result_uri = TimeseriesArtifactUri::parse(public_metadata.artifact_uri.clone())?;
     let mut blocks = vec![ContentBlock::text(forecast_status(&artifact.summary))];
     blocks.push(ContentBlock::ResourceLink(

@@ -2,8 +2,13 @@ use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `ServerResourceUris::new("timeseries")`; a unit test below pins that
+/// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins that
 /// equivalence.
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("timeseries").expect("declared server resource scheme")
+    });
+
 pub const DOCS_URI: &str = "timeseries://docs";
 pub const CONTRACT_URI: &str = "timeseries://contract";
 pub const DOC_TEMPLATE: &str = "timeseries://docs/{doc_id}";
@@ -17,7 +22,7 @@ pub const USAGE_INDEX_TEMPLATE: &str = "timeseries://usage{?cursor}";
 pub const USAGE_TASK_TEMPLATE: &str = "timeseries://usage/task/{task_id}";
 
 fn timeseries_uris() -> ServerResourceUris {
-    ServerResourceUris::new("timeseries")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
 pub fn doc_uri(doc_id: &str) -> String {
@@ -28,7 +33,7 @@ pub fn parse_doc(uri: &str) -> Option<&str> {
     veoveo_mcp_contract::parse_server_doc_uri("timeseries", uri)
 }
 
-pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     timeseries_uris().artifact_uri(artifact_id)
 }
 
@@ -52,8 +57,8 @@ mod tests {
     fn artifact_uri_round_trips() {
         let artifact_id = ArtifactId::new();
         let uri = artifact_uri(artifact_id);
-        assert_eq!(uri, format!("timeseries://artifact/{artifact_id}"));
-        assert_eq!(parse_artifact_uri(&uri), Some(artifact_id));
+        assert_eq!(uri.as_str(), format!("timeseries://artifact/{artifact_id}"));
+        assert_eq!(parse_artifact_uri(uri.as_str()), Some(artifact_id));
         assert_eq!(parse_artifact_uri("timeseries://artifact/nope"), None);
     }
 

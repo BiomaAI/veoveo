@@ -536,9 +536,11 @@ async fn resolve_grounding(
 }
 
 fn grounding_artifact_id(uri: &str) -> Result<ArtifactId> {
-    ServerResourceUris::new("stream")
-        .parse_artifact_uri(uri)
-        .context("grounding results_artifact_uri must match stream://artifact/{artifact_id}")
+    ServerResourceUris::new(
+        veoveo_types::ResourceScheme::new("stream").expect("declared resource scheme"),
+    )
+    .parse_artifact_uri(uri)
+    .context("grounding results_artifact_uri must match stream://artifact/{artifact_id}")
 }
 
 pub(super) async fn completed_payload(

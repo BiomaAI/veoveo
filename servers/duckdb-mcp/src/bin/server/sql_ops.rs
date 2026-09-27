@@ -499,7 +499,7 @@ async fn materialize_source(
                     McpError::invalid_params(format!("artifact source: {err}"), None)
                 })?;
             let exchange = exchange.to_path_buf();
-            let filename = format!("artifact-{}", object.metadata.artifact_id);
+            let filename = format!("artifact-{}", object.metadata.artifact_id());
             let bytes = object.bytes;
             let max_bytes = state.source_policy.max_bytes;
             let path = tokio::task::spawn_blocking(move || {

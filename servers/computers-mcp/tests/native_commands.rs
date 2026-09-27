@@ -487,7 +487,12 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
         (result.stderr, b"native-stderr".as_slice()),
     ] {
         let artifact = plane
-            .resolve(&caller, &format!("artifact://{}", output.artifact_id))
+            .resolve(
+                &caller,
+                &veoveo_artifact_contract::ArtifactId::try_from(output.artifact_id)
+                    .unwrap()
+                    .plane_uri(),
+            )
             .await
             .unwrap();
         assert_eq!(artifact.bytes, expected);

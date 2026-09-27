@@ -1,14 +1,15 @@
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_artifact_contract::ArtifactUri;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    ArtifactUri, CapacityDimensionId, FiniteF64, LocationId, MAX_CAPACITY_DIMENSIONS,
-    MAX_INLINE_MATRIX_CELLS, MAX_OBJECTIVES, MAX_ROUTE_CASES, MapTravelModelUri, NonNegativeF64,
-    OptimizationContractError, OptimizationProblemUri, OptimizationSolutionUri, OrderId,
-    PositiveF64, ROUTING_PROBLEM_VERSION, RouteCaseId, SolverPolicyRef, TimeBasis, TimeWindow,
-    VehicleId, VehicleTypeId, require_collection,
+    CapacityDimensionId, FiniteF64, LocationId, MAX_CAPACITY_DIMENSIONS, MAX_INLINE_MATRIX_CELLS,
+    MAX_OBJECTIVES, MAX_ROUTE_CASES, MapTravelModelUri, NonNegativeF64, OptimizationContractError,
+    OptimizationProblemUri, OptimizationSolutionUri, OrderId, PositiveF64, ROUTING_PROBLEM_VERSION,
+    RouteCaseId, SolverPolicyRef, TimeBasis, TimeWindow, VehicleId, VehicleTypeId,
+    require_collection,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

@@ -220,8 +220,12 @@ impl GovernedResourceUri {
         &self.0
     }
 
+    pub fn artifact(&self) -> Option<veoveo_artifact_contract::ArtifactUri> {
+        veoveo_artifact_contract::ArtifactUri::parse(&self.0).ok()
+    }
+
     pub fn is_artifact(&self) -> bool {
-        parse_artifact_plane_uri(&self.0).is_some()
+        self.artifact().is_some()
     }
 }
 
@@ -1061,7 +1065,7 @@ mod tests {
             style_id: SceneStyleId::new("default:1").unwrap(),
             governed_inputs: vec![input(
                 "geometry",
-                &artifact_id.plane_uri(),
+                artifact_id.plane_uri().as_str(),
                 Some("application/json"),
             )],
             overlays: vec![SceneOverlay {

@@ -11,7 +11,7 @@ use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState,
-    ComplianceMetadata, parse_artifact_plane_uri,
+    ComplianceMetadata,
 };
 use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessRequest, Grant, decide};
 use veoveo_mcp_contract::{
@@ -178,7 +178,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
             Some(Self::actor(caller)?),
             Some(stored.tenant.clone()),
             action,
-            Some(stored.metadata.artifact_id),
+            Some(stored.metadata.artifact_id()),
             if decision.is_allowed() {
                 AuditOutcome::Allowed
             } else {
@@ -353,7 +353,6 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
         object_key: String,
     ) -> Result<StoredArtifact, ArtifactPlaneError> {
         let metadata = ArtifactMetadata {
-            artifact_id,
             byte_len,
             mime_type: request.mime_type.clone(),
             filename: request.filename.clone(),
@@ -745,7 +744,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             let exhausted = candidates.len() < LIST_SCAN_BATCH;
             let previous_cursor = scan_cursor;
             for stored in candidates {
-                scan_cursor = Some(stored.metadata.artifact_id);
+                scan_cursor = Some(stored.metadata.artifact_id());
                 let retained = stored
                     .metadata
                     .compliance
@@ -786,7 +785,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
             artifacts
                 .last()
                 .expect("full page has a last artifact")
-                .artifact_id
+                .artifact_id()
         });
         Ok(ArtifactPage {
             artifacts,
@@ -797,11 +796,9 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactPlane for ArtifactService<R, S
     async fn resolve(
         &self,
         caller: &PlaneCaller,
-        uri: &str,
+        uri: &veoveo_artifact_contract::ArtifactUri,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
-        let artifact_id = parse_artifact_plane_uri(uri).ok_or_else(|| {
-            ArtifactPlaneError::InvalidRequest(format!("invalid artifact URI `{uri}`"))
-        })?;
+        let artifact_id = uri.artifact_id();
         self.get(caller, &artifact_id, AccessLevel::Read).await
     }
 
@@ -1381,12 +1378,12 @@ mod tests {
             .put(&alice, PutArtifactRequest::default(), b"same".to_vec())
             .await
             .unwrap();
-        assert_ne!(first.artifact_id, second.artifact_id);
-        assert_eq!(first.artifact_uri, first.artifact_id.plane_uri());
+        assert_ne!(first.artifact_id(), second.artifact_id());
+        assert_eq!(first.artifact_uri, first.artifact_id().plane_uri());
         assert_eq!(first.download_url, None);
         assert_eq!(
             service
-                .get(&alice, &first.artifact_id, AccessLevel::Read)
+                .get(&alice, &first.artifact_id(), AccessLevel::Read)
                 .await
                 .unwrap()
                 .bytes,
@@ -1396,7 +1393,7 @@ mod tests {
         let other_tenant = caller("alice", "beta", &[]);
         assert_eq!(
             service
-                .get(&other_tenant, &first.artifact_id, AccessLevel::Read)
+                .get(&other_tenant, &first.artifact_id(), AccessLevel::Read)
                 .await,
             Err(ArtifactPlaneError::Denied(AccessDecision::DenyTenant))
         );
@@ -1413,7 +1410,7 @@ mod tests {
             .await
             .unwrap();
         let download = service
-            .download(&alice, artifact.artifact_id, None, DownloadBody::Include)
+            .download(&alice, artifact.artifact_id(), None, DownloadBody::Include)
             .await
             .unwrap();
         assert_eq!(download.metadata, artifact);
@@ -1552,7 +1549,7 @@ mod tests {
         service
             .grant(
                 &alice,
-                &first.artifact_id,
+                &first.artifact_id(),
                 AccessSubject::Principal(bob.identity.actor.id.clone()),
                 AccessLevel::Read,
             )
@@ -1566,9 +1563,9 @@ mod tests {
             bob_page
                 .artifacts
                 .iter()
-                .map(|artifact| artifact.artifact_id)
+                .map(|artifact| artifact.artifact_id())
                 .collect::<Vec<_>>(),
-            vec![first.artifact_id]
+            vec![first.artifact_id()]
         );
 
         let first_page = service
@@ -1598,11 +1595,15 @@ mod tests {
             .artifacts
             .iter()
             .chain(&second_page.artifacts)
-            .map(|artifact| artifact.artifact_id)
+            .map(|artifact| artifact.artifact_id())
             .collect::<BTreeSet<_>>();
         assert_eq!(
             all,
-            BTreeSet::from([first.artifact_id, second.artifact_id, third.artifact_id])
+            BTreeSet::from([
+                first.artifact_id(),
+                second.artifact_id(),
+                third.artifact_id()
+            ])
         );
     }
 
@@ -1692,7 +1693,7 @@ mod tests {
             .redeem_write_capability(issued.secret.expose_secret(), request, b"data".to_vec())
             .await
             .unwrap();
-        assert_eq!(retry.artifact_id, metadata.artifact_id);
+        assert_eq!(retry.artifact_id(), metadata.artifact_id());
 
         let exhausted = RedeemArtifactWriteCapabilityRequest {
             capability_id: issued.capability_id,
@@ -1777,12 +1778,12 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(recovered.artifact_id, staged.metadata.artifact_id);
+        assert_eq!(recovered.artifact_id(), staged.metadata.artifact_id());
         let response_lost_retry = service
             .redeem_write_capability(issued.secret.expose_secret(), request, b"MORE".to_vec())
             .await
             .unwrap();
-        assert_eq!(response_lost_retry.artifact_id, recovered.artifact_id);
+        assert_eq!(response_lost_retry.artifact_id(), recovered.artifact_id());
     }
 
     #[tokio::test]
@@ -1848,7 +1849,7 @@ mod tests {
                 .store
                 .get_bounded(
                     &repository
-                        .get_artifact(completed.artifact_id)
+                        .get_artifact(completed.artifact_id())
                         .await
                         .unwrap()
                         .unwrap()
@@ -1877,7 +1878,7 @@ mod tests {
             service
                 .create_share_link(
                     &alice,
-                    &metadata.artifact_id,
+                    &metadata.artifact_id(),
                     CreateArtifactShareLinkRequest::default(),
                 )
                 .await,
@@ -1886,7 +1887,7 @@ mod tests {
         service
             .set_release_state(
                 &alice,
-                &metadata.artifact_id,
+                &metadata.artifact_id(),
                 ArtifactReleaseState::Releasable,
             )
             .await
@@ -1894,7 +1895,7 @@ mod tests {
         let link = service
             .create_share_link(
                 &alice,
-                &metadata.artifact_id,
+                &metadata.artifact_id(),
                 CreateArtifactShareLinkRequest {
                     expires_at: None,
                     max_downloads: NonZeroU64::new(1),
@@ -1907,7 +1908,7 @@ mod tests {
             .redeem_public_share(token, None, DownloadBody::Include)
             .await
             .unwrap();
-        assert_eq!(first.metadata.artifact_id, metadata.artifact_id);
+        assert_eq!(first.metadata.artifact_id(), metadata.artifact_id());
         assert!(matches!(
             service
                 .redeem_public_share(token, None, DownloadBody::Include)
@@ -1918,14 +1919,14 @@ mod tests {
         let revocable = service
             .create_share_link(
                 &alice,
-                &metadata.artifact_id,
+                &metadata.artifact_id(),
                 CreateArtifactShareLinkRequest::default(),
             )
             .await
             .unwrap();
         let token = revocable.url.rsplit('/').next().unwrap().to_owned();
         service
-            .revoke_share_link(&alice, &metadata.artifact_id, &revocable.link_id)
+            .revoke_share_link(&alice, &metadata.artifact_id(), &revocable.link_id)
             .await
             .unwrap();
         assert!(matches!(
@@ -1949,7 +1950,7 @@ mod tests {
             service
                 .grant(
                     &alice,
-                    &artifact.artifact_id,
+                    &artifact.artifact_id(),
                     owner.clone(),
                     AccessLevel::Read
                 )
@@ -1957,7 +1958,9 @@ mod tests {
             Err(ArtifactPlaneError::Conflict(_))
         ));
         assert!(matches!(
-            service.revoke(&alice, &artifact.artifact_id, &owner).await,
+            service
+                .revoke(&alice, &artifact.artifact_id(), &owner)
+                .await,
             Err(ArtifactPlaneError::Conflict(_))
         ));
     }
@@ -1985,7 +1988,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             service
-                .get(&bob, &artifact.artifact_id, AccessLevel::Read)
+                .get(&bob, &artifact.artifact_id(), AccessLevel::Read)
                 .await,
             Err(ArtifactPlaneError::Denied(AccessDecision::DenyNeedToKnow))
         );
@@ -1993,7 +1996,7 @@ mod tests {
         let requested = service
             .create_access_request(
                 &bob,
-                &artifact.artifact_id,
+                &artifact.artifact_id(),
                 CreateArtifactAccessRequest {
                     requested_level: AccessLevel::Read,
                     justification: "Required for the assigned review.".into(),
@@ -2040,7 +2043,7 @@ mod tests {
         assert_eq!(approved.state, ArtifactAccessRequestState::Approved);
         assert_eq!(
             service
-                .get(&bob, &artifact.artifact_id, AccessLevel::Read)
+                .get(&bob, &artifact.artifact_id(), AccessLevel::Read)
                 .await
                 .unwrap()
                 .bytes,
@@ -2053,7 +2056,7 @@ mod tests {
             service
                 .create_access_request(
                     &no_clearance,
-                    &artifact.artifact_id,
+                    &artifact.artifact_id(),
                     CreateArtifactAccessRequest {
                         requested_level: AccessLevel::Read,
                         justification: "Requesting review access.".into(),

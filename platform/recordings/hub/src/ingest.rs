@@ -1243,7 +1243,7 @@ impl RecordingIngestService {
             .commit_recording_layer(
                 identity,
                 layer_id,
-                veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id.as_uuid()),
+                veoveo_platform_store::ArtifactId::from_uuid(metadata.artifact_id().as_uuid()),
             )
             .await?;
         tokio::task::spawn_blocking({

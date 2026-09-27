@@ -2,8 +2,13 @@ use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("stream")`; a unit test below
+/// `veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone())`; a unit test below
 /// pins that equivalence.
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("stream").expect("declared server resource scheme")
+    });
+
 pub const DOCS_URI: &str = "stream://docs";
 pub const CONTRACT_URI: &str = "stream://contract";
 pub const DOC_TEMPLATE: &str = "stream://docs/{doc_id}";
@@ -25,7 +30,7 @@ pub const ARTIFACT_TEMPLATE: &str = "stream://artifact/{artifact_id}";
 pub const LIVE_APP_URI: &str = "ui://stream/live.html";
 
 fn server_uris() -> ServerResourceUris {
-    ServerResourceUris::new("stream")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
 pub fn doc_uri(doc_id: &str) -> String {
@@ -98,7 +103,7 @@ pub fn parse_session_preview_uri(uri: &str) -> Option<&str> {
     (!value.is_empty() && !value.contains('/')).then_some(value)
 }
 
-pub fn artifact_uri(id: ArtifactId) -> String {
+pub fn artifact_uri(id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     server_uris().artifact_uri(id)
 }
 

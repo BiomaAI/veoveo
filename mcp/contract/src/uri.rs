@@ -3,7 +3,8 @@ use std::{error::Error, fmt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::{ArtifactAddress, ArtifactId, ArtifactUri};
+use veoveo_types::ResourceScheme;
 
 /// Server URI conventions for MCP resources.
 ///
@@ -11,17 +12,15 @@ use veoveo_artifact_contract::ArtifactId;
 /// domain resources, artifacts, and usage records under that scheme.
 #[derive(Debug, Clone)]
 pub struct ServerResourceUris {
-    scheme: String,
+    scheme: ResourceScheme,
 }
 
 impl ServerResourceUris {
-    pub fn new(scheme: impl Into<String>) -> Self {
-        Self {
-            scheme: scheme.into(),
-        }
+    pub fn new(scheme: ResourceScheme) -> Self {
+        Self { scheme }
     }
 
-    pub fn scheme(&self) -> &str {
+    pub fn scheme(&self) -> &ResourceScheme {
         &self.scheme
     }
 
@@ -64,7 +63,7 @@ impl ServerResourceUris {
 
     /// Parses one document body URI under the server's canonical docs root.
     pub fn parse_doc_uri<'a>(&self, uri: &'a str) -> Option<&'a str> {
-        parse_server_doc_uri(&self.scheme, uri)
+        parse_server_doc_uri(self.scheme.as_str(), uri)
     }
 
     /// The machine-readable contract declaration (contract C19).
@@ -80,8 +79,8 @@ impl ServerResourceUris {
         format!("{}://prediction/{id}", self.scheme)
     }
 
-    pub fn artifact_uri(&self, artifact_id: ArtifactId) -> String {
-        format!("{}://artifact/{artifact_id}", self.scheme)
+    pub fn artifact_uri(&self, artifact_id: ArtifactId) -> ArtifactUri {
+        ArtifactUri::presented(&self.scheme, artifact_id)
     }
 
     pub fn usage_task_uri(&self, task_id: &str) -> String {
@@ -99,8 +98,14 @@ impl ServerResourceUris {
     }
 
     pub fn parse_artifact_uri(&self, uri: &str) -> Option<ArtifactId> {
-        let value = uri.strip_prefix(&format!("{}://artifact/", self.scheme))?;
-        ArtifactId::parse(value).ok()
+        let uri = ArtifactUri::parse(uri).ok()?;
+        match uri.address() {
+            ArtifactAddress::Presented {
+                scheme,
+                artifact_id,
+            } if scheme == &self.scheme => Some(*artifact_id),
+            _ => None,
+        }
     }
 
     pub fn parse_usage_task_uri<'a>(&self, uri: &'a str) -> Option<&'a str> {
@@ -123,29 +128,29 @@ pub fn parse_server_doc_uri<'a>(scheme: &str, uri: &'a str) -> Option<&'a str> {
 #[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ServerResourceUri {
     Models {
-        scheme: String,
+        scheme: ResourceScheme,
     },
     Model {
-        scheme: String,
+        scheme: ResourceScheme,
         model_id: String,
     },
     Prediction {
-        scheme: String,
+        scheme: ResourceScheme,
         id: String,
     },
     Artifact {
-        scheme: String,
+        scheme: ResourceScheme,
         artifact_id: ArtifactId,
     },
     UsageRoot {
-        scheme: String,
+        scheme: ResourceScheme,
     },
     UsageTask {
-        scheme: String,
+        scheme: ResourceScheme,
         task_id: String,
     },
     Other {
-        scheme: String,
+        scheme: ResourceScheme,
         path: String,
     },
 }
@@ -155,14 +160,16 @@ impl ServerResourceUri {
         let (scheme, path) = uri
             .split_once("://")
             .ok_or_else(|| ServerResourceUriError::new(uri, "must include a URI scheme"))?;
-        validate_scheme(scheme)?;
+        let scheme = ResourceScheme::new(scheme).map_err(|_| {
+            ServerResourceUriError::new(uri, "scheme must follow lowercase URI scheme syntax")
+        })?;
         validate_path(uri, path)?;
         Ok(match path {
             "models" => Self::Models {
-                scheme: scheme.to_string(),
+                scheme: scheme.clone(),
             },
             "usage" => Self::UsageRoot {
-                scheme: scheme.to_string(),
+                scheme: scheme.clone(),
             },
             path if path.starts_with("model/") => {
                 let model_id = path.trim_start_matches("model/");
@@ -173,7 +180,7 @@ impl ServerResourceUri {
                     ));
                 }
                 Self::Model {
-                    scheme: scheme.to_string(),
+                    scheme: scheme.clone(),
                     model_id: model_id.to_string(),
                 }
             }
@@ -186,17 +193,18 @@ impl ServerResourceUri {
                     ));
                 }
                 Self::Prediction {
-                    scheme: scheme.to_string(),
+                    scheme: scheme.clone(),
                     id: id.to_string(),
                 }
             }
             path if path.starts_with("artifact/") => {
-                let artifact_id =
-                    ArtifactId::parse(path.trim_start_matches("artifact/")).map_err(|_| {
-                        ServerResourceUriError::new(uri, "artifact id must be a UUIDv7")
-                    })?;
+                let artifact_id = ArtifactUri::parse(uri)
+                    .map_err(|_| {
+                        ServerResourceUriError::new(uri, "invalid Artifact resource address")
+                    })?
+                    .artifact_id();
                 Self::Artifact {
-                    scheme: scheme.to_string(),
+                    scheme: scheme.clone(),
                     artifact_id,
                 }
             }
@@ -209,18 +217,18 @@ impl ServerResourceUri {
                     ));
                 }
                 Self::UsageTask {
-                    scheme: scheme.to_string(),
+                    scheme: scheme.clone(),
                     task_id: task_id.to_string(),
                 }
             }
             path => Self::Other {
-                scheme: scheme.to_string(),
+                scheme: scheme.clone(),
                 path: path.to_string(),
             },
         })
     }
 
-    pub fn scheme(&self) -> &str {
+    pub fn scheme(&self) -> &ResourceScheme {
         match self {
             Self::Models { scheme }
             | Self::Model { scheme, .. }
@@ -267,9 +275,7 @@ impl fmt::Display for ServerResourceUri {
             Self::Artifact {
                 scheme,
                 artifact_id,
-            } => {
-                write!(f, "{scheme}://artifact/{artifact_id}")
-            }
+            } => ArtifactUri::presented(scheme, *artifact_id).fmt(f),
             Self::UsageRoot { scheme } => write!(f, "{scheme}://usage"),
             Self::UsageTask { scheme, task_id } => write!(f, "{scheme}://usage/task/{task_id}"),
             Self::Other { scheme, path } => write!(f, "{scheme}://{path}"),
@@ -299,27 +305,6 @@ impl fmt::Display for ServerResourceUriError {
 }
 
 impl Error for ServerResourceUriError {}
-
-fn validate_scheme(scheme: &str) -> Result<(), ServerResourceUriError> {
-    let mut bytes = scheme.bytes();
-    let Some(first) = bytes.next() else {
-        return Err(ServerResourceUriError::new(
-            scheme,
-            "scheme must not be empty",
-        ));
-    };
-    if !first.is_ascii_lowercase()
-        || !bytes.all(|b| {
-            b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'+' || b == b'-' || b == b'.'
-        })
-    {
-        return Err(ServerResourceUriError::new(
-            scheme,
-            "scheme must follow lowercase URI scheme syntax",
-        ));
-    }
-    Ok(())
-}
 
 fn validate_path(uri: &str, path: &str) -> Result<(), ServerResourceUriError> {
     if path.is_empty() || path.chars().any(|c| c.is_control() || c.is_whitespace()) {
@@ -353,7 +338,9 @@ mod tests {
 
     #[test]
     fn server_resource_uri_conventions_round_trip() {
-        let uris = ServerResourceUris::new("example");
+        let uris = ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new("example").expect("declared resource scheme"),
+        );
         assert_eq!(uris.models_uri(), "example://models");
         assert_eq!(uris.model_template(), "example://model/{model_id}");
         assert_eq!(uris.prediction_template(), "example://prediction/{id}");
@@ -382,11 +369,11 @@ mod tests {
 
         let artifact_id = ArtifactId::new();
         assert_eq!(
-            uris.artifact_uri(artifact_id),
+            uris.artifact_uri(artifact_id).as_str(),
             format!("example://artifact/{artifact_id}")
         );
         assert_eq!(
-            uris.parse_artifact_uri(&uris.artifact_uri(artifact_id)),
+            uris.parse_artifact_uri(uris.artifact_uri(artifact_id).as_str()),
             Some(artifact_id)
         );
         assert_eq!(
@@ -406,13 +393,13 @@ mod tests {
         assert_eq!(
             ServerResourceUri::parse("media://models").unwrap(),
             ServerResourceUri::Models {
-                scheme: "media".into()
+                scheme: ResourceScheme::new("media").unwrap()
             }
         );
         assert_eq!(
             ServerResourceUri::parse("media://model/provider/model").unwrap(),
             ServerResourceUri::Model {
-                scheme: "media".into(),
+                scheme: ResourceScheme::new("media").unwrap(),
                 model_id: "provider/model".into()
             }
         );
@@ -431,7 +418,7 @@ mod tests {
         assert_eq!(
             ServerResourceUri::parse("media://custom/path").unwrap(),
             ServerResourceUri::Other {
-                scheme: "media".into(),
+                scheme: ResourceScheme::new("media").unwrap(),
                 path: "custom/path".into()
             }
         );

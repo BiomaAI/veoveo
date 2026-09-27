@@ -70,7 +70,7 @@ async fn output_floor_survives_omitted_labels_and_changed_presentation_classific
             )
             .await
             .unwrap();
-        assert_eq!(retry.artifact_id, artifact.artifact_id);
+        assert_eq!(retry.artifact_id(), artifact.artifact_id());
         assert_eq!(
             artifact.compliance.owner,
             Some(original.output_policy.owner.clone())
@@ -79,7 +79,7 @@ async fn output_floor_survives_omitted_labels_and_changed_presentation_classific
             service
                 .download(
                     &caller("alice", "acme", &[]),
-                    artifact.artifact_id,
+                    artifact.artifact_id(),
                     None,
                     DownloadBody::Include
                 )
@@ -150,7 +150,7 @@ async fn inherited_output_labels_persist_across_independent_native_service_insta
         )
         .await
         .unwrap();
-    assert_eq!(artifact.artifact_id, retry.artifact_id);
+    assert_eq!(artifact.artifact_id(), retry.artifact_id());
     let row = veoveo_platform_store::ArtifactWriteCapabilityId::from_uuid(
         capability.capability_id.as_uuid(),
     )

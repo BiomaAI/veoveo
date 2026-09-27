@@ -249,7 +249,7 @@ async fn store_bytes_artifact(
         )
         .await?
         .without_download_url()
-        .presented_under_scheme("optimization"))
+        .presented_under_scheme(&veoveo_optimization_mcp::uris::SCHEME))
 }
 
 fn json_link(uri: &str, title: String, description: &str) -> ContentBlock {

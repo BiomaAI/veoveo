@@ -285,7 +285,7 @@ impl LayerCache {
                 .read_metadata(authority, artifact_id)
                 .await?;
             ensure!(
-                metadata.artifact_id == artifact_id
+                metadata.artifact_id() == artifact_id
                     && metadata.artifact_uri == artifact_id.plane_uri()
                     && metadata.byte_len == expected_byte_len,
                 "Artifact metadata does not match the cached recording layer"
@@ -499,7 +499,7 @@ impl LayerCache {
             .download_with_authority(authority, artifact_id)
             .await?;
         ensure!(
-            download.metadata.artifact_id == artifact_id
+            download.metadata.artifact_id() == artifact_id
                 && download.metadata.byte_len == expected_byte_len,
             "Artifact metadata does not match the committed recording layer"
         );

@@ -57,7 +57,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
     service
         .grant(
             &alice,
-            &artifact.artifact_id,
+            &artifact.artifact_id(),
             AccessSubject::Principal(bob.identity.actor.id.clone()),
             AccessLevel::Read,
         )
@@ -67,29 +67,29 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
         .issue_read_capability(&bob, request(10, 1024))
         .await
         .unwrap();
-    read(&service, &cap, artifact.artifact_id).await.unwrap();
+    read(&service, &cap, artifact.artifact_id()).await.unwrap();
     service
         .revoke(
             &alice,
-            &artifact.artifact_id,
+            &artifact.artifact_id(),
             &AccessSubject::Principal(bob.identity.actor.id.clone()),
         )
         .await
         .unwrap();
     assert!(
-        read(&service, &cap, artifact.artifact_id).await.is_err(),
+        read(&service, &cap, artifact.artifact_id()).await.is_err(),
         "cached admission bypassed grant revocation"
     );
     service
         .grant(
             &alice,
-            &artifact.artifact_id,
+            &artifact.artifact_id(),
             AccessSubject::Principal(bob.identity.actor.id.clone()),
             AccessLevel::Read,
         )
         .await
         .unwrap();
-    read(&service, &cap, artifact.artifact_id).await.unwrap();
+    read(&service, &cap, artifact.artifact_id()).await.unwrap();
     let sensitive = service
         .put(
             &alice,
@@ -104,13 +104,13 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
     service
         .grant(
             &alice,
-            &sensitive.artifact_id,
+            &sensitive.artifact_id(),
             AccessSubject::Principal(bob.identity.actor.id.clone()),
             AccessLevel::Read,
         )
         .await
         .unwrap();
-    assert!(read(&service, &cap, sensitive.artifact_id).await.is_err());
+    assert!(read(&service, &cap, sensitive.artifact_id()).await.is_err());
     let foreign = service
         .put(
             &caller("bob", "other-tenant", &[]),
@@ -119,7 +119,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
         )
         .await
         .unwrap();
-    assert!(read(&service, &cap, foreign.artifact_id).await.is_err());
+    assert!(read(&service, &cap, foreign.artifact_id()).await.is_err());
     assert!(
         service
             .revoke_read_capability(&alice, cap.capability_id)
@@ -130,7 +130,7 @@ async fn artifact_read_delegation_rechecks_grants_clearance_tenant_and_revocatio
         .revoke_read_capability(&bob, cap.capability_id)
         .await
         .unwrap();
-    assert!(read(&service, &cap, artifact.artifact_id).await.is_err());
+    assert!(read(&service, &cap, artifact.artifact_id()).await.is_err());
 }
 
 #[tokio::test]
@@ -153,7 +153,7 @@ async fn artifact_read_delegation_binds_task_context_and_secret_and_never_reuses
                 cap.capability_id,
                 cap.secret.expose_secret(),
                 ArtifactTaskId::new(),
-                artifact.artifact_id
+                artifact.artifact_id()
             )
             .await
             .is_err()
@@ -164,7 +164,7 @@ async fn artifact_read_delegation_binds_task_context_and_secret_and_never_reuses
                 cap.capability_id,
                 &"wrong-secret".repeat(4),
                 cap.task_id,
-                artifact.artifact_id
+                artifact.artifact_id()
             )
             .await
             .is_err()
@@ -175,12 +175,12 @@ async fn artifact_read_delegation_binds_task_context_and_secret_and_never_reuses
                 ArtifactReadCapabilityId::new(),
                 cap.secret.expose_secret(),
                 cap.task_id,
-                artifact.artifact_id
+                artifact.artifact_id()
             )
             .await
             .is_err()
     );
-    read(&service, &cap, artifact.artifact_id).await.unwrap();
+    read(&service, &cap, artifact.artifact_id()).await.unwrap();
     repository.set_read_context(
         alice.tenant().unwrap().clone(),
         alice.identity.authority.work_context.clone(),
@@ -189,7 +189,7 @@ async fn artifact_read_delegation_binds_task_context_and_secret_and_never_reuses
             digest: "b".repeat(64),
         },
     );
-    assert!(read(&service, &cap, artifact.artifact_id).await.is_err());
+    assert!(read(&service, &cap, artifact.artifact_id()).await.is_err());
     admit_context(&repository, &alice);
     let mut expiring = request(2, 100);
     expiring.expires_at = Utc::now() + TimeDelta::seconds(1);
@@ -197,12 +197,12 @@ async fn artifact_read_delegation_binds_task_context_and_secret_and_never_reuses
         .issue_read_capability(&alice, expiring)
         .await
         .unwrap();
-    read(&service, &expiring, artifact.artifact_id)
+    read(&service, &expiring, artifact.artifact_id())
         .await
         .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
     assert!(
-        read(&service, &expiring, artifact.artifact_id)
+        read(&service, &expiring, artifact.artifact_id())
             .await
             .is_err()
     );
@@ -225,12 +225,12 @@ async fn artifact_read_delegation_reserves_distinct_bytes_once_and_serializes_qu
         .put(&alice, PutArtifactRequest::default(), vec![1; 3])
         .await
         .unwrap()
-        .artifact_id;
+        .artifact_id();
     let second = service
         .put(&alice, PutArtifactRequest::default(), vec![2; 3])
         .await
         .unwrap()
-        .artifact_id;
+        .artifact_id();
     let cap = service
         .issue_read_capability(&alice, request(2, 5))
         .await

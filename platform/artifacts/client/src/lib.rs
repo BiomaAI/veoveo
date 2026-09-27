@@ -8,7 +8,7 @@
 
 use base64::Engine;
 use veoveo_artifact_contract::{
-    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState, parse_artifact_plane_uri,
+    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState,
 };
 use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, Grant};
 use veoveo_mcp_contract::{
@@ -103,13 +103,12 @@ impl HttpArtifactPlane {
     pub async fn download(
         &self,
         caller: &PlaneCaller,
-        uri: &str,
+        uri: &veoveo_artifact_contract::ArtifactUri,
     ) -> Result<AuthorizedArtifactDownload, ArtifactPlaneError> {
-        let artifact_id = parse_artifact_plane_uri(uri).ok_or_else(|| {
-            ArtifactPlaneError::InvalidRequest(format!("invalid artifact URI `{uri}`"))
-        })?;
+        let artifact_id = uri.artifact_id();
         let metadata = <Self as ArtifactPlane>::head(self, caller, &artifact_id).await?;
-        if metadata.artifact_id != artifact_id || metadata.artifact_uri != artifact_id.plane_uri() {
+        if metadata.artifact_id() != artifact_id || metadata.artifact_uri != artifact_id.plane_uri()
+        {
             return Err(ArtifactPlaneError::Transport(
                 "artifact metadata identity does not match the requested occurrence".into(),
             ));
@@ -350,9 +349,9 @@ impl ArtifactPlane for HttpArtifactPlane {
     async fn resolve(
         &self,
         caller: &PlaneCaller,
-        uri: &str,
+        uri: &veoveo_artifact_contract::ArtifactUri,
     ) -> Result<ArtifactObject, ArtifactPlaneError> {
-        let url = reqwest::Url::parse_with_params(&self.url("/resolve"), &[("uri", uri)])
+        let url = reqwest::Url::parse_with_params(&self.url("/resolve"), &[("uri", uri.as_str())])
             .map_err(transport)?;
         let response = self
             .http

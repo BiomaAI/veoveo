@@ -734,7 +734,7 @@ fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
             format,
             options,
         } => SourceProvenance::Uri {
-            uri: uri.clone(),
+            uri: uri.to_string(),
             format: format.clone(),
             options: options.clone(),
         },

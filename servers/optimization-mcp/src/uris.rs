@@ -3,6 +3,11 @@ use veoveo_mcp_contract::ServerResourceUris;
 
 use crate::domain::{ProblemId, RunId, SolutionId, SolverProfileId};
 
+pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
+    std::sync::LazyLock::new(|| {
+        veoveo_types::ResourceScheme::new("optimization").expect("declared server resource scheme")
+    });
+
 pub const CAPABILITIES_URI: &str = "optimization://capabilities";
 pub const ROUTES_APP_URI: &str = "ui://optimization/routes.html";
 pub const MODELS_APP_URI: &str = "ui://optimization/models.html";
@@ -31,10 +36,10 @@ pub const DOC_TEMPLATE: &str = "optimization://docs/{doc_id}";
 pub const CONTRACT_URI: &str = "optimization://contract";
 
 fn optimization_uris() -> ServerResourceUris {
-    ServerResourceUris::new("optimization")
+    ServerResourceUris::new(SCHEME.clone())
 }
 
-pub fn artifact_uri(artifact_id: ArtifactId) -> String {
+pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     optimization_uris().artifact_uri(artifact_id)
 }
 
@@ -181,7 +186,7 @@ mod tests {
     fn artifact_and_usage_uris_round_trip() {
         let artifact_id = ArtifactId::new();
         let artifact = artifact_uri(artifact_id);
-        assert_eq!(parse_artifact_uri(&artifact), Some(artifact_id));
+        assert_eq!(parse_artifact_uri(artifact.as_str()), Some(artifact_id));
         let usage = usage_task_uri("task-1");
         assert_eq!(parse_usage_task_uri(&usage), Some("task-1"));
     }

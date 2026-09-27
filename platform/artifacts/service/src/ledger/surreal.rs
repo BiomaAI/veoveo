@@ -132,7 +132,6 @@ impl SurrealArtifactRepository {
             })
             .collect::<Result<Vec<_>, RepositoryError>>()?;
         let metadata = ArtifactMetadata {
-            artifact_id,
             byte_len: u64::try_from(aggregate.blob.byte_len)
                 .map_err(|_| RepositoryError::Corrupt("negative artifact byte length".into()))?,
             mime_type: (!aggregate.occurrence.media_type.is_empty())
@@ -195,7 +194,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
             .await?;
         let mut initial_grants = Vec::with_capacity(artifact.stored.grants.len());
         for grant in &artifact.stored.grants {
-            if grant.artifact != artifact.stored.metadata.artifact_id
+            if grant.artifact != artifact.stored.metadata.artifact_id()
                 || grant.tenant != artifact.actor.tenant
             {
                 return Err(RepositoryError::Corrupt(
@@ -224,7 +223,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
         };
         let draft = platform::ArtifactOccurrenceDraft {
             artifact_id: platform::ArtifactId::from_uuid(
-                artifact.stored.metadata.artifact_id.as_uuid(),
+                artifact.stored.metadata.artifact_id().as_uuid(),
             ),
             identity,
             authority,
@@ -257,7 +256,7 @@ impl ArtifactRepository for SurrealArtifactRepository {
             .create_artifact_occurrence(draft)
             .await
             .map_err(repository_error)?;
-        self.map_aggregate(artifact.stored.metadata.artifact_id, aggregate)
+        self.map_aggregate(artifact.stored.metadata.artifact_id(), aggregate)
             .await
     }
 

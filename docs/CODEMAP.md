@@ -74,7 +74,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
-| [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, metadata, compliance, provenance, and byte handoff values |
+| [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, typed addresses and builders, metadata, compliance, provenance, and byte handoff values |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
 | [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; device, scale, release and readiness qualification limits recorded in its design |
@@ -365,7 +365,9 @@ prefixed SHA-256 representation shared by provenance contracts.
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
 `src/identifier_syntax.rs` shares lexical validation with other owners' newtypes.
 `src/resource_components.rs` validates concrete addresses and exposes decoded components;
-`src/resource_components/builder.rs` encodes typed domain inputs at the serialization step.
+`src/resource_components/authority.rs` validates unescaped authorities, and
+`src/resource_components/builder.rs` encodes typed scheme, authority, path, and query inputs
+at the serialization step.
 
 ### `mcp/apps-extension`
 
@@ -596,7 +598,8 @@ metadata, compliance, provenance, release state, and byte handoff values. It dep
 on foundational identity, UUID, date/time, and serialization/schema support. The
 [design](../platform/artifacts/contract/DESIGN.md) records the dependency-cycle reason
 for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
-IDs and URI helpers; `src/metadata.rs` owns the public model, and `src/provenance.rs`
+IDs; `src/uri.rs` owns typed neutral and server-presented addresses and construction;
+`src/metadata.rs` owns the public model, and `src/provenance.rs`
 maps foundational invocation attribution to Artifact's flat wire profile. Access
 evaluation and transport-facing service interfaces currently live in `mcp/contract`.
 

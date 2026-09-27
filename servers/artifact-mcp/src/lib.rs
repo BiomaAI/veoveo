@@ -14,7 +14,7 @@ pub const METADATA_TEMPLATE: &str = "artifact://metadata/{artifact_id}";
 pub const GRANTS_TEMPLATE: &str = "artifact://grants/{artifact_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("artifact")`; a unit test
+/// `ServerResourceUris` with the validated `artifact` scheme; a unit test
 /// below pins the equivalence.
 pub const DOCS_URI: &str = "artifact://docs";
 pub const CONTRACT_URI: &str = "artifact://contract";
@@ -28,7 +28,7 @@ pub fn parse_doc_uri(uri: &str) -> Option<&str> {
     veoveo_mcp_contract::parse_server_doc_uri("artifact", uri)
 }
 
-pub fn artifact_uri(id: ArtifactId) -> String {
+pub fn artifact_uri(id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     id.plane_uri()
 }
 
@@ -121,7 +121,9 @@ mod tests {
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new("artifact");
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new("artifact").expect("declared resource scheme"),
+        );
         assert_eq!(DOCS_URI, conventions.docs_root_uri());
         assert_eq!(CONTRACT_URI, conventions.contract_uri());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());

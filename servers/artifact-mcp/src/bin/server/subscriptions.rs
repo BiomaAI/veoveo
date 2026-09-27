@@ -62,7 +62,7 @@ pub(super) async fn visible_ids(
         ids.extend(
             page.artifacts
                 .into_iter()
-                .map(|artifact| artifact.artifact_id),
+                .map(|artifact| artifact.artifact_id()),
         );
         match page.next_cursor {
             Some(next) if Some(next) != cursor => cursor = Some(next),

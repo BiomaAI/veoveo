@@ -87,7 +87,6 @@ mod tests {
     fn artifact_output_redacts_download_url() {
         let output = ArtifactOutput {
             artifact: ArtifactMetadata {
-                artifact_id: ArtifactId::new(),
                 byte_len: 1,
                 mime_type: Some("image/png".to_string()),
                 filename: None,

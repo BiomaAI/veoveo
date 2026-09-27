@@ -21,7 +21,7 @@ impl SpeechService {
             let request: DurableRequest = serde_json::from_value(snapshot.request.clone())
                 .map_err(|_| McpError::internal_error("invalid persisted transcription", None))?;
             self.artifacts
-                .head(caller, &request.source.artifact_id)
+                .head(caller, &request.source.artifact_id())
                 .await
                 .map_err(|_| McpError::invalid_params("recording access is unavailable", None))?;
         }

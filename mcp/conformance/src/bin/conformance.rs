@@ -435,7 +435,7 @@ async fn main() -> Result<()> {
         _ => TaskCapability::Enabled,
     };
     let client = connect(&args, task_capability).await?;
-    let uris = ServerResourceUris::new(args.scheme);
+    let uris = ServerResourceUris::new(veoveo_types::ResourceScheme::new(args.scheme)?);
 
     let result = match args.cmd {
         Cmd::Certify { .. } => unreachable!("handled before MCP connection"),
@@ -519,7 +519,7 @@ async fn main() -> Result<()> {
             std::fs::create_dir_all(&output_dir)?;
             let uri = uris.artifact_uri(artifact_id);
             let http = reqwest::Client::new();
-            save_output_uri(&client, &uris, &http, &output_dir, &uri).await
+            save_output_uri(&client, &uris, &http, &output_dir, uri.as_str()).await
         }
         Cmd::Run {
             model_id,

@@ -7,7 +7,7 @@ use veoveo_mcp_contract::{
     PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
 
-const SCHEME: &str = "stream";
+use crate::uris::SCHEME;
 
 #[derive(Clone)]
 pub struct ArtifactRepository {
@@ -65,7 +65,7 @@ impl ArtifactRepository {
         self.plane
             .redeem_write_capability(&capability.secret, &redemption, artifact.bytes)
             .await
-            .map(|metadata| metadata.presented_under_scheme(SCHEME))
+            .map(|metadata| metadata.presented_under_scheme(&SCHEME))
             .map_err(plane_err)
     }
 
@@ -76,7 +76,7 @@ impl ArtifactRepository {
     ) -> Result<Option<ArtifactObject>> {
         match self.plane.get(caller, artifact_id, AccessLevel::Read).await {
             Ok(mut object) => {
-                object.metadata = object.metadata.presented_under_scheme(SCHEME);
+                object.metadata = object.metadata.presented_under_scheme(&SCHEME);
                 Ok(Some(object))
             }
             Err(ArtifactPlaneError::NotFound) => Ok(None),
@@ -90,7 +90,7 @@ impl ArtifactRepository {
         artifact_id: &ArtifactId,
     ) -> Result<Option<ArtifactMetadata>> {
         match self.plane.head(caller, artifact_id).await {
-            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(SCHEME))),
+            Ok(metadata) => Ok(Some(metadata.presented_under_scheme(&SCHEME))),
             Err(ArtifactPlaneError::NotFound) => Ok(None),
             Err(error) => Err(plane_err(error)),
         }

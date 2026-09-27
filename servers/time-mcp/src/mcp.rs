@@ -864,7 +864,9 @@ mod tests {
                     .matches_uri(&address.to_uri().unwrap())
             );
         }
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new("time");
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new("time").expect("declared resource scheme"),
+        );
         assert_eq!(uris::DOCS_URI, conventions.docs_root_uri());
         assert_eq!(uris::CONTRACT_URI, conventions.contract_uri());
         assert_eq!(uris::DOC_TEMPLATE, conventions.doc_template());

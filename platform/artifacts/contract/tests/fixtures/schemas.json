@@ -163,6 +163,10 @@
         ],
         "type": "string"
       },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
       "ComplianceMetadata": {
         "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
         "properties": {
@@ -270,7 +274,7 @@
         "$ref": "#/$defs/ArtifactId"
       },
       "artifact_uri": {
-        "type": "string"
+        "$ref": "#/$defs/ArtifactUri"
       },
       "byte_len": {
         "format": "uint64",

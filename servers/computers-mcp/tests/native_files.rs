@@ -396,7 +396,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id.as_uuid(),
+            artifact_id: artifact.artifact_id().as_uuid(),
             path: path("binary source.tar"),
         }),
         &keys,
@@ -410,7 +410,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         WorkerStep::Settled
     );
     let imported = task_result(&tasks_a, import_id).await;
-    assert_eq!(imported.artifact_id, artifact.artifact_id.as_uuid());
+    assert_eq!(imported.artifact_id, artifact.artifact_id().as_uuid());
     assert_eq!(imported.bytes, bytes.len() as u64);
     let export = queue(
         &a,
@@ -451,7 +451,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id.as_uuid(),
+            artifact_id: artifact.artifact_id().as_uuid(),
             path: path("binary source.tar"),
         }),
         &keys,
@@ -491,7 +491,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: restricted.artifact_id.as_uuid(),
+            artifact_id: restricted.artifact_id().as_uuid(),
             path: path("restricted-import"),
         }),
         &keys,
@@ -513,7 +513,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id.as_uuid(),
+            artifact_id: artifact.artifact_id().as_uuid(),
             path: path("cancelled-import"),
         }),
         &keys,
@@ -544,7 +544,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         computer.computer_id,
         grant.grant_id,
         payload(FileTransfer::Import {
-            artifact_id: artifact.artifact_id.as_uuid(),
+            artifact_id: artifact.artifact_id().as_uuid(),
             path: path("must-not-be-replayed"),
         }),
         &keys,

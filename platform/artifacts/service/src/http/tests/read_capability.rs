@@ -45,7 +45,7 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
         task_id: cap.task_id,
     };
     let downloaded = plane
-        .download_with_authority(authority, metadata.artifact_id)
+        .download_with_authority(authority, metadata.artifact_id())
         .await
         .unwrap();
     assert_eq!(downloaded.metadata, metadata);
@@ -54,7 +54,7 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
         b"recording-layer"
     );
     plane
-        .read_metadata(authority, metadata.artifact_id)
+        .read_metadata(authority, metadata.artifact_id())
         .await
         .unwrap();
     let wrong_task = ArtifactTaskId::new();
@@ -65,7 +65,7 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
                     capability: &cap,
                     task_id: wrong_task
                 },
-                metadata.artifact_id
+                metadata.artifact_id()
             )
             .await
             .is_err()
@@ -74,7 +74,8 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
     let response = reqwest::Client::new()
         .get(format!(
             "{base}/artifact-read-capabilities/{}/artifacts/{}/meta",
-            cap.capability_id, metadata.artifact_id
+            cap.capability_id,
+            metadata.artifact_id()
         ))
         .query(&[("task_id", wrong_task.to_string())])
         .bearer_auth(cap.secret.expose_secret())
@@ -86,7 +87,7 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
     impersonation.bearer_token = cap.secret.expose_secret().to_owned();
     assert!(
         plane
-            .head(&impersonation, &metadata.artifact_id)
+            .head(&impersonation, &metadata.artifact_id())
             .await
             .is_err()
     );
@@ -116,13 +117,13 @@ async fn task_read_http_authority_is_read_only_bound_revocable_and_streamed() {
         .unwrap();
     assert!(
         plane
-            .read_metadata(authority, metadata.artifact_id)
+            .read_metadata(authority, metadata.artifact_id())
             .await
             .is_err()
     );
     assert!(
         plane
-            .download_with_authority(authority, metadata.artifact_id)
+            .download_with_authority(authority, metadata.artifact_id())
             .await
             .is_err()
     );

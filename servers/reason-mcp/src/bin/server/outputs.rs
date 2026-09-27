@@ -165,7 +165,7 @@ enum ReasonArtifactProvenance {
     AnnotationLayer {
         analysis_id: String,
         recording_id: String,
-        results_artifact_uri: String,
+        results_artifact_uri: veoveo_artifact_contract::ArtifactUri,
         source_snapshot_sha256: String,
     },
     #[serde(rename = "reason_source_clip")]
@@ -225,9 +225,13 @@ fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetad
     })
 }
 
-fn resource_link(uri: &str, title: &str, mime_type: &str) -> ContentBlock {
+fn resource_link(
+    uri: &veoveo_artifact_contract::ArtifactUri,
+    title: &str,
+    mime_type: &str,
+) -> ContentBlock {
     ContentBlock::ResourceLink(
-        Resource::new(uri.to_owned(), title.to_owned())
+        Resource::new(uri.to_string(), title.to_owned())
             .with_title(title.to_owned())
             .with_mime_type(mime_type),
     )
@@ -290,7 +294,8 @@ mod tests {
                 analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
                 recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
                 results_artifact_uri: "reason://artifact/019fa7ee-4191-73e1-b084-2341d4900a07"
-                    .to_owned(),
+                    .parse()
+                    .unwrap(),
                 source_snapshot_sha256: digest.clone(),
             })
             .unwrap(),

@@ -1,7 +1,7 @@
 use crate::contract::{ContractError, FrameId, PreviewScenePolicy, SceneCompositionId, ViewId};
 
 /// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new("view")`; a unit test below
+/// `ServerResourceUris` with the validated `view` scheme; a unit test below
 /// pins that equivalence.
 pub const DOCS: &str = "view://docs";
 pub const CONTRACT: &str = "view://contract";
@@ -168,7 +168,9 @@ mod tests {
 
     #[test]
     fn well_known_uris_match_the_shared_conventions() {
-        let conventions = veoveo_mcp_contract::ServerResourceUris::new("view");
+        let conventions = veoveo_mcp_contract::ServerResourceUris::new(
+            veoveo_types::ResourceScheme::new("view").expect("declared resource scheme"),
+        );
         assert_eq!(DOCS, conventions.docs_root_uri());
         assert_eq!(CONTRACT, conventions.contract_uri());
         assert_eq!(DOC_TEMPLATE, conventions.doc_template());

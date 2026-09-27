@@ -32,7 +32,7 @@ async fn assert_published_attribution<R: ArtifactRepository>(
         );
         assert_eq!(published.compliance.provenance, Some(expected.clone()));
         let loaded = reader
-            .get(&actor, &published.artifact_id, AccessLevel::Read)
+            .get(&actor, &published.artifact_id(), AccessLevel::Read)
             .await
             .unwrap();
         assert_eq!(loaded.bytes, b"artifact");

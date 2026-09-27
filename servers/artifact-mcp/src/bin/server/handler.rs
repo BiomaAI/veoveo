@@ -73,7 +73,9 @@ impl AppState {
     ) -> ArtifactMetadata {
         artifact.download_url = Some(format!(
             "{}/artifacts/{}/{}/download",
-            self.public_base_url, caller.identity.profile, artifact.artifact_id
+            self.public_base_url,
+            caller.identity.profile,
+            artifact.artifact_id()
         ));
         artifact
     }
@@ -403,17 +405,18 @@ impl ServerHandler for ArtifactMcp {
             Vec::new()
         };
         resources.extend(page.artifacts.into_iter().map(|artifact| {
+            let artifact_id = artifact.artifact_id();
             Resource::new(
                 artifact.artifact_uri,
                 artifact
                     .filename
                     .clone()
-                    .unwrap_or_else(|| artifact.artifact_id.to_string()),
+                    .unwrap_or_else(|| artifact_id.to_string()),
             )
             .with_title(
                 artifact
                     .filename
-                    .unwrap_or_else(|| format!("Artifact {}", artifact.artifact_id)),
+                    .unwrap_or_else(|| format!("Artifact {artifact_id}")),
             )
             .with_mime_type(
                 artifact
@@ -724,7 +727,7 @@ impl ServerHandler for ArtifactMcp {
         let values: Vec<String> = page
             .artifacts
             .into_iter()
-            .map(|artifact| artifact.artifact_id.to_string())
+            .map(|artifact| artifact.artifact_id().to_string())
             .filter(|id| id.starts_with(&needle))
             .take(CompletionInfo::MAX_VALUES)
             .collect();

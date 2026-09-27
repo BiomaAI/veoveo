@@ -7,7 +7,9 @@ use url::Url;
 
 use crate::ResourceUri;
 
+mod authority;
 mod builder;
+pub use authority::UriAuthority;
 pub use builder::{ResourceUriBuilder, UriSegment};
 
 /// Validation failures contain no URI, query value, credential, or other input.

@@ -15,7 +15,7 @@ mod python;
 #[derive(Deserialize, Serialize)]
 struct BrowserReceipt {
     artifact_id: ArtifactId,
-    artifact_uri: String,
+    artifact_uri: veoveo_artifact_contract::ArtifactUri,
     upload_id: ArtifactUploadId,
     byte_len: u64,
     sha256: UploadSha256,

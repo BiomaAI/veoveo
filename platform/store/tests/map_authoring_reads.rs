@@ -85,7 +85,7 @@ async fn create_records(
             layer_key: layer.layer_key.clone(),
             layer_revision: 0,
             format: "geojson_seq".into(),
-            artifact_uri: format!("artifact://{}", Uuid::now_v7()),
+            artifact_uri: veoveo_artifact_contract::ArtifactId::new().plane_uri(),
             mime_type: "application/geo+json-seq".into(),
             digest_sha256: "b".repeat(64),
             size_bytes: 128,

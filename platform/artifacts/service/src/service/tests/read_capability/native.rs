@@ -27,12 +27,12 @@ async fn artifact_read_delegation_survives_service_recreation_and_enforces_nativ
         .put(&alice, PutArtifactRequest::default(), vec![1; 3])
         .await
         .unwrap()
-        .artifact_id;
+        .artifact_id();
     let second = service
         .put(&alice, PutArtifactRequest::default(), vec![2; 3])
         .await
         .unwrap()
-        .artifact_id;
+        .artifact_id();
     let cap = service
         .issue_read_capability(&alice, request(2, 5))
         .await

@@ -120,6 +120,10 @@ reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Authentication and authorization still use the existing Principal,
 Work Context membership, and policy implementations. Domain-owned Artifact identity
 and metadata live in [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).
+That owner also supplies `ArtifactUri`. Artifact service interfaces and server URI
+conventions consume it and the foundational `ResourceScheme`; MCP does not enumerate
+producing domains. Metadata JSON keeps its published identity fields with checked
+ID/URI agreement. Other generic URI convention families still need builder adoption.
 Coordinate contracts remain outside the foundation.
 Its `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete

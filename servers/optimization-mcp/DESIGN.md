@@ -393,6 +393,12 @@ artifact plane stamps tenant and owner from the forwarded identity. Data
 labels and Work Context accompany each write. Returned metadata omits download
 URLs and uses the `optimization://artifact/{artifact_id}` presentation.
 
+Model and travel-manifest inputs use the Artifact owner's
+[`ArtifactUri`](../../platform/artifacts/contract/DESIGN.md#wire-and-construction)
+through resolution. The owner validates occurrence identity and URI components;
+Optimization owns model validation and current caller access. Public fields serialize
+as strings under the Artifact contract's declared compatibility profile.
+
 Usage records capture measured solve work against the durable task. They are
 read through canonical usage resources and the same owner visibility rules.
 
