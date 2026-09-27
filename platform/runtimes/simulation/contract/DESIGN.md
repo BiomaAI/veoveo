@@ -2,9 +2,9 @@
 
 ## Standards And Protocols
 
-`veoveo.io/simulation-runtime-build-lock/v1` records exact runtime inputs.
-`veoveo.io/simulation-conformance-result/v2` ties hardware observations to a base
-image and overlay. `veoveo.io/simulation-runtime-release-evidence/v1` combines
+`veoveo.ai/simulation-runtime-build-lock/v1` records exact runtime inputs.
+`veoveo.ai/simulation-conformance-result/v2` ties hardware observations to a base
+image and overlay. `veoveo.ai/simulation-runtime-release-evidence/v1` combines
 qualified overlay results. JSON Schema 2020-12 describes these serialized types.
 OCI coordinates and SHA-256 identities use `veoveo-deploy-contract` artifact types.
 

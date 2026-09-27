@@ -17,7 +17,7 @@ pub(super) struct Metadata {
 #[derive(Debug, Default, Deserialize, Serialize)]
 struct Annotations {
     #[serde(
-        rename = "veoveo.io/cancellation-phase",
+        rename = "veoveo.ai/cancellation-phase",
         skip_serializing_if = "Option::is_none"
     )]
     phase: Option<String>,

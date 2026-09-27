@@ -10,7 +10,7 @@ use super::{
     RouteEndpoint, TravelModelId,
 };
 
-pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.io/travel-model-artifact/v1";
+pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.ai/travel-model-artifact/v1";
 pub const MAX_TRAVEL_MODEL_LOCATIONS: usize = 128;
 pub const MAX_TRAVEL_MODEL_VEHICLE_TYPES: usize = 64;
 pub const MAX_TRAVEL_MODEL_CELLS: usize = 1_048_576;

@@ -29,8 +29,8 @@ complies with in its crate documents and in its contract resource.
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
 | Veoveo internal `request_context` | Signed source principal and verified access-token metadata, including OAuth client and optional session family; contains no bearer value and grants no independent renewal permission |
 | Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
-| `veoveo.io/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
-| `io.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
+| `veoveo.ai/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
+| `ai.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 | `ai.veoveo/knowledge-source` | Veoveo extension that declares resource collections as knowledge, with typed read observations and conditional reads; specified in [the knowledge source extension](../knowledge-extension/DESIGN.md) |
 
 Each hosted server manifest declares separate typed upstream URLs for MCP and
@@ -245,7 +245,7 @@ empty first snapshot while keeping slow optional servers isolated. The gateway
 captures entries valid when the list request begins and includes them even if
 another server consumes the settlement window before response assembly. The
 response attaches a typed
-`veoveo.io/gateway-discovery-degradation` result metadata document naming only
+`ai.veoveo/gateway-discovery-degradation` result metadata document naming only
 the missing server, surface, and bounded failure code. Each missing server starts
 one background discovery for the exact catalog generation and invocation
 authority. Repeated list calls share that single in-flight operation. An unfinished fetch reports `discovery_pending`; a failed fetch reports
@@ -439,7 +439,7 @@ rules:
   sections and a parseable `Contract Compliance` declaration.
 - **Protocol conformance** — the conformance client validates advertised
   schemas (C07) and the client-facing protocol shape against a running
-  server. Certification for `veoveo.io/hosted-mcp/v3` always checks C18–C21;
+  server. Certification for `veoveo.ai/hosted-mcp/v3` always checks C18–C21;
   a profile cannot forbid resources or omit the administrative docs URL.
   The client reads `{scheme}://contract`, requires the selected revision,
   matches its server identity to the discovered implementation. It follows the

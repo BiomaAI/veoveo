@@ -25,7 +25,7 @@ directory in an installation's fork.
    class, and watched conditions as subscribable resources.
 3. Publish state and sensor data to Recording Hub as Rerun streams through the
    recording forwarder.
-4. Publish cameras through the `veoveo.io/live-view/v4` contract.
+4. Publish cameras through the `veoveo.ai/live-view/v4` contract.
    [`testing/fixtures/fork-workload`](../testing/fixtures/fork-workload/DESIGN.md)
    is a minimal Python server that implements it.
 5. Package an image and Helm chart, requesting a GPU for any rendering or

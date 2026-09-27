@@ -9,10 +9,10 @@
 | JSON Schema 2020-12 | bounded tool input schemas with same-document references and composition, plus generated profile/report schemas |
 | OAuth 2.0 protected-resource metadata | unauthenticated Bearer rejection checks selected by the profile |
 | OAuth 2.0 client credentials / RFC 7523 | RS256 private-key client assertions with explicit installation key identity; redirects are rejected |
-| `veoveo.io/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
-| `veoveo.io/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
-| `veoveo.io/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
-| `veoveo.io/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
+| `veoveo.ai/mcp-conformance-profile/v1` | domain-neutral declaration of applicable hosted-server checks |
+| `veoveo.ai/mcp-conformance-report/v1` | machine-readable implementation identity, capabilities, requirement results, and evidence |
+| `veoveo.ai/hosted-mcp/v3` | Veoveo hosted-server contract revision for MCP `2026-07-28` |
+| `veoveo.ai/live-view/v4` | optional provider-neutral authoritative cameras, typed camera regions in shared encoded products, actor/browser authorization, Annex B H.264 WebSocket fanout, and redaction profile layered on a domain-owned simulation server |
 
 ## Boundary
 
@@ -35,7 +35,7 @@ A profile names the expected implementation slug, selected contract revision, al
 resource URI schemes, HTTP boundary checks, and required, optional, or forbidden MCP
 surfaces. Each profile lists its required tool, resource, template, and prompt
 identities; the conformance client has no compiled registry of them. A hosted-server certificate selects
-exactly `veoveo.io/hosted-mcp/v3`: resources are required, and the profile must name
+exactly `veoveo.ai/hosted-mcp/v3`: resources are required, and the profile must name
 the administrative `llms.txt` URL. Unauthenticated Bearer rejection is required for
 the MCP endpoint. C18–C21 cannot be disabled by a profile.
 

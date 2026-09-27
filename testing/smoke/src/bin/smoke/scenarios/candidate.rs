@@ -239,7 +239,7 @@ impl Candidate {
             process: None,
             process_group: None,
             receipt: Receipt {
-                schema: "veoveo.io/compiler-acceptance/v3",
+                schema: "veoveo.ai/compiler-acceptance/v3",
                 pod_uid: pod.metadata.uid,
                 runtime_image: container.image.clone(),
                 runtime_image_id: status.image_id.clone(),

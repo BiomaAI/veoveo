@@ -9,8 +9,8 @@ controller, scenario, mission, customer asset, or domain entrypoint. Application
 | Standard or protocol | Supported profile |
 |---|---|
 | OCI Image Specification | one `linux/amd64` image published by digest with SBOM and provenance |
-| `veoveo.io/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
-| `veoveo.io/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
+| `veoveo.ai/simulation-runtime-lock/v1` | exact build-input lock for the supported runtime tuple and pod contract |
+| `veoveo.ai/simulation-runtime-conformance/v1` | hardware result tied to one image digest and qualified node |
 | NVIDIA Container Runtime | one visible NVIDIA RTX GPU through `nvidia.com/gpu` and RuntimeClass `nvidia` |
 | CUDA | Torch CUDA 12.8 plus the Isaac RTX extension's pinned NVRTC 12.8.61 builtins |
 | NVIDIA NVENC API | driver-provided encode API required by live-view profiles |
@@ -175,7 +175,7 @@ anonymous external overlay result all identify its final digest. A runtime upgra
 requires all three gates again.
 
 `cargo xtask smoke simulation-certify` accepts an optional deployment lock. Without one,
-the managed builder uses TLS. A supplied `veoveo.io/deployment-lock/v8` document
+the managed builder uses TLS. A supplied `veoveo.ai/deployment-lock/v8` document
 authorizes its exact registry authority and may explicitly select `insecure-http`.
 Both image references must retain that authority. Buildx inspection, attestation
 resolution, and digest-addressed materialization use the same managed BuildKit

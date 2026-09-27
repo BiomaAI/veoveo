@@ -42,7 +42,7 @@ mod tests {
             "ensureSubscription",
             "retrySelectedNow",
             "veoveo/agents/message",
-            "io.veoveo/agent-message-targets",
+            "ai.veoveo/agent-message-targets",
             "uuidV7",
             "Send instruction",
             "if(!selected.size)",

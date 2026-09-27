@@ -50,6 +50,8 @@ enum EnforceScope {
     Python,
     /// Check relative links and heading anchors in tracked Markdown.
     Docs,
+    /// Reject retired repository-owned identifier namespaces.
+    Identifiers,
 }
 
 #[derive(Debug, Subcommand)]
@@ -418,6 +420,7 @@ fn main() -> Result<()> {
             EnforceScope::Rust => enforce::rust(&repository),
             EnforceScope::Python => enforce::python(&repository),
             EnforceScope::Docs => enforce::docs(&repository),
+            EnforceScope::Identifiers => enforce::identifiers(&repository),
         },
         Command::Image { command } => match command {
             ImageCommand::Builder { command } => match command {

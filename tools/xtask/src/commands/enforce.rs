@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use crate::{
-    commands::{doc_links, python as python_package},
+    commands::{doc_links, identifiers as identifier_policy, python as python_package},
     context::RepositoryContext,
     process,
 };
@@ -42,4 +42,8 @@ pub(crate) fn python(repository: &RepositoryContext) -> Result<()> {
 
 pub(crate) fn docs(repository: &RepositoryContext) -> Result<()> {
     doc_links::enforce(repository)
+}
+
+pub(crate) fn identifiers(repository: &RepositoryContext) -> Result<()> {
+    identifier_policy::enforce(repository)
 }

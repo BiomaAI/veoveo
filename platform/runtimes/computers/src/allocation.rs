@@ -14,7 +14,7 @@ use tokio::{
     net::TcpStream,
 };
 use uuid::Uuid;
-const SCHEMA: &str = "veoveo.io/computer-storage/v1";
+const SCHEMA: &str = "veoveo.ai/computer-storage/v1";
 const MAXIMUM_FRAME: usize = 1024;
 
 fn storage_identity(id: Uuid) -> Result<wire::IdentityId> {

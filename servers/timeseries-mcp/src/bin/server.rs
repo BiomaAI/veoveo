@@ -92,7 +92,7 @@ const TASK_LEASE_HEARTBEAT: Duration = Duration::from_secs(40);
 const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "timeseries";
 const LIST_PAGE_SIZE: usize = 100;
-const TASK_RETENTION_PIN_META_KEY: &str = "ai.bioma.veoveo/taskRetentionPin";
+const TASK_RETENTION_PIN_META_KEY: &str = "ai.veoveo/task-retention-pin";
 
 /// The crate documents embedded at build time and served under the well-known
 /// surface: `timeseries://docs`, `timeseries://docs/{doc_id}`,

@@ -12,7 +12,7 @@ use clap::ValueEnum;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/gitops-convergence-evidence/v3";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/gitops-convergence-evidence/v3";
 const GIT_REPOSITORY_RESOURCE: &str = "gitrepositories.source.toolkit.fluxcd.io";
 const KUSTOMIZATION_RESOURCE: &str = "kustomizations.kustomize.toolkit.fluxcd.io";
 const HELM_RELEASE_RESOURCE: &str = "helmreleases.helm.toolkit.fluxcd.io";

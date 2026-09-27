@@ -9,7 +9,7 @@
 | Stream live sessions | Server-owned `servers/stream-mcp/src/contract/live.rs` wire types, compiled directly without the Stream service |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
-| Evidence | Existing `veoveo.io/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures |
+| Evidence | Existing `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures |
 
 ## Ownership
 

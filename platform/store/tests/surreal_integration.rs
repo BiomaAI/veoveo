@@ -676,7 +676,7 @@ async fn removes_obsolete_mirror_state_during_forward_migration() {
                 revoked: false,
                 authorization_expires_at: NONE,
                 desired_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                desired_digest_schema: "veoveo.io/simulation-view-desired-digest/v2",
+                desired_digest_schema: "veoveo.ai/simulation-view-desired-digest/v2",
                 snapshot: {},
                 reconciliation: {},
                 created_at: time::now(),

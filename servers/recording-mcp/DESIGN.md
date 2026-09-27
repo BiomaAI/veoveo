@@ -14,7 +14,7 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 | Rerun `0.38.1` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
 | Apache Arrow IPC stream | Deterministic bounded projection payload produced from exact admitted RRD layers. |
-| Veoveo playback manifest v9 | `veoveo.io/recording-playback/v9` is the only accepted manifest. |
+| Veoveo playback manifest v9 | `veoveo.ai/recording-playback/v9` is the only accepted manifest. |
 | Veoveo framed RRD stream v2 | Same-origin live channel adapter using one complete RRD per big-endian length frame. |
 | OAuth service authentication and JWT | Gateway internal assertions, short-lived host-limited Redap grants, and separate Artifact-read credentials. |
 | H.264 Annex B and SHA-256 | Decoder-reentrant live continuity and immutable byte identity. |
@@ -67,7 +67,7 @@ catalogs before they materialize another layer.
 Startup removes partial and unrecognized files. A complete cache deletion changes no
 durable identity and loses no recording. `/readyz` fails when the cache or projection
 scratch violates its storage contract. Authenticated `/admin/storage` exposes the typed
-`veoveo.io/recording-storage-diagnostics/v1` snapshot.
+`veoveo.ai/recording-storage-diagnostics/v1` snapshot.
 
 ## Governed Virtual Catalogs
 

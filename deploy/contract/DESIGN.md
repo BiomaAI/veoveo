@@ -4,17 +4,17 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v8` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v8` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
-| `veoveo.io/local-registry/v1` | repository-owned loopback registry declaration |
-| `veoveo.io/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by component publication |
-| `veoveo.io/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
-| `veoveo.io/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
-| `veoveo.io/component-installation/v2` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
-| `veoveo.io/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
-| `veoveo.io/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
-| `veoveo.io/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
-| `veoveo.io/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
+| `veoveo.ai/deployment/v8` | installation-repository profile with exact platform targets, local fork checkouts and workload ownership, split Helm values ownership, explicit host-push and cluster-pull registry endpoints, and a managed GPU allocator closure |
+| `veoveo.ai/deployment-lock/v8` | immutable installation revision, registry endpoints and transport, source-role, OCI image, chart, platform resolution, and GPU allocator artifacts |
+| `veoveo.ai/local-registry/v1` | repository-owned loopback registry declaration |
+| `veoveo.ai/image-release-evidence/v3` | one publication snapshot, typed registry endpoints, per-image build revision, runnable manifest digest, and attested publication index digest shared by component publication |
+| `veoveo.ai/gateway-activation/v1` | SHA-256 over a domain prefix and the sorted, length-prefixed UTF-8 ConfigMap data keys and values; covers the complete public gateway bundle |
+| `veoveo.ai/component-mutation-plan/v2` | internal preflight evidence for exact atomic targets and installation snapshots; it records allowed actions and does not attest to executed writes |
+| `veoveo.ai/component-installation/v2` | successful disposable installation receipt: mutation plan, applied or reused units, unselected object and Helm observations, and exact released cluster-coordination identity |
+| `veoveo.ai/installed-deployment-unit/v1` | typed local provenance and observed object fingerprints for verified installation reuse; contains no object bodies or Secret values |
+| `veoveo.ai/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
+| `veoveo.ai/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
+| `veoveo.ai/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
 | `veoveo.ai/installation-target/v1` | installation-owned input for installed smoke scenarios: cluster context, namespace, local and public origins, expected deployments, GPU minimum, operator profile and scopes, and the control-plane document path |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.3.0 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
@@ -227,7 +227,7 @@ The platform chart requires the explicit bundle digest when gateway is selected.
 The same value determines gateway rollout and participates in the complete bootstrap
 Job spec digest. Helm release counters and cluster reads do not determine those inputs.
 `gateway_bundle_digest` owns the encoding for disposable profiles and GitOps
-installations. The domain prefix is `veoveo.io/gateway-activation/v1` followed by a zero
+installations. The domain prefix is `veoveo.ai/gateway-activation/v1` followed by a zero
 byte. Each sorted UTF-8 key and value is preceded by its byte length as an unsigned
 64-bit big-endian integer. `gateway.controlPlaneRevision` contains the resulting 64
 lowercase hexadecimal characters without the `sha256:` prefix. Exact file bytes,
@@ -254,7 +254,7 @@ checks source-owned values files. Git index hints and clean filters cannot subst
 committed bytes for files Helm will read. The caller preserves the verified checkout
 through rendering.
 
-The encoding starts with `veoveo.io/source-chart-content/v1` and a zero byte. Files are
+The encoding starts with `veoveo.ai/source-chart-content/v1` and a zero byte. Files are
 sorted by their UTF-8 chart-relative path. Each record contains the path's unsigned
 64-bit big-endian byte length, the path bytes, one executable-mode byte, the file's
 unsigned 64-bit big-endian byte length, and its exact bytes. The mode byte is one when

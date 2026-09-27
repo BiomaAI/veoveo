@@ -42,7 +42,7 @@ pub fn source_chart_content_digest(repository: &Path, chart: &Path) -> Result<Ar
         "source chart must contain Chart.yaml"
     );
     let mut hash = Sha256::new();
-    hash.update(b"veoveo.io/source-chart-content/v1\0");
+    hash.update(b"veoveo.ai/source-chart-content/v1\0");
     for relative in files {
         let name = relative
             .to_str()

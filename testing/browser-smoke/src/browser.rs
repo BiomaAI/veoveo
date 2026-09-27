@@ -917,7 +917,7 @@ async fn capture_console_apps_catalog_inner(
     }
 
     Ok(ConsoleAppsCatalogEvidence {
-        schema: "veoveo.io/console-apps-browser-evidence/v1",
+        schema: "veoveo.ai/console-apps-browser-evidence/v1",
         captured_at: chrono::Utc::now(),
         page_url: page_url.to_owned(),
         screenshot_path: screenshot_path.display().to_string(),
@@ -1244,7 +1244,7 @@ async fn send_console_uav_agent_instruction_inner(
         let screenshot_sha256 = capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleAgentInstructionEvidence {
-            schema: "veoveo.io/uav-console-agent-instruction/v1",
+            schema: "veoveo.ai/uav-console-agent-instruction/v1",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
@@ -1406,7 +1406,7 @@ async fn capture_console_live_app_inner(
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveCaptureEvidence {
-            schema: "veoveo.io/uav-console-live-capture/v1",
+            schema: "veoveo.ai/uav-console-live-capture/v1",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
@@ -1514,7 +1514,7 @@ async fn capture_console_live_app_grid_inner(
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleLiveGridEvidence {
-            schema: "veoveo.io/uav-console-live-grid/v1",
+            schema: "veoveo.ai/uav-console-live-grid/v1",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
@@ -1586,7 +1586,7 @@ where
         cdp.assert_no_software_renderer_events()?;
         Ok((
             ConsoleLiveRestartEvidence {
-                schema: "veoveo.io/uav-console-live-restart/v1",
+                schema: "veoveo.ai/uav-console-live-restart/v1",
                 captured_at: chrono::Utc::now(),
                 component: component.to_owned(),
                 page_url: page_url.to_owned(),
@@ -1696,7 +1696,7 @@ async fn capture_console_stream_app_inner(
             capture_screenshot(&mut cdp, &session_id, screenshot_path).await?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleStreamCaptureEvidence {
-            schema: "veoveo.io/uav-console-stream-capture/v1",
+            schema: "veoveo.ai/uav-console-stream-capture/v1",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             screenshot_path: screenshot_path.display().to_string(),
@@ -1810,7 +1810,7 @@ async fn capture_console_recording_inner(
         )?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-capture/v6",
+            schema: "veoveo.ai/uav-console-recording-capture/v6",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
@@ -1875,7 +1875,7 @@ async fn capture_console_recording_archive_inner(
         final_hardware.validate()?;
         cdp.assert_no_software_renderer_events()?;
         Ok(ConsoleRecordingArchiveCaptureEvidence {
-            schema: "veoveo.io/uav-console-recording-archive-capture/v2",
+            schema: "veoveo.ai/uav-console-recording-archive-capture/v2",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             recording_id: recording_id.to_owned(),
@@ -2509,7 +2509,7 @@ pub(crate) async fn capture_map_workspace_app(
     let (hardware, bridge, theme, render, screenshot_sha256) = acceptance?;
     close?;
     Ok(MapWorkspaceCaptureEvidence {
-        schema: "veoveo.io/map-workspace-capture-evidence/v2",
+        schema: "veoveo.ai/map-workspace-capture-evidence/v2",
         captured_at: chrono::Utc::now(),
         page_url,
         screenshot_path: screenshot_path.display().to_string(),
@@ -3007,7 +3007,7 @@ async fn capture_console_map_workspace_app_inner(
         cdp.assert_no_software_renderer_events()?;
 
         Ok(ConsoleMapWorkspaceCaptureEvidence {
-            schema: "veoveo.io/console-map-workspace-capture-evidence/v3",
+            schema: "veoveo.ai/console-map-workspace-capture-evidence/v3",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
             workspace_screenshot_path: workspace_screenshot.display().to_string(),

@@ -11,7 +11,7 @@ pub const APP_MIME_TYPE: &str = "text/html;profile=mcp-app";
 pub const UI_META_KEY: &str = "ui";
 /// Resource `_meta` key declaring the exact always-on agents an App may
 /// address through the Console's authenticated human-message bridge.
-pub const AGENT_MESSAGE_TARGETS_META_KEY: &str = "io.veoveo/agent-message-targets";
+pub const AGENT_MESSAGE_TARGETS_META_KEY: &str = "ai.veoveo/agent-message-targets";
 
 /// Closed declaration for a view's generic agent-message targets. The host
 /// validates every identifier and treats malformed metadata as no authority.
@@ -109,7 +109,7 @@ mod tests {
         assert_eq!(UI_META_KEY, "ui");
         assert_eq!(
             AGENT_MESSAGE_TARGETS_META_KEY,
-            "io.veoveo/agent-message-targets"
+            "ai.veoveo/agent-message-targets"
         );
     }
 

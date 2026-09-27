@@ -1794,7 +1794,7 @@ explicit public bundle revision and performs no ConfigMap lookup during renderin
 
 In the Bioma reference configuration, the prior revision covered only `gateway.json` while the mounted ConfigMap also
 contained five public key files. The declared revision now covers all six files through
-the existing `veoveo.io/gateway-activation/v1` length-prefixed encoding. The shared
+the existing `veoveo.ai/gateway-activation/v1` length-prefixed encoding. The shared
 deployment contract owns that digest function. Acceptance hashes the actual rendered
 ConfigMap and compares the declared value; no Secret values participate.
 

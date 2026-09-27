@@ -232,7 +232,7 @@ pub(crate) fn run(repository: &RepositoryContext, args: &BuilderCacheBenchmarkAr
     let overrides_path = output.join("bake.json");
     fs::write(&overrides_path, serde_json::to_vec_pretty(&overrides)?)?;
     let mut comparison = Comparison {
-        schema: "veoveo.io/compiler-cache-comparison/v1",
+        schema: "veoveo.ai/compiler-cache-comparison/v1",
         source_revision: prepared.plan.source.revision.clone(),
         source_dirty: prepared.plan.source.dirty,
         sccache_version: SCCACHE_VERSION,

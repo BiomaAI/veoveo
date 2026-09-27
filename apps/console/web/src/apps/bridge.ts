@@ -180,7 +180,7 @@ export function attachAppBridge(
         platform: "web",
         containerDimensions: { width: iframe.clientWidth },
         _meta: {
-          "io.veoveo/agent-message-targets": app.agentMessageTargets,
+          "ai.veoveo/agent-message-targets": app.agentMessageTargets,
         },
       },
     },

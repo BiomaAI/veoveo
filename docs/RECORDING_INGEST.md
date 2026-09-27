@@ -13,7 +13,7 @@ and uploads versioned protobuf envelopes to `/ingest/recordings/v1`.
 | Protocol Buffers | versioned Recording ingest envelopes with the repository-owned media type |
 | Rerun RRD 0.38.1 | complete bounded recording and Blueprint store payloads |
 | SHA-256 | immutable batch and Blueprint content identity |
-| `veoveo.io/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
+| `veoveo.ai/recording-ingest-diagnostics/v1` | aggregate authenticated-ingest process counters without tenant or stream identity |
 
 The OAuth protected resource is installation-specific. A representative installation uses
 `https://platform.example/ingest/recordings` and the `recording:ingest` scope. Public and

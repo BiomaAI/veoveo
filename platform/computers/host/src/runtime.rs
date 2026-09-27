@@ -260,7 +260,7 @@ async fn serve(config: &Config, retained: bool, children: &mut Children) -> Resu
     }
     files::write(
         &Path::new(RUN).join("ready"),
-        b"veoveo.io/computer-host/v1\n",
+        b"veoveo.ai/computer-host/v1\n",
     )?;
     eprintln!("compute-host: private runtime processes are ready");
     loop {

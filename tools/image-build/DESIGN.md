@@ -10,13 +10,13 @@
 | Docker Buildx Bake | typed target selection and generated context overrides |
 | BuildKit source mounts | disposable writable compiler inputs for freshness synchronization, read-only native inputs, persistent locked Cargo caches |
 | Docker BuildKit Syft scanner 1.12.0 | digest-pinned release generator; Syft 1.51.0 emits SPDX SBOM attestations |
-| `veoveo.io/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
-| `veoveo.io/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
-| `veoveo.io/compiler-cpu-comparison/v1` | compiler-only quota experiment, warmup, source variants, observed Cargo packages, binary digests and cgroup deltas |
+| `veoveo.ai/rust-source-context/v1` | repository-owned SHA-256 source identity, separate from an OCI artifact digest |
+| `veoveo.ai/normalized-parent/v1` | immutable dependency publication receipt, recipe identity and OCI runtime digest |
+| `veoveo.ai/compiler-cpu-comparison/v1` | compiler-only quota experiment, warmup, source variants, observed Cargo packages, binary digests and cgroup deltas |
 | sccache 0.17.0 | SHA-256-pinned Linux amd64 experiment tool; local disk cache and client-side compilation, incremental Rust disabled |
-| `veoveo.io/compiler-cache-comparison/v1` | fresh Cargo target comparison, exact compiler and binary identity, typed sccache counters, no release eligibility |
+| `veoveo.ai/compiler-cache-comparison/v1` | fresh Cargo target comparison, exact compiler and binary identity, typed sccache counters, no release eligibility |
 | BuildKit local cache export | OCI cache index pinned to one manifest digest, `mode=max` export, and import into an initially empty worker |
-| `veoveo.io/compiler-worker-comparison/v1` | same-host worker isolation, unchanged result reuse, matched source-edit inputs and artifacts, CPU/phase timing, and verified cleanup |
+| `veoveo.ai/compiler-worker-comparison/v1` | same-host worker isolation, unchanged result reuse, matched source-edit inputs and artifacts, CPU/phase timing, and verified cleanup |
 | Git | exact committed publication source; local builds also admit non-ignored working-tree files |
 
 ## Ownership
@@ -220,9 +220,9 @@ metadata entrypoints cannot invalidate their compiler action.
 
 ## Normalized Dependency Publication
 
-A Bake consumer declares `io.veoveo.build.normalized-parent` with the target name of
+A Bake consumer declares `ai.veoveo.build.normalized-parent` with the target name of
 its dependency image. Exactly one named context must refer to that target. Every
-local target in the parent's dependency graph declares `io.veoveo.build.input-paths`
+local target in the parent's dependency graph declares `ai.veoveo.build.input-paths`
 as comma-separated context-relative files or directories. The planner materializes
 only these inputs, its declared Dockerfile, and any applicable Docker ignore file.
 An undeclared application file is unavailable to the dependency build.

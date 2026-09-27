@@ -120,7 +120,7 @@ impl Fixture {
             .context("candidate registry")?
             .0;
         let config = serde_json::json!({
-            "schema": "veoveo.io/computer-host/v1", "providerId": provider,
+            "schema": "veoveo.ai/computer-host/v1", "providerId": provider,
             "namespace": "host-qualification", "defaultImage": computer_image, "images": [computer_image],
             "templates": [{"fingerprint": template.fingerprint(), "capacityBytes": 536870912}],
             "reserveBytes": 536870912,

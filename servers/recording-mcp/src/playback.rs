@@ -45,7 +45,7 @@ use crate::{
     },
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v9";
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
 pub const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
 const MAX_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
@@ -839,7 +839,7 @@ mod tests {
 
     #[test]
     fn manifest_schema_is_the_v9_hard_cut() {
-        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.io/recording-playback/v9");
+        assert_eq!(PLAYBACK_MANIFEST_SCHEMA, "veoveo.ai/recording-playback/v9");
     }
 
     #[test]

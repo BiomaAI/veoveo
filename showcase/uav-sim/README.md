@@ -12,9 +12,9 @@ encodes them with NVIDIA NVENC, and streams them to the live-view App.
 | Isaac Sim | Release `6.1.0`; internal build `6.1.0-rc.26+release.49347.2d230af4.gl`. |
 | Isaac Experimental API and Newton | Experimental prims and objects expose one Newton `1.5.2` CUDA rigid-body tensor state to the fleet. The classic Core API and PhysX UAV path are absent. |
 | Warp and MuJoCo | Warp `1.16.0`, MuJoCo `3.11.0`, and MuJoCo Warp `3.11.0` are one certified runtime tuple. Repository Warp kernels own UAV integration, launch contact, the plant, and HIL sensors; MuJoCo-Warp does not step the fleet. |
-| `veoveo.io/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
-| `veoveo.io/live-view/v4` | Simulator-rendered operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
-| `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
+| `veoveo.ai/simulation-runtime-build-lock/v1` | Exact base inputs, immutable overlay components, and NVIDIA runtime requirements. |
+| `veoveo.ai/live-view/v4` | Simulator-rendered operator cameras, typed regions in one tiled encoded product, and ephemeral viewer authorizations without viewer quotas. |
+| `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream with an `adapter_ready` edge for immutable world-binding reapplication and a final `ready` edge for live-camera recovery. |
 | WebSocket and H.264 | One continuous tiled NVIDIA NVENC atlas for every operator camera, delivered as Annex B H.264 access units to every authenticated browser. |
 | Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` attaches NVIDIA's `RTSPStreamWriter` to the RTX render products. Its CUDA-buffer path sends resident pixels to `omni.kit.livestream.rtsp` `10.4.1`, which performs the product's single NVENC encode and serves H.264. |
 | RTSP, RTP, and H.264 | Pod-local RTSP 1.0 with interleaved RTP/RTCP and RFC 6184 single-NAL, STAP-A, and FU-A packetization. |

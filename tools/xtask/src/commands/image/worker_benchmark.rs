@@ -150,7 +150,7 @@ pub(crate) fn run(repository: &RepositoryContext, args: &BuilderWorkerBenchmarkA
         .tempdir_in(&output)?;
     let mut worker = ExperimentWorker::create(repository.root(), &lease)?;
     let mut comparison = Comparison {
-        schema: "veoveo.io/compiler-worker-comparison/v1",
+        schema: "veoveo.ai/compiler-worker-comparison/v1",
         source_revision: prepared.plan.source.revision.clone(),
         source_dirty: prepared.plan.source.dirty,
         buildkit_image: veoveo_image_build_control::BUILDKIT_IMAGE,

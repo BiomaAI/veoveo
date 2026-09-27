@@ -40,12 +40,12 @@ use run_evidence::parse_publication_index_digests;
 pub(crate) use run_evidence::{EvidenceRun, evidence_run};
 pub(crate) use selection::{Selection, SelectionKind};
 
-const PLAN_SCHEMA: &str = "veoveo.io/image-build-plan/v2";
-const MODE_LABEL: &str = "io.veoveo.build.mode";
-const PACKAGE_LABEL: &str = "io.veoveo.build.package";
-const BINARIES_LABEL: &str = "io.veoveo.build.binaries";
-const FAMILY_LABEL: &str = "io.veoveo.build.family";
-const AUXILIARY_LABEL: &str = "io.veoveo.build.auxiliary";
+const PLAN_SCHEMA: &str = "veoveo.ai/image-build-plan/v2";
+const MODE_LABEL: &str = "ai.veoveo.build.mode";
+const PACKAGE_LABEL: &str = "ai.veoveo.build.package";
+const BINARIES_LABEL: &str = "ai.veoveo.build.binaries";
+const FAMILY_LABEL: &str = "ai.veoveo.build.family";
+const AUXILIARY_LABEL: &str = "ai.veoveo.build.auxiliary";
 // SOURCE_DATE_EPOCH is a predefined BuildKit argument and therefore part of
 // every stage's cache key. Keep it stable across source revisions. Bump this
 // cache ABI only when an admitted pinned parent image contains newer metadata.

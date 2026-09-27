@@ -65,7 +65,7 @@ the `map://` scheme.
 | OSM PBF, GTFS Schedule, S-57/S-100, AIXM, and FAA NASR exchange sets | Registered acquisition adapters accept only their documented snapshot profiles. Product-specific operational validation remains explicit. |
 | HTTPS and mounted exchange sets | Registered sources control hosts, redirects, media types, credentials, byte limits, elapsed time, and filesystem roots before an adapter runs. |
 | Valhalla HTTP/JSON | A supervised loopback-only routing-engine protocol. The travel-model adapter uses one concise many-to-many request per requested vehicle type. It is an internal projection, never a public Map API. |
-| `veoveo.io/travel-model-artifact/v1` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
+| `veoveo.ai/travel-model-artifact/v1` | Repository-owned immutable exchange from Map to Optimization. It carries shared location order, per-vehicle-type cost and transit-time matrices, unavailable cells, and exact Map resource attestation. |
 
 The workspace pins `geo` 0.32.0 because SurrealDB 3.2 uses the same release
 line and requires `i_overlay <4.1`. `geo` 0.33.1 requires `i_overlay >=4.5`,
@@ -689,7 +689,7 @@ predicates. Results use a deterministic identity order, or distance then
 identity for distance queries. Spherical distance casts the feature centroid to
 `POINT_2D`, constructs query positions with `ST_Point2D(longitude, latitude)`, and
 materializes `distance_m` once for limits, cursor comparison, projection, and order.
-An opaque cursor binds to the `veoveo.io/map/source-feature-query/v2` digest domain.
+An opaque cursor binds to the `veoveo.ai/map/source-feature-query/v2` digest domain.
 The decoder requires distance state to match the selected order and rejects prior
 cursor domains.
 
@@ -840,7 +840,7 @@ changes and restriction withdrawal invalidate dependent routes while preserving
 the original record for review.
 
 Map is also the sole producer of the versioned
-`veoveo.io/map-route-handoff/v1` cross-server profile. A handoff is prepared
+`veoveo.ai/map-route-handoff/v1` cross-server profile. A handoff is prepared
 from one persisted route only after Map rejects stale, invalidated, or
 unavailable state and repeats complete mobility and restriction validation. It
 contains the Map route identity and digest, exact mobility-profile identity,
@@ -876,7 +876,7 @@ departure across all matrix cells. Per-origin dynamic departure propagation is
 outside this artifact profile because it would make one cell depend on an
 unknown upstream route sequence.
 
-The artifact records `veoveo.io/travel-model-artifact/v1`, the exact
+The artifact records `veoveo.ai/travel-model-artifact/v1`, the exact
 `map://travel-model/{travel_model_id}` identity, unavailable cell indices, and
 the profile release, operational-snapshot, planner, cost-model, and matrix
 algorithm provenance. The Map record retains its neutral `artifact://`
@@ -942,7 +942,7 @@ as every other raster derivation.
 | `build_travel_model` | task only | `map:route_matrix` | immutable heterogeneous cuOpt cost and transit-time matrices |
 | `reachable_area` | task only | `map:route` | land isochrone |
 | `validate_route` | direct | `map:route` | typed validation findings |
-| `prepare_route_handoff` | direct | `map:route` | current validated `veoveo.io/map-route-handoff/v1` projection for a consuming domain |
+| `prepare_route_handoff` | direct | `map:route` | current validated `veoveo.ai/map-route-handoff/v1` projection for a consuming domain |
 | `inspect_corridor` | direct | `map:dataset:read` | restrictions, facilities, boundaries, and gaps |
 | `publish_restriction` | direct | `map:restriction:publish` | effective restriction |
 | `withdraw_restriction` | direct | `map:restriction:withdraw` | ended restriction and invalidation count |

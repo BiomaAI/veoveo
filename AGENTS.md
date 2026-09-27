@@ -221,7 +221,7 @@ The repository has no Justfile. One-step Cargo, Helm, uv, Docker, and Kubernetes
 commands remain native. Repository-specific policy and multi-step coordination belong
 in `cargo xtask`.
 
-The xtask surface is `doctor`, `enforce rust|python|docs`, `image`, `release`, and
+The xtask surface is `doctor`, `enforce rust|python|docs|identifiers`, `image`, `release`, and
 `smoke`. Before committing a change, run the checks it touches with their native
 commands. `cargo xtask enforce docs` validates every relative link and heading anchor
 in tracked Markdown. The repository has no CI and records no test evidence, so a

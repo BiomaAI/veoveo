@@ -9,7 +9,7 @@ use crate::{
     AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
 };
 
-pub const LIVE_VIEW_SCHEMA: &str = "veoveo.io/live-view/v4";
+pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
 
 fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     if value.is_empty()

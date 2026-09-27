@@ -18,7 +18,7 @@ pub(super) const QUARANTINE_DIRECTORY: &str = ".quarantine";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 enum Schema {
-    #[serde(rename = "veoveo.io/recording-journal-quarantine/v1")]
+    #[serde(rename = "veoveo.ai/recording-journal-quarantine/v1")]
     V1,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

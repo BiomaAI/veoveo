@@ -34,13 +34,13 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 /// Canonical multi-source deployment profile.
-pub const PROFILE_SCHEMA: &str = "veoveo.io/deployment/v8";
+pub const PROFILE_SCHEMA: &str = "veoveo.ai/deployment/v8";
 /// Canonical immutable multi-source deployment lock.
-pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.io/deployment-lock/v8";
+pub const DEPLOYMENT_LOCK_SCHEMA: &str = "veoveo.ai/deployment-lock/v8";
 /// Canonical non-release image closure used by development GitOps deployments.
-pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.io/development-image-lock/v1";
+pub const DEVELOPMENT_IMAGE_LOCK_SCHEMA: &str = "veoveo.ai/development-image-lock/v1";
 /// Canonical local OCI registry declaration.
-pub const REGISTRY_SCHEMA: &str = "veoveo.io/local-registry/v1";
+pub const REGISTRY_SCHEMA: &str = "veoveo.ai/local-registry/v1";
 
 /// Qualified NVIDIA DRA driver name selected by the supported GPU adapter.
 pub const NVIDIA_DRA_DRIVER_NAME: &str = "gpu.nvidia.com";

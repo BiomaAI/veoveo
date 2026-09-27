@@ -16,7 +16,7 @@ the manifest that binds those bytes.
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The Recording Explorer is the sole App admitted to the recording projection stream extension. |
 | Veoveo recording ingest `2026-09-23` | Authenticated protobuf batches and Blueprint publications from a producer-local forwarder to Recording Hub. |
 | Veoveo framed RRD stream v2 | Same-origin live transport. Each frame is a four-byte big-endian length followed by one complete RRD payload. |
-| Veoveo playback manifest v9 | `veoveo.io/recording-playback/v9` binds the durable dataset, recording segment, catalog revision, governed archive grant, optional live receiver, and Blueprint. No version negotiation exists. |
+| Veoveo playback manifest v9 | `veoveo.ai/recording-playback/v9` binds the durable dataset, recording segment, catalog revision, governed archive grant, optional live receiver, and Blueprint. No version negotiation exists. |
 | OAuth metadata, client credentials, and `private_key_jwt` | Recording Hub and Recording MCP publish with separate service identities. Producer and browser bearers are not retained for background work. |
 | H.264/AVC Annex B | Decoder-reentrant capture rollover keeps SPS, PPS, and IDR boundaries. Archive and live playback preserve the original timeline indices. |
 | SHA-256 | Immutable layer, manifest, schema, cache, and Arrow-result identity. |

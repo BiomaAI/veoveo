@@ -205,7 +205,7 @@ fn plan(root: &Path, age_hours: u64, now: SystemTime) -> Result<CachePlan> {
     candidates.sort_by(|left, right| left.path.cmp(&right.path));
     let reclaimable_bytes = reclaimable_bytes(root, &candidates)?;
     Ok(CachePlan {
-        schema_version: "veoveo.io/cargo-cache-maintenance/v2",
+        schema_version: "veoveo.ai/cargo-cache-maintenance/v2",
         root: root.to_owned(),
         minimum_age_hours: age_hours,
         candidates,

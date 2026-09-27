@@ -269,7 +269,7 @@ Four records define the shape:
   comparisons rather than guessing.
 
 Placement follows the platform's existing pattern: the four records are a
-contract profile, tentatively `veoveo.io/score/v1`, that domain servers
+contract profile, tentatively `veoveo.ai/score/v1`, that domain servers
 implement. Measurement execution never centralizes. Mission efficiency is a
 query over recordings and episodes, forecast error belongs to Timeseries
 against actuals, solver quality is Optimization's existing independent

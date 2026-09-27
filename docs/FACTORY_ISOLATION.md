@@ -57,7 +57,7 @@ Git push credentials never enter an author job.
 | Git object identity and SHA-256 | Source bases, candidate trees, patches, policies, images, evidence, evaluations, and promotion inputs carry immutable identities. |
 | OCI Image and Distribution Specifications | Factory and harness images are prebuilt and selected by digest. Veoveo runtime images retain their existing runnable-manifest and publication-index identities. |
 | SPDX SBOM and SLSA provenance | Qualified Veoveo publications retain the attestations required by [`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). A candidate or staging build is not release evidence. |
-| [`veoveo.io/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Qualified release closure for installation promotion. Development image locks remain ineligible for production release. |
+| [`veoveo.ai/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Qualified release closure for installation promotion. Development image locks remain ineligible for production release. |
 | Helm, Kubernetes, and Flux 2.9.4 | Installation-owned desired state and reconciliation. The factory does not patch live Kubernetes workloads or become a second reconciliation owner. |
 | NVIDIA CUDA, Vulkan, RTX, NVENC, WebGPU, WebGL, and Chrome DevTools Protocol | Hardware-GPU execution and headed-browser proof remain mandatory for visual, simulation, perception, rendering, encode, and visual-verification acceptance. |
 
@@ -994,14 +994,14 @@ until an owning component design approves them.
 
 | Planned schema | Responsibility |
 |---|---|
-| `veoveo.io/factory-product-spec/v1` | Developer intent, acceptance, scope, constraints, delivery, rollout, and budget. |
-| `veoveo.io/factory-plan/v1` | Resolved base, components, risks, jobs, checks, policies, harness eligibility, and gates. |
-| `veoveo.io/factory-job/v1` | One immutable role-specific execution request. |
-| `veoveo.io/factory-candidate/v1` | Trusted patch identity and collection metadata plus explicitly untrusted author claims. |
-| `veoveo.io/factory-verification/v1` | Independent check results, evidence digests, verifier identity, and verdict. |
-| `veoveo.io/factory-promotion/v1` | Exact requested source, artifact, or GitOps broker operation and prerequisites. |
-| `veoveo.io/factory-run-evidence/v1` | Complete run lineage, resource use, policy events, decisions, and terminal state. |
-| `veoveo.io/factory-harness/v1` | Immutable harness descriptor and admission result. |
+| `veoveo.ai/factory-product-spec/v1` | Developer intent, acceptance, scope, constraints, delivery, rollout, and budget. |
+| `veoveo.ai/factory-plan/v1` | Resolved base, components, risks, jobs, checks, policies, harness eligibility, and gates. |
+| `veoveo.ai/factory-job/v1` | One immutable role-specific execution request. |
+| `veoveo.ai/factory-candidate/v1` | Trusted patch identity and collection metadata plus explicitly untrusted author claims. |
+| `veoveo.ai/factory-verification/v1` | Independent check results, evidence digests, verifier identity, and verdict. |
+| `veoveo.ai/factory-promotion/v1` | Exact requested source, artifact, or GitOps broker operation and prerequisites. |
+| `veoveo.ai/factory-run-evidence/v1` | Complete run lineage, resource use, policy events, decisions, and terminal state. |
+| `veoveo.ai/factory-harness/v1` | Immutable harness descriptor and admission result. |
 
 ### Product Specification Shape
 

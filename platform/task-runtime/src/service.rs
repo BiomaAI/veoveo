@@ -16,7 +16,7 @@ use veoveo_mcp_contract::{ResourceListObservers, SubscriptionHub};
 use crate::{TaskError, TaskOwner, TaskRetentionPin, TaskRuntime, TaskSnapshot, project_snapshot};
 
 /// Repository-owned metadata used only to retain internal evidence longer than wire TTL.
-pub const TASK_RETENTION_PIN_META_KEY: &str = "ai.bioma.veoveo/taskRetentionPin";
+pub const TASK_RETENTION_PIN_META_KEY: &str = "ai.veoveo/task-retention-pin";
 
 pub type DurableTaskUpdateStream =
     Pin<Box<dyn Stream<Item = Result<DetailedTask, McpError>> + Send + 'static>>;

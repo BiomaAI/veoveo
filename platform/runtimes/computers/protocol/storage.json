@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://veoveo.io/contracts/computer-storage/v1",
+  "$id": "https://veoveo.ai/contracts/computer-storage/v1",
   "title": "ComputerStorageProtocol",
   "description": "Private installation mTLS protocol, not an operator API. One JSON document per four-byte network-order length frame, maximum 1024 bytes. Duplicate object keys are forbidden before schema validation. Successful replies must echo the exact request identity and admitted capacity. Provider and instance identity are mandatory. The initial instanceId equals computerId; replacement instances use a distinct UUID. Restore reopens only the currently admitted instance; it cannot authorize a handoff. No caller-selected paths, credentials or capacity.",
   "x-maximum-frame-bytes": 1024,
@@ -84,7 +84,7 @@
         "capacityBytes": {"$ref": "#/definitions/CapacityBytes"}
       }
     },
-    "ProtocolSchema": {"type": "string", "enum": ["veoveo.io/computer-storage/v1"]},
+    "ProtocolSchema": {"type": "string", "enum": ["veoveo.ai/computer-storage/v1"]},
     "Fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
     "IdentityId": {
       "type": "string",

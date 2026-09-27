@@ -720,7 +720,7 @@ pub(crate) fn helm_config() -> Result<()> {
         serde_json::from_str(&fs::read_to_string("deploy/local/k3d/registry.json")?)?;
     ensure!(
         registry.get("schemaVersion").and_then(Value::as_str)
-            == Some("veoveo.io/local-registry/v1")
+            == Some("veoveo.ai/local-registry/v1")
             && registry.get("name").and_then(Value::as_str) == Some("veoveo-registry.localhost")
             && registry
                 .get("image")
@@ -881,7 +881,7 @@ pub(crate) fn helm_config() -> Result<()> {
     ] {
         contains(
             &fs::read_to_string(dockerfile)?,
-            &format!("io.veoveo.simulation.base-lock=\"{simulation_lock_digest}\""),
+            &format!("ai.veoveo.simulation.base-lock=\"{simulation_lock_digest}\""),
         )?;
     }
     for expected in [
@@ -1071,10 +1071,10 @@ pub(crate) fn helm_config() -> Result<()> {
         "simulation-runtime = \"target:simulation-runtime-payload\"",
         "veoveo-rust-artifacts = \"target:rust-trixie-artifacts\"",
         "veoveo-rust-artifacts = \"target:rust-bookworm-artifacts\"",
-        "\"io.veoveo.build.mode\"",
-        "\"io.veoveo.build.package\"",
-        "\"io.veoveo.build.binaries\"",
-        "\"io.veoveo.build.family\"",
+        "\"ai.veoveo.build.mode\"",
+        "\"ai.veoveo.build.package\"",
+        "\"ai.veoveo.build.binaries\"",
+        "\"ai.veoveo.build.family\"",
         "VEOVEO_REGISTRY",
         "VEOVEO_IMAGE_TAG",
         "function \"registry_cache\"",

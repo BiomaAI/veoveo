@@ -6,7 +6,7 @@
 //! normalizes catalog and prediction behavior.
 
 /// Canonical Veoveo hosted MCP server contract revision.
-pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.io/hosted-mcp/v3";
+pub const HOSTED_MCP_CONTRACT_REVISION: &str = "veoveo.ai/hosted-mcp/v3";
 
 pub mod access;
 pub mod agent_management;

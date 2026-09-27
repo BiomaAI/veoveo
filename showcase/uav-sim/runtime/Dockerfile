@@ -11,7 +11,7 @@ COPY --link --chown=10001:10001 uav-overlay.identity.json /opt/veoveo/simulation
 
 ARG SOURCE_REVISION=local
 LABEL org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      io.veoveo.simulation.overlay="first_party_uav" \
-      io.veoveo.simulation.base-lock="sha256:604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d"
+      ai.veoveo.simulation.overlay="first_party_uav" \
+      ai.veoveo.simulation.base-lock="sha256:604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d"
 
 ENTRYPOINT ["/isaac-sim/python.sh", "/opt/veoveo/uav-sim/entrypoint.py"]

@@ -9,7 +9,7 @@ installation-owned Secrets, and local Helm charts. Enterprise installations use 
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v8` | Repository-owned disposable installation profiles and locks; defined by the [deployment contract](../deploy/contract/DESIGN.md) |
+| `veoveo.ai/deployment/v8` | Repository-owned disposable installation profiles and locks; defined by the [deployment contract](../deploy/contract/DESIGN.md) |
 | OCI images and registries | Exact runtime digests, separate host push and cluster pull addresses, explicit development-registry transport |
 | Docker Buildx Bake and BuildKit | Source-local image selection and publication under the [image-build contract](IMAGE_BUILDS.md) |
 | k3d, Kubernetes and Helm | Local cluster lifecycle and declarative component installation through the [deployment runtime](../deploy/runtime/DESIGN.md) |
@@ -25,7 +25,7 @@ The current complete profile is the SUMO development environment:
 | Local image destination | Profile-selected registry host and port with revision-addressed image tags |
 | Platform workload graph | deploy/helm/veoveo |
 | Showcase workload graph | Its adjacent Helm chart |
-| Development composition | A `veoveo.io/deployment/v8` installation-repository JSON profile |
+| Development composition | A `veoveo.ai/deployment/v8` installation-repository JSON profile |
 | Local registry lifecycle | deploy/local/k3d/registry.json |
 
 ## Workflow
@@ -86,7 +86,7 @@ paths resolve inside that source's exact checkout. The fields are:
 
 | Field | Meaning |
 |---|---|
-| schemaVersion | `veoveo.io/deployment/v8` |
+| schemaVersion | `veoveo.ai/deployment/v8` |
 | name | Stable local environment identity |
 | registry.pushAddress | OCI host and port reachable from the publication host |
 | registry.pullAddress | OCI host and port reachable from Kubernetes nodes |
@@ -119,7 +119,7 @@ commit, then resolves each source revision independently.
 The publisher derives only the required platform targets, rejects missing or
 unnecessary platform images and duplicate repository/tag references, and executes the
 platform set once. Workload groups remain source-owned. It writes one
-`veoveo.io/deployment-lock/v8` document with the installation revision, registry
+`veoveo.ai/deployment-lock/v8` document with the installation revision, registry
 endpoints and transport, source repositories and revisions, image manifest digests, chart-content
 digests, expanded platform graph, and compiled component inventories. Every image records
 the commit that built it independently of the chart snapshot. Installation locks are

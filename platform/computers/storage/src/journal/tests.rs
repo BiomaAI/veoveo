@@ -241,7 +241,7 @@ fn malformed_private_records_and_non_private_paths_are_not_repaired_implicitly()
         vec![b' '; 8193],
         {
             let mut duplicate = original[..original.len() - 1].to_vec();
-            duplicate.extend_from_slice(b",\"schema\":\"veoveo.io/retained-home/v1\"}");
+            duplicate.extend_from_slice(b",\"schema\":\"veoveo.ai/retained-home/v1\"}");
             duplicate
         },
     ] {

@@ -419,7 +419,7 @@ pub(super) fn materialize(
         .prefix("veoveo-rust-context-")
         .tempdir()?;
     let mut digest = Sha256::new();
-    digest.update(b"veoveo.io/rust-source-context/v1\0");
+    digest.update(b"veoveo.ai/rust-source-context/v1\0");
     for relative in &files {
         let source = repository.join(relative);
         let metadata = fs::symlink_metadata(&source)

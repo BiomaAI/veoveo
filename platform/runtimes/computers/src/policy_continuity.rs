@@ -13,7 +13,7 @@ use uuid::Uuid;
 mod checkpoint;
 
 const FAILURE: RuntimeFailure = RuntimeFailure::PolicyContinuity;
-const PROVENANCE: &str = "veoveo.io/replacement-policy";
+const PROVENANCE: &str = "veoveo.ai/replacement-policy";
 const DEADLINE: Duration = Duration::from_secs(75);
 
 #[derive(Clone, Copy, PartialEq)]

@@ -105,7 +105,7 @@ fn run_case(revision: &str, scenario: &str, mode: Option<&str>, succeeds: bool) 
         String::from_utf8_lossy(&output.stderr)
     );
     let evidence: Evidence = serde_json::from_slice(&fs::read(evidence_path)?)?;
-    ensure!(evidence.schema_version == "veoveo.io/gitops-convergence-evidence/v3");
+    ensure!(evidence.schema_version == "veoveo.ai/gitops-convergence-evidence/v3");
     ensure!(evidence.reconciliation_mode == mode.unwrap_or("observe"));
     ensure!(evidence.expected_revision == revision);
     ensure!(evidence.started_at_unix_millis > 0);

@@ -15,7 +15,6 @@ use crate::{
     executor::{CompiledMathematicalModel, CompiledRoutingProblem},
 };
 
-pub const PREPARED_PROBLEM_VERSION: &str = "veoveo.io/prepared-optimization-problem/v1";
 pub const DEFAULT_MAX_PREPARED_PROBLEM_BYTES: u64 = 256 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

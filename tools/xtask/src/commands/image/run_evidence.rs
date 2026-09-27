@@ -15,7 +15,7 @@ use super::{
 };
 use crate::context::RepositoryContext;
 
-const RUN_SCHEMA: &str = "veoveo.io/image-build-run/v2";
+const RUN_SCHEMA: &str = "veoveo.ai/image-build-run/v2";
 
 pub(crate) struct EvidenceRun {
     operation: String,

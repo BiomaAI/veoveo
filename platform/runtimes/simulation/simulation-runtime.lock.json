@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/simulation-runtime-build-lock/v1",
+  "schemaVersion": "veoveo.ai/simulation-runtime-build-lock/v1",
   "profile": "isaac-sim-6",
   "upstreamImage": "oci://nvcr.io/nvidia/isaac-sim@sha256:af1d2b4e75d553bfa27beb5a401198654aa8d607f3b7a6749196e9ce253def20",
   "upstreamDigest": "sha256:af1d2b4e75d553bfa27beb5a401198654aa8d607f3b7a6749196e9ce253def20",

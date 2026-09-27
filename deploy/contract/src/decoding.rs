@@ -31,7 +31,7 @@ mod tests {
 
     #[test]
     fn obsolete_lock_rejects_with_regeneration_guidance_before_removed_fields() {
-        let old = br#"{"schemaVersion":"veoveo.io/deployment-lock/v7","sources":[{"role":"extension","extensionRelease":{}}]}"#;
+        let old = br#"{"schemaVersion":"veoveo.ai/deployment-lock/v7","sources":[{"role":"extension","extensionRelease":{}}]}"#;
         let error = DeploymentLock::decode(old).unwrap_err().to_string();
         assert!(error.contains(DEPLOYMENT_LOCK_SCHEMA));
         assert!(error.contains("regenerate"));

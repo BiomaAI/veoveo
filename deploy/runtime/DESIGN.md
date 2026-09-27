@@ -4,12 +4,12 @@
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/deployment/v8` and `veoveo.io/deployment-lock/v8` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
-| `veoveo.io/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
-| `veoveo.io/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
-| `veoveo.io/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
-| `veoveo.io/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
-| `veoveo.io/component-installation/v2` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
+| `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | Disposable installation profiles and immutable artifacts defined by `../contract/DESIGN.md` |
+| `veoveo.ai/source-chart-content/v1` | Shared content identity for source charts in verified immutable checkouts |
+| `veoveo.ai/gateway-activation/v1` | Complete public ConfigMap bundle identity from the deployment contract |
+| `veoveo.ai/component-publication/v1` | Internal xtask receipt for exact component lock composition; records chart revisions, configuration refresh, image evidence, and retained owners, with no cluster execution claim |
+| `veoveo.ai/installed-deployment-unit/v1` | Local installation provenance, exact Helm revision and manifest identity, and observed object fingerprints used to verify reuse |
+| `veoveo.ai/component-installation/v2` | Successful selected installation plan, actual unit outcomes, unselected observations, and released cluster coordination identity; API request auditing stays separate |
 | Git | Immutable source checkouts, origin verification, and tracked installation input checks |
 | Docker Buildx Bake | Read-only expansion of platform targets and source-owned workload groups during profile validation; locked installation consumes the published artifact closure |
 | Helm v4.3.0 | Complete release rendering, source values before installation values, digest-locked images, and atomic release operations |
@@ -210,7 +210,7 @@ still requires the expanded dependency set.
 
 The command verifies each supplied OCI publication index and runnable manifest through
 the existing image qualification reader. Its create-only output includes a
-`veoveo.io/component-publication/v1` receipt with base and output lock digests,
+`veoveo.ai/component-publication/v1` receipt with base and output lock digests,
 requested IDs, dependency IDs, retained IDs, chart source revisions, configuration
 refresh intent, and image evidence digests. The image-operation
 recorder captures command timing. Source association follows the declared evidence input;

@@ -7,11 +7,11 @@ admission. The [Computers design](../DESIGN.md#qualification-limits) records qua
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/computer-storage/v1` | Private bounded JSON frames over TLS 1.3 with worker client authentication; exact provider, Computer, template and instance identity |
+| `veoveo.ai/computer-storage/v1` | Private bounded JSON frames over TLS 1.3 with worker client authentication; exact provider, Computer, template and instance identity |
 | Docker volume-plugin API v1 | Named retained volumes, local scope and a private Unix socket; notifications do not transfer writer authority |
 | Docker Engine API `1.53` | Exact engine identity and registered-container observation; provider mutations remain with the Computers worker |
 | Linux ext4 and loop devices | Fixed logical-size sparse backing files, `nodev,nosuid`, numeric UID/GID 10001 and a confined `home` subdirectory |
-| `veoveo.io/retained-storage-host/v1` and `veoveo.io/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
+| `veoveo.ai/retained-storage-host/v1` and `veoveo.ai/retained-home/v1` | Closed local JSON records, atomic publication, explicit incomplete-allocation state and host/engine binding |
 | Linux file locks and filesystem durability | One helper owns the metadata root; file and parent-directory synchronization precede success |
 | util-linux and e2fsprogs command profiles | Bounded `mkfs.ext4`, read-only `e2fsck`, `blkid`, `losetup` and `findmnt` calls from the pinned Computer-image environment; selected outputs are parsed explicitly |
 

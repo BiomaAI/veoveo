@@ -597,7 +597,7 @@ async fn storage_diagnostics(State(state): State<Arc<AppState>>) -> Response {
         .layer_cache_stats()
         .and_then(|layer_cache| {
             Ok(RecordingStorageDiagnostics {
-                schema: "veoveo.io/recording-storage-diagnostics/v1",
+                schema: "veoveo.ai/recording-storage-diagnostics/v1",
                 layer_cache,
                 projection_scratch: state.recordings.projection_runtime_stats()?,
             })

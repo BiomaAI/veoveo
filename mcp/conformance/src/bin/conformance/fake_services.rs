@@ -258,7 +258,7 @@ async fn fake_llm_completion(AxumJson(request): AxumJson<Value>) -> AxumJson<Val
                     "problem": {
                         "source": "inline",
                         "problem": {
-                            "version": "veoveo.io/milp-problem/v1",
+                            "version": "veoveo.ai/milp-problem/v1",
                             "variables": [{
                                 "variable_id": "visit-alpha",
                                 "kind": "integer",

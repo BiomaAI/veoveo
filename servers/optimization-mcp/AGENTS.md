@@ -25,7 +25,7 @@ run, solution, and evidence resources.
   or optional GPU mode.
 - The Rust container owns the MCP contract, compilation, identity, tasks,
   artifacts, and verification. The Python sidecar owns only private cuOpt and
-  CUDA execution through `veoveo.io/cuopt-executor/v1`.
+  CUDA execution through `veoveo.ai/cuopt-executor/v1`.
 - Map owns travel feasibility and `map://travel-model` resources. Optimization
   consumes only an attested immutable travel-model artifact or explicit inline
   matrices.

@@ -43,7 +43,7 @@ Shape:
 - Historical observations flow into Timeseries through its ordinary ingestion
   surface rather than a private store.
 
-Integration points: route weather over `veoveo.io/map-route-handoff/v1`
+Integration points: route weather over `veoveo.ai/map-route-handoff/v1`
 inputs, wind and visibility context for UAV mission admission, validity
 windows through Time, and archived observations for forecasting.
 

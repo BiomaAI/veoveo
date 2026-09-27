@@ -76,7 +76,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
     );
 
     let profile = serde_json::json!({
-        "schemaVersion": "veoveo.io/deployment/v8",
+        "schemaVersion": "veoveo.ai/deployment/v8",
         "name": "anonymous-installation",
         "registry": {
             "pushAddress": "registry.example.internal",
@@ -267,7 +267,7 @@ fn fork_merge_preserves_separate_release_ownership_and_retained_images() {
     fs::write(&profile_path, serde_json::to_vec_pretty(&invalid).unwrap()).unwrap();
     assert!(LoadedProfile::load(&profile_path, &installation).is_err());
     let mut old_profile = profile.clone();
-    old_profile["schemaVersion"] = serde_json::json!("veoveo.io/deployment/v7");
+    old_profile["schemaVersion"] = serde_json::json!("veoveo.ai/deployment/v7");
     old_profile["sources"][1]["role"] = serde_json::json!("extension");
     fs::write(
         &profile_path,

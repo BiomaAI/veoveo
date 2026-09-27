@@ -7,7 +7,7 @@ use veoveo_mcp_contract::{LiveSessionId, SubscriptionHub};
 
 use crate::{adapter::Adapter, uris};
 
-const RUNTIME_EVENT_SCHEMA: &str = "veoveo.io/uav-runtime-event/v2";
+const RUNTIME_EVENT_SCHEMA: &str = "veoveo.ai/uav-runtime-event/v2";
 const MAXIMUM_EVENT_BYTES: usize = 1_024;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
@@ -161,14 +161,14 @@ mod tests {
     fn runtime_ready_event_is_strict_and_session_bound() {
         let expected = LiveSessionId::new("session-alpha").unwrap();
         let event = parse(
-            br#"{"schema":"veoveo.io/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":2}"#,
+            br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":2}"#,
             &expected,
         )
         .unwrap();
         assert_eq!(event.event, RuntimeEventKind::Ready);
         assert_eq!(
             parse(
-                br#"{"schema":"veoveo.io/uav-runtime-event/v2","event":"adapter_ready","sessionId":"session-alpha","generation":2}"#,
+                br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"adapter_ready","sessionId":"session-alpha","generation":2}"#,
                 &expected,
             )
             .unwrap()
@@ -178,14 +178,14 @@ mod tests {
         assert_eq!(event.generation, 2);
         assert!(
             parse(
-                br#"{"schema":"veoveo.io/uav-runtime-event/v2","event":"ready","sessionId":"session-beta","generation":2}"#,
+                br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-beta","generation":2}"#,
                 &expected,
             )
             .is_err()
         );
         assert!(
             parse(
-                br#"{"schema":"veoveo.io/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":2,"secret":"no"}"#,
+                br#"{"schema":"veoveo.ai/uav-runtime-event/v2","event":"ready","sessionId":"session-alpha","generation":2,"secret":"no"}"#,
                 &expected,
             )
             .is_err()

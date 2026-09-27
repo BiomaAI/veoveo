@@ -71,7 +71,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
     let started = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
     let namespace = format!("veoveo-cancel-{started}-{}", std::process::id());
     let mut evidence = Evidence {
-        schema_version: "veoveo.io/flux-cancellation-evidence/v1",
+        schema_version: "veoveo.ai/flux-cancellation-evidence/v1",
         context: args.context.clone(),
         namespace: namespace.clone(),
         image: args.image.clone(),

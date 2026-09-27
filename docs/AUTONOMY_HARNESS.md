@@ -22,7 +22,7 @@ limits the installation set.
 | JSON Schema 2020-12 | Closed schemas for controlled agent manifests, tool inputs, tool outputs, and the gateway control plane. |
 | [Typed gateway control plane](../mcp/contract/DESIGN.md) | Installation-owned capability exposure, authorization policy, tenant binding, artifact audiences, and data-label requirements. |
 | [Work Context governance](WORK_CONTEXT_GOVERNANCE.md) | Durable invocation authority, output ownership, membership, classification, data labels, and retained provenance. |
-| OCI, Helm, Kubernetes, and [`veoveo.io/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
+| OCI, Helm, Kubernetes, and [`veoveo.ai/deployment-lock/v8`](ENTERPRISE_DEPLOYMENT.md) | Digest-addressed software, installation-owned desired state, and immutable evidence for the selected runtime closure. |
 | [NVIDIA agent-stack security guidance](https://developer.nvidia.com/blog/where-security-fits-in-an-ai-agent-stack) | Independent corroboration of the boundary placement this harness enforces, and the lens for the open work recorded under Industry Alignment. |
 
 ## Security Objective

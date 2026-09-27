@@ -7,13 +7,13 @@ use url::Url;
 pub use veoveo_mcp_contract::HOSTED_MCP_CONTRACT_REVISION;
 
 /// Hosted-server conformance profile schema.
-pub const HOSTED_SERVER_PROFILE_SCHEMA: &str = "veoveo.io/mcp-conformance-profile/v1";
+pub const HOSTED_SERVER_PROFILE_SCHEMA: &str = "veoveo.ai/mcp-conformance-profile/v1";
 
 /// Supported hosted-server conformance profile schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum HostedServerProfileSchema {
     /// Hosted-server conformance profile version 1.
-    #[serde(rename = "veoveo.io/mcp-conformance-profile/v1")]
+    #[serde(rename = "veoveo.ai/mcp-conformance-profile/v1")]
     V1,
 }
 
@@ -237,7 +237,7 @@ mod tests {
         HostedServerConformanceProfile {
             schema_version: HostedServerProfileSchema::V1,
             profile_id: "extension-ci".to_owned(),
-            contract_revision: "veoveo.io/hosted-mcp/v3".to_owned(),
+            contract_revision: "veoveo.ai/hosted-mcp/v3".to_owned(),
             endpoint: "https://extension.example.internal/domain/mcp".to_owned(),
             server_slug: "domain".to_owned(),
             owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),

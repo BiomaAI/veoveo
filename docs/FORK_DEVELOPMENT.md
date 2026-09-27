@@ -13,7 +13,7 @@ separate Git repository; Bioma provides the maintained reference configuration.
 | MCP Apps | domain UI discovery and interaction through the existing gateway and clients |
 | OCI Distribution | digest-pinned images and application charts, with build provenance |
 | Helm and Kubernetes | application releases with explicit ownership, security and GPU requirements |
-| `veoveo.io/deployment/v8` and `veoveo.io/deployment-lock/v8` | local source publication, typed component selection and immutable artifact reuse |
+| `veoveo.ai/deployment/v8` and `veoveo.ai/deployment-lock/v8` | local source publication, typed component selection and immutable artifact reuse |
 | SurrealDB 3.2.4 | separate checksummed upstream and downstream migration histories |
 
 ## Code Placement

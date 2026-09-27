@@ -35,7 +35,7 @@ class ViewLifecycle(str, Enum):
 
 
 class CameraDescriptor(WireModel):
-    schema_version: str = "veoveo.io/live-view/v4"
+    schema_version: str = "veoveo.ai/live-view/v4"
     session_id: str = Field(min_length=1, max_length=128)
     camera_id: str = Field(min_length=1, max_length=128)
     rig: str = "fixed"
@@ -91,7 +91,7 @@ class MediaEndpoint(WireModel):
 
 
 class LiveViewState(WireModel):
-    schema_version: str = "veoveo.io/live-view/v4"
+    schema_version: str = "veoveo.ai/live-view/v4"
     live_view_id: str
     resource_uri: str
     session_id: str
@@ -130,7 +130,7 @@ class GetFixtureStateRequest(WireModel):
 
 
 class FixtureState(WireModel):
-    schema_version: str = "veoveo.io/simulator-hosted-live-view-fixture/v2"
+    schema_version: str = "veoveo.ai/simulator-hosted-live-view-fixture/v2"
     session_id: str
     cameras: tuple[CameraDescriptor, ...]
     stream_products: tuple[StreamProduct, ...]

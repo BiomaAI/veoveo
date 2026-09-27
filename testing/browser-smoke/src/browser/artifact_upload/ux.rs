@@ -24,7 +24,7 @@ pub(crate) async fn verify(
         wait_for_document(&mut cdp, &session).await?;
         let hardware = hardware_check(&mut cdp, &session).await?;
         let policy = authorized_policy(&mut cdp, &session, &page_url).await?;
-        let mut evidence = Evidence { schema: "veoveo.io/console-artifact-upload-ux-acceptance/v1", source_revision: git_revision()?, page_url: page_url.clone(), hardware, policy, preflight_only: false, steps: vec![], screenshots: vec![], accepted_before_reload: 0, elapsed_seconds: 0.0, large_receipt: None, csv_receipt: None };
+        let mut evidence = Evidence { schema: "veoveo.ai/console-artifact-upload-ux-acceptance/v1", source_revision: git_revision()?, page_url: page_url.clone(), hardware, policy, preflight_only: false, steps: vec![], screenshots: vec![], accepted_before_reload: 0, elapsed_seconds: 0.0, large_receipt: None, csv_receipt: None };
         wait_selector(&mut cdp, &session, "button[aria-label='Open uploads']", Duration::from_secs(90)).await?;
         cdp.evaluate::<bool>(&session, "(()=>{document.querySelector('button[aria-label=\"Open uploads\"]').focus();return true})()", false).await?;
         key(&mut cdp, &session, "Enter", 13).await?;

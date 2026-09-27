@@ -13,7 +13,7 @@ pub const STORAGE_PORT: u16 = 8806;
 
 #[derive(Deserialize)]
 pub enum Schema {
-    #[serde(rename = "veoveo.io/computer-host/v1")]
+    #[serde(rename = "veoveo.ai/computer-host/v1")]
     V1,
 }
 
@@ -23,7 +23,7 @@ mod tests {
     fn valid() -> Config {
         let image = format!("registry.internal:5000/computer@sha256:{}", "a".repeat(64));
         serde_json::from_value(serde_json::json!({
-            "schema": "veoveo.io/computer-host/v1", "providerId": uuid::Uuid::from_u128(100),
+            "schema": "veoveo.ai/computer-host/v1", "providerId": uuid::Uuid::from_u128(100),
             "namespace": "private-computers", "defaultImage": image, "images": [image],
             "templates": [{"fingerprint": "b".repeat(64), "capacityBytes": 536870912}],
             "reserveBytes": 536870912, "registry": {"authority": "registry.internal:5000", "transport": "development_http"},

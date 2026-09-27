@@ -53,7 +53,7 @@ fn warm_flight_dispatch_stays_under_two_seconds() {
         }
     }
     let receipt = serde_json::json!({
-        "schema": "veoveo.io/flight-dispatch-timing/v1",
+        "schema": "veoveo.ai/flight-dispatch-timing/v1",
         "command": "cargo xtask smoke uav-showcase-up --scenario <absent> --context veoveo-dispatch-no-cluster --public-base-url https://dispatch.invalid",
         "warmSeconds": timings,
         "assertion": "typed scenario rejection before Kubernetes or authentication",

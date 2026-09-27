@@ -108,7 +108,7 @@ pub(crate) fn run(repository: &RepositoryContext, args: &BuilderBenchmarkArgs) -
     )?;
     let started = chrono::Utc::now();
     let mut comparison = Comparison {
-        schema: "veoveo.io/compiler-cpu-comparison/v1",
+        schema: "veoveo.ai/compiler-cpu-comparison/v1",
         started_at: started.to_rfc3339(),
         source_revision: prepared.plan.source.revision.clone(),
         source_dirty: prepared.plan.source.dirty,

@@ -8,7 +8,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 
-pub const RECORDING_INGEST_DIAGNOSTICS_SCHEMA: &str = "veoveo.io/recording-ingest-diagnostics/v1";
+pub const RECORDING_INGEST_DIAGNOSTICS_SCHEMA: &str = "veoveo.ai/recording-ingest-diagnostics/v1";
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]

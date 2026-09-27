@@ -245,7 +245,7 @@ pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -
     let lifecycle_after_simulator_restart = json_string(&final_state, "/lifecycle")?.to_owned();
 
     let evidence = RestartAcceptanceEvidence {
-        schema: "veoveo.io/uav-live-view-restart-evidence/v1",
+        schema: "veoveo.ai/uav-live-view-restart-evidence/v1",
         completed_at: Utc::now(),
         source_revision,
         run_id,

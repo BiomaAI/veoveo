@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment-lock/v8",
+  "schemaVersion": "veoveo.ai/deployment-lock/v8",
   "profile": "synthetic-contract-fixture",
   "profileRevision": "dddddddddddddddddddddddddddddddddddddddd",
   "registry": {

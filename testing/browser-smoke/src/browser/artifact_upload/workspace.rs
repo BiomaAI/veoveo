@@ -38,7 +38,7 @@ pub(crate) async fn verify(base: &str, endpoint: &str, output: &Path) -> Result<
         hardware_check(&mut cdp, &session).await?;
         let screenshot = capture_screenshot(&mut cdp, &session, &directory.join("markdown-ready.png")).await?;
         fs::write(directory.join("evidence.json"), serde_json::to_vec_pretty(&serde_json::json!({
-            "schema":"veoveo.io/workspace-markdown-acceptance/v1", "sourceRevision":git_revision()?,
+            "schema":"veoveo.ai/workspace-markdown-acceptance/v1", "sourceRevision":git_revision()?,
             "url":url,"hardware":hardware,"receipt":receipt,"downloadVerified":true,
             "reloadVerified":true,"screenshotSha256":screenshot
         }))?)?;

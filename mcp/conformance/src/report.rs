@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Conformance report schema.
-pub const CONFORMANCE_REPORT_SCHEMA: &str = "veoveo.io/mcp-conformance-report/v1";
+pub const CONFORMANCE_REPORT_SCHEMA: &str = "veoveo.ai/mcp-conformance-report/v1";
 
 /// Supported conformance report schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum ConformanceReportSchema {
-    #[serde(rename = "veoveo.io/mcp-conformance-report/v1")]
+    #[serde(rename = "veoveo.ai/mcp-conformance-report/v1")]
     V1,
 }
 

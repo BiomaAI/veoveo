@@ -5,6 +5,7 @@ pub(crate) mod doc_links;
 pub(crate) mod doctor;
 pub(crate) mod enforce;
 pub(crate) mod helm;
+pub(crate) mod identifiers;
 pub(crate) mod image;
 pub(crate) mod image_manifest;
 pub(crate) mod python;

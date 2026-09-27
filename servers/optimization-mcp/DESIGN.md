@@ -39,12 +39,12 @@ retain the `optimization://` scheme.
 | [NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt) | Stable release `26.08`, running from `nvidia/cuopt:26.8.0-cuda13.3-py3.14` at Linux amd64 manifest digest `sha256:81441d50797ffaf6352552d94bd14560c53df28370bd0c9bf413fd7eeebbf178`. |
 | CUDA | CUDA 13.3 runtime supplied by the pinned cuOpt image. A hardware NVIDIA GPU is mandatory. |
 | GNU OpenMP runtime | Ubuntu Jammy `libgomp1` `12.3.0-1ubuntu1~22.04.3` satisfies the cuDSS `libcudss_mtlayer_gomp.so.0` runtime dependency omitted by the cuOpt 26.08 image. The executor image build verifies that the threading layer has no unresolved shared libraries. |
-| `veoveo.io/optimization/v1` | Repository-owned Optimization resource and result profile. |
-| `veoveo.io/routing-problem/v1` | Repository-owned routing problem profile for service or pickup-delivery orders. |
-| `veoveo.io/convex-problem/v1` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
-| `veoveo.io/milp-problem/v1` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
-| `veoveo.io/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
-| `veoveo.io/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
+| `veoveo.ai/optimization/v1` | Repository-owned Optimization resource and result profile. |
+| `veoveo.ai/routing-problem/v1` | Repository-owned routing problem profile for service or pickup-delivery orders. |
+| `veoveo.ai/convex-problem/v1` | Repository-owned continuous LP, QP, QCQP, and quadratic SOCP representation. |
+| `veoveo.ai/milp-problem/v1` | Repository-owned linear MILP profile with continuous, integer, and semi-continuous variables. |
+| `veoveo.ai/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
+| `veoveo.ai/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 

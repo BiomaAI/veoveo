@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{context::RepositoryContext, process};
 
-const AFFECTED_SCHEMA: &str = "veoveo.io/image-affected-plan/v1";
+const AFFECTED_SCHEMA: &str = "veoveo.ai/image-affected-plan/v1";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]

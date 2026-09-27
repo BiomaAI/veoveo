@@ -1099,7 +1099,7 @@ fn line_geojson(line: &Wgs84LineString) -> Result<String> {
     ))?)
 }
 
-const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.io/map/source-feature-query/v2";
+const SOURCE_FEATURE_QUERY_DOMAIN: &str = "veoveo.ai/map/source-feature-query/v2";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

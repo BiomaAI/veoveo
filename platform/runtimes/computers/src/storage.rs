@@ -142,7 +142,7 @@ impl PersistentHome {
         )]))
     }
     pub(crate) fn fingerprint_bytes(&self) -> Vec<u8> {
-        let mut bytes = b"veoveo.io/computer-persistent-home/v1\0".to_vec();
+        let mut bytes = b"veoveo.ai/computer-persistent-home/v1\0".to_vec();
         bytes.extend(self.capacity_mib.to_be_bytes());
         bytes.extend(canonical::encode(
             &self

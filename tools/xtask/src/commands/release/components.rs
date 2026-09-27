@@ -109,7 +109,7 @@ pub(crate) fn publish(repository: &RepositoryContext, args: &ReleaseComponentsAr
     let mut output_bytes = serde_json::to_vec_pretty(&updated)?;
     output_bytes.push(b'\n');
     let receipt = PublicationReceipt {
-        schema_version: "veoveo.io/component-publication/v1",
+        schema_version: "veoveo.ai/component-publication/v1",
         base_lock_digest: digest(&base_bytes),
         output_lock_digest: digest(&output_bytes),
         requested: &requested,
@@ -319,7 +319,7 @@ mod tests {
         );
         assert!(load_evidence(&repository, &base, &["missing-separator".into()]).is_err());
         let mut invalid = evidence.clone();
-        invalid.schema_version = "veoveo.io/image-stage-evidence/v2".into();
+        invalid.schema_version = "veoveo.ai/image-stage-evidence/v2".into();
         fs::write(&path, serde_json::to_vec(&invalid).unwrap()).unwrap();
         assert!(load_evidence(&repository, &base, std::slice::from_ref(&input)).is_err());
         invalid = evidence;

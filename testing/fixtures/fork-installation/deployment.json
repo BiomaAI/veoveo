@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v8",
+  "schemaVersion": "veoveo.ai/deployment/v8",
   "name": "fork-simulation",
   "registry": {
     "pushAddress": "127.0.0.1:5001",

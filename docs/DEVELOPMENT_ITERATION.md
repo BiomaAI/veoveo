@@ -10,13 +10,13 @@
 | Helm values | complete registry and image-digest map consumed by GitOps |
 | Chrome DevTools Protocol | headed hardware-browser acceptance and request cancellation evidence |
 | Rerun 0.38.1 RRD | bounded live history and governed archive playback |
-| `veoveo.io/image-affected-plan/v1` | repository-owned affected-surface closure |
-| `veoveo.io/development-image-lock/v1` | repository-owned non-release deployment closure |
-| `veoveo.io/component-publication/v1` | exact component lock composition with retained artifact inputs; no cluster mutation claim |
-| `veoveo.io/gitops-convergence-evidence/v3` | repository-owned reconciliation mode, observation start, exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
-| `veoveo.io/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
-| `veoveo.io/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
-| `veoveo.io/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
+| `veoveo.ai/image-affected-plan/v1` | repository-owned affected-surface closure |
+| `veoveo.ai/development-image-lock/v1` | repository-owned non-release deployment closure |
+| `veoveo.ai/component-publication/v1` | exact component lock composition with retained artifact inputs; no cluster mutation claim |
+| `veoveo.ai/gitops-convergence-evidence/v3` | repository-owned reconciliation mode, observation start, exact Flux source revision, root apply, Helm inventory, rollout, and readiness evidence |
+| `veoveo.ai/console-apps-browser-acceptance/v1` | composed signed-in Console App catalog, server grouping, per-App headed render, and hardware adapter evidence |
+| `veoveo.ai/uav-live-view-browser-evidence/v8` | focused authoritative-camera pixels, event-derived source-to-render and motion-to-photon p95, cadence, isolated-viewer products, sensor separation, and simulation real-time-factor evidence over a running simulation |
+| `veoveo.ai/uav-recording-browser-evidence/v2` | source-clock and camera-pane evidence for one live governed recording |
 
 ## Operating Model
 

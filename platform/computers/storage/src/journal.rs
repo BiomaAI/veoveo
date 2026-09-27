@@ -15,12 +15,12 @@ const MAX_RECORD_BYTES: u64 = 8192;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 enum HostSchema {
-    #[serde(rename = "veoveo.io/retained-storage-host/v1")]
+    #[serde(rename = "veoveo.ai/retained-storage-host/v1")]
     V1,
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 enum HomeSchema {
-    #[serde(rename = "veoveo.io/retained-home/v1")]
+    #[serde(rename = "veoveo.ai/retained-home/v1")]
     V1,
 }
 #[derive(Serialize, Deserialize)]

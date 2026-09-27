@@ -763,7 +763,7 @@ fn materialize_image(
     let context = tempfile::tempdir().context("creating image materialization context")?;
     fs::write(
         context.path().join("Dockerfile"),
-        "# syntax=docker/dockerfile:1.25.0\nARG CERT_IMAGE\nFROM ${CERT_IMAGE}\nARG CERT_IMAGE\nLABEL io.veoveo.certification.source=\"${CERT_IMAGE}\"\n",
+        "# syntax=docker/dockerfile:1.25.0\nARG CERT_IMAGE\nFROM ${CERT_IMAGE}\nARG CERT_IMAGE\nLABEL ai.veoveo.certification.source=\"${CERT_IMAGE}\"\n",
     )?;
     let mut command = veoveo_image_build_control::buildx_command(repository)?;
     command
@@ -802,7 +802,7 @@ fn cached_materialization(tag: &str, image: &str, transcript: &mut Transcript) -
         "inspect",
         tag,
         "--format",
-        "{{json (index .Config.Labels \"io.veoveo.certification.source\")}}",
+        "{{json (index .Config.Labels \"ai.veoveo.certification.source\")}}",
     ]);
     let output = command_output(
         &mut command,

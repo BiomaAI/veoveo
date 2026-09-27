@@ -18,15 +18,15 @@ for visualization.
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
-| `veoveo.io/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
-| `veoveo.io/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
+| `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
+| `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
 | WebSocket and H.264 | RFC 6455 binary messages under subprotocol `veoveo.h264.annexb.v1`; each message carries one decoder-reentrant or predicted Annex B H.264 access unit. The encoded atlas is H.264 Main Profile Level 5.2, advertised to WebCodecs with the exact RFC 6381 codec string `avc1.4d4034`. One tiled NVIDIA NVENC atlas fans out unchanged to authenticated viewers. This WebSocket is a media adapter, not a public simulator-control protocol. |
 | OpenUSD and RTX Hydra | Isaac Sim `6.1.0` stage and render products inside the authoritative runtime. These are implementation details, not MCP wire types. |
 | Native sensor video | Isaac Sim `isaacsim.streaming.rtsp` `0.1.5` supplies `RTSPStreamWriter`. Its CUDA-buffer mode passes resident pixels to `omni.kit.livestream.rtsp` `10.4.1` for one NVIDIA NVENC encode. The private adapter consumes the loopback RTSP/RTP H.264 stream without decoding or re-encoding. This is not an MCP wire type. |
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
-| `veoveo.io/map-route-handoff/v1` | Map MCP-owned, execution-neutral route projection with exact route, digest, mobility-profile, snapshot, release, restriction, and validation provenance. |
+| `veoveo.ai/map-route-handoff/v1` | Map MCP-owned, execution-neutral route projection with exact route, digest, mobility-profile, snapshot, release, restriction, and validation provenance. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
@@ -165,7 +165,7 @@ Mission admission has one vertical handoff:
 ```text
 operator prompt
   -> Map MCP resolves places, applies active data, and routes
-  -> Map MCP prepares veoveo.io/map-route-handoff/v1
+  -> Map MCP prepares veoveo.ai/map-route-handoff/v1
   -> UAV MCP verifies grant, profile, provenance, freshness, and Frames revision
   -> UAV MCP persists one principal-bound single-vehicle plan
   -> UAV MCP acquires the exclusive vehicle command lease

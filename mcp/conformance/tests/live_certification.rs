@@ -171,7 +171,7 @@ async fn certifies_a_domain_without_linking_its_implementation() -> anyhow::Resu
     let profile = HostedServerConformanceProfile {
         schema_version: HostedServerProfileSchema::V1,
         profile_id: "anonymous-extension".to_owned(),
-        contract_revision: "veoveo.io/hosted-mcp/v3".to_owned(),
+        contract_revision: "veoveo.ai/hosted-mcp/v3".to_owned(),
         endpoint: format!("http://{address}/domain/mcp"),
         server_slug: "domain".to_owned(),
         owned_resource_schemes: BTreeSet::from(["domain".to_owned()]),

@@ -7,11 +7,11 @@ use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
 
 /// Hashes every public ConfigMap data key and its exact UTF-8 value using the
-/// length-prefixed `veoveo.io/gateway-activation/v1` encoding.
+/// length-prefixed `veoveo.ai/gateway-activation/v1` encoding.
 pub fn gateway_bundle_digest(data: &BTreeMap<String, String>) -> Result<ArtifactDigest> {
     ensure!(!data.is_empty(), "gateway bundle cannot be empty");
     let mut hasher = Sha256::new();
-    hasher.update(b"veoveo.io/gateway-activation/v1\0");
+    hasher.update(b"veoveo.ai/gateway-activation/v1\0");
     for (key, value) in data {
         ensure!(
             !key.is_empty()

@@ -217,7 +217,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
     let directory = fs::canonicalize(parent)?.join(&namespace);
     fs::create_dir(&directory)?;
     let mut evidence = Evidence {
-        schema_version: "veoveo.io/component-scope-evidence/v1",
+        schema_version: "veoveo.ai/component-scope-evidence/v1",
         namespace: namespace.clone(),
         fixture_directory: directory.clone(),
         cases: Vec::new(),
@@ -323,7 +323,7 @@ pub(crate) fn verify(args: Args) -> Result<()> {
                 "update did not apply exactly one selected component"
             );
             ensure!(
-                receipt.schema_version == "veoveo.io/component-installation/v2"
+                receipt.schema_version == "veoveo.ai/component-installation/v2"
                     && receipt.coordination.released
                     && !receipt.coordination.uid.is_empty()
                     && receipt.coordination.object.group == "coordination.k8s.io"

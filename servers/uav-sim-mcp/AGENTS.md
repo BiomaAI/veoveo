@@ -24,7 +24,7 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   `interrupted_indeterminate` recovery; live simulator work is never replayed
   after an unclean interruption. Compatibility task tools are not added.
 - Map MCP owns place resolution, active operational geography, mobility profiles,
-  restrictions, routing, and `veoveo.io/map-route-handoff/v1`. Frames MCP owns
+  restrictions, routing, and `veoveo.ai/map-route-handoff/v1`. Frames MCP owns
   immutable world revisions. This server owns principal-to-vehicle grants,
   mission admission, exclusive command leases, execution, telemetry, and its
   domain App. Do not move Map or Frames behavior into UAV code.

@@ -39,7 +39,7 @@ pub(crate) async fn verify_resume(
         let policy = authorized_policy(&mut cdp, &session, &page_url).await?;
         ensure!(policy.status == 200 && policy.allowed, "resume requires currently authorized upload access: {policy:?}");
         let mut evidence = Evidence {
-            schema: "veoveo.io/console-artifact-upload-resume-acceptance/v1", source_revision: git_revision()?, page_url: page_url.clone(),
+            schema: "veoveo.ai/console-artifact-upload-resume-acceptance/v1", source_revision: git_revision()?, page_url: page_url.clone(),
             hardware, policy, preflight_only: false, steps: vec![format!("Continues saved fixture in {}", original.display())],
             screenshots: vec![], accepted_before_reload: 0, elapsed_seconds: 0.0, large_receipt: None, csv_receipt: None,
         };

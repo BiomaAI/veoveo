@@ -7,10 +7,10 @@ The [Computers design](../DESIGN.md#qualification-limits) records installed qual
 
 | Boundary | Supported profile |
 |---|---|
-| `veoveo.io/computer-host/v1` | Closed installation-owned JSON configuration; one provider UUID/namespace and a digest-pinned local image catalog |
+| `veoveo.ai/computer-host/v1` | Closed installation-owned JSON configuration; one provider UUID/namespace and a digest-pinned local image catalog |
 | Docker Engine 29.8.0, API 1.53 and volume-plugin API v1 | Dedicated private Unix socket, overlay2 on ext4, local retained-volume plugin; no host daemon access |
 | OpenShell provider `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605` | Exact maintained patch trees and OCI-built binaries from the provider image; private mTLS gRPC and selected SSH transport |
-| TLS 1.3 and `veoveo.io/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
+| TLS 1.3 and `veoveo.ai/computer-storage/v1` | Separate worker trust for retained storage; provider guest certificates are denied provider user authority |
 | OCI images | Exact manifest references from one installation registry, HTTPS or explicitly declared development HTTP |
 | Linux namespaces, cgroup v2, signals and ext4 | One privileged compute container with owned mount/network/PID/cgroup namespaces, finite CPU/RAM ceilings and persistent local ext4 data |
 | Kubernetes Secret projection | Read-only fixed-name files, confined resolution inside the mount and bounded copies into root-owned regular files; no user-controlled paths |
@@ -73,7 +73,7 @@ reads at most 64 KiB, rejects unknown fields
 and validates identities, capacity, image digests and private networks before startup.
 Configuration provides `providerId`, `namespace`, `defaultImage`, `images`, `templates`,
 `reserveBytes`, `registry`, `bridgeAddress` and `networkPool`. The schema value is
-`veoveo.io/computer-host/v1`. Templates use the allocator's fingerprint/capacity shape.
+`veoveo.ai/computer-host/v1`. Templates use the allocator's fingerprint/capacity shape.
 The bridge address is a private `.1` address on a /24; the sandbox pool is a distinct
 private /16 base. The installation must choose ranges that do not overlap its pod,
 service, physical or routed networks. Docker owns these ranges within its namespace.

@@ -27,7 +27,7 @@ FROM scratch
 ARG SOURCE_REVISION
 LABEL org.opencontainers.image.title="Veoveo simulation conformance evidence" \
       org.opencontainers.image.revision="${SOURCE_REVISION}" \
-      io.veoveo.artifact.kind="simulation-conformance-result"
+      ai.veoveo.artifact.kind="simulation-conformance-result"
 COPY simulation-runtime.lock.json /veoveo/simulation/simulation-runtime.lock.json
 COPY simulation-runtime-build-lock.schema.json /veoveo/simulation/schemas/simulation-runtime-build-lock.schema.json
 COPY simulation-conformance-result.schema.json /veoveo/simulation/schemas/simulation-conformance-result.schema.json

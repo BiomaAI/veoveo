@@ -22,6 +22,6 @@ def read_build_lock() -> dict[str, Any]:
             f"simulation build lock digest differs: expected {expected}, received {actual}"
         )
     lock = json.loads(payload)
-    if lock.get("schemaVersion") != "veoveo.io/simulation-runtime-build-lock/v1":
+    if lock.get("schemaVersion") != "veoveo.ai/simulation-runtime-build-lock/v1":
         raise RuntimeError("simulation build lock has an unsupported schema")
     return lock

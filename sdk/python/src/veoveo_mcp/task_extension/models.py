@@ -20,7 +20,7 @@ UPDATE_TASK_METHOD = "tasks/update"
 CANCEL_TASK_METHOD = "tasks/cancel"
 TASK_NOTIFICATION_METHOD = "notifications/tasks"
 SUBSCRIPTION_ID_META_KEY = "io.modelcontextprotocol/subscriptionId"
-TASK_RETENTION_PIN_META_KEY = "ai.bioma.veoveo/taskRetentionPin"
+TASK_RETENTION_PIN_META_KEY = "ai.veoveo/task-retention-pin"
 
 
 def _validate_task_id(value: str) -> str:

@@ -226,7 +226,7 @@ pub(crate) async fn artifact_upload_consumers(
         .trim()
         .to_owned();
     let evidence = Evidence {
-        schema: "veoveo.io/artifact-upload-consumer-acceptance/v1",
+        schema: "veoveo.ai/artifact-upload-consumer-acceptance/v1",
         source_revision: revision,
         public_base_url: base.into(),
         large_receipt: browser.large_receipt,

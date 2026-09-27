@@ -695,7 +695,7 @@ impl RecordingService {
             PlatformArtifactId::from_uuid(record_uuid(&record, "artifact_occurrence")?)
         } else {
             let manifest = RecordingManifest {
-                schema: "veoveo.io/recording-manifest/v9".to_owned(),
+                schema: "veoveo.ai/recording-manifest/v9".to_owned(),
                 dataset_id: dataset_id.to_string(),
                 recording_segment_id: recording_id.to_string(),
                 catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),

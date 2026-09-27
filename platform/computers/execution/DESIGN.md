@@ -8,14 +8,14 @@ provider adapter, Artifact/domain integration and public UI remain delivery work
 
 | Boundary | Selected profile |
 |---|---|
-| `veoveo.io/computer-execution/v1` | Private closed JSON request preceded by its four-byte unsigned big-endian length; maximum encoded body 2 MiB |
+| `veoveo.ai/computer-execution/v1` | Private closed JSON request preceded by its four-byte unsigned big-endian length; maximum encoded body 2 MiB |
 | JSON / UTF-8 / RFC 4648 Base64 | Explicit argv, relative working directory, environment overrides and finite binary stdin; no authority or provider endpoint fields |
 | POSIX process execution | Direct argv execution with inherited Computer environment and explicit overrides; shell use requires an explicit interpreter in argv |
 | Linux `openat2` | `RESOLVE_BENEATH` and `RESOLVE_NO_MAGICLINKS` resolve the launch directory under the retained home; ordinary internal relative symlinks remain usable |
 | Linux `O_TMPFILE` and procfs descriptor reopen | Finite program stdin uses an anonymous file under the Computer's private `/tmp`, reopened read-only; no named-file fallback or detached producer |
 | nix `0.31.3` | Exact syscall-wrapper pin, confirmed against the upstream changelog on September 10, 2026; selected filesystem and user APIs |
 | OpenShell `0.0.116` private execution adapter | Existing authenticated stream transports a fixed launcher command and framed stdin; provider completion and interruption guarantees remain those of the qualified runtime |
-| `veoveo.io/computer-files/v1` | Private length-prefixed JSON header, exact binary import body, raw export stdout and bounded structured result on stderr; maximum file size 64 MiB |
+| `veoveo.ai/computer-files/v1` | Private length-prefixed JSON header, exact binary import body, raw export stdout and bounded structured result on stderr; maximum file size 64 MiB |
 | Linux Landlock ABI 3 filesystem subset | The single-threaded file helper requires ABI 3 or newer and installs an additional retained-home-only filesystem layer; unavailable confinement rejects the request |
 | SHA-256, FIPS 180-4; sha2 `0.11.0` | Existing workspace implementation validates import bytes before publication and identifies exported bytes |
 

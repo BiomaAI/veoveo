@@ -9,13 +9,13 @@
 | Dockerfile frontend 1.25.0 and 1.27.0 | Existing Rust recipes retain their pins; the managed-agent controller uses the current 1.27.0 parser |
 | Docker Buildx Bake | checked-in image catalog and named-context graph |
 | OCI images | `linux/amd64` release output with immutable Git revision tags |
-| `veoveo.io/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
-| `veoveo.io/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
-| `veoveo.io/image-affected-plan/v1` | changed-path to image-consumer closure |
-| `veoveo.io/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
-| `veoveo.io/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
+| `veoveo.ai/image-build-plan/v2` | repository-owned resolved build-plan evidence with the source commit timestamp |
+| `veoveo.ai/image-build-run/v2` | repository-owned immutable execution record with BuildKit phase timings |
+| `veoveo.ai/image-affected-plan/v1` | changed-path to image-consumer closure |
+| `veoveo.ai/image-stage-evidence/v2` | non-release runnable identity from a staged registry publication with explicit host-push and cluster-pull endpoints |
+| `veoveo.ai/development-image-lock/v1` | complete development-only image closure derived from a qualified lock |
 | Cargo metadata version 1 | package, target, and normal/build dependency discovery |
-| `veoveo.io/rust-source-context/v1` | content identity for a metadata-derived Rust source context |
+| `veoveo.ai/rust-source-context/v1` | content identity for a metadata-derived Rust source context |
 
 ## Build-System Boundary
 
@@ -505,11 +505,11 @@ they do not add the unused conformance CLI to Cargo's selected package graph.
 A Rust image target declares these labels in `docker-bake.hcl`:
 
 ```text
-io.veoveo.build.mode
-io.veoveo.build.package
-io.veoveo.build.binaries
-io.veoveo.build.family
-io.veoveo.build.auxiliary
+ai.veoveo.build.mode
+ai.veoveo.build.package
+ai.veoveo.build.binaries
+ai.veoveo.build.family
+ai.veoveo.build.auxiliary
 ```
 
 The package and binary must exist in Cargo metadata. Shared-family runtime Dockerfiles
@@ -579,7 +579,7 @@ connections continue through gateway registration and authorization.
 
 Every `image build`, `image stage`, and `release images` invocation writes
 `target/veoveo-xtask/operations/<invocation>/command.json` using
-`veoveo.io/image-command/v1`. Timing begins when the xtask executable enters `main`,
+`veoveo.ai/image-command/v1`. Timing begins when the xtask executable enters `main`,
 before CLI parsing and repository discovery, and finishes after the command writes its
 artifact receipt. Cargo's compilation or startup of xtask is outside this clock.
 
@@ -619,7 +619,7 @@ copies with Cargo hash names and a single hard link, and older incremental varia
 while retaining the newest variant for each crate. It preserves running executables,
 current executable hard links, dependency libraries, and recent output. The JSON report
 lists candidates and estimates reclaimable blocks after accounting for hard links.
-Its `veoveo.io/cargo-cache-maintenance/v2` report records the retention window in hours.
+Its `veoveo.ai/cargo-cache-maintenance/v2` report records the retention window in hours.
 
 This is host Cargo maintenance. It does not prune BuildKit state, Docker images,
 registry artifacts, Kubernetes storage, or another worktree’s target directory.

@@ -218,7 +218,7 @@ export interface RecordingSummary {
 }
 
 export interface RecordingPlaybackManifest {
-  schema: "veoveo.io/recording-playback/v9";
+  schema: "veoveo.ai/recording-playback/v9";
   dataset_id: string;
   recording_segment_id: string;
   application_id: string;

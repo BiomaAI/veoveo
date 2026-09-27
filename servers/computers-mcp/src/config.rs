@@ -26,7 +26,7 @@ pub enum ConfigurationError {
     #[error("Computers config must be a readable regular JSON file of at most 1 MiB")]
     Document,
     #[error(
-        "Computers config does not match veoveo.io/computers-service/v3 at line {line}, column {column}"
+        "Computers config does not match veoveo.ai/computers-service/v3 at line {line}, column {column}"
     )]
     Shape { line: usize, column: usize },
     #[error("Computers requires a non-nil providerInstanceId and a nonzero listen port")]
@@ -60,7 +60,7 @@ pub enum ConfigurationError {
 }
 #[derive(Deserialize)]
 pub enum ConfigSchema {
-    #[serde(rename = "veoveo.io/computers-service/v3")]
+    #[serde(rename = "veoveo.ai/computers-service/v3")]
     V3,
 }
 #[derive(Deserialize)]

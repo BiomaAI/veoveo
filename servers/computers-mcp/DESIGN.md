@@ -6,13 +6,13 @@
 |---|---|
 | Shared Tasks | Qualified `provider_wait` observation leases, domain-first settlement, retained Task projection |
 | Veoveo Computers | Provider-independent operation, Computer, owner and Work Context records in `platform/computers` |
-| `veoveo.io/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
+| `veoveo.ai/computer-files/v1` | Private framed metadata and bounded binary regular-file transport through the qualified guest launcher; distinct from public Artifact/MCP resources |
 | Native OpenShell | Private mTLS/protobuf adapter in `platform/runtimes/computers`; its exact provider patch graph governs the selected Docker profile |
 | MCP 2026-07-28, repository contract revision 3 | Stateless authenticated lifecycle tools, resources, Tasks and request-scoped subscriptions; installed conformance remains pending |
 | WebSocket RFC 6455 and Veoveo terminal v2 | Browser-only first-frame ticket, bounded binary terminal, resize, replay fence and sequenced renewal deadlines; the gateway authenticates the upgrade |
 | Stock OpenShell CLI `0.0.116`, gRPC over HTTP/2 over WebSocket | Restricted internal adapter for five qualified SSH methods; private Ready/Lease controls are removed by the public edge before reaching the stock client |
 | JSON Schema 2020-12 | Shared public DTOs in `platform/computers/contract`; raw provider messages are never public request inputs |
-| `veoveo.io/computers-service/v3` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
+| `veoveo.ai/computers-service/v3` | Closed installation JSON with template fingerprints and private trust-file references; distinct from public Computer inputs |
 | OCI Linux AMD64 | `computers-mcp` Bake target, shared Veoveo Rust compiler and digest-pinned Debian trixie runtime with signed archive snapshot `20260910T000000Z` |
 
 The worker and MCP/relay compose in one Computers deployment. The gateway owns
@@ -297,7 +297,7 @@ configuration reference is `VEOVEO_COMPUTERS_CONFIG`. It uses the installation's
 `VEOVEO_INTERNAL_TRUST_JWKS`. Store credentials must be database-scoped. Apply store
 migrations through the installation owner before starting this process.
 
-The configuration schema is `veoveo.io/computers-service/v3`. Configured capacity
+The configuration schema is `veoveo.ai/computers-service/v3`. Configured capacity
 requires an explicit nonempty `execution.fileTemplateFingerprints` set. It is a subset
 of command-qualified templates and includes the default. Duplicate or foreign values
 fail validation before store mutation. The same private key ring protects file intent

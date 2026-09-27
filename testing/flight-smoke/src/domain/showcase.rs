@@ -8,7 +8,7 @@ use super::browser::{
 };
 use super::*;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-showcase-acceptance-evidence/v4";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-showcase-acceptance-evidence/v4";
 const PRIMARY_CAMERA_ID: &str = "follow";
 
 #[derive(Debug, Serialize)]

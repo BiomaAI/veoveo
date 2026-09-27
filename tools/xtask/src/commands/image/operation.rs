@@ -134,7 +134,7 @@ pub(crate) fn record<T>(
     fs::create_dir_all(&directory).context("creating command timing directory")?;
     let path = directory.join("command.json");
     let initial = Record {
-        schema_version: "veoveo.io/image-command/v1",
+        schema_version: "veoveo.ai/image-command/v1",
         operation: operation.to_owned(),
         started_at_unix_millis: millis(wall),
         elapsed_millis: millis(clock.started.elapsed()),

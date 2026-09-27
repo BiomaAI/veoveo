@@ -237,11 +237,11 @@ target "computer-template" {
   dockerfile = "platform/computers/images/Dockerfile"
   tags       = [image_ref("computer-template")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-computer-execution"
-    "io.veoveo.build.binaries"  = "veoveo-computer-exec"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-computer-execution"
+    "ai.veoveo.build.binaries"  = "veoveo-computer-exec"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -254,11 +254,11 @@ target "computer-host" {
     veoveo-computer-provider = "target:computer-provider"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-computer-host"
-    "io.veoveo.build.binaries"  = "veoveo-computer-host"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-computer-host"
+    "ai.veoveo.build.binaries"  = "veoveo-computer-host"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -267,11 +267,11 @@ target "computers-mcp" {
   dockerfile = "servers/computers-mcp/Dockerfile"
   tags       = [image_ref("computers-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-computers-mcp"
-    "io.veoveo.build.binaries"  = "computers-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-computers-mcp"
+    "ai.veoveo.build.binaries"  = "computers-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -280,11 +280,11 @@ target "computer-storage" {
   dockerfile = "platform/computers/storage/Dockerfile"
   tags       = [image_ref("computer-storage")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-computer-storage"
-    "io.veoveo.build.binaries"  = "veoveo-computer-storage"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-computer-storage"
+    "ai.veoveo.build.binaries"  = "veoveo-computer-storage"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -293,11 +293,11 @@ target "mcp-gateway" {
   dockerfile = "platform/gateway/Dockerfile"
   tags       = [image_ref("mcp-gateway")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-mcp-gateway"
-    "io.veoveo.build.binaries"  = "gateway"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-mcp-gateway"
+    "ai.veoveo.build.binaries"  = "gateway"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -306,11 +306,11 @@ target "artifact-service" {
   dockerfile = "platform/artifacts/service/Dockerfile"
   tags       = [image_ref("artifact-service")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-artifact-service"
-    "io.veoveo.build.binaries"  = "artifact-service"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-artifact-service"
+    "ai.veoveo.build.binaries"  = "artifact-service"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -319,11 +319,11 @@ target "recording-forwarder" {
   dockerfile = "platform/recordings/forwarder/Dockerfile"
   tags       = [image_ref("recording-forwarder")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-recording-forwarder"
-    "io.veoveo.build.binaries"  = "recording-forwarder"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-recording-forwarder"
+    "ai.veoveo.build.binaries"  = "recording-forwarder"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -332,11 +332,11 @@ target "recording-hub" {
   dockerfile = "platform/recordings/hub/Dockerfile"
   tags       = [image_ref("recording-hub")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-recording-hub"
-    "io.veoveo.build.binaries"  = "spooler,sensor-sim"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-recording-hub"
+    "ai.veoveo.build.binaries"  = "spooler,sensor-sim"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -345,11 +345,11 @@ target "recording-mcp" {
   dockerfile = "servers/recording-mcp/Dockerfile"
   tags       = [image_ref("recording-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-recording-mcp"
-    "io.veoveo.build.binaries"  = "recording-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-recording-mcp"
+    "ai.veoveo.build.binaries"  = "recording-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -361,11 +361,11 @@ target "console-bff" {
     veoveo-rust-artifacts = "target:rust-trixie-browser-artifacts"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-console-bff"
-    "io.veoveo.build.binaries"  = "console-bff"
-    "io.veoveo.build.family"    = "rust-trixie-browser-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-console-bff"
+    "ai.veoveo.build.binaries"  = "console-bff"
+    "ai.veoveo.build.family"    = "rust-trixie-browser-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -374,11 +374,11 @@ target "artifact-mcp" {
   dockerfile = "servers/artifact-mcp/Dockerfile"
   tags       = [image_ref("artifact-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-artifact-mcp"
-    "io.veoveo.build.binaries"  = "artifact-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-artifact-mcp"
+    "ai.veoveo.build.binaries"  = "artifact-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -387,11 +387,11 @@ target "media-mcp" {
   dockerfile = "servers/media-mcp/Dockerfile"
   tags       = [image_ref("media-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-media-mcp"
-    "io.veoveo.build.binaries"  = "media-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-media-mcp"
+    "ai.veoveo.build.binaries"  = "media-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -400,11 +400,11 @@ target "timeseries-mcp" {
   dockerfile = "servers/timeseries-mcp/Dockerfile"
   tags       = [image_ref("timeseries-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-timeseries-mcp"
-    "io.veoveo.build.binaries"  = "timeseries-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb"
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-timeseries-mcp"
+    "ai.veoveo.build.binaries"  = "timeseries-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = "libduckdb"
   }
 }
 
@@ -413,11 +413,11 @@ target "duckdb-mcp" {
   dockerfile = "servers/duckdb-mcp/Dockerfile"
   tags       = [image_ref("duckdb-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-duckdb-mcp"
-    "io.veoveo.build.binaries"  = "duckdb-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb,duckdb-spatial"
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-duckdb-mcp"
+    "ai.veoveo.build.binaries"  = "duckdb-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = "libduckdb,duckdb-spatial"
   }
 }
 
@@ -426,11 +426,11 @@ target "optimization-mcp" {
   dockerfile = "servers/optimization-mcp/Dockerfile"
   tags       = [image_ref("optimization-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-optimization-mcp"
-    "io.veoveo.build.binaries"  = "optimization-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-optimization-mcp"
+    "ai.veoveo.build.binaries"  = "optimization-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -445,11 +445,11 @@ target "frames-mcp" {
   dockerfile = "servers/frames-mcp/Dockerfile"
   tags       = [image_ref("frames-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-frames-mcp"
-    "io.veoveo.build.binaries"  = "frames-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-frames-mcp"
+    "ai.veoveo.build.binaries"  = "frames-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -458,11 +458,11 @@ target "mcp-stdio-bridge" {
   dockerfile = "mcp/bridges/stdio/Dockerfile"
   tags       = [image_ref("mcp-stdio-bridge")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-mcp-stdio-bridge"
-    "io.veoveo.build.binaries"  = "bridge"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-mcp-stdio-bridge"
+    "ai.veoveo.build.binaries"  = "bridge"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -471,11 +471,11 @@ target "mcp-legacy-bridge" {
   dockerfile = "mcp/bridges/legacy/Dockerfile"
   tags       = [image_ref("mcp-legacy-bridge")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-mcp-legacy-bridge"
-    "io.veoveo.build.binaries"  = "legacy-bridge"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-mcp-legacy-bridge"
+    "ai.veoveo.build.binaries"  = "legacy-bridge"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -484,11 +484,11 @@ target "mcp-conformance" {
   dockerfile = "mcp/conformance/Dockerfile"
   tags       = [image_ref("mcp-conformance")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-mcp-conformance"
-    "io.veoveo.build.binaries"  = "certify"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-mcp-conformance"
+    "ai.veoveo.build.binaries"  = "certify"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -498,11 +498,11 @@ target "agent-manager" {
   dockerfile = "agents/manager/Dockerfile"
   tags       = [image_ref("agent-manager")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-agent-manager"
-    "io.veoveo.build.binaries"  = "agent-manager"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-agent-manager"
+    "ai.veoveo.build.binaries"  = "agent-manager"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -511,11 +511,11 @@ target "agent-kernel" {
   dockerfile = "agents/kernel/Dockerfile"
   tags       = [image_ref("agent-kernel")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-agent-kernel"
-    "io.veoveo.build.binaries"  = "agent"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb"
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-agent-kernel"
+    "ai.veoveo.build.binaries"  = "agent"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = "libduckdb"
   }
 }
 
@@ -524,11 +524,11 @@ target "map-mcp" {
   dockerfile = "servers/map-mcp/Dockerfile"
   tags       = [image_ref("map-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-map-mcp"
-    "io.veoveo.build.binaries"  = "map-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-v1"
-    "io.veoveo.build.auxiliary" = "libduckdb,duckdb-spatial"
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-map-mcp"
+    "ai.veoveo.build.binaries"  = "map-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-v1"
+    "ai.veoveo.build.auxiliary" = "libduckdb,duckdb-spatial"
   }
 }
 
@@ -537,11 +537,11 @@ target "time-mcp" {
   dockerfile = "servers/time-mcp/Dockerfile"
   tags       = [image_ref("time-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-time-mcp"
-    "io.veoveo.build.binaries"  = "time-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-time-mcp"
+    "ai.veoveo.build.binaries"  = "time-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -550,11 +550,11 @@ target "view-mcp" {
   dockerfile = "servers/view-mcp/Dockerfile"
   tags       = [image_ref("view-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-view-mcp"
-    "io.veoveo.build.binaries"  = "view-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-view-mcp"
+    "ai.veoveo.build.binaries"  = "view-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -566,11 +566,11 @@ target "stream-mcp" {
     veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-stream-mcp"
-    "io.veoveo.build.binaries"  = "stream-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-stream-mcp"
+    "ai.veoveo.build.binaries"  = "stream-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-control-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -582,11 +582,11 @@ target "reason-mcp" {
     veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-reason-mcp"
-    "io.veoveo.build.binaries"  = "reason-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-reason-mcp"
+    "ai.veoveo.build.binaries"  = "reason-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-control-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -599,12 +599,12 @@ target "speech-mcp" {
     veoveo-rust-artifacts = "target:rust-bookworm-control-artifacts"
   }
   labels = {
-    "io.veoveo.build.normalized-parent" = "speech-dependencies"
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-speech-mcp"
-    "io.veoveo.build.binaries"  = "speech-mcp"
-    "io.veoveo.build.family"    = "rust-bookworm-control-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.normalized-parent" = "speech-dependencies"
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-speech-mcp"
+    "ai.veoveo.build.binaries"  = "speech-mcp"
+    "ai.veoveo.build.family"    = "rust-bookworm-control-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -613,7 +613,7 @@ target "speech-dependencies" {
   dockerfile = "Dockerfile.dependencies"
   platforms = ["linux/amd64"]
   labels = {
-    "io.veoveo.build.input-paths" = "Dockerfile.dependencies,runner/pyproject.toml,runner/uv.lock,runner/src/speech_runner/protocol.py,runner/src/speech_runner/cache_model.py"
+    "ai.veoveo.build.input-paths" = "Dockerfile.dependencies,runner/pyproject.toml,runner/uv.lock,runner/src/speech_runner/protocol.py,runner/src/speech_runner/cache_model.py"
   }
 }
 
@@ -656,11 +656,11 @@ target "sumo-mcp" {
     VEOVEO_TARGET_CACHE_ID  = "veoveo-target-direct-rust-sumo-bullseye-v1-linux-amd64-release"
   }
   labels = {
-    "io.veoveo.build.mode"      = "rust-standalone"
-    "io.veoveo.build.package"   = "veoveo-sumo-mcp"
-    "io.veoveo.build.binaries"  = "sumo-mcp"
-    "io.veoveo.build.family"    = "rust-sumo-bullseye-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-standalone"
+    "ai.veoveo.build.package"   = "veoveo-sumo-mcp"
+    "ai.veoveo.build.binaries"  = "sumo-mcp"
+    "ai.veoveo.build.family"    = "rust-sumo-bullseye-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }
 
@@ -677,7 +677,7 @@ target "simulation-runtime-payload" {
   platforms  = ["linux/amd64"]
   target     = "payload"
   labels = {
-    "io.veoveo.build.input-paths" = "Dockerfile,requirements.lock,simulation-runtime.lock.json,probes,veoveo_simulation_base"
+    "ai.veoveo.build.input-paths" = "Dockerfile,requirements.lock,simulation-runtime.lock.json,probes,veoveo_simulation_base"
   }
 }
 
@@ -702,7 +702,7 @@ target "anonymous-simulation-mcp" {
   ]
   labels = {
     "org.opencontainers.image.title" = "Anonymous simulator-hosted live-view conformance fixture"
-    "io.veoveo.workload.role"       = "authoritative-simulation"
+    "ai.veoveo.workload.role"       = "authoritative-simulation"
   }
 }
 
@@ -716,7 +716,7 @@ target "uav-sim-runtime" {
     uav-sim-dependencies = "target:uav-sim-dependencies"
   }
   labels = {
-    "io.veoveo.build.normalized-parent" = "uav-sim-dependencies"
+    "ai.veoveo.build.normalized-parent" = "uav-sim-dependencies"
   }
   cache-from = registry_cache("uav-sim-runtime")
   cache-to   = registry_cache_export("uav-sim-runtime")
@@ -728,7 +728,7 @@ target "uav-sim-dependencies" {
   platforms  = ["linux/amd64"]
   target     = "dependencies"
   labels = {
-    "io.veoveo.build.input-paths" = "Dockerfile.dependencies,patches"
+    "ai.veoveo.build.input-paths" = "Dockerfile.dependencies,patches"
   }
   contexts = {
     simulation-runtime = "target:simulation-runtime-payload"
@@ -758,10 +758,10 @@ target "uav-sim-mcp" {
   dockerfile = "servers/uav-sim-mcp/Dockerfile"
   tags       = [image_ref("uav-sim-mcp")]
   labels = {
-    "io.veoveo.build.mode"      = "rust-shared"
-    "io.veoveo.build.package"   = "veoveo-uav-sim-mcp"
-    "io.veoveo.build.binaries"  = "uav-sim-mcp"
-    "io.veoveo.build.family"    = "rust-trixie-v1"
-    "io.veoveo.build.auxiliary" = ""
+    "ai.veoveo.build.mode"      = "rust-shared"
+    "ai.veoveo.build.package"   = "veoveo-uav-sim-mcp"
+    "ai.veoveo.build.binaries"  = "uav-sim-mcp"
+    "ai.veoveo.build.family"    = "rust-trixie-v1"
+    "ai.veoveo.build.auxiliary" = ""
   }
 }

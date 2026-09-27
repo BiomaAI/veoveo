@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::ServerSlug;
 
 /// MCP result metadata carrying failures isolated from a federated catalog.
-pub const GATEWAY_DISCOVERY_DEGRADATION_META_KEY: &str = "veoveo.io/gateway-discovery-degradation";
+pub const GATEWAY_DISCOVERY_DEGRADATION_META_KEY: &str = "ai.veoveo/gateway-discovery-degradation";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

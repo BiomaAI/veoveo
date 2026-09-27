@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: witness
   annotations:
-    veoveo.io/cancellation-phase: {{ .Values.phase | quote }}
+    veoveo.ai/cancellation-phase: {{ .Values.phase | quote }}
 spec:
   replicas: 1
   strategy:
@@ -16,7 +16,7 @@ spec:
       labels:
         app: cancellation-witness
       annotations:
-        veoveo.io/cancellation-phase: {{ .Values.phase | quote }}
+        veoveo.ai/cancellation-phase: {{ .Values.phase | quote }}
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 1

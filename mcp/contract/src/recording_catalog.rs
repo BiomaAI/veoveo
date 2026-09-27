@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.io/recording-catalog-grant/v1";
-pub const RECORDING_PROJECTION_HANDLE_SCHEMA: &str = "veoveo.io/recording-projection-handle/v1";
+pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.ai/recording-catalog-grant/v1";
+pub const RECORDING_PROJECTION_HANDLE_SCHEMA: &str = "veoveo.ai/recording-projection-handle/v1";
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

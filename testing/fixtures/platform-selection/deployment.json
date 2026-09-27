@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "veoveo.io/deployment/v8",
+  "schemaVersion": "veoveo.ai/deployment/v8",
   "name": "domain-selection",
   "registry": {
     "pushAddress": "registry.example.internal:5002",

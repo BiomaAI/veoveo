@@ -24,7 +24,7 @@ version.
 | Veoveo recording ingest | Version `2026-09-23`; authenticated protobuf batches and separate Blueprint publications preserve native Rerun 0.38.1 stores, ordering, idempotency, decoder-safe rollover markers, and policy-scoped replacement of a single recording. |
 | Rerun 0.38.1 gRPC, RRD, Rerun Data Protocol, and `VideoStream` | Producer-local log ingestion, immutable records over time and space, lazy per-recording viewer playback, and H.264 Annex B video with exact timeline indices. |
 | S3-compatible object API | Private Artifact service storage only. The bundled store is digest-pinned RustFS `1.0.0-rc.3`, the latest non-preview release candidate, because RustFS has no stable release. SurrealDB is the system of record for occurrences, identity, grants, release state, shares, policy, and audit. Clients download over HTTP streaming and byte ranges through the installation origin. |
-| NVIDIA cuOpt 26.08 and CUDA 13.3 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.io/travel-model-artifact/v1` is the repository-owned Map handoff; `veoveo.io/cuopt-executor/v1` is a private pod-local adapter protocol, not a public contract. |
+| NVIDIA cuOpt 26.08 and CUDA 13.3 | Digest-pinned hardware-GPU execution for heterogeneous routing, BatchSolve scenarios, continuous LP/QP/QCQP/SOCP, and linear MILP. `veoveo.ai/travel-model-artifact/v1` is the repository-owned Map handoff; `veoveo.ai/cuopt-executor/v1` is a private pod-local adapter protocol, not a public contract. |
 | Kubernetes, Helm, and OCI images | Workload graph, declarative installation configuration, registry-first delivery, GitOps reconciliation, and offline bundle material. |
 | Domain standards | Map, Optimization, Time, Frames, View, UAV, Recording, Perception, and Reason designs each pin their own geospatial, solver, temporal, 3D, vehicle, and media profiles. |
 
@@ -223,7 +223,7 @@ its MCP administration, persistence records, authorization scopes, App resources
 any accepted HTTP API.
 
 An App can message an always-on agent only when its listed resource names that agent
-in `io.veoveo/agent-message-targets`. The sandboxed frame sends a UUIDv7 and a short
+in `ai.veoveo/agent-message-targets`. The sandboxed frame sends a UUIDv7 and a short
 text message through the host bridge. Console then delivers it through its existing
 authenticated human-message route. That route applies CSRF checks, sender attribution,
 Work Context policy, audit, idempotency, and wake ordering, and the frame never sees

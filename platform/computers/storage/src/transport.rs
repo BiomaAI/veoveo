@@ -15,7 +15,7 @@ use tokio::{
 use uuid::Uuid;
 use veoveo_computers_runtime::storage_protocol as wire;
 
-const SCHEMA: &str = "veoveo.io/computer-storage/v1";
+const SCHEMA: &str = "veoveo.ai/computer-storage/v1";
 const MAX_FRAME: usize = 1024;
 
 #[derive(Deserialize, Serialize)]

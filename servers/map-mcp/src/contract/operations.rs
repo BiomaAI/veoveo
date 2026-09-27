@@ -9,7 +9,7 @@ use super::{
     Wgs84LineString, Wgs84Polygon, Wgs84Position,
 };
 
-pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.io/map-route-handoff/v1";
+pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v1";
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TransformCrsRequest {

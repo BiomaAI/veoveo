@@ -318,7 +318,8 @@ designs above.
 | `tools/image-build/source-freshness.rs` | content comparison and timestamp synchronization for Cargo inputs under the target-cache lock |
 | `tools/image-build/` | registry-neutral managed BuildKit base configuration, shared Rust builder inputs, and the source-locked first-party Datasheet image environment |
 | `tools/xtask/src/commands/image/browser_compilation_tests.rs` | real Bake and Cargo planning regression for a stable browser compiler action across standalone and platform selections |
-| `tools/xtask/` | compiled repository command, enforcement, local test reporting, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |
+| `tools/xtask/src/commands/identifiers.rs` | tracked-text identifier namespace enforcement with section-scoped migration documentation exceptions |
+| `tools/xtask/` | compiled repository command, enforcement, typed smoke prerequisite builds and dispatch, image planning, profile-registry builder configuration, and release orchestration |
 
 ## Placement Rules
 
@@ -765,8 +766,8 @@ provenance, and DuckDB persistence.
 
 | Path | Responsibility |
 |---|---|
-| `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.io/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
-| `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.io/map-route-handoff/v1` cross-server handoff |
+| `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
+| `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/domain/` | public routing, route-scenario, convex, MILP, solution, verification, and solver-profile contracts |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |

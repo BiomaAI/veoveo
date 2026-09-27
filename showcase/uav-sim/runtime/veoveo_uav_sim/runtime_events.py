@@ -10,7 +10,7 @@ from aiohttp import web
 
 
 LOGGER = logging.getLogger(__name__)
-RUNTIME_EVENT_SCHEMA = "veoveo.io/uav-runtime-event/v2"
+RUNTIME_EVENT_SCHEMA = "veoveo.ai/uav-runtime-event/v2"
 
 
 @dataclass(frozen=True, slots=True)

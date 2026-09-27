@@ -12,12 +12,12 @@ public ingress and installed qualification remain in
 | OpenShell `0.0.116` protobuf/gRPC | Vendored protocol verified by `protocol/SHA256SUMS`; internal generated client/server types over mTLS |
 | OpenShell retained Docker provider | Candidate gateway `0.0.117-veoveo.2` and supervisor `0.0.117-dev.5+gea0c605`; exact patch graph in `provider-patches/manifest.json`; native installation qualification pending |
 | SSH and terminal metadata | Byte-preserving canonical-main attachment with private `openshell.terminal.v1` ReplayComplete metadata; explicit history fence |
-| `veoveo.io/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
+| `veoveo.ai/computer-storage/v1` | Bounded mTLS prepare/restore/handoff/abandon adapter generated from Veoveo-owned `protocol/storage.json`; exact provider, operation, source and target identity; native allocator qualification in its owning component |
 | Protocol Buffers canonical encoding and SHA-256 | Template and immutable binding fingerprints with cross-language fixtures |
 | Internal lifecycle checkpoint JSON version 1 | Closed validated operation/provider/binding identity and pre-dispatch process epoch; serialized for the owning durable Task |
 | Veoveo private policy checkpoint protobuf v1 | `protocol/maintenance.proto`; canonical Prost encoding of exact provider/source/run and selected gateway version with the generated provider configuration. Encrypted journal storage is required; this format grants no authority |
 | Internal attachment lease | Monotonic authority staleness at most 30 seconds, renewal interval at most ten seconds; admission credentials are distinct from an established connection's authority |
-| `veoveo.io/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
+| `veoveo.ai/computer-files/v1` | Private framed JSON header with raw binary file stream and typed SHA-256 receipt; regular files up to 64 MiB, no archive extraction, fixed guest helper command |
 | Rust/Tonic/Prost | Qualified workspace Tonic `0.14.6` and Prost `0.14.4`; new generator Tonic-Prost-Build `0.14.6`, Russh `0.63.3`, Typify `0.8.0` |
 | Docker volume-plugin API v1; Engine HTTP API `1.53` | Selected volume methods and registered-container enumeration; the worker fixture composes the production allocator with the native provider |
 
@@ -297,7 +297,7 @@ This adapter never settles a Task or grants an actor execution authority.
 
 ## Regular File Transport
 
-`file_request` carries the private `veoveo.io/computer-files/v1` helper protocol over
+`file_request` carries the private `veoveo.ai/computer-files/v1` helper protocol over
 the existing bounded native execution stream. The provider sees only the fixed
 launcher command with `--files`. The caller holds current domain authority and an
 exclusive durable fence, and selects a template qualified with this helper profile.

@@ -13,7 +13,7 @@ from datafusion import col
 
 
 def validate_grant(result: dict, dataset: str, recording: str) -> None:
-    if result["schema"] != "veoveo.io/recording-catalog-grant/v1":
+    if result["schema"] != "veoveo.ai/recording-catalog-grant/v1":
         raise ValueError("unexpected recording grant schema")
     if result["dataset_id"] != dataset:
         raise ValueError("recording grant changed the dataset")

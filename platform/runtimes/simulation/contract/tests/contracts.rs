@@ -23,11 +23,7 @@ fn artifact(name: &str, kind: ArtifactKind, byte: char) -> ArtifactDescriptor {
 fn simulation_components() -> Vec<RuntimeComponentVersion> {
     [
         (RuntimeComponent::IsaacSim, "6.1.0", None),
-        (
-            RuntimeComponent::IsaacLab,
-            "3.0.0-EA",
-            Some("f".repeat(40)),
-        ),
+        (RuntimeComponent::IsaacLab, "3.0.0-EA", Some("f".repeat(40))),
         (RuntimeComponent::Warp, "1.16.0", None),
         (RuntimeComponent::Newton, "1.5.2", None),
         (RuntimeComponent::Mujoco, "3.11.0", None),

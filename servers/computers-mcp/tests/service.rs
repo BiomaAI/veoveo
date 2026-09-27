@@ -380,7 +380,7 @@ async fn execution_configuration_requires_private_keys_and_a_qualified_default()
     }
     for version in ["v1", "v2"] {
         let mut old = selected.clone();
-        old["schema"] = format!("veoveo.io/computers-service/{version}").into();
+        old["schema"] = format!("veoveo.ai/computers-service/{version}").into();
         assert!(serde_json::from_value::<Configuration>(old).is_err());
     }
     let mut missing = selected.clone();

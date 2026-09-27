@@ -387,7 +387,7 @@ def _run_rtx_cameras(app: object, cameras: int) -> dict[str, Any]:
 def _verify_overlay(expected_kind: str, wp: object) -> dict[str, str]:
     identity = json.loads(OVERLAY_IDENTITY_PATH.read_text(encoding="utf-8"))
     lock_digest = BUILD_LOCK_DIGEST_PATH.read_text(encoding="utf-8").strip()
-    if identity.get("schemaVersion") != "veoveo.io/simulation-overlay-identity/v1":
+    if identity.get("schemaVersion") != "veoveo.ai/simulation-overlay-identity/v1":
         raise RuntimeError("overlay identity has an unsupported schema")
     if identity.get("kind") != expected_kind:
         raise RuntimeError(

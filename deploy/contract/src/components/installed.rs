@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
-pub const INSTALLED_UNIT_SCHEMA: &str = "veoveo.io/installed-deployment-unit/v1";
+pub const INSTALLED_UNIT_SCHEMA: &str = "veoveo.ai/installed-deployment-unit/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

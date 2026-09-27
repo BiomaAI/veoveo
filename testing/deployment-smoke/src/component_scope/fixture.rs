@@ -161,7 +161,7 @@ spec:
         initialize(&installation)?;
         let profile_path = installation.join("deployment.json");
         let definition = json!({
-            "schemaVersion":"veoveo.io/deployment/v8", "name":"scope-fixture",
+            "schemaVersion":"veoveo.ai/deployment/v8", "name":"scope-fixture",
             "registry":{"pushAddress":args.push_registry,"pullAddress":args.pull_registry,"transport":"insecure-http"},
             "namespace":namespace,"kubernetes":{"context":context,"localCluster":null},
             "sources":[
@@ -197,7 +197,7 @@ spec:
             });
         }
         let lock = DeploymentLock {
-            schema_version: "veoveo.io/deployment-lock/v8".into(),
+            schema_version: "veoveo.ai/deployment-lock/v8".into(),
             profile: profile.definition.name.clone(),
             profile_revision: revision,
             registry: profile.definition.registry.locked(),

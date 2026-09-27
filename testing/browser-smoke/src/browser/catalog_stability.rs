@@ -148,7 +148,7 @@ pub(super) async fn verify(
     fs::write(
         directory.join("catalog-stability.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
-            "schema":"veoveo.io/console-catalog-stability/v1", "samples":samples,
+            "schema":"veoveo.ai/console-catalog-stability/v1", "samples":samples,
             "sidebarChurn":churn,"clickedAndReloaded":routes
         }))?,
     )?;

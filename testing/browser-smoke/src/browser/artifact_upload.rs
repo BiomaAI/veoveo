@@ -120,7 +120,7 @@ async fn run(
     let hardware = hardware_check(cdp, session).await?;
     println!("Headed hardware browser preflight passed");
     let mut evidence = Evidence {
-        schema: "veoveo.io/console-artifact-upload-acceptance/v1",
+        schema: "veoveo.ai/console-artifact-upload-acceptance/v1",
         source_revision: git_revision()?,
         page_url: page_url.into(),
         hardware,

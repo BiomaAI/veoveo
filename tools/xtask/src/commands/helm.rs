@@ -16,7 +16,7 @@ use crate::process;
 #[cfg(test)]
 mod rollout_tests;
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/helm-chart-release-evidence/v1";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/helm-chart-release-evidence/v1";
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, clap::ValueEnum)]
 pub(crate) enum Chart {
     Veoveo,

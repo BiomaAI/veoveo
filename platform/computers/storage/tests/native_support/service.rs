@@ -511,7 +511,7 @@ impl Fixture {
     }
     pub async fn drop_handoff_reply(&self, operation: Uuid) {
         self.drop_storage_reply(serde_json::json!({
-            "schema": "veoveo.io/computer-storage/v1", "operation": "handoff", "providerId": self.provider,
+            "schema": "veoveo.ai/computer-storage/v1", "operation": "handoff", "providerId": self.provider,
             "computerId": self.initial.computer_id(), "operationId": operation, "sourceInstanceId": self.initial.computer_id(),
             "sourceTemplateFingerprint": self.initial.template_fingerprint(), "sourceResourceId": "resource-a",
             "targetInstanceId": self.replacement.replacement_instance_id().unwrap(), "targetTemplateFingerprint": self.replacement.template_fingerprint(),
@@ -519,7 +519,7 @@ impl Fixture {
     }
     pub async fn drop_abandon_reply(&self, operation: Uuid, source: &Binding, target: &Binding) {
         self.drop_storage_reply(serde_json::json!({
-            "schema": "veoveo.io/computer-storage/v1", "operation": "abandon", "providerId": self.provider,
+            "schema": "veoveo.ai/computer-storage/v1", "operation": "abandon", "providerId": self.provider,
             "computerId": source.computer_id(), "operationId": operation,
             "sourceInstanceId": source.replacement_instance_id().unwrap_or(source.computer_id()),
             "sourceTemplateFingerprint": source.template_fingerprint(),

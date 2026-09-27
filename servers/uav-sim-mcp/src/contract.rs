@@ -385,7 +385,7 @@ pub struct VehicleControlGrant {
     pub updated_at: DateTime<Utc>,
 }
 
-pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.io/map-route-handoff/v1";
+pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v1";
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

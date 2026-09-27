@@ -286,7 +286,7 @@ fn independent_sources(publication: Option<PublicationCheck>) {
     initialize(&installation);
     let namespace = json!({"group":"", "kind":"Namespace", "namespace":null, "name":"veoveo"});
     let profile_value = json!({
-        "schemaVersion":"veoveo.io/deployment/v8", "name":"compiler-fixture",
+        "schemaVersion":"veoveo.ai/deployment/v8", "name":"compiler-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[
             {"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
@@ -591,7 +591,7 @@ fn retained_component_inputs(change: InputChange) {
     }
     let path = installation.join("deployment.json");
     fs::write(&path, serde_json::to_vec_pretty(&json!({
-        "schemaVersion":"veoveo.io/deployment/v8", "name":"revision-fixture",
+        "schemaVersion":"veoveo.ai/deployment/v8", "name":"revision-fixture",
         "registry":{"pushAddress":"registry.example.invalid", "pullAddress":"registry.example.invalid", "transport":"tls"},
         "sources":[{"name":"platform", "role":"platform", "repository":{"kind":"local", "path":"../platform"},
             "revision":"HEAD", "imageGroups":[], "releases":releases}],

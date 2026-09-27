@@ -390,7 +390,7 @@ def main() -> int:
             args.warmup_frames,
         )
         result = {
-            "schema_version": "veoveo.io/simulation-runtime-conformance/v1",
+            "schema_version": "veoveo.ai/simulation-runtime-conformance/v1",
             "profile": os.environ["VEOVEO_SIMULATION_RUNTIME_PROFILE"],
             "image_digest": args.image_digest,
             "identity": identity,

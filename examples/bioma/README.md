@@ -211,7 +211,7 @@ size into memory. Deployed transfer evidence separately records the sizes exerci
 Uploads use `/artifacts/{profile}/uploads`; Console uses its same-origin
 `/console/api/artifact-uploads` proxy. The whole file never becomes one HTTP request.
 Its Gateway ConfigMap revision hashes the complete public bundle, including all JWKS
-files, through the deployment contract's `veoveo.io/gateway-activation/v1` encoding.
+files, through the deployment contract's `veoveo.ai/gateway-activation/v1` encoding.
 
 
 Production workloads use the repository and digest maps under `images/`. Each release
@@ -636,6 +636,44 @@ the complete world through Frames MCP and binds the returned immutable revision
 to the simulator before Isaac constructs its stage.
 
 ## Cleanup
+
+### Rebuild the disposable installation
+
+The foundations identifier cut changes stored formats and migration checksums. Publish
+the new image locks and chart digests through [Release publication](#release-publication)
+before this reset. The reference installation has no data to preserve. Its node owns
+SurrealDB, Artifact object storage, recording journals, Computers retained homes and
+host journals, and agent memory. Delete the cluster and its node volumes together:
+
+~~~bash
+mapfile -t bioma_node_volumes < <(
+  docker inspect k3d-veoveo-bioma-server-0 \
+    --format '{{json .Mounts}}' | jq -r '.[] | select(.Type == "volume") | .Name'
+)
+k3d cluster delete veoveo-bioma
+for volume in "${bioma_node_volumes[@]}"; do
+  if docker volume inspect "$volume" >/dev/null 2>&1; then
+    docker volume rm "$volume"
+  fi
+done
+rm -rf -- "$(git rev-parse --git-common-dir)/veoveo-deployment"
+~~~
+
+These commands affect only this cluster's volumes. The shared registry and other
+clusters keep their data. Recreate any separate local development SurrealDB database
+before connecting the new binaries; an old migration ledger cannot accept the changed
+checksums.
+
+Follow [Create the local platform](#create-the-local-platform), skipping registry
+creation when it already exists. Then [provision Secrets](#provision-secrets) from the
+installation's external credential store, enroll Computers trust as described in
+[Release publication](#release-publication), and [connect Flux to Git](#connect-flux-to-git).
+Reconcile any changed public Computers key ID and configuration revision before
+[bootstrapping desired state](#bootstrap-desired-state). This creates fresh application
+volumes from the published locks. Run GitOps convergence and installed verification
+against that revision, including live MCP conformance, before accepting the reset.
+
+### Remove the cluster
 
 Delete the disposable cluster when the reference installation is no longer needed:
 

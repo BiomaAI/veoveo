@@ -6,7 +6,7 @@ Hub implements the authenticated Recording ingest protobuf profile declared in
 `docs/RECORDING_INGEST.md`. Durable payloads use the pinned Rerun RRD profile.
 SurrealDB holds stream acceptance and materialization checkpoints. Local filesystem
 journals use synchronized writes and atomic publication on the same filesystem.
-`veoveo.io/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
+`veoveo.ai/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
 owned by Hub; it is not a producer protocol or an accepted recording batch.
 
 ## Archive Materialization

@@ -166,7 +166,7 @@ mod generated_contract {
 
     fn request(operation: &str) -> Value {
         let mut value = json!({
-            "schema": "veoveo.io/computer-storage/v1",
+            "schema": "veoveo.ai/computer-storage/v1",
             "operation": operation,
             "templateFingerprint": "a".repeat(64),
             "providerId": "00000000-0000-0000-0000-000000000100",
@@ -186,7 +186,7 @@ mod generated_contract {
     }
 
     fn failure() -> Value {
-        json!({"schema": "veoveo.io/computer-storage/v1", "status": "error"})
+        json!({"schema": "veoveo.ai/computer-storage/v1", "status": "error"})
     }
 
     fn bytes(value: &Value) -> Vec<u8> {

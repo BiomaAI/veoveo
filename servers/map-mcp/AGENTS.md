@@ -34,7 +34,7 @@ Map Explorer App.
 - `build_travel_model` is the canonical Map-to-Optimization boundary. It
   preserves shared location order, binds each vehicle type to an exact
   mobility-profile version, records unavailable cells, and publishes
-  `veoveo.io/travel-model-artifact/v1`. Never reconstruct these matrices in
+  `veoveo.ai/travel-model-artifact/v1`. Never reconstruct these matrices in
   Optimization.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic

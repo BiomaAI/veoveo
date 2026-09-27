@@ -28,7 +28,7 @@ use browser::{
 };
 use restart::{RestartVerification, verify_live_view_restarts};
 
-const EVIDENCE_SCHEMA: &str = "veoveo.io/uav-live-view-browser-evidence/v12";
+const EVIDENCE_SCHEMA: &str = "veoveo.ai/uav-live-view-browser-evidence/v12";
 const MAX_RECORDING_SOURCE_LAG_SECONDS: f64 = 1.0;
 const MINIMUM_PHYSICS_REAL_TIME_FACTOR: f64 = 0.98;
 const PRIMARY_CAMERA_ID: &str = "follow";
@@ -813,7 +813,7 @@ async fn verify_map_workspace(
     )
     .await?;
     let evidence = MapWorkspaceBrowserAcceptanceEvidence {
-        schema: "veoveo.io/map-workspace-browser-evidence/v2",
+        schema: "veoveo.ai/map-workspace-browser-evidence/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -858,7 +858,7 @@ async fn verify_console_apps(
     )
     .await?;
     let evidence = ConsoleAppsBrowserAcceptanceEvidence {
-        schema: "veoveo.io/console-apps-browser-acceptance/v1",
+        schema: "veoveo.ai/console-apps-browser-acceptance/v1",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -911,7 +911,7 @@ async fn verify_live_map_workspace(
     )
     .await?;
     let evidence = MapWorkspaceLiveBrowserAcceptanceEvidence {
-        schema: "veoveo.io/map-workspace-live-browser-evidence/v3",
+        schema: "veoveo.ai/map-workspace-live-browser-evidence/v3",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -963,7 +963,7 @@ async fn verify_uav_agent_instruction(
     )
     .await?;
     let evidence = AgentInstructionBrowserAcceptanceEvidence {
-        schema: "veoveo.io/uav-agent-instruction-browser-evidence/v1",
+        schema: "veoveo.ai/uav-agent-instruction-browser-evidence/v1",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -1033,7 +1033,7 @@ async fn verify_recording_archive(
     )
     .await?;
     let evidence = RecordingArchiveBrowserAcceptanceEvidence {
-        schema: "veoveo.io/uav-recording-archive-browser-evidence/v2",
+        schema: "veoveo.ai/uav-recording-archive-browser-evidence/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,
@@ -1117,7 +1117,7 @@ async fn verify_running_recording(
         "live Rerun playback is not current with its simulation source: source={source_simulation_time_seconds:.3}s recording={recording_simulation_time_seconds:.3}s lag={recording_source_lag_seconds:.3}s"
     );
     let evidence = RecordingBrowserAcceptanceEvidence {
-        schema: "veoveo.io/uav-recording-browser-evidence/v2",
+        schema: "veoveo.ai/uav-recording-browser-evidence/v2",
         completed_at: Utc::now(),
         source_revision,
         run_id,

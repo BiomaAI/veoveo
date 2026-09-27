@@ -20,9 +20,9 @@ use crate::{
     context::RepositoryContext,
 };
 
-const PARENT_LABEL: &str = "io.veoveo.build.normalized-parent";
-const INPUTS_LABEL: &str = "io.veoveo.build.input-paths";
-const RECEIPT_SCHEMA: &str = "veoveo.io/normalized-parent/v1";
+const PARENT_LABEL: &str = "ai.veoveo.build.normalized-parent";
+const INPUTS_LABEL: &str = "ai.veoveo.build.input-paths";
+const RECEIPT_SCHEMA: &str = "veoveo.ai/normalized-parent/v1";
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -223,7 +223,7 @@ fn recipe_digest(
     inputs: &BTreeMap<String, InputIdentity>,
 ) -> Result<String> {
     let mut digest = Sha256::new();
-    digest.update(b"veoveo.io/normalized-parent-recipe/v1\0");
+    digest.update(b"veoveo.ai/normalized-parent-recipe/v1\0");
     digest.update(serde_json::to_vec(&(
         graph,
         inputs,
@@ -373,7 +373,7 @@ fn publish(
         .arg(format!("{target}.output={}", OutputMode::Staged.exporter()))
         .arg("--set")
         .arg(format!(
-            "{target}.labels.io.veoveo.build.recipe={}",
+            "{target}.labels.ai.veoveo.build.recipe={}",
             parent.plan.recipe_digest
         ))
         .envs(environment)

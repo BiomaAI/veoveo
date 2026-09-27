@@ -13,20 +13,20 @@ use crate::{
 };
 
 /// Canonical simulation-runtime build-lock schema identifier.
-pub const SIMULATION_RUNTIME_BUILD_LOCK_SCHEMA: &str = "veoveo.io/simulation-runtime-build-lock/v1";
+pub const SIMULATION_RUNTIME_BUILD_LOCK_SCHEMA: &str = "veoveo.ai/simulation-runtime-build-lock/v1";
 
 /// Hardware simulation-conformance result schema identifier.
-pub const SIMULATION_CONFORMANCE_RESULT_SCHEMA: &str = "veoveo.io/simulation-conformance-result/v2";
+pub const SIMULATION_CONFORMANCE_RESULT_SCHEMA: &str = "veoveo.ai/simulation-conformance-result/v2";
 
 /// Simulation-runtime release-evidence schema identifier.
 pub const SIMULATION_RUNTIME_RELEASE_EVIDENCE_SCHEMA: &str =
-    "veoveo.io/simulation-runtime-release-evidence/v1";
+    "veoveo.ai/simulation-runtime-release-evidence/v1";
 
 /// Supported simulation-runtime build-lock schema.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SimulationRuntimeBuildLockSchema {
     /// Simulation-runtime build lock version 1.
-    #[serde(rename = "veoveo.io/simulation-runtime-build-lock/v1")]
+    #[serde(rename = "veoveo.ai/simulation-runtime-build-lock/v1")]
     V1,
 }
 
@@ -34,7 +34,7 @@ pub enum SimulationRuntimeBuildLockSchema {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SimulationConformanceResultSchema {
     /// Simulation hardware result version 2, including native Newton dynamics.
-    #[serde(rename = "veoveo.io/simulation-conformance-result/v2")]
+    #[serde(rename = "veoveo.ai/simulation-conformance-result/v2")]
     V2,
 }
 
@@ -42,7 +42,7 @@ pub enum SimulationConformanceResultSchema {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum SimulationRuntimeReleaseEvidenceSchema {
     /// Simulation-runtime release evidence version 1.
-    #[serde(rename = "veoveo.io/simulation-runtime-release-evidence/v1")]
+    #[serde(rename = "veoveo.ai/simulation-runtime-release-evidence/v1")]
     V1,
 }
 

@@ -42,8 +42,8 @@ pub struct ServerManifest {
     pub metadata: Value,
 }
 
-pub const APP_RESOURCE_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-resource-dependencies";
-pub const APP_TOOL_DEPENDENCIES_META_KEY: &str = "io.veoveo/app-tool-dependencies";
+pub const APP_RESOURCE_DEPENDENCIES_META_KEY: &str = "ai.veoveo/app-resource-dependencies";
+pub const APP_TOOL_DEPENDENCIES_META_KEY: &str = "ai.veoveo/app-tool-dependencies";
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema,

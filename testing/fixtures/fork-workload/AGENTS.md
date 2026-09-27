@@ -3,7 +3,7 @@
 ## Purpose
 
 Qualify that an in-repository simulation MCP server owns the
-`veoveo.io/live-view/v4` camera, shared-product, stream-authorization, and App surface
+`veoveo.ai/live-view/v4` camera, shared-product, stream-authorization, and App surface
 using the local Python SDK.
 
 ## Invariants

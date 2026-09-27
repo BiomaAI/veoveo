@@ -21,7 +21,7 @@ use crate::{
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PROJECTION_BYTES: u64 = 32 * 1024 * 1024;
 const ARROW_STREAM_CONTENT_TYPE: &str = "application/vnd.apache.arrow.stream";
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.io/recording-playback/v9";
+const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
 const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";
 const LIVE_RRD_STREAM_CONTENT_TYPE: &str =
@@ -619,7 +619,7 @@ mod tests {
     fn obsolete_or_cross_recording_manifests_are_rejected() {
         let recording_id = uuid::Uuid::now_v7();
         let mut obsolete = manifest_value(recording_id);
-        obsolete["schema"] = json!("veoveo.io/recording-playback/v8");
+        obsolete["schema"] = json!("veoveo.ai/recording-playback/v8");
         assert!(
             validated_manifest_bytes(&serde_json::to_vec(&obsolete).unwrap(), recording_id)
                 .is_err()

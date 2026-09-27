@@ -32,17 +32,17 @@ profiles:
 | Rust 1.97.1 and Rust Edition 2024 | canonical compiled tooling and workspace implementation, pinned by `rust-toolchain.toml` |
 | Cargo metadata format version 1 | workspace, target, dependency, and smoke-package discovery |
 | Docker BuildKit and Docker Buildx Bake | internal OCI build graph, builder-family composition, cache mounts, and image publication; the implementation verifies and pins the latest stable compatible releases before making them canonical |
-| `veoveo.io/image-build-plan/v1` | internal typed projection of one source-local Bake selection, its Cargo build units, builder families, cache identities, image coordinates, and release evidence; it is not a public extension contract |
-| `veoveo.io/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
+| `veoveo.ai/image-build-plan/v1` | internal typed projection of one source-local Bake selection, its Cargo build units, builder families, cache identities, image coordinates, and release evidence; it is not a public extension contract |
+| `veoveo.ai/image-build-run/v1` | internal immutable record of an image execution, its output mode, elapsed time, result, and Buildx metadata reference |
 | Model Context Protocol | public server protocol governed by `mcp/contract/DESIGN.md`; Streamable HTTP verification uses protocol version `2026-07-28` and only claims the repository profile defined there |
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
-| `veoveo.io/deployment/v8` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
-| `veoveo.io/deployment-lock/v8` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
+| `veoveo.ai/deployment/v8` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
+| `veoveo.ai/deployment-lock/v8` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
-| `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical-base record for Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, source archives, wheel digests, and NVIDIA runtime requirements |
-| `veoveo.io/simulation-conformance-result/v2` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest, including native Newton motion |
-| `veoveo.io/simulation-runtime-release-evidence/v1` | immutable base, runtime tuple, paired result, and private OCI conformance-bundle release record |
+| `veoveo.ai/simulation-runtime-build-lock/v1` | exact canonical-base record for Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, source archives, wheel digests, and NVIDIA runtime requirements |
+| `veoveo.ai/simulation-conformance-result/v2` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest, including native Newton motion |
+| `veoveo.ai/simulation-runtime-release-evidence/v1` | immutable base, runtime tuple, paired result, and private OCI conformance-bundle release record |
 | Kubernetes and Helm | deployment rendering and workload security boundary, using the versions pinned by the repository when implemented |
 | SPDX license expressions | dependency-license policy input |
 | SARIF 2.1.0 | preferred machine-readable exchange for compatible security and static-analysis results |

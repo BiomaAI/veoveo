@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use tokio::sync::mpsc;
 
 type Reply<T> = std::result::Result<Response<T>, Status>;
-const PROVENANCE: &str = "veoveo.io/replacement-policy";
+const PROVENANCE: &str = "veoveo.ai/replacement-policy";
 const SECRET: &str = "PRIVATE-FIXTURE-SETTING";
 
 fn rule(name: &str, host: &str) -> policy::NetworkPolicyRule {

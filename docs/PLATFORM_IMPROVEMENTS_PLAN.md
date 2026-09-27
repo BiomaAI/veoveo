@@ -55,7 +55,7 @@ large-file paths, or a risky rewrite of an already qualified live-view runtime.
 | Apache Arrow IPC streaming format | sole browser-native recording projection payload. It is a query result over RRD, not another recording format or durable copy |
 | Rerun WebViewer `0.36.3` | direct Redap archive playback, producer and dataset Blueprints, and the existing incremental `LogChannel` live path |
 | H.264 Annex B, WebCodecs, Media Capabilities, CUDA, RTX, and NVENC | existing tiled live-view v4 media path and its qualified hardware boundary. Browser software H.264 decode remains the one documented exception when the exact configuration is supported and smooth |
-| `veoveo.io/live-view/v4` | provider-neutral camera, shared stream-product, authorization, renewal, closure, and health contract. This plan publishes adoption artifacts without changing v4 runtime semantics |
+| `veoveo.ai/live-view/v4` | provider-neutral camera, shared stream-product, authorization, renewal, closure, and health contract. This plan publishes adoption artifacts without changing v4 runtime semantics |
 | Kubernetes/K3s, Helm, and server-side apply managed fields | deployment compilation and mutation. A component is selectable only at an atomic Helm release or explicit raw-manifest boundary. Managed fields provide diagnostics and never become a replacement ownership authority |
 | NVIDIA DRA Driver for GPUs and `resource.nvidia.com/v1beta1` | physical-device or MIG allocation remains the placement authority. Veoveo adds qualified memory admission before Kubernetes mutation |
 | JSON Web Token, OAuth 2.1, RFC 6750, RFC 8707, and SHA-256 | authenticated browser and machine access, resource-bound capabilities, immutable content identity, and short-lived Redap sessions |

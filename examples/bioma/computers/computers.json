@@ -1,5 +1,5 @@
 {
-  "schema": "veoveo.io/computers-service/v3",
+  "schema": "veoveo.ai/computers-service/v3",
   "listen": "0.0.0.0:8804",
   "allowedHosts": [
     "computers-mcp:8804"
@@ -38,7 +38,7 @@
     "templates": [
       {
         "id": "development",
-        "fingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
+        "fingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d998fe8f27a5c87f199bd8e60a5714d1edbbd9701e78e1ee5a0f0142e9576721",
         "cpus": 2,
         "memoryMib": 2048,
@@ -83,7 +83,7 @@
       },
       {
         "id": "development-20260910",
-        "fingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
+        "fingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:d6122f88428fb9aa09bd2ce7fb49a196af02a9673bcc64a4efc61ff9f43c3a99",
         "cpus": 2,
         "memoryMib": 2048,
@@ -128,7 +128,7 @@
       },
       {
         "id": "development-20260911",
-        "fingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
+        "fingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
         "image": "k3d-veoveo-registry.localhost:5000/veoveo/computer-template@sha256:ddaafa2630bacbc9868b210fc280fd2665cf539795c01cb034996823c8a4e4b5",
         "cpus": 2,
         "memoryMib": 2048,
@@ -172,7 +172,7 @@
         }
       }
     ],
-    "defaultTemplate": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
+    "defaultTemplate": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
     "execution": {
       "policy": {
         "maxGrants": 8,
@@ -189,37 +189,37 @@
         }
       ],
       "templateFingerprints": [
-        "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
-        "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+        "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
+        "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
       ],
       "fileTemplateFingerprints": [
-        "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+        "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
       ]
     },
     "maintenanceTransitions": [
       {
-        "sourceFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
-        "targetFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
+        "sourceFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
+        "targetFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d"
       },
       {
-        "sourceFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
-        "targetFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+        "sourceFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
+        "targetFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
       },
       {
-        "sourceFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df",
-        "targetFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+        "sourceFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7",
+        "targetFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
       },
       {
-        "sourceFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
-        "targetFingerprint": "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+        "sourceFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
+        "targetFingerprint": "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
       },
       {
-        "sourceFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32",
-        "targetFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f"
+        "sourceFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d",
+        "targetFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b"
       },
       {
-        "sourceFingerprint": "e1f450387234bf47acc9a63043385254643877a91cc0eaa485f65f8e331fff0f",
-        "targetFingerprint": "7dd213bff5fad314e58fc65b4feea2d6e27c758c81f3e1a00f7ca4528b9b8e32"
+        "sourceFingerprint": "a4113957b7b9b1e15cdebba73f54de583a68e97922466a28d645e83a45e3268b",
+        "targetFingerprint": "167cf6cbda8054b7eaf555b5bb26e356bbcb4f5bc18fbab715b3c446b82c4a9d"
       }
     ]
   }
