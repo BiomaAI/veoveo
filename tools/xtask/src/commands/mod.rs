@@ -15,4 +15,3 @@ pub(crate) mod release_preflight;
 pub(crate) mod simulation;
 pub(crate) mod smoke;
 pub(crate) mod source;
-pub(crate) mod test_report;

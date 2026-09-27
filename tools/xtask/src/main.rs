@@ -8,7 +8,7 @@ use anyhow::Result;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 
 use crate::{
-    commands::{builder, doctor, enforce, image, release, release_preflight, smoke, test_report},
+    commands::{builder, doctor, enforce, image, release, release_preflight, smoke},
     context::RepositoryContext,
 };
 
@@ -40,45 +40,6 @@ enum Command {
     },
     /// Build and dispatch the typed Rust smoke harness.
     Smoke(SmokeArgs),
-    /// Record and display locally executed build and test results.
-    TestReport {
-        #[command(subcommand)]
-        command: TestReportCommand,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-enum TestReportCommand {
-    /// Run one existing command and record its result in the committed report.
-    Run(TestReportRunArgs),
-    /// Display per-check source status and current failures.
-    Show(TestReportShowArgs),
-    /// Verify required coverage, current inputs and execution environments.
-    Verify(TestReportVerifyArgs),
-}
-
-#[derive(Debug, Args)]
-struct TestReportRunArgs {
-    /// Stable name shown for this check in the report.
-    #[arg(long)]
-    name: String,
-    /// Command and arguments to execute without a shell.
-    #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
-    command: Vec<OsString>,
-}
-
-#[derive(Debug, Args)]
-struct TestReportShowArgs {
-    /// Also append the Markdown report to GITHUB_STEP_SUMMARY when available.
-    #[arg(long)]
-    github_summary: bool,
-}
-
-#[derive(Debug, Args)]
-struct TestReportVerifyArgs {
-    /// Repository-owned coverage profile, with explicit runtime freshness/bindings.
-    #[arg(long)]
-    profile: PathBuf,
 }
 
 #[derive(Debug, Subcommand)]
@@ -524,12 +485,5 @@ fn main() -> Result<()> {
             }
         },
         Command::Smoke(args) => smoke::run(&repository, &args.arguments),
-        Command::TestReport { command } => match command {
-            TestReportCommand::Run(args) => {
-                test_report::run(&repository, &args.name, &args.command)
-            }
-            TestReportCommand::Show(args) => test_report::show(&repository, args.github_summary),
-            TestReportCommand::Verify(args) => test_report::verify(&repository, &args.profile),
-        },
     }
 }
