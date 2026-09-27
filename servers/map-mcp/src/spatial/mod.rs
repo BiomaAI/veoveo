@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
 use crate::{
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{
         DatasetReleaseState, DeriveSpatialGeometryRequest, MAX_SPATIAL_OUTPUT_COORDINATES,
         SPATIAL_DERIVATION_SCHEMA_VERSION, SpatialDerivation, SpatialDerivationId,
@@ -169,7 +169,7 @@ impl SpatialService {
 
     pub async fn derive(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         identity: &GatewayInternalIdentity,
         request: DeriveSpatialGeometryRequest,
     ) -> Result<SpatialDerivation> {

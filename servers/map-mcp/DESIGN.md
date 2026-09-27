@@ -53,6 +53,7 @@ the `map://` scheme.
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; acquisition, routing, import, export, publication, and vector-product operations use durable task semantics where declared. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://map/workspace.html` uses the sandboxed host bridge and canonical Map tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | MCP schemas and immutable authored-layer property contracts. Layer schemas reject remote references. |
+| [Veoveo resource components](../../platform/types/DESIGN.md#concrete-resource-components) and URI Template RFC 6570 | Authoring metadata pages use the shared URL parser and builder with typed IDs and cursors. Discovery declares form-style parent and cursor query parameters. Other resource families are tracked for migration in the foundations plan. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
@@ -95,6 +96,31 @@ Map embeds the hardened DuckDB runtime as a library and owns its analytical
 database and SQL policy.
 
 ## Architecture
+
+### Public Types And Authorization
+
+The server's public contract owns `MapScope`, its closed authorization vocabulary.
+Handlers and Tasks require that enum and share one grant check. Configurable
+administrative admission accepts a validated `ScopeName` and defaults to `MapScope::Admin`.
+Unrelated server scopes in the caller's grants remain valid. `MapAccessContext`
+carries database identity and is separate from this vocabulary.
+
+`MapMetadataRequest` implements the foundational `ResourceAddress` trait for authored
+layer, publication, product, and composition collections. Variants carry their specific
+ID types and optional parent selection. The shared URI library parses and encodes query
+components. `MapMetadataCursor` validates its version-1 envelope and typed position,
+then checks the collection and parent again when resumed. Serialization emits a hex
+string. A cursor grants no access; every page applies current database visibility.
+
+Map's library still depends on the server runtime. Contract-only feature isolation,
+remaining resource families, and typed Store query keys are work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
+The MCP adapter separates resource reads in `src/mcp/resources.rs` from descriptors
+and templates in `src/mcp/discovery.rs`. The authoring metadata adapter delegates
+parsing to the public contract and executes the selected catalog query.
+
+### Hosted Process
 
 ```text
 agent
@@ -1023,6 +1049,10 @@ map://route/{route_id}
 map://matrix/{matrix_id}
 map://travel-model/{travel_model_id}
 map://artifact/{artifact_id}
+map://feature-layers{?cursor}
+map://publications{?layer_id,cursor}
+map://layer-products{?publication_id,cursor}
+map://compositions{?cursor}
 map://feature-layer/{layer_id}
 map://feature-layer/{layer_id}/schema/{schema_version}
 map://feature-layer/{layer_id}/style/{style_version}
@@ -1059,6 +1089,15 @@ page. An exact release URI binds both dataset and release IDs in the database.
 A layer-product URI likewise binds its layer, publication, and product IDs in SQL
 alongside current layer visibility.
 
+Authoring metadata collections use the same 100-item envelope, ordered by immutable
+domain ID. Layer and composition pages exclude archived rows. Publication and product
+pages select current parent-layer visibility and may read immutable products of an
+archived layer. Their optional `layer_id` and `publication_id` filters apply in SQL
+before keyset selection and limits. Cursors bind those filters and reapply current
+tenant, Work Context, and label access on every request. These pages observe current
+committed rows rather than a snapshot across requests. The App follows all pages
+before publishing a refreshed collection, preserving its previous view on failure.
+
 Route, matrix, and acquisition indexes return the same page envelope with up to
 100 items ordered by immutable domain ID. Their cursors bind the collection and
 are valid only at version 1. Store applies tenant and owner predicates before
@@ -1072,7 +1111,7 @@ revision check.
 Map owns the coordinated collection-page transition. Installations drain Map and
 replace its binary and packaged Map Explorer together. Clients must consume the
 page envelope and follow `next_cursor`; grouped dataset objects and bare arrays
-for releases, routes, matrices, or acquisition jobs are unsupported. Route and
+for releases, routes, matrices, acquisition jobs, or authoring metadata are unsupported. Route and
 matrix consumers read each summary's `resource_uri` when they need the payload.
 Rollback restores the previous binary and App together; this response change does
 not convert persisted records. Qualification covers multiple pages, foreign

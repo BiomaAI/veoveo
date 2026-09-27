@@ -3180,22 +3180,22 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
                     "dark_style_url": format!("http://{address}/style-dark.json")
                 }
         },
-        "map://feature-layers": [{
+        "map://feature-layers": {"items": [{
             "layer_id": "layer-0198-map-workspace",
             "title": "San Salvador operations",
             "content_class": "operational",
             "schema": {"version": 1},
             "revision": 3
-        }],
-        "map://publications": [{
+        }], "limit": 100, "next_cursor": null},
+        "map://publications": {"items": [{
             "publication_id": "publication-0198-map-workspace",
             "layer_id": "layer-0198-map-workspace",
             "layer_revision": 3,
             "schema_version": 1,
             "style_revision_id": "style-revision-0198-map-workspace",
             "title": "Operations publication"
-        }],
-        "map://compositions": [{
+        }], "limit": 100, "next_cursor": null},
+        "map://compositions": {"items": [{
             "composition_id": "composition-0198-map-workspace",
             "title": "San Salvador operational picture",
             "current": {
@@ -3214,7 +3214,7 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
                     "pitch_deg": 0.0
                 }
             }
-        }],
+        }], "limit": 100, "next_cursor": null},
         "map://feature-style/style-revision-0198-map-workspace": {
             "style_revision_id": "style-revision-0198-map-workspace",
             "layer_id": "layer-0198-map-workspace",

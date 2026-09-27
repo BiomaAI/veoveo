@@ -10,7 +10,7 @@ use crate::{
     analytics::MapAnalytics,
     artifacts::ArtifactRepository,
     authoring::AuthoringService,
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::MapWorkspaceBasemap,
     feature_packages::FeaturePackageService,
     geography::GeographyService,
@@ -45,7 +45,7 @@ pub struct MapApplication {
 }
 
 impl MapApplication {
-    pub async fn scope(&self, identity: &GatewayInternalIdentity) -> Result<MapScope> {
+    pub async fn scope(&self, identity: &GatewayInternalIdentity) -> Result<MapAccessContext> {
         let tenant_key = identity
             .actor
             .tenant
@@ -66,12 +66,12 @@ impl MapApplication {
                 },
             )
             .await?;
-        Ok(MapScope {
+        Ok(MapAccessContext {
             identity: platform_identity,
         })
     }
 
-    pub async fn scope_from_task_owner(&self, owner: &TaskOwner) -> Result<MapScope> {
+    pub async fn scope_from_task_owner(&self, owner: &TaskOwner) -> Result<MapAccessContext> {
         let identity = self
             .tasks
             .platform_store()
@@ -86,7 +86,7 @@ impl MapApplication {
                 },
             )
             .await?;
-        Ok(MapScope { identity })
+        Ok(MapAccessContext { identity })
     }
 
     pub fn caller(&self, identity: GatewayInternalIdentity, bearer_token: String) -> PlaneCaller {

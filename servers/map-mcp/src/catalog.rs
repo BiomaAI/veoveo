@@ -16,11 +16,11 @@ use crate::contract::{
 };
 
 #[derive(Clone, Debug)]
-pub struct MapScope {
+pub struct MapAccessContext {
     pub identity: PlatformIdentity,
 }
 
-impl MapScope {
+impl MapAccessContext {
     pub fn tenant_key(&self) -> String {
         self.identity.tenant_id.to_string()
     }
@@ -42,7 +42,7 @@ impl MapCatalog {
 
     pub async fn create_source(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         source: RegisteredSource,
     ) -> Result<RegisteredSource> {
         source.validate()?;
@@ -53,7 +53,7 @@ impl MapCatalog {
 
     pub async fn replace_source(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         source: RegisteredSource,
         expected_record_version: u64,
     ) -> Result<RegisteredSource> {
@@ -70,7 +70,7 @@ impl MapCatalog {
 
     pub async fn source(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         source_id: &MapSourceId,
     ) -> Result<Option<RegisteredSource>> {
         self.store
@@ -80,7 +80,7 @@ impl MapCatalog {
             .transpose()
     }
 
-    pub async fn list_sources(&self, scope: &MapScope) -> Result<Vec<RegisteredSource>> {
+    pub async fn list_sources(&self, scope: &MapAccessContext) -> Result<Vec<RegisteredSource>> {
         self.store
             .list_map_sources(scope.identity.tenant_id)
             .await?
@@ -91,7 +91,7 @@ impl MapCatalog {
 
     pub async fn create_release(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         release: DatasetRelease,
     ) -> Result<DatasetRelease> {
         release.validate()?;
@@ -114,7 +114,7 @@ impl MapCatalog {
 
     pub async fn release(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         release_id: &crate::contract::DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
         self.store
@@ -124,7 +124,7 @@ impl MapCatalog {
             .transpose()
     }
 
-    pub async fn list_releases(&self, scope: &MapScope) -> Result<Vec<DatasetRelease>> {
+    pub async fn list_releases(&self, scope: &MapAccessContext) -> Result<Vec<DatasetRelease>> {
         self.store
             .list_map_releases(scope.identity.tenant_id)
             .await?
@@ -135,7 +135,7 @@ impl MapCatalog {
 
     pub async fn transition_release(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         mut release: DatasetRelease,
         state: DatasetReleaseState,
         expected_record_version: u64,
@@ -161,7 +161,7 @@ impl MapCatalog {
 
     pub async fn activate_release(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         mut release: DatasetRelease,
         expected_pointer_version: Option<u64>,
     ) -> Result<DatasetRelease> {
@@ -185,7 +185,7 @@ impl MapCatalog {
 
     pub async fn active_release_id(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         dataset_id: &crate::contract::MapDatasetId,
     ) -> Result<Option<crate::contract::DatasetReleaseId>> {
         self.store
@@ -198,7 +198,7 @@ impl MapCatalog {
 
     pub async fn list_active_releases(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
     ) -> Result<Vec<ActiveReleasePointer>> {
         self.store
             .list_active_map_releases(scope.identity.tenant_id)
@@ -221,7 +221,7 @@ impl MapCatalog {
 
     pub async fn create_mobility_profile(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         profile: MobilityProfile,
     ) -> Result<MobilityProfile> {
         profile.validate()?;
@@ -243,7 +243,7 @@ impl MapCatalog {
 
     pub async fn mobility_profile(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         profile_id: &crate::contract::MobilityProfileId,
         version: u64,
     ) -> Result<Option<MobilityProfile>> {
@@ -258,7 +258,10 @@ impl MapCatalog {
             .transpose()
     }
 
-    pub async fn list_mobility_profiles(&self, scope: &MapScope) -> Result<Vec<MobilityProfile>> {
+    pub async fn list_mobility_profiles(
+        &self,
+        scope: &MapAccessContext,
+    ) -> Result<Vec<MobilityProfile>> {
         self.store
             .list_map_mobility_profiles(scope.identity.tenant_id)
             .await?
@@ -269,7 +272,7 @@ impl MapCatalog {
 
     pub async fn create_restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         restriction: Restriction,
     ) -> Result<Restriction> {
         validate_restriction(&restriction)?;
@@ -295,7 +298,7 @@ impl MapCatalog {
 
     pub async fn restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         restriction_id: &crate::contract::RestrictionId,
     ) -> Result<Option<Restriction>> {
         self.store
@@ -305,7 +308,7 @@ impl MapCatalog {
             .transpose()
     }
 
-    pub async fn list_restrictions(&self, scope: &MapScope) -> Result<Vec<Restriction>> {
+    pub async fn list_restrictions(&self, scope: &MapAccessContext) -> Result<Vec<Restriction>> {
         self.store
             .list_map_restrictions(scope.identity.tenant_id)
             .await?
@@ -316,7 +319,7 @@ impl MapCatalog {
 
     pub async fn withdraw_restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         mut restriction: Restriction,
         expected_record_version: u64,
         effective_at: chrono::DateTime<Utc>,
@@ -351,7 +354,7 @@ impl MapCatalog {
 
     pub async fn persist_snapshot(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         snapshot: &OperationalSnapshot,
     ) -> Result<()> {
         snapshot.coverage.validate()?;
@@ -368,7 +371,7 @@ impl MapCatalog {
 
     pub async fn persist_route(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         route: &RoutePlan,
         cache_digest_sha256: String,
     ) -> Result<()> {
@@ -418,7 +421,7 @@ impl MapCatalog {
 
     async fn persist_route_dependency(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         route_id: &crate::contract::RouteId,
         dependency_kind: MapDependencyKind,
         dependency_key: &str,
@@ -436,7 +439,7 @@ impl MapCatalog {
 
     pub async fn persist_matrix(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         matrix: &RouteMatrix,
         mobility_profile_key: &str,
         mobility_profile_version: u64,
@@ -457,7 +460,7 @@ impl MapCatalog {
 
     pub async fn create_acquisition(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CreateAcquisitionRequest,
         acquisition_id: crate::contract::AcquisitionId,
     ) -> Result<AcquisitionJob> {
@@ -523,7 +526,7 @@ impl MapCatalog {
 
     pub async fn update_acquisition(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         mut job: AcquisitionJob,
     ) -> Result<AcquisitionJob> {
         let expected = job.record_version;
@@ -544,7 +547,7 @@ impl MapCatalog {
     }
 }
 
-fn source_draft(scope: &MapScope, source: &RegisteredSource) -> Result<MapSourceDraft> {
+fn source_draft(scope: &MapAccessContext, source: &RegisteredSource) -> Result<MapSourceDraft> {
     Ok(MapSourceDraft {
         identity: scope.identity.clone(),
         source_key: source.source_id.to_string(),

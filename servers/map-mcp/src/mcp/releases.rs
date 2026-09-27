@@ -1,7 +1,7 @@
 //! Release indexes are pages selected in SQL, including dataset URI parents.
 use super::*;
 use crate::{
-    catalog::{MapScope, releases::parse_cursor},
+    catalog::{MapAccessContext, releases::parse_cursor},
     contract::MapDatasetId,
 };
 
@@ -9,7 +9,7 @@ impl MapMcp {
     pub(super) async fn read_release_page(
         &self,
         uri: &str,
-        scope: &MapScope,
+        scope: &MapAccessContext,
     ) -> Result<Option<ReadResourceResult>, McpError> {
         let (root, query) = uri
             .split_once('?')

@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_platform_store::{MapDependencyKind, MapRouteState};
 
-use super::{MapCatalog, MapScope, decode, encode};
+use super::{MapAccessContext, MapCatalog, decode, encode};
 use crate::{
     contract::{
         AcquisitionId, AcquisitionJob, AcquisitionStatus, DatasetReleaseId, MobilityProfileId,
@@ -113,7 +113,7 @@ pub struct MatrixSummary {
 }
 
 impl MapCatalog {
-    pub async fn route(&self, scope: &MapScope, id: &RouteId) -> Result<Option<RoutePlan>> {
+    pub async fn route(&self, scope: &MapAccessContext, id: &RouteId) -> Result<Option<RoutePlan>> {
         self.store()
             .map_route(&scope.identity, id.as_str())
             .await?
@@ -123,7 +123,7 @@ impl MapCatalog {
 
     pub async fn matrix(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         id: &RouteMatrixId,
     ) -> Result<Option<RouteMatrix>> {
         self.store()
@@ -142,7 +142,7 @@ impl MapCatalog {
 
     pub async fn acquisition(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         id: &AcquisitionId,
     ) -> Result<Option<AcquisitionJob>> {
         self.store()
@@ -154,7 +154,7 @@ impl MapCatalog {
 
     pub async fn routes_page(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         after: Option<&str>,
     ) -> Result<OwnedPage<RouteSummary>> {
         let rows = self
@@ -187,7 +187,7 @@ impl MapCatalog {
 
     pub async fn matrices_page(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         after: Option<&str>,
     ) -> Result<OwnedPage<MatrixSummary>> {
         let rows = self
@@ -211,7 +211,7 @@ impl MapCatalog {
 
     pub async fn acquisitions_page(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         after: Option<&str>,
     ) -> Result<OwnedPage<AcquisitionJob>> {
         let rows = self
@@ -227,7 +227,7 @@ impl MapCatalog {
 
     async fn interrupted_acquisitions_batch(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         active: &[AcquisitionId],
         after: Option<&AcquisitionId>,
     ) -> Result<Vec<AcquisitionJob>> {
@@ -246,7 +246,7 @@ impl MapCatalog {
 
     pub async fn reconcile_interrupted_acquisitions(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         active: &[AcquisitionId],
     ) -> Result<()> {
         let mut after = None;
@@ -270,7 +270,7 @@ impl MapCatalog {
 
     pub async fn invalidate_routes_for_release(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         id: &DatasetReleaseId,
     ) -> Result<u64> {
         self.invalidate_routes(scope, MapDependencyKind::Release, id.as_str())
@@ -279,7 +279,7 @@ impl MapCatalog {
 
     pub async fn invalidate_routes_for_restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         id: &RestrictionId,
     ) -> Result<u64> {
         self.invalidate_routes(scope, MapDependencyKind::Restriction, id.as_str())
@@ -288,7 +288,7 @@ impl MapCatalog {
 
     async fn invalidate_routes(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         kind: MapDependencyKind,
         dependency: &str,
     ) -> Result<u64> {

@@ -80,7 +80,7 @@ async fn create_records(
         .create_map_layer_product(MapLayerProductDraft {
             identity: identity.clone(),
             authority: authority.clone(),
-            product_key: format!("product-{}", Uuid::now_v7()),
+            product_key: format!("layer-product-{}", Uuid::now_v7()),
             publication_key: publication.publication_key.clone(),
             layer_key: layer.layer_key.clone(),
             layer_revision: 0,
@@ -155,21 +155,27 @@ async fn qualify() {
     let scope =
         MapAuthoringReadScope::new("map-read", "operations", vec!["restricted".into()]).unwrap();
     assert_eq!(
-        db.b.list_map_feature_layers(&scope, true).await.unwrap(),
+        db.b.map_feature_layers_page(&scope, true, None, 100)
+            .await
+            .unwrap(),
         vec![visible.layer.clone()]
     );
     assert_eq!(
-        db.b.list_map_compositions(&scope, true).await.unwrap(),
+        db.b.map_compositions_page(&scope, true, None, 100)
+            .await
+            .unwrap(),
         vec![visible.composition.clone()]
     );
     assert_eq!(
-        db.b.list_map_layer_publications(&scope, None)
+        db.b.map_layer_publications_page(&scope, None, None, 100)
             .await
             .unwrap(),
         vec![visible.publication.clone()]
     );
     assert_eq!(
-        db.b.list_map_layer_products(&scope, None).await.unwrap(),
+        db.b.map_layer_products_page(&scope, None, None, 100)
+            .await
+            .unwrap(),
         vec![visible.product.clone()]
     );
     for hidden in [&denied, &private, &foreign] {
@@ -197,16 +203,21 @@ async fn qualify() {
             .is_none()
         );
         assert!(
-            db.b.list_map_layer_publications(&scope, Some(&hidden.layer.layer_key))
+            db.b.map_layer_publications_page(&scope, Some(&hidden.layer.layer_key), None, 100)
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert!(
-            db.b.list_map_layer_products(&scope, Some(&hidden.publication.publication_key))
-                .await
-                .unwrap()
-                .is_empty()
+            db.b.map_layer_products_page(
+                &scope,
+                Some(&hidden.publication.publication_key),
+                None,
+                100
+            )
+            .await
+            .unwrap()
+            .is_empty()
         );
     }
     // A nested product URI must name both of its actual parents.
@@ -245,7 +256,7 @@ async fn qualify() {
     )
     .unwrap();
     assert_eq!(
-        db.b.list_map_feature_layers(&clearance, true)
+        db.b.map_feature_layers_page(&clearance, true, None, 100)
             .await
             .unwrap()
             .len(),
@@ -269,13 +280,13 @@ async fn qualify() {
         Some(denied.composition.clone())
     );
     assert_eq!(
-        db.b.list_map_layer_publications(&clearance, Some(&denied.layer.layer_key))
+        db.b.map_layer_publications_page(&clearance, Some(&denied.layer.layer_key), None, 100)
             .await
             .unwrap(),
         vec![denied.publication]
     );
     assert_eq!(
-        db.b.list_map_layer_products(&clearance, Some(&denied.product.publication_key))
+        db.b.map_layer_products_page(&clearance, Some(&denied.product.publication_key), None, 100)
             .await
             .unwrap(),
         vec![denied.product]
@@ -389,13 +400,13 @@ async fn qualify() {
         .check()
         .unwrap();
     assert!(
-        db.b.list_map_layer_publications(&scope, None)
+        db.b.map_layer_publications_page(&scope, None, None, 100)
             .await
             .unwrap()
             .is_empty()
     );
     assert!(
-        db.b.list_map_layer_products(&scope, None)
+        db.b.map_layer_products_page(&scope, None, None, 100)
             .await
             .unwrap()
             .is_empty()
@@ -420,16 +431,222 @@ async fn qualify() {
         .check()
         .unwrap();
     assert!(
-        db.b.list_map_feature_layers(&clearance, false)
+        db.b.map_feature_layers_page(&clearance, false, None, 100)
             .await
             .unwrap()
             .is_empty()
     );
     assert_eq!(
-        db.b.list_map_feature_layers(&clearance, true)
+        db.b.map_feature_layers_page(&clearance, true, None, 100)
             .await
             .unwrap()
             .len(),
         1
+    );
+}
+
+#[derive(Clone, Copy)]
+enum Index {
+    Layers,
+    Publications,
+    Products,
+    Compositions,
+}
+
+async fn page_keys(
+    store: &PlatformStore,
+    scope: &MapAuthoringReadScope,
+    index: Index,
+    after: Option<&str>,
+) -> Vec<String> {
+    match index {
+        Index::Layers => store
+            .map_feature_layers_page(scope, false, after, 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.layer_key)
+            .collect(),
+        Index::Publications => store
+            .map_layer_publications_page(scope, None, after, 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.publication_key)
+            .collect(),
+        Index::Products => store
+            .map_layer_products_page(scope, None, after, 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.product_key)
+            .collect(),
+        Index::Compositions => store
+            .map_compositions_page(scope, false, after, 100)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| row.composition_key)
+            .collect(),
+    }
+}
+
+#[tokio::test]
+async fn metadata_pages_apply_current_visibility_and_parents_before_limits() {
+    tokio::time::timeout(Duration::from_secs(120), qualify_pages())
+        .await
+        .expect("metadata page qualification exceeded 120 seconds");
+}
+
+async fn qualify_pages() {
+    let db = fixture::TestDb::new().await;
+    let identity =
+        db.a.ensure_identity(
+            "map-pages",
+            "author",
+            "https://fixture.local",
+            "author",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    let foreign =
+        db.a.ensure_identity(
+            "foreign-pages",
+            "author",
+            "https://fixture.local",
+            "author",
+            PrincipalKind::Service,
+        )
+        .await
+        .unwrap();
+    // All three denied sets are created before admitted rows, so a limit placed
+    // before tenant, context, or label admission would produce incomplete pages.
+    for _ in 0..110 {
+        create_records(&db.a, &foreign, "operations", &["restricted"]).await;
+    }
+    for _ in 0..110 {
+        create_records(&db.a, &identity, "private", &["restricted"]).await;
+    }
+    for _ in 0..110 {
+        create_records(&db.a, &identity, "operations", &["restricted", "secret"]).await;
+    }
+    let archived = create_records(&db.a, &identity, "operations", &["restricted"]).await;
+    db.a.client().query("UPDATE ONLY $layer SET archived_at = time::now(); UPDATE ONLY $composition SET archived_at = time::now();")
+        .bind(("layer", archived.layer.id.clone())).bind(("composition", archived.composition.id.clone()))
+        .await.unwrap().check().unwrap();
+    let mut rows = Vec::new();
+    for _ in 0..125 {
+        rows.push(create_records(&db.a, &identity, "operations", &["restricted"]).await);
+    }
+    let scope =
+        MapAuthoringReadScope::new("map-pages", "operations", vec!["restricted".into()]).unwrap();
+    let revoked = MapAuthoringReadScope::new("map-pages", "operations", vec![]).unwrap();
+    for index in [
+        Index::Layers,
+        Index::Publications,
+        Index::Products,
+        Index::Compositions,
+    ] {
+        let key = |row: &Records| match index {
+            Index::Layers => row.layer.layer_key.clone(),
+            Index::Publications => row.publication.publication_key.clone(),
+            Index::Products => row.product.product_key.clone(),
+            Index::Compositions => row.composition.composition_key.clone(),
+        };
+        let mut expected: Vec<_> = rows.iter().map(key).collect();
+        // An archived layer's immutable publications/products remain readable.
+        if matches!(index, Index::Publications | Index::Products) {
+            expected.push(key(&archived));
+        }
+        expected.sort();
+        let first = page_keys(&db.b, &scope, index, None).await;
+        assert_eq!(first, expected[..100]);
+        let after = first.last().unwrap();
+        let second = page_keys(&db.b, &scope, index, Some(after)).await;
+        assert_eq!(second, expected[100..]);
+        assert!(
+            page_keys(&db.b, &scope, index, second.last().map(String::as_str))
+                .await
+                .is_empty()
+        );
+        // Continuations reapply clearance; a previously issued key grants no access.
+        assert!(
+            page_keys(&db.b, &revoked, index, Some(after))
+                .await
+                .is_empty()
+        );
+    }
+    let last = rows.last().unwrap();
+    assert_eq!(
+        db.b.map_layer_publications_page(&scope, Some(&last.layer.layer_key), None, 101)
+            .await
+            .unwrap(),
+        vec![last.publication.clone()]
+    );
+    assert_eq!(
+        db.b.map_layer_products_page(&scope, Some(&last.publication.publication_key), None, 101)
+            .await
+            .unwrap(),
+        vec![last.product.clone()]
+    );
+    assert!(
+        db.b.map_layer_publications_page(&revoked, Some(&last.layer.layer_key), None, 101)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        db.b.map_layer_products_page(&revoked, Some(&last.publication.publication_key), None, 101)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    for limit in [0, 102] {
+        assert!(
+            db.b.map_feature_layers_page(&scope, false, None, limit)
+                .await
+                .is_err()
+        );
+        assert!(
+            db.b.map_compositions_page(&scope, false, None, limit)
+                .await
+                .is_err()
+        );
+        assert!(
+            db.b.map_layer_publications_page(&scope, None, None, limit)
+                .await
+                .is_err()
+        );
+        assert!(
+            db.b.map_layer_products_page(&scope, None, None, limit)
+                .await
+                .is_err()
+        );
+    }
+    assert!(
+        db.b.map_feature_layers_page(&scope, false, Some("invalid"), 100)
+            .await
+            .is_err()
+    );
+    // Parent deletion also changes a resumed publication/product selection.
+    db.a.client()
+        .query("DELETE ONLY $layer;")
+        .bind(("layer", last.layer.id.clone()))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+    assert!(
+        db.b.map_layer_publications_page(&scope, Some(&last.layer.layer_key), None, 101)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        db.b.map_layer_products_page(&scope, Some(&last.publication.publication_key), None, 101)
+            .await
+            .unwrap()
+            .is_empty()
     );
 }

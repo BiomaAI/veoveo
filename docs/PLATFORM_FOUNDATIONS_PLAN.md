@@ -62,6 +62,12 @@ contract, runtime, and MCP features and owns its scope enum. Independent contrac
 consumer, native server, and database qualification pass. Shared concrete URI components
 and builders now serve all Time resource variants and collection cursors. Gateway
 completion/audit reference separation, Store key typing, and wider server adoption are pending.
+Map now owns its scope enum and authoring metadata request/cursor types. Layer,
+publication, product, and composition indexes use SQL-scoped pages, and Map Explorer
+follows them before publishing a refresh. Native tests cover 125 admitted records
+behind 330 records denied by tenant, context, or labels, plus parent selection and
+clearance changes between pages. Other Map resource families and contract feature
+isolation remain implementation work; installed and headed hardware acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -496,7 +502,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
-| Map | Its contract imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate; scope helpers and URI builders use strings | Resolve each type's owning contract, expose the contract feature, and migrate its scopes, addresses, and query IDs |
+| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; the contract still imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate | Resolve each type's owning contract, expose the contract feature, and migrate remaining addresses and Store query IDs |
+| Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |

@@ -6,7 +6,7 @@ use veoveo_mcp_contract::{PrincipalId, WorkContextId};
 use veoveo_platform_store::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
 
 use crate::{
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{RasterDerivation, RasterDerivationId, SpatialDerivation, SpatialDerivationId},
     uris,
 };
@@ -59,7 +59,7 @@ pub fn parse_cursor(kind: MapDerivationKind, cursor: Option<&str>) -> Result<Opt
     }
     Ok(Some(cursor.after))
 }
-fn scope(scope: &MapScope, context: &WorkContextId) -> Result<MapDerivationScope> {
+fn scope(scope: &MapAccessContext, context: &WorkContextId) -> Result<MapDerivationScope> {
     Ok(MapDerivationScope::from_keys(
         &scope.identity.tenant_key,
         context.as_str(),
@@ -69,7 +69,7 @@ fn scope(scope: &MapScope, context: &WorkContextId) -> Result<MapDerivationScope
 impl MapCatalog {
     pub async fn put_raster_derivation(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         derivation: &RasterDerivation,
     ) -> Result<()> {
         derivation.validate()?;
@@ -87,7 +87,7 @@ impl MapCatalog {
     }
     pub async fn put_spatial_derivation(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         derivation: &SpatialDerivation,
     ) -> Result<()> {
         derivation.validate()?;
@@ -105,7 +105,7 @@ impl MapCatalog {
     }
     pub async fn raster_derivation(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         context: &WorkContextId,
         id: &RasterDerivationId,
     ) -> Result<Option<RasterDerivation>> {
@@ -130,7 +130,7 @@ impl MapCatalog {
     }
     pub async fn spatial_derivation(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         context: &WorkContextId,
         id: &SpatialDerivationId,
     ) -> Result<Option<SpatialDerivation>> {
@@ -155,7 +155,7 @@ impl MapCatalog {
     }
     pub async fn derivations_page(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         context: &WorkContextId,
         kind: MapDerivationKind,
         after: Option<&str>,
@@ -198,7 +198,7 @@ impl MapCatalog {
     }
     pub async fn complete_derivations(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         context: &WorkContextId,
         kind: MapDerivationKind,
         needle: &str,

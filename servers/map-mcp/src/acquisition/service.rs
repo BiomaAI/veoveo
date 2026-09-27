@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{ArtifactPut, ComplianceMetadata, PlaneCaller};
 
 use crate::{
     artifacts::ArtifactRepository,
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{
         AcquisitionId, AcquisitionPhase, AcquisitionStatus, CreateAcquisitionRequest,
         DatasetRelease, DatasetReleaseId, DatasetReleaseState, RegisteredSource, SourceCredential,
@@ -83,7 +83,7 @@ impl AcquisitionService {
 
     pub async fn start(
         self: &Arc<Self>,
-        scope: MapScope,
+        scope: MapAccessContext,
         caller: PlaneCaller,
         request: CreateAcquisitionRequest,
     ) -> Result<crate::contract::AcquisitionJob> {
@@ -157,7 +157,7 @@ impl AcquisitionService {
 
     pub async fn cancel(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         acquisition_id: &AcquisitionId,
     ) -> Result<crate::contract::AcquisitionJob> {
         let mut job = self
@@ -180,7 +180,7 @@ impl AcquisitionService {
         Ok(job)
     }
 
-    pub async fn reconcile_interrupted(&self, scope: &MapScope) -> Result<()> {
+    pub async fn reconcile_interrupted(&self, scope: &MapAccessContext) -> Result<()> {
         let workers = self.workers.lock().await;
         let active_workers = workers.keys().cloned().collect::<Vec<_>>();
         self.catalog
@@ -192,7 +192,7 @@ impl AcquisitionService {
 
     async fn run(
         &self,
-        scope: MapScope,
+        scope: MapAccessContext,
         caller: PlaneCaller,
         source: RegisteredSource,
         acquisition_id: AcquisitionId,
@@ -227,7 +227,7 @@ impl AcquisitionService {
     #[allow(clippy::too_many_arguments)]
     async fn run_in_workspace(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         caller: &PlaneCaller,
         source: &RegisteredSource,
         acquisition_id: &AcquisitionId,
@@ -417,7 +417,7 @@ impl AcquisitionService {
 
     async fn progress(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         acquisition_id: &AcquisitionId,
         status: AcquisitionStatus,
         phase: AcquisitionPhase,

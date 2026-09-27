@@ -59,19 +59,22 @@ impl PlatformStore {
             .check()?;
         Ok(response.take(0)?)
     }
-    pub async fn list_map_feature_layers(
+    pub async fn map_feature_layers_page(
         &self,
         scope: &MapAuthoringReadScope,
         include_archived: bool,
+        after: Option<&str>,
+        limit: usize,
     ) -> Result<Vec<MapFeatureLayerRecord>, StoreError> {
+        validate_page(after, "feature-layer-", limit)?;
         let archived = if include_archived {
             ""
         } else {
             " AND archived_at = NONE"
         };
-        let mut response=self.client().query(format!("SELECT * FROM map_feature_layer WHERE {LAYER_VISIBLE}{archived} ORDER BY updated_at DESC;"))
+        let mut response=self.client().query(format!("SELECT * FROM map_feature_layer WHERE {LAYER_VISIBLE}{archived} AND ($after = NONE OR layer_key > $after) ORDER BY layer_key ASC LIMIT $limit;"))
             .bind(("tenant",scope.tenant.clone())).bind(("context",scope.context.clone()))
-            .bind(("labels",scope.labels.clone())).await?.check()?;
+            .bind(("labels",scope.labels.clone())).bind(("after",after.map(ToOwned::to_owned))).bind(("limit",limit)).await?.check()?;
         Ok(response.take(0)?)
     }
     pub async fn map_composition(
@@ -92,34 +95,43 @@ impl PlatformStore {
             .check()?;
         Ok(response.take(0)?)
     }
-    pub async fn list_map_compositions(
+    pub async fn map_compositions_page(
         &self,
         scope: &MapAuthoringReadScope,
         include_archived: bool,
+        after: Option<&str>,
+        limit: usize,
     ) -> Result<Vec<MapCompositionRecord>, StoreError> {
+        validate_page(after, "composition-", limit)?;
         let archived = if include_archived {
             ""
         } else {
             " AND archived_at = NONE"
         };
-        let mut response=self.client().query(format!("SELECT * FROM map_composition WHERE {COMPOSITION_VISIBLE}{archived} ORDER BY updated_at DESC;"))
+        let mut response=self.client().query(format!("SELECT * FROM map_composition WHERE {COMPOSITION_VISIBLE}{archived} AND ($after = NONE OR composition_key > $after) ORDER BY composition_key ASC LIMIT $limit;"))
             .bind(("tenant",scope.tenant.clone())).bind(("context",scope.context.clone()))
-            .bind(("labels",scope.labels.clone())).await?.check()?;
+            .bind(("labels",scope.labels.clone())).bind(("after",after.map(ToOwned::to_owned))).bind(("limit",limit)).await?.check()?;
         Ok(response.take(0)?)
     }
-    pub async fn list_map_layer_publications(
+    pub async fn map_layer_publications_page(
         &self,
         scope: &MapAuthoringReadScope,
         layer: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
     ) -> Result<Vec<MapLayerPublicationRecord>, StoreError> {
+        validate_page(after, "publication-", limit)?;
+        if let Some(layer) = layer {
+            super::validate_key("layer", layer, "feature-layer-")?;
+        }
         let parent = if layer.is_some() {
             " AND layer_key = $layer"
         } else {
             ""
         };
-        let mut response=self.client().query(format!("SELECT * FROM map_layer_publication WHERE {CHILD_VISIBLE}{parent} ORDER BY published_at DESC;"))
+        let mut response=self.client().query(format!("SELECT * FROM map_layer_publication WHERE {CHILD_VISIBLE}{parent} AND ($after = NONE OR publication_key > $after) ORDER BY publication_key ASC LIMIT $limit;"))
             .bind(("tenant",scope.tenant.clone())).bind(("context",scope.context.clone())).bind(("labels",scope.labels.clone()))
-            .bind(("layer",layer.map(ToOwned::to_owned))).await?.check()?;
+            .bind(("layer",layer.map(ToOwned::to_owned))).bind(("after",after.map(ToOwned::to_owned))).bind(("limit",limit)).await?.check()?;
         Ok(response.take(0)?)
     }
     pub async fn map_layer_product(
@@ -142,19 +154,38 @@ impl PlatformStore {
             .check()?;
         Ok(response.take(0)?)
     }
-    pub async fn list_map_layer_products(
+    pub async fn map_layer_products_page(
         &self,
         scope: &MapAuthoringReadScope,
         publication: Option<&str>,
+        after: Option<&str>,
+        limit: usize,
     ) -> Result<Vec<MapLayerProductRecord>, StoreError> {
+        validate_page(after, "layer-product-", limit)?;
+        if let Some(publication) = publication {
+            super::validate_key("publication", publication, "publication-")?;
+        }
         let parent = if publication.is_some() {
             " AND publication_key = $publication"
         } else {
             ""
         };
-        let mut response=self.client().query(format!("SELECT * FROM map_layer_product WHERE {CHILD_VISIBLE}{parent} ORDER BY created_at DESC;"))
+        let mut response=self.client().query(format!("SELECT * FROM map_layer_product WHERE {CHILD_VISIBLE}{parent} AND ($after = NONE OR product_key > $after) ORDER BY product_key ASC LIMIT $limit;"))
             .bind(("tenant",scope.tenant.clone())).bind(("context",scope.context.clone())).bind(("labels",scope.labels.clone()))
-            .bind(("publication",publication.map(ToOwned::to_owned))).await?.check()?;
+            .bind(("publication",publication.map(ToOwned::to_owned))).bind(("after",after.map(ToOwned::to_owned))).bind(("limit",limit)).await?.check()?;
         Ok(response.take(0)?)
     }
+}
+
+fn validate_page(after: Option<&str>, prefix: &str, limit: usize) -> Result<(), StoreError> {
+    if !(1..=101).contains(&limit) {
+        return Err(super::invalid(
+            "limit",
+            "Map metadata pages require 1..=101 rows",
+        ));
+    }
+    if let Some(after) = after {
+        super::validate_key("after", after, prefix)?;
+    }
+    Ok(())
 }

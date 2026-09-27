@@ -10,8 +10,8 @@ fn key(prefix: &str, n: usize) -> String {
     format!("{prefix}-{n:08x}-0000-7000-8000-000000000000")
 }
 
-async fn scope(store: &PlatformStore, tenant: &str, principal: &str) -> MapScope {
-    MapScope {
+async fn scope(store: &PlatformStore, tenant: &str, principal: &str) -> MapAccessContext {
+    MapAccessContext {
         identity: store
             .ensure_identity(
                 tenant,
@@ -59,7 +59,7 @@ fn plan(n: usize, release: usize) -> RoutePlan {
     }
 }
 
-async fn acquisition(catalog: &MapCatalog, scope: &MapScope, n: usize) -> AcquisitionJob {
+async fn acquisition(catalog: &MapCatalog, scope: &MapAccessContext, n: usize) -> AcquisitionJob {
     catalog
         .create_acquisition(
             scope,
@@ -80,7 +80,7 @@ async fn acquisition(catalog: &MapCatalog, scope: &MapScope, n: usize) -> Acquis
         .unwrap()
 }
 
-async fn records(catalog: &MapCatalog, scope: &MapScope, n: usize) {
+async fn records(catalog: &MapCatalog, scope: &MapAccessContext, n: usize) {
     let plan = plan(n, 1);
     catalog
         .persist_route(scope, &plan, "a".repeat(64))
@@ -292,8 +292,8 @@ async fn qualify() {
 async fn qualify_recovery(
     writer: &MapCatalog,
     reader: &MapCatalog,
-    owner: &MapScope,
-    peer: &MapScope,
+    owner: &MapAccessContext,
+    peer: &MapAccessContext,
 ) {
     for n in 1000..1060 {
         let mut job = reader
@@ -392,9 +392,9 @@ async fn qualify_recovery(
 async fn qualify_invalidation(
     writer: &MapCatalog,
     reader: &MapCatalog,
-    owner: &MapScope,
-    peer: &MapScope,
-    foreign: &MapScope,
+    owner: &MapAccessContext,
+    peer: &MapAccessContext,
+    foreign: &MapAccessContext,
 ) {
     let unaffected = plan(4000, 2);
     writer

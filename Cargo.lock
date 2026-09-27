@@ -16828,6 +16828,7 @@ dependencies = [
  "veoveo-optimization-mcp",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]

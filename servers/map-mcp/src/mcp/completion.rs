@@ -1,13 +1,13 @@
 //! Completion dispatch; persisted catalogs apply scope and matching in SQL.
 use super::*;
-use crate::{analytics::GeographyCompletion, catalog::MapScope};
+use crate::{analytics::GeographyCompletion, catalog::MapAccessContext};
 use veoveo_platform_store::{MapAuthoringCompletion as Authoring, MapCatalogCompletion as Catalog};
 
 impl MapMcp {
     pub(super) async fn complete_index(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         template: &str,
         request: &CompleteRequestParams,
     ) -> Result<CompleteResult, McpError> {
@@ -45,6 +45,7 @@ impl MapMcp {
         let authoring = match (template, argument) {
             (
                 uris::FEATURE_LAYER_TEMPLATE
+                | uris::PUBLICATIONS_PAGE_TEMPLATE
                 | uris::FEATURE_SCHEMA_TEMPLATE
                 | uris::FEATURE_STYLE_TEMPLATE
                 | uris::FEATURES_TEMPLATE
@@ -65,7 +66,10 @@ impl MapMcp {
                 Some(Authoring::StyleRevision)
             }
             (
-                uris::PUBLICATION_TEMPLATE | uris::FEATURES_TEMPLATE | uris::LAYER_PRODUCT_TEMPLATE,
+                uris::PUBLICATION_TEMPLATE
+                | uris::FEATURES_TEMPLATE
+                | uris::LAYER_PRODUCT_TEMPLATE
+                | uris::LAYER_PRODUCTS_PAGE_TEMPLATE,
                 "publication_id",
             ) => Some(Authoring::Publication {
                 layer: parent(request, "layer_id")?,

@@ -15,9 +15,10 @@ use crate::{
         CreateFeatureLayerRequest, CreateMapCompositionRequest, ExportFeatureLayerOutput,
         ExportFeatureLayerRequest, FeatureLayer, ImportFeatureLayerOutput,
         ImportFeatureLayerRequest, InspectGeoPackageOutput, InspectGeoPackageRequest,
-        LayerPublication, MapComposition, PublishFeatureLayerRequest, QueryFeaturesOutput,
-        QueryFeaturesRequest, RestoreFeatureRequest, UpdateFeatureLayerRequest,
-        UpdateMapCompositionRequest, ValidateFeatureChangesOutput, ValidateFeatureChangesRequest,
+        LayerPublication, MapComposition, MapScope, PublishFeatureLayerRequest,
+        QueryFeaturesOutput, QueryFeaturesRequest, RestoreFeatureRequest,
+        UpdateFeatureLayerRequest, UpdateMapCompositionRequest, ValidateFeatureChangesOutput,
+        ValidateFeatureChangesRequest,
     },
     uris,
 };
@@ -37,7 +38,7 @@ impl MapMcp {
         Parameters(request): Parameters<CreateFeatureLayerRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let layer = self
             .state
@@ -72,7 +73,7 @@ impl MapMcp {
         Parameters(request): Parameters<UpdateFeatureLayerRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let layer = self
             .state
@@ -107,7 +108,7 @@ impl MapMcp {
         Parameters(request): Parameters<ValidateFeatureChangesRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -136,7 +137,7 @@ impl MapMcp {
         Parameters(request): Parameters<CommitFeatureChangesRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -178,7 +179,7 @@ impl MapMcp {
         Parameters(request): Parameters<RestoreFeatureRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -210,7 +211,7 @@ impl MapMcp {
         Parameters(request): Parameters<QueryFeaturesRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:read")?;
+        let identity = require_scope(&context, MapScope::FeatureRead)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let output = self
             .state
@@ -238,7 +239,7 @@ impl MapMcp {
         Parameters(request): Parameters<PublishFeatureLayerRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:publish")?;
+        let identity = require_scope(&context, MapScope::FeaturePublish)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let publication = self
             .state
@@ -280,7 +281,7 @@ impl MapMcp {
         Parameters(request): Parameters<ArchiveFeatureLayerRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:admin")?;
+        let identity = require_scope(&context, MapScope::FeatureAdmin)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let layer = self
             .state
@@ -319,7 +320,7 @@ impl MapMcp {
         Parameters(request): Parameters<CreateMapCompositionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let composition = self
             .state
@@ -349,7 +350,7 @@ impl MapMcp {
         Parameters(request): Parameters<UpdateMapCompositionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:write")?;
+        let identity = require_scope(&context, MapScope::FeatureWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let composition = self
             .state
@@ -382,7 +383,7 @@ impl MapMcp {
         Parameters(request): Parameters<ArchiveMapCompositionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "map:feature:admin")?;
+        let identity = require_scope(&context, MapScope::FeatureAdmin)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
         let composition = self
             .state

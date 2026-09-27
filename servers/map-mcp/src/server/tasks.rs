@@ -27,9 +27,9 @@ use crate::{
         BuildTravelModelRequest, BuildVectorTilesOutput, BuildVectorTilesRequest,
         DeriveRasterRequest, ExportFeatureLayerOutput, ExportFeatureLayerRequest,
         ImportFeatureLayerRequest, InspectGeoPackageRequest, LayerProduct, LayerProductId,
-        MAX_RASTER_FULL_DERIVATION_PIXELS, RASTER_DERIVATION_SCHEMA_VERSION, RasterDerivation,
-        RasterDerivationId, RasterDerivationOperation, ReachableAreaRequest, RouteMatrixRequest,
-        RouteRequest, TravelModelId, TravelModelRecord,
+        MAX_RASTER_FULL_DERIVATION_PIXELS, MapScope, RASTER_DERIVATION_SCHEMA_VERSION,
+        RasterDerivation, RasterDerivationId, RasterDerivationOperation, ReachableAreaRequest,
+        RouteMatrixRequest, RouteRequest, TravelModelId, TravelModelRecord,
     },
     server::auth::ForwardedBearer,
     state::MapApplication,
@@ -185,7 +185,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
         let task_id = TaskId::new();
         let args = match request.name.as_ref() {
             ROUTE_TASK => {
-                require_scope(&caller.identity, "map:route")?;
+                require_scope(&caller.identity, MapScope::Route)?;
                 MapTaskRequest::Route(
                     serde_json::from_value(arguments).map_err(|error| {
                         rmcp::ErrorData::invalid_params(error.to_string(), None)
@@ -193,7 +193,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 )
             }
             ROUTE_MATRIX_TASK => {
-                require_scope(&caller.identity, "map:route_matrix")?;
+                require_scope(&caller.identity, MapScope::RouteMatrix)?;
                 MapTaskRequest::RouteMatrix(
                     serde_json::from_value(arguments).map_err(|error| {
                         rmcp::ErrorData::invalid_params(error.to_string(), None)
@@ -201,7 +201,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 )
             }
             BUILD_TRAVEL_MODEL_TASK => {
-                require_scope(&caller.identity, "map:route_matrix")?;
+                require_scope(&caller.identity, MapScope::RouteMatrix)?;
                 let input: BuildTravelModelRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 input
@@ -222,7 +222,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 })
             }
             REACHABLE_AREA_TASK => {
-                require_scope(&caller.identity, "map:route")?;
+                require_scope(&caller.identity, MapScope::Route)?;
                 MapTaskRequest::ReachableArea(
                     serde_json::from_value(arguments).map_err(|error| {
                         rmcp::ErrorData::invalid_params(error.to_string(), None)
@@ -230,7 +230,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 )
             }
             INSPECT_GEOPACKAGE_TASK => {
-                require_scope(&caller.identity, "map:feature:read")?;
+                require_scope(&caller.identity, MapScope::FeatureRead)?;
                 let input: InspectGeoPackageRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::InspectGeoPackage(
@@ -245,7 +245,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 )
             }
             IMPORT_FEATURE_LAYER_TASK => {
-                require_scope(&caller.identity, "map:feature:write")?;
+                require_scope(&caller.identity, MapScope::FeatureWrite)?;
                 let input: ImportFeatureLayerRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::ImportFeatureLayer(
@@ -257,7 +257,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 )
             }
             EXPORT_FEATURE_LAYER_TASK => {
-                require_scope(&caller.identity, "map:feature:publish")?;
+                require_scope(&caller.identity, MapScope::FeaturePublish)?;
                 let input: ExportFeatureLayerRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 validate_publication_request(self.state.as_ref(), &caller.identity, &input)
@@ -278,7 +278,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 })
             }
             BUILD_VECTOR_TILES_TASK => {
-                require_scope(&caller.identity, "map:feature:publish")?;
+                require_scope(&caller.identity, MapScope::FeaturePublish)?;
                 let input: BuildVectorTilesRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 validate_tile_request(&input)
@@ -309,8 +309,8 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                 })
             }
             DERIVE_RASTER_TASK => {
-                require_scope(&caller.identity, "map:dataset:read")?;
-                require_scope(&caller.identity, "map:raster:derive")?;
+                require_scope(&caller.identity, MapScope::DatasetRead)?;
+                require_scope(&caller.identity, MapScope::RasterDerive)?;
                 let input: DeriveRasterRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 MapTaskRequest::DeriveRaster(
@@ -1289,7 +1289,7 @@ async fn publish_generated_product(
     state: &MapApplication,
     task_id: &str,
     identity: &GatewayInternalIdentity,
-    scope: &crate::catalog::MapScope,
+    scope: &crate::catalog::MapAccessContext,
     layer_id: &crate::contract::FeatureLayerId,
     publication_id: &crate::contract::LayerPublicationId,
     product_id: LayerProductId,
@@ -1426,22 +1426,9 @@ async fn update_task(state: &MapApplication, task_id: &str, transition: TaskTran
 
 fn require_scope(
     identity: &GatewayInternalIdentity,
-    required: &str,
+    required: MapScope,
 ) -> Result<(), rmcp::ErrorData> {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-        .then_some(())
-        .ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
+    super::auth::require_scope(&identity.actor.scopes, required)
 }
 
 pub(crate) fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

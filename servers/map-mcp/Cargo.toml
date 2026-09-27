@@ -15,6 +15,7 @@ name = "map-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true

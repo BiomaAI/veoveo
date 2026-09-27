@@ -1,3 +1,4 @@
+pub mod pages;
 mod presentations;
 mod projection;
 mod query;

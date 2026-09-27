@@ -1,7 +1,7 @@
 # Map MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -46,6 +46,13 @@ Map Explorer App.
 
 - `cargo check -p veoveo-map-mcp`
 - `cargo test -p veoveo-map-mcp`
+- `tests/metadata_contract.rs` covers typed metadata URIs, parent-bound cursor
+  continuation, and scope wire/schema values. The library owns these types;
+  contract-only dependency isolation is still pending.
+- `cargo test -p veoveo-platform-store --test map_authoring_reads` qualifies
+  tenant, Work Context, label, parent, archive, and keyset selection before page limits.
+- `npm --prefix servers/map-mcp/app test` qualifies page walking and refresh failure
+  behavior. These Node tests provide behavioral evidence only.
 - The Map-to-Optimization compatibility test must prove that serialized travel
   model artifacts deserialize directly into the Optimization contract.
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
@@ -75,12 +82,12 @@ Map Explorer App.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static, derivation, dataset-release, route, matrix, and acquisition indexes use SQL-scoped cursor pages, and persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met

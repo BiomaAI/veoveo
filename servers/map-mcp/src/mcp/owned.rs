@@ -20,9 +20,9 @@ impl MapMcp {
         let identity = require_scope(
             context,
             if collection == Collection::Acquisitions {
-                "map:admin"
+                MapScope::Admin
             } else {
-                "map:dataset:read"
+                MapScope::DatasetRead
             },
         )?;
         let cursor = query

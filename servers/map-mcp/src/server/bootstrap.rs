@@ -8,7 +8,7 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::PrincipalKind;
 
 use crate::{
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{MobilityProfile, RegisteredSource},
 };
 
@@ -72,7 +72,7 @@ pub(super) async fn apply(path: &Path, catalog: &MapCatalog) -> Result<()> {
             PrincipalKind::Service,
         )
         .await?;
-    let scope = MapScope { identity };
+    let scope = MapAccessContext { identity };
 
     for source in payload.sources {
         if catalog.source(&scope, &source.source_id).await?.is_some() {

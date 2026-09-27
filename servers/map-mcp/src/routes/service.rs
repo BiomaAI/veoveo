@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     analytics::MapAnalytics,
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{
         BuildTravelModelRequest, DatasetReleaseState, FacilityId, MAP_ROUTE_HANDOFF_SCHEMA,
         MapFamily, MapRouteHandoff, MobilityProfile, OperationalSnapshot, OperationalSnapshotId,
@@ -44,7 +44,11 @@ impl RouteService {
         }
     }
 
-    pub async fn route(&self, scope: &MapScope, mut request: RouteRequest) -> Result<RoutePlan> {
+    pub async fn route(
+        &self,
+        scope: &MapAccessContext,
+        mut request: RouteRequest,
+    ) -> Result<RoutePlan> {
         validate_request(&request)?;
         let tenant_key = scope.tenant_key();
         let profile = self
@@ -179,7 +183,7 @@ impl RouteService {
 
     pub async fn route_matrix(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: RouteMatrixRequest,
     ) -> Result<RouteMatrix> {
         if request.origins.is_empty() || request.destinations.is_empty() {
@@ -255,7 +259,7 @@ impl RouteService {
 
     pub async fn build_travel_model(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: BuildTravelModelRequest,
         resource_uri: String,
     ) -> Result<(TravelModelArtifact, Vec<TravelModelProfileProvenance>)> {
@@ -423,7 +427,7 @@ impl RouteService {
 
     pub async fn reachable_area(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ReachableAreaRequest,
     ) -> Result<ReachableArea> {
         let profile = self
@@ -513,7 +517,7 @@ impl RouteService {
 
     pub async fn validate_route(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ValidateRouteRequest,
     ) -> Result<RouteValidation> {
         let mut findings = Vec::new();
@@ -585,7 +589,7 @@ impl RouteService {
 
     pub async fn prepare_route_handoff(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: PrepareRouteHandoffRequest,
     ) -> Result<MapRouteHandoff> {
         let route = self
@@ -691,7 +695,7 @@ impl RouteService {
 
     async fn active_releases(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         profile: &MobilityProfile,
         departure_time: chrono::DateTime<Utc>,
     ) -> Result<(

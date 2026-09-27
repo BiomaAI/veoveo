@@ -138,7 +138,7 @@ pub(super) async fn transcode_import(
 pub(super) async fn generate_export(
     state: &MapApplication,
     identity: &GatewayInternalIdentity,
-    scope: &crate::catalog::MapScope,
+    scope: &crate::catalog::MapAccessContext,
     request: &crate::contract::ExportFeatureLayerRequest,
     directory: &Path,
     cancellation: CancellationToken,

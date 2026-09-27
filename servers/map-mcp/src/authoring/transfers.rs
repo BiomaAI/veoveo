@@ -13,7 +13,7 @@ use veoveo_duckdb_runtime::quote_sql_literal;
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
 use crate::{
-    catalog::MapScope,
+    catalog::MapAccessContext,
     contract::{
         BuildVectorTilesRequest, CommitFeatureChangesRequest, FeatureExportFormat, FeatureGeometry,
         FeatureImportSource, FeatureInput, FeatureMutation, FeatureTime, GeoJsonFeatureType,
@@ -44,7 +44,7 @@ impl AuthoringService {
     pub async fn import_features(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ImportFeatureLayerRequest,
         bytes: &[u8],
     ) -> Result<ImportFeatureLayerOutput> {
@@ -88,7 +88,7 @@ impl AuthoringService {
     pub async fn generate_export(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: &crate::contract::ExportFeatureLayerRequest,
         task_directory: &Path,
         maximum_bytes: u64,
@@ -158,7 +158,7 @@ impl AuthoringService {
     pub async fn generate_vector_tiles(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: &BuildVectorTilesRequest,
         task_directory: &Path,
         maximum_bytes: u64,
@@ -252,7 +252,7 @@ impl AuthoringService {
     async fn encode_publication_geojson_sequence(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         publication_id: &crate::contract::LayerPublicationId,
         maximum_bytes: u64,

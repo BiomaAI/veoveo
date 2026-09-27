@@ -8,7 +8,7 @@ use anyhow::Context;
 use veoveo_mcp_contract::PlaneCaller;
 
 use crate::{
-    catalog::MapScope,
+    catalog::MapAccessContext,
     contract::{
         AcquisitionJob, CancelAcquisitionRequest, CreateAcquisitionRequest,
         CreateMobilityProfileRequest, CreateSourceRequest, DatasetReleaseState,
@@ -62,7 +62,7 @@ type OpResult<T> = Result<T, AdminOpError>;
 
 pub async fn register_source(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: CreateSourceRequest,
 ) -> OpResult<RegisteredSource> {
     validate_idempotency_key(&request.idempotency_key)?;
@@ -83,7 +83,7 @@ pub async fn register_source(
 
 pub async fn replace_source(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: ReplaceSourceRequest,
 ) -> OpResult<RegisteredSource> {
     Ok(state
@@ -94,7 +94,7 @@ pub async fn replace_source(
 
 pub async fn disable_source(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: DisableSourceRequest,
 ) -> OpResult<RegisteredSource> {
     let mut source = state
@@ -116,7 +116,7 @@ pub async fn disable_source(
 
 pub async fn start_acquisition(
     state: &MapApplication,
-    scope: MapScope,
+    scope: MapAccessContext,
     caller: PlaneCaller,
     request: CreateAcquisitionRequest,
 ) -> OpResult<AcquisitionJob> {
@@ -126,7 +126,7 @@ pub async fn start_acquisition(
 
 pub async fn cancel_acquisition(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: CancelAcquisitionRequest,
 ) -> OpResult<AcquisitionJob> {
     Ok(state
@@ -137,7 +137,7 @@ pub async fn cancel_acquisition(
 
 pub async fn register_mobility_profile(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: CreateMobilityProfileRequest,
 ) -> OpResult<MobilityProfile> {
     validate_idempotency_key(&request.idempotency_key)?;
@@ -166,7 +166,7 @@ pub async fn register_mobility_profile(
 
 pub async fn activate_release(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: ReleaseMutationRequest,
     rollback: bool,
 ) -> OpResult<ReleaseMutationResponse> {
@@ -273,7 +273,7 @@ pub async fn activate_release(
 
 pub async fn quarantine_release(
     state: &MapApplication,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     request: ReleaseMutationRequest,
 ) -> OpResult<ReleaseMutationResponse> {
     let _activation = state.activation.lock().await;

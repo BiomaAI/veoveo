@@ -3,7 +3,7 @@ use geo::Intersects;
 
 use crate::{
     analytics::MapAnalytics,
-    catalog::{MapCatalog, MapScope},
+    catalog::{MapAccessContext, MapCatalog},
     contract::{
         CorridorInspectionOutput, CorridorInspectionRequest, InspectLocationOutput,
         InspectLocationRequest, InspectPositionOutput, InspectPositionRequest,
@@ -24,7 +24,7 @@ impl GeographyService {
 
     pub fn inspect_location(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: InspectLocationRequest,
     ) -> Result<InspectLocationOutput> {
         let tenant_key = scope.tenant_key();
@@ -53,7 +53,7 @@ impl GeographyService {
 
     pub fn inspect_position(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: InspectPositionRequest,
     ) -> Result<InspectPositionOutput> {
         let tenant_key = scope.tenant_key();
@@ -107,7 +107,7 @@ impl GeographyService {
 
     pub async fn inspect_corridor(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CorridorInspectionRequest,
     ) -> Result<CorridorInspectionOutput> {
         request.corridor.validate()?;
@@ -162,7 +162,7 @@ impl GeographyService {
 
     pub async fn publish_restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: PublishRestrictionRequest,
     ) -> Result<Restriction> {
         self.catalog
@@ -172,7 +172,7 @@ impl GeographyService {
 
     pub async fn withdraw_restriction(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: WithdrawRestrictionRequest,
     ) -> Result<(Restriction, u64)> {
         let restriction = self

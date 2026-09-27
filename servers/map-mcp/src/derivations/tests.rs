@@ -13,8 +13,8 @@ use crate::{
     test_store::TestDb,
 };
 
-async fn map_scope(store: &veoveo_platform_store::PlatformStore, tenant: &str) -> MapScope {
-    MapScope {
+async fn map_scope(store: &veoveo_platform_store::PlatformStore, tenant: &str) -> MapAccessContext {
+    MapAccessContext {
         identity: store
             .ensure_identity(
                 tenant,
@@ -268,7 +268,7 @@ fn analytics(root: &TempDir) -> MapAnalytics {
 fn legacy_insert(
     analytics: &MapAnalytics,
     table: &str,
-    scope: &MapScope,
+    scope: &MapAccessContext,
     context: &str,
     key: &str,
     json: &str,

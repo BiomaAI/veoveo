@@ -1,6 +1,6 @@
 //! Derivation resource pages and SQL completion under the admitted Work Context.
 use super::*;
-use crate::catalog::MapScope;
+use crate::catalog::MapAccessContext;
 use veoveo_platform_store::MapDerivationKind;
 
 impl MapMcp {
@@ -8,7 +8,7 @@ impl MapMcp {
         &self,
         uri: &str,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
     ) -> Result<Option<ReadResourceResult>, McpError> {
         let (root, query) = uri
             .split_once('?')
@@ -70,7 +70,7 @@ impl MapMcp {
     pub(super) async fn complete_derivation(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         template: &str,
         name: &str,
         needle: &str,
@@ -101,11 +101,8 @@ fn spatial_scope(
     identity: &GatewayInternalIdentity,
     kind: MapDerivationKind,
 ) -> Result<(), McpError> {
-    if kind == MapDerivationKind::Spatial && !identity_has_scope(identity, "map:spatial:derive") {
-        return Err(McpError::invalid_request(
-            "Missing scope `map:spatial:derive`.",
-            None,
-        ));
+    if kind == MapDerivationKind::Spatial {
+        crate::server::auth::require_scope(&identity.actor.scopes, MapScope::SpatialDerive)?;
     }
     Ok(())
 }

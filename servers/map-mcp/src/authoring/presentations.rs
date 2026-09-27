@@ -9,7 +9,7 @@ use veoveo_platform_store::{
 };
 
 use crate::{
-    catalog::MapScope,
+    catalog::MapAccessContext,
     contract::{
         ArchiveMapCompositionRequest, CompositionLayer, CreateMapCompositionRequest, LayerProduct,
         LayerProductId, MAX_COMPOSITION_LAYERS, MapComposition, MapCompositionId,
@@ -26,7 +26,7 @@ impl AuthoringService {
     pub async fn create_composition(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CreateMapCompositionRequest,
     ) -> Result<MapComposition> {
         require_access(identity, AccessLevel::Write)?;
@@ -74,7 +74,7 @@ impl AuthoringService {
     pub async fn update_composition(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: UpdateMapCompositionRequest,
     ) -> Result<MapComposition> {
         require_access(identity, AccessLevel::Write)?;
@@ -130,7 +130,7 @@ impl AuthoringService {
     pub async fn archive_composition(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ArchiveMapCompositionRequest,
     ) -> Result<MapComposition> {
         require_access(identity, AccessLevel::Admin)?;
@@ -177,7 +177,7 @@ impl AuthoringService {
     pub async fn composition(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         composition_id: &MapCompositionId,
     ) -> Result<Option<MapComposition>> {
         require_access(identity, AccessLevel::Read)?;
@@ -188,25 +188,10 @@ impl AuthoringService {
             .transpose()
     }
 
-    pub async fn list_compositions(
-        &self,
-        identity: &GatewayInternalIdentity,
-        scope: &MapScope,
-        include_archived: bool,
-    ) -> Result<Vec<MapComposition>> {
-        require_access(identity, AccessLevel::Read)?;
-        self.store()
-            .list_map_compositions(&read_scope(identity, scope)?, include_archived)
-            .await?
-            .into_iter()
-            .map(|record| decode::<MapComposition>(&record.canonical_json, "map composition"))
-            .collect()
-    }
-
     pub async fn composition_revision(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         composition_id: &MapCompositionId,
         revision: u64,
     ) -> Result<Option<MapCompositionRevision>> {
@@ -233,7 +218,7 @@ impl AuthoringService {
     pub async fn record_layer_product(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         product: &LayerProduct,
     ) -> Result<LayerProduct> {
         require_access(identity, AccessLevel::Admin)?;
@@ -272,7 +257,7 @@ impl AuthoringService {
     pub async fn product_publication(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         publication_id: &crate::contract::LayerPublicationId,
     ) -> Result<crate::contract::LayerPublication> {
@@ -285,7 +270,7 @@ impl AuthoringService {
     pub async fn layer_product(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         publication_id: &crate::contract::LayerPublicationId,
         product_id: &LayerProductId,
@@ -303,28 +288,10 @@ impl AuthoringService {
             .transpose()
     }
 
-    pub async fn list_layer_products(
-        &self,
-        identity: &GatewayInternalIdentity,
-        scope: &MapScope,
-        publication_id: Option<&crate::contract::LayerPublicationId>,
-    ) -> Result<Vec<LayerProduct>> {
-        require_access(identity, AccessLevel::Read)?;
-        self.store()
-            .list_map_layer_products(
-                &read_scope(identity, scope)?,
-                publication_id.map(crate::contract::LayerPublicationId::as_str),
-            )
-            .await?
-            .into_iter()
-            .map(|record| decode(&record.canonical_json, "map layer product"))
-            .collect()
-    }
-
     async fn validate_composition_layers(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layers: &[CompositionLayer],
     ) -> Result<()> {
         if layers.is_empty() || layers.len() > MAX_COMPOSITION_LAYERS {

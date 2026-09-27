@@ -137,6 +137,10 @@ pub(crate) async fn map_mcp(
         "template: map://routes{?cursor}",
         "template: map://matrices{?cursor}",
         "template: map://feature-style/{style_revision_id}",
+        "template: map://feature-layers{?cursor}",
+        "template: map://publications{?layer_id,cursor}",
+        "template: map://layer-products{?publication_id,cursor}",
+        "template: map://compositions{?cursor}",
     ] {
         contains(&info, expected)?;
     }

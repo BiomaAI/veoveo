@@ -2,7 +2,7 @@
 use anyhow::{Result, ensure};
 use serde::{Deserialize, Serialize};
 
-use super::{MapCatalog, MapScope, decode};
+use super::{MapAccessContext, MapCatalog, decode};
 use crate::contract::{DatasetRelease, DatasetReleaseId, MapDatasetId};
 
 pub const PAGE_SIZE: usize = 100;
@@ -47,7 +47,7 @@ pub fn parse_cursor(
 impl MapCatalog {
     pub async fn release_in_dataset(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         dataset: &MapDatasetId,
         release: &DatasetReleaseId,
     ) -> Result<Option<DatasetRelease>> {
@@ -60,7 +60,7 @@ impl MapCatalog {
 
     pub async fn releases_page(
         &self,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         dataset: Option<&MapDatasetId>,
         after: Option<&DatasetReleaseId>,
     ) -> Result<ReleasePage> {
@@ -163,7 +163,7 @@ mod tests {
         let db = crate::test_store::TestDb::new().await;
         let writer = MapCatalog::new(db.a.clone());
         let reader = MapCatalog::new(db.b.clone());
-        let scope = MapScope {
+        let scope = MapAccessContext {
             identity: db
                 .a
                 .ensure_identity(
@@ -176,7 +176,7 @@ mod tests {
                 .await
                 .unwrap(),
         };
-        let foreign = MapScope {
+        let foreign = MapAccessContext {
             identity: db
                 .a
                 .ensure_identity(

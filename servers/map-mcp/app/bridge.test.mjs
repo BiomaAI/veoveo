@@ -58,7 +58,7 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
     await new Promise(resolve => setImmediate(resolve));
     --active;
     if (uri === 'map://feature-layers') throw Error('service unavailable');
-    return ["map://datasets", "map://acquisitions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
+    return ["map://datasets", "map://acquisitions", "map://publications", "map://compositions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
   };
   await assert.rejects(readMapSnapshot(access, read), /feature-layers: service unavailable/);
   assert.equal(max, 4);
@@ -117,4 +117,32 @@ test('administrators read acquisition pages without dataset permission', async (
   });
   assert.deepEqual(calls, ['map://acquisitions', 'map://acquisitions?cursor=abcd']);
   assert.deepEqual(snapshot, {acquisitions:[{acquisition_id:'first'}, {acquisition_id:'last'}]});
+});
+
+
+test('feature readers traverse every metadata index without dataset or admin access', async () => {
+  const calls = [];
+  const snapshot = await readMapSnapshot({feature_read:true}, async uri => {
+    calls.push(uri);
+    const root = uri.split('?')[0];
+    return uri === root
+      ? {items:[{id:root+'/first'}],limit:100,next_cursor:'aabb'}
+      : {items:[{id:root+'/last'}],limit:100,next_cursor:null};
+  });
+  assert.equal(calls.length, 6);
+  for (const [root, field] of [['feature-layers','layers'], ['publications','publications'], ['compositions','compositions']]) {
+    assert.deepEqual(snapshot[field], [{id:`map://${root}/first`}, {id:`map://${root}/last`}]);
+    assert.ok(calls.includes(`map://${root}?cursor=aabb`));
+  }
+});
+
+test('collection continuation preserves its parent query through the URL builder', async () => {
+  const root = 'map://publications?layer_id=feature-layer-example';
+  const calls = [];
+  const items = await readCollection(root, async uri => {
+    calls.push(uri);
+    return {items: [{id: calls.length}], limit: 100, next_cursor: calls.length === 1 ? 'aabb' : null};
+  });
+  assert.deepEqual(calls, [root, root + '&cursor=aabb']);
+  assert.deepEqual(items, [{id: 1}, {id: 2}]);
 });

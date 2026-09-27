@@ -17,7 +17,7 @@ use veoveo_platform_store::{
 };
 
 use crate::analytics::MapAnalytics;
-use crate::catalog::MapScope;
+use crate::catalog::MapAccessContext;
 use crate::contract::{
     ArchiveFeatureLayerRequest, CommitFeatureChangesOutput, CommitFeatureChangesRequest,
     CreateFeatureLayerRequest, FeatureChangeSet, FeatureChangeSetId, FeatureInput, FeatureLayer,
@@ -85,7 +85,7 @@ impl AuthoringService {
     pub async fn complete(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         domain: veoveo_platform_store::MapAuthoringCompletion,
         needle: &str,
     ) -> Result<Vec<String>> {
@@ -103,7 +103,7 @@ impl AuthoringService {
     pub async fn create_layer(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CreateFeatureLayerRequest,
     ) -> Result<FeatureLayer> {
         require_access(identity, AccessLevel::Write)?;
@@ -170,7 +170,7 @@ impl AuthoringService {
     pub async fn update_layer(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: UpdateFeatureLayerRequest,
     ) -> Result<FeatureLayer> {
         require_access(identity, AccessLevel::Write)?;
@@ -269,7 +269,7 @@ impl AuthoringService {
     pub async fn archive_layer(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ArchiveFeatureLayerRequest,
     ) -> Result<FeatureLayer> {
         require_access(identity, AccessLevel::Admin)?;
@@ -316,7 +316,7 @@ impl AuthoringService {
     pub async fn validate_changes(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: ValidateFeatureChangesRequest,
     ) -> Result<ValidateFeatureChangesOutput> {
         require_access(identity, AccessLevel::Write)?;
@@ -342,7 +342,7 @@ impl AuthoringService {
     pub async fn commit_changes(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CommitFeatureChangesRequest,
     ) -> Result<CommitFeatureChangesOutput> {
         require_access(identity, AccessLevel::Write)?;
@@ -355,7 +355,7 @@ impl AuthoringService {
     pub async fn commit_import_changes(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CommitFeatureChangesRequest,
     ) -> Result<CommitFeatureChangesOutput> {
         require_access(identity, AccessLevel::Write)?;
@@ -375,7 +375,7 @@ impl AuthoringService {
     async fn commit_prevalidated_changes(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: CommitFeatureChangesRequest,
         check_create_conflicts: bool,
     ) -> Result<CommitFeatureChangesOutput> {
@@ -473,7 +473,7 @@ impl AuthoringService {
     pub async fn restore_feature(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: RestoreFeatureRequest,
     ) -> Result<CommitFeatureChangesOutput> {
         self.commit_changes(
@@ -495,7 +495,7 @@ impl AuthoringService {
     pub async fn query_features(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: QueryFeaturesRequest,
     ) -> Result<QueryFeaturesOutput> {
         require_access(identity, AccessLevel::Read)?;
@@ -529,7 +529,7 @@ impl AuthoringService {
     pub async fn publish_layer(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         request: PublishFeatureLayerRequest,
     ) -> Result<LayerPublication> {
         require_access(identity, AccessLevel::Admin)?;
@@ -576,7 +576,7 @@ impl AuthoringService {
     pub async fn layer(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
     ) -> Result<Option<FeatureLayer>> {
         require_access(identity, AccessLevel::Read)?;
@@ -587,25 +587,10 @@ impl AuthoringService {
             .transpose()
     }
 
-    pub async fn list_layers(
-        &self,
-        identity: &GatewayInternalIdentity,
-        scope: &MapScope,
-        include_archived: bool,
-    ) -> Result<Vec<FeatureLayer>> {
-        require_access(identity, AccessLevel::Read)?;
-        self.store
-            .list_map_feature_layers(&read_scope(identity, scope)?, include_archived)
-            .await?
-            .into_iter()
-            .map(|record| decode(&record.canonical_json, "feature layer"))
-            .collect()
-    }
-
     pub async fn feature(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         feature_id: &MapFeatureId,
     ) -> Result<Option<MapFeature>> {
@@ -628,7 +613,7 @@ impl AuthoringService {
     pub async fn schema_revision(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         version: u64,
     ) -> Result<Option<FeatureSchemaRevision>> {
@@ -660,7 +645,7 @@ impl AuthoringService {
     pub async fn style_revision(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         version: u64,
     ) -> Result<Option<MapStyleRevision>> {
@@ -691,7 +676,7 @@ impl AuthoringService {
     pub async fn style_revision_by_id(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         style_revision_id: &crate::contract::StyleRevisionId,
     ) -> Result<Option<MapStyleRevision>> {
         require_access(identity, AccessLevel::Read)?;
@@ -722,7 +707,7 @@ impl AuthoringService {
     pub async fn feature_revision(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         feature_id: &MapFeatureId,
         revision: u64,
@@ -747,7 +732,7 @@ impl AuthoringService {
     pub async fn changeset(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         changeset_id: &FeatureChangeSetId,
     ) -> Result<Option<FeatureChangeSet>> {
@@ -770,7 +755,7 @@ impl AuthoringService {
     pub async fn publication(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: &crate::contract::FeatureLayerId,
         publication_id: &LayerPublicationId,
     ) -> Result<Option<LayerPublication>> {
@@ -790,28 +775,10 @@ impl AuthoringService {
             .transpose()
     }
 
-    pub async fn list_publications(
-        &self,
-        identity: &GatewayInternalIdentity,
-        scope: &MapScope,
-        layer_id: Option<&crate::contract::FeatureLayerId>,
-    ) -> Result<Vec<LayerPublication>> {
-        require_access(identity, AccessLevel::Read)?;
-        self.store
-            .list_map_layer_publications(
-                &read_scope(identity, scope)?,
-                layer_id.map(crate::contract::FeatureLayerId::as_str),
-            )
-            .await?
-            .into_iter()
-            .map(|record| decode::<LayerPublication>(&record.canonical_json, "layer publication"))
-            .collect()
-    }
-
     async fn prepare_changes(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer_id: crate::contract::FeatureLayerId,
         expected_layer_revision: u64,
         mutations: &[FeatureMutation],
@@ -883,7 +850,7 @@ impl AuthoringService {
     async fn prepare_mutation(
         &self,
         identity: &GatewayInternalIdentity,
-        scope: &MapScope,
+        scope: &MapAccessContext,
         layer: &FeatureLayer,
         resulting_layer_revision: u64,
         mutation: &FeatureMutation,
@@ -1192,7 +1159,7 @@ pub(super) fn require_access(
 
 pub(super) fn read_scope(
     identity: &GatewayInternalIdentity,
-    scope: &MapScope,
+    scope: &MapAccessContext,
 ) -> Result<veoveo_platform_store::MapAuthoringReadScope> {
     Ok(veoveo_platform_store::MapAuthoringReadScope::new(
         &scope.identity.tenant_key,

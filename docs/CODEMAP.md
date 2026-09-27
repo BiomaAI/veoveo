@@ -739,7 +739,13 @@ frame state. `src/mcp.rs` publishes the tools and resources, while
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and
 composition contracts. `src/contract/transfers.rs` owns durable import, export, and
-vector-product task contracts. `src/authoring/service.rs` applies Work Context policy
+vector-product task contracts. `src/contract/metadata.rs` owns typed metadata addresses,
+page envelopes, and parent-bound cursors through the shared URI builder.
+`src/contract/scopes.rs` owns Map's authorization vocabulary; database identity travels
+through `MapAccessContext`. `src/authoring/pages.rs` executes metadata queries and
+`src/mcp/metadata.rs` dispatches those resources. `src/mcp/resources.rs` owns resource
+read dispatch; `src/mcp/discovery.rs` owns descriptors and templates.
+`src/authoring/service.rs` applies Work Context policy
 and optimistic concurrency. `platform/store/src/map_authoring/reads.rs` applies
 tenant, context, and label predicates in SQL to layer and composition reads;
 publication and product queries select their visible parent layers in SQL. `src/authoring/projection.rs` replays the

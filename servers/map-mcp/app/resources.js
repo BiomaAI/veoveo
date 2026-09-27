@@ -1,7 +1,7 @@
 const resources = [
-  ["map://feature-layers", "layers", "feature_read"],
-  ["map://publications", "publications", "feature_read"],
-  ["map://compositions", "compositions", "feature_read"],
+  ["map://feature-layers", "layers", "feature_read", true, true],
+  ["map://publications", "publications", "feature_read", true, true],
+  ["map://compositions", "compositions", "feature_read", true, true],
   ["map://sources", "sources", "dataset_read", false],
   ["map://datasets", "datasets", "dataset_read", true, true],
   ["map://active-releases", "activeReleases", "dataset_read"],
@@ -41,7 +41,9 @@ export async function readCollection(uri, read, { maxPages = 100, timeoutMs = 60
     if (page.next_cursor === null) return items;
     if (!page.items.length || seen.has(page.next_cursor)) throw new Error("Collection cursor did not advance");
     seen.add(page.next_cursor);
-    nextUri = `${uri}?cursor=${page.next_cursor}`;
+    const next = new URL(uri);
+    next.searchParams.set("cursor", page.next_cursor);
+    nextUri = next.toString();
   }
   throw new Error(`Collection refresh exceeded ${maxPages} pages`);
 }
