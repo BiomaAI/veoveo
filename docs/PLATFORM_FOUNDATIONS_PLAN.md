@@ -654,4 +654,4 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 image publication and reset | `examples/bioma/README.md` | Finish native acceptance, reset from the published platform and UAV locks, then qualify the reference installation | Initial publication failed on a missing BuildKit history blob and stalled worker; publication has recovered |
+| Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance and removal of the old node and its volumes, rebuild from the published platform and UAV locks, then qualify the reference installation | Docker cannot reap the terminated node's nested runtime while its remaining threads wait in disk I/O; image and chart publication is complete |
