@@ -1,8 +1,9 @@
 use super::{RepositoryActor, RepositoryError};
 use chrono::{DateTime, Utc};
 use std::collections::BTreeSet;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactReadCapabilityId, ArtifactTaskId, GatewayProfileId, GroupMembership,
+    ArtifactReadCapabilityId, ArtifactTaskId, GatewayProfileId, GroupMembership,
     InvocationAuthority, ServerSlug,
 };
 use veoveo_types::{DataLabelId, PolicyVersion, WorkContextId};

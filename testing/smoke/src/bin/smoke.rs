@@ -28,9 +28,9 @@ use rmcp::{
 };
 use serde::{Deserialize, de::DeserializeOwned};
 use serde_json::Value;
+use veoveo_artifact_contract::parse_artifact_plane_uri;
 use veoveo_mcp_contract::{
     GatewayTaskStatusDocument, GatewayTaskStatusKind, RELATED_TASK_META_KEY,
-    parse_artifact_plane_uri,
 };
 use veoveo_simulation_contract::SimulationOverlayKind;
 

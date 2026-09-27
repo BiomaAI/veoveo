@@ -691,8 +691,8 @@ fn internal(error: impl std::fmt::Display) -> McpError {
 async fn inline_artifact(
     state: &AppState,
     caller: &veoveo_mcp_contract::PlaneCaller,
-    artifact_id: &veoveo_mcp_contract::ArtifactId,
-) -> Result<veoveo_mcp_contract::ArtifactObject, McpError> {
+    artifact_id: &veoveo_artifact_contract::ArtifactId,
+) -> Result<veoveo_artifact_contract::ArtifactObject, McpError> {
     let metadata = state
         .artifacts
         .head(caller, artifact_id)

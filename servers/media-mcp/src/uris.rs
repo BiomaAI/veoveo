@@ -6,7 +6,8 @@
 //! - `media://artifact/{artifact_id}`  — server-owned artifact metadata/content
 //! - `media://usage/task/{task_id}`    — task usage estimates/actuals
 
-use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
+use veoveo_artifact_contract::ArtifactId;
+use veoveo_mcp_contract::ServerResourceUris;
 
 pub const MODELS_URI: &str = "media://models";
 pub const STUDIO_APP_URI: &str = "ui://media/studio.html";

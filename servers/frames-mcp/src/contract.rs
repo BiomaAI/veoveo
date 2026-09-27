@@ -1,10 +1,11 @@
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use veoveo_artifact_contract::ArtifactMetadata;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, CoordinateOperationProvenance, CoordinateSpace, FrameWorldId,
-    FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri,
-    Wgs84Position, WorldFrameUri,
+    CoordinateOperationProvenance, CoordinateSpace, FrameWorldId, FrameWorldRevision,
+    FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, Wgs84Position,
+    WorldFrameUri,
 };
 use veoveo_types::Sha256Digest;
 

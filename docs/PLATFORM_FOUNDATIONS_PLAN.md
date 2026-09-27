@@ -71,14 +71,19 @@ isolation remain implementation work; installed and headed hardware acceptance i
 Platform identity, access subjects, and invocation provenance now live in the foundation.
 Their eleven pre-extraction schemas and existing wire forms are preserved. The independent
 consumer passes ten checks with no MCP, runtime, database, GPU, or provider dependencies;
-strict workspace Clippy passes across all targets and features. Artifact and coordinate
-contracts still need domain-owned dependency separation for Map's contract feature.
-The foundation/MCP suites pass 193 cases, including compile-fail checks. Artifact,
-Map, gateway, policy, and Time library suites pass 277 cases. Five additional policy
-integration cases cover shared decisions, ambiguous catalogs, and session-family
-authority. The twelve ignored
-Artifact tests require their native database fixture and are not counted as acceptance
-for this extraction. No persisted representation or authorization rule changed.
+strict workspace Clippy passes across all targets and features.
+The Artifact plane model now lives in `platform/artifacts/contract`, below its service,
+client, and MCP adapter. Five baseline schemas and existing wire forms are preserved.
+Speech's contract imports that model directly and excludes MCP. An independently
+resolved Artifact/Speech consumer passes four checks without service dependencies;
+Chrono enables only its Serde feature. Native Artifact-contract, Speech-contract,
+and MCP suites pass 168 cases. Artifact service/MCP, Map, gateway, policy, and Time
+library suites pass 279 cases. Twelve native Artifact database tests remain explicitly
+ignored and are not counted as acceptance. Strict workspace Clippy and Rustdoc pass;
+external dependency versions, sources, and checksums are unchanged.
+Map's contract still depends on MCP for `CrsId`. Artifact URI fields/builders, UUID
+variant admission, attribution construction, and remaining service interfaces need
+further work. No persisted representation or authorization rule changed in the extraction.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -514,13 +519,16 @@ default owner; the inventory must not become a central domain-type registry.
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
-| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; platform identity comes from the foundation, while `CrsId` and Artifact metadata still pull in the runtime-bearing MCP crate | Resolve those domain contracts with their owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
+| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity and Artifact metadata come from lightweight owning crates, while `CrsId` still pulls in the runtime-bearing MCP crate | Resolve the coordinate contract with its owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
-| Computers and Speech | Existing domain contract crates already separate some types from the server runtime | Qualify those dependency boundaries and expose their server library contract surfaces without duplicating types |
-| Artifact, Media, Optimization | Public types live across shared artifact/provider contracts and server domain modules | Assign each contract to its domain owner and gate runtime dependencies |
+| Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
+| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Adopt typed Artifact URI fields and builders, preserving declared wire profiles; separate remaining access and service request contracts |
+| Artifact identity and URI admission | `ArtifactId` checks the UUID version field without validating its variant; occurrence parsing accepts the UUID library's alternative text forms; URI helpers still assemble strings and do not validate server-scheme syntax | Define and qualify the accepted UUID and URI profiles, require the RFC variant at public ID admission, and declare handling of any persisted out-of-profile identities before narrowing decoding |
+| Artifact attribution construction | `ArtifactProvenance` exposes an invocation mode alongside optional initiator and delegation fields, allowing combinations that the foundational `InvocationProvenance` enum excludes | Reuse the foundational attribution model through checked domain construction; qualify existing serialized metadata and make the schema express the admitted combinations |
+| Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
 | DuckDB, Frames, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |

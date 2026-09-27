@@ -7,9 +7,10 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use chrono::{TimeDelta, Utc};
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactId, AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect,
-    PolicyTarget, PrincipalAuditAttributes, TraceId,
+    AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect, PolicyTarget,
+    PrincipalAuditAttributes, TraceId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
 use veoveo_types::ResourceUri;

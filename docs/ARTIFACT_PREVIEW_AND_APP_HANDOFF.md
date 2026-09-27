@@ -354,7 +354,7 @@ domain object, or perform a governed import whose result points back to the sour
 | F02 | Console search and release filtering operate only on the browser's snapshot rows. | [`Artifacts.tsx`](../apps/console/web/src/views/Artifacts.tsx) |
 | F03 | Artifact MCP discovery has cursor and limit only; its page size is 100. | [`artifact_service.rs`](../mcp/contract/src/artifact_service.rs), [`handler.rs`](../servers/artifact-mcp/src/bin/server/handler.rs) |
 | F04 | Console and Artifact MCP catalogs have different membership semantics: tenant occurrence visibility versus effective read visibility. | [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs), [`service.rs`](../platform/artifacts/service/src/service.rs) |
-| F05 | Producer metadata is open JSON, while `ArtifactSummary` projects only a recognized recording relation. | [`storage.rs`](../mcp/contract/src/storage.rs), [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs) |
+| F05 | Producer metadata is open JSON, while `ArtifactSummary` projects only a recognized recording relation. | [`metadata.rs`](../platform/artifacts/contract/src/metadata.rs), [`projection.rs`](../platform/gateway/src/bin/gateway/admin/console/projection.rs) |
 | F06 | Preview selection is a fixed Console MIME test with no App lookup or handler choice. | [`ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx), [`artifactPreview.ts`](../apps/console/web/src/artifactPreview.ts) |
 | F07 | Timeseries emits `application/vnd.veoveo.rerun-rrd`; the Console Rerun viewer requires exact `application/vnd.rerun.rrd`. | [`forecast.rs`](../servers/timeseries-mcp/src/forecast.rs), [`ArtifactPreview.tsx`](../apps/console/web/src/components/ArtifactPreview.tsx) |
 | F08 | App descriptors contain presentation, tools, dependencies, and agent targets, but no accepted artifact formats or actions. | [`apps.rs`](../apps/console/bff/src/apps.rs), [`models.rs`](../mcp/apps-extension/src/models.rs) |
@@ -367,7 +367,7 @@ domain object, or perform a governed import whose result points back to the sour
 | F15 | Stored MIME validation is too shallow to serve as the sole trusted handler key. | [`service.rs`](../platform/artifacts/service/src/service.rs) |
 | F16 | The embedded Rerun preview downloads the complete RRD before opening it, unlike recording-scoped lazy playback. | [`GovernedRerunArtifactViewer.tsx`](../apps/console/web/src/components/GovernedRerunArtifactViewer.tsx), [`GovernedRerunViewer.tsx`](../apps/console/web/src/components/GovernedRerunViewer.tsx) |
 | F17 | MCP Apps `2026-01-26` supplies UI and tool linkage but no generic artifact-handler declaration. | [`MCP Apps design`](../mcp/apps-extension/DESIGN.md), [SEP-1865](https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/2026-01-26/apps.mdx) |
-| F18 | Artifact editing must create a new occurrence or mutate a separate domain object because occurrences are immutable. | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md), [`storage.rs`](../mcp/contract/src/storage.rs) |
+| F18 | Artifact editing must create a new occurrence or mutate a separate domain object because occurrences are immutable. | [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md), [`metadata.rs`](../platform/artifacts/contract/src/metadata.rs) |
 
 ## Open Questions
 
@@ -396,7 +396,7 @@ domain object, or perform a governed import whose result points back to the sour
 
 The shortest repository paths for continued investigation are:
 
-- artifact types and service port: [`mcp/contract/src/storage.rs`](../mcp/contract/src/storage.rs),
+- artifact types and service port: [`platform/artifacts/contract/src/metadata.rs`](../platform/artifacts/contract/src/metadata.rs),
   [`mcp/contract/src/artifact_service.rs`](../mcp/contract/src/artifact_service.rs);
 - artifact enforcement and list behavior:
   [`platform/artifacts/service/src/service.rs`](../platform/artifacts/service/src/service.rs);

@@ -399,7 +399,7 @@ impl RecordingReader {
             let layer_id = RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
             let (path, cached) = match layer.state {
                 RecordingLayerState::Committed => {
-                    let artifact_id = veoveo_mcp_contract::ArtifactId::parse(
+                    let artifact_id = veoveo_artifact_contract::ArtifactId::parse(
                         record_uuid(
                             layer
                                 .artifact

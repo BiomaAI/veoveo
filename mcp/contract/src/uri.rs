@@ -3,7 +3,7 @@ use std::{error::Error, fmt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::ArtifactId;
+use veoveo_artifact_contract::ArtifactId;
 
 /// Server URI conventions for MCP resources.
 ///

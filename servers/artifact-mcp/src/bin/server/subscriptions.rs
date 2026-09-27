@@ -4,7 +4,8 @@ use futures::StreamExt;
 use tokio::sync::broadcast;
 use tokio_util::sync::CancellationToken;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{ArtifactId, ArtifactPlane, ListArtifactsRequest, PlaneCaller};
+use veoveo_artifact_contract::ArtifactId;
+use veoveo_mcp_contract::{ArtifactPlane, ListArtifactsRequest, PlaneCaller};
 use veoveo_platform_store::{LiveStream, OutboxEventRecord, PlatformStore, PlatformTable};
 
 const OUTBOX_PAGE_SIZE: u32 = 1_000;

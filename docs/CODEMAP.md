@@ -74,6 +74,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
+| [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, metadata, compliance, provenance, and byte handoff values |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
 | [`servers/media-mcp/DESIGN.md`](../servers/media-mcp/DESIGN.md) | provider-neutral media generation and durable webhook completion |
 | [`servers/speech-mcp/DESIGN.md`](../servers/speech-mcp/DESIGN.md) | recording transcription Tasks, private dictation and the persistent CUDA worker; device, scale, release and readiness qualification limits recorded in its design |
@@ -405,7 +406,7 @@ even when that server is first-party.
 
 | File | Responsibility |
 |---|---|
-| `access.rs` | artifact access levels, user/group subjects, grant composition |
+| `access.rs` | artifact access levels, grants and decision composition using foundational subjects and Artifact-plane identities |
 | `agents.rs` | authenticated operator-message, durable input-request decision, wake-receipt, and pending-input view contracts |
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
@@ -414,7 +415,6 @@ even when that server is first-party.
 | `coordinates.rs` | shared coordinate spaces, world/revision/frame identities, complete frame-tree vocabulary, WGS84 positions, and operation provenance |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
-| `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | gateway, OAuth, and configuration newtypes, including principal display metadata, which authorization never reads; platform identity comes from `platform/types` |
 | `gateway/auth_config.rs` | IdP, authorization server, OAuth client surfaces |
@@ -588,6 +588,16 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 `gateway.rs` is the thin CLI/serve entrypoint.
 
 ## Artifact Plane
+
+### `platform/artifacts/contract`
+
+The domain-owned `veoveo-artifact-contract` library supplies occurrence identity,
+metadata, compliance, provenance, release state, and byte handoff values. It depends
+on foundational identity, UUID, date/time, and serialization/schema support. The
+[design](../platform/artifacts/contract/DESIGN.md) records the dependency-cycle reason
+for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
+IDs and URI helpers; `src/metadata.rs` owns the public model. Access evaluation and
+transport-facing service interfaces currently live in `mcp/contract`.
 
 ### `platform/artifacts/service`
 
@@ -1205,7 +1215,8 @@ Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness
 
 - Change foundational identity, attribution, scope names, resource references, and extension traits in
   `platform/types`; keep each domain's vocabulary in its owning library.
-- Change authentication, policy, and shared Artifact semantics in `mcp/contract`, then update the
+- Change Artifact-plane identity and metadata in `platform/artifacts/contract`.
+- Change authentication, policy, and Artifact service interfaces in `mcp/contract`, then update the
   platform store and every affected boundary.
 - Change persistence shape in `platform/store` with an ordered migration and matching Rust API.
 - Change durable task lifecycle and its official MCP Task surface in

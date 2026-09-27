@@ -12,6 +12,7 @@ name = "optimization-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true

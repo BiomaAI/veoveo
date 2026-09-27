@@ -67,8 +67,9 @@ pub(super) fn session(
         platform::ArtifactUploadState::Failed => contract::ArtifactUploadState::Failed,
     };
     let receipt = if state == contract::ArtifactUploadState::Completed {
-        let artifact_id = contract::ArtifactId::parse(uuid(&row.artifact)?.to_string())
-            .map_err(|_| UploadFault::unavailable())?;
+        let artifact_id =
+            veoveo_artifact_contract::ArtifactId::parse(uuid(&row.artifact)?.to_string())
+                .map_err(|_| UploadFault::unavailable())?;
         Some(contract::ArtifactUploadReceipt {
             upload_id,
             artifact_id,

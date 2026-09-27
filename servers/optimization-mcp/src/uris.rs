@@ -1,4 +1,5 @@
-use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
+use veoveo_artifact_contract::ArtifactId;
+use veoveo_mcp_contract::ServerResourceUris;
 
 use crate::domain::{ProblemId, RunId, SolutionId, SolverProfileId};
 

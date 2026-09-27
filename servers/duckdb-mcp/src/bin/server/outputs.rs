@@ -26,7 +26,7 @@ fn finish<T: serde::Serialize>(
 }
 
 fn artifact_link(
-    artifact: &veoveo_mcp_contract::ArtifactMetadata,
+    artifact: &veoveo_artifact_contract::ArtifactMetadata,
     title: &str,
     description: &str,
 ) -> ContentBlock {

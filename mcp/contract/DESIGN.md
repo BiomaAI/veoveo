@@ -118,8 +118,9 @@ defines the accepted separation of foundational types from MCP integration. The
 foundational names, platform identity types, access subjects, invocation provenance,
 reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Authentication and authorization still use the existing Principal,
-Work Context membership, and policy implementations. Domain-owned Artifact metadata
-and coordinate contracts remain separate from the foundation.
+Work Context membership, and policy implementations. Domain-owned Artifact identity
+and metadata live in [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).
+Coordinate contracts remain outside the foundation.
 Its `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete
 addresses; gateway policy and stored audit references still accept completion templates.

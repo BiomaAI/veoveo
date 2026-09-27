@@ -3,7 +3,8 @@ use std::{error::Error, fmt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use veoveo_mcp_contract::{ArtifactId, ArtifactMetadata, DuckDbSource};
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
+use veoveo_mcp_contract::DuckDbSource;
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,

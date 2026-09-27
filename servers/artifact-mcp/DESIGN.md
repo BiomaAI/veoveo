@@ -32,8 +32,10 @@ The server owns the `artifact://` scheme:
 
 Metadata, grant, release, and share operations are tools with declared input
 and output schemas generated through the shared `tool` macro. Domain types
-(`ArtifactId`, `ArtifactMetadata`, `Grant`, `ArtifactReleaseState`,
-`ArtifactShareLink`) come from `veoveo_mcp_contract`.
+`ArtifactId`, `ArtifactMetadata`, and `ArtifactReleaseState` come from the
+domain-owned [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).
+`Grant`, `ArtifactShareLink`, and the service request interfaces currently come
+from `veoveo_mcp_contract`.
 
 ## Boundaries
 

@@ -9,10 +9,10 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactAccessRequestId, ArtifactId, ArtifactPlane, ArtifactPlaneError,
-    CreateArtifactAccessRequest, DecideArtifactAccessRequest, GatewayAction,
-    ListArtifactAccessRequests, PlaneCaller,
+    ArtifactAccessRequestId, ArtifactPlane, ArtifactPlaneError, CreateArtifactAccessRequest,
+    DecideArtifactAccessRequest, GatewayAction, ListArtifactAccessRequests, PlaneCaller,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 

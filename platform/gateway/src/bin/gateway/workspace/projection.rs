@@ -49,7 +49,7 @@ pub(super) fn attachments(
         .into_iter()
         .map(|value| {
             Ok(wire::ChatAttachment::Artifact {
-                id: veoveo_mcp_contract::ArtifactId::parse(value.artifact.to_string())
+                id: veoveo_artifact_contract::ArtifactId::parse(value.artifact.to_string())
                     .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?,
                 name: value.name,
             })

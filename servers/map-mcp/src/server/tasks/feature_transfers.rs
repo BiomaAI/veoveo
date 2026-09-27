@@ -205,7 +205,7 @@ async fn stage_authorized_artifact(
     state: &MapApplication,
     caller: &AuthenticatedCaller,
     task_id: &TaskId,
-    artifact_id: &veoveo_mcp_contract::ArtifactId,
+    artifact_id: &veoveo_artifact_contract::ArtifactId,
     operation: &str,
 ) -> Result<String> {
     let artifact = state

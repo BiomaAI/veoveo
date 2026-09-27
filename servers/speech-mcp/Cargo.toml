@@ -7,6 +7,7 @@ edition.workspace = true
 image-asset-inputs = ["servers/speech-mcp/runner", "servers/speech-mcp/Dockerfile", "servers/speech-mcp/Dockerfile.dependencies"]
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 veoveo-speech-contract = { path = "contract" }
 anyhow.workspace = true
 axum.workspace = true

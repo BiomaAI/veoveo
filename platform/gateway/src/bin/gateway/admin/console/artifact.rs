@@ -4,7 +4,7 @@ use veoveo_platform_store::{ArtifactId, PrincipalRecord, ShareLinkRecord};
 
 pub(crate) async fn read_console_artifact(
     State(state): State<AdminState>,
-    AxumPath((profile, artifact_id)): AxumPath<(String, veoveo_mcp_contract::ArtifactId)>,
+    AxumPath((profile, artifact_id)): AxumPath<(String, veoveo_artifact_contract::ArtifactId)>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
     let started = Instant::now();

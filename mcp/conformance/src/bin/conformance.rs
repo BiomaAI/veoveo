@@ -53,9 +53,10 @@ use rmcp::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
+use veoveo_artifact_contract::{ArtifactMetadata, ComplianceMetadata};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, AnalyticalRuntimeDeployment, ArtifactMetadata, AuditEvent, AuthAuditEvent,
-    ComplianceMetadata, CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
+    AccessTokenSubject, AnalyticalRuntimeDeployment, AuditEvent, AuthAuditEvent,
+    CoordinateOperationProvenance, DataLabelDefinition, DataRetentionPolicy,
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayAuthorizationCodeRecord, GatewayAuthorizationRequest,
     GatewayControlPlane, GatewayControlPlaneRevision, GatewayInternalIdentity,
     GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTokenVerifier,

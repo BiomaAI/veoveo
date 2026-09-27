@@ -1,10 +1,11 @@
 use super::*;
 use futures::StreamExt;
 use sha2::{Digest, Sha256};
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_computer_execution::FileFailure;
 use veoveo_computers::{api::FileTransfer, files::FilePreparation, secrets::FileTransferAccess};
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactReadAuthority, ArtifactWriteIdempotencyKey, PutArtifactRequest,
+    ArtifactReadAuthority, ArtifactWriteIdempotencyKey, PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest,
 };
 

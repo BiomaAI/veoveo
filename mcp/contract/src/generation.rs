@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::ArtifactMetadata;
+use veoveo_artifact_contract::ArtifactMetadata;
 
 /// Public, provider-neutral summary of the provider job behind a completed task.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

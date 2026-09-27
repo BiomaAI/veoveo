@@ -114,7 +114,7 @@ mod tests {
                 travel_model_id: key.parse().unwrap(),
                 travel_model_uri: format!("map://travel-model/{key}"),
                 manifest_uri: uri.clone(),
-                artifact: veoveo_mcp_contract::ArtifactMetadata {
+                artifact: veoveo_artifact_contract::ArtifactMetadata {
                     artifact_id,
                     byte_len: 128,
                     mime_type: Some("application/json".into()),

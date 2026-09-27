@@ -13,7 +13,8 @@ use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use tokio::io::AsyncWriteExt as _;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{ArtifactId, ArtifactReadAuthority};
+use veoveo_artifact_contract::ArtifactId;
+use veoveo_mcp_contract::ArtifactReadAuthority;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct LayerCacheLimits {

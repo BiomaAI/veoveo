@@ -8,8 +8,9 @@ use axum::{
 };
 use chrono::{TimeDelta, Utc};
 use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactId, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
+    AccessLevel, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
     CreateArtifactShareLinkRequest, GatewayAction, GatewayProfile, PlaneCaller, PolicyTarget,
     PutGrantRequest, SetArtifactReleaseStateRequest,
 };
@@ -517,10 +518,10 @@ const fn access_level_name(level: AccessLevel) -> &'static str {
     }
 }
 
-const fn release_state_name(state: veoveo_mcp_contract::ArtifactReleaseState) -> &'static str {
+const fn release_state_name(state: veoveo_artifact_contract::ArtifactReleaseState) -> &'static str {
     match state {
-        veoveo_mcp_contract::ArtifactReleaseState::Private => "private",
-        veoveo_mcp_contract::ArtifactReleaseState::Releasable => "releasable",
-        veoveo_mcp_contract::ArtifactReleaseState::Released => "released",
+        veoveo_artifact_contract::ArtifactReleaseState::Private => "private",
+        veoveo_artifact_contract::ArtifactReleaseState::Releasable => "releasable",
+        veoveo_artifact_contract::ArtifactReleaseState::Released => "released",
     }
 }

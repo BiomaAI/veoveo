@@ -6,6 +6,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, num::NonZeroU32};
 use tokio::io::AsyncWriteExt;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::*;
 
 #[path = "artifact_consumers/python.rs"]

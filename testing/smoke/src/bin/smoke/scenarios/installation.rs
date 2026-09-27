@@ -152,7 +152,7 @@ async fn verify_large_artifact_delivery(
         .get("artifact_id")
         .and_then(Value::as_str)
         .context("large-artifact export omitted artifact_id")?;
-    veoveo_mcp_contract::ArtifactId::parse(artifact_id)
+    veoveo_artifact_contract::ArtifactId::parse(artifact_id)
         .context("large-artifact export returned an invalid artifact_id")?;
     ensure!(
         !artifact.contains_key("download_url"),

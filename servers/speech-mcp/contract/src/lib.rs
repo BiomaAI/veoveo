@@ -4,7 +4,7 @@ use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use transcript::Transcript;
-use veoveo_mcp_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
 
 pub const MAX_SOURCE_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 pub const TRANSCRIPT_MIME: &str = "application/json";

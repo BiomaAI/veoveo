@@ -143,7 +143,7 @@ mod presentation_tests {
             // Plane stamps the neutral identity...
             artifact_uri: artifact_id.plane_uri(),
             download_url: None,
-            created_at: Utc::now(),
+            created_at: DateTime::from_timestamp(1_780_000_000, 0).unwrap(),
             release_state: ArtifactReleaseState::Private,
             compliance: ComplianceMetadata::default(),
             metadata: Value::Null,
@@ -155,7 +155,7 @@ mod presentation_tests {
             format!("media://artifact/{artifact_id}")
         );
         assert_eq!(
-            crate::access::parse_artifact_plane_uri(&presented.artifact_uri)
+            crate::parse_artifact_plane_uri(&presented.artifact_uri)
                 .unwrap()
                 .to_string(),
             artifact_id.to_string()

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use veoveo_mcp_contract::ArtifactId;
+use veoveo_artifact_contract::ArtifactId;
 
 #[derive(Parser)]
 #[command(name = "conformance", about = "Veoveo MCP conformance client")]

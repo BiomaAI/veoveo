@@ -1,10 +1,10 @@
 use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPut};
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPlane, ArtifactPlaneError,
-    ArtifactPut, ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest,
+    AccessLevel, ArtifactPlane, ArtifactPlaneError, ArtifactWriteIdempotencyKey,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller,
+    PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
 
 const SCHEME: &str = "reason";

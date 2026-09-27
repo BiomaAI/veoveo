@@ -9,12 +9,11 @@ use std::num::NonZeroU64;
 use base64::Engine;
 use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::access::{
-    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Grant, decide,
+use veoveo_artifact_contract::{
+    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState,
+    ComplianceMetadata, parse_artifact_plane_uri,
 };
-use veoveo_mcp_contract::storage::{
-    ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
-};
+use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessRequest, Grant, decide};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
     ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink,
@@ -23,7 +22,7 @@ use veoveo_mcp_contract::{
     InvocationAuthority, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
     ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
     PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
-    WorkContextMembershipLevel, parse_artifact_plane_uri,
+    WorkContextMembershipLevel,
 };
 use veoveo_types::{AccessSubject, DataLabelId, InvocationProvenance};
 

@@ -184,7 +184,7 @@ pub fn composition_revision_uri(composition_id: &str, revision: u64) -> String {
     format!("map://composition/{composition_id}/revision/{revision}")
 }
 
-pub fn parse_artifact(uri: &str) -> Option<veoveo_mcp_contract::ArtifactId> {
+pub fn parse_artifact(uri: &str) -> Option<veoveo_artifact_contract::ArtifactId> {
     veoveo_mcp_contract::ServerResourceUris::new("map").parse_artifact_uri(uri)
 }
 

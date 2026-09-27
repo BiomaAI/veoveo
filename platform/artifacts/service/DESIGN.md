@@ -17,8 +17,10 @@
 | Veoveo upload ledger functions | `fn::artifact_upload_profile_digest` and `fn::artifact_upload_authority_matches` bind transactions to current profile and Work Context policy |
 
 This service implements the internal Artifact plane. `servers/artifact-mcp` owns its
-public MCP projection. The shared request types live in `mcp/contract`; the HTTP
-client lives in `platform/artifacts/client`.
+public MCP projection. Occurrence identity and metadata come from the lightweight
+[`platform/artifacts/contract`](../contract/DESIGN.md) library. The shared request
+types and access evaluator live in `mcp/contract`; the HTTP client lives in
+`platform/artifacts/client`.
 
 ## Blob Backend Profiles
 

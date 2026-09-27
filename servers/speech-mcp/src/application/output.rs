@@ -3,9 +3,10 @@ use crate::model::{MODEL, MODEL_REVISION};
 use anyhow::Result;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
+use veoveo_artifact_contract::ArtifactMetadata;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability,
-    PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
+    ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, PutArtifactRequest,
+    RedeemArtifactWriteCapabilityRequest,
 };
 use veoveo_speech_contract::transcript::Transcript;
 use veoveo_speech_contract::{TranscriptDocument, TranscriptionOutput, transcript_uri};

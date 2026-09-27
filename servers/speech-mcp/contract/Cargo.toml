@@ -5,9 +5,9 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 anyhow.workspace = true
 schemars = { workspace = true, features = ["uuid1"] }
 serde.workspace = true
 serde_json.workspace = true
 uuid = { workspace = true, features = ["serde"] }
-veoveo-mcp-contract.workspace = true

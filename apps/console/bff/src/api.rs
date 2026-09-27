@@ -16,9 +16,10 @@ use axum::{
 use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
     AgentInputRequestDecision, AgentOperatorMessageRequest, ArtifactAccessRequestId,
-    ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactId, ArtifactShareLinkId,
+    ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactShareLinkId,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     ListArtifactAccessRequests, PutGrantRequest, SetArtifactReleaseStateRequest,
 };

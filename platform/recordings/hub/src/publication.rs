@@ -8,9 +8,8 @@ use anyhow::{Context as _, Result, ensure};
 use reqwest::header::{HOST, HeaderMap, HeaderValue};
 use secrecy::ExposeSecret as _;
 use url::Url;
-use veoveo_mcp_contract::{
-    ArtifactId, ArtifactMetadata, PutArtifactRequest, StreamArtifactRequest,
-};
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
+use veoveo_mcp_contract::{PutArtifactRequest, StreamArtifactRequest};
 use veoveo_platform_store::RecordingLayerId;
 use veoveo_recording_forwarder::{
     config::ClientAssertionAlgorithm,

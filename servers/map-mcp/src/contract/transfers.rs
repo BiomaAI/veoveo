@@ -1,6 +1,6 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::ArtifactId;
+use veoveo_artifact_contract::ArtifactId;
 
 use super::{
     FeatureChangeSet, FeatureLayerId, LayerProduct, LayerPublicationId, ProjectionState,

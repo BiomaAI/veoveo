@@ -12,6 +12,7 @@ default = ["analytics"]
 analytics = ["dep:duckdb"]
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true

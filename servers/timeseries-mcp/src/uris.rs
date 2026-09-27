@@ -1,4 +1,5 @@
-use veoveo_mcp_contract::{ArtifactId, ServerResourceUris};
+use veoveo_artifact_contract::ArtifactId;
+use veoveo_mcp_contract::ServerResourceUris;
 
 /// Well-known surface roots (contract C18, C19). These literals must match
 /// `ServerResourceUris::new("timeseries")`; a unit test below pins that

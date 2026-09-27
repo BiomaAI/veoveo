@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn artifact_source_wire_shape() {
-        let artifact_id = crate::ArtifactId::new();
+        let artifact_id = veoveo_artifact_contract::ArtifactId::new();
         let json =
             format!(r#"{{"kind":"artifact","uri":"artifact://{artifact_id}","format":"parquet"}}"#);
         let source: DuckDbSource = serde_json::from_str(&json).unwrap();

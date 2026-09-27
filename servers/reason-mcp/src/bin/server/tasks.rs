@@ -8,8 +8,9 @@ use chrono::{TimeDelta, Utc};
 use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
+    ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
     IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller, ServerResourceUris,
 };

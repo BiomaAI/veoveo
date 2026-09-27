@@ -3,7 +3,7 @@ use std::{fmt, num::NonZeroU32};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::parse_artifact_plane_uri;
+use veoveo_artifact_contract::parse_artifact_plane_uri;
 
 #[derive(Debug, thiserror::Error, Clone, PartialEq)]
 pub enum OptimizationContractError {

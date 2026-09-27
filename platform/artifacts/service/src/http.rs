@@ -15,8 +15,8 @@ use axum::{Json, Router};
 use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
-use veoveo_mcp_contract::access::{AccessLevel, ArtifactId};
-use veoveo_mcp_contract::storage::ArtifactMetadata;
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
+use veoveo_mcp_contract::access::AccessLevel;
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
     ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
@@ -735,6 +735,7 @@ pub(crate) mod tests {
     use chrono::{TimeDelta, Utc};
     use sha2::{Digest, Sha256};
     use veoveo_artifact_client::HttpArtifactPlane;
+    use veoveo_artifact_contract::ArtifactReleaseState;
     use veoveo_mcp_contract::gateway::{
         GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
@@ -742,10 +743,10 @@ pub(crate) mod tests {
         GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
     };
     use veoveo_mcp_contract::{
-        AccessDecision, ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
-        CreateArtifactShareLinkRequest, InvocationAuthority, IssueArtifactWriteCapabilityRequest,
-        PlaneCaller, Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
-        WorkContextMembershipLevel, WorkContextOutputPolicy,
+        AccessDecision, ArtifactPlane, ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest,
+        InvocationAuthority, IssueArtifactWriteCapabilityRequest, PlaneCaller, Principal,
+        PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
     };
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,

@@ -29,7 +29,6 @@ pub mod pagination;
 pub mod protocol;
 pub mod provider;
 pub mod recording_catalog;
-pub mod storage;
 pub mod subscriptions;
 pub mod tasks;
 pub mod telemetry;
@@ -41,9 +40,8 @@ pub mod work_context;
 pub mod workspace;
 
 pub use access::{
-    ARTIFACT_PLANE_SCHEME, AccessDecision, AccessLevel, AccessRequest, ArtifactId, ArtifactIdError,
-    Grant, GroupMembership, GroupRole, decide, grant_level_for_caller, mac_satisfied,
-    parse_artifact_plane_uri, role_in_group,
+    AccessDecision, AccessLevel, AccessRequest, Grant, GroupMembership, GroupRole, decide,
+    grant_level_for_caller, mac_satisfied, role_in_group,
 };
 pub use agents::{
     AgentConversationEntry, AgentConversationEntryState, AgentConversationRole,
@@ -171,10 +169,6 @@ pub use recording_catalog::{
     RECORDING_CATALOG_GRANT_SCHEMA, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant,
     RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
     RecordingProjectionSparseFill,
-};
-pub use storage::{
-    ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
-    ComplianceMetadata,
 };
 pub use subscriptions::{
     ResourceListObservers, ResourceUpdate, SubscriptionHub, accepted_subscription_filter,

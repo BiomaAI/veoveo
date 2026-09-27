@@ -1,0 +1,15 @@
+[package]
+name = "veoveo-artifact-contract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Match the qualified workspace pins; metadata needs date/time types without a clock.
+chrono = { version = "=0.4.45", default-features = false, features = ["serde"] }
+schemars = { workspace = true, features = ["chrono04"] }
+serde.workspace = true
+serde_json.workspace = true
+# Keep the qualified workspace lock version during extraction; review UUID upgrades separately.
+# UUIDv7 generation is part of ArtifactId::new; other UUID versions are not admitted.
+uuid = { version = "=1.25.0", default-features = false, features = ["std", "v7"] }
+veoveo-types.workspace = true

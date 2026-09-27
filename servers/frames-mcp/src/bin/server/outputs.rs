@@ -1,10 +1,10 @@
 use std::collections::BTreeMap;
 
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
 use veoveo_frames_mcp::contract::BatchTransformOutput;
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
-    IssuedArtifactWriteCapability, UsageKind, UsageRecord, now_utc,
+    ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, UsageKind, UsageRecord, now_utc,
 };
 use veoveo_platform_store::{
     DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject, TaskId,

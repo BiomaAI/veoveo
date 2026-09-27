@@ -1,7 +1,7 @@
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_artifact_contract::ArtifactMetadata;
 
 pub use veoveo_recording_video::{
     IndexRange, RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,

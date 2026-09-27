@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Exposure, GatewayControlPlane, Grant,
+    AccessDecision, AccessLevel, AccessRequest, Exposure, GatewayControlPlane, Grant,
     GroupMembership, GroupRole, OwnedRoutePurpose, ResourceSelector, ServerManifest,
     WorkContextMembershipLevel,
 };

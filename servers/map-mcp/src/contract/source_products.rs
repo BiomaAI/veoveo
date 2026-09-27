@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use veoveo_mcp_contract::parse_artifact_plane_uri;
+use veoveo_artifact_contract::parse_artifact_plane_uri;
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use super::{

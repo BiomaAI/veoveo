@@ -137,7 +137,7 @@ pub struct OfflineOperationRequest {
 #[serde(deny_unknown_fields)]
 pub struct OfflineOperationResult {
     pub operation: OfflineOperation,
-    pub artifact: veoveo_mcp_contract::ArtifactMetadata,
+    pub artifact: veoveo_artifact_contract::ArtifactMetadata,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

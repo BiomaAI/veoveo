@@ -2,12 +2,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use veoveo_mcp_contract::access::{AccessLevel, ArtifactId, Grant};
+use veoveo_artifact_contract::{
+    ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
+};
+use veoveo_mcp_contract::access::{AccessLevel, Grant};
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
-};
-use veoveo_mcp_contract::storage::{
-    ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,

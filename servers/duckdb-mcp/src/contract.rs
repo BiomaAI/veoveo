@@ -3,7 +3,8 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use veoveo_mcp_contract::{ArtifactMetadata, DuckDbSource};
+use veoveo_artifact_contract::ArtifactMetadata;
+use veoveo_mcp_contract::DuckDbSource;
 
 /// Owner-scoped name of a mutable hosted database file.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]

@@ -343,6 +343,11 @@ are optional, and binaries require the runtime features. Tests, CLI tools, and
 cross-server consumers use the owning library. A separate contract crate needs a
 concrete dependency or independent release requirement.
 
+The Artifact plane's common model lives in `platform/artifacts/contract`. Its MCP
+server depends on the plane's HTTP client, so placing that client's required model
+in the server package would create a Cargo dependency cycle. The separate library
+owns Artifact identities and metadata below both adapters; it adds no process.
+
 Scope mapping has one declared wire spelling per variant. Generic policy accepts
 validated names because an installation may introduce scopes unknown to core. Domain
 authorization helpers accept the owning enum. A caller's grants remain a set of

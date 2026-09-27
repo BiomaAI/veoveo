@@ -13,3 +13,6 @@ byte-download route.
 The parent Speech design owns semantics, authority and limits. This crate contains
 only public shapes and validation. Gateway and browser edge depend on this crate
 without linking the inference runtime or acquiring its image inputs.
+Artifact identities and metadata come from the domain-owned
+[`veoveo-artifact-contract`](../../../platform/artifacts/contract/DESIGN.md).
+This crate has no MCP transport, database, or asynchronous runtime dependency.

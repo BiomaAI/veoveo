@@ -3,10 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result};
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
-use veoveo_mcp_contract::{
-    ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, IssuedArtifactWriteCapability,
-    now_utc,
-};
+use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
+use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_reason_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
@@ -196,7 +194,7 @@ async fn put(
     filename: String,
     compliance: ComplianceMetadata,
     metadata: serde_json::Value,
-) -> Result<veoveo_mcp_contract::ArtifactMetadata> {
+) -> Result<veoveo_artifact_contract::ArtifactMetadata> {
     let mut artifact = ArtifactPut::new(bytes);
     artifact.mime_type = Some(mime_type.to_owned());
     artifact.filename = Some(filename);

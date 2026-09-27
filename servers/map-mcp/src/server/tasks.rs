@@ -12,10 +12,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
+use veoveo_artifact_contract::{ArtifactId, ArtifactProvenance, ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactProvenance, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
-    GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    PlaneCaller, PrincipalKind,
+    ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
 };
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,

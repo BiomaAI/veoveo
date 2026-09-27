@@ -22,6 +22,7 @@ use rmcp::{
 };
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
 use veoveo_artifact_mcp::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactMetadataOutput, ArtifactMutationOutput,
     ArtifactReference, ArtifactShareOutput, CONTRACT_URI, CreateArtifactShareRequest, DOC_TEMPLATE,
@@ -30,9 +31,8 @@ use veoveo_artifact_mcp::{
     parse_doc_uri, parse_grants_uri, parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactId, ArtifactMetadata, ArtifactPlane, ArtifactPlaneError,
-    CreateArtifactShareLinkRequest, ListArtifactsRequest, Page, PlaneCaller, docs::ServerDocs,
-    paginate, parse_artifact_plane_uri,
+    AccessLevel, ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest,
+    ListArtifactsRequest, Page, PlaneCaller, docs::ServerDocs, paginate,
 };
 
 use super::{

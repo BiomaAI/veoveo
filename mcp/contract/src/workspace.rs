@@ -106,7 +106,10 @@ pub struct ReplyContext {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum ChatAttachment {
-    Artifact { id: crate::ArtifactId, name: String },
+    Artifact {
+        id: veoveo_artifact_contract::ArtifactId,
+        name: String,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
@@ -455,7 +458,7 @@ mod tests {
 
     #[test]
     fn attachment_admission_accepts_only_typed_references_and_human_labels() {
-        let attachment = serde_json::json!({"kind":"artifact", "id":crate::ArtifactId::new(), "name":"Shared label"});
+        let attachment = serde_json::json!({"kind":"artifact", "id":veoveo_artifact_contract::ArtifactId::new(), "name":"Shared label"});
         assert!(serde_json::from_value::<ChatAttachment>(attachment.clone()).is_ok());
         for field in ["downloadUrl", "content", "grant", "owner", "mimeType"] {
             let mut forged = attachment.clone();

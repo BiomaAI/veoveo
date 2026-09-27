@@ -10,10 +10,11 @@ use chrono::Utc;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderName, HeaderValue};
 use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
+use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_duckdb_runtime::{
     HttpsSourcePolicy, materialize_https_source, materialize_https_source_with_headers,
 };
-use veoveo_mcp_contract::{ArtifactPut, ComplianceMetadata, PlaneCaller};
+use veoveo_mcp_contract::PlaneCaller;
 
 use crate::{
     artifacts::ArtifactRepository,
@@ -566,7 +567,7 @@ impl AcquisitionService {
         path: &Path,
         mime_type: &str,
         metadata: serde_json::Value,
-    ) -> Result<veoveo_mcp_contract::ArtifactMetadata> {
+    ) -> Result<veoveo_artifact_contract::ArtifactMetadata> {
         let file_metadata = tokio::fs::metadata(path).await?;
         if !file_metadata.is_file() || file_metadata.len() > self.config.maximum_artifact_bytes {
             bail!("acquisition product is not a file or exceeds the artifact limit");

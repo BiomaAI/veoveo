@@ -12,6 +12,7 @@ use std::{
 use anyhow::{Context as _, Result, bail};
 use rmcp::ErrorData as McpError;
 use serde_json::json;
+use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
 use veoveo_duckdb_mcp::{
     contract::{
         DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportFormat,
@@ -26,9 +27,9 @@ use veoveo_duckdb_runtime::{
     AuthorizedArtifact, materialize_authorized_artifact, materialize_https_source,
 };
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, DuckDbSource,
-    GatewayInternalIdentity, IssuedArtifactWriteCapability, PlaneCaller, duckdb_quote_identifier,
-    duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
+    ArtifactWriteIdempotencyKey, DuckDbSource, GatewayInternalIdentity,
+    IssuedArtifactWriteCapability, PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal,
+    duckdb_read_function_sql, duckdb_read_options_sql,
 };
 
 use super::{

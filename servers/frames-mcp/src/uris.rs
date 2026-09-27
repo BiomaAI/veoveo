@@ -1,5 +1,6 @@
+use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactId, FrameWorldRevisionUri, FrameWorldUri, ServerResourceUris, WorldFrameUri,
+    FrameWorldRevisionUri, FrameWorldUri, ServerResourceUris, WorldFrameUri,
 };
 
 pub const WORLDS_URI: &str = "frames://worlds";

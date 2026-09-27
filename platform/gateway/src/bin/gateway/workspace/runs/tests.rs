@@ -296,7 +296,7 @@ async fn http_model_runs_stream_independently_and_replay_does_not_dispatch_again
             assert_eq!(status, StatusCode::OK, "{agent}");
             agent_ids.push(agent["id"].as_str().unwrap().to_owned());
         }
-        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":{"kind":"message","id":reply.as_uuid()},"attachments":[{"kind":"artifact","id":veoveo_mcp_contract::ArtifactId::new(),"name":"Human-published reference"}],"addressedAgents":agent_ids});
+        let admission = json!({"id":trigger.as_uuid(),"text":"Discuss this", "replyTo":{"kind":"message","id":reply.as_uuid()},"attachments":[{"kind":"artifact","id":veoveo_artifact_contract::ArtifactId::new(),"name":"Human-published reference"}],"addressedAgents":agent_ids});
         let path = format!("/chats/{chat}/messages");
         let (one, two) = tokio::join!(request(&app, &path, admission.clone()), request(&app, &path, admission.clone()));
         assert_eq!(one.0, StatusCode::OK, "{one:?}");

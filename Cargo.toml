@@ -14,6 +14,7 @@ members = [
     "mcp/conformance",
     "mcp/contract",
     "platform/artifacts/client",
+    "platform/artifacts/contract",
     "platform/artifacts/service",
     "platform/computers",
     "platform/computers/contract",
@@ -186,6 +187,7 @@ zeroize = "=1.9.0"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
 veoveo-types = { path = "platform/types" }
+veoveo-artifact-contract = { path = "platform/artifacts/contract" }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-deploy-runtime = { path = "deploy/runtime" }
 veoveo-simulation-contract = { path = "platform/runtimes/simulation/contract" }

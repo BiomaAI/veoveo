@@ -8,6 +8,7 @@ name = "console-bff"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-speech-contract = { path = "../../../servers/speech-mcp/contract" }
 anyhow.workspace = true

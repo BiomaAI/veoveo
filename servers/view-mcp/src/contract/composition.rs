@@ -6,9 +6,8 @@ use std::{
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{
-    FrameWorldRevisionUri, InvocationAuthority, WorldFrameUri, parse_artifact_plane_uri,
-};
+use veoveo_artifact_contract::parse_artifact_plane_uri;
+use veoveo_mcp_contract::{FrameWorldRevisionUri, InvocationAuthority, WorldFrameUri};
 use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};
@@ -1053,7 +1052,7 @@ mod tests {
 
     #[test]
     fn artifact_geometry_requires_exact_media_type() {
-        let artifact_id = veoveo_mcp_contract::ArtifactId::new();
+        let artifact_id = veoveo_artifact_contract::ArtifactId::new();
         let request = CreateSceneCompositionRequest {
             schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
             base_layer: LayerId::new("base").unwrap(),

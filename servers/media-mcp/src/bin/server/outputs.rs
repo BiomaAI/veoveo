@@ -1,8 +1,9 @@
 use axum::http::header::CONTENT_TYPE;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut};
 use veoveo_mcp_contract::{
-    ArtifactMetadata, ArtifactPut, ArtifactWriteIdempotencyKey, GenerationPredictionSummary,
-    GenerationRunOutput, now_utc, set_related_task_meta,
+    ArtifactWriteIdempotencyKey, GenerationPredictionSummary, GenerationRunOutput, now_utc,
+    set_related_task_meta,
 };
 use veoveo_media_mcp::{
     provider::Prediction,

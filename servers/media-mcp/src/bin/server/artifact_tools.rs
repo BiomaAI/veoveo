@@ -5,7 +5,7 @@ use rmcp::{
     schemars,
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_artifact_contract::ArtifactMetadata;
 
 use super::{AppState, ownership::internal_caller};
 use veoveo_media_mcp::uris;
@@ -78,7 +78,8 @@ pub(super) async fn artifact_result(
 #[cfg(test)]
 mod tests {
     use rmcp::model::ContentBlock;
-    use veoveo_mcp_contract::{ArtifactId, ArtifactMetadata, ArtifactReleaseState, now_utc};
+    use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactReleaseState};
+    use veoveo_mcp_contract::now_utc;
 
     use super::ArtifactOutput;
 

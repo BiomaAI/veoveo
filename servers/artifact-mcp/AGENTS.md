@@ -18,8 +18,9 @@ links. It fronts `artifact-service` and holds no bytes of its own.
   (`GatewayInternalTokenVerifier`); direct unsigned access is rejected.
 - Byte and grant authority stays with `artifact-service` and the platform
   store. Subscription state is session local and in memory.
-- Controlled shapes are typed structs from `veoveo_mcp_contract`; tool schemas
-  come from the shared `tool` macro, with declared output schemas.
+- Occurrence identity and metadata come from `veoveo_artifact_contract`.
+  Access and service request shapes currently come from `veoveo_mcp_contract`;
+  tool schemas use the shared `tool` macro with declared output schemas.
 - All six tools are quick metadata actions. A durable operation would require
   the shared task runtime, never a private queue.
 - `DESIGN.md` is the domain contract; the typed contract in `src/lib.rs`

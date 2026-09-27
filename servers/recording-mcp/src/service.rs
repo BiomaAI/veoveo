@@ -347,7 +347,7 @@ impl RecordingService {
             {
                 let layer_id =
                     RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
-                let artifact_id = veoveo_mcp_contract::ArtifactId::parse(
+                let artifact_id = veoveo_artifact_contract::ArtifactId::parse(
                     record_uuid(
                         layer
                             .artifact
@@ -467,7 +467,7 @@ impl RecordingService {
             let cached = cache
                 .materialize_with_validator(
                     veoveo_mcp_contract::ArtifactReadAuthority::Caller(artifact_caller),
-                    veoveo_mcp_contract::ArtifactId::parse(
+                    veoveo_artifact_contract::ArtifactId::parse(
                         record_uuid(artifact, "artifact_occurrence")?.to_string(),
                     )?,
                     byte_len,
@@ -892,7 +892,7 @@ impl RecordingService {
         let blueprint_occurrence = record_uuid(&blueprint.id, "recording_blueprint")?;
         let metadata = publisher
             .publish_artifact(
-                veoveo_mcp_contract::ArtifactId::parse(blueprint_occurrence.to_string())?,
+                veoveo_artifact_contract::ArtifactId::parse(blueprint_occurrence.to_string())?,
                 PutArtifactRequest {
                     mime_type: Some("application/vnd.rerun.rrd".to_owned()),
                     filename: Some(format!(
@@ -941,7 +941,7 @@ impl RecordingService {
         dataset_id: RecordingDatasetId,
         recording_id: RecordingId,
         manifest: &RecordingManifest,
-    ) -> Result<veoveo_mcp_contract::ArtifactMetadata> {
+    ) -> Result<veoveo_artifact_contract::ArtifactMetadata> {
         let publisher = self
             .layer_publisher
             .as_ref()
@@ -972,7 +972,7 @@ impl RecordingService {
             drop(file);
             File::open(&directory)?.sync_all()?;
         }
-        let artifact_id = veoveo_mcp_contract::ArtifactId::parse(recording_id.to_string())?;
+        let artifact_id = veoveo_artifact_contract::ArtifactId::parse(recording_id.to_string())?;
         let metadata = publisher
             .publish_artifact(
                 artifact_id,

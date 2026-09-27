@@ -3,7 +3,7 @@ use std::{collections::BTreeSet, fmt};
 use chrono::{DateTime, NaiveDateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_artifact_contract::ArtifactMetadata;
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use super::{

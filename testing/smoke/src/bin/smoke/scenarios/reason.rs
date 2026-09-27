@@ -4,7 +4,7 @@ use std::time::Duration;
 use anyhow::{Context, Result, bail, ensure};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_artifact_contract::ArtifactMetadata;
 
 use super::candidate;
 use super::stream::{

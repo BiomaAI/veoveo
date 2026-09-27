@@ -7,16 +7,18 @@
 //! asynchronous writes use a separately issued, task-bound write capability.
 
 use base64::Engine;
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactId, Grant};
-use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject};
+use veoveo_artifact_contract::{
+    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState, parse_artifact_plane_uri,
+};
+use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, Grant};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
-    ArtifactPlane, ArtifactPlaneError, ArtifactReleaseState, ArtifactShareLink,
-    ArtifactShareLinkId, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
-    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
-    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
-    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest, parse_artifact_plane_uri,
+    ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
+    ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
+    DecideArtifactAccessRequest, GrantList, IssueArtifactWriteCapabilityRequest,
+    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller,
+    PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
+    StreamArtifactRequest,
 };
 use veoveo_types::AccessSubject;
 
