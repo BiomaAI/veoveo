@@ -724,7 +724,9 @@ Map authoring is split by responsibility. `src/contract/features.rs` owns featur
 types and bounds, while `src/contract/compositions.rs` owns publication products and
 composition contracts. `src/contract/transfers.rs` owns durable import, export, and
 vector-product task contracts. `src/authoring/service.rs` applies Work Context policy
-and optimistic concurrency. `src/authoring/projection.rs` replays the
+and optimistic concurrency. `platform/store/src/map_authoring/reads.rs` applies
+tenant, context, and label predicates in SQL to layer and composition reads;
+publication and product queries select their visible parent layers in SQL. `src/authoring/projection.rs` replays the
 SurrealDB Map changeset log through a fixed committed Map head;
 `src/authoring/projection/recovery_tests.rs` verifies indexed paging, persisted
 checkpoint recovery, unrelated traffic, and incomplete-revision rejection,

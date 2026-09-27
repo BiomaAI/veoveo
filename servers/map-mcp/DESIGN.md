@@ -1035,7 +1035,9 @@ scoped. Travel models are filtered by principal, gateway profile, tenant,
 labels, and Work Context from their durable task owner. Dataset, geography,
 profile, and restriction resources are tenant scoped. Authored layers,
 publications, products, and compositions are Work Context scoped and filtered
-by the caller's data labels. Raster derivation resources are confined to their
+by the caller's data labels. Store applies those predicates in SQL before returning
+layer and composition records. Publication and product queries select visible parent
+layers in SQL, including direct product reads. Raster derivation resources are confined to their
 creating Work Context, while the immutable source raster remains tenant
 scoped. Spatial derivations are also confined to their creating Work Context.
 

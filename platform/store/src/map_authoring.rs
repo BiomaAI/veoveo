@@ -1,3 +1,6 @@
+mod reads;
+pub use reads::MapAuthoringReadScope;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -384,18 +387,6 @@ impl PlatformStore {
             })
     }
 
-    pub async fn map_feature_layer(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        layer_key: &str,
-    ) -> Result<Option<MapFeatureLayerRecord>, StoreError> {
-        let tenant_id = crate::deterministic_tenant_id(tenant_key)?;
-        let context_id = deterministic_work_context_id(tenant_key, context_key)?;
-        let record = authored_record("map_feature_layer", tenant_key, &[layer_key]);
-        select_scoped(self, record, tenant_id, context_id.record_id()).await
-    }
-
     pub async fn update_map_feature_layer(
         &self,
         draft: MapFeatureLayerUpdateDraft,
@@ -510,32 +501,6 @@ impl PlatformStore {
             .ok_or(StoreError::MissingRecord {
                 operation: "map feature layer update readback",
             })
-    }
-
-    pub async fn list_map_feature_layers(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        include_archived: bool,
-    ) -> Result<Vec<MapFeatureLayerRecord>, StoreError> {
-        let tenant_id = crate::deterministic_tenant_id(tenant_key)?;
-        let context_id = deterministic_work_context_id(tenant_key, context_key)?;
-        let archived = if include_archived {
-            ""
-        } else {
-            "AND archived_at = NONE"
-        };
-        let query = format!(
-            "SELECT * FROM map_feature_layer WHERE tenant = $tenant AND work_context = $context {archived} ORDER BY updated_at DESC;"
-        );
-        let mut response = self
-            .client()
-            .query(query)
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("context", context_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
     }
 
     pub async fn map_feature_schema_revision(
@@ -1000,33 +965,6 @@ impl PlatformStore {
             context_id.record_id(),
         )
         .await
-    }
-
-    pub async fn list_map_layer_publications(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        layer_key: Option<&str>,
-    ) -> Result<Vec<MapLayerPublicationRecord>, StoreError> {
-        let tenant_id = crate::deterministic_tenant_id(tenant_key)?;
-        let context_id = deterministic_work_context_id(tenant_key, context_key)?;
-        let mut query = String::from(
-            "SELECT * FROM map_layer_publication WHERE tenant = $tenant AND work_context = $context",
-        );
-        if layer_key.is_some() {
-            query.push_str(" AND layer_key = $layer");
-        }
-        query.push_str(" ORDER BY published_at DESC;");
-        let mut query = self
-            .client()
-            .query(query)
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("context", context_id.record_id()));
-        if let Some(layer_key) = layer_key {
-            query = query.bind(("layer", layer_key.to_owned()));
-        }
-        let mut response = query.await?.check()?;
-        Ok(response.take(0)?)
     }
 }
 

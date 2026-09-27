@@ -81,7 +81,7 @@ pub use map::{
     MapRouteDraft, MapRouteMatrixDraft, MapSourceDraft,
 };
 pub use map_authoring::{
-    MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
+    MapAuthoringReadScope, MapFeatureCommitDraft, MapFeatureCommitResult, MapFeatureLayerDraft,
     MapFeatureLayerUpdateDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
     MapLayerPublicationDraft, MapStyleRevisionDraft, map_authoring_idempotency_key,
 };

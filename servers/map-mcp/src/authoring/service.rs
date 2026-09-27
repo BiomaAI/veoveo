@@ -566,17 +566,11 @@ impl AuthoringService {
         layer_id: &crate::contract::FeatureLayerId,
     ) -> Result<Option<FeatureLayer>> {
         require_access(identity, AccessLevel::Read)?;
-        let layer = self
-            .store
-            .map_feature_layer(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
-                layer_id.as_str(),
-            )
+        self.store
+            .map_feature_layer(&read_scope(identity, scope)?, layer_id.as_str())
             .await?
             .map(|record| decode(&record.canonical_json, "feature layer"))
-            .transpose()?;
-        Ok(layer.filter(|layer| has_layer_clearance(identity, layer)))
+            .transpose()
     }
 
     pub async fn list_layers(
@@ -586,21 +580,12 @@ impl AuthoringService {
         include_archived: bool,
     ) -> Result<Vec<FeatureLayer>> {
         require_access(identity, AccessLevel::Read)?;
-        let layers = self
-            .store
-            .list_map_feature_layers(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
-                include_archived,
-            )
+        self.store
+            .list_map_feature_layers(&read_scope(identity, scope)?, include_archived)
             .await?
             .into_iter()
             .map(|record| decode(&record.canonical_json, "feature layer"))
-            .collect::<Result<Vec<_>>>()?;
-        Ok(layers
-            .into_iter()
-            .filter(|layer| has_layer_clearance(identity, layer))
-            .collect())
+            .collect()
     }
 
     pub async fn feature(
@@ -798,42 +783,15 @@ impl AuthoringService {
         layer_id: Option<&crate::contract::FeatureLayerId>,
     ) -> Result<Vec<LayerPublication>> {
         require_access(identity, AccessLevel::Read)?;
-        if let Some(layer_id) = layer_id
-            && self.layer(identity, scope, layer_id).await?.is_none()
-        {
-            return Ok(Vec::new());
-        }
-        let visible_layers = if layer_id.is_none() {
-            Some(
-                self.list_layers(identity, scope, true)
-                    .await?
-                    .into_iter()
-                    .map(|layer| layer.layer_id)
-                    .collect::<BTreeSet<_>>(),
-            )
-        } else {
-            None
-        };
         self.store
             .list_map_layer_publications(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
+                &read_scope(identity, scope)?,
                 layer_id.map(crate::contract::FeatureLayerId::as_str),
             )
             .await?
             .into_iter()
             .map(|record| decode::<LayerPublication>(&record.canonical_json, "layer publication"))
-            .collect::<Result<Vec<_>>>()
-            .map(|publications| {
-                publications
-                    .into_iter()
-                    .filter(|publication| {
-                        visible_layers
-                            .as_ref()
-                            .is_none_or(|layers| layers.contains(&publication.layer_id))
-                    })
-                    .collect()
-            })
+            .collect()
     }
 
     async fn prepare_changes(
@@ -1218,8 +1176,20 @@ pub(super) fn require_access(
     Ok(())
 }
 
-fn has_layer_clearance(identity: &GatewayInternalIdentity, layer: &FeatureLayer) -> bool {
-    layer.data_labels.is_subset(&identity.actor.data_labels)
+pub(super) fn read_scope(
+    identity: &GatewayInternalIdentity,
+    scope: &MapScope,
+) -> Result<veoveo_platform_store::MapAuthoringReadScope> {
+    Ok(veoveo_platform_store::MapAuthoringReadScope::new(
+        &scope.identity.tenant_key,
+        identity.authority.work_context.as_str(),
+        identity
+            .actor
+            .data_labels
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
+    )?)
 }
 
 fn provenance(identity: &GatewayInternalIdentity) -> FeatureProvenance {

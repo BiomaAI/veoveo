@@ -33,8 +33,10 @@ Map derivations now persist in Store and use SQL-scoped summary pages and comple
 Native tests cover immutable replay/conflict, cross-replica reads and invalidations,
 interrupted local-store transfer, and authored-feature projection recovery through a
 separate Store connection. The pinned Spatial extension passes both million-feature
-index tests. Other Map catalog roots, authoring visibility, and completion queries
-still need SQL filtering and pagination; installed acceptance is pending.
+index tests. Map authoring reads apply labels in SQL, and publication/product reads select
+visible parent layers there. Native qualification checks partial clearance, foreign
+tenants and contexts, removed parents, and archive filters. Other Map catalog roots
+and completion queries still need SQL filtering and pagination; installed acceptance is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 

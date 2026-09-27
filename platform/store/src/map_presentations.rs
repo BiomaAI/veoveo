@@ -201,58 +201,11 @@ impl PlatformStore {
             }
             return Err(StoreError::Database(error));
         }
-        self.map_layer_product(
-            &draft.identity.tenant_key,
-            &draft.authority.context_key,
-            &draft.product_key,
-        )
-        .await?
-        .ok_or(StoreError::MissingRecord {
-            operation: "map layer product creation readback",
-        })
-    }
-
-    pub async fn map_layer_product(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        product_key: &str,
-    ) -> Result<Option<MapLayerProductRecord>, StoreError> {
-        select_scoped(
-            self,
-            record("map_layer_product", tenant_key, &[product_key]),
-            deterministic_tenant_id(tenant_key)?,
-            deterministic_work_context_id(tenant_key, context_key)?.record_id(),
-        )
-        .await
-    }
-
-    pub async fn list_map_layer_products(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        publication_key: Option<&str>,
-    ) -> Result<Vec<MapLayerProductRecord>, StoreError> {
-        let mut sql = String::from(
-            "SELECT * FROM map_layer_product WHERE tenant = $tenant AND work_context = $context",
-        );
-        if publication_key.is_some() {
-            sql.push_str(" AND publication_key = $publication");
-        }
-        sql.push_str(" ORDER BY created_at DESC;");
-        let mut query = self
-            .client()
-            .query(sql)
-            .bind(("tenant", deterministic_tenant_id(tenant_key)?.record_id()))
-            .bind((
-                "context",
-                deterministic_work_context_id(tenant_key, context_key)?.record_id(),
-            ));
-        if let Some(publication_key) = publication_key {
-            query = query.bind(("publication", publication_key.to_owned()));
-        }
-        let mut response = query.await?.check()?;
-        Ok(response.take(0)?)
+        select_scoped(self, product_record, draft.identity.tenant_id, context)
+            .await?
+            .ok_or(StoreError::MissingRecord {
+                operation: "map layer product creation readback",
+            })
     }
 
     pub async fn create_map_composition(
@@ -383,42 +336,6 @@ impl PlatformStore {
             .ok_or(StoreError::MissingRecord {
                 operation: "map composition update readback",
             })
-    }
-
-    pub async fn map_composition(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        composition_key: &str,
-    ) -> Result<Option<MapCompositionRecord>, StoreError> {
-        select_scoped(
-            self,
-            record("map_composition", tenant_key, &[composition_key]),
-            deterministic_tenant_id(tenant_key)?,
-            deterministic_work_context_id(tenant_key, context_key)?.record_id(),
-        )
-        .await
-    }
-
-    pub async fn list_map_compositions(
-        &self,
-        tenant_key: &str,
-        context_key: &str,
-        include_archived: bool,
-    ) -> Result<Vec<MapCompositionRecord>, StoreError> {
-        let archived = if include_archived {
-            ""
-        } else {
-            "AND archived_at = NONE"
-        };
-        let mut response = self
-            .client()
-            .query(format!("SELECT * FROM map_composition WHERE tenant = $tenant AND work_context = $context {archived} ORDER BY updated_at DESC;"))
-            .bind(("tenant", deterministic_tenant_id(tenant_key)?.record_id()))
-            .bind(("context", deterministic_work_context_id(tenant_key, context_key)?.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
     }
 
     pub async fn map_composition_revision(

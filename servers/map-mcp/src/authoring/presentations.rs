@@ -19,7 +19,7 @@ use crate::{
 
 use super::{
     AuthoringService,
-    service::{authority_record, decode, integer, require_access, wire},
+    service::{authority_record, decode, integer, read_scope, require_access, wire},
 };
 
 impl AuthoringService {
@@ -181,21 +181,11 @@ impl AuthoringService {
         composition_id: &MapCompositionId,
     ) -> Result<Option<MapComposition>> {
         require_access(identity, AccessLevel::Read)?;
-        let value = self
-            .store()
-            .map_composition(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
-                composition_id.as_str(),
-            )
+        self.store()
+            .map_composition(&read_scope(identity, scope)?, composition_id.as_str())
             .await?
             .map(|record| decode::<MapComposition>(&record.canonical_json, "map composition"))
-            .transpose()?;
-        Ok(value.filter(|composition| {
-            composition
-                .data_labels
-                .is_subset(&identity.actor.data_labels)
-        }))
+            .transpose()
     }
 
     pub async fn list_compositions(
@@ -205,24 +195,12 @@ impl AuthoringService {
         include_archived: bool,
     ) -> Result<Vec<MapComposition>> {
         require_access(identity, AccessLevel::Read)?;
-        Ok(self
-            .store()
-            .list_map_compositions(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
-                include_archived,
-            )
+        self.store()
+            .list_map_compositions(&read_scope(identity, scope)?, include_archived)
             .await?
             .into_iter()
             .map(|record| decode::<MapComposition>(&record.canonical_json, "map composition"))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .filter(|composition| {
-                composition
-                    .data_labels
-                    .is_subset(&identity.actor.data_labels)
-            })
-            .collect())
+            .collect()
     }
 
     pub async fn composition_revision(
@@ -312,11 +290,7 @@ impl AuthoringService {
     ) -> Result<Option<LayerProduct>> {
         require_access(identity, AccessLevel::Read)?;
         self.store()
-            .map_layer_product(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
-                product_id.as_str(),
-            )
+            .map_layer_product(&read_scope(identity, scope)?, product_id.as_str())
             .await?
             .map(|record| decode(&record.canonical_json, "map layer product"))
             .transpose()
@@ -331,8 +305,7 @@ impl AuthoringService {
         require_access(identity, AccessLevel::Read)?;
         self.store()
             .list_map_layer_products(
-                &scope.identity.tenant_key,
-                identity.authority.work_context.as_str(),
+                &read_scope(identity, scope)?,
                 publication_id.map(crate::contract::LayerPublicationId::as_str),
             )
             .await?
