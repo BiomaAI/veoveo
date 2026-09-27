@@ -208,3 +208,7 @@ html.has-world .factory .tag { color: var(--violet-soft); }
 html.has-world .card.dark { border-color: var(--line); }
 html.has-world footer { border-top-color: var(--line); background: rgba(4, 3, 10, 0.8); }
 html.has-world footer a { color: #BDB5CB; }
+#world-veil {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0;
+  background: linear-gradient(90deg, rgba(4, 3, 10, 0.15) 0%, rgba(4, 3, 10, 0.62) 22%, rgba(4, 3, 10, 0.62) 78%, rgba(4, 3, 10, 0.15) 100%);
+}
