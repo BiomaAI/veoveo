@@ -158,3 +158,53 @@ footer a { color: var(--body); }
   .hero-inner { min-height: 40rem; }
   .hero-art { background-size: 210% auto; background-position: 42% 100%; }
 }
+
+/* ---------- live world: the whole page sits over the 3D scene ---------- */
+#world { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; display: block; }
+body > header, body > main, body > footer { position: relative; z-index: 1; }
+html.has-world body { background: #04030a; color: #EDE8F5; }
+html.has-world .hero { background: transparent; }
+html.has-world .hero-art { display: none; }
+html.has-world .hero-inner { min-height: 100vh; }
+html.has-world .hero h1 { text-shadow: 0 2px 24px rgba(4, 3, 10, 0.8); }
+
+.hud {
+  display: none; align-items: center; gap: 1.1rem; flex-wrap: wrap; padding-bottom: 2rem;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.72rem; letter-spacing: 0.12em;
+  text-transform: uppercase; color: #8C8499;
+}
+.hud b { color: #EDE8F5; font-weight: 500; }
+.hud .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--violet-bright); box-shadow: 0 0 10px var(--violet-bright); }
+html.has-world .hud { display: flex; }
+html.has-world .hero-actions { margin-top: auto; padding-bottom: 1.4rem; }
+
+html.has-world {
+  --ink: #EDE8F5;
+  --body: #BDB5CB;
+  --muted: #8C8499;
+  --line: rgba(201, 163, 230, 0.16);
+  --wash: rgba(255, 255, 255, 0.04);
+}
+html.has-world .lede-band { padding-top: 5rem; }
+html.has-world .lede { color: #EDE8F5; border-left-color: var(--violet-bright); text-shadow: 0 2px 18px rgba(4, 3, 10, 0.9); }
+html.has-world .lede em { color: var(--violet-soft); }
+html.has-world h2 { color: var(--violet-soft); border-top-color: var(--violet-bright); }
+html.has-world section.block { padding: 5rem 0; }
+html.has-world #capabilities .wrap > ul,
+html.has-world .table-wrap,
+html.has-world .usecase,
+html.has-world .card:not(.dark) {
+  background: rgba(8, 6, 14, 0.74); border: 1px solid var(--line); border-radius: 14px;
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+}
+html.has-world #capabilities .wrap > ul { padding: 1.8rem; }
+html.has-world .table-wrap { padding: 1.4rem 1.6rem; }
+html.has-world .usecase { padding: 0.7rem 0.7rem 1rem; }
+html.has-world .usecase figcaption { padding: 0 0.3rem; }
+html.has-world thead td { color: var(--muted); }
+html.has-world thead td.v { color: var(--violet-soft); }
+html.has-world .factory { background: rgba(78, 26, 106, 0.42); border-left-color: var(--violet-bright); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+html.has-world .factory .tag { color: var(--violet-soft); }
+html.has-world .card.dark { border-color: var(--line); }
+html.has-world footer { border-top-color: var(--line); background: rgba(4, 3, 10, 0.8); }
+html.has-world footer a { color: #BDB5CB; }

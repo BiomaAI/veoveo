@@ -31,3 +31,9 @@ uv run --env-file ../../.env --python 3.13 art/generate.py
 The use-case videos come from `art/usecases.py`: a still per use case from the same
 image model, then an 8-second, three-shot clip from Seedance 2.5 image-to-video. The
 script's docstring has the commands and the encoding settings for `public/assets/cards/`.
+
+The home page renders a live 3D world behind its content: a point-cloud terrain with
+scan pulses, the world model, and robots that move through it. `public/js/world.js`
+builds the scene with Three.js, which `package.json` pins and `build.mjs` copies into
+`dist/vendor/three/`. The models in `public/assets/models/` come from `art/models.py`.
+Browsers without WebGL2 get the page without the scene.

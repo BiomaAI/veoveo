@@ -22,4 +22,13 @@ writeFileSync(join(target, "index.html"), paper);
 for (const figure of figures) cpSync(join(docs, figure), join(target, figure));
 cpSync(join(docs, "veoveo-whitepaper.pdf"), join(target, "veoveo-whitepaper.pdf"));
 
+// Three.js comes from the pinned npm package, so the page loads exactly the locked release.
+const three = join(site, "node_modules", "three");
+const vendor = join(dist, "vendor", "three");
+mkdirSync(join(vendor, "addons"), { recursive: true });
+for (const file of ["three.module.js", "three.core.js"]) cpSync(join(three, "build", file), join(vendor, file));
+for (const file of ["loaders/GLTFLoader.js", "utils/BufferGeometryUtils.js", "utils/SkeletonUtils.js", "libs/meshopt_decoder.module.js"]) {
+  cpSync(join(three, "examples", "jsm", file), join(vendor, "addons", file));
+}
+
 console.log(`built ${dist} with ${figures.size} whitepaper figures`);
