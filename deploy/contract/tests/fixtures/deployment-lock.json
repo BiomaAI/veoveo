@@ -105,8 +105,8 @@
             "name": "installation-namespace"
           },
           "inputs": [],
-          "digest": "sha256:77797db0dbe90d2bea090edbdb158fc45c7c18e04a3aefb0b3ba8342fdcf673a",
-          "contentDigest": "sha256:a9a51cb32b3d0ebf52ec53e43684f21536bcac633e7d7053113a2e937bbc0083",
+          "digest": "sha256:727becb84425ec71b83174ab8518d82ff63b230e52441b48753e22cbe2e9c7e2",
+          "contentDigest": "sha256:73e5b80c3bafb95377a90c0a23d986e20617d04b88e98b31199ee30220a994c1",
           "objects": [
             {
               "identity": {
@@ -235,8 +235,8 @@
               "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
             }
           ],
-          "digest": "sha256:f4f06690d854bf124e3d121d7ae9fcc0ece1be7d6a63a98265fe005d5ac0412b",
-          "contentDigest": "sha256:7aeb01ce2720d9f2d34818d83876b494218ef4299d97d8e68680b9519403e059",
+          "digest": "sha256:f6668c983f9f3848276834118fc57fa68cb545c890c2750e570690bf76432a1d",
+          "contentDigest": "sha256:3ded8edd94122ecc57ef2f7eaa3eef4a4d4ffaad28542fdf8c1e537543f01eab",
           "objects": [
             {
               "identity": {
@@ -343,8 +343,8 @@
               "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
             }
           ],
-          "digest": "sha256:7887ca97dd4a84b39fb420c8d9fc63ef2c91a97edaa13445f4d3f433259222e7",
-          "contentDigest": "sha256:7bb6a568c7dba045bad6ca62013e7c562b0751fedc64c05ab75aaef53bb0b86d",
+          "digest": "sha256:5c0c5da5e1b818d5bdaf886c1fbc9101eb881892687c64c567d9c2089fab9892",
+          "contentDigest": "sha256:e25e620fe1510dd8ac9b8e3b8f83fda70957e3cb01300665e3935dfd0ce553c5",
           "objects": [
             {
               "identity": {

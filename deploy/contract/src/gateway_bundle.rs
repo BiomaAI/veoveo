@@ -47,7 +47,7 @@ mod tests {
         let expected = gateway_bundle_digest(&original).unwrap();
         assert_eq!(
             expected.as_str(),
-            "sha256:4e08cc43e46b795579ead8233a9fafdb5ecd51b42eb638b77f7dd9885f4c5df6"
+            "sha256:b19505dd88680e6ee212a179cf809f9dae25ceee42e7febfbee6d0ea033c3328"
         );
         for (key, value) in [("gateway.json", "{}"), ("trust.json", "{\"keys\":[]}")] {
             let mut changed = original.clone();

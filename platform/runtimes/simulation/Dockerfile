@@ -121,10 +121,10 @@ RUN warp_apic=/isaac-sim/extscache/omni.warp.core-1.16.0+lx64/warp/_src/apic/__i
 COPY --chmod=0555 probes/ /opt/veoveo/simulation-runtime/probes/
 COPY simulation-runtime.lock.json /opt/veoveo/simulation-base/simulation-runtime.lock.json
 COPY veoveo_simulation_base/ /opt/veoveo/simulation-base/veoveo_simulation_base/
-RUN echo "604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
+RUN echo "0eb702b852276deb0d3c6a2c72c2fe5cc14d8fa32c82a3b76ccbf31e37525d33  /opt/veoveo/simulation-base/simulation-runtime.lock.json" \
       | sha256sum --check --strict \
     && printf '%s\n' \
-      "604720bf4363eb723ab8122d9deea7bb3d2e1287b5380f9a106988b69c42d27d" \
+      "0eb702b852276deb0d3c6a2c72c2fe5cc14d8fa32c82a3b76ccbf31e37525d33" \
       > /opt/veoveo/simulation-base/simulation-runtime.lock.sha256
 
 ENV ACCEPT_EULA=Y \

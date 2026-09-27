@@ -32,7 +32,7 @@ async fn bioma_reference_configuration_admits_retained_and_execution_templates()
         .iter()
         .find(|template| {
             template["fingerprint"]
-                == "781d5652df28f069f512c361b3cc7e76a33b6233e12ed40a7d153a60b374c5df"
+                == "05c738eb273c80197cf6d05a884b61ceca67d6214e4532d122dfcee1b5afebd7"
         })
         .expect("installed retained template must remain admitted");
     assert_eq!(

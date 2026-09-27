@@ -95,7 +95,7 @@ fn template_fingerprint_and_full_binding_goldens() {
     );
     assert_eq!(
         template(true).fingerprint(),
-        "932ffab604f3d5f0db8b91f7fb4e26b648e1cec95fe0618da5192b64dec582c8"
+        "ae877bdaa2b65c478ec60cad2e0523f8e4ce5610d806c9f5aa0b99d80c607909"
     );
     assert_eq!(binding().name(), "cqnayesomb432fipnee");
     assert_eq!(

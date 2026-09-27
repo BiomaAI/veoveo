@@ -103,7 +103,7 @@ fn paths_bytes_and_executable_modes_participate_in_chart_identity() {
     let before = digest(root.path());
     assert_eq!(
         before,
-        "sha256:20a14828509bd3a7a0e20f4b86bb92860ff327032fe116ebe46c555bae6de119"
+        "sha256:a54f7579792ef89747cd0cee60817502f3ffdec36e44b9ef81d119ec5c3b3944"
     );
     let config = root.path().join("chart/templates/config.yaml");
     fs::rename(&config, root.path().join("chart/templates/renamed.yaml")).unwrap();

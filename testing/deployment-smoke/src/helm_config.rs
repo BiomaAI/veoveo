@@ -884,16 +884,19 @@ pub(crate) fn helm_config() -> Result<()> {
             &format!("ai.veoveo.simulation.base-lock=\"{simulation_lock_digest}\""),
         )?;
     }
+    contains(
+        &simulation_runtime_dockerfile,
+        &format!(
+            "{}  /opt/veoveo/simulation-base/simulation-runtime.lock.json",
+            simulation_lock_digest.trim_start_matches("sha256:")
+        ),
+    )?;
     for expected in [
-        "nvcr.io/nvidia/isaac-sim:6.0.1@sha256:",
-        "ISAAC_LAB_REVISION=ffff603eafc6b74264a5261cc0183d6a65390d78",
-        "WARP_WHEEL_SHA256=96449fc1e3b354185e2f09434fb794b5953ab2e8673b104d7e7f48d5d418bb35",
-        "NEWTON_WHEEL_SHA256=a9eef789e2e0f857e40df3382f101b5faadff5dd8a61cb86dd5ec5382dd27865",
-        "MUJOCO_WHEEL_SHA256=f40214fefc8c2fe0002a3c8abadf30de7a3330634f3c45cc29b407b40a0173fc",
-        "MUJOCO_WARP_WHEEL_SHA256=97e77e877c1c2ea064ae68eaace2333dec94f2d8984091ba7b383bc8c34958f6",
+        "nvcr.io/nvidia/isaac-sim:6.1.0@sha256:",
+        "ISAAC_LAB_REVISION=ae37b028ea415c91ea2bc32609efcd759ed2b974",
+        "NEWTON_WHEEL_SHA256=b432b0db9ee963c1fe570b88952d913b9eb98c9ca190c58f80882f28dd0dd5d6",
         "--require-hashes",
         "sha256sum --check --strict",
-        "/isaac-sim/extscache/omni.warp.core-1.13.0+lx64",
         "/isaac-sim/exts/isaacsim.pip.newton/pip_prebundle",
         "VEOVEO_SIMULATION_RUNTIME_PROFILE=",
         "USER 10001:10001",
