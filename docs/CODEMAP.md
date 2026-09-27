@@ -54,8 +54,8 @@ planned change lands:
 
 | Document | Delivery and remaining work |
 |---|---|
-| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | compiled repository tooling, contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening, external-extension seams, and governance |
-| [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | multi-cycle platform-improvement plan and delivery record: completed agent, Secret, App-host, resource, provenance, and spatial work in `001`–`013`; App authority, uploads, Rerun-native recording catalog, extension release, tracing, live-view packaging, GPU memory, reasoning, and component-scoped deployment work in `014`–`023` |
+| [`REPOSITORY_HARDENING_PLAN.md`](REPOSITORY_HARDENING_PLAN.md) | remaining contract enforcement, test and smoke ownership, architecture policy, supply-chain hardening and governance; implemented build mechanics live in their owning designs |
+| [`PLATFORM_IMPROVEMENTS_PLAN.md`](PLATFORM_IMPROVEMENTS_PLAN.md) | open `014`–`023` cycle: App authority and host uploads, tracing, live-view packaging, GPU memory, reasoning and component-scoped deployment; completed cycles and recording delivery retired |
 | [`PLATFORM_FOUNDATIONS_PLAN.md`](PLATFORM_FOUNDATIONS_PLAN.md) | implementation in progress: finished-plan retirement, the `veoveo.ai` identifier hard cut, installation targets for installed smoke, resource contract corrections, SurrealDB 3.3 and the unified audit log, outbox replacement by change feeds and other store simplification, the knowledge-source extension, and `knowledge-mcp` |
 | [`CAPABILITY_ADOPTION_PLAN.md`](CAPABILITY_ADOPTION_PLAN.md) | unapproved proposals for weather, tabular prediction and the MCP skills extension |
 

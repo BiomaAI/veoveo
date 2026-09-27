@@ -1,7 +1,7 @@
 # Platform Foundations Plan
 
-Status: implementation started on 2026-09-27. Phase 0 is in progress; no phase is
-accepted or deployed yet.
+Status: implementation started on 2026-09-27. Phase 0 local acceptance passes;
+publication to the reference installation is in progress. Phases 1–9 have not started.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -123,8 +123,8 @@ link to the owning design, and remove its rows from `docs/CODEMAP.md` and
 | `AGENT_MANAGEMENT_PLAN.md` | Retired | `agents/manager/DESIGN.md` |
 | `FORK_DEVELOPMENT_PLAN.md` | Retired | `docs/FORK_DEVELOPMENT.md`; drop the pointer at the top of `CONTRACT_EVOLUTION.md` |
 | `COMPUTERS_PLAN.md` | Retired | `platform/computers/DESIGN.md`; rewrite the `CONTRACT_EVOLUTION.md` sentences that cite it |
-| `PLATFORM_IMPROVEMENTS_PLAN.md` | Delete when every cycle record is delivered; otherwise keep the open cycles only | owning designs named in each cycle |
-| `REPOSITORY_HARDENING_PLAN.md` | Keep while any item is open; delete delivered sections | `tools/xtask`, `testing/` designs |
+| `PLATFORM_IMPROVEMENTS_PLAN.md` | Kept open cycle only | owning designs named in each cycle |
+| `REPOSITORY_HARDENING_PLAN.md` | Kept open work; delivered sections retired | `tools/xtask`, `testing/` designs |
 | `CAPABILITY_ADOPTION_PLAN.md` | Keep; its proposals are unapproved | none |
 
 Acceptance: `cargo xtask enforce docs` passes, and `git grep` finds no link to a deleted

@@ -303,3 +303,14 @@ auxiliary library and copies only its executable. A native regression compares t
 resolved Bake plan with Cargo's production graph. This prevents a stale cache file
 from concealing a missing or obsolete packaging dependency. The gateway runtime's
 Debian Trixie image and Dockerfile frontend were verified and pinned on September 22.
+
+## Qualification Limits
+
+Registry-backed compiler-cache export and import are unimplemented. A future backend
+must preserve source and builder-family identity and must not mix incompatible
+compiled artifacts.
+
+PX4's recursive submodule checkout includes FlightGear and NuttX trees beyond
+`px4_sitl_default`. Narrowing that checkout needs an inventory of the exact SITL
+dependency closure, a UAV hardware smoke using the resulting binary, and cold-build
+measurements with source digests before adoption.

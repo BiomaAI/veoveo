@@ -1,18 +1,19 @@
 # Repository Hardening And Verification Plan
 
-The extension-release sections below record an earlier design. The accepted
-[Fork Development](FORK_DEVELOPMENT.md) model supersedes external source packages,
-compatibility manifests, gateway fragments/bindings and a separately published Helm
-library. Current removal and qualification work is in
-[FORK_DEVELOPMENT.md](FORK_DEVELOPMENT.md).
+The [fork development model](FORK_DEVELOPMENT.md) governs customization. External
+source packages, compatibility manifests, gateway fragments and a separately
+published Helm library are outside this plan.
 
-Status: approved implementation direction.
+Status: active. Completed xtask foundation, image publication, builder graph,
+Justfile removal and external-extension delivery sections are retired. The remaining
+sections propose enforcement, smoke ownership and governance work; they do not
+change the implemented command surface in `AGENTS.md`.
 
 This document consolidates the repository hardening, compiled tooling, contract
 enforcement, test ownership, smoke organization, supply-chain policy, and governance
 work planned for Veoveo. It describes a sequence of hard cuts. It does not claim that
-every target structure already exists. Delivery-state tables identify the hard cuts
-that have landed, and normative component documents govern those delivered surfaces.
+every target structure already exists. Normative component documents govern the
+delivered surfaces.
 This plan does not supersede an existing normative contract before the implementing
 change and its documentation land.
 
@@ -37,11 +38,7 @@ profiles:
 | JSON Schema 2020-12 | canonical MCP tool-input and controlled configuration schemas |
 | `veoveo.io/deployment/v8` | repository-development profile for independently resolved sources, exact platform targets, installation-owned Helm values, typed registry transport, and a managed GPU allocator closure |
 | `veoveo.io/deployment-lock/v8` | immutable installation revision, combined source evidence, and managed GPU allocator artifacts emitted by repository-development publication |
-| `veoveo.io/gateway-server-fragment/v1` | extension-owned declaration of one hosted server's protocol surface and platform requirements |
-| `veoveo.io/gateway-binding/v1` | installation-owned declaration of exposure, authorization, tenant, policy, and producer bindings |
 | Offline bundle schema version 1 | repository-owned image and payload integrity contract |
-| `veoveo.io/compatibility-manifest/v1` | generated supported release contract relating SDK artifacts, contract and schema revisions, standalone tools, Helm API, and optional simulation runtimes |
-| Veoveo extension Helm library API | delivered versioned chart-helper contract, packaged for authenticated OCI registry or offline-bundle distribution; consumer charts remain responsible for their values shape and installation policy |
 | OCI Distribution Specification, images, and registries | reproducible build, digest pinning, SBOM, provenance, and private release distribution through an installation-configured registry; OCI packaging does not require public availability |
 | `veoveo.io/simulation-runtime-build-lock/v1` | exact canonical-base record for Isaac Sim, Isaac Lab, Warp, Newton, MuJoCo, Kit/Python, CUDA, source archives, wheel digests, and NVIDIA runtime requirements |
 | `veoveo.io/simulation-conformance-result/v2` | hardware-backed result for one immutable first-party or anonymous external overlay against one base digest, including native Newton motion |
@@ -102,24 +99,6 @@ Cargo remains the Rust compiler and package graph. Bake remains the declarative 
 graph over BuildKit. Compiled `xtask` code owns repository-specific planning, policy,
 publication source state, tool verification, and evidence. Configuration expresses the
 graph; custom Rust code validates and coordinates it.
-
-## Build Track Delivery State
-
-The repository-wide plan remains active. The following build concerns have crossed
-their hard-cut boundary:
-
-| Plan concern | Current state |
-|---|---|
-| P0.2 xtask foundation | delivered for `doctor`, canonical Rust enforcement, typed Rust smoke dispatch, image planning, builder management, and image release; later deployment, bundle, documentation, and hook commands remain planned |
-| Justfile hard cut | delivered; documented workflows use `cargo xtask`, the typed Rust smoke harness, or a clear one-step native command, with no compatibility aliases |
-| P0.4 publication inputs | delivered through locked persistent worktrees, exact source and installation commit resolution, installation-input fingerprint checks, metadata-preservation tests, and the `docs/` context exclusion |
-| P1.5 internal image graph | delivered for the initial `linux/amd64` families, including consolidated trixie and bookworm Cargo actions, typed cache identities, managed Buildx and BuildKit, reproducible output timestamps, and immutable execution evidence |
-| External repository flow | Python SDK distributions, domain-neutral native/OCI conformance and gateway composition, typed artifact contracts, the private extension Helm library, compatibility bundle generation, an agent-run external integration procedure, portable Optimization requirements, typed platform selection, installation-owned values, exact source-role-qualified publication, configurable private-registry transport, anonymous multi-repository contract acceptance, and canonical simulation-overlay certification are delivered |
-
-The normative operating contract is
-[`IMAGE_BUILDS.md`](IMAGE_BUILDS.md). Measured acceptance belongs in
-[`IMAGE_BUILD_PERFORMANCE.md`](IMAGE_BUILD_PERFORMANCE.md), including clean
-committed-source evidence for implementation checkpoint `7d7693a`.
 
 ## Baseline Audit
 
@@ -237,251 +216,15 @@ When an `xtask` command replaces a Just recipe or shell orchestration path, the 
 command is removed in that change. Documentation and CI move with it. Temporary
 migration work must not leave permanent aliases or compatibility behavior.
 
-## External Extension Compatibility
+## Component Ownership
 
-The extension program publishes SDK artifacts and conformance tooling, provides a
-reusable Helm library, composes gateway fragments, resolves a typed minimal platform,
-and coordinates independently versioned repositories. The delivered schemas now govern
-those seams.
-
-### Supported External Artifact Boundary
-
-Repository policy distinguishes private packages, published implementation packages,
-supported external facades, and developer tools. A supported package may not expose an
-unpublished dependency or a repository-layout type. Published artifacts carry complete
-coordinates, checksums, license metadata, toolchain requirements, and provenance.
-Publication means that an immutable version is available through a configured artifact
-source. It does not require anonymous access, public discovery, or an internet-facing
-registry.
-
-The compatibility manifest is generated from typed release inputs, Cargo metadata, and
-the resolved artifact set. It is not a second hand-maintained version registry.
-
-The curated MCP SDK controls the supported external surface. Hardening does not publish
-the internal crate graph as an external API.
-
-### Installation-Owned Addressing And Distribution
-
-An installation owns one canonical external origin, such as
-`https://veoveo.customer.example` or `https://veoveo.bioma.ai`. External means that
-authorized clients can address the installation. It does not mean that the origin is
-reachable from the public internet. Private DNS, split-horizon DNS, internal load
-balancers, VPN routing, and air-gapped networks are valid deployment forms.
-
-The artifact registry is separate configuration. A customer-operated registry, a
-Veoveo-operated private registry, or an offline bundle may supply the same immutable
-artifacts. Registry endpoints, repository prefixes, trust roots, and credential Secret
-references belong to the installation. No extension contract embeds a Veoveo registry
-hostname or assumes that image and chart artifacts cross the public internet.
-
-The extension Helm library is a package rather than an installed service. Consumer
-charts may resolve its versioned package from the configured authenticated OCI registry
-or carry the exact package in an offline bundle. Production composition records its
-digest with the consumer chart and rejects an unresolved mutable dependency.
-
-### Standalone Conformance
-
-`mcp/conformance` must build and publish without depending on a domain server or
-requiring an external consumer to compile the Veoveo workspace. A typed hosted-server
-profile selects checks from the server or extension declaration.
-
-Certification covers the applicable authentication boundary, Host validation,
-capability discovery, schemas, tools, resources, prompts, tasks, subscriptions,
-notifications, and URI ownership. The report records the exact compatibility inputs.
-
-### Canonical Gateway Safety
-
-Safety that applies to every complete gateway control plane belongs in
-`GatewayControlPlane::validate`. Route, mount, MCP path, URI-scheme, resource ownership,
-and policy identity collisions cannot be composer-only checks.
-
-The fragment composer produces an ordinary validated `GatewayControlPlane`. The
-extension describes its surface while the installation continues to own exposure and
-authorization.
-
-`veoveo.io/gateway-server-fragment/v1` contains the extension-owned server identity,
-routes, URI schemes, capabilities, upstream identity, and declared platform
-requirements. `veoveo.io/gateway-binding/v1` contains installation-owned profile,
-tenant, authorization, secret, audience, and policy decisions. The composer orders
-inputs deterministically and records schema versions, source identities, input hashes,
-contributed object identities, and the final control-plane digest.
-
-### Source-Aware Evidence
-
-Xtask workflows carry a named source and independent revision. Their internal command and
-evidence types still carry an explicit source root, resolved revision, artifact
-coordinate, image digest, and chart identity. They do not rely on one global `HEAD`, one
-image tag, or one chart root.
-
-Deployment v5 applies that constraint to named sources. Each source resolves its own
-revision, chart artifact, image lock, gateway fragment, compatibility manifest, and
-release evidence. Installation status reports the source revision, Helm release, and
-image digest independently. Local development may materialize one detached worktree per
-source; production composition consumes immutable published artifacts and does not
-require source checkouts.
-
-### Source-Local Build Graphs
-
-Each source context resolves and builds its own image units. An external extension keeps
-its Cargo workspace, builder families, cache namespace, and release evidence in its
-repository. Installation composition consumes immutable image coordinates and digests;
-it does not combine external packages into the Veoveo workspace builder.
-
-The deployment v5 release resolver coordinates several explicit source contexts. It
-treats each source revision as an independent graph and never creates one universal
-package list.
-
-### Component-Oriented Deployment
-
-Deployment validation distinguishes MCP servers from platform components and evaluates
-a resolved component graph. The core chart owns first-party workload definitions and
-accepts typed server identities; internal Deployment records are not a public extension
-API.
-
-Semantic preflight verifies gateway and workload agreement, bootstrap targets, artifact
-audiences, recording dependencies, image selection, and mandatory GPU resources. Helm
-schema validates values shape; Rust owns semantic relationships.
-
-### Canonical Isaac Simulation Base And External Overlays
-
-Veoveo owns one provider-neutral simulation foundation at
-`platform/runtimes/simulation`. Bake target `simulation-runtime` publishes that
-foundation, and `simulation-runtime.lock.json` records its exact build contract. The
-UAV runtime and external simulator images are overlays; neither owns or replaces the
-canonical tuple.
-
-| Input | Canonical value |
-|---|---|
-| Isaac Sim | `6.0.1-rc.7+release.42383.32955d8d.gl` from the digest-pinned Isaac Sim 6.0.1 image |
-| Isaac Lab | `v3.0.0-beta2.patch1` at `ffff603eafc6b74264a5261cc0183d6a65390d78` |
-| Python | `3.12.13` |
-| Warp | `1.16.0` |
-| Newton | `1.5.0` |
-| MuJoCo | `3.11.0` |
-| MuJoCo Warp | `3.11.0` |
-| CUDA toolkit | `13.0` |
-| Kit | `110.1.2` |
-
-Isaac Lab is pinned to a pre-release because it has no stable Isaac Sim 6.0-compatible
-release. The lock records that reason, the full source revision and archive digest, the
-digest of every replacement wheel, the upstream image digest, and the minimum NVIDIA
-runtime contract.
-
-Isaac Sim registers bundled Warp and Newton payloads through Kit. Installing newer
-wheels beside them would create a mixed module graph. The base replaces the controlled
-payload coherently and establishes one authoritative Python path for Warp and Newton.
-The hardware probe rejects a loaded module outside those roots or a runtime component
-that differs from the embedded lock.
-
-The existing UAV runtime and `testing/fixtures/simulation-overlay` derive from the same
-canonical base target. Both published overlays must independently prove CUDA, Vulkan,
-RaytracedLighting, the exact runtime tuple, 20 distinct Newton tiled-camera outputs,
-and 20 distinct RTX render products against one base digest. The anonymous overlay
-also executes overlay-owned CUDA code. Host networking, host IPC, software rendering,
-and CPU simulation are not accepted substitutes.
-
-The pod contract includes an NVIDIA GPU request, a compatible runtime class, writable
-Kit cache and data paths, and a private memory-backed `/dev/shm`. The 20-camera probe
-passed with a 2 GiB shared-memory limit. Shader-cache persistence remains configurable
-because cold RTX startup performs material compilation work.
-
-The shared base does not own one simulator domain. Cesium, PX4, the Warp UAV plant, UAV
-assets, scenarios, and UAV environment conventions remain in the existing overlay, where
-they can evolve without changing the shared runtime contract.
-
-An external repository may build its own simulator overlay from the exact base digest.
-The overlay owns its code, assets, scenarios, chart, dependency lock, smoke evidence,
-and image in its configured private registry. It may add compatible Kit extensions and
-Python packages, but it may not silently replace the base's Isaac Sim, Isaac Lab, Warp,
-Newton, MuJoCo, CUDA, or core Kit/Python versions. A conflicting dependency set fails
-the compatibility profile until Veoveo deliberately advances the canonical base.
-An overlay extends the inherited `PYTHONPATH`; static repository checks and published
-image inspection reject removal or reordering of platform-owned roots.
-
-`simulation-certify` accepts only digest-addressed base and overlay images. It inspects
-the canonical base's SBOM and provenance attestations and writes
-`veoveo.io/simulation-conformance-result/v2`. `cargo xtask release
-simulation-runtime` accepts one first-party and one anonymous result from the same
-source revision and base digest, publishes their private OCI evidence bundle, and writes
-`veoveo.io/simulation-runtime-release-evidence/v1`. Compatibility publication consumes
-that release evidence rather than copying the runtime tuple by hand.
-
-The deployment lock is the only authority for a non-TLS registry. Certification and
-release configure the managed builder from its exact registry address and transport.
-Buildx resolves configurations and attestations through that builder, and certification
-materializes the digest-addressed overlay through BuildKit before Docker runs it with
-pulls disabled. A verified digest-keyed Docker materialization cache avoids repeating
-that large import, and an explicit confirmed `xtask` command removes it. The original
-OCI identity remains in the result. A sibling transcript retains complete or partial
-diagnostics after every certification attempt.
-
-### Bundle And Composition Ownership
-
-Core, extension, and installation-composed bundles have separate ownership. The core
-offline builder never discovers and silently absorbs an external repository's
-artifacts. A combined bundle consumes explicit source and artifact locks and belongs to
-the installation or extension composition that selected them.
-
-### External Smoke Ownership
-
-First-party servers in this repository own workspace smoke packages. An external
-extension owns its smoke package in its repository and consumes the published
-conformance and smoke contracts. It does not join the Veoveo Cargo workspace to become
-verifiable.
-
-Static UAV registration checks now live with `servers/uav-sim-mcp`. SUMO deployment
-checks live with the SUMO crate, and Bioma control-plane and cross-surface checks live
-under `examples/bioma/acceptance`. UAV domain acceptance and provider-neutral live-view
-conformance remain independent. A showcase-owned composed command consumes both and
-captures the real Console follow camera at takeoff, mission, and landing plus the
-governed Rerun recording. Its revision-qualified evidence is a migration input for the
-smoke-kit sequence below; it does not justify adding example-specific assertions to
-generic gateway tests or MCP conformance.
-
-### Consumer-Generic Helm Enforcement
-
-Chart hardening accepts a chart root and rendered installation as inputs. Security,
-digest, identity, NetworkPolicy, secret mount, GPU, container, and init-container checks
-do not assume the core chart is the only consumer. The library chart is verified
-through a reference consumer as well as Veoveo's own charts.
-
-The extension Helm library, fragment schemas, component selection schema, and
-multi-source profile have crossed their hard-cut boundaries. Compatibility generation,
-the simulation build lock, hardware result schema, paired-overlay publisher, and
-platform-image closure enforcement have crossed the same boundary.
-
-### Delivered External Extension Slices
-
-The supported external workflow was implemented through coherent vertical slices:
-
-1. Defined the normative external-extension contract and created an anonymous,
-   independently owned acceptance consumer.
-2. Published the curated Python SDK, compatibility manifest, and standalone conformance
-   binary and image through configurable private artifact sources and offline bundles.
-3. Delivered the extension Helm library, stable installation labels, private registry
-   configuration, and a reference consumer chart.
-4. Added typed server fragments and installation bindings, canonical path collision
-   validation, deterministic composition, and composition provenance.
-5. Hard-cut repository-development profiles to v2 with named source roles, independent
-   revisions, collision-free image and chart locks, structured rendered-image
-   inspection, and source-specific status. Fielded installations consume published
-   extension releases through ordinary digest-pinned Helm or GitOps inputs.
-6. Resolved the typed minimal platform graph, beginning with the platform foundation,
-   Artifact MCP, Frames MCP, and Recording MCP. Disabled components disappear from
-   workloads, services, storage, policy, bootstrap, gateway inventory, and digest
-   requirements together.
-7. Implemented the coherent Kit payload mechanism in the existing Isaac Sim base, added
-   the pinned Isaac Lab input, and certified both the Veoveo UAV overlay and an anonymous
-   external overlay against the resulting base digest.
-
-The delivered workflow keeps a clean external checkout outside the Veoveo workspace.
-It consumes released artifacts, builds and publishes its own image and chart, runs
-standalone conformance, contributes a server fragment, and joins an installation
-without editing Veoveo or hand-authoring a complete gateway document. A coding-agent
-runbook coordinates those existing artifacts and standard tools without adding a
-Veoveo deployment wrapper. Repository-development validation and image publication
-derive an exact platform target set and reject missing or unnecessary Artifact, Frames,
-Map, Media, Optimization, Recording, or RRD transport images.
+[Fork development](FORK_DEVELOPMENT.md) owns customization and downstream migrations.
+The [deployment contract](../deploy/contract/DESIGN.md) owns component selection,
+installation configuration and image closure. The
+[simulation runtime design](../platform/runtimes/simulation/DESIGN.md) owns the shared
+GPU runtime and overlay qualification. The [image build design](../tools/image-build/DESIGN.md)
+owns publication, source materialization, builder families and cache identity.
+These delivered mechanisms are inputs to the unfinished enforcement work below.
 
 ## Enforcement Layers
 
@@ -726,15 +469,6 @@ a parallel package registry.
 `cargo xtask doctor` reports missing or incorrect tools. Enforcement never installs or
 updates a developer tool automatically.
 
-### Justfile Removal
-
-The Justfile is removed. Its supported commands have typed replacements or clear native
-commands. Existing Rust smoke binaries continue to own service lifecycle while
-`cargo xtask smoke` dispatches them.
-
-CODEMAP, README, CI, and component documentation move to the new command in the same
-hard-cut change.
-
 ### Local Hooks
 
 Local hooks accelerate feedback and do not define policy. `cargo xtask hooks install`
@@ -947,17 +681,6 @@ fails closed. No scenario accepts a software renderer as proof.
 Acceptance requires formatting, Clippy, tests, and library documentation to pass on the
 canonical toolchain.
 
-### P0.2 Introduce Xtask
-
-- Create the modular `veoveo-xtask` package.
-- Add the repository-local Cargo alias.
-- Implement `doctor` and `enforce rust`.
-- Route Rust CI through the same command.
-- Remove the corresponding Just recipes when replaced.
-
-The first xtask change coordinates existing green commands. It does not absorb smoke or
-deployment behavior.
-
 ### P0.3 Complete Existing Language And Configuration Coverage
 
 - Run Console lint, tests, and build.
@@ -969,24 +692,6 @@ deployment behavior.
   policy.
 
 Existing Python products remain under test, but Rust owns orchestration.
-
-### P0.4 Stabilize Image Publication Inputs
-
-- Exclude repository roots such as `docs/` from the Docker context when no Dockerfile
-  consumes them.
-- Replace the disposable publication checkout with a locked, tool-owned persistent
-  worktree keyed by source identity.
-- Resolve and verify one exact committed revision before changing the publication
-  worktree.
-- Preserve unchanged path metadata across revisions while allowing Git to update every
-  changed path.
-- Test source materialization with fixture revisions that distinguish changed and
-  unchanged files.
-- Prove that an empty BuildKit and Cargo cache remains a supported input.
-
-This hard cut removes the incremental rebuild amplification before the image graph is
-consolidated. It adds no compatibility alias for `profile-publish`. The later xtask hard
-cut removes that command when image release assumes deployment publishing.
 
 ## P1: Coding And Supply-Chain Policy
 
@@ -1033,247 +738,6 @@ and distinguish source-built images from pinned or mirrored upstream images.
 
 Release builds produce SBOM and provenance evidence. Rust binaries intended for
 distribution carry auditable dependency information.
-
-### P1.5 Image Build Graph And Cache Policy
-
-The image release planner resolves selected Rust image units and groups them by a typed
-builder-family identity. Compatibility includes:
-
-- Source identity.
-- Rust toolchain, builder image, libc, native SDK, and system dependency contract.
-- Target platform, architecture, and Rust target triple.
-- Cargo profile, feature resolution, rustflags, and compile-time environment.
-
-Each selected compatible family uses one Cargo invocation at Cargo's available
-parallelism. That invocation covers the complete family catalog even when Bake publishes
-only one runtime target. The stable package and feature graph lets Cargo reuse one
-compiled lineage across `platform-core`, `platform-full`, showcase, and direct-target
-commands. Runtime targets consume the family artifact target through the Bake graph and
-keep their runtime-specific bases, files, users, and configuration.
-
-Build-unit membership comes from Cargo metadata and every labeled image definition in
-the resolved Bake catalog. A fixed shared-builder command that lists packages is
-prohibited. Adding a first-party image requires its one target declaration and does not
-require a second builder package list.
-
-Target-cache identities derive from source identity, builder family, target platform,
-and Cargo profile. They are never anonymous and are not fragmented by output image.
-Package registry and Git caches use a concurrency policy that does not hold one
-BuildKit-exclusive lock throughout independent compiles when Cargo's cache locking
-provides the required safety.
-
-Enforcement validates the resolved graph rather than imposing an elapsed-time threshold.
-It rejects incompatible cache sharing, anonymous Rust target caches, fixed low job
-limits on consolidated builders, and more than one Cargo build action for a selected
-family. Cold-cache and warm-cache acceptance compare produced artifact identities and
-release evidence.
-
-Deployment profiles add a second graph invariant. The typed platform selection and
-gateway requirements resolve the exact Veoveo-owned OCI image closure. Validation and
-profile publication derive that closure as one multi-target Bake invocation before
-building or pushing. The platform source has no handwritten image group, and validation
-rejects both omitted and unnecessary targets. `domain-platform` remains a
-convenient direct-build group for Artifact, Frames, Map, Media, Recording, and
-producer-side RRD transport. It is not a second profile-selection authority. These
-images remain separate services and are never copied into an extension or simulation
-image.
-
-#### Canonical Build Inputs
-
-`docker-bake.hcl` remains the image catalog. A Rust image target declares its Cargo
-package, production binaries, builder family, build mode, and optional auxiliary
-artifacts through repository-owned OCI labels:
-
-```text
-io.veoveo.build.mode
-io.veoveo.build.package
-io.veoveo.build.binaries
-io.veoveo.build.family
-io.veoveo.build.auxiliary
-```
-
-Build mode is `rust-shared` or `rust-standalone`. Binary and auxiliary collections use
-comma-separated identifiers from closed Rust enums and validated Cargo target names.
-The family name selects a typed builder contract; it does not authorize two
-incompatible environments to share compiled artifacts.
-
-Cargo metadata proves that each declared package and binary exists. Bake selects the
-runtime images for the command, while the planner discovers the complete compatible
-family from all labeled Bake targets. No checked-in shared-builder command, central
-image manifest, or `xtask` package array repeats that membership.
-
-Shared runtime targets consume a family artifact target through the named context
-`veoveo-rust-artifacts`. The artifact target receives the complete discovered family
-package and binary arguments through an ephemeral JSON Bake override. `xtask` resolves
-both the selected graph and the full target catalog with `docker buildx bake --print`,
-constructs the typed plan, merges the override, resolves the selected result again, and
-executes only that verified graph.
-
-#### Internal Image Commands
-
-The repository image surface is:
-
-```sh
-cargo xtask image builder status
-cargo xtask image builder ensure
-cargo xtask image builder reconfigure --confirm veoveo
-cargo xtask image builder recreate --confirm veoveo
-
-cargo xtask image plan --target <target>
-cargo xtask image plan --group <group>
-cargo xtask image build --target <target>
-cargo xtask image build --group <group>
-
-cargo xtask release images --profile <path> --profile-revision <ref>
-cargo xtask release images --target <target> --push-registry <host-registry> --pull-registry <cluster-registry> --registry-transport <transport> --revision <ref>
-cargo xtask release images --group <group> --push-registry <host-registry> --pull-registry <cluster-registry> --registry-transport <transport> --revision <ref>
-```
-
-`image plan` and `image build` use the current checkout and record its full revision and
-dirty state. A local build loads the selected images into Docker. A release resolves one
-full commit, moves the persistent publication worktree to that commit, applies immutable
-revision tags, pushes images, and records Buildx metadata and resulting digests.
-
-Raw Docker and Bake commands remain diagnostic implementation surfaces. They are not a
-second supported route for Rust images because they cannot construct the typed family
-overlay.
-
-#### Managed Builder
-
-Image commands use a named `docker-container` Buildx builder called `veoveo`; they never
-change the operator's global builder selection. The builder uses a digest-pinned stable
-BuildKit image and a checked-in registry-neutral daemon configuration. Profile
-publication derives an exact registry stanza from the typed address and transport.
-`xtask` passes `--builder veoveo` explicitly.
-
-Buildx is exact. The command accepts an exact host plugin. On supported Linux hosts it
-can download the official release into the main worktree's ignored `target` directory
-and verify its architecture-specific SHA-256. Git's common directory makes that binary
-and its isolated Buildx state identical from every linked worktree. Docker credentials
-remain in the operator's normal configuration.
-
-The command creates and bootstraps a missing builder. An existing builder with the
-wrong driver, image, or daemon version fails validation. A registry-configuration
-change recreates the builder definition under one shared lease with `--keep-state`,
-which retains the worker cache across profiles and worktrees. The checked-in
-BuildKit garbage-collection policy retains source-local and Cargo cache mounts long
-enough for the incremental workflow and applies explicit reserved, maximum, and
-free-space bounds. `image builder reconfigure --confirm veoveo` applies a checked-in
-base configuration while retaining BuildKit state. Only
-`image builder recreate --confirm veoveo` may remove an incompatible builder and its
-cache.
-
-The implementation verified Buildx 0.35.0 and BuildKit 0.31.2 on 2026-07-25.
-Execution rechecks their authoritative release pages before pinning. A newer stable
-release replaces this baseline; a pre-release does not.
-
-#### Publication Source Lifecycle
-
-The publication source lives under the main worktree:
-
-```text
-target/veoveo-xtask/publication/<source-id>/source
-```
-
-The source identity covers the normalized Git origin, canonical common Git directory,
-and object format. An adjacent file carries an exclusive advisory lock from source
-preparation through the final Bake phase.
-
-The first release creates a detached worktree. Later releases require that worktree to
-remain registered and clean, then use an ordinary detached checkout to move it to the
-resolved commit. Git updates changed paths and preserves unchanged path metadata. The
-tool never removes a healthy publication worktree after a build and never silently
-resets, cleans, or recreates corrupt state.
-
-A deployment profile may live in the invoking repository or a separate installation
-repository. It is loaded from that repository's selected revision, and every referenced
-installation input must match the same commit. Each Bake path and Docker context
-resolves inside its independently locked source publication.
-
-#### Initial Builder Families
-
-The first delivery supports one explicit target platform, `linux/amd64`.
-
-| Family | Initial Rust image units |
-|---|---|
-| `rust-trixie-v1` | gateway, artifact service, recording forwarder, recording hub, recording MCP, Console BFF, artifact MCP, media MCP, timeseries MCP, DuckDB MCP, optimization MCP, frames MCP, stdio bridge, conformance, composer, UAV MCP, and agent kernel |
-| `rust-bookworm-v1` | map MCP, time MCP, and view MCP |
-| `rust-bookworm-control-v1` | Stream and Reason MCP; native Stream runner retains the DeepStream SDK |
-| `rust-sumo-bullseye-v1` | SUMO MCP |
-
-The trixie and bookworm families use one shared workspace-artifact Dockerfile. It
-bind-mounts the source read-only, invokes Cargo once for the complete discovered family,
-and exports its unique binaries through a scratch artifact stage. Runtime Dockerfiles
-keep their runtime bases, users, files, configuration, native downloads, entrypoints,
-and ports. Runtime selection controls which images are exported, not Cargo's unified
-feature graph.
-
-Frames and UAV use the slim trixie contract. Their native build dependencies become
-part of that family. The DeepStream, vLLM, and SUMO families remain standalone in the
-first delivery, although their cache identities become explicit and source-aware. Each
-standalone family reads the complete workspace through the same read-only source-mount
-boundary. The typed planner rejects handwritten builder-stage workspace `COPY` lists,
-so adding a workspace member cannot leave one isolated image with an incomplete Cargo
-graph.
-
-#### Cache Contract
-
-Cargo download caches use builder-family identities:
-
-```text
-veoveo-cargo-<family>-registry-v1
-veoveo-cargo-<family>-git-v1
-```
-
-They use locked mounts within a family. This prevents concurrent publication runs from
-racing while Cargo unpacks a crate, while independent libc and SDK families still build
-in parallel. Target caches use locked mounts and the following derived identity:
-
-```text
-veoveo-target-v1-<source-hash>-<family-epoch>-linux-amd64-release
-```
-
-The source hash excludes the revision. The explicit family epoch changes only for an
-incompatible builder image, Rust toolchain, target, Cargo profile, libc, SDK, or native
-dependency contract. Cargo fingerprints source, dependency, feature, rustflag, and
-compile-time environment changes inside that namespace. Hashing a complete Dockerfile
-is prohibited because unrelated layer or cache-mount edits would discard compatible
-compiled artifacts.
-
-Source revision arguments apply to the complete transitive Bake target-context closure.
-Direct runtime builds and overlay-owned uses of the same runtime cannot diverge to an
-implicit default revision and create duplicate BuildKit lineages.
-
-Registry-backed cache export and import are deferred. Stable source and family
-identities allow that backend to arrive later without changing package discovery or
-mixing incompatible compiled artifacts.
-
-#### Build Performance Evidence
-
-The initial audit records the old graph, cache identities, lock policy, job limit, and
-source-materialization behavior. It does not invent elapsed times after that graph has
-been replaced. The optimized measurements use the named managed builder and retain
-each unique local evidence directory. Builder recreation is explicit because it
-removes the builder's cache.
-
-Acceptance requires one Cargo action for each selected compatible family, identical
-runnable platform-manifest digests for cold and warm builds of the same inputs, and no
-unrelated workspace compilation after a gateway-only change. The measurement report
-records the available elapsed time, Cargo actions, crates compiled, BuildKit cache hits,
-runnable and publication digests, source state, and Buildx metadata. It identifies a
-structural baseline when a comparable old timing does not exist.
-
-Shared CI runners do not enforce a percentage or elapsed-time threshold. Graph
-invariants, cold-cache correctness, reproducible image identity, and single-crate
-invalidation remain the durable gate.
-
-The canonical simulation lineage has a separate cold-stage optimization. The first
-measured overlay build spent about 155 seconds recursively initializing PX4 submodules,
-including FlightGear and NuttX trees that are outside `px4_sitl_default`. The next
-specialized-image change narrows checkout to the exact SITL dependency closure, proves
-the resulting PX4 binary in the UAV hardware smoke, and records cold timing and source
-digests. It may not substitute an unverified shallow or partial tree merely to improve
-elapsed time.
 
 ### Planned Tool Set
 
@@ -1418,31 +882,24 @@ this plan.
 The implementation proceeds through coherent hard cuts:
 
 1. Restore the canonical Rust gate and resolve current drift.
-2. Add the xtask foundation and route Rust enforcement through it.
-3. Add existing Console, Python, documentation, and configuration checks.
-4. Stabilize image source materialization and exclude unused Docker context roots.
-5. Add Rust format, lint, metadata, and unsafe policy.
-6. Add compiled local hooks.
-7. Add dependency and vulnerability policy.
-8. Add container, workflow, Kubernetes, and documentation policy.
-9. Give production server binaries unique local names.
-10. Add typed image release planning, enforce cache identities, and consolidate the
-    trixie and bookworm builder families.
-11. Create `tools/smoke-kit` and the typed smoke descriptor protocol.
-12. Add Cargo-discovered xtask smoke dispatch.
-13. Move server-owned smoke scenarios one component at a time.
-14. Move gateway, platform, agent, template, showcase, example, and deployment
+2. Add existing Console, Python, documentation, and configuration checks.
+3. Add Rust format, lint, metadata, and unsafe policy.
+4. Add compiled local hooks.
+5. Add dependency and vulnerability policy.
+6. Add container, workflow, Kubernetes, and documentation policy.
+7. Give production server binaries unique local names.
+8. Create `tools/smoke-kit` and the typed smoke descriptor protocol.
+9. Add Cargo-discovered xtask smoke dispatch.
+10. Move server-owned smoke scenarios one component at a time.
+11. Move gateway, platform, agent, template, showcase, example, and deployment
     scenarios to their owners.
-15. Move `testing/mcp-conformance` to `mcp/conformance`, remove domain dependencies, and
-    establish its standalone artifact boundary.
-16. Promote component-oriented deployment and ownership-aware offline models into their
+12. Promote component-oriented deployment and ownership-aware offline models into their
     contract crates.
-17. Remove the central smoke binary and the top-level `testing/` directory.
-18. Complete the Justfile hard cut.
-19. Enable component discovery and dependency-direction enforcement.
-20. Enable source-aware deployment, canonical gateway, contract, type-boundary, and
+13. Remove the central smoke binary and the top-level `testing/` directory.
+14. Enable component discovery and dependency-direction enforcement.
+15. Enable source-aware deployment, canonical gateway, contract, type-boundary, and
     module-responsibility enforcement.
-21. Add repository governance and protected delivery settings.
+16. Add repository governance and protected delivery settings.
 
 Each move removes the old owner and command in the same change. A migration commit
 leaves the repository coherent and the required gate green.
