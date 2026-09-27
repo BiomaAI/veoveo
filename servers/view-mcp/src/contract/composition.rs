@@ -7,9 +7,9 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    FrameWorldRevisionUri, InvocationAuthority, PrincipalId, WorldFrameUri,
-    parse_artifact_plane_uri,
+    FrameWorldRevisionUri, InvocationAuthority, WorldFrameUri, parse_artifact_plane_uri,
 };
+use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};
 

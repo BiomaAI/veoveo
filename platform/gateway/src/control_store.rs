@@ -3,9 +3,8 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessLevel, AccessSubject, GatewayControlPlane, GatewayControlPlaneRevision,
-    GatewayControlPlaneRevisionId, GatewayControlPlaneRevisionSource, PrincipalId, TenantId,
-    WorkContextDefinition,
+    AccessLevel, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+    GatewayControlPlaneRevisionSource, WorkContextDefinition,
 };
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GatewayControlActiveRecord, GatewayControlObjectContent,
@@ -15,6 +14,7 @@ use veoveo_platform_store::{
     WorkContextOutputPolicyRecord, WorkContextRecord, deterministic_tenant_id,
     deterministic_work_context_id,
 };
+use veoveo_types::{AccessSubject, PrincipalId, TenantId};
 
 const ACTIVE_CONTROL_PLANE_RECORD: &str = "gateway_control_active:current";
 
@@ -513,10 +513,10 @@ mod tests {
 
     use super::*;
     use veoveo_mcp_contract::{
-        GatewayAction, GroupId, OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet,
-        PolicyVersion, TenantDefinition, WorkContextGrant, WorkContextId,
-        WorkContextMembershipRule, WorkContextOutputPolicy,
+        GatewayAction, OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet,
+        TenantDefinition, WorkContextGrant, WorkContextMembershipRule, WorkContextOutputPolicy,
     };
+    use veoveo_types::{GroupId, PolicyVersion, WorkContextId};
 
     #[test]
     fn revision_source_round_trips_seed_file() {

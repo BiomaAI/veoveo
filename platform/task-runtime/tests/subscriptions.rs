@@ -5,12 +5,14 @@ use futures::StreamExt;
 use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_mcp_contract::{
-    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
-    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
     subscribe_durable_tasks,
+};
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
 fn authority() -> InvocationAuthority {
     let principal = PrincipalId::new("integration-principal").unwrap();

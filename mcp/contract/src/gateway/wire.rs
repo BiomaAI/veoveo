@@ -1,25 +1,7 @@
 use url::{Host, Url};
+use veoveo_types::identifier_syntax::{validate_path_id, validate_token_text};
 
 use super::*;
-
-pub(super) fn validate_path_id(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() {
-        return Err(IdentifierError::new(
-            value,
-            "must not be empty and must contain lowercase ASCII letters, digits, hyphen, or underscore",
-        ));
-    }
-    if !value
-        .bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
-    {
-        return Err(IdentifierError::new(
-            value,
-            "must contain only lowercase ASCII letters, digits, hyphen, or underscore",
-        ));
-    }
-    Ok(())
-}
 
 pub(super) fn validate_gateway_name(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
@@ -55,19 +37,6 @@ pub(super) fn validate_compatibility_helper_id(value: &str) -> Result<(), Identi
     Ok(())
 }
 
-pub(super) fn validate_token_text(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() {
-        return Err(IdentifierError::new(value, "must not be empty"));
-    }
-    if value.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain whitespace or control characters",
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn validate_oauth_state_value(value: &str) -> Result<(), IdentifierError> {
     validate_token_text(value)?;
     if value.len() > 512 {
@@ -91,19 +60,6 @@ pub(super) fn validate_pkce_code_token(value: &str) -> Result<(), IdentifierErro
         return Err(IdentifierError::new(
             value,
             "must contain only ASCII letters, digits, hyphen, period, underscore, or tilde",
-        ));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_claim_text(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() {
-        return Err(IdentifierError::new(value, "must not be empty"));
-    }
-    if value.chars().any(char::is_control) {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain control characters",
         ));
     }
     Ok(())

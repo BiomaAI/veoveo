@@ -10,7 +10,7 @@ use crate::{
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use uuid::Uuid;
-use veoveo_mcp_contract::DataLabelId;
+use veoveo_types::DataLabelId;
 use zeroize::Zeroizing;
 
 pub(super) const MAX_FILE_PAYLOAD_BYTES: usize = 16 * 1024;

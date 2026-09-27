@@ -3,9 +3,11 @@ use std::collections::BTreeSet;
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    AccessTokenSubject, DataLabelId, DelegationId, GroupId, JwtId, OAuthClientId, Principal,
-    PrincipalDisplayName, PrincipalId, PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
-    WorkContextId,
+    AccessTokenSubject, JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalKind,
+    TokenIssuer, TokenSubject,
+};
+use veoveo_types::{
+    DataLabelId, DelegationId, GroupId, PrincipalId, RoleId, TenantId, WorkContextId,
 };
 
 use super::{

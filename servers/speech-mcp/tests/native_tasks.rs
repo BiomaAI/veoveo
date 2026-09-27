@@ -18,6 +18,7 @@ use veoveo_speech_mcp::{
     process::WorkerProcess,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskStatus, subscribe_durable_tasks};
+use veoveo_types::{DataLabelId, WorkContextId};
 
 struct Server(tokio::task::JoinHandle<()>);
 impl Drop for Server {

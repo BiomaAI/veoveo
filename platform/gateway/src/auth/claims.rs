@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{InvocationMode, PrincipalKind};
-use veoveo_types::ScopeName;
+use veoveo_mcp_contract::PrincipalKind;
+use veoveo_types::{InvocationMode, ScopeName};
 
 use super::AuthError;
 

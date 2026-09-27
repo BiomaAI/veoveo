@@ -11,8 +11,9 @@ use veoveo_mcp_contract::{
     LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint,
     LiveMediaTransport, LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
     LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
-    LiveViewUri, PrincipalId,
+    LiveViewUri,
 };
+use veoveo_types::PrincipalId;
 
 use crate::{
     adapter::Adapter,
@@ -603,9 +604,9 @@ mod tests {
     use super::*;
     use crate::{adapter::FakeAdapter, server::service::fake_state};
     use tokio::sync::Mutex as TokioMutex;
-    use veoveo_mcp_contract::{
-        AccessSubject, DataLabelId, GroupId, LiveViewerInstanceId, PolicyVersion, TenantId,
-        WorkContextId,
+    use veoveo_mcp_contract::LiveViewerInstanceId;
+    use veoveo_types::{
+        AccessSubject, DataLabelId, GroupId, PolicyVersion, TenantId, WorkContextId,
     };
 
     fn owner() -> LiveViewOwner {

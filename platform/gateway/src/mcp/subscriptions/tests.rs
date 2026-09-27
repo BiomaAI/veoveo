@@ -1,7 +1,8 @@
 use super::*;
 use crate::{GatewayState, mcp::discovery::DiscoveryCacheKey, mcp::task_ownership_tests};
 use rmcp::model::{Resource, ResourceTemplate, Tool};
-use veoveo_mcp_contract::{GatewayControlPlane, PrincipalId};
+use veoveo_mcp_contract::GatewayControlPlane;
+use veoveo_types::PrincipalId;
 
 #[derive(Clone)]
 struct EndingCatalog(std::sync::Arc<tokio::sync::Notify>);

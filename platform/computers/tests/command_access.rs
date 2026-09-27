@@ -62,7 +62,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
             // Consistently changed invocation inputs remain different identities.
             "context" => {
                 identity.authority.work_context =
-                    veoveo_mcp_contract::WorkContextId::new("different-context").unwrap();
+                    veoveo_types::WorkContextId::new("different-context").unwrap();
                 identity
                     .request_context
                     .as_mut()
@@ -72,7 +72,7 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
             }
             "tenant" => {
                 identity.authority.tenant =
-                    veoveo_mcp_contract::TenantId::new("different-tenant").unwrap();
+                    veoveo_types::TenantId::new("different-tenant").unwrap();
                 identity.actor.tenant = Some(identity.authority.tenant.clone());
                 identity.request_context.as_mut().unwrap().principal.tenant =
                     identity.actor.tenant.clone();

@@ -71,7 +71,7 @@ Component designs live beside the code whose contract they specify:
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
-| [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
+| [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
@@ -350,7 +350,8 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 ### `platform/types`
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
-errors, and `Sha256Digest`. Its public `ScopeDefinition` and `ResourceAddress` traits let
+errors, `Sha256Digest`, platform identity, access subjects, and invocation provenance.
+Its public `ScopeDefinition` and `ResourceAddress` traits let
 independent libraries supply domain vocabularies. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
 [design](../platform/types/DESIGN.md) defines the opaque reference and concrete component profiles;
@@ -359,6 +360,9 @@ tracks concrete/template reference separation, URI builder adoption, MCP integra
 and server library features.
 `src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts.
+`src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
+data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
+`src/identifier_syntax.rs` shares lexical validation with other owners' newtypes.
 `src/resource_components.rs` validates concrete addresses and exposes decoded components;
 `src/resource_components/builder.rs` encodes typed domain inputs at the serialization step.
 
@@ -412,7 +416,7 @@ even when that server is first-party.
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `storage.rs` | artifact metadata, release state, compliance labels |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
-| `gateway/ids.rs` | validated identity and configuration newtypes, including principal display metadata, which authorization never reads |
+| `gateway/ids.rs` | gateway, OAuth, and configuration newtypes, including principal display metadata, which authorization never reads; platform identity comes from `platform/types` |
 | `gateway/auth_config.rs` | IdP, authorization server, OAuth client surfaces |
 | `gateway/server_config.rs` | hosted server and profile exposure contracts, including cross-server App resource dependencies |
 | `gateway/policy.rs` | actions, targets, rules, effects, audit reason model |
@@ -1199,9 +1203,9 @@ Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness
 
 ## Change Routing
 
-- Change foundational scope names, resource references, and extension traits in
+- Change foundational identity, attribution, scope names, resource references, and extension traits in
   `platform/types`; keep each domain's vocabulary in its owning library.
-- Change shared identity/policy/artifact semantics in `mcp/contract`, then update the
+- Change authentication, policy, and shared Artifact semantics in `mcp/contract`, then update the
   platform store and every affected boundary.
 - Change persistence shape in `platform/store` with an ordered migration and matching Rust API.
 - Change durable task lifecycle and its official MCP Task surface in

@@ -400,12 +400,12 @@ async fn managed_dispatch_rechecks_model_generation_epoch_and_revocation() {
     service.principal.subject = instance.identity.client_id.parse().unwrap();
     service.principal.groups.clear();
     service.actor = service.principal.clone();
-    service.authority.provenance = veoveo_mcp_contract::InvocationProvenance::Automated;
+    service.authority.provenance = veoveo_types::InvocationProvenance::Automated;
     service.access_token.oauth_client_id = instance.identity.client_id.parse().unwrap();
     service.access_token.issuer = service.principal.issuer.clone();
     service.access_token.subject = service.principal.subject.clone();
     service.access_token.audience = instance.identity.resource.parse().unwrap();
-    service.access_token.invocation_mode = veoveo_mcp_contract::InvocationMode::Automated;
+    service.access_token.invocation_mode = veoveo_types::InvocationMode::Automated;
     service.access_token.initiator = None;
     service.access_token.managed_agent = Some(wire::ManagedAgentToken {
         instance: wire::AgentManagedInstanceId::new("worker-one").unwrap(),

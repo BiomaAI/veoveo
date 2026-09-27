@@ -1,9 +1,9 @@
 use chrono::Utc;
 use veoveo_mcp_contract::{
     ConsoleInstallation, ConsoleSession, ConsoleTenant, GatewayControlPlane, PrincipalDisplayName,
-    TenantId,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
+use veoveo_types::TenantId;
 
 pub(crate) fn presentation(
     control: &GatewayControlPlane,

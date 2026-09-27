@@ -7,11 +7,11 @@ use axum::{
 };
 use veoveo_mcp_contract::{
     CanonicalTaskId, GatewayAction, GatewayProfile, PolicyTarget, ServerSlug, TaskExposure,
-    TenantId,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{TaskId, TaskRecord};
 use veoveo_task_runtime::{TaskRuntime, TaskSnapshot};
+use veoveo_types::TenantId;
 
 use crate::{
     admin::admin_profile_id,

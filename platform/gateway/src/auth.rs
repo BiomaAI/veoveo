@@ -30,10 +30,10 @@ mod tests {
     };
     use serde::Serialize;
     use veoveo_mcp_contract::{
-        DataLabelId, InvocationMode, OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance,
-        ProtectedResourceId, TokenIssuer,
+        OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance, ProtectedResourceId,
+        TokenIssuer,
     };
-    use veoveo_types::ScopeName;
+    use veoveo_types::{DataLabelId, InvocationMode, ScopeName};
 
     use super::*;
 
@@ -663,7 +663,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
                 claim: veoveo_mcp_contract::IdentityProviderTenantClaim::Tid,
                 values: std::collections::BTreeMap::from([(
                     "tenant-a".to_string(),
-                    veoveo_mcp_contract::TenantId::new("tenant-a").unwrap(),
+                    veoveo_types::TenantId::new("tenant-a").unwrap(),
                 )]),
             }),
         };
@@ -690,7 +690,7 @@ XVKygdRdax3xMB3Eld5rlIDwzX09ARHrm8badXtrF0NhQPYZVbax8rpJGcgEFPgXEJJ71w==
             verified
                 .principal
                 .roles
-                .contains(&veoveo_mcp_contract::RoleId::new("operator").unwrap())
+                .contains(&veoveo_types::RoleId::new("operator").unwrap())
         );
     }
 

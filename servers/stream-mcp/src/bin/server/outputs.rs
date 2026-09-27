@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, DataLabelId,
-    IssuedArtifactWriteCapability, now_utc,
+    ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata, IssuedArtifactWriteCapability,
+    now_utc,
 };
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_recording_video::MaterializedVideo;
@@ -15,6 +15,7 @@ use veoveo_stream_mcp::{
     uris,
 };
 use veoveo_task_runtime::TaskId;
+use veoveo_types::DataLabelId;
 
 use super::app_state::AppState;
 

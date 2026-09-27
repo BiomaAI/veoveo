@@ -8,12 +8,14 @@ use rmcp::model::{CallToolRequestParams, ContentBlock};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
-    GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
-    PolicyVersion, Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
-    TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
+    GatewayProfileId, InvocationAuthority, Principal, PrincipalKind, ServerSlug, TokenIssuer,
+    TokenSubject, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
+    WorkContextId,
+};
 
 use super::*;
 

@@ -3,12 +3,13 @@ use anyhow::{Context, Result, ensure};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 use std::{fs::OpenOptions, io::Write, path::PathBuf};
-use veoveo_mcp_contract::{TenantId, WorkContextId, agent_management as wire};
+use veoveo_mcp_contract::agent_management as wire;
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayControlStore};
 use veoveo_platform_store::{
     StoreAuthLevel, WorkContextMembershipLevel, agent_management as domain,
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
+use veoveo_types::{TenantId, WorkContextId};
 
 #[derive(Args, Debug)]
 pub(crate) struct Arguments {

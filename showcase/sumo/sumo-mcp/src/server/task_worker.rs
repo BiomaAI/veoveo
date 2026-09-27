@@ -12,7 +12,7 @@ use serde::Serialize;
 use tokio::process::Command;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, DataLabelId, IssueArtifactWriteCapabilityRequest,
+    ArtifactWriteIdempotencyKey, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactWriteCapability, PlaneCaller, PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest,
 };
@@ -20,6 +20,7 @@ use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskFailure, TaskId, TaskPayloadState, TaskRetentionPin,
     TaskSnapshot, TaskTransition,
 };
+use veoveo_types::DataLabelId;
 
 use crate::contract::{
     DurableOperation, DurableTaskRequest, OfflineOperation, OfflineOperationRequest,

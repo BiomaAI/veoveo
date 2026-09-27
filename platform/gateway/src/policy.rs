@@ -1,14 +1,15 @@
 //! Gateway composition over the shared current-policy evaluator.
 use crate::GatewayCatalog;
 use veoveo_mcp_contract::{
-    DataLabelDefinition, DataLabelId, GatewayProfile, GatewayProfileId, PolicyDecision, PolicySet,
-    PolicyVersion, ServerManifest, ServerSlug, TenantDefinition, TenantId,
+    DataLabelDefinition, GatewayProfile, GatewayProfileId, PolicyDecision, PolicySet,
+    ServerManifest, ServerSlug, TenantDefinition,
 };
 pub(crate) use veoveo_policy::resource_scheme_from_uri as resource_scheme;
 pub use veoveo_policy::{
     PolicyRequest, RecordingIngestPolicyDecision, RecordingIngestPolicyRequest, exposure_contains,
     mcp_method_name, resource_scheme_from_uri,
 };
+use veoveo_types::{DataLabelId, PolicyVersion, TenantId};
 
 impl veoveo_policy::PolicyCatalogView for GatewayCatalog {
     fn profile(&self, id: &GatewayProfileId) -> Option<&GatewayProfile> {

@@ -3,7 +3,8 @@ use std::collections::BTreeMap;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{ArtifactMetadata, PolicyVersion, PrincipalId, WorkContextId};
+use veoveo_mcp_contract::ArtifactMetadata;
+use veoveo_types::{PolicyVersion, PrincipalId, WorkContextId};
 
 use super::{
     CapacityDimensionId, ConstraintId, FiniteF64, LocationId, NonNegativeF64,

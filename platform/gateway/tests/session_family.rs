@@ -8,7 +8,7 @@ use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
     GatewayRefreshRotationRequest, GatewayState, RefreshTokenDeliveryCipher,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{InvocationMode, PrincipalId, ScopeName, TenantId, WorkContextId};
 
 #[tokio::test]
 async fn session_binding_survives_rotation_and_rejects_cross_replica_revocation() {

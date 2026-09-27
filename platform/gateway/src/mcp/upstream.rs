@@ -5,7 +5,8 @@ use rmcp::{
     model::{ClientConfig, Implementation},
     service::{NotificationContext, Peer, RoleClient, RoleServer},
 };
-use veoveo_mcp_contract::{GatewayProfileId, PrincipalId, ServerSlug};
+use veoveo_mcp_contract::{GatewayProfileId, ServerSlug};
+use veoveo_types::PrincipalId;
 
 use crate::{GatewayCatalogHandle, mcp_support::project_upstream_resource};
 

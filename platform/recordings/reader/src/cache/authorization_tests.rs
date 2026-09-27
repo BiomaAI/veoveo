@@ -6,6 +6,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
 use veoveo_mcp_contract::*;
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+};
 
 #[derive(Clone, Copy)]
 enum Reply {

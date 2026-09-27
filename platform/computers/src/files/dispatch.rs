@@ -64,10 +64,10 @@ pub struct FileDispatchTicket {
     access: FileTransferAccess,
     authority_deadline: Instant,
     execution_deadline: Instant,
-    retained_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
+    retained_labels: std::collections::BTreeSet<veoveo_types::DataLabelId>,
 }
 impl FileDispatchTicket {
-    pub fn retained_labels(&self) -> &std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId> {
+    pub fn retained_labels(&self) -> &std::collections::BTreeSet<veoveo_types::DataLabelId> {
         &self.retained_labels
     }
     pub(super) fn into_operation(self) -> FileOperation {

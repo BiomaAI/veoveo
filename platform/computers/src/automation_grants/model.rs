@@ -10,8 +10,9 @@ use serde::Deserialize;
 use std::collections::BTreeSet;
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
-use veoveo_mcp_contract::{OAuthClientId, PrincipalId};
+use veoveo_mcp_contract::OAuthClientId;
 use veoveo_platform_store::{OpenObject, PrincipalKind, deterministic_principal_id};
+use veoveo_types::PrincipalId;
 
 pub(super) fn scope(
     permissions: &BTreeSet<AutomationPermission>,

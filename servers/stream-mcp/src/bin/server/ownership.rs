@@ -2,11 +2,11 @@ use std::collections::BTreeSet;
 
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use veoveo_mcp_contract::{
-    DataLabelId, GatewayInternalIdentity, PlaneCaller, PrincipalId, PrincipalKind, TenantId,
-    TokenIssuer, TokenSubject,
+    GatewayInternalIdentity, PlaneCaller, PrincipalKind, TokenIssuer, TokenSubject,
 };
 use veoveo_recording_reader::RecordingReadAuthority;
 use veoveo_task_runtime::TaskOwner;
+use veoveo_types::{DataLabelId, PrincipalId, TenantId};
 
 use super::app_state::AppState;
 

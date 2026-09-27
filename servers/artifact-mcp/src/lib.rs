@@ -4,9 +4,10 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AccessLevel, AccessSubject, ArtifactId, ArtifactMetadata, ArtifactReleaseState,
-    ArtifactShareLink, ArtifactShareLinkId, Grant,
+    AccessLevel, ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactShareLink,
+    ArtifactShareLinkId, Grant,
 };
+use veoveo_types::AccessSubject;
 
 pub const INDEX_URI: &str = "artifact://index";
 pub const LIBRARY_APP_URI: &str = "ui://artifact/library.html";

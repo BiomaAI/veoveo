@@ -3,7 +3,7 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{AccessSubject, DataLabelId, PrincipalId, WorkContextId};
+use veoveo_types::{AccessSubject, DataLabelId, PrincipalId, WorkContextId};
 
 use super::{
     FeatureLayerId, LayerProductId, LayerPublicationId, MapCompositionId, MapCompositionRevisionId,

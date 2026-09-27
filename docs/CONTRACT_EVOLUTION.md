@@ -327,7 +327,11 @@ recovery rather than polling. The replacement is a hard cut: the new table repla
 
 Scope names and resource identities are Veoveo concepts used by protocol adapters.
 The accepted foundation is a small `veoveo-types` crate under `platform/types`, owning
-validated names, generic resource URI handling, and protocol-independent traits.
+validated names, platform identity and attribution, generic resource URI handling,
+and protocol-independent traits. Identity includes principal, tenant, group, role,
+Work Context and delegation IDs, policy labels and versions, access subjects, and
+invocation provenance. Authentication and authorization stay with their existing
+owners; domain-owned Artifact and coordinate contracts do not belong in this foundation.
 It has no dependency on RMCP, a server runtime, a database client, a GPU backend, or
 an individual server. MCP-specific traits and descriptor conversion stay in
 `mcp/contract` and consume the foundational types.

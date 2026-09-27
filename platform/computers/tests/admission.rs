@@ -93,7 +93,7 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
     let bob = owner("bob");
     let mut service = owner("automation");
     service.principal_kind = veoveo_task_runtime::PrincipalKind::Service;
-    service.authority.provenance = veoveo_mcp_contract::InvocationProvenance::Automated;
+    service.authority.provenance = veoveo_types::InvocationProvenance::Automated;
     let first = a.reserve(&alice, &request()).await.unwrap();
     let second = a.reserve(&alice, &request()).await.unwrap();
     let page = a.list(&alice, None, 1).await.unwrap();
@@ -113,8 +113,7 @@ async fn collections_support_services_and_contexts_without_multiplying_owner_quo
         veoveo_task_runtime::PrincipalKind::Service
     );
     let mut other_context = alice.clone();
-    other_context.authority.work_context =
-        veoveo_mcp_contract::WorkContextId::new("another").unwrap();
+    other_context.authority.work_context = veoveo_types::WorkContextId::new("another").unwrap();
     assert!(
         a.list(&other_context, None, 10)
             .await
@@ -195,7 +194,7 @@ async fn concurrent_distinct_admissions_enforce_each_shared_capacity_boundary() 
     ));
     let mut other_tenant = owner("dana");
     other_tenant.tenant_key = Some("tenant-two".into());
-    other_tenant.authority.tenant = veoveo_mcp_contract::TenantId::new("tenant-two").unwrap();
+    other_tenant.authority.tenant = veoveo_types::TenantId::new("tenant-two").unwrap();
     b.reserve(&other_tenant, &request()).await.unwrap();
     assert!(matches!(
         a.reserve(&other_tenant, &request()).await,

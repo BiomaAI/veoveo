@@ -3,9 +3,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    AccessDecision, AccessLevel, AccessRequest, AccessSubject, ArtifactId, DataLabelId, Exposure,
-    GatewayControlPlane, Grant, GroupMembership, GroupRole, InvocationMode, OwnedRoutePurpose,
-    PrincipalId, ResourceSelector, ServerManifest, TenantId, WorkContextId,
+    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Exposure, GatewayControlPlane, Grant,
+    GroupMembership, GroupRole, OwnedRoutePurpose, ResourceSelector, ServerManifest,
     WorkContextMembershipLevel,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
@@ -13,6 +12,9 @@ use veoveo_platform_store::{
     AgentRecord, ArtifactBlobRecord, ArtifactGrantEdge, ArtifactOccurrenceRecord, AuditEventRecord,
     PrincipalRecord, RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord,
     TaskRecord, WakeRecord,
+};
+use veoveo_types::{
+    AccessSubject, DataLabelId, InvocationMode, PrincipalId, TenantId, WorkContextId,
 };
 
 use crate::runtime::AdminState;
@@ -557,9 +559,9 @@ fn effective_artifact_access(
                     veoveo_platform_store::ArtifactGrantSubjectKind::Principal => {
                         AccessSubject::Principal(PrincipalId::new(grant.subject.clone())?)
                     }
-                    veoveo_platform_store::ArtifactGrantSubjectKind::Group => AccessSubject::Group(
-                        veoveo_mcp_contract::GroupId::new(grant.subject.clone())?,
-                    ),
+                    veoveo_platform_store::ArtifactGrantSubjectKind::Group => {
+                        AccessSubject::Group(veoveo_types::GroupId::new(grant.subject.clone())?)
+                    }
                 },
                 level: contract_access_level(grant.permission),
                 tenant: context.tenant.clone(),

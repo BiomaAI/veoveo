@@ -17,7 +17,7 @@ use veoveo_platform_store::{
     PlatformStore, WorkContextMembershipRuleRecord, deterministic_tenant_id,
     deterministic_work_context_id,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{GroupId, InvocationMode, PrincipalId, ScopeName, TenantId};
 
 pub(crate) fn subject(name: &str) -> AuthenticatedSubject {
     let principal = Principal {

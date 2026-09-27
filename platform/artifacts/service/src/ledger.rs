@@ -3,17 +3,17 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use veoveo_mcp_contract::access::{AccessSubject, ArtifactId, Grant};
+use veoveo_mcp_contract::access::{ArtifactId, Grant};
 use veoveo_mcp_contract::gateway::{
-    DataLabelId, GatewayProfileId, GroupId, PrincipalId, PrincipalKind, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject,
+    GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactReleaseState};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
     ArtifactAccessRequestState, ArtifactShareLinkId, ArtifactWriteCapabilityId,
-    InvocationAuthority, WorkContextId,
+    InvocationAuthority,
 };
+use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId, WorkContextId};
 
 pub mod read_capability;
 pub use read_capability::*;

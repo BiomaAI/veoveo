@@ -8,13 +8,13 @@ use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfile, GatewayProfileId, PolicyEffect, PolicyTarget, TraceId,
-    WorkContextId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog, PolicyRequest};
 use veoveo_platform_store::{
     WorkContextMembershipLevel, agent_management::AgentCatalogAuthority,
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
+use veoveo_types::WorkContextId;
 
 use super::{AgentManagementState, Fault};
 use crate::audit::{AdminAuthorizationRequest, authorize_gateway_action};

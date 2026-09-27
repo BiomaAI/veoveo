@@ -1,6 +1,7 @@
 //! Signed request metadata for current policy checks; contains no bearer token.
 use super::*;
-use crate::{AccessTokenSubject, InvocationMode, InvocationProvenance, PrincipalKind};
+use crate::{AccessTokenSubject, PrincipalKind};
+use veoveo_types::{InvocationMode, InvocationProvenance};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

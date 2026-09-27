@@ -3,13 +3,13 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthGrantType,
-    ResourceAuthorizationServer, WorkContextId,
+    AuthOutcome, AuthReasonCode, OAuthClientAuthMethod, OAuthGrantType, ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{
     ClientAssertionConfig, ClientAssertionVerifier, GatewayCatalog,
     managed_agents::EffectiveOAuthClient,
 };
+use veoveo_types::WorkContextId;
 
 use crate::{
     audit::{AuthAuditRecord, auth_audit_error_response, record_token_auth_audit},

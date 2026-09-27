@@ -8,9 +8,9 @@ use tokio::{
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayDiscoveryDegradation, GatewayDiscoveryFailure, GatewayDiscoveryFailureCode,
-    GatewayDiscoverySurface, PrincipalId, ServerSlug,
+    GatewayDiscoverySurface, ServerSlug,
 };
-use veoveo_types::ResourceUri;
+use veoveo_types::{PrincipalId, ResourceUri};
 
 pub(super) const MAX_CONCURRENT_DISCOVERY: usize = 8;
 const MAX_CACHE_ENTRIES_PER_SURFACE: usize = 4_096;

@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::ArtifactId;
-use crate::gateway::{
-    DataLabelId, DelegationId, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+use veoveo_types::{
+    AccessSubject, DataLabelId, DelegationId, InvocationMode, PolicyVersion, PrincipalId, TenantId,
+    WorkContextId,
 };
-use crate::{AccessSubject, InvocationMode};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

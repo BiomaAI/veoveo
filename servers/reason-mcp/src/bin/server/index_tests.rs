@@ -2,10 +2,12 @@ use std::{collections::BTreeSet, time::Duration};
 
 use serde_json::json;
 use veoveo_mcp_contract::{
-    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
-    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskId};
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+};
 
 #[path = "../../../../../testing/fixtures/store.rs"]
 mod fixture;

@@ -349,7 +349,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         labeled
             .actor
             .data_labels
-            .insert(veoveo_mcp_contract::DataLabelId::new("restricted").unwrap());
+            .insert(veoveo_types::DataLabelId::new("restricted").unwrap());
         let hidden = writer
             .prepare_plan(&pilot, mission_request("classified-mission"))
             .await

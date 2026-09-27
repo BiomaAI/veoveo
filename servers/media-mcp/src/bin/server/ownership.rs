@@ -152,12 +152,14 @@ mod tests {
 
     use chrono::Utc;
     use veoveo_mcp_contract::{
-        AccessSubject, DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId,
-        InvocationAuthority, InvocationProvenance, JwtId, PolicyVersion, Principal, PrincipalId,
-        PrincipalKind, RoleId, ServerSlug, TenantId, TokenIssuer, TokenSubject, WorkContextId,
-        WorkContextMembershipLevel, WorkContextOutputPolicy,
+        GatewayInternalIdentity, GatewayProfileId, InvocationAuthority, JwtId, Principal,
+        PrincipalKind, ServerSlug, TokenIssuer, TokenSubject, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
     };
-    use veoveo_types::ScopeName;
+    use veoveo_types::{
+        AccessSubject, DataLabelId, GroupId, InvocationProvenance, PolicyVersion, PrincipalId,
+        RoleId, ScopeName, TenantId, WorkContextId,
+    };
 
     use super::{runtime_owner, task_owner_allows};
 

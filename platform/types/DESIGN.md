@@ -4,8 +4,8 @@
 
 | Standard or format | Implemented profile |
 |---|---|
-| JSON | Names and resource references serialize as strings; deserialization applies their constructors |
-| JSON Schema 2020-12 | Schemars emits string schemas; runtime validators apply the lexical rules below |
+| JSON | Identifiers and resource references serialize as strings; deserialization applies their constructors. Access subjects use `kind` and `id`; invocation provenance uses `mode` with the required attribution fields. |
+| JSON Schema 2020-12 | Schemars emits string schemas for identifiers and tagged unions for subjects and provenance; runtime validators apply the lexical rules below |
 | [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `scope_enum!` declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
@@ -18,8 +18,17 @@
 `veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
 `Sha256Digest`, and `Sha256DigestError`. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriSegment`, and `ResourceUriError` implement concrete component handling.
+Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
+`DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
+validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
+and `InvocationProvenance` describe direct, delegated, or automated attribution.
 It depends on Serde, Schemars, URL, and percent encoding. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
+
+Identity syntax and attribution establish no authority. Authentication, policy
+evaluation, Work Context membership, and access decisions stay with their existing
+owners. Artifact metadata and coordinate vocabularies have domain owners; their use
+by several servers does not make them foundational identity types.
 
 A server library owns its scope enum and resource variants. Its `ScopeDefinition`
 implementation maps a domain value to a validated name. Its `ResourceAddress`
@@ -34,6 +43,21 @@ provides no server-specific enums or blanket implementation that makes an arbitr
 name or reference a domain contract.
 
 ## Wire Behavior
+
+Claim identities (`PrincipalId`, `TenantId`, `DelegationId`, `GroupId`, and `RoleId`)
+require nonempty text without control characters. They preserve Unicode and whitespace.
+`DataLabelId` and `PolicyVersion` also reject whitespace. `WorkContextId` accepts
+nonempty lowercase ASCII letters, digits, hyphens, and underscores. These profiles
+preserve supplied spelling and impose no byte limit. Domain and transport rules may
+require additional validation at their own inputs.
+
+The public `identifier_syntax` module supplies these lexical validators for other
+owners' newtypes. It does not expose an interchangeable generic identity. Constructors
+and Serde use the same validator; the distinct types survive until serialization.
+`AccessSubject` requires the corresponding principal or group ID. Direct provenance
+requires an initiator, delegated provenance also requires a delegation ID, and
+automated provenance carries neither field. Services must authenticate this attribution
+before trusting it.
 
 `scope_enum!` generates a domain enum from its owner's variant-to-spelling declaration.
 Its parser, serializer, schema, display, and `ScopeDefinition` implementation use that
@@ -106,6 +130,10 @@ generic names and references where domain implementations are required. Componen
 tests cover every printable ASCII character, Unicode, encoded separators, duplicate
 query names, normalization, templates, and malformed input. Time's contract consumes
 the builder and implements `ResourceAddress` for its authority-release URI.
+Identity tests compare all eleven schemas with a fixture captured before extraction,
+preserve the three lexical profiles and tagged JSON forms, and reject invalid nested
+IDs and missing attribution. Compile-fail examples reject crossed identity types,
+incorrect subject variants, and incomplete delegated provenance.
 
 These tests qualify foundational types and extension points. Hosted-server behavior,
 SQL visibility, authorization decisions, and runtime isolation require their owning

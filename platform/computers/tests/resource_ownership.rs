@@ -1,7 +1,8 @@
 //! Resource identity survives client changes; current policy and grant sessions do not merge.
 mod support;
 use veoveo_computers::{ComputerActor, ComputerError, api::*};
-use veoveo_mcp_contract::{DataLabelId, GatewayAction, WorkContextId};
+use veoveo_mcp_contract::GatewayAction;
+use veoveo_types::{DataLabelId, WorkContextId};
 
 #[tokio::test]
 async fn retained_collection_uses_current_profile_policy_and_indexed_owner_identity() {

@@ -80,21 +80,21 @@ pub(super) fn task_owner_from_runtime(
 ) -> Result<TaskOwner, String> {
     Ok(TaskOwner {
         task_id: task_id.to_owned(),
-        principal_id: veoveo_mcp_contract::PrincipalId::new(owner.principal_key.clone())
+        principal_id: veoveo_types::PrincipalId::new(owner.principal_key.clone())
             .map_err(|error| error.to_string())?,
         profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())
             .map_err(|error| error.to_string())?,
         tenant: owner
             .tenant_key
             .clone()
-            .map(veoveo_mcp_contract::TenantId::new)
+            .map(veoveo_types::TenantId::new)
             .transpose()
             .map_err(|error| error.to_string())?,
         data_labels: owner
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_mcp_contract::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::new)
             .collect::<Result<_, _>>()
             .map_err(|error| error.to_string())?,
     })
@@ -114,19 +114,19 @@ pub(super) async fn optional_task_owner(
     };
     Ok(Some(TaskOwner {
         task_id: task_id.to_owned(),
-        principal_id: veoveo_mcp_contract::PrincipalId::new(owner.principal_key)
+        principal_id: veoveo_types::PrincipalId::new(owner.principal_key)
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
         profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile)
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
         tenant: owner
             .tenant_key
-            .map(veoveo_mcp_contract::TenantId::new)
+            .map(veoveo_types::TenantId::new)
             .transpose()
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
         data_labels: owner
             .data_labels
             .into_iter()
-            .map(veoveo_mcp_contract::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::new)
             .collect::<Result<_, _>>()
             .map_err(|err| McpError::internal_error(err.to_string(), None))?,
     }))

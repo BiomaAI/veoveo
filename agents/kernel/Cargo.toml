@@ -12,6 +12,7 @@ name = "agent"
 path = "src/bin/agent.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true

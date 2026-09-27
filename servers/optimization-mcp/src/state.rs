@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
-use veoveo_mcp_contract::{
-    DataLabelId, GatewayProfileId, InvocationAuthority, PrincipalId, TenantId,
-};
+use veoveo_mcp_contract::{GatewayProfileId, InvocationAuthority};
+use veoveo_types::{DataLabelId, PrincipalId, TenantId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TaskOwner {

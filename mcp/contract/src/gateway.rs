@@ -1,5 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
-use veoveo_types::{IdentifierError, ResourceScheme, ResourceUri, ScopeName};
+use veoveo_types::{
+    DataLabelId, DelegationId, GroupId, IdentifierError, PolicyVersion, PrincipalId,
+    ResourceScheme, ResourceUri, RoleId, ScopeName, TenantId, WorkContextId,
+};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -641,13 +644,13 @@ impl GatewayControlPlane {
                 });
             }
             let mode_matches = match client.invocation_mode {
-                crate::InvocationMode::Direct => client
+                veoveo_types::InvocationMode::Direct => client
                     .grant_types
                     .contains(&OAuthGrantType::AuthorizationCodePkce),
-                crate::InvocationMode::Delegated => client
+                veoveo_types::InvocationMode::Delegated => client
                     .grant_types
                     .contains(&OAuthGrantType::EnterpriseManagedAuthorization),
-                crate::InvocationMode::Automated => client
+                veoveo_types::InvocationMode::Automated => client
                     .grant_types
                     .contains(&OAuthGrantType::ClientCredentials),
             };

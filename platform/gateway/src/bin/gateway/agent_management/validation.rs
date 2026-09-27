@@ -3,9 +3,10 @@ use axum::{
     extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
 };
-use veoveo_mcp_contract::{GatewayAction as Action, WorkContextId, agent_management as wire};
+use veoveo_mcp_contract::{GatewayAction as Action, agent_management as wire};
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::agent_management::{AgentDefinition, AgentPublicationContext};
+use veoveo_types::WorkContextId;
 
 use super::{
     AgentManagementState, Api, Fault,

@@ -3,10 +3,10 @@ use std::collections::BTreeSet;
 use chrono::Utc;
 use jsonwebtoken::{DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use veoveo_mcp_contract::{
-    DataLabelId, GroupId, IdentityProviderSubjectClaim, IdentityProviderTenantClaim,
-    IdentityProviderTenantClaimMapping, Principal, PrincipalDisplayName, PrincipalId,
-    PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject,
+    IdentityProviderSubjectClaim, IdentityProviderTenantClaim, IdentityProviderTenantClaimMapping,
+    Principal, PrincipalDisplayName, PrincipalKind, TokenIssuer, TokenSubject,
 };
+use veoveo_types::{DataLabelId, GroupId, PrincipalId, RoleId, TenantId};
 
 use super::{
     claims::{OidcIdTokenClaims, StringListClaim},

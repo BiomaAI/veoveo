@@ -10,13 +10,14 @@ use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayAction,
     GatewayControlPlane, GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, JwtId,
     McpMethodName, OAuthClientId, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget,
-    Principal, PrincipalAuditAttributes, PrincipalId, ProtectedResourceId,
-    ResourceAuthorizationServer, TokenSubject, TraceId,
+    Principal, PrincipalAuditAttributes, ProtectedResourceId, ResourceAuthorizationServer,
+    TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalog, GatewayState, PolicyRequest,
     merge_principal_audit_metadata, principal_audit_metadata, www_authenticate_challenge,
 };
+use veoveo_types::PrincipalId;
 
 use crate::runtime::{AdminState, ProfileAuthState, current_catalog};
 

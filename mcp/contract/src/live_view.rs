@@ -5,9 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
-use crate::{
-    AccessSubject, DataLabelId, GatewayInternalIdentity, PolicyVersion, TenantId, WorkContextId,
-};
+use crate::GatewayInternalIdentity;
+use veoveo_types::{AccessSubject, DataLabelId, PolicyVersion, TenantId, WorkContextId};
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
 
@@ -718,7 +717,7 @@ pub struct LiveViewState {
     pub stream_product_id: LiveStreamProductId,
     pub resource_uri: LiveViewUri,
     pub owner: LiveViewOwner,
-    pub viewer_actor: crate::PrincipalId,
+    pub viewer_actor: veoveo_types::PrincipalId,
     pub viewer_instance_id: LiveViewerInstanceId,
     pub session_id: LiveSessionId,
     pub camera_id: LiveCameraId,

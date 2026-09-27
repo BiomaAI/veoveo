@@ -15,8 +15,7 @@ use veoveo_agent_runtime::{
     NewWake, OperatorMessageDraft, WakeAckReason, json_object,
 };
 use veoveo_mcp_contract::{
-    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
-    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{
     AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
@@ -25,6 +24,9 @@ use veoveo_platform_store::{
     deterministic_principal_id, deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition};
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+};
 
 fn agent_authority() -> InvocationAuthority {
     let principal = PrincipalId::new("agent:durability-agent").unwrap();

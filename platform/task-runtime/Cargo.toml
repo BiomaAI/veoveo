@@ -8,6 +8,7 @@ name = "veoveo_task_runtime"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 async-stream = "0.3.6"
 chrono.workspace = true

@@ -10,8 +10,9 @@ use serde::Deserialize;
 use url::Url;
 use veoveo_mcp_contract::{
     AuthMode, AuthOutcome, AuthReasonCode, GatewayAuthorizationRequest, OAuthClientId,
-    OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod, WorkContextId,
+    OAuthRedirectUri, OAuthStateValue, PkceCodeChallenge, PkceCodeChallengeMethod,
 };
+use veoveo_types::WorkContextId;
 
 use crate::{
     audit::{

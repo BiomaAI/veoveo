@@ -3,11 +3,10 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
-    PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, PolicyVersion, Principal,
-    RecordingIngestResource, RecordingProducerRegistration, ResourceProjectionMode, ServerManifest,
-    TraceId,
+    PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal, RecordingIngestResource,
+    RecordingProducerRegistration, ResourceProjectionMode, ServerManifest, TraceId,
 };
-use veoveo_types::{ResourceScheme, ScopeName};
+use veoveo_types::{PolicyVersion, ResourceScheme, ScopeName};
 
 use crate::PolicyCatalogView;
 
@@ -779,12 +778,13 @@ fn intersects<T: Ord>(left: &BTreeSet<T>, right: &BTreeSet<T>) -> bool {
 mod recording_ingest_tests {
     use serde_json::Value;
     use veoveo_mcp_contract::{
-        AuthorizationServerId, DataLabelId, OAuthClientId, PolicyEffect, ProtectedResourceId,
+        AuthorizationServerId, OAuthClientId, PolicyEffect, ProtectedResourceId,
         ProtectedResourceName, RecordingApplicationId, RecordingDatasetName,
         RecordingProducerBlueprintPolicy, RecordingProducerId, RecordingProducerQuotas,
         RecordingRetentionPolicy, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity,
         UpstreamUrl,
     };
+    use veoveo_types::DataLabelId;
 
     use super::*;
 
@@ -797,12 +797,11 @@ mod recording_ingest_tests {
     ) {
         let protected_resource =
             ProtectedResourceId::new("https://veoveo.example/ingest/recordings").unwrap();
-        let tenant = veoveo_mcp_contract::TenantId::new("tenant-a").unwrap();
+        let tenant = veoveo_types::TenantId::new("tenant-a").unwrap();
         let scope = ScopeName::new("recording:ingest").unwrap();
         let label = DataLabelId::new("cui").unwrap();
         let principal = Principal {
-            id: veoveo_mcp_contract::PrincipalId::new("https://veoveo.example/oauth#sensor-a")
-                .unwrap(),
+            id: veoveo_types::PrincipalId::new("https://veoveo.example/oauth#sensor-a").unwrap(),
             kind: veoveo_mcp_contract::PrincipalKind::Service,
             issuer: veoveo_mcp_contract::TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
             subject: veoveo_mcp_contract::TokenSubject::new("sensor-a").unwrap(),

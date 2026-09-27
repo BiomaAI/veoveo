@@ -9,12 +9,11 @@ use jsonwebtoken::{
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    InvocationProvenance, JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalId,
-    PrincipalKind, ProtectedResourceId, ResourceAuthorizationServer, SecretPurpose,
-    SecretReferenceId, TenantId, TokenSubject, WorkContextId,
+    JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalKind, ProtectedResourceId,
+    ResourceAuthorizationServer, SecretPurpose, SecretReferenceId, TokenSubject,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
-use veoveo_types::ScopeName;
+use veoveo_types::{InvocationProvenance, PrincipalId, ScopeName, TenantId, WorkContextId};
 
 pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 
@@ -31,7 +30,7 @@ struct AccessTokenClaims {
     #[serde(skip_serializing_if = "Option::is_none")]
     session_family: Option<veoveo_mcp_contract::GatewayRefreshFamilyId>,
     work_context: String,
-    invocation_mode: veoveo_mcp_contract::InvocationMode,
+    invocation_mode: veoveo_types::InvocationMode,
     #[serde(skip_serializing_if = "Option::is_none")]
     initiator: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

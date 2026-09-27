@@ -95,7 +95,7 @@ impl ComputersStore {
             .data_labels
             .iter()
             .map(|label| {
-                veoveo_mcp_contract::DataLabelId::new(label.clone())
+                veoveo_types::DataLabelId::new(label.clone())
                     .map_err(|_| ComputerError::Unavailable)
             })
             .collect::<Result<std::collections::BTreeSet<_>>>()?;

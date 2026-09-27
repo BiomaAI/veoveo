@@ -12,6 +12,7 @@ name = "duckdb-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true
@@ -43,6 +44,5 @@ veoveo-platform-store = { path = "../../platform/store" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
-veoveo-types.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

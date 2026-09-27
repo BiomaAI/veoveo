@@ -5,9 +5,8 @@ use secrecy::SecretString;
 use serde_json::json;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AccessSubject, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, InvocationAuthority,
-    InvocationProvenance, IssuedArtifactWriteCapability, PolicyVersion, PrincipalId, TenantId,
-    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, InvocationAuthority,
+    IssuedArtifactWriteCapability, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_media_mcp::{
     provider::Prediction,
@@ -18,6 +17,9 @@ use veoveo_platform_store::{
 };
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskFailure, TaskId, TaskOwner, TaskRuntime,
+};
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
 
 fn authority() -> InvocationAuthority {

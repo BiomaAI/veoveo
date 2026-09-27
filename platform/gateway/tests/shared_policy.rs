@@ -1,11 +1,12 @@
 //! The lightweight worker catalog and gateway index must make the same decisions.
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalId,
-    PrincipalKind, RoleId, TenantId, TokenIssuer, TokenSubject, TraceId,
+    GatewayAction, GatewayControlPlane, LocalToolName, PolicyTarget, Principal, PrincipalKind,
+    TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest};
 use veoveo_policy::PolicyCatalog;
+use veoveo_types::{PrincipalId, RoleId, TenantId};
 
 #[test]
 fn gateway_and_background_catalogs_preserve_policy_semantics() {

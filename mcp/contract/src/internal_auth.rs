@@ -21,10 +21,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    GatewayProfileId, InvocationAuthority, JwtId, Principal, PrincipalId, ProtectedResourceId,
-    ServerSlug, TokenIssuer,
+    GatewayProfileId, InvocationAuthority, JwtId, Principal, ProtectedResourceId, ServerSlug,
+    TokenIssuer,
 };
-use veoveo_types::IdentifierError;
+use veoveo_types::{IdentifierError, PrincipalId};
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
 pub const DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID: &str = "veoveo-internal-1";
@@ -700,8 +700,8 @@ mod tests {
     use chrono::TimeDelta;
 
     use super::*;
-    use crate::{GroupId, PrincipalKind, RoleId, TenantId, TokenSubject};
-    use veoveo_types::ScopeName;
+    use crate::{PrincipalKind, TokenSubject};
+    use veoveo_types::{GroupId, RoleId, ScopeName, TenantId};
 
     const PRIVATE_KEY_DER_B64: &str =
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";
@@ -739,10 +739,8 @@ mod tests {
     }
 
     fn authority() -> InvocationAuthority {
-        use crate::{
-            AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId,
-            WorkContextMembershipLevel, WorkContextOutputPolicy,
-        };
+        use crate::{WorkContextMembershipLevel, WorkContextOutputPolicy};
+        use veoveo_types::{AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId};
 
         InvocationAuthority {
             work_context: WorkContextId::new("mission").unwrap(),

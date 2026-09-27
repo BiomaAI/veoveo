@@ -68,6 +68,17 @@ follows them before publishing a refresh. Native tests cover 125 admitted record
 behind 330 records denied by tenant, context, or labels, plus parent selection and
 clearance changes between pages. Other Map resource families and contract feature
 isolation remain implementation work; installed and headed hardware acceptance is pending.
+Platform identity, access subjects, and invocation provenance now live in the foundation.
+Their eleven pre-extraction schemas and existing wire forms are preserved. The independent
+consumer passes ten checks with no MCP, runtime, database, GPU, or provider dependencies;
+strict workspace Clippy passes across all targets and features. Artifact and coordinate
+contracts still need domain-owned dependency separation for Map's contract feature.
+The foundation/MCP suites pass 193 cases, including compile-fail checks. Artifact,
+Map, gateway, policy, and Time library suites pass 277 cases. Five additional policy
+integration cases cover shared decisions, ambiguous catalogs, and session-family
+authority. The twelve ignored
+Artifact tests require their native database fixture and are not counted as acceptance
+for this extraction. No persisted representation or authorization rule changed.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -402,7 +413,7 @@ the pattern, and do not establish repository-wide completion.
 
 | Owner | Target responsibility |
 |---|---|
-| `platform/types`, crate `veoveo-types` | Protocol-independent validated names and resource URIs, focused builders, and public extension traits such as `ScopeDefinition` and `ResourceAddress` |
+| `platform/types`, crate `veoveo-types` | Protocol-independent platform identity and attribution, validated names and resource URIs, focused builders, and public extension traits such as `ScopeDefinition` and `ResourceAddress` |
 | Each server library's public `contract` module | Its scope enum, domain IDs, resource address variants, and request/response types |
 | `mcp/contract` | MCP-specific traits that consume the foundational types, descriptors, discovery integration, protocol conversions, and hosted-server setup requirements |
 | Server runtime and policy owners | Domain operations, current authorization, persistence, and protocol handlers |
@@ -502,7 +513,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder` and percent-encoding 2.3.2 encode components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
-| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; the contract still imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate | Resolve each type's owning contract, expose the contract feature, and migrate remaining addresses and Store query IDs |
+| Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
+| Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; platform identity comes from the foundation, while `CrsId` and Artifact metadata still pull in the runtime-bearing MCP crate | Resolve those domain contracts with their owners, expose the contract feature, and migrate remaining addresses and Store query IDs |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |

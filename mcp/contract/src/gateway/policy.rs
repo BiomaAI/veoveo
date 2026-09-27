@@ -291,7 +291,7 @@ pub struct AccessTokenSubject {
     pub session_family: Option<GatewayRefreshFamilyId>,
     pub audience: ProtectedResourceId,
     pub work_context: WorkContextId,
-    pub invocation_mode: crate::InvocationMode,
+    pub invocation_mode: veoveo_types::InvocationMode,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub initiator: Option<PrincipalId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

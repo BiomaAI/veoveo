@@ -53,10 +53,12 @@ mod tests {
     use super::*;
     use std::{collections::BTreeSet, time::Duration};
     use veoveo_mcp_contract::{
-        AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId,
-        TenantId, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+        InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
     use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskId, TaskRuntime};
+    use veoveo_types::{
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+    };
 
     fn owner(tenant: &str, context: &str, name: &str, profile: &str, labels: &[&str]) -> TaskOwner {
         let principal = PrincipalId::new(name).unwrap();
@@ -87,7 +89,7 @@ mod tests {
     }
     async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) {
         let id = TaskId::new();
-        let principal = veoveo_mcp_contract::PrincipalId::new(owner.principal_key.clone()).unwrap();
+        let principal = veoveo_types::PrincipalId::new(owner.principal_key.clone()).unwrap();
         let context = owner.authority.work_context.clone();
         runtime
             .create(CreateTask {

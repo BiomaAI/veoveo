@@ -10,15 +10,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, NaiveDate, Utc};
-use veoveo_mcp_contract::{
-    DataLabelId, PrincipalId as ContractPrincipalId, PutArtifactRequest, TokenIssuer, TokenSubject,
-};
+use veoveo_mcp_contract::{PutArtifactRequest, TokenIssuer, TokenSubject};
 use veoveo_platform_store::{
     InvocationAuthorityRecord, PlatformIdentity, PlatformStore, PrincipalKind, RecordId,
     RecordIdKey, RecordingBlueprintCommit, RecordingBlueprintDraft, RecordingDatasetDraft,
     RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
     RecordingLayerRecord, RecordingLayerState, RecordingState,
 };
+use veoveo_types::{DataLabelId, PrincipalId as ContractPrincipalId};
 
 use veoveo_rrd::segment::{SegmentInspection, inspect_segment};
 

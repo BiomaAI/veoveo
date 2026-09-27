@@ -7,24 +7,15 @@
 //! provenance, and initial access.
 
 use std::collections::BTreeSet;
+use veoveo_types::{AccessSubject, InvocationProvenance};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    AccessLevel, DataLabelId, DelegationId, GroupId, OAuthClientId, PolicyVersion, Principal,
-    PrincipalId, RoleId, TenantId, WorkContextId,
+use crate::{AccessLevel, OAuthClientId, Principal};
+use veoveo_types::{
+    DataLabelId, GroupId, PolicyVersion, PrincipalId, RoleId, TenantId, WorkContextId,
 };
-
-/// A principal or group that can own governed data or receive access.
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case", tag = "kind", content = "id")]
-pub enum AccessSubject {
-    Principal(PrincipalId),
-    Group(GroupId),
-}
 
 /// A member's authority inside one Work Context.
 ///
@@ -130,46 +121,6 @@ impl WorkContextDefinition {
             .filter(|rule| rule.matches(principal, oauth_client))
             .map(|rule| rule.level)
             .max()
-    }
-}
-
-/// How the current actor obtained authority to perform the work.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum InvocationMode {
-    Direct,
-    Delegated,
-    Automated,
-}
-
-/// Provenance retained across synchronous and asynchronous execution.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case", tag = "mode")]
-pub enum InvocationProvenance {
-    Direct {
-        initiator: PrincipalId,
-    },
-    Delegated {
-        initiator: PrincipalId,
-        delegation_id: DelegationId,
-    },
-    Automated,
-}
-
-impl InvocationProvenance {
-    pub fn mode(&self) -> InvocationMode {
-        match self {
-            Self::Direct { .. } => InvocationMode::Direct,
-            Self::Delegated { .. } => InvocationMode::Delegated,
-            Self::Automated => InvocationMode::Automated,
-        }
-    }
-
-    pub fn initiator(&self) -> Option<&PrincipalId> {
-        match self {
-            Self::Direct { initiator } | Self::Delegated { initiator, .. } => Some(initiator),
-            Self::Automated => None,
-        }
     }
 }
 

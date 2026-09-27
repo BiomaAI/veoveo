@@ -225,7 +225,7 @@ async fn unreadable_output_policy_is_rejected_before_consuming_capacity() {
         .authority
         .output_policy
         .data_labels
-        .insert(veoveo_mcp_contract::DataLabelId::new("restricted").unwrap());
+        .insert(veoveo_types::DataLabelId::new("restricted").unwrap());
     assert!(matches!(
         a.reserve(&alice, &request()).await,
         Err(ComputerError::Forbidden)

@@ -12,7 +12,7 @@ pub struct FilePreparation {
     pub payload: FileTransferPayload,
     pub access: FileTransferAccess,
     pub authority: FileRunAuthority,
-    pub retained_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
+    pub retained_labels: std::collections::BTreeSet<veoveo_types::DataLabelId>,
 }
 impl ComputersStore {
     pub async fn prepare_file_transfer(

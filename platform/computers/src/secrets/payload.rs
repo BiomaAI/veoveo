@@ -22,7 +22,7 @@ pub struct CommandBinding {
     pub template_fingerprint: String,
     pub resource_id: String,
     pub process_id: String,
-    pub required_output_labels: std::collections::BTreeSet<veoveo_mcp_contract::DataLabelId>,
+    pub required_output_labels: std::collections::BTreeSet<veoveo_types::DataLabelId>,
     /// Absence is the initial instance. A replacement is part of authenticated
     /// command identity; original envelopes keep their canonical initial encoding.
     #[serde(default, skip_serializing_if = "Option::is_none")]

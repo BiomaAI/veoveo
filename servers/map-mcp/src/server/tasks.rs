@@ -14,13 +14,14 @@ use tokio::io::AsyncWriteExt;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
     ArtifactId, ArtifactProvenance, ArtifactPut, ArtifactWriteIdempotencyKey, ComplianceMetadata,
-    GatewayInternalIdentity, InvocationMode, InvocationProvenance,
-    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller, PrincipalKind,
+    GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    PlaneCaller, PrincipalKind,
 };
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
     TaskSnapshot, TaskTransition,
 };
+use veoveo_types::{InvocationMode, InvocationProvenance};
 
 use crate::{
     contract::{

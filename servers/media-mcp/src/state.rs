@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, DataLabelId,
-    IssuedArtifactWriteCapability, UsageKind, UsageRecord,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
+    UsageKind, UsageRecord,
 };
 use veoveo_platform_store::{
     ArtifactWriteCapabilityId as StoreCapabilityId, MediaTaskContextId, MediaTaskContextRecord,
@@ -17,6 +17,7 @@ use veoveo_platform_store::{
     RecordId, RecordIdKey, RedactedSecret, StoreError, TaskId, TaskStatus,
 };
 use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_types::DataLabelId;
 
 use crate::provider::Prediction;
 

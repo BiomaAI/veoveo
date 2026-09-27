@@ -57,7 +57,7 @@ use secrecy::{ExposeSecret, SecretString};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource, PrincipalId, SecretPurpose,
+    GatewayControlPlaneRevision, GatewayControlPlaneRevisionSource, SecretPurpose,
     SecretReferenceId, SecretSource, TelemetryGuard, init_server_telemetry,
 };
 use veoveo_mcp_gateway::{
@@ -65,6 +65,7 @@ use veoveo_mcp_gateway::{
     GatewayState, RefreshTokenDeliveryCipher, new_gateway_control_plane_revision_id,
 };
 use veoveo_platform_store::{PlatformStore, StoreAuthLevel, StoreConfig, StoreCredentials};
+use veoveo_types::PrincipalId;
 
 use runtime::GatewayRetentionPolicy;
 

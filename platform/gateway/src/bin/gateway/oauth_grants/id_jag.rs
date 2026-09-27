@@ -3,11 +3,11 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, DelegationId, GatewayProfile, InvocationProvenance,
-    OAuthClientAuthMethod, OAuthClientId, OAuthGrantType, PrincipalKind,
-    ResourceAuthorizationServer, WorkContextId,
+    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthClientAuthMethod, OAuthClientId,
+    OAuthGrantType, PrincipalKind, ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, IdJagConfig, IdJagVerifier};
+use veoveo_types::{DelegationId, InvocationProvenance, WorkContextId};
 
 use crate::{
     audit::{AuthAuditRecord, auth_audit_error_response, record_id_jag_auth_audit},

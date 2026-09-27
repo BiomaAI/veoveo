@@ -3,8 +3,9 @@ use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputersStore, api::*, automation_grants::AutomationGrantPolicy,
 };
-use veoveo_mcp_contract::{GatewayControlPlane, InvocationProvenance, LocalToolName};
+use veoveo_mcp_contract::{GatewayControlPlane, LocalToolName};
 use veoveo_platform_store::PrincipalKind;
+use veoveo_types::InvocationProvenance;
 pub const POLICY: AutomationGrantPolicy = AutomationGrantPolicy {
     max_grants: 2,
     maximum_lifetime_seconds: 3600,

@@ -5,9 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
     AccessTokenSubject, AuthorizationServerId, GatewayProfileId, OAuthClientId, Principal,
-    PrincipalId, TenantId, WorkContextId,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{PrincipalId, ScopeName, TenantId, WorkContextId};
 
 /// Read-only projection of the existing gateway refresh-family record. Display
 /// metadata, delivery envelopes and database IDs are outside this decision.

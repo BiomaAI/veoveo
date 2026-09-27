@@ -23,9 +23,8 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::gateway::{DataLabelId, GroupId, PrincipalId, TenantId};
-pub use crate::work_context::AccessSubject;
 use crate::work_context::WorkContextMembershipLevel;
+use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId};
 
 /// Canonical identity of one logical artifact occurrence. Every put creates a
 /// fresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.

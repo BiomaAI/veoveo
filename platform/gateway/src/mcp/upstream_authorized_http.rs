@@ -246,11 +246,13 @@ mod tests {
 
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use veoveo_mcp_contract::{
-        AccessSubject, GatewayInternalSigningKey, InvocationProvenance, PolicyVersion, PrincipalId,
-        PrincipalKind, TenantId, TokenIssuer, TokenSubject, WorkContextId,
+        GatewayInternalSigningKey, PrincipalKind, TokenIssuer, TokenSubject,
         WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
-    use veoveo_types::ScopeName;
+    use veoveo_types::{
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
+        WorkContextId,
+    };
 
     use super::*;
 
@@ -318,7 +320,7 @@ mod tests {
                     ),
                     audience: veoveo_mcp_contract::ProtectedResourceId::new("operator").unwrap(),
                     work_context: authority.work_context.clone(),
-                    invocation_mode: veoveo_mcp_contract::InvocationMode::Direct,
+                    invocation_mode: veoveo_types::InvocationMode::Direct,
                     initiator: Some(actor.id.clone()),
                     delegation_id: None,
                     scopes: actor.scopes.clone(),

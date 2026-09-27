@@ -7,13 +7,15 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
-    WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials, TaskStatus};
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskError, TaskFailure, TaskInputRequest, TaskOwner,
     TaskPayloadState, TaskRetentionPin, TaskRuntime, TaskTransition,
+};
+use veoveo_types::{
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
 
 fn authority() -> InvocationAuthority {

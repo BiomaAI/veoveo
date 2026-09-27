@@ -1,7 +1,8 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, ensure};
-use veoveo_mcp_contract::{Principal, WorkContextId, agent_management as wire};
+use veoveo_mcp_contract::{Principal, agent_management as wire};
+use veoveo_types::WorkContextId;
 
 use crate::GatewayCatalog;
 pub use veoveo_mcp_contract::agent_management::runtime_template_revision;

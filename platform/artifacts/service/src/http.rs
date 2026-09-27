@@ -15,7 +15,7 @@ use axum::{Json, Router};
 use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
-use veoveo_mcp_contract::access::{AccessLevel, AccessSubject, ArtifactId};
+use veoveo_mcp_contract::access::{AccessLevel, ArtifactId};
 use veoveo_mcp_contract::storage::ArtifactMetadata;
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
@@ -26,6 +26,7 @@ use veoveo_mcp_contract::{
     PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
     StreamArtifactRequest,
 };
+use veoveo_types::AccessSubject;
 
 use crate::PlaneAuthenticator;
 use crate::ledger::ArtifactRepository;
@@ -735,18 +736,19 @@ pub(crate) mod tests {
     use sha2::{Digest, Sha256};
     use veoveo_artifact_client::HttpArtifactPlane;
     use veoveo_mcp_contract::gateway::{
-        GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
-        TokenSubject,
+        GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::{
         GatewayInternalSigningKey, GatewayInternalTokenIssuer, GatewayInternalTrustBundle,
     };
     use veoveo_mcp_contract::{
-        AccessDecision, AccessSubject, ArtifactPlane, ArtifactReleaseState,
-        ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest, InvocationAuthority,
-        InvocationProvenance, IssueArtifactWriteCapabilityRequest, PlaneCaller, PolicyVersion,
-        Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextId,
+        AccessDecision, ArtifactPlane, ArtifactReleaseState, ArtifactWriteCapabilityId,
+        CreateArtifactShareLinkRequest, InvocationAuthority, IssueArtifactWriteCapabilityRequest,
+        PlaneCaller, Principal, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
         WorkContextMembershipLevel, WorkContextOutputPolicy,
+    };
+    use veoveo_types::{
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
 
     use super::*;

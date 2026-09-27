@@ -1,10 +1,11 @@
 use axum::http::StatusCode;
-use veoveo_mcp_contract::{InvocationMode, PrincipalKind};
+use veoveo_mcp_contract::PrincipalKind;
 use veoveo_mcp_gateway::AuthenticatedSubject;
 use veoveo_platform_store::{
     WorkContextMembershipLevel, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id, workspace::WorkspaceAuthority,
 };
+use veoveo_types::InvocationMode;
 
 use super::{WorkspaceState, fault};
 

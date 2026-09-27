@@ -36,11 +36,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::AccessSubject;
 use crate::access::{AccessDecision, AccessLevel, ArtifactId, Grant, GroupMembership};
-use crate::gateway::{DataLabelId, PrincipalId, TenantId, WorkContextId};
 use crate::internal_auth::GatewayInternalIdentity;
 use crate::storage::{ArtifactMetadata, ArtifactObject, ArtifactReleaseState};
+use veoveo_types::{AccessSubject, DataLabelId, PrincipalId, TenantId, WorkContextId};
 
 /// Maximum serialized size of [`PutArtifactRequest`].
 ///
@@ -663,7 +662,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::gateway::DataLabelId;
+    use veoveo_types::DataLabelId;
 
     #[test]
     fn output_capability_has_one_closed_optional_label_floor() {

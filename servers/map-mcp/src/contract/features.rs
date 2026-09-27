@@ -7,7 +7,7 @@ use geo_types::{
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{
+use veoveo_types::{
     AccessSubject, DataLabelId, DelegationId, InvocationMode, PolicyVersion, PrincipalId,
     WorkContextId,
 };

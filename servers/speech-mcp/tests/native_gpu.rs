@@ -309,9 +309,10 @@ async fn cuda_file_live_cancel_and_input_bounds() -> Result<()> {
 }
 
 async fn private_sessions(python: &std::path::Path, pcm: &[u8]) -> Result<()> {
-    use veoveo_mcp_contract::{PrincipalKind, WorkContextId};
+    use veoveo_mcp_contract::PrincipalKind;
     use veoveo_speech_contract::dictation::{DictationStatus, StartDictation};
     use veoveo_speech_mcp::{dictation::Dictations, process::WorkerProcess};
+    use veoveo_types::WorkContextId;
     let worker = std::sync::Arc::new(WorkerProcess::start(python, 2).await?);
     let sessions = Dictations::new(worker, 1);
     let alice = support::identity(&support::owner("alice"));

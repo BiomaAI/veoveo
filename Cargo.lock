@@ -16220,6 +16220,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16242,6 +16243,7 @@ dependencies = [
  "uuid",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16260,6 +16262,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16272,6 +16275,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "veoveo-mcp-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16301,6 +16305,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17058,6 +17063,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17125,6 +17131,7 @@ dependencies = [
  "veoveo-recording-reader",
  "veoveo-recording-video",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17211,6 +17218,7 @@ dependencies = [
  "veoveo-recording-forwarder",
  "veoveo-recording-protocol",
  "veoveo-rrd",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17265,6 +17273,7 @@ dependencies = [
  "veoveo-recording-hub",
  "veoveo-recording-reader",
  "veoveo-rrd",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17297,6 +17306,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-rrd",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17489,6 +17499,7 @@ dependencies = [
  "veoveo-recording-reader",
  "veoveo-recording-video",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17520,6 +17531,7 @@ dependencies = [
  "veoveo-artifact-client",
  "veoveo-mcp-contract",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17542,6 +17554,7 @@ dependencies = [
  "uuid",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17622,6 +17635,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17715,6 +17729,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]

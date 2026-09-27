@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
-use veoveo_mcp_contract::{GatewayProfileId, GatewayResourceSubscription, PrincipalId, ServerSlug};
+use veoveo_mcp_contract::{GatewayProfileId, GatewayResourceSubscription, ServerSlug};
 use veoveo_platform_store::{
     GatewayResourceSubscriptionRecord, OpenObject, gateway_resource_subscription_record_id,
 };
-use veoveo_types::ResourceUri;
+use veoveo_types::{PrincipalId, ResourceUri};
 
 use super::GatewayState;
 

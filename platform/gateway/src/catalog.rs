@@ -9,14 +9,17 @@ use anyhow::{Context, Result};
 use parking_lot::RwLock;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    AuthorizationServerId, DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayProfile,
-    GatewayProfileId, IdentityProvider, IdentityProviderId, InvocationAuthority, InvocationMode,
-    InvocationProvenance, OAuthClientId, OAuthClientRegistration, OidcClientRegistrationId,
-    PolicySet, PolicyVersion, Principal, PrincipalId, PrincipalKind, ProtectedResourceName,
-    RecordingIngestResource, RecordingProducerId, RecordingProducerRegistration,
-    ResourceAuthorizationServer, ResourceProjectionMode, SecretReference, SecretReferenceId,
-    ServerManifest, ServerSlug, TenantDefinition, TenantId, TokenSubject, WorkContextDefinition,
-    WorkContextId, WorkContextMembershipLevel,
+    AuthorizationServerId, DataLabelDefinition, GatewayControlPlane, GatewayProfile,
+    GatewayProfileId, IdentityProvider, IdentityProviderId, InvocationAuthority, OAuthClientId,
+    OAuthClientRegistration, OidcClientRegistrationId, PolicySet, Principal, PrincipalKind,
+    ProtectedResourceName, RecordingIngestResource, RecordingProducerId,
+    RecordingProducerRegistration, ResourceAuthorizationServer, ResourceProjectionMode,
+    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TenantDefinition, TokenSubject,
+    WorkContextDefinition, WorkContextMembershipLevel,
+};
+use veoveo_types::{
+    DataLabelId, InvocationMode, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
+    WorkContextId,
 };
 
 use crate::policy::{exposure_contains, resource_scheme};

@@ -12,9 +12,8 @@ use std::{
 };
 use surrealdb::types::{RecordId, SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    DataLabelId, GatewayAction, PolicyEffect, TraceId, WorkContextMembershipLevel,
-};
+use veoveo_mcp_contract::{GatewayAction, PolicyEffect, TraceId, WorkContextMembershipLevel};
+use veoveo_types::DataLabelId;
 
 struct Owned {
     computer: Computer,

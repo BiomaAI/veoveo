@@ -5,9 +5,9 @@ use std::{fs, path::Path};
 use anyhow::{Context, Result, ensure};
 use veoveo_deploy_contract::InstallationTarget;
 use veoveo_mcp_contract::{
-    GatewayControlPlane, JwtId, OAuthClientAuthMethod, OAuthGrantType, TenantId,
-    WorkContextDefinition,
+    GatewayControlPlane, JwtId, OAuthClientAuthMethod, OAuthGrantType, WorkContextDefinition,
 };
+use veoveo_types::TenantId;
 
 use super::gateway_token_for_context;
 

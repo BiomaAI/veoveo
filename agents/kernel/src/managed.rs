@@ -4,11 +4,12 @@ use std::time::Duration;
 use anyhow::{Context, Result, ensure};
 use uuid::Uuid;
 use veoveo_agent_runtime::ManagedRuntimeBinding;
-use veoveo_mcp_contract::{WorkContextId, agent_management as wire};
+use veoveo_mcp_contract::agent_management as wire;
 use veoveo_platform_store::{
     PlatformStore,
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},
 };
+use veoveo_types::WorkContextId;
 
 use crate::manifest::{AgentManifest, ResourceSubscription};
 

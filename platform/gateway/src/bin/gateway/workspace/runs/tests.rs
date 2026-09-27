@@ -394,7 +394,7 @@ fn model_admission_requires_exact_context_registered_provider_secret_and_bounded
     invalid.limits.max_output_tokens = 9000;
     assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
-    invalid.tenant = veoveo_mcp_contract::TenantId::new("foreign").unwrap();
+    invalid.tenant = veoveo_types::TenantId::new("foreign").unwrap();
     assert!(crate::agent_management::models::validate(&[invalid], &catalog).is_err());
     let mut invalid = definition.clone();
     invalid.api_key = veoveo_mcp_contract::SecretReferenceId::new("unregistered").unwrap();

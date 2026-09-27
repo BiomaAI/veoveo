@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{PrincipalId, TenantId, WorkContextId};
+use veoveo_types::{PrincipalId, TenantId, WorkContextId};
 mod operations;
 pub use operations::*;
 mod apps;

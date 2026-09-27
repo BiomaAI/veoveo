@@ -7,8 +7,9 @@ use crate::{
 };
 use std::collections::BTreeSet;
 use uuid::Uuid;
-use veoveo_mcp_contract::{InvocationMode, OAuthClientRegistration};
+use veoveo_mcp_contract::OAuthClientRegistration;
 use veoveo_policy::PolicyCatalogView;
+use veoveo_types::InvocationMode;
 
 #[derive(Default)]
 pub(super) struct GrantManagement {

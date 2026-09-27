@@ -2,11 +2,12 @@ use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalId, PrincipalKind};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
     TaskSnapshot, TaskTransition,
 };
+use veoveo_types::PrincipalId;
 
 use crate::{
     contract::CaptureFrameRequest,

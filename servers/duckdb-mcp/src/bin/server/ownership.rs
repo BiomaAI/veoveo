@@ -9,8 +9,9 @@ use veoveo_duckdb_mcp::{
 };
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayProfileId, JwtId, PlaneCaller,
-    Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer, TokenSubject,
+    Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
+use veoveo_types::{PrincipalId, TenantId};
 
 use super::app_state::AppState;
 
@@ -99,7 +100,7 @@ pub(super) fn task_owner_from_runtime(
             .data_labels
             .iter()
             .cloned()
-            .map(veoveo_mcp_contract::DataLabelId::new)
+            .map(veoveo_types::DataLabelId::new)
             .collect::<Result<_, _>>()
             .map_err(|error| error.to_string())?,
     })
@@ -157,7 +158,7 @@ pub(super) fn identity_from_runtime(
                 .data_labels
                 .iter()
                 .cloned()
-                .map(veoveo_mcp_contract::DataLabelId::new)
+                .map(veoveo_types::DataLabelId::new)
                 .collect::<Result<_, _>>()
                 .map_err(|error| error.to_string())?,
             assurances: BTreeSet::new(),
@@ -325,11 +326,13 @@ pub(super) fn resolve_writable_database(
 mod tests {
     use super::*;
     use veoveo_mcp_contract::{
-        AccessSubject, DataLabelId, GroupId, InvocationAuthority, InvocationProvenance,
-        PolicyVersion, PrincipalAssurance, RoleId, TokenSubject, WorkContextId,
-        WorkContextMembershipLevel, WorkContextOutputPolicy,
+        InvocationAuthority, PrincipalAssurance, TokenSubject, WorkContextMembershipLevel,
+        WorkContextOutputPolicy,
     };
-    use veoveo_types::ScopeName;
+    use veoveo_types::{
+        AccessSubject, DataLabelId, GroupId, InvocationProvenance, PolicyVersion, RoleId,
+        ScopeName, WorkContextId,
+    };
 
     fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
         let now = Utc::now();

@@ -14,8 +14,8 @@ use veoveo_mcp_contract::{
     OAuthAuthorizationCode, OAuthClientId, OAuthRedirectUri, OAuthStateValue,
     OidcClientRegistrationId, OidcNonce, PkceCodeChallenge, PkceCodeChallengeMethod,
     PkceCodeVerifier, PolicyDecision, PolicyEffect, PolicyReasonCode, PolicyTarget, Principal,
-    PrincipalAuditAttributes, PrincipalDisplayName, PrincipalId, PrincipalKind,
-    ProtectedResourceId, ServerSlug, TenantId, TokenIssuer, TokenSubject, TraceId, WorkContextId,
+    PrincipalAuditAttributes, PrincipalDisplayName, PrincipalKind, ProtectedResourceId, ServerSlug,
+    TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{
     GatewayRefreshDeliveryWindow, GatewayRefreshExchange, GatewayRefreshIssueRequest,
@@ -24,7 +24,7 @@ use veoveo_mcp_gateway::{
 use veoveo_platform_store::{
     GatewayAuditKind, GatewayRefreshTokenRecord, PlatformStore, StoreConfig, StoreCredentials,
 };
-use veoveo_types::{ResourceUri, ScopeName};
+use veoveo_types::{PrincipalId, ResourceUri, ScopeName, TenantId, WorkContextId};
 
 #[tokio::test]
 async fn concurrent_gateway_audit_writes_retry_transaction_conflicts() {

@@ -7,12 +7,13 @@ use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuditEvent, AuthAuditEvent, AuthMethod, AuthOutcome, AuthReasonCode, GatewayProfileId,
     LocalToolName, McpMethodName, PolicyEffect, PolicyReasonCode, PrincipalAuditAttributes,
-    PrincipalId, ServerSlug, TenantId, TokenIssuer, TraceId,
+    ServerSlug, TokenIssuer, TraceId,
 };
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, GatewayAuditKind, OpenObject,
     deterministic_principal_id, deterministic_tenant_id,
 };
+use veoveo_types::{PrincipalId, TenantId};
 
 use super::GatewayState;
 

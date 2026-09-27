@@ -797,11 +797,11 @@ fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{
-        AccessSubject, InvocationAuthority, InvocationProvenance, PolicyVersion, PrincipalId,
-        TenantId, WorkContextId, WorkContextOutputPolicy,
-    };
+    use veoveo_mcp_contract::{InvocationAuthority, WorkContextOutputPolicy};
     use veoveo_task_runtime::PrincipalKind;
+    use veoveo_types::{
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+    };
 
     fn task_owner(
         principal: &str,

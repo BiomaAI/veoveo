@@ -3,13 +3,14 @@ use std::collections::BTreeSet;
 use chrono::Utc;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    AccessSubject, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
-    GatewayControlPlaneRevisionSource, GroupId, OAuthClientId, PolicySet, PolicyVersion,
-    PrincipalId, TenantDefinition, TenantId, WorkContextDefinition, WorkContextId,
-    WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
+    GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+    GatewayControlPlaneRevisionSource, OAuthClientId, PolicySet, TenantDefinition,
+    WorkContextDefinition, WorkContextMembershipLevel, WorkContextMembershipRule,
+    WorkContextOutputPolicy,
 };
 use veoveo_mcp_gateway::GatewayControlStore;
 use veoveo_platform_store::{StoreConfig, StoreCredentials, deterministic_tenant_id};
+use veoveo_types::{AccessSubject, GroupId, PolicyVersion, PrincipalId, TenantId, WorkContextId};
 
 #[tokio::test]
 async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {

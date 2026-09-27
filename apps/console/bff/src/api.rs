@@ -17,11 +17,12 @@ use chrono::Utc;
 use futures::StreamExt;
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessSubject, AgentInputRequestDecision, AgentOperatorMessageRequest, ArtifactAccessRequestId,
+    AgentInputRequestDecision, AgentOperatorMessageRequest, ArtifactAccessRequestId,
     ArtifactAccessRequestScope, ArtifactAccessRequestState, ArtifactId, ArtifactShareLinkId,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     ListArtifactAccessRequests, PutGrantRequest, SetArtifactReleaseStateRequest,
 };
+use veoveo_types::AccessSubject;
 
 use crate::{
     AppState,

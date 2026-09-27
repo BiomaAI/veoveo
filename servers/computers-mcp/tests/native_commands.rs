@@ -37,10 +37,10 @@ use veoveo_computers_mcp::{
 };
 use veoveo_computers_runtime::{Binding, ExecIntent, Phase};
 use veoveo_mcp_contract::{
-    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, InvocationProvenance, PlaneCaller, ServerSlug,
-    TokenIssuer,
+    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, PlaneCaller, ServerSlug, TokenIssuer,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
+use veoveo_types::InvocationProvenance;
 
 fn payload(script: &str, seconds: u32) -> CommandPayload {
     CommandPayload::new(

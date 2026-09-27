@@ -1,13 +1,15 @@
 use std::{fmt, str::FromStr};
-use veoveo_types::IdentifierError;
+use veoveo_types::{
+    IdentifierError,
+    identifier_syntax::{validate_claim_text, validate_path_id, validate_token_text},
+};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::wire::{
-    validate_claim_text, validate_compatibility_helper_id, validate_gateway_name,
-    validate_oauth_authorization_code, validate_oauth_state_value, validate_path_id,
-    validate_pkce_code_token, validate_principal_display_name, validate_token_text,
+    validate_compatibility_helper_id, validate_gateway_name, validate_oauth_authorization_code,
+    validate_oauth_state_value, validate_pkce_code_token, validate_principal_display_name,
 };
 
 macro_rules! typed_id {
@@ -193,49 +195,9 @@ typed_id!(
     "Installation platform capability required by one hosted server."
 );
 typed_id!(
-    DataLabelId,
-    validate_token_text,
-    "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label."
-);
-typed_id!(
-    PrincipalId,
-    validate_claim_text,
-    "Stable authenticated user or service-principal identity."
-);
-typed_id!(
     PrincipalDisplayName,
     validate_principal_display_name,
     "Human-readable label for the authenticated principal. It is display metadata, never an authorization identity."
-);
-typed_id!(
-    TenantId,
-    validate_claim_text,
-    "Tenant, organization, or customer boundary identifier."
-);
-typed_id!(
-    WorkContextId,
-    validate_path_id,
-    "Tenant-local boundary that governs related work and every output it produces."
-);
-typed_id!(
-    DelegationId,
-    validate_claim_text,
-    "Auditable identity of authority delegated by an initiator to another actor."
-);
-typed_id!(
-    GroupId,
-    validate_claim_text,
-    "Identity-provider group identifier used by gateway policy."
-);
-typed_id!(
-    RoleId,
-    validate_claim_text,
-    "Identity-provider role identifier used by gateway policy."
-);
-typed_id!(
-    PolicyVersion,
-    validate_token_text,
-    "Immutable policy version identifier emitted with decisions and audit records."
 );
 typed_id!(
     PolicyRuleId,

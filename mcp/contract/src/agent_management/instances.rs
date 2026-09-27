@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::{AgentDefinitionId, AgentManagedInstanceId, AgentTemplateId};
-use crate::{OAuthClientId, WorkContextId};
-use veoveo_types::Sha256Digest;
+use crate::OAuthClientId;
+use veoveo_types::{Sha256Digest, WorkContextId};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

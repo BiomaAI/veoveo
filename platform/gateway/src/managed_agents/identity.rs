@@ -6,15 +6,15 @@ use jsonwebtoken::jwk::{
     RSAKeyParameters, RSAKeyType,
 };
 use veoveo_mcp_contract::{
-    GatewayAction, InvocationMode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthClientSurface, OAuthGrantType, PolicyTarget, Principal, RoleId, TenantId, WorkContextId,
-    WorkContextMembershipLevel, agent_management as wire,
+    GatewayAction, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
+    OAuthClientSurface, OAuthGrantType, PolicyTarget, Principal, WorkContextMembershipLevel,
+    agent_management as wire,
 };
 use veoveo_platform_store::{
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},
     deterministic_principal_id,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{InvocationMode, RoleId, ScopeName, TenantId, WorkContextId};
 
 use super::runtime_template_revision;
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, VerifiedAccessToken};

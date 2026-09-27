@@ -204,7 +204,7 @@ async fn upload_http_enforces_identity_and_streams_to_a_durable_receipt() {
         data.len() as u64
     );
     let mut foreign = verified.identity.actor.clone();
-    foreign.id = contract::PrincipalId::new("another-person").unwrap();
+    foreign.id = veoveo_types::PrincipalId::new("another-person").unwrap();
     let foreign = issuer
         .issue_artifact_upload(
             verified.identity.profile.clone(),
@@ -336,7 +336,7 @@ async fn upload_service_replays_admission_and_parts_then_recovers_completion_on_
     assert!(!created);
     assert_eq!(session.upload_id, replay.upload_id);
     let mut foreign = verified.clone();
-    foreign.identity.actor.id = contract::PrincipalId::new("another-person").unwrap();
+    foreign.identity.actor.id = veoveo_types::PrincipalId::new("another-person").unwrap();
     assert!(matches!(
         service.status(&foreign, session.upload_id, 0).await,
         Err(crate::uploads::UploadFault(

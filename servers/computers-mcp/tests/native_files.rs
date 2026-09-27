@@ -24,10 +24,11 @@ use veoveo_computers::{
 use veoveo_computers_mcp::{FileWorker, LifecycleWorker, RetainedHomes, WorkerStep};
 use veoveo_computers_runtime::{Binding, ExecIntent, Phase};
 use veoveo_mcp_contract::{
-    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, InvocationProvenance, PlaneCaller,
-    PutArtifactRequest, ServerSlug, TokenIssuer,
+    ArtifactPlane, GATEWAY_INTERNAL_TOKEN_ISSUER, PlaneCaller, PutArtifactRequest, ServerSlug,
+    TokenIssuer,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskStatus};
+use veoveo_types::InvocationProvenance;
 
 fn payload(transfer: FileTransfer) -> FileTransferPayload {
     FileTransferPayload::new(
@@ -477,9 +478,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .put(
             &caller,
             PutArtifactRequest {
-                data_labels: BTreeSet::from(
-                    [veoveo_mcp_contract::DataLabelId::new("cui").unwrap()],
-                ),
+                data_labels: BTreeSet::from([veoveo_types::DataLabelId::new("cui").unwrap()]),
                 ..Default::default()
             },
             b"sensitive fixture".to_vec(),

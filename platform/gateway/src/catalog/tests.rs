@@ -3,23 +3,26 @@ use std::{collections::BTreeSet, sync::Arc};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    AccessSubject, AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure,
-    DataLabelDefinition, DataLabelId, DiscoveryFailureMode, Exposure, GatewayAction,
-    GatewayControlPlaneError, GroupId, HttpsUrl, IdentityProvider, IdentityProviderId,
-    IdentityProviderOidcClientRegistration, InvocationMode, JwksSource, JwtId, LocalToolName,
-    MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION, MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION,
-    MountPath, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration, OAuthClientSurface,
-    OAuthEndpointUrl, OAuthGrantType, OAuthRedirectUri, OidcClientAuthMethod, OidcClientId,
-    OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect, PolicyReasonCode,
-    PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalAssurance, PrincipalId,
-    PrincipalKind, ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer,
-    ResourceProjectionMode, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate, RoleId,
-    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
-    TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
-    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl, WorkContextDefinition,
-    WorkContextId, WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
+    AuthMode, AuthorizationServerId, CanonicalTaskId, CompletionExposure, DataLabelDefinition,
+    DiscoveryFailureMode, Exposure, GatewayAction, GatewayControlPlaneError, HttpsUrl,
+    IdentityProvider, IdentityProviderId, IdentityProviderOidcClientRegistration, JwksSource,
+    JwtId, LocalToolName, MCP_ENTERPRISE_MANAGED_AUTHORIZATION_EXTENSION,
+    MCP_OAUTH_CLIENT_CREDENTIALS_EXTENSION, MountPath, OAuthClientAuthMethod, OAuthClientId,
+    OAuthClientRegistration, OAuthClientSurface, OAuthEndpointUrl, OAuthGrantType,
+    OAuthRedirectUri, OidcClientAuthMethod, OidcClientId, OidcClientRegistrationId, OwnedRoute,
+    OwnedRoutePurpose, PolicyEffect, PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget,
+    Principal, PrincipalAssurance, PrincipalKind, ProfileServerExposure, ProtectedResourceId,
+    ResourceAuthorizationServer, ResourceProjectionMode, ResourceSelector, ResourceUriPrefix,
+    ResourceUriTemplate, SecretLocator, SecretOwner, SecretPurpose, SecretReference,
+    SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TokenIssuer, TokenSubject,
+    TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
+    WorkContextDefinition, WorkContextMembershipLevel, WorkContextMembershipRule,
+    WorkContextOutputPolicy,
 };
-use veoveo_types::{ResourceScheme, ResourceUri, ScopeName};
+use veoveo_types::{
+    AccessSubject, DataLabelId, GroupId, InvocationMode, PrincipalId, ResourceScheme, ResourceUri,
+    RoleId, ScopeName, TenantId, WorkContextId,
+};
 
 use super::*;
 use crate::{PolicyRequest, www_authenticate_challenge};

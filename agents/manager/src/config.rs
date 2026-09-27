@@ -85,7 +85,7 @@ impl Config {
                 == format!("sha256:{template_revision}"),
             "runtime template changed"
         );
-        let context = veoveo_mcp_contract::WorkContextId::new(snapshot.context_key.clone())?;
+        let context = veoveo_types::WorkContextId::new(snapshot.context_key.clone())?;
         ensure!(
             template.tenant.as_str() == snapshot.tenant_key
                 && template.work_contexts.contains(&context)

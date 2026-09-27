@@ -113,11 +113,11 @@ fn signed_context_rejects_mismatched_actor_tenant_scope_and_provenance() {
                         TokenIssuer::new("https://foreign.example").unwrap()
                 }
                 "tenant" => {
-                    context.principal.tenant = Some(crate::TenantId::new("foreign").unwrap())
+                    context.principal.tenant = Some(veoveo_types::TenantId::new("foreign").unwrap())
                 }
                 "context" => {
                     context.access_token.work_context =
-                        crate::WorkContextId::new("foreign").unwrap()
+                        veoveo_types::WorkContextId::new("foreign").unwrap()
                 }
                 "scope" => {
                     context
@@ -126,12 +126,13 @@ fn signed_context_rejects_mismatched_actor_tenant_scope_and_provenance() {
                         .insert(veoveo_types::ScopeName::new("admin:use").unwrap());
                 }
                 "mode" => {
-                    context.access_token.invocation_mode =
-                        if context.access_token.invocation_mode == crate::InvocationMode::Direct {
-                            crate::InvocationMode::Automated
-                        } else {
-                            crate::InvocationMode::Direct
-                        }
+                    context.access_token.invocation_mode = if context.access_token.invocation_mode
+                        == veoveo_types::InvocationMode::Direct
+                    {
+                        veoveo_types::InvocationMode::Automated
+                    } else {
+                        veoveo_types::InvocationMode::Direct
+                    }
                 }
                 _ => actor.id = PrincipalId::new("foreign").unwrap(),
             }

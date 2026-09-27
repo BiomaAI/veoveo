@@ -241,7 +241,7 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
     binding.execution_id = Uuid::now_v7();
     binding
         .required_output_labels
-        .insert(veoveo_mcp_contract::DataLabelId::new("retained-home").unwrap());
+        .insert(veoveo_types::DataLabelId::new("retained-home").unwrap());
     let capability = IssuedArtifactWriteCapability {
         capability_id: ArtifactWriteCapabilityId::new(),
         secret: ArtifactWriteCapabilitySecret::new("private-output-capability-secret-fixture")

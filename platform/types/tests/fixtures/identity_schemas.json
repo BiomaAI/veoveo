@@ -1,0 +1,175 @@
+{
+  "AccessSubject": {
+    "$defs": {
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "A principal or group that can own governed data or receive access.",
+    "oneOf": [
+      {
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "kind": {
+            "const": "principal",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/GroupId"
+          },
+          "kind": {
+            "const": "group",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "AccessSubject"
+  },
+  "DataLabelId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+    "title": "DataLabelId",
+    "type": "string"
+  },
+  "DelegationId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Auditable identity of authority delegated by an initiator to another actor.",
+    "title": "DelegationId",
+    "type": "string"
+  },
+  "GroupId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Identity-provider group identifier used by gateway policy.",
+    "title": "GroupId",
+    "type": "string"
+  },
+  "InvocationMode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "How the current actor obtained authority to perform the work.",
+    "enum": [
+      "direct",
+      "delegated",
+      "automated"
+    ],
+    "title": "InvocationMode",
+    "type": "string"
+  },
+  "InvocationProvenance": {
+    "$defs": {
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Provenance retained across synchronous and asynchronous execution.",
+    "oneOf": [
+      {
+        "properties": {
+          "initiator": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "mode": {
+            "const": "direct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "initiator"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "delegation_id": {
+            "$ref": "#/$defs/DelegationId"
+          },
+          "initiator": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "mode": {
+            "const": "delegated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "initiator",
+          "delegation_id"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "mode": {
+            "const": "automated",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "InvocationProvenance"
+  },
+  "PolicyVersion": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Immutable policy version identifier emitted with decisions and audit records.",
+    "title": "PolicyVersion",
+    "type": "string"
+  },
+  "PrincipalId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable authenticated user or service-principal identity.",
+    "title": "PrincipalId",
+    "type": "string"
+  },
+  "RoleId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Identity-provider role identifier used by gateway policy.",
+    "title": "RoleId",
+    "type": "string"
+  },
+  "TenantId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Tenant, organization, or customer boundary identifier.",
+    "title": "TenantId",
+    "type": "string"
+  },
+  "WorkContextId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Tenant-local boundary that governs related work and every output it produces.",
+    "title": "WorkContextId",
+    "type": "string"
+  }
+}

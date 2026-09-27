@@ -5,14 +5,14 @@ use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     AccessTokenSubject, GatewayAction, GatewayControlPlane, LocalToolName, OAuthClientId,
-    PolicyTarget, Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
-    TokenSubject, WorkContextId, agent_management as wire,
+    PolicyTarget, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
+    agent_management as wire,
 };
 use veoveo_platform_store::{
     PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
     deterministic_work_context_id,
 };
-use veoveo_types::ScopeName;
+use veoveo_types::{PrincipalId, ScopeName, TenantId, WorkContextId};
 
 use super::*;
 use crate::{GatewayCatalog, GatewayState, VerifiedAccessToken, test_store::TestDb};
@@ -288,7 +288,7 @@ fn token(binding: wire::ManagedAgentToken) -> VerifiedAccessToken {
             )
             .unwrap(),
             work_context: WorkContextId::new("operations").unwrap(),
-            invocation_mode: veoveo_mcp_contract::InvocationMode::Automated,
+            invocation_mode: veoveo_types::InvocationMode::Automated,
             initiator: None,
             delegation_id: None,
             scopes: principal.scopes.clone(),

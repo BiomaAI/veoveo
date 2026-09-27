@@ -7,7 +7,7 @@
 //! asynchronous writes use a separately issued, task-bound write capability.
 
 use base64::Engine;
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessSubject, ArtifactId, Grant};
+use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, ArtifactId, Grant};
 use veoveo_mcp_contract::storage::{ArtifactMetadata, ArtifactObject};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
@@ -18,6 +18,7 @@ use veoveo_mcp_contract::{
     ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
     RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest, parse_artifact_plane_uri,
 };
+use veoveo_types::AccessSubject;
 
 /// One authorized bulk artifact download.
 ///

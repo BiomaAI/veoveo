@@ -2,9 +2,10 @@ use super::{RepositoryActor, RepositoryError};
 use chrono::{DateTime, Utc};
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
-    ArtifactId, ArtifactReadCapabilityId, ArtifactTaskId, DataLabelId, GatewayProfileId,
-    GroupMembership, InvocationAuthority, PolicyVersion, ServerSlug, WorkContextId,
+    ArtifactId, ArtifactReadCapabilityId, ArtifactTaskId, GatewayProfileId, GroupMembership,
+    InvocationAuthority, ServerSlug,
 };
+use veoveo_types::{DataLabelId, PolicyVersion, WorkContextId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReadContextVersion {

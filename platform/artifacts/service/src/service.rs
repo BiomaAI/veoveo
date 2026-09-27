@@ -10,9 +10,8 @@ use base64::Engine;
 use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::access::{
-    AccessDecision, AccessLevel, AccessRequest, AccessSubject, ArtifactId, Grant, decide,
+    AccessDecision, AccessLevel, AccessRequest, ArtifactId, Grant, decide,
 };
-use veoveo_mcp_contract::gateway::DataLabelId;
 use veoveo_mcp_contract::storage::{
     ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
@@ -21,12 +20,12 @@ use veoveo_mcp_contract::{
     ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink,
     ArtifactShareLinkId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
-    InvocationAuthority, InvocationProvenance, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest,
-    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
-    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest, WorkContextMembershipLevel,
-    parse_artifact_plane_uri,
+    InvocationAuthority, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
+    ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
+    PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
+    WorkContextMembershipLevel, parse_artifact_plane_uri,
 };
+use veoveo_types::{AccessSubject, DataLabelId, InvocationProvenance};
 
 use crate::ledger::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
@@ -146,7 +145,7 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
     async fn audit(
         &self,
         actor: Option<RepositoryActor>,
-        tenant: Option<veoveo_mcp_contract::TenantId>,
+        tenant: Option<veoveo_types::TenantId>,
         action: &str,
         artifact_id: Option<ArtifactId>,
         outcome: AuditOutcome,
@@ -1189,7 +1188,7 @@ fn artifact_write_request_hash(
     Ok(hex::encode(hash.finalize()))
 }
 
-fn tenant_blob_key(tenant: &veoveo_mcp_contract::TenantId, sha: &BlobSha256) -> String {
+fn tenant_blob_key(tenant: &veoveo_types::TenantId, sha: &BlobSha256) -> String {
     let blob_id = uuid::Uuid::new_v5(
         &OBJECT_KEY_NAMESPACE,
         format!("{}:{}", tenant.as_str(), sha.as_str()).as_bytes(),
@@ -1271,15 +1270,16 @@ mod tests {
     use chrono::{TimeDelta, Utc};
     use futures::TryStreamExt;
     use veoveo_mcp_contract::gateway::{
-        GatewayProfileId, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
-        TokenSubject,
+        GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
     };
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
     use veoveo_mcp_contract::{
-        AccessSubject, ArtifactAccessRequestDecision, ArtifactAccessRequestScope,
-        ArtifactAccessRequestState, ArtifactWriteIdempotencyKey, InvocationProvenance, JwtId,
-        PolicyVersion, Principal, WorkContextId, WorkContextMembershipLevel,
+        ArtifactAccessRequestDecision, ArtifactAccessRequestScope, ArtifactAccessRequestState,
+        ArtifactWriteIdempotencyKey, JwtId, Principal, WorkContextMembershipLevel,
         WorkContextOutputPolicy,
+    };
+    use veoveo_types::{
+        AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
 
     use super::*;

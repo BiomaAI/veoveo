@@ -2,8 +2,8 @@
 use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::{PrincipalId, WorkContextId};
 use veoveo_platform_store::{MapDerivationDraft, MapDerivationKind, MapDerivationScope};
+use veoveo_types::{PrincipalId, WorkContextId};
 
 use crate::{
     catalog::{MapAccessContext, MapCatalog},

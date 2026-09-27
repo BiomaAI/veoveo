@@ -236,7 +236,7 @@ pub enum GatewayControlPlaneError {
     },
     OAuthClientInvocationModeMismatch {
         client: OAuthClientId,
-        mode: crate::InvocationMode,
+        mode: veoveo_types::InvocationMode,
     },
     UnknownOAuthClientResource {
         client: OAuthClientId,

@@ -3,11 +3,12 @@ use std::time::Instant;
 use axum::{http::StatusCode, response::IntoResponse};
 use chrono::Utc;
 use veoveo_mcp_contract::{
-    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, InvocationProvenance,
-    OAuthAuthorizationCode, OAuthClientId, OAuthGrantType, OAuthRedirectUri,
-    PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind, ResourceAuthorizationServer,
+    AuthMode, AuthOutcome, AuthReasonCode, GatewayProfile, OAuthAuthorizationCode, OAuthClientId,
+    OAuthGrantType, OAuthRedirectUri, PkceCodeChallengeMethod, PkceCodeVerifier, PrincipalKind,
+    ResourceAuthorizationServer,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewayRefreshIssueRequest, REFRESH_TOKEN_TTL_SECONDS};
+use veoveo_types::InvocationProvenance;
 
 use crate::{
     audit::{

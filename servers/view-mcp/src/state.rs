@@ -21,7 +21,8 @@ use tokio::sync::{Mutex as AsyncMutex, RwLock};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PrincipalId, WorkContextId};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
+use veoveo_types::{PrincipalId, WorkContextId};
 
 use crate::{
     cache::WeightedLru,

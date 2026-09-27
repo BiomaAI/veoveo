@@ -1,9 +1,10 @@
 //! Authenticated Console bootstrap; installation inventory has separate authorization.
-use super::{GatewayProfileId, PrincipalId, TenantId, WorkContextId};
-use crate::{InvocationMode, WorkContextMembershipLevel};
+use super::GatewayProfileId;
+use crate::WorkContextMembershipLevel;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use veoveo_types::{InvocationMode, PrincipalId, TenantId, WorkContextId};
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

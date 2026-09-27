@@ -1,14 +1,14 @@
 use std::collections::BTreeSet;
 
 use veoveo_mcp_contract::{
-    AccessLevel, AccessSubject, InvocationAuthority, InvocationProvenance,
-    WorkContextMembershipLevel as ContractMembership,
+    AccessLevel, InvocationAuthority, WorkContextMembershipLevel as ContractMembership,
 };
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
     InvocationMode as StoreInvocationMode, WorkContextInitialGrantRecord,
     WorkContextMembershipLevel as StoreMembership,
 };
+use veoveo_types::{AccessSubject, InvocationProvenance};
 
 pub fn invocation_authority_record(authority: &InvocationAuthority) -> InvocationAuthorityRecord {
     let (invocation_mode, initiator_key, delegation_id) = match &authority.provenance {

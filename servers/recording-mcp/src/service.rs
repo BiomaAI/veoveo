@@ -6,7 +6,7 @@ use anyhow::{Context, Result, ensure};
 use chrono::{TimeDelta, Utc};
 use sha2::{Digest as _, Sha256};
 use veoveo_artifact_client::HttpArtifactPlane;
-use veoveo_mcp_contract::{DataLabelId, GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller, PutArtifactRequest};
 use veoveo_platform_store::{
     ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind,
     RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
@@ -18,6 +18,7 @@ use veoveo_recording_hub::{
     GatewayLayerPublisher, invocation_authority_record, live_segment_byte_len,
 };
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
+use veoveo_types::DataLabelId;
 
 use crate::contract::{
     LayerView, ManifestBlueprint, ManifestLayer, PlaybackLiveReceiver, RecordingManifest,

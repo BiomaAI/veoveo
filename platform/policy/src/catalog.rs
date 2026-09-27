@@ -1,9 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 use veoveo_mcp_contract::{
-    DataLabelDefinition, DataLabelId, GatewayControlPlane, GatewayControlPlaneError,
-    GatewayProfile, GatewayProfileId, PolicySet, PolicyVersion, ServerManifest, ServerSlug,
-    TenantDefinition, TenantId,
+    DataLabelDefinition, GatewayControlPlane, GatewayControlPlaneError, GatewayProfile,
+    GatewayProfileId, PolicySet, ServerManifest, ServerSlug, TenantDefinition,
 };
+use veoveo_types::{DataLabelId, PolicyVersion, TenantId};
 
 /// Implementations expose one validated, immutable control-plane revision. Lookups
 /// must never combine policy or exposure fields from different revisions.

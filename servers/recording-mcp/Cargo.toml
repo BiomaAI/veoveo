@@ -28,6 +28,7 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 async-stream = { version = "=0.3.6", optional = true }
 axum.workspace = true

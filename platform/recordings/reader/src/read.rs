@@ -5,8 +5,7 @@ use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    ArtifactReadAuthority, DataLabelId, GatewayInternalIdentity, PrincipalId, PrincipalKind,
-    TenantId, TokenIssuer, TokenSubject,
+    ArtifactReadAuthority, GatewayInternalIdentity, PrincipalKind, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     PrincipalKind as StorePrincipalKind, RecordingDatasetId, RecordingId, RecordingLayerId,
@@ -16,6 +15,7 @@ use veoveo_rrd::ingest_parts::{
     ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
 };
 use veoveo_rrd::segment::inspect_segment;
+use veoveo_types::{DataLabelId, PrincipalId, TenantId};
 
 use super::{MAX_LAYERS, RecordingReader};
 use crate::access::{authorized_live_layer_path, record_uuid};

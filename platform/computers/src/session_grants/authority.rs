@@ -77,7 +77,7 @@ pub(crate) fn event(
     struct Payload<'a> {
         computer_id: Uuid,
         grant_id: Uuid,
-        actor: &'a veoveo_mcp_contract::PrincipalId,
+        actor: &'a veoveo_types::PrincipalId,
         authority: &'a veoveo_mcp_contract::InvocationAuthority,
     }
     Ok(OutboxDraft::now(

@@ -6,11 +6,11 @@ use rmcp::model::{
 };
 use serde_json::Value;
 use veoveo_mcp_contract::{
-    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, DataLabelId, GatewayAction,
+    APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, GatewayAction,
     GatewayResourceProjection, GatewayToolName, McpMethodName, PolicyTarget,
     ResourceProjectionMode, ServerManifest, ServerResourceUri, ServerSlug,
 };
-use veoveo_types::{ResourceUri, ScopeName};
+use veoveo_types::{DataLabelId, ResourceUri, ScopeName};
 
 use crate::GatewayCatalog;
 
@@ -459,11 +459,11 @@ mod tests {
     use super::*;
     use rmcp::model::Resource;
     use veoveo_mcp_contract::{
-        AppResourceDependency, AppResourceOperation, DataLabelId, LocalToolName,
-        McpSurfaceCapabilities, MountPath, ResourceUriPrefix, UpstreamEndpoint, UpstreamTransport,
+        AppResourceDependency, AppResourceOperation, LocalToolName, McpSurfaceCapabilities,
+        MountPath, ResourceUriPrefix, UpstreamEndpoint, UpstreamTransport,
         UpstreamTransportSecurity, UpstreamUrl,
     };
-    use veoveo_types::{ResourceScheme, ResourceUri, ScopeName};
+    use veoveo_types::{DataLabelId, ResourceScheme, ResourceUri, ScopeName};
 
     fn test_server(
         slug: &str,

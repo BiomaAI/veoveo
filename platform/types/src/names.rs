@@ -3,7 +3,7 @@ use std::{fmt, str::FromStr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::IdentifierError;
+use crate::{IdentifierError, identifier_syntax::validate_token_text};
 
 macro_rules! name {
     ($name:ident, $validate:ident, $doc:literal) => {
@@ -60,9 +60,11 @@ macro_rules! name {
     };
 }
 
+pub(crate) use name;
+
 name!(
     ScopeName,
-    validate_scope,
+    validate_token_text,
     "OAuth/OIDC scope value. It must not contain whitespace or control characters."
 );
 name!(
@@ -81,19 +83,6 @@ name!(
 /// ```
 pub trait ScopeDefinition: Copy + Eq {
     fn name(self) -> &'static ScopeName;
-}
-
-fn validate_scope(value: &str) -> Result<(), IdentifierError> {
-    if value.is_empty() {
-        return Err(IdentifierError::new(value, "must not be empty"));
-    }
-    if value.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err(IdentifierError::new(
-            value,
-            "must not contain whitespace or control characters",
-        ));
-    }
-    Ok(())
 }
 
 fn validate_scheme(value: &str) -> Result<(), IdentifierError> {

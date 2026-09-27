@@ -7,7 +7,7 @@ use crate::{ComputerError, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use uuid::Uuid;
-use veoveo_mcp_contract::DataLabelId;
+use veoveo_types::DataLabelId;
 use zeroize::Zeroizing;
 
 pub(super) const MAX_CHECKPOINT_BYTES: usize = 1024 * 1024 + 4096;

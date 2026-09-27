@@ -16,8 +16,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{GatewayToolName, WorkContextId};
-use veoveo_types::Sha256Digest;
+use crate::GatewayToolName;
+use veoveo_types::{Sha256Digest, WorkContextId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
