@@ -457,7 +457,11 @@ impl ServerHandler for RecordingMcp {
         let request_context = context.request_context().clone();
         let identity = identity(&request_context)?;
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let recording_id = subscribable_recording_id(uri)?;
+            let SubscriptionResource::Recording(recording_id) = subscription_resource(uri)? else {
+                // The catalog itself is readable by every authenticated caller;
+                // its contents are filtered by current recording visibility.
+                continue;
+            };
             if self
                 .state
                 .recordings
@@ -556,11 +560,21 @@ fn parse_recording_id(value: &str) -> Result<RecordingId, McpError> {
     Ok(RecordingId::from_uuid(id))
 }
 
-fn subscribable_recording_id(uri: &str) -> Result<RecordingId, McpError> {
+#[derive(Debug, PartialEq, Eq)]
+enum SubscriptionResource {
+    Catalog,
+    Recording(RecordingId),
+}
+
+fn subscription_resource(uri: &str) -> Result<SubscriptionResource, McpError> {
+    if uri == uris::CATALOG_URI {
+        return Ok(SubscriptionResource::Catalog);
+    }
     uris::parse_layers_uri(uri)
         .or_else(|| veoveo_recording_reader::uris::parse_recording_uri(uri))
         .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
         .and_then(parse_recording_id)
+        .map(SubscriptionResource::Recording)
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
@@ -1201,10 +1215,29 @@ mod tests {
     }
 
     #[test]
-    fn subscriptions_accept_only_recording_resources() {
-        let id = uuid::Uuid::now_v7().to_string();
-        assert!(subscribable_recording_id(&uris::recording_uri(&id)).is_ok());
-        assert!(subscribable_recording_id(uris::CATALOG_URI).is_err());
+    fn subscriptions_accept_catalog_and_recording_resources() {
+        let id = uuid::Uuid::now_v7();
+        for uri in [
+            uris::recording_uri(&id.to_string()),
+            uris::layers_uri(&id.to_string()),
+        ] {
+            assert_eq!(
+                subscription_resource(&uri).unwrap(),
+                SubscriptionResource::Recording(RecordingId::from_uuid(id))
+            );
+        }
+        assert_eq!(
+            subscription_resource(uris::CATALOG_URI).unwrap(),
+            SubscriptionResource::Catalog
+        );
+        for uri in [
+            uris::DOCS_URI,
+            "recording://catalog/extra",
+            "recording://recordings/not-a-uuid",
+            "recording://recordings/00000000-0000-0000-0000-000000000000",
+        ] {
+            assert!(subscription_resource(uri).is_err(), "{uri}");
+        }
     }
 
     #[test]

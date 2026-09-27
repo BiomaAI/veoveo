@@ -90,7 +90,7 @@ Contract revision: 2
 - C24: met
 - C25: met
 - C26: met
-- C27: met
+- C27: met — authenticated catalog subscriptions and visibility-checked recording/layer subscriptions share the Store LIVE source
 - C28: met
 - C29: met
 - C30: met — the endpoint is connection-stateless and derives no durable or domain authority from an MCP transport session

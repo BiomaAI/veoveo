@@ -177,5 +177,7 @@ captured image before the result qualifies.
 Each replica opens one shared group of projected Store LIVE queries for datasets, recordings, layers and Blueprints.
 Committed changes invalidate only each listener's accepted resource contents, including
 the recording catalog resource. They do not emit resource-list changes. Writes coalesce
-over 100 milliseconds. Source reconnection invalidates readers after a delivery gap; reads retain normal
+over 100 milliseconds. The catalog URI accepts subscriptions from authenticated callers;
+exact recording and layer URIs require visibility of that recording at admission.
+Source reconnection invalidates readers after a delivery gap; reads retain normal
 current authority. Idle sources emit no periodic resource-change notifications. This observes durable state and cannot dispatch work.
