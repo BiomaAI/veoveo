@@ -35,7 +35,7 @@ state after this file is gone.
 | RFC 9110, RFC 9111, RFC 8246 | Revision, freshness, and immutability semantics for knowledge reads |
 | W3C DCAT 3 | Catalog model in `knowledge-mcp` |
 | SurrealDB 3.3 | Audit records, change feeds, LIVE queries, table views, record references, catalog, `FULLTEXT` BM25, and `HNSW` indexes |
-| candle `0.11.0`, `tokenizers` `0.23.2`, `Qwen/Qwen3-Embedding-0.6B` | Embedding on a hardware GPU |
+| vLLM 0.30.0 pooling runner, OpenAI Embeddings API, `Qwen/Qwen3-Embedding-0.6B` | Embedding runtime on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
 | OCSF 1.9.0, W3C Trace Context, RFC 9162, RFC 8785, S3 Object Lock | Audit record export, correlation, sealing, and write-once retention |
 
@@ -501,37 +501,41 @@ log records the observed revision for reads of each collection.
    machine client, and grant it read access to approved collections only.
 3. Implement discovery, the catalog resources, enumeration, change subscriptions,
    reconciliation, chunking, and index generations.
-4. Build the embedder described in
-   [Knowledge sharing, Embedding](KNOWLEDGE.md#embedding). Start from candle's
-   `gte-qwen` example and change what the section lists: the `qwen3` module in place
-   of `qwen2`, the checkpoint key mapping, the query instruction, equal-length batches,
-   and `clear_kv_cache()` before each batch. Depend on `candle-core`, `candle-nn`, and
-   `candle-transformers` `0.11.0` with the `cuda` feature, and on `tokenizers`
-   `0.23.2`. Do not add fastembed, `ort`, or `hf-hub`.
-   1. Check the pinned revision `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3` first. List
-      the checkpoint keys, confirm that `config.json` deserializes into
-      `qwen3::Config`, and confirm how the tokenizer ends an input.
-   2. Generate the reference vectors with the model card's `transformers` recipe
-      through `uv run`, commit them as a fixture, and make the reference test pass on a
-      hardware GPU before building the index.
-   3. Package `config.json`, `tokenizer.json`, and `model.safetensors` into the image
-      with their SHA-256 digests. The builder stage carries the CUDA toolkit and sets
-      `CUDA_COMPUTE_CAP` for the installation's GPUs.
-   4. Measure throughput on the Phase 7 collections. If a full rebuild is too slow,
-      propose the padding-mask change to candle upstream before changing the batching.
-   5. Qualify `Qwen3-Embedding-4B` against 0.6B as
+4. Deploy the embedding runtime described in
+   [Knowledge sharing, Embedding](KNOWLEDGE.md#embedding): the official
+   `vllm/vllm-openai` image at the digest `reason-mcp` pins, run with `--runner pooling`,
+   with no Veoveo code in the image. Re-verify the latest stable vLLM release first and
+   keep one vLLM pin shared with `reason-mcp`. Do not add candle, fastembed, `ort`, or a
+   Hugging Face client to `knowledge-mcp`.
+   1. Add the runtime to `deploy/helm/veoveo` following the `reason` values pattern:
+      a model-cache volume with the installation-supplied checkpoint at revision
+      `97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3`, an init container that checks the pinned
+      SHA-256 digests,
+      `HF_HUB_OFFLINE=1`, a `nvidia.com/gpu` request, the `nvidia` runtime class, an API
+      key Secret, readiness on `/health`, and a NetworkPolicy that admits only
+      `knowledge-mcp`. Document it in `deploy/helm/veoveo/DESIGN.md`.
+   2. Confirm that vLLM applies last-token pooling with L2 normalization for this
+      checkpoint, and set the pooler configuration explicitly if it does not.
+   3. Implement the typed `/v1/embeddings` client in `knowledge-mcp` with the query
+      instruction, bounded request sizes, and validation of vector count and dimension.
+   4. Generate the reference vectors with the model card's `transformers` recipe
+      through `uv run`, commit them as a fixture, and make the reference test pass
+      against the runtime on a hardware GPU before building the index.
+   5. Measure throughput on the Phase 7 collections and a full rebuild.
+   6. Qualify `Qwen3-Embedding-4B` and `8B` against 0.6B as
       [Model qualification](KNOWLEDGE.md#model-qualification) describes, and record
       the choice in the index generation.
 5. Implement `search` with BM25, HNSW, reciprocal rank fusion, and effective-access
    filtering. Share the effective-access predicate that `platform/store/src/artifacts.rs`
    applies. Do not copy it.
-6. Add the Helm chart, GPU request, gateway registration, and offline image entry.
+6. Add the `knowledge-mcp` Helm chart, gateway registration, and offline image entries
+   for it and the embedding runtime. `knowledge-mcp` requests no GPU.
 7. Build an evaluation set from the Phase 7 collections, and record recall at 10 for
    the chosen chunk settings in the index generation.
 8. Update the standards registers. Add a knowledge area to `README.md` naming W3C DCAT
-   3 and `Qwen/Qwen3-Embedding-0.6B` on CUDA. Add `docs/TECH_DESIGN.md`
-   rows for DCAT 3, SurrealDB `FULLTEXT` and `HNSW` indexes, and the candle
-   and Qwen3-Embedding profile. Add `knowledge-mcp` to `software-components.csv` and its search,
+   3 and `Qwen/Qwen3-Embedding-0.6B` served by vLLM. Add `docs/TECH_DESIGN.md`
+   rows for DCAT 3, SurrealDB `FULLTEXT` and `HNSW` indexes, and the vLLM embedding
+   runtime with its internal OpenAI Embeddings API profile. Add `knowledge-mcp` to `software-components.csv` and its search,
    catalog, and source-read interfaces to `interfaces-and-protocols.csv`.
 
 Acceptance:
@@ -539,11 +543,11 @@ Acceptance:
 - K01 through K10 pass for `knowledge.docs`.
 - Access tests prove that no result, title, or snippet escapes the caller's effective
   access.
-- A test on a hardware GPU proves that startup fails without CUDA and that the loaded
-  model matches its digests.
+- On a hardware GPU, the embedding runtime becomes ready, and it refuses readiness
+  without CUDA or with a checkpoint whose digests differ from the pin.
 - The reference test reaches cosine similarity of at least 0.999 against the committed
-  model-card vectors, and equal-length batches match single-input calls.
-- Throughput and the 0.6B-against-4B comparison are recorded in the index generation.
+  model-card vectors through the runtime.
+- Throughput and the 0.6B, 4B, and 8B comparison are recorded in the index generation.
 - Invalidation and reconciliation tests pass.
 - The reference installation indexes the approved Phase 7 collections, and a search
   returns links an agent can read.
