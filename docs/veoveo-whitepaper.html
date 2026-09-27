@@ -470,7 +470,10 @@
     agent that stack's files.
   </p>
   <figure class="art narrow">
-    <img src="images/world-model.png" alt="Sensors, agent memory, and the decision log feed the world model; each episode's context is drawn from it.">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/world-model-dark.png">
+      <img src="images/world-model.png" alt="Sensors, agent memory, and the decision log feed the world model; each episode's context is drawn from it.">
+    </picture>
     <figcaption><b>Figure 3.</b> Sensors, memories, and decisions feed the world model. Each episode's context is a query result over it.</figcaption>
   </figure>
   <div class="table-wrap">
@@ -511,7 +514,10 @@
       the committed plan goes back into memory. Section 6.2 follows one such chain.
     </p>
     <figure class="art short">
-      <img src="images/context-queried.png" alt="An episode sends queries to memory, the record, and the decision log and receives only answers, under a token budget.">
+      <picture>
+        <source media="screen and (prefers-color-scheme: dark)" srcset="images/context-queried-dark.png">
+        <img src="images/context-queried.png" alt="An episode sends queries to memory, the record, and the decision log and receives only answers, under a token budget.">
+      </picture>
       <figcaption><b>Figure 4.</b> An episode queries memory, the record, and the decision log. Only the answers enter the context, which has a fixed token budget.</figcaption>
     </figure>
   </section>
@@ -604,7 +610,10 @@
     assertion.
   </p>
   <figure class="art short">
-    <img src="images/gateway-gauntlet.png" alt="Requests pass authentication, policy, and audit in order; the gateway refuses by default and forwards a signed identity.">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/gateway-gauntlet-dark.png">
+      <img src="images/gateway-gauntlet.png" alt="Requests pass authentication, policy, and audit in order; the gateway refuses by default and forwards a signed identity.">
+    </picture>
     <figcaption><b>Figure 6.</b> The gateway authenticates each request, checks policy, and writes an audit record. It refuses by default and forwards a signed identity.</figcaption>
   </figure>
   <div class="table-wrap">
@@ -704,7 +713,10 @@
       decode.
     </p>
     <figure class="art short">
-      <img src="images/grounding-flow.png" alt="Live Stream and replay publish results; Reason combines a recording snapshot with optional Stream detections.">
+      <picture>
+        <source media="screen and (prefers-color-scheme: dark)" srcset="images/grounding-flow-dark.png">
+        <img src="images/grounding-flow.png" alt="Live Stream and replay publish results; Reason combines a recording snapshot with optional Stream detections.">
+      </picture>
       <figcaption><b>Figure 8.</b> Live Stream and replay publish results. Reason combines a recording snapshot with optional typed Stream detections.</figcaption>
     </figure>
   </section>
@@ -812,7 +824,10 @@
     verified footer. Live Stream processing never waits on the Hub.
   </p>
   <figure class="art short">
-    <img src="images/capture-pipeline.png" alt="Capture path: fsynced journal, checkpoint, immutable parts, indexed shards.">
+    <picture>
+      <source media="screen and (prefers-color-scheme: dark)" srcset="images/capture-pipeline-dark.png">
+      <img src="images/capture-pipeline.png" alt="Capture path: fsynced journal, checkpoint, immutable parts, indexed shards.">
+    </picture>
     <figcaption><b>Figure 9.</b> The capture path: fsynced journal, checkpoint, immutable parts, and indexed shards. A 30,307-chunk corpus became 31 archive chunks in 2.56 seconds.</figcaption>
   </figure>
   <p class="body">
@@ -870,7 +885,10 @@
       agent detaches from and wakes on, through the same path as every other long tool.
     </p>
     <figure class="art short">
-      <img src="images/sumo-loop.png" alt="The agent reads the recorded city, decides, and acts on signals and routes.">
+      <picture>
+        <source media="screen and (prefers-color-scheme: dark)" srcset="images/sumo-loop-dark.png">
+        <img src="images/sumo-loop.png" alt="The agent reads the recorded city, decides, and acts on signals and routes.">
+      </picture>
       <figcaption><b>Figure 10.</b> The agent reads the record, decides, and changes signals and routes in the simulated city.</figcaption>
     </figure>
     <div class="table-wrap">

@@ -30,6 +30,12 @@ FIGURES = [
     "agent-loop",
     "deployment-map",
     "integration-matrix",
+    "world-model",
+    "context-queried",
+    "gateway-gauntlet",
+    "grounding-flow",
+    "capture-pipeline",
+    "sumo-loop",
 ]
 
 DARK_CANVAS = np.array([13, 17, 23], np.float32)  # GitHub dark background
