@@ -95,7 +95,7 @@ fn artifact_metadata_preserves_nested_identity_and_attribution() {
 }
 
 #[test]
-fn schemas_preserve_the_pre_extraction_contract() {
+fn schemas_match_the_published_contract() {
     let expected: Value = serde_json::from_str(include_str!("fixtures/schemas.json")).unwrap();
     let mut schemas = serde_json::Map::new();
     macro_rules! capture {

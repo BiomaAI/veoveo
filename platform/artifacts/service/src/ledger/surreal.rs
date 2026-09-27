@@ -147,21 +147,12 @@ impl SurrealArtifactRepository {
                 tenant_id: Some(tenant.clone()),
                 owner: Some(authority.output_policy.owner.clone()),
                 work_context: Some(authority.work_context.clone()),
-                provenance: Some(ArtifactProvenance {
-                    producer: PrincipalId::new(aggregate.occurrence.producer_key)
+                provenance: Some(ArtifactProvenance::new(
+                    PrincipalId::new(aggregate.occurrence.producer_key)
                         .map_err(|error| RepositoryError::Corrupt(error.to_string()))?,
-                    invocation_mode: authority.provenance.mode(),
-                    initiator: authority.provenance.initiator().cloned(),
-                    delegation_id: match &authority.provenance {
-                        InvocationProvenance::Delegated { delegation_id, .. } => {
-                            Some(delegation_id.clone())
-                        }
-                        InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => {
-                            None
-                        }
-                    },
-                    policy_revision: authority.policy_revision.clone(),
-                }),
+                    authority.provenance.clone(),
+                    authority.policy_revision.clone(),
+                )),
                 data_labels,
                 retention_expires_at,
             },

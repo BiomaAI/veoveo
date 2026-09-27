@@ -21,7 +21,6 @@ use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskId, TaskOwner, TaskRetentionPin,
     TaskSnapshot, TaskTransition,
 };
-use veoveo_types::{InvocationMode, InvocationProvenance};
 
 use crate::{
     contract::{
@@ -1363,27 +1362,11 @@ fn artifact_compliance(identity: &GatewayInternalIdentity) -> ComplianceMetadata
 }
 
 fn artifact_provenance(identity: &GatewayInternalIdentity) -> ArtifactProvenance {
-    let (invocation_mode, initiator, delegation_id) = match &identity.authority.provenance {
-        InvocationProvenance::Direct { initiator } => {
-            (InvocationMode::Direct, Some(initiator.clone()), None)
-        }
-        InvocationProvenance::Delegated {
-            initiator,
-            delegation_id,
-        } => (
-            InvocationMode::Delegated,
-            Some(initiator.clone()),
-            Some(delegation_id.clone()),
-        ),
-        InvocationProvenance::Automated => (InvocationMode::Automated, None, None),
-    };
-    ArtifactProvenance {
-        producer: identity.actor.id.clone(),
-        invocation_mode,
-        initiator,
-        delegation_id,
-        policy_revision: identity.authority.policy_revision.clone(),
-    }
+    ArtifactProvenance::new(
+        identity.actor.id.clone(),
+        identity.authority.provenance.clone(),
+        identity.authority.policy_revision.clone(),
+    )
 }
 
 pub(super) fn task_directory(

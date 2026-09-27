@@ -22,6 +22,14 @@ public MCP projection. Occurrence identity and metadata come from the lightweigh
 types and access evaluator live in `mcp/contract`; the HTTP client lives in
 `platform/artifacts/client`.
 
+Occurrence publication and repository reads construct Artifact provenance from the
+checked invocation authority. The domain contract preserves the flat metadata wire
+profile while using `InvocationProvenance` internally. Stored authority reconstruction
+rejects contradictory or incomplete attribution before producing metadata; it never
+infers a missing initiator or delegation identity. The model's
+[compatibility profile](../contract/DESIGN.md#attribution-wire-compatibility) specifies
+the supported mode/identity combinations and mixed-version read behavior.
+
 ## Blob Backend Profiles
 
 S3 and memory stores receive private object attributes for cache policy, content

@@ -3,9 +3,10 @@
 
 mod identity;
 mod metadata;
+mod provenance;
 
 pub use identity::{ARTIFACT_PLANE_SCHEME, ArtifactId, ArtifactIdError, parse_artifact_plane_uri};
 pub use metadata::{
-    ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactPut, ArtifactReleaseState,
-    ComplianceMetadata,
+    ArtifactMetadata, ArtifactObject, ArtifactPut, ArtifactReleaseState, ComplianceMetadata,
 };
+pub use provenance::ArtifactProvenance;

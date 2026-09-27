@@ -73,17 +73,23 @@ Their eleven pre-extraction schemas and existing wire forms are preserved. The i
 consumer passes ten checks with no MCP, runtime, database, GPU, or provider dependencies;
 strict workspace Clippy passes across all targets and features.
 The Artifact plane model now lives in `platform/artifacts/contract`, below its service,
-client, and MCP adapter. Five baseline schemas and existing wire forms are preserved.
-Speech's contract imports that model directly and excludes MCP. An independently
-resolved Artifact/Speech consumer passes four checks without service dependencies;
-Chrono enables only its Serde feature. Native Artifact-contract, Speech-contract,
-and MCP suites pass 168 cases. Artifact service/MCP, Map, gateway, policy, and Time
-library suites pass 279 cases. Twelve native Artifact database tests remain explicitly
-ignored and are not counted as acceptance. Strict workspace Clippy and Rustdoc pass;
-external dependency versions, sources, and checksums are unchanged.
+client, and MCP adapter. Speech's contract imports that model directly and excludes MCP.
+An independently resolved Artifact/Speech consumer passes four checks without service
+dependencies; Chrono enables only its Serde feature. Artifact attribution now uses
+foundational `InvocationProvenance` and a typed constructor. Its private wire adapter
+preserves valid flat metadata while both decoding and schemas enforce mode-specific
+identity requirements. Tests cover 196 field combinations, existing 0.1.x wire forms,
+a compile-time incomplete-delegation rejection, and publication/readback through memory
+and separate SurrealDB 3.2.4 connections. The fixture database is cleaned up after the check.
+Native Artifact-contract, Speech-contract, and MCP suites pass 172 cases. Artifact
+service/MCP, Map, gateway, policy, and Time library suites pass 280 cases. Thirteen
+native database cases are ignored in that library command; the new attribution case
+passes separately, while the other twelve are not counted as acceptance. Strict workspace
+Clippy and Rustdoc pass. External dependency versions, sources, and checksums are unchanged.
 Map's contract still depends on MCP for `CrsId`. Artifact URI fields/builders, UUID
-variant admission, attribution construction, and remaining service interfaces need
-further work. No persisted representation or authorization rule changed in the extraction.
+variant admission, and remaining service interfaces need further work. These model
+changes preserve valid persisted representations and current authorization rules;
+reference installation qualification is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -527,7 +533,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Adopt typed Artifact URI fields and builders, preserving declared wire profiles; separate remaining access and service request contracts |
 | Artifact identity and URI admission | `ArtifactId` checks the UUID version field without validating its variant; occurrence parsing accepts the UUID library's alternative text forms; URI helpers still assemble strings and do not validate server-scheme syntax | Define and qualify the accepted UUID and URI profiles, require the RFC variant at public ID admission, and declare handling of any persisted out-of-profile identities before narrowing decoding |
-| Artifact attribution construction | `ArtifactProvenance` exposes an invocation mode alongside optional initiator and delegation fields, allowing combinations that the foundational `InvocationProvenance` enum excludes | Reuse the foundational attribution model through checked domain construction; qualify existing serialized metadata and make the schema express the admitted combinations |
+| Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
 | DuckDB, Frames, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |

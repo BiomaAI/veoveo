@@ -596,8 +596,9 @@ metadata, compliance, provenance, release state, and byte handoff values. It dep
 on foundational identity, UUID, date/time, and serialization/schema support. The
 [design](../platform/artifacts/contract/DESIGN.md) records the dependency-cycle reason
 for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
-IDs and URI helpers; `src/metadata.rs` owns the public model. Access evaluation and
-transport-facing service interfaces currently live in `mcp/contract`.
+IDs and URI helpers; `src/metadata.rs` owns the public model, and `src/provenance.rs`
+maps foundational invocation attribution to Artifact's flat wire profile. Access
+evaluation and transport-facing service interfaces currently live in `mcp/contract`.
 
 ### `platform/artifacts/service`
 

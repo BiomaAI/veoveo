@@ -50,43 +50,110 @@
       },
       "ArtifactProvenance": {
         "description": "Immutable explanation of how an artifact came into being.",
-        "properties": {
-          "delegation_id": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DelegationId"
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "initiator": {
-            "anyOf": [
-              {
+              "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              {
-                "type": "null"
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
               }
-            ]
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
           },
-          "invocation_mode": {
-            "$ref": "#/$defs/InvocationMode"
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
           },
-          "policy_revision": {
-            "$ref": "#/$defs/PolicyVersion"
-          },
-          "producer": {
-            "$ref": "#/$defs/PrincipalId"
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
           }
-        },
-        "required": [
-          "producer",
-          "invocation_mode",
-          "policy_revision"
-        ],
-        "type": "object"
+        ]
       },
       "ArtifactReleaseState": {
         "enum": [
@@ -178,15 +245,7 @@
         "description": "Identity-provider group identifier used by gateway policy.",
         "type": "string"
       },
-      "InvocationMode": {
-        "description": "How the current actor obtained authority to perform the work.",
-        "enum": [
-          "direct",
-          "delegated",
-          "automated"
-        ],
-        "type": "string"
-      },
+      "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"
@@ -269,15 +328,7 @@
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
         "type": "string"
       },
-      "InvocationMode": {
-        "description": "How the current actor obtained authority to perform the work.",
-        "enum": [
-          "direct",
-          "delegated",
-          "automated"
-        ],
-        "type": "string"
-      },
+      "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"
@@ -289,44 +340,111 @@
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "description": "Immutable explanation of how an artifact came into being.",
-    "properties": {
-      "delegation_id": {
-        "anyOf": [
-          {
-            "$ref": "#/$defs/DelegationId"
+    "oneOf": [
+      {
+        "properties": {
+          "delegation_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/NoIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "initiator": {
-        "anyOf": [
-          {
+          "initiator": {
             "$ref": "#/$defs/PrincipalId"
           },
-          {
-            "type": "null"
+          "invocation_mode": {
+            "const": "direct",
+            "type": "string"
+          },
+          "policy_revision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "producer": {
+            "$ref": "#/$defs/PrincipalId"
           }
-        ]
+        },
+        "required": [
+          "invocation_mode",
+          "producer",
+          "initiator",
+          "policy_revision"
+        ],
+        "type": "object"
       },
-      "invocation_mode": {
-        "$ref": "#/$defs/InvocationMode"
+      {
+        "properties": {
+          "delegation_id": {
+            "$ref": "#/$defs/DelegationId"
+          },
+          "initiator": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "invocation_mode": {
+            "const": "delegated",
+            "type": "string"
+          },
+          "policy_revision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "producer": {
+            "$ref": "#/$defs/PrincipalId"
+          }
+        },
+        "required": [
+          "invocation_mode",
+          "producer",
+          "initiator",
+          "delegation_id",
+          "policy_revision"
+        ],
+        "type": "object"
       },
-      "policy_revision": {
-        "$ref": "#/$defs/PolicyVersion"
-      },
-      "producer": {
-        "$ref": "#/$defs/PrincipalId"
+      {
+        "properties": {
+          "delegation_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/NoIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "initiator": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/NoIdentity"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invocation_mode": {
+            "const": "automated",
+            "type": "string"
+          },
+          "policy_revision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "producer": {
+            "$ref": "#/$defs/PrincipalId"
+          }
+        },
+        "required": [
+          "invocation_mode",
+          "producer",
+          "policy_revision"
+        ],
+        "type": "object"
       }
-    },
-    "required": [
-      "producer",
-      "invocation_mode",
-      "policy_revision"
     ],
-    "title": "ArtifactProvenance",
-    "type": "object"
+    "title": "ArtifactProvenance"
   },
   "ArtifactReleaseState": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -379,43 +497,110 @@
       },
       "ArtifactProvenance": {
         "description": "Immutable explanation of how an artifact came into being.",
-        "properties": {
-          "delegation_id": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/DelegationId"
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "initiator": {
-            "anyOf": [
-              {
+              "initiator": {
                 "$ref": "#/$defs/PrincipalId"
               },
-              {
-                "type": "null"
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
               }
-            ]
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
           },
-          "invocation_mode": {
-            "$ref": "#/$defs/InvocationMode"
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
           },
-          "policy_revision": {
-            "$ref": "#/$defs/PolicyVersion"
-          },
-          "producer": {
-            "$ref": "#/$defs/PrincipalId"
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
           }
-        },
-        "required": [
-          "producer",
-          "invocation_mode",
-          "policy_revision"
-        ],
-        "type": "object"
+        ]
       },
       "DataLabelId": {
         "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
@@ -429,15 +614,7 @@
         "description": "Identity-provider group identifier used by gateway policy.",
         "type": "string"
       },
-      "InvocationMode": {
-        "description": "How the current actor obtained authority to perform the work.",
-        "enum": [
-          "direct",
-          "delegated",
-          "automated"
-        ],
-        "type": "string"
-      },
+      "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
         "type": "string"

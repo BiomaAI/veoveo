@@ -24,7 +24,7 @@ use veoveo_mcp_contract::{
     PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
     WorkContextMembershipLevel,
 };
-use veoveo_types::{AccessSubject, DataLabelId, InvocationProvenance};
+use veoveo_types::{AccessSubject, DataLabelId};
 
 use crate::ledger::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
@@ -366,20 +366,11 @@ impl<R: ArtifactRepository, S: BlobStore> ArtifactService<R, S> {
                 tenant_id: Some(actor.tenant.clone()),
                 owner: Some(authority.output_policy.owner.clone()),
                 work_context: Some(authority.work_context.clone()),
-                provenance: Some(ArtifactProvenance {
-                    producer: actor.principal.clone(),
-                    invocation_mode: authority.provenance.mode(),
-                    initiator: authority.provenance.initiator().cloned(),
-                    delegation_id: match &authority.provenance {
-                        InvocationProvenance::Delegated { delegation_id, .. } => {
-                            Some(delegation_id.clone())
-                        }
-                        InvocationProvenance::Direct { .. } | InvocationProvenance::Automated => {
-                            None
-                        }
-                    },
-                    policy_revision: authority.policy_revision.clone(),
-                }),
+                provenance: Some(ArtifactProvenance::new(
+                    actor.principal.clone(),
+                    authority.provenance.clone(),
+                    authority.policy_revision.clone(),
+                )),
                 data_labels: request.data_labels.clone(),
                 retention_expires_at: request.retention_expires_at,
             },
@@ -1255,6 +1246,7 @@ fn repository_mutation_error(error: RepositoryError) -> ArtifactPlaneError {
 mod tests {
     mod immutable_blob;
     mod native_database;
+    mod provenance;
     mod read_capability;
     mod upload_admission;
     mod upload_engine;

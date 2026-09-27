@@ -13,3 +13,8 @@ serde_json.workspace = true
 # UUIDv7 generation is part of ArtifactId::new; other UUID versions are not admitted.
 uuid = { version = "=1.25.0", default-features = false, features = ["std", "v7"] }
 veoveo-types.workspace = true
+
+[dev-dependencies]
+# Reuse the workspace-qualified 0.51.0 validator for schema parity with gateway and
+# conformance. A validator upgrade is qualified across those consumers separately.
+jsonschema.workspace = true
