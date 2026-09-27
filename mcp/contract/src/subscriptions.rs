@@ -171,6 +171,19 @@ pub fn accepted_subscription_filter(requested: &SubscriptionFilter) -> Option<Su
     Some(requested.clone())
 }
 
+/// Admit task observations only when the server has no resource or catalog source.
+/// The task runtime still authorizes every admitted task before listening.
+pub fn accepted_task_subscription_filter(
+    requested: &SubscriptionFilter,
+) -> Option<SubscriptionFilter> {
+    let task_ids = requested.task_ids.as_ref().filter(|ids| !ids.is_empty())?;
+    Some(
+        SubscriptionFilter::builder()
+            .task_ids(task_ids.clone())
+            .build(),
+    )
+}
+
 /// Notifications carry only identities already admitted by this request.
 pub async fn send_resource_update(
     context: &SubscriptionContext,
@@ -193,6 +206,33 @@ pub async fn send_resource_update(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn task_only_servers_decline_resource_and_catalog_observations() {
+        for uri in ["duckdb://dbs", "timeseries://usage"] {
+            let requested = SubscriptionFilter::builder()
+                .resources_list_changed()
+                .resource_subscriptions([uri])
+                .build();
+            assert!(accepted_task_subscription_filter(&requested).is_none());
+            let mut mixed = requested;
+            mixed.task_ids = Some(vec!["forecast-1".into()]);
+            mixed.tools_list_changed = Some(true);
+            mixed.prompts_list_changed = Some(true);
+            let accepted = accepted_task_subscription_filter(&mixed).unwrap();
+            assert_eq!(accepted.task_ids, mixed.task_ids);
+            assert!(accepted.resource_subscriptions.is_none());
+            assert!(accepted.resources_list_changed.is_none());
+            assert!(accepted.tools_list_changed.is_none());
+            assert!(accepted.prompts_list_changed.is_none());
+            assert!(accepted.is_subset_of(&mixed));
+        }
+        let empty = SubscriptionFilter::builder()
+            .task_ids(Vec::<String>::new())
+            .build();
+        assert!(accepted_task_subscription_filter(&empty).is_none());
+    }
+
     #[tokio::test]
     async fn content_updates_do_not_invalidate_catalog_discovery() {
         let hub = SubscriptionHub::new();

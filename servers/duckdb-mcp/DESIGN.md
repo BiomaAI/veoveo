@@ -175,6 +175,9 @@ Official Tasks add:
 Prompts, completions, and resource subscriptions are not part of the current
 server. SQL and database schema discovery already have direct domain surfaces.
 They should be added only when a concrete agent workflow benefits from them.
+`subscriptions/listen` admits task IDs only. A resource-only filter is rejected,
+and a mixed filter acknowledges only its task IDs. The server advertises neither
+resource subscriptions nor resource-list changes.
 
 ## Canonical Domain Model
 

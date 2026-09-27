@@ -48,6 +48,11 @@ the per-task URI remains an exact lookup. The shared transport discards any
 final serialized JSON response larger than 8 MiB and returns the canonical
 response-budget diagnostic without partial content.
 
+`subscriptions/listen` admits task IDs only. A resource-only filter is rejected,
+and a mixed filter acknowledges only its task IDs. The server advertises neither
+resource subscriptions nor resource-list changes because it has no resource event
+source.
+
 ## MCP App (ext-apps "2026-01-26")
 
 The server declares `io.modelcontextprotocol/ui` in its capabilities

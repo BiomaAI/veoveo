@@ -284,7 +284,7 @@ impl ServerHandler for TimeseriesMcp {
         &self,
         requested: &SubscriptionFilter,
     ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
+        veoveo_mcp_contract::accepted_task_subscription_filter(requested)
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {

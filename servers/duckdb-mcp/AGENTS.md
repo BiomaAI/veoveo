@@ -74,8 +74,8 @@ Contract revision: 2
 - C23: met
 - C25: met
 - C26: met
-- C27: met
-- C28: met
+- C27: met — the shared task-only filter rejects resource observations; accepted task IDs use the durable task source
+- C28: met — resource subscription and resource-list change capabilities are absent
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

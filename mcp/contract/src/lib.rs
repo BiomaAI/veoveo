@@ -182,7 +182,8 @@ pub use storage::{
 };
 pub use subscriptions::{
     ResourceListObservers, ResourceUpdate, SubscriptionHub, accepted_subscription_filter,
-    listen_resources, receive_resource_list_change, receive_resource_update, send_resource_update,
+    accepted_task_subscription_filter, listen_resources, receive_resource_list_change,
+    receive_resource_update, send_resource_update,
 };
 pub use tasks::{
     GATEWAY_TASK_RESOURCE_TEMPLATE, GatewayTaskStatus, GatewayTaskStatusDocument,
