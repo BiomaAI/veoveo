@@ -327,8 +327,8 @@
       What an operation needs from autonomy is harder to supply than intelligence. Decisions
       have to follow from what was actually observed, and they have to stay aligned with the
       mission — with its objectives and constraints, and with the intent behind them when
-      circumstances force a change of plan. Permission has to hold even when the model's
-      judgment fails; especially then. Resilience has to be engineered: processes die, machines
+      circumstances force a change of plan. Permission has to hold when the model's judgment
+      fails, because that is when it matters most. Resilience has to be engineered: processes die, machines
       are lost, tasks are cut off mid-flight, and the system must come back knowing what it was
       doing, with the consequences of every interruption defined in advance. What the autonomy
       is doing has to be observable while it is doing it. And the operator, who answers for all
@@ -358,14 +358,6 @@
     <p class="keywords"><b>KEYWORDS</b> &nbsp; autonomous agents · world model · runtime policy ·
       task recovery · acknowledged recording · edge and air-gap deployment · MCP</p>
   </div>
-  <div class="callout">
-    <div class="label">Reading guide</div>
-    <p>Section 1 lists what the platform does and where each capability is described. Sections 2
-       through 8 describe the architecture. Section 9 explains how robots and simulators
-       connect and walks through two reference integrations, and Section 10 explains how the platform is tested. Sections 11 and 12 cover
-       learning and deployment. The appendices define each component and list the standards the
-       platform implements.</p>
-  </div>
 </section>
 
 <section class="chapter" id="contents">
@@ -393,8 +385,8 @@
 <section class="chapter" id="capabilities">
   <h1 class="section">1. Capabilities</h1>
   <p class="body">
-    An installation gives an operation agents that watch live conditions, act through tools the
-    operator approves, and record every step they take. The table lists what an operator can do
+    An installation gives an operation agents that work through the tools the operator approves,
+    and it records every step they take. The table lists what an operator can do
     with it and the section that explains how each capability works.
   </p>
   <figure class="art short">
@@ -413,7 +405,7 @@
       <tr><td>Long work in the background</td><td>A render, forecast, route plan, or 500-step simulation batch runs as a task. The agent sleeps until the result arrives, and an interrupted task ends in a state declared before it started.</td><td>7</td></tr>
       <tr><td>One model of the operation</td><td>Sensor data, agent memory, and decisions share queryable stores. An operator can replay any run and see why an agent acted.</td><td>3, 8</td></tr>
       <tr><td>Rules agents cannot bypass</td><td>Policy decides who may call which tool on which tenant's data at which sensitivity. The gateway enforces it outside the model and refuses any call no rule allows.</td><td>5</td></tr>
-      <tr><td>Eighteen hosted servers</td><td>Media, video, reasoning, SQL, forecasting, optimization, maps, frames, time, speech, computers, simulation, and visualization. A new MCP server joins through a catalog entry.</td><td>6</td></tr>
+      <tr><td>Hosted servers</td><td>Media, video, reasoning, SQL, forecasting, optimization, maps, frames, time, speech, computers, simulation, and visualization. A new MCP server joins through a catalog entry.</td><td>6</td></tr>
       <tr><td>Controlled sharing</td><td>Every output is an owned artifact. Owners grant access to users and groups, or publish an expiring, revocable link to a released artifact.</td><td>7</td></tr>
       <tr><td>Console and Workspace</td><td>The Console shows health, tasks, artifacts, agents, recordings, policy, and audit records. Workspace is the chat client where people and agents work together.</td><td>12</td></tr>
       <tr><td>Operator-owned installation</td><td>The operator supplies the hostname, identity provider, and object store, and runs the same chart on one host, a cluster, or a disconnected network.</td><td>12</td></tr>
@@ -647,7 +639,7 @@
 <section class="chapter" id="hosted-servers">
   <h1 class="section">6. Hosted Servers</h1>
   <p class="body">
-    The gateway catalog defines eighteen hosted servers. Each server declares the MCP surfaces
+    The gateway catalog lists every hosted server. Each server declares the MCP surfaces
     its domain needs and runs behind gateway-signed identity. A local, bridged, or remote MCP
     endpoint joins by registering in the validated catalog. From then on it uses the same task,
     artifact, identity, policy, and audit contracts as the built-in servers. A client that
@@ -971,10 +963,11 @@
   <p class="body">
     An operation that runs on the harness produces the data a learning program needs. Every
     episode leaves a trajectory of the context the agent saw, the action it took, and the
-    result, aligned in time with the world's own record. The platform itself does not train
-    models or tune policies, and it does not decide what counts as improvement. A
-    reinforcement-learning, imitation, or scenario-driven program can build on the data the
-    platform keeps from its first deployment.
+    result, aligned in time with the world's own record. The harness runs the training program
+    as well. Each installation chooses its method, whether reinforcement learning, imitation, or
+    scenario-driven training, and the objective it optimizes. Every episode is recorded from the
+    day an installation goes live, so a training program starts with the operation's full
+    history.
   </p>
   <div class="table-wrap">
   <table class="data tight">

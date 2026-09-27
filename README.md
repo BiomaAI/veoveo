@@ -130,7 +130,7 @@ command lease for each vehicle.
 <a href="docs/images/harness-poster.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/harness-poster-dark.png">
-    <img src="docs/images/harness-poster.png" alt="The operational loop: live encoded media enters Stream directly, recording remains an independent governed evidence path, Reason grounds answers in Stream results and authorized recording snapshots, and agents act through the gateway's identity, policy, and audit boundary">
+    <img src="docs/images/harness-poster.png" alt="The operational loop: live encoded media goes directly to Stream while recording runs on a separate path. Reason grounds its answers in Stream results and recording snapshots, and agents act through the gateway's identity, policy, and audit checks.">
   </picture>
 </a>
 
@@ -149,7 +149,7 @@ that owns it, and Veoveo's release process holds no credentials to that cluster.
 | Apollo | Vendor-operated software delivery into customer environments | Veoveo publishes OCI images and Helm charts, and the installation owner reconciles them with its own GitOps controller. |
 
 Veoveo adds control and recording of the operations themselves: robots and
-simulators connected as governed MCP servers, live video pipelines, and a synchronized,
+simulators connected as MCP servers, live video pipelines, and a synchronized,
 replayable timeline of each mission that authorized people and tools can replay and query. The two can run side by side. Palantir
 Foundry is listed in the [connector catalog](docs/connectors/README.md).
 
@@ -436,7 +436,7 @@ their respective owners.*
 <a href="docs/images/system-map.png">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/system-map-dark.png">
-    <img src="docs/images/system-map.png" alt="Live H.264 enters Stream directly while optional recording flows through a producer-local forwarder; Stream results and recording snapshots feed Reason, and agents reach 16 hosted servers through the governed gateway">
+    <img src="docs/images/system-map.png" alt="Live H.264 goes directly to Stream while an optional forwarder records it. Stream results and recording snapshots feed Reason, and agents reach every hosted server through the gateway.">
   </picture>
 </a>
 
