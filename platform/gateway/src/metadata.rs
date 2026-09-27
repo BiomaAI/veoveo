@@ -6,8 +6,9 @@ use std::{
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
     AuthMode, AuthorizationServerId, GatewayProfile, GatewayProfileId, JwksSource,
-    OAuthClientAuthMethod, OAuthGrantType, ScopeName,
+    OAuthClientAuthMethod, OAuthGrantType,
 };
+use veoveo_types::ScopeName;
 
 use crate::GatewayCatalog;
 

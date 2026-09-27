@@ -7,13 +7,14 @@ use jsonwebtoken::jwk::{
 };
 use veoveo_mcp_contract::{
     GatewayAction, InvocationMode, OAuthClientAuthMethod, OAuthClientId, OAuthClientRegistration,
-    OAuthClientSurface, OAuthGrantType, PolicyTarget, Principal, RoleId, ScopeName, TenantId,
-    WorkContextId, WorkContextMembershipLevel, agent_management as wire,
+    OAuthClientSurface, OAuthGrantType, PolicyTarget, Principal, RoleId, TenantId, WorkContextId,
+    WorkContextMembershipLevel, agent_management as wire,
 };
 use veoveo_platform_store::{
     agent_management::{AgentExecution, instances::ManagedAgentRegistration},
     deterministic_principal_id,
 };
+use veoveo_types::ScopeName;
 
 use super::runtime_template_revision;
 use crate::{AuthenticatedSubject, GatewayCatalog, GatewayState, VerifiedAccessToken};

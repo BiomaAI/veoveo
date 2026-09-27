@@ -7,6 +7,7 @@ use chrono::{TimeDelta, Utc};
 use routes::{Operation, Route};
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
+use veoveo_types::ScopeName;
 
 fn control() -> GatewayControlPlane {
     let mut control: GatewayControlPlane = serde_json::from_str(include_str!(concat!(

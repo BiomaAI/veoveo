@@ -40,9 +40,9 @@ pub enum GatewayNameError {
     UnknownServer(ServerSlug),
     MissingNamespace(GatewayToolName),
     InvalidNamespaceShape(GatewayToolName),
-    InvalidServerSlug(veoveo_mcp_contract::IdentifierError),
-    InvalidLocalToolName(veoveo_mcp_contract::IdentifierError),
-    InvalidProjectedToolName(veoveo_mcp_contract::IdentifierError),
+    InvalidServerSlug(veoveo_types::IdentifierError),
+    InvalidLocalToolName(veoveo_types::IdentifierError),
+    InvalidProjectedToolName(veoveo_types::IdentifierError),
 }
 
 impl fmt::Display for GatewayNameError {

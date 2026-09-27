@@ -13,7 +13,7 @@ use chacha20poly1305::{
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use url::Url;
-use veoveo_mcp_contract::ScopeName;
+use veoveo_types::ScopeName;
 
 const NONCE_BYTES: usize = 24;
 const MAX_BROWSER_RETURN_PATH_BYTES: usize = 4096;

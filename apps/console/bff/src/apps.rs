@@ -1496,15 +1496,13 @@ mod tests {
             .insert(
                 APP_RESOURCE_DEPENDENCIES_META_KEY.to_owned(),
                 serde_json::to_value(vec![AppResourceDependency {
-                    app_resource: veoveo_mcp_contract::ResourceUri::new(
-                        "ui://mission/operations.html",
-                    )
-                    .unwrap(),
+                    app_resource: veoveo_types::ResourceUri::new("ui://mission/operations.html")
+                        .unwrap(),
                     server: veoveo_mcp_contract::ServerSlug::new("view").unwrap(),
-                    scheme: veoveo_mcp_contract::ResourceScheme::new("view").unwrap(),
+                    scheme: veoveo_types::ResourceScheme::new("view").unwrap(),
                     uri_prefix: veoveo_mcp_contract::ResourceUriPrefix::new("view://frame/")
                         .unwrap(),
-                    required_scope: veoveo_mcp_contract::ScopeName::new("view:read").unwrap(),
+                    required_scope: veoveo_types::ScopeName::new("view:read").unwrap(),
                     operations: std::collections::BTreeSet::from([AppResourceOperation::Read]),
                     data_labels: std::collections::BTreeSet::new(),
                 }])

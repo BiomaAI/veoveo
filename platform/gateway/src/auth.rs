@@ -31,8 +31,9 @@ mod tests {
     use serde::Serialize;
     use veoveo_mcp_contract::{
         DataLabelId, InvocationMode, OAuthClientId, OidcClientId, OidcNonce, PrincipalAssurance,
-        ProtectedResourceId, ScopeName, TokenIssuer,
+        ProtectedResourceId, TokenIssuer,
     };
+    use veoveo_types::ScopeName;
 
     use super::*;
 

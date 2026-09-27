@@ -11,6 +11,7 @@ use veoveo_platform_store::{
     RecordId, deterministic_enterprise_id, deterministic_principal_id, deterministic_tenant_id,
 };
 use veoveo_task_runtime::{ClaimedTask, TaskOwner, TaskRuntime};
+use veoveo_types::ScopeName;
 
 async fn queued(
     db: &TestDb,

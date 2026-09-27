@@ -71,8 +71,9 @@ mod tests {
     use chrono::Utc;
     use veoveo_mcp_contract::{
         DataLabelId, GroupId, Principal, PrincipalAssurance, PrincipalId, PrincipalKind, RoleId,
-        ScopeName, TokenIssuer, TokenSubject,
+        TokenIssuer, TokenSubject,
     };
+    use veoveo_types::ScopeName;
 
     use super::principal_audit_metadata;
 

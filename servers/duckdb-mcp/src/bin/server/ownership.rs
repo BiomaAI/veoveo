@@ -326,9 +326,10 @@ mod tests {
     use super::*;
     use veoveo_mcp_contract::{
         AccessSubject, DataLabelId, GroupId, InvocationAuthority, InvocationProvenance,
-        PolicyVersion, PrincipalAssurance, RoleId, ScopeName, TokenSubject, WorkContextId,
+        PolicyVersion, PrincipalAssurance, RoleId, TokenSubject, WorkContextId,
         WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
+    use veoveo_types::ScopeName;
 
     fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
         let now = Utc::now();

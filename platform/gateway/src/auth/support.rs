@@ -32,7 +32,7 @@ pub enum AuthError {
     InvalidIdentityAssertionResource,
     MissingIdentityAssertionScope,
     InvalidTimestamp { claim: &'static str, value: u64 },
-    Claim(veoveo_mcp_contract::IdentifierError),
+    Claim(veoveo_types::IdentifierError),
     Jwt(jsonwebtoken::errors::Error),
 }
 

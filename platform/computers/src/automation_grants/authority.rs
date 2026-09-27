@@ -10,10 +10,11 @@ use std::time::{Duration, Instant};
 use surrealdb::types::{RecordId, SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ResourceUri, ServerSlug, TraceId,
+    GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
     WorkContextMembershipLevel,
 };
 use veoveo_platform_store::{PrincipalKind, gateway_refresh_family_record_id};
+use veoveo_types::ResourceUri;
 
 #[derive(Clone, Copy)]
 enum GrantUse {

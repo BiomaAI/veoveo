@@ -3,8 +3,9 @@ use axum::http::Method;
 use serde::Deserialize;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, LocalToolName, PolicyTarget, ResourceUri, ServerSlug,
+    GatewayAction, GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug,
 };
+use veoveo_types::ResourceUri;
 
 #[derive(Deserialize)]
 pub(super) struct Route {

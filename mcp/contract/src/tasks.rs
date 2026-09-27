@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-use crate::gateway::{OpaqueTaskId, ResourceUri};
+use crate::gateway::OpaqueTaskId;
+use veoveo_types::ResourceUri;
 
 const NOTIFICATION_DELIVERY_TIMEOUT: Duration = Duration::from_secs(2);
 

@@ -67,12 +67,13 @@ use veoveo_mcp_contract::{
     InvocationProvenance, McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
     PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, PolicyVersion, Principal,
     PrincipalAuditAttributes, PrincipalId, PrincipalKind, ProfileServerExposure,
-    ResourceAuthorizationServer, ScopeName, SecretManagerDeployment, SecretReference,
+    ResourceAuthorizationServer, SecretManagerDeployment, SecretReference,
     SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
     ServerSlug, ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantId,
     TenantModel, TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
     WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
+use veoveo_types::ScopeName;
 #[path = "conformance/auth_discovery.rs"]
 mod auth_discovery;
 #[path = "conformance/cli.rs"]

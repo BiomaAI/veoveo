@@ -117,9 +117,7 @@ pub(super) fn public_content(value: domain::AgentContent) -> Result<wire::Conten
                     .collect(),
                 resource_subscriptions: resource_subscriptions
                     .into_iter()
-                    .map(|u| {
-                        veoveo_mcp_contract::ResourceUri::new(u).map_err(|_| Fault::unavailable())
-                    })
+                    .map(|u| veoveo_types::ResourceUri::new(u).map_err(|_| Fault::unavailable()))
                     .collect::<Result<_, _>>()?,
             },
         },

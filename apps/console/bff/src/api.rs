@@ -875,7 +875,7 @@ mod tests {
     use chrono::Utc;
     use futures::{StreamExt, stream as futures_stream};
     use tokio::{net::TcpListener, sync::Notify};
-    use veoveo_mcp_contract::ScopeName;
+    use veoveo_types::ScopeName;
 
     use super::{
         ArtifactStreamPresentation, SnapshotUpstreamDisposition, artifact_stream_response,

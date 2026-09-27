@@ -6,11 +6,12 @@ use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
     AccessTokenSubject, DataLabelId, DelegationId, GatewayAction, GatewayControlPlane,
     GatewayInternalSigningKey, InvocationMode, InvocationProvenance, OAuthClientId, PolicyVersion,
-    PrincipalId, ProtectedResourceId, ScopeName, TaskExposure, TenantId, TokenIssuer,
-    WorkContextId, WorkContextMembershipLevel,
+    PrincipalId, ProtectedResourceId, TaskExposure, TenantId, TokenIssuer, WorkContextId,
+    WorkContextMembershipLevel,
 };
 use veoveo_platform_store::{PrincipalKind, TaskId};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
+use veoveo_types::ScopeName;
 
 use super::*;
 use crate::{

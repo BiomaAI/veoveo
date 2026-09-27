@@ -9,9 +9,10 @@ use axum::{
 use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
     ArtifactId, AuditEvent, GatewayAction, GatewayProfileId, McpMethodName, PolicyEffect,
-    PolicyTarget, PrincipalAuditAttributes, ResourceUri, TraceId,
+    PolicyTarget, PrincipalAuditAttributes, TraceId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
+use veoveo_types::ResourceUri;
 
 use crate::runtime::{ArtifactHttpState, current_catalog};
 

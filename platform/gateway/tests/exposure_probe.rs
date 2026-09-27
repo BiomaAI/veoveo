@@ -2,10 +2,10 @@ use std::{collections::BTreeSet, path::Path};
 
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, Principal, PrincipalId,
-    PrincipalKind, ResourceUri, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject,
-    TraceId,
+    PrincipalKind, RoleId, ServerSlug, TenantId, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest, www_authenticate_challenge};
+use veoveo_types::{ResourceUri, ScopeName};
 
 const LOCAL_CONTROL_PLANE: &str = "../../configs/gateway.local.json";
 

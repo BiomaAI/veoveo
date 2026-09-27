@@ -5,13 +5,14 @@ use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     AccessTokenSubject, GatewayAction, GatewayControlPlane, LocalToolName, OAuthClientId,
-    PolicyTarget, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject, WorkContextId, agent_management as wire,
+    PolicyTarget, Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
+    TokenSubject, WorkContextId, agent_management as wire,
 };
 use veoveo_platform_store::{
     PlatformStore, WorkContextMembershipLevel, agent_management::instances::*, agent_management::*,
     deterministic_work_context_id,
 };
+use veoveo_types::ScopeName;
 
 use super::*;
 use crate::{GatewayCatalog, GatewayState, VerifiedAccessToken, test_store::TestDb};

@@ -123,7 +123,7 @@ fn signed_context_rejects_mismatched_actor_tenant_scope_and_provenance() {
                     context
                         .access_token
                         .scopes
-                        .insert(crate::ScopeName::new("admin:use").unwrap());
+                        .insert(veoveo_types::ScopeName::new("admin:use").unwrap());
                 }
                 "mode" => {
                     context.access_token.invocation_mode =

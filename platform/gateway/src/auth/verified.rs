@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{
     AccessTokenSubject, InvocationAuthority, JwtId, OAuthClientId, Principal, PrincipalDisplayName,
-    ScopeName,
 };
+use veoveo_types::ScopeName;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedAccessToken {

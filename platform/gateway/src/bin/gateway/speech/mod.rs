@@ -14,12 +14,13 @@ use std::{sync::Arc, time::Duration};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayInternalTokenIssuer, GatewayProfileId, LocalToolName, PolicyTarget,
-    ResourceUri, ServerSlug,
+    ServerSlug,
 };
 use veoveo_mcp_gateway::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState, GatewayUpstreamHttpClientPool,
 };
 use veoveo_speech_contract::dictation::{DictationSnapshot, MAX_CHUNK_BYTES, StartDictation};
+use veoveo_types::ResourceUri;
 
 #[derive(Clone)]
 pub(crate) struct SpeechState {

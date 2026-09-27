@@ -115,11 +115,13 @@ library's public contract with its `contract` feature and default features disab
 
 [CE-13](../../docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts)
 defines the accepted separation of foundational types from MCP integration. The
-foundation extraction and feature isolation are implementation work in the
+foundational names and reference types live in `veoveo-types`; consumers import
+them directly. Its `ScopeDefinition` and `ResourceAddress` traits accept independent
+domain implementations. URI builder adoption, MCP-specific associations, and server
+feature isolation are implementation work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
-Protocol-independent scope and resource traits belong below this crate. MCP-specific
-traits associate those types with descriptors, discovery, and hosted-server setup.
-The traits are open to external implementations. A trait implementation establishes
+MCP-specific traits associate those types with descriptors, discovery, and hosted-server
+setup. The traits are open to external implementations. A trait implementation establishes
 API structure; hosted conformance and domain tests establish the relevant behavior.
 
 Handlers, task admission, and configuration defaults share the owning definitions.

@@ -33,6 +33,7 @@ members = [
     "platform/runtimes/computers",
     "platform/store",
     "platform/task-runtime",
+    "platform/types",
     "servers/artifact-mcp",
     "servers/computers-mcp",
     "servers/frames-mcp",
@@ -183,6 +184,7 @@ x509-parser = "=0.18.1"
 zeroize = "=1.9.0"
 vaultrs = { version = "0.8.0", default-features = false, features = ["rustls"] }
 veoveo-mcp-contract = { path = "mcp/contract", default-features = false }
+veoveo-types = { path = "platform/types" }
 veoveo-deploy-contract = { path = "deploy/contract" }
 veoveo-deploy-runtime = { path = "deploy/runtime" }
 veoveo-simulation-contract = { path = "platform/runtimes/simulation/contract" }

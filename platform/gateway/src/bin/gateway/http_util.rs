@@ -21,9 +21,10 @@ use sha2::{Digest, Sha256};
 use url::Url;
 use veoveo_mcp_contract::{
     JwksSource, OAuthAuthorizationCode, OAuthRedirectUri, OAuthStateValue, OidcClientAuthMethod,
-    OidcNonce, PkceCodeChallenge, PkceCodeVerifier, ScopeName,
+    OidcNonce, PkceCodeChallenge, PkceCodeVerifier,
 };
 use veoveo_mcp_gateway::ResolvedSecretString;
+use veoveo_types::ScopeName;
 
 #[derive(Serialize)]
 pub(super) struct TokenResponse {

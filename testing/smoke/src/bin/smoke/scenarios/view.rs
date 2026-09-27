@@ -10,9 +10,10 @@ use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
     GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
-    PolicyVersion, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    PolicyVersion, Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
+    TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
+use veoveo_types::ScopeName;
 
 use super::*;
 

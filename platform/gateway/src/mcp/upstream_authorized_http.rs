@@ -247,9 +247,10 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use veoveo_mcp_contract::{
         AccessSubject, GatewayInternalSigningKey, InvocationProvenance, PolicyVersion, PrincipalId,
-        PrincipalKind, ScopeName, TenantId, TokenIssuer, TokenSubject, WorkContextId,
+        PrincipalKind, TenantId, TokenIssuer, TokenSubject, WorkContextId,
         WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
+    use veoveo_types::ScopeName;
 
     use super::*;
 

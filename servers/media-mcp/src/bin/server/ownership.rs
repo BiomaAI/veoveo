@@ -154,9 +154,10 @@ mod tests {
     use veoveo_mcp_contract::{
         AccessSubject, DataLabelId, GatewayInternalIdentity, GatewayProfileId, GroupId,
         InvocationAuthority, InvocationProvenance, JwtId, PolicyVersion, Principal, PrincipalId,
-        PrincipalKind, RoleId, ScopeName, ServerSlug, TenantId, TokenIssuer, TokenSubject,
-        WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+        PrincipalKind, RoleId, ServerSlug, TenantId, TokenIssuer, TokenSubject, WorkContextId,
+        WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
+    use veoveo_types::ScopeName;
 
     use super::{runtime_owner, task_owner_allows};
 

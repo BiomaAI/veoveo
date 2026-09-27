@@ -4,10 +4,10 @@ use crate::{
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayAction, PolicyEffect, PolicyTarget, ResourceUri, ServerSlug, TraceId,
-    WorkContextMembershipLevel,
+    GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId, WorkContextMembershipLevel,
 };
 use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id};
+use veoveo_types::ResourceUri;
 
 pub(crate) fn require_attach(snapshot: &AuthoritySnapshot, computer: Uuid) -> Result<()> {
     snapshot.check_fresh()?;

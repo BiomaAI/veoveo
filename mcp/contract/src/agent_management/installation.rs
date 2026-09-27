@@ -1,13 +1,14 @@
 //! Installation-owned model connections and executable configuration digests.
 use super::{self as wire, RuntimeTemplate};
 use crate::{
-    GatewayControlPlane, Principal, ScopeName, SecretPurpose, SecretReferenceId, Sha256Digest,
-    TenantId, WorkContextId,
+    GatewayControlPlane, Principal, SecretPurpose, SecretReferenceId, Sha256Digest, TenantId,
+    WorkContextId,
 };
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_types::ScopeName;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -37,7 +37,7 @@ async fn fixture(
     identity
         .actor
         .scopes
-        .insert(contract::ScopeName::new("artifact:upload").unwrap());
+        .insert(veoveo_types::ScopeName::new("artifact:upload").unwrap());
     contract::VerifiedArtifactUploadIdentity {
         identity,
         authorization: contract::ArtifactUploadAuthority {

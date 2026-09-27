@@ -21,9 +21,10 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    GatewayProfileId, IdentifierError, InvocationAuthority, JwtId, Principal, PrincipalId,
-    ProtectedResourceId, ServerSlug, TokenIssuer,
+    GatewayProfileId, InvocationAuthority, JwtId, Principal, PrincipalId, ProtectedResourceId,
+    ServerSlug, TokenIssuer,
 };
+use veoveo_types::IdentifierError;
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
 pub const DEFAULT_GATEWAY_INTERNAL_SIGNING_KEY_ID: &str = "veoveo-internal-1";
@@ -699,7 +700,8 @@ mod tests {
     use chrono::TimeDelta;
 
     use super::*;
-    use crate::{GroupId, PrincipalKind, RoleId, ScopeName, TenantId, TokenSubject};
+    use crate::{GroupId, PrincipalKind, RoleId, TenantId, TokenSubject};
+    use veoveo_types::ScopeName;
 
     const PRIVATE_KEY_DER_B64: &str =
         "MC4CAQAwBQYDK2VwBCIEII4AsVspz8h7mpqvOkgslJP07HfqpiWMZA+6Ii90lVBl";

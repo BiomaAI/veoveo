@@ -55,28 +55,6 @@ pub(super) fn validate_compatibility_helper_id(value: &str) -> Result<(), Identi
     Ok(())
 }
 
-pub(super) fn validate_uri_scheme(value: &str) -> Result<(), IdentifierError> {
-    let mut bytes = value.bytes();
-    let Some(first) = bytes.next() else {
-        return Err(IdentifierError::new(value, "must not be empty"));
-    };
-    if !first.is_ascii_lowercase() {
-        return Err(IdentifierError::new(
-            value,
-            "must start with a lowercase ASCII letter",
-        ));
-    }
-    if !bytes.all(|b| {
-        b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'+' || b == b'-' || b == b'.'
-    }) {
-        return Err(IdentifierError::new(
-            value,
-            "must follow URI scheme syntax with lowercase ASCII characters",
-        ));
-    }
-    Ok(())
-}
-
 pub(super) fn validate_token_text(value: &str) -> Result<(), IdentifierError> {
     if value.is_empty() {
         return Err(IdentifierError::new(value, "must not be empty"));
@@ -334,14 +312,14 @@ pub(super) fn validate_local_file_path(value: &str) -> Result<(), IdentifierErro
     Ok(())
 }
 
-pub(super) fn validate_resource_uri(value: &str) -> Result<(), IdentifierError> {
+pub(super) fn validate_resource_pattern(value: &str) -> Result<(), IdentifierError> {
     let Some((scheme, rest)) = value.split_once("://") else {
         return Err(IdentifierError::new(
             value,
             "must be an absolute server-owned resource URI",
         ));
     };
-    validate_uri_scheme(scheme)?;
+    ResourceScheme::new(scheme)?;
     if rest.is_empty() || rest.chars().any(|c| c.is_control() || c.is_whitespace()) {
         return Err(IdentifierError::new(
             value,
@@ -352,7 +330,7 @@ pub(super) fn validate_resource_uri(value: &str) -> Result<(), IdentifierError> 
 }
 
 pub(super) fn validate_uri_template(value: &str) -> Result<(), IdentifierError> {
-    validate_resource_uri(value)?;
+    validate_resource_pattern(value)?;
     let parts = parse_simple_resource_uri_template(value)?;
     if !parts
         .iter()

@@ -1,4 +1,5 @@
 use std::{fmt, str::FromStr};
+use veoveo_types::IdentifierError;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,6 @@ use super::wire::{
     validate_claim_text, validate_compatibility_helper_id, validate_gateway_name,
     validate_oauth_authorization_code, validate_oauth_state_value, validate_path_id,
     validate_pkce_code_token, validate_principal_display_name, validate_token_text,
-    validate_uri_scheme,
 };
 
 macro_rules! typed_id {
@@ -130,29 +130,6 @@ macro_rules! secret_typed_id {
     };
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct IdentifierError {
-    value: String,
-    rule: &'static str,
-}
-
-impl IdentifierError {
-    pub(super) fn new(value: &str, rule: &'static str) -> Self {
-        Self {
-            value: value.to_string(),
-            rule,
-        }
-    }
-}
-
-impl fmt::Display for IdentifierError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "invalid identifier {:?}: {}", self.value, self.rule)
-    }
-}
-
-impl std::error::Error for IdentifierError {}
-
 fn validate_uuid_v7(value: &str) -> Result<(), IdentifierError> {
     let uuid = uuid::Uuid::parse_str(value)
         .map_err(|_| IdentifierError::new(value, "must be a UUIDv7"))?;
@@ -206,11 +183,6 @@ typed_id!(
     "Prompt name as exposed by one direct MCP server or gateway profile."
 );
 typed_id!(
-    ResourceScheme,
-    validate_uri_scheme,
-    "Server-owned resource URI scheme, for example `media`."
-);
-typed_id!(
     ArtifactAudience,
     validate_gateway_name,
     "Artifact-service audience admitted for one hosted server."
@@ -219,11 +191,6 @@ typed_id!(
     PlatformCapabilityId,
     validate_path_id,
     "Installation platform capability required by one hosted server."
-);
-typed_id!(
-    ScopeName,
-    validate_token_text,
-    "OAuth/OIDC scope value. It must not contain whitespace or control characters."
 );
 typed_id!(
     DataLabelId,

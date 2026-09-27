@@ -193,7 +193,8 @@ impl InvocationAuthority {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{PrincipalAssurance, PrincipalKind, ScopeName, TokenIssuer, TokenSubject};
+    use crate::{PrincipalAssurance, PrincipalKind, TokenIssuer, TokenSubject};
+    use veoveo_types::ScopeName;
 
     fn principal() -> Principal {
         Principal {

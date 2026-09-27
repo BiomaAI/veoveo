@@ -8,7 +8,7 @@ use crate::browser::BrowserApp;
 use anyhow::{Context, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use url::Url;
-use veoveo_mcp_contract::ScopeName;
+use veoveo_types::ScopeName;
 
 #[derive(Clone)]
 pub(crate) enum RerunMapProvider {

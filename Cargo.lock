@@ -16331,6 +16331,7 @@ dependencies = [
  "veoveo-artifact-client",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16347,6 +16348,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-mcp-gateway",
  "veoveo-platform-store",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16447,6 +16449,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-policy",
  "veoveo-task-runtime",
+ "veoveo-types",
  "zeroize",
 ]
 
@@ -16501,6 +16504,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
  "zeroize",
 ]
 
@@ -16592,6 +16596,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-speech-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16683,6 +16688,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16861,6 +16867,7 @@ dependencies = [
  "uuid",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16895,6 +16902,7 @@ dependencies = [
  "tracing-subscriber",
  "url",
  "uuid",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -16947,6 +16955,7 @@ dependencies = [
  "veoveo-recording-protocol",
  "veoveo-speech-contract",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17011,6 +17020,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17076,6 +17086,7 @@ dependencies = [
  "serde",
  "serde_json",
  "veoveo-mcp-contract",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17392,6 +17403,7 @@ dependencies = [
  "veoveo-simulation-contract",
  "veoveo-stream-mcp",
  "veoveo-sumo-mcp",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17438,6 +17450,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-speech-contract",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]
@@ -17609,6 +17622,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-types"
+version = "0.1.0"
+dependencies = [
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "veoveo-uav-sim-mcp"
 version = "0.1.0"
 dependencies = [
@@ -17644,6 +17666,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
 ]
 
 [[package]]

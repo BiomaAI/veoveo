@@ -14,12 +14,13 @@ use serde_json::json;
 use veoveo_mcp_contract::{
     AccessSubject, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey,
     GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, InvocationProvenance,
-    PolicyVersion, Principal, PrincipalId, PrincipalKind, ScopeName, ServerSlug, TenantId,
-    TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    PolicyVersion, Principal, PrincipalId, PrincipalKind, ServerSlug, TenantId, TokenIssuer,
+    TokenSubject, WorkContextId, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId, StoreConfig, StoreCredentials, deterministic_tenant_id,
 };
+use veoveo_types::ScopeName;
 
 use super::*;
 

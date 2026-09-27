@@ -5,9 +5,10 @@ use std::collections::BTreeSet;
 
 use veoveo_mcp_contract::{
     AuthOutcome, AuthReasonCode, AuthorizationServerId, GatewayProfile, OAuthClientId,
-    OAuthClientRegistration, ProtectedResourceId, RecordingIngestResource, ScopeName,
+    OAuthClientRegistration, ProtectedResourceId, RecordingIngestResource,
 };
 use veoveo_mcp_gateway::GatewayCatalog;
+use veoveo_types::ScopeName;
 
 use crate::{
     audit::{AuthAuditRecord, AuthAuditTarget, auth_audit_error_response, record_token_auth_audit},

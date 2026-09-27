@@ -7,8 +7,9 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use serde_json::Value;
-    use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId, ScopeName};
+    use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
     use veoveo_mcp_gateway::{GatewayCatalog, www_authenticate_challenge};
+    use veoveo_types::ScopeName;
 
     fn repository_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

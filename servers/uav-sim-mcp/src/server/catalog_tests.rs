@@ -573,7 +573,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         stream_reader
             .actor
             .scopes
-            .insert(veoveo_mcp_contract::ScopeName::new("uav-sim:stream").unwrap());
+            .insert(veoveo_types::ScopeName::new("uav-sim:stream").unwrap());
         assert!(
             server
                 .resource_descriptors_for_identity(&stream_reader)

@@ -9,6 +9,7 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 veoveo-simulation-contract.workspace = true
 bytes.workspace = true
 futures.workspace = true

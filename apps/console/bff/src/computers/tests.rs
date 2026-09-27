@@ -15,7 +15,7 @@ use std::{collections::BTreeSet, sync::Mutex, time::Duration};
 use tokio::task::JoinHandle;
 use tower::ServiceExt;
 use uuid::Uuid;
-use veoveo_mcp_contract::ScopeName;
+use veoveo_types::ScopeName;
 
 struct Observed {
     path: String,

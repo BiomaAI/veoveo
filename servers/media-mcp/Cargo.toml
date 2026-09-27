@@ -41,4 +41,5 @@ veoveo-platform-store = { path = "../../platform/store" }
 veoveo-task-runtime = { path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-types.workspace = true
 tower = { workspace = true, features = ["util"] }

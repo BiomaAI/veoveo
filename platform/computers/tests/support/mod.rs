@@ -35,6 +35,7 @@ pub fn authenticated(owner: &TaskOwner) -> veoveo_computers::ComputerActor {
 #[allow(dead_code)]
 pub fn identity(owner: &TaskOwner) -> veoveo_mcp_contract::GatewayInternalIdentity {
     use veoveo_mcp_contract::*;
+    use veoveo_types::ScopeName;
     let principal = Principal {
         id: PrincipalId::new(owner.principal_key.clone()).unwrap(),
         kind: match owner.principal_kind {

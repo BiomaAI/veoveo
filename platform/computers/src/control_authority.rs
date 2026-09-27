@@ -4,9 +4,9 @@ use chrono::Utc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 use veoveo_mcp_contract::{
-    GatewayAction, PolicyEffect, PolicyTarget, ResourceUri, ServerSlug, TraceId,
-    WorkContextMembershipLevel,
+    GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId, WorkContextMembershipLevel,
 };
+use veoveo_types::ResourceUri;
 
 pub struct ControlAuthority {
     snapshot: crate::authority_snapshot::AuthoritySnapshot,

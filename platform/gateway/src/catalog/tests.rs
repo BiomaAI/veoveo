@@ -13,13 +13,13 @@ use veoveo_mcp_contract::{
     OidcClientRegistrationId, OwnedRoute, OwnedRoutePurpose, PolicyEffect, PolicyReasonCode,
     PolicyRule, PolicyRuleId, PolicyTarget, Principal, PrincipalAssurance, PrincipalId,
     PrincipalKind, ProfileServerExposure, ProtectedResourceId, ResourceAuthorizationServer,
-    ResourceProjectionMode, ResourceScheme, ResourceSelector, ResourceUri, ResourceUriPrefix,
-    ResourceUriTemplate, RoleId, ScopeName, SecretLocator, SecretOwner, SecretPurpose,
-    SecretReference, SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TenantId,
-    TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint, UpstreamTransport,
-    UpstreamTransportSecurity, UpstreamUrl, WorkContextDefinition, WorkContextId,
-    WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
+    ResourceProjectionMode, ResourceSelector, ResourceUriPrefix, ResourceUriTemplate, RoleId,
+    SecretLocator, SecretOwner, SecretPurpose, SecretReference, SecretReferenceId, SecretSource,
+    TaskExposure, TenantDefinition, TenantId, TokenIssuer, TokenSubject, TraceId, UpstreamEndpoint,
+    UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl, WorkContextDefinition,
+    WorkContextId, WorkContextMembershipLevel, WorkContextMembershipRule, WorkContextOutputPolicy,
 };
+use veoveo_types::{ResourceScheme, ResourceUri, ScopeName};
 
 use super::*;
 use crate::{PolicyRequest, www_authenticate_challenge};

@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{AgentModelId, AgentTemplateId};
 use crate::{
-    GatewayProfileId, GatewayToolName, ResourceUri, RoleId, ScopeName, SecretReferenceId,
-    Sha256Digest, TenantId, WorkContextId, WorkContextMembershipLevel,
+    GatewayProfileId, GatewayToolName, RoleId, SecretReferenceId, Sha256Digest, TenantId,
+    WorkContextId, WorkContextMembershipLevel,
 };
+use veoveo_types::{ResourceUri, ScopeName};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(

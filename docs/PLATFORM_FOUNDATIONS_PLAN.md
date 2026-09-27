@@ -55,7 +55,10 @@ catalog selection still need SQL filtering and pagination; installed acceptance 
 pending.
 Phase 3 also includes the accepted CE-13 architecture for foundational types,
 server-owned contracts, contract-only library builds, and typed scope/resource
-interfaces. The repository rules are documented; extraction and adoption are pending.
+interfaces. Foundational names, opaque references, and extension traits are extracted;
+wire/schema tests and an independent consumer build pass. Focused contract, policy,
+and gateway tests and strict workspace Clippy pass. Builders and server adoption are
+pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -74,7 +77,8 @@ The target contracts live in the owning documents:
 - [Knowledge sharing](KNOWLEDGE.md)
 - [Audit log](AUDIT.md)
 - [MCP server contract](../mcp/contract/DESIGN.md), rule C32
-- [Contract evolution](CONTRACT_EVOLUTION.md), CE-10, CE-11, and CE-12
+- [Foundational types](../platform/types/DESIGN.md)
+- [Contract evolution](CONTRACT_EVOLUTION.md), CE-10 through CE-13
 - [Deployment contract](../deploy/contract/DESIGN.md#installation-target)
 - [Naming rules](../AGENTS.md#naming) and [Database First](../AGENTS.md#database-first)
 
@@ -470,10 +474,34 @@ A separate contract crate needs a concrete dependency or independent release rea
   checks distinct from compile-time structure. Update owning designs and compliance
   declarations with their actual implementation and qualification status.
 
-Migration status: architecture accepted; the central Map/Time scope-enum draft was
-removed before adoption. Foundational extraction, extension traits, contract features,
-and repository-wide adoption are pending. The existing `ResourceUri` validator checks
-only a scheme and nonempty text and does not satisfy the target URI profile.
+#### Migration Inventory And Status
+
+All 15 Rust MCP server packages under `servers/` have library targets. None currently
+defines the required `contract` feature. Existing libraries remain the default owner;
+the inventory must not be implemented as a new central domain-type registry.
+
+| Surface | Current dependency or representation gap | Next owning change |
+|---|---|---|
+| Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
+| Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; independent consumer implementations and compile-fail cases pass | Consume them in MCP-specific setup and qualify an independent hosted fixture |
+| Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
+| Map | Its contract imports `CrsId`, Artifact metadata, principal and Work Context types from the runtime-bearing MCP crate; scope helpers and URI builders use strings | Resolve each type's owning contract, expose the contract feature, and migrate its scopes, addresses, and query IDs |
+| Time | Its contract depends on the shared digest type in the MCP crate | Extract the protocol-independent digest type, expose the contract feature, and migrate scopes and resource addresses |
+| Computers and Speech | Existing domain contract crates already separate some types from the server runtime | Qualify those dependency boundaries and expose their server library contract surfaces without duplicating types |
+| Artifact, Media, Optimization | Public types live across shared artifact/provider contracts and server domain modules | Assign each contract to its domain owner and gate runtime dependencies |
+| DuckDB, Frames, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
+| Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
+| SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |
+
+The initial extraction preserves `ResourceUri`'s current opaque lexical profile and
+wire strings. It does not establish safe concrete URI parsing or builder adoption.
+The completion/audit overlap above must be resolved before that profile is narrowed.
+Foundation tests cover wire strings, schema descriptions, lexical rejection, independent
+trait implementations, and compile-fail examples. A separately resolved consumer builds
+without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,
+policy, and gateway library suites pass, as does strict workspace Clippy across all
+targets and features. These checks qualify the extraction. Server contract-only features,
+MCP-specific traits, library-backed URI builders, and repository-wide adoption are pending.
 
 ## Phase 4: Unified Audit Log
 

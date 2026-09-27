@@ -17,6 +17,7 @@ name = "certify"
 path = "src/bin/certify.rs"
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 axum-server.workspace = true

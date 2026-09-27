@@ -4,9 +4,10 @@ use anyhow::Result;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
     PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, PolicyVersion, Principal,
-    RecordingIngestResource, RecordingProducerRegistration, ResourceProjectionMode, ResourceScheme,
-    ScopeName, ServerManifest, TraceId,
+    RecordingIngestResource, RecordingProducerRegistration, ResourceProjectionMode, ServerManifest,
+    TraceId,
 };
+use veoveo_types::{ResourceScheme, ScopeName};
 
 use crate::PolicyCatalogView;
 
@@ -743,7 +744,7 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
 }
 
 fn has_required_scopes(
-    principal_scopes: &BTreeSet<veoveo_mcp_contract::ScopeName>,
+    principal_scopes: &BTreeSet<veoveo_types::ScopeName>,
     required: &[ScopeName],
 ) -> bool {
     required

@@ -161,7 +161,7 @@ fn part_session(
 
 fn validate_part_session(
     session: crate::session::BrowserSession,
-    scopes: &std::collections::BTreeSet<veoveo_mcp_contract::ScopeName>,
+    scopes: &std::collections::BTreeSet<veoveo_types::ScopeName>,
     now: i64,
 ) -> Result<crate::oauth::UpstreamSession, PartSessionRejected> {
     if session.is_expired(now)
@@ -219,8 +219,7 @@ mod tests {
             .into_response();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         assert!(!response.headers().contains_key(header::SET_COOKIE));
-        let scopes =
-            BTreeSet::from([veoveo_mcp_contract::ScopeName::new("artifact:upload").unwrap()]);
+        let scopes = BTreeSet::from([veoveo_types::ScopeName::new("artifact:upload").unwrap()]);
         assert!(validate_part_session(session(200), &scopes, 100).is_err());
     }
 }

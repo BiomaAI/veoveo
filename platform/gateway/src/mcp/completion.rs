@@ -2,9 +2,8 @@ use rmcp::{
     model::{CompleteRequestParams, CompleteResult, ErrorData as McpError, Reference},
     service::{RequestContext, RoleServer},
 };
-use veoveo_mcp_contract::{
-    CompletionExposure, GatewayAction, PolicyTarget, PromptName, ResourceUri,
-};
+use veoveo_mcp_contract::{CompletionExposure, GatewayAction, PolicyTarget, PromptName};
+use veoveo_types::ResourceUri;
 
 use crate::mcp_support::{mcp_invalid_params, mcp_invalid_request};
 
@@ -31,6 +30,8 @@ impl GatewayMcp {
         }
         let target = match &request.r#ref {
             Reference::Resource(reference) => {
+                // TODO(foundations): separate completion templates from concrete
+                // PolicyTarget resource URIs, including stored audit target decoding.
                 let uri = ResourceUri::new(reference.uri.clone())
                     .map_err(|err| mcp_invalid_params(format!("invalid completion URI: {err}")))?;
                 PolicyTarget::Resource {

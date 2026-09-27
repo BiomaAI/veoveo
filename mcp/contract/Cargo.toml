@@ -12,6 +12,7 @@ default = ["analytics"]
 analytics = ["dep:duckdb"]
 
 [dependencies]
+veoveo-types.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 base64.workspace = true

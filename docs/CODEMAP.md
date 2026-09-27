@@ -71,6 +71,7 @@ Component designs live beside the code whose contract they specify:
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
+| [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent scope names, resource schemes and references, validation errors, and public extension traits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`servers/chart-mcp/DESIGN.md`](../servers/chart-mcp/DESIGN.md) | chart generation and the Chart MCP App |
@@ -346,12 +347,16 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 ## Shared Contracts
 
-The planned `veoveo-types` crate at `platform/types` will own protocol-independent
-scope and resource types and reusable builders. Each server library will own its
-domain contract and expose a build through its `contract` feature without runtime
-dependencies. MCP-specific interfaces stay in `mcp/contract`. This extraction is not
-implemented; [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
-defines its dependency and conformance acceptance.
+### `platform/types`
+
+The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, and
+`IdentifierError`. Its public `ScopeDefinition` and `ResourceAddress` traits let
+independent libraries supply domain vocabularies. It depends only on serialization
+and schema support. Consumers import its types directly. The
+[design](../platform/types/DESIGN.md) defines the implemented lexical profile;
+[the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+tracks concrete/template reference separation, URI builders, MCP integration traits,
+and server library features.
 
 ### `mcp/apps-extension`
 
@@ -1183,6 +1188,8 @@ Smoke lifecycle, retry, assertion, and cleanup logic belongs in the Rust harness
 
 ## Change Routing
 
+- Change foundational scope names, resource references, and extension traits in
+  `platform/types`; keep each domain's vocabulary in its owning library.
 - Change shared identity/policy/artifact semantics in `mcp/contract`, then update the
   platform store and every affected boundary.
 - Change persistence shape in `platform/store` with an ordered migration and matching Rust API.

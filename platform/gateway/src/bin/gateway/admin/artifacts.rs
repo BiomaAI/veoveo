@@ -11,9 +11,10 @@ use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
     AccessLevel, AccessSubject, ArtifactId, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
     CreateArtifactShareLinkRequest, GatewayAction, GatewayProfile, PlaneCaller, PolicyTarget,
-    PutGrantRequest, ResourceUri, SetArtifactReleaseStateRequest,
+    PutGrantRequest, SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
+use veoveo_types::ResourceUri;
 
 use crate::{
     admin::admin_profile_id,

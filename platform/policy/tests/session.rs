@@ -3,6 +3,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::*;
 use veoveo_policy::session::{SessionFamilyAuthority, SessionRequest};
+use veoveo_types::ScopeName;
 
 struct Fixture {
     family: Value,

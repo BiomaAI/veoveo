@@ -3,8 +3,9 @@ use std::collections::BTreeSet;
 use jsonwebtoken::Algorithm;
 use veoveo_mcp_contract::{
     IdentityProviderClaimMapping, OAuthClientId, OidcClientId, OidcNonce, ProtectedResourceId,
-    ScopeName, TokenIssuer,
+    TokenIssuer,
 };
+use veoveo_types::ScopeName;
 
 use super::support::{AuthError, is_symmetric_algorithm};
 

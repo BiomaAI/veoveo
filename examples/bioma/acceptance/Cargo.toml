@@ -15,5 +15,6 @@ veoveo-mcp-gateway = { path = "../../../platform/gateway" }
 veoveo-platform-store = { path = "../../../platform/store" }
 
 [dev-dependencies]
+veoveo-types.workspace = true
 tar = "=0.4.46"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

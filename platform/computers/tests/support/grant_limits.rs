@@ -1,6 +1,7 @@
 //! Additional grant checks share the actual ledger fixture and its authority tests.
 // Kept as an include in session_grants.rs, not an independent duplicate launcher.
 use super::*;
+use veoveo_types::ResourceScheme;
 
 #[tokio::test]
 async fn attachment_requires_its_own_resource_policy_and_current_contributor_membership() {

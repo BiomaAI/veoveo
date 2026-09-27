@@ -10,10 +10,11 @@ use jsonwebtoken::{
 use serde::Serialize;
 use veoveo_mcp_contract::{
     InvocationProvenance, JwtId, OAuthClientId, Principal, PrincipalDisplayName, PrincipalId,
-    PrincipalKind, ProtectedResourceId, ResourceAuthorizationServer, ScopeName, SecretPurpose,
+    PrincipalKind, ProtectedResourceId, ResourceAuthorizationServer, SecretPurpose,
     SecretReferenceId, TenantId, TokenSubject, WorkContextId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, GatewaySecretResolver};
+use veoveo_types::ScopeName;
 
 pub(super) const ACCESS_TOKEN_TTL_SECONDS: i64 = 15 * 60;
 

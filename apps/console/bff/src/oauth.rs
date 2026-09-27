@@ -14,7 +14,7 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
-use veoveo_mcp_contract::ScopeName;
+use veoveo_types::ScopeName;
 
 use crate::{
     AppState,

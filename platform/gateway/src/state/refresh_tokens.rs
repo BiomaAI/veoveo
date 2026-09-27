@@ -16,13 +16,14 @@ use uuid::Uuid;
 use veoveo_mcp_contract::{
     AuthAuditEvent, AuthorizationServerId, GatewayProfileId, GatewayRefreshFamilyId,
     GatewayRefreshGrant, OAuthClientId, OAuthRefreshToken, Principal, PrincipalDisplayName,
-    ScopeName, WorkContextId,
+    WorkContextId,
 };
 use veoveo_platform_store::{
     GatewayRefreshFamilyRecord, GatewayRefreshRotationOutcome, GatewayRefreshTokenRecord,
     OpenObject, RecordIdKey, RedactedSecret, gateway_refresh_family_record_id,
     gateway_refresh_token_record_id,
 };
+use veoveo_types::ScopeName;
 
 use super::GatewayState;
 

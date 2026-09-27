@@ -20,8 +20,9 @@ use axum::{
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
-use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId, ScopeName};
+use veoveo_mcp_contract::{GatewayControlPlane, GatewayProfileId};
 use veoveo_mcp_gateway::GatewayCatalog;
+use veoveo_types::ScopeName;
 
 pub(super) fn fixture_subject(name: &str) -> AuthenticatedSubject {
     let mut subject = crate::workspace::tests::subject(name);

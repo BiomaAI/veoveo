@@ -762,7 +762,7 @@ impl GatewayCatalog {
 fn server_owns_gateway_resource_uri(
     server: &ServerManifest,
     uri: &str,
-    scheme: &veoveo_mcp_contract::ResourceScheme,
+    scheme: &veoveo_types::ResourceScheme,
 ) -> bool {
     server.uri_scheme == *scheme
         || (server.resource_projection == ResourceProjectionMode::ServerOwned

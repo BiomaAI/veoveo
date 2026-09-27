@@ -344,9 +344,10 @@ mod tests {
     use chrono::Utc;
     use veoveo_mcp_contract::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, PrincipalKind, RoleId,
-        ScopeName, TenantId, TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel,
+        TenantId, TokenIssuer, TokenSubject, WorkContextId, WorkContextMembershipLevel,
         WorkContextOutputPolicy,
     };
+    use veoveo_types::ScopeName;
 
     use super::*;
 

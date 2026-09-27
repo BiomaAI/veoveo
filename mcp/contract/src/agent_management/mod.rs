@@ -55,7 +55,7 @@ pub enum Execution {
         template: AgentTemplateId,
         template_revision: Sha256Digest,
         parameters: BTreeMap<String, TemplateParameter>,
-        resource_subscriptions: Vec<crate::ResourceUri>,
+        resource_subscriptions: Vec<veoveo_types::ResourceUri>,
     },
 }
 
