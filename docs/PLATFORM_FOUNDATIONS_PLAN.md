@@ -506,7 +506,7 @@ Acceptance:
 
 Acceptance:
 
-- Gateway tests prove that a declared read's audit event carries its observation and
+- Gateway tests prove that a declared read's audit record carries its observation and
   outcome and commits before the result returns.
 - A kernel test shows provenance lines within the byte budget.
 - Every Rust server and `datasheet-mcp` pass K01 through K08 for their docs
@@ -567,7 +567,9 @@ log records the observed revision for reads of each collection.
    cross-component flow in `KNOWLEDGE.md`.
 3. Add typed knowledge approval entries to the control-plane contract in
    `mcp/contract/src/gateway/server_config.rs`, with validation. Register the service's
-   machine client, and grant it read access to approved collections only.
+   machine client, grant it read access to approved collections only, and mark it as an
+   indexing client so the gateway records its reads by collection window, as
+   [the audit design](AUDIT.md#event-selection) specifies.
 4. Implement discovery, the catalog resources, enumeration, change subscriptions,
    reconciliation, chunking, and index generations keyed by embedding space, with
    indexing at bulk priority. Add the `embed` tool for agents and external MCP hosts.
