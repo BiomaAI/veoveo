@@ -21,7 +21,9 @@ The target contracts live in the owning documents:
 - [Deployment contract](../deploy/contract/DESIGN.md#installation-target)
 - [Naming rules](../AGENTS.md#naming) and [Database First](../AGENTS.md#database-first)
 
-Delete this plan, and its CODEMAP row, in the change that completes the last phase.
+The plan is complete when every phase is implemented and deployed to veoveo.bioma.ai,
+the reference installation, and its acceptance checks pass there. Delete this plan, and
+its CODEMAP row, in the change that completes the last phase.
 Update each owning design when its phase lands, because the designs hold the current
 state after this file is gone.
 
@@ -39,12 +41,25 @@ state after this file is gone.
 
 ## Working Rules
 
+- Work autonomously. Do not stop to ask the user questions. When a choice is open,
+  take the option closest to the designs this plan links, or the best-supported guess,
+  and record the choice in the commit message.
+- Do not let a blocker stop progress. When one step cannot finish, work around it,
+  leave a `TODO(foundations): <what remains and why>` comment at the exact code path,
+  add a row to [Deferred Work](#deferred-work), and continue with the next step. Defer
+  only what later work does not depend on.
+- A deferral never weakens a requirement. Do not replace a GPU path with a CPU path,
+  skip an audit record that must commit, relax authorization, or mark a failing check as
+  passing. Leave that work deferred and visible instead.
+- The reference installation at veoveo.bioma.ai holds no data to preserve. Stop,
+  wipe, and rebuild its cluster whenever a phase needs it, without backups, data
+  migration, backward compatibility, or approval. Deploy each phase there once its
+  local checks pass, and run its installed acceptance there.
 - Read `AGENTS.md` and `docs/CODEMAP.md` before each phase.
 - Work on `main` in small commits, one concern each. Run the native checks each commit
   touches, and run `cargo xtask enforce docs` for every documentation change.
 - Internal names and formats change by hard cut. Do not add aliases, fallbacks, or
   readers for old identifiers.
-- Ask the user before any command that deletes data on a running installation.
 - Re-verify the latest stable release of every new dependency at the moment you add it.
   Update the pin and this plan if it has moved.
 - Delete superseded plans as you go, following Phase 0.
@@ -179,8 +194,7 @@ its data, so none of them needs a migration:
 Write the reset procedure into `examples/bioma/README.md` using its existing runbook
 commands. It stops the platform, deletes the SurrealDB volume, the Artifact object
 storage, recording hub journals, and Computers retained homes and host journals, then
-reinstalls from the new lock through GitOps. Show the user the exact commands and wait
-for approval before running them.
+reinstalls from the new lock through GitOps. Run it without waiting for approval.
 
 Acceptance:
 
@@ -552,3 +566,12 @@ worth sharing.
 
 Acceptance: each server passes K01 through K10, and `knowledge-mcp` indexes its
 approved collections.
+
+## Deferred Work
+
+The implementing agent adds a row for every step it defers, and removes the row when
+the step lands. Each row matches a `TODO(foundations)` comment in the code. The plan is
+not complete while a row remains.
+
+| Phase and step | Code path | What remains | Why it was deferred |
+|---|---|---|---|
