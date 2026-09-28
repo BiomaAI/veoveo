@@ -40,6 +40,8 @@ mod problems;
 mod prompts;
 #[path = "server/service.rs"]
 mod service;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 
@@ -65,6 +67,7 @@ async fn main() -> anyhow::Result<()> {
         "info,veoveo_optimization_mcp=debug",
     )?;
     let args = Args::parse();
+    std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let internal_token_verifier = GatewayInternalTokenVerifier::new(
@@ -243,7 +246,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::service::SERVER_DOCS;
+    use super::setup::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {

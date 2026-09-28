@@ -19,8 +19,6 @@ pub mod state;
 #[cfg(feature = "runtime")]
 pub mod task_records;
 #[cfg(feature = "runtime")]
-pub mod uris;
-#[cfg(feature = "runtime")]
 pub mod usage;
 #[cfg(feature = "runtime")]
 pub mod verification;

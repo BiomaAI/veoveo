@@ -12,14 +12,13 @@ use veoveo_optimization_mcp::{
         ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MapTravelModelUri, MilpProblem,
         MilpProblemSource, OptimizationAuthority, OptimizationProblemDefinition,
         OptimizationProblemRecord, OptimizationProblemResource, OptimizationProblemUri,
-        OptimizationSolution, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
-        ProblemDimensions, ProblemFamily, ProblemId, RouteScenario, RoutingProblem,
-        RoutingProblemSource, SolveConvexRequest, SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION,
-        TravelModelArtifact, TravelModelSource,
+        OptimizationSolution, OptimizationSolutionUri, OptimizeRouteScenariosRequest,
+        OptimizeRoutesRequest, ProblemDimensions, ProblemFamily, ProblemId, RouteScenario,
+        RoutingProblem, RoutingProblemSource, SolveConvexRequest, SolveMilpRequest,
+        TRAVEL_MODEL_ARTIFACT_VERSION, TravelModelArtifact, TravelModelSource,
     },
     problem_store::{PreparedProblem, PreparedRouteCase},
     solution_builder::verify_solution_digest,
-    uris,
 };
 
 use super::{app_state::AppState, ownership::runtime_owner};
@@ -33,7 +32,7 @@ pub(super) async fn prepare_routes(
     let problem = materialize_routing_source(state, identity, caller, &input.problem).await?;
     let mut compiled = compile_routing_problem(&problem)?;
     if let Some(solution_uri) = &input.initial_solution {
-        let solution = load_solution(state, identity, caller, solution_uri.as_str()).await?;
+        let solution = load_solution(state, identity, caller, solution_uri).await?;
         compiled.initial_solution = Some(compile_routing_initial_solution(&compiled, &solution)?);
     }
     let definition = OptimizationProblemDefinition::Routing {
@@ -67,7 +66,7 @@ pub(super) async fn prepare_route_scenarios(
         let problem = materialize_routing_source(state, identity, caller, &case.problem).await?;
         let mut compiled = compile_routing_problem(&problem)?;
         if let Some(solution_uri) = &case.initial_solution {
-            let solution = load_solution(state, identity, caller, solution_uri.as_str()).await?;
+            let solution = load_solution(state, identity, caller, solution_uri).await?;
             compiled.initial_solution =
                 Some(compile_routing_initial_solution(&compiled, &solution)?);
         }
@@ -129,7 +128,7 @@ pub(super) async fn prepare_milp(
 ) -> anyhow::Result<PreparedProblem> {
     let mut problem = materialize_milp_source(state, identity, caller, &input.problem).await?;
     if let Some(solution_uri) = &input.initial_solution {
-        let solution = load_solution(state, identity, caller, solution_uri.as_str()).await?;
+        let solution = load_solution(state, identity, caller, solution_uri).await?;
         let values = solution_variable_map(&solution)?;
         problem.mip_start = Some(
             problem
@@ -165,26 +164,29 @@ pub(super) async fn load_solution(
     state: &AppState,
     identity: &GatewayInternalIdentity,
     caller: &PlaneCaller,
-    solution_uri: &str,
+    solution_uri: &OptimizationSolutionUri,
 ) -> anyhow::Result<OptimizationSolution> {
-    let solution_uri =
-        veoveo_optimization_mcp::contract::OptimizationSolutionUri::parse(solution_uri.to_owned())?;
     let task = veoveo_optimization_mcp::reads::OptimizationReads::new(&state.tasks)?
-        .solution(&runtime_owner(identity), &solution_uri)
+        .solution(&runtime_owner(identity), solution_uri)
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized solution {solution_uri}"))?;
     let output = task
         .output
         .ok_or_else(|| anyhow::anyhow!("solution task has no terminal output"))?;
-    let artifact_id = uris::parse_artifact_uri(output.solution_artifact.artifact_uri.as_str())
-        .ok_or_else(|| anyhow::anyhow!("solution artifact has an invalid URI"))?;
+    let artifact_id = match output.solution_artifact.artifact_uri.address() {
+        veoveo_artifact_contract::ArtifactAddress::Presented {
+            scheme,
+            artifact_id,
+        } if scheme == &*veoveo_optimization_mcp::contract::uris::SCHEME => *artifact_id,
+        _ => anyhow::bail!("solution artifact must use its Optimization presentation"),
+    };
     let artifact = state
         .artifacts
         .get(caller, &artifact_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("solution artifact is unavailable"))?;
     let solution: OptimizationSolution = serde_json::from_slice(&artifact.bytes)?;
-    if solution.solution_uri != solution_uri {
+    if &solution.solution_uri != solution_uri {
         anyhow::bail!("solution artifact identity does not match its resource");
     }
     verify_solution_digest(&solution)?;
@@ -194,12 +196,10 @@ pub(super) async fn load_solution(
 pub(super) async fn load_prepared_problem_by_uri(
     state: &AppState,
     identity: &GatewayInternalIdentity,
-    problem_uri: &str,
+    problem_uri: &OptimizationProblemUri,
 ) -> anyhow::Result<PreparedProblem> {
-    let problem_id = uris::parse_problem_uri(problem_uri)
-        .ok_or_else(|| anyhow::anyhow!("invalid Optimization problem URI"))?;
     let task = veoveo_optimization_mcp::reads::OptimizationReads::new(&state.tasks)?
-        .problem(&runtime_owner(identity), &problem_id)
+        .problem(&runtime_owner(identity), problem_uri.id())
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized problem {problem_uri}"))?;
     let common = task
@@ -218,7 +218,7 @@ async fn materialize_routing_source(
     let mut problem = match source {
         RoutingProblemSource::Inline { problem } => problem.clone(),
         RoutingProblemSource::Resource { uri } => {
-            let prepared = load_prepared_problem_by_uri(state, identity, uri.as_str()).await?;
+            let prepared = load_prepared_problem_by_uri(state, identity, uri).await?;
             let PreparedProblem::Routing { problem, .. } = prepared else {
                 anyhow::bail!("resource {} is not a routing problem", uri);
             };
@@ -273,7 +273,7 @@ async fn materialize_convex_source(
     let problem = match source {
         ConvexProblemSource::Inline { problem } => problem.clone(),
         ConvexProblemSource::Resource { uri } => {
-            let prepared = load_prepared_problem_by_uri(state, identity, uri.as_str()).await?;
+            let prepared = load_prepared_problem_by_uri(state, identity, uri).await?;
             let PreparedProblem::Convex { problem, .. } = prepared else {
                 anyhow::bail!("resource {} is not a convex problem", uri);
             };
@@ -299,7 +299,7 @@ async fn materialize_milp_source(
     let problem = match source {
         MilpProblemSource::Inline { problem } => problem.clone(),
         MilpProblemSource::Resource { uri } => {
-            let prepared = load_prepared_problem_by_uri(state, identity, uri.as_str()).await?;
+            let prepared = load_prepared_problem_by_uri(state, identity, uri).await?;
             let PreparedProblem::Milp { problem, .. } = prepared else {
                 anyhow::bail!("resource {} is not a MILP problem", uri);
             };
@@ -340,7 +340,7 @@ fn problem_resource(
     dimensions: ProblemDimensions,
 ) -> anyhow::Result<OptimizationProblemResource> {
     let problem_id = ProblemId::new();
-    let problem_uri = OptimizationProblemUri::parse(uris::problem_uri(&problem_id))?;
+    let problem_uri = OptimizationProblemUri::new(problem_id.clone())?;
     let digest_sha256 = hex::encode(Sha256::digest(serde_json::to_vec(&definition)?));
     let created_at = Utc::now();
     Ok(OptimizationProblemResource {

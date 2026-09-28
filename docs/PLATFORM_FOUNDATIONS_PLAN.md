@@ -387,6 +387,23 @@ solver case is ignored. Retained-record preflight and coordinated installed repl
 remain pending. Other resource families, typed scopes and checked MCP setup remain
 work. Disposable fixtures have stopped, the cluster stays stopped and the host has
 179 GiB free.
+Optimization's contract now owns every hosted resource variant and its concrete URI
+builders. Handlers parse once and dispatch exhaustively, while problem and solution
+loaders preserve typed addresses. Output identities require canonical RFC-variant
+UUIDv7 spelling; solver profile names use unreserved path characters. The documented
+retained-data preflight covers previously accepted aliases and malformed identities.
+Checked MCP setup supplies startup and discovery without changing App metadata, fixed
+resource spelling or public solver schemas. The domain scope vocabulary is explicitly
+empty, preserving gateway operation policy instead of introducing permission gates.
+Verification's prepared-problem lookup now uses the domain SQL reader rather than
+scanning Tasks and filtering ownership in Rust. Forty-two package cases and five
+compile-fail examples pass. The independent 90-package contract consumer passes eleven
+checks without service dependencies, including expansion of all fifteen templates.
+Map's travel-model consumer, runtime-only and strict workspace Clippy pass. Map
+reference ownership and DTO relationship admission remain work; installed recovery,
+reverse/forward replacement and GPU acceptance are pending. All disposable fixtures
+have stopped. The cluster stays stopped with 172 GiB free; compiler and build caches
+are preserved.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -875,7 +892,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | DuckDB usage and discovery | The library uses TaskRuntime SQL visibility for 100-entry usage pages and exact reads. Its isolated contract owns usage addresses, collection-bound cursors and checked pages; discovery declares roots/templates without scanning records. The unused unbounded Store usage catalog API is removed. Native reads and Spatial, the independent 74-package contract consumer, and strict runtime/workspace Clippy pass. Workbench cursor construction uses the browser URL API; headless navigation and reserved-character cases pass | Qualify the coordinated array-to-page transition, installed reads and headed hardware Workbench acceptance |
 | Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields; Map consumes the contract feature. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent 90-package consumer preserves eleven solver schemas and excludes service dependencies; Map consumption and strict runtime/workspace Clippy pass | Qualify the coordinated control/executor replacement and installed reads |
 | Optimization catalogs | Domain-owned readers match indexed and retained owner/context fields in SQL before pagination, exact lookup and completion. Optional tenants remain distinct; selected malformed records fail explicitly. Typed collection builders preserve version 1 cursor bytes. Native database checks, independent contract consumption and strict Clippy pass | Qualify retained-record preflight, changed permissions and coordinated reverse/forward replacement in the installation |
-| Other Optimization contracts | Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and admission through the domain library; qualify installed acceptance |
+| Optimization resource admission | Typed domain builders, canonical output IDs and exhaustive resource dispatch replace string construction and prefix parsing for every hosted family. Checked MCP setup preserves discovery metadata and public schemas. The server declares no domain scopes and preserves gateway operation policy. Native template, setup and isolated-consumer checks pass | Qualify the retained-identity preflight, coordinated replacement and installed readiness; migrate the Map travel-model reference through its owner and finish DTO relationship admission |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

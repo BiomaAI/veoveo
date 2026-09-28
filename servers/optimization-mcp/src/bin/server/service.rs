@@ -1,4 +1,4 @@
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
@@ -9,33 +9,31 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
         GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents, ServerConfig,
+        SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
 };
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    Page, UsageKind, UsageRecord, UsageReport,
-    docs::{ContractDeclaration, ServerDocs},
-    paginate,
+    Page, UsageKind, UsageRecord, UsageReport, docs::ContractDeclaration, paginate,
 };
 use veoveo_optimization_mcp::{
+    contract::uris,
     contract::{
         CUOPT_CONTAINER_DIGEST, CUOPT_STABLE_VERSION, EngineProvenance,
         OPTIMIZATION_INDEX_PAGE_SIZE, OptimizationAuthority, OptimizationCollection,
-        OptimizationCollectionUri, OptimizationIndexCursor, OptimizationProblemUri,
+        OptimizationIndexCursor, OptimizationProblemUri, OptimizationResource,
         OptimizationRunRecord, OptimizationRunUri, OptimizationSolution, OptimizationSolutionUri,
-        OptimizationTaskUsageUri, OptimizationToolOutput, OptimizationUsageIndexUri,
-        OptimizeRouteScenariosRequest, OptimizeRoutesRequest, ProblemFamily, RunPhase, RunTimings,
-        SolutionDetail, SolutionFeasibility, SolveConvexRequest, SolveMilpRequest,
-        SolverTermination, VerifySolutionOutput, VerifySolutionRequest,
+        OptimizationToolOutput, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
+        ProblemFamily, RunPhase, RunTimings, SolutionDetail, SolutionFeasibility,
+        SolveConvexRequest, SolveMilpRequest, SolverTermination, VerifySolutionOutput,
+        VerifySolutionRequest,
     },
     profiles::profiles,
     reads::{OptimizationCompletionPage, OptimizationReads},
     task_records::SolveTaskCommon,
-    uris,
     usage::OptimizationUsage,
 };
 use veoveo_platform_store::{DomainUsageKind as StoreUsageKind, DomainUsageRecord, TaskStatus};
@@ -47,15 +45,13 @@ use super::{
     ownership::{internal_caller, internal_identity, runtime_owner, task_owner_from_runtime},
     problems::{load_prepared_problem_by_uri, load_solution},
     prompts::OptimizationPrompt,
+    setup::{SERVER_DOCS, SERVER_SETUP},
     task_extension::OptimizationTaskExtension,
 };
 
 const LIST_PAGE_SIZE: usize = 100;
 const ROUTES_APP_TOOLS: &[&str] = &["optimize_route_scenarios", "optimize_routes"];
 const MODELS_APP_TOOLS: &[&str] = &["solve_convex", "solve_milp", "verify_solution"];
-
-pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("optimization"));
 
 #[derive(Clone)]
 pub(super) struct OptimizationMcp {
@@ -68,6 +64,7 @@ pub(super) struct OptimizationMcp {
 #[tool_router]
 impl OptimizationMcp {
     pub(super) fn new(state: Arc<AppState>) -> Self {
+        std::sync::LazyLock::force(&SERVER_SETUP);
         Self {
             task_service: OptimizationTaskExtension::new(state.clone()),
             state,
@@ -160,33 +157,7 @@ impl ServerHandler for OptimizationMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info =
-            rmcp::model::Implementation::new("optimization", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "GPU optimization through NVIDIA cuOpt. Read optimization://capabilities and \
-             optimization://profiles first. Use optimize_routes for one routing model, \
-             optimize_route_scenarios for homogeneous alternatives, solve_convex for continuous \
-             LP/QP/QCQP/SOCP models, and solve_milp for mixed-integer linear models. Every tool \
-             uses the MCP Task API. Problem, run, and solution identities are separate immutable \
-             resources. Inspect the solution verification resource before operational use."
-                .to_owned(),
-        );
-        info
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -288,32 +259,11 @@ impl ServerHandler for OptimizationMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let mut resources = well_known_resources();
-        resources.extend([
-            veoveo_mcp_apps_extension::app_resource(uris::ROUTES_APP_URI, "routes")
-                .with_title("Routes")
-                .with_description("GPU routing problems, runs, solutions, and verification."),
-            veoveo_mcp_apps_extension::app_resource(uris::MODELS_APP_URI, "models")
-                .with_title("Models")
-                .with_description("GPU convex and mixed-integer models, runs, and solutions."),
-        ]);
-        resources.extend(root_resources());
-        resources.push(json_descriptor(
-            uris::CAPABILITIES_URI,
-            "Optimization capabilities",
-            "Live cuOpt, GPU, contract, size-limit, and problem-family capabilities.",
-        ));
-        for profile in profiles() {
-            resources.push(json_descriptor(
-                profile.profile_uri.as_str(),
-                &profile.title,
-                &profile.description,
-            ));
-        }
-        // Growing domain state stays behind bounded collection roots and
-        // exact resource templates instead of inflating this catalog.
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
-        resources.dedup_by(|left, right| left.uri == right.uri);
+        let resources = SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor().clone())
+            .collect();
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
@@ -330,7 +280,14 @@ impl ServerHandler for OptimizationMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -351,334 +308,336 @@ impl ServerHandler for OptimizationMcp {
             let identity = internal_identity(&context)?;
             let caller = internal_caller(&context)?;
             let uri = request.uri.as_str();
-            if uri == uris::DOCS_URI {
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc_uri(uri) {
-                let doc = SERVER_DOCS
-                    .doc(doc_id)
-                    .ok_or_else(|| not_found("server document"))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                return json_resource(uri, &ContractDeclaration::from_docs(&SERVER_DOCS));
-            }
-            if uri == uris::ROUTES_APP_URI || uri == uris::MODELS_APP_URI {
-                let routes = uri == uris::ROUTES_APP_URI;
-                let (app_id, title, subtitle, tools) = if routes {
-                    (
-                        "optimization-routes",
-                        "Routes",
-                        "Submit GPU route plans and inspect independently verified solutions",
+            let address =
+                OptimizationResource::parse(uri).map_err(|_| not_found("Optimization resource"))?;
+            match &address {
+                OptimizationResource::Docs => {
+                    json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>())
+                }
+                OptimizationResource::Document(doc_id) => {
+                    let doc = SERVER_DOCS
+                        .doc(doc_id.as_str())
+                        .ok_or_else(|| not_found("server document"))?;
+                    Ok(ReadResourceResult::new(vec![
+                        ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
+                    ]))
+                }
+                OptimizationResource::Contract => {
+                    json_resource(uri, &ContractDeclaration::from_docs(&SERVER_DOCS))
+                }
+                OptimizationResource::RoutesApp | OptimizationResource::ModelsApp => {
+                    let routes = matches!(address, OptimizationResource::RoutesApp);
+                    let (app_id, title, subtitle, tools) = if routes {
+                        (
+                            "optimization-routes",
+                            "Routes",
+                            "Submit GPU route plans and inspect independently verified solutions",
+                            vec![
+                                veoveo_mcp_apps_extension::WorkbenchTool {
+                                    label: "Optimize routes",
+                                    name: "optimize_routes",
+                                    arguments_json: "{}",
+                                },
+                                veoveo_mcp_apps_extension::WorkbenchTool {
+                                    label: "Compare route scenarios",
+                                    name: "optimize_route_scenarios",
+                                    arguments_json: "{}",
+                                },
+                            ],
+                        )
+                    } else {
+                        (
+                            "optimization-models",
+                            "Models",
+                            "Solve GPU mathematical models and inspect verification evidence",
+                            vec![
+                                veoveo_mcp_apps_extension::WorkbenchTool {
+                                    label: "Solve convex model",
+                                    name: "solve_convex",
+                                    arguments_json: "{}",
+                                },
+                                veoveo_mcp_apps_extension::WorkbenchTool {
+                                    label: "Solve mixed-integer model",
+                                    name: "solve_milp",
+                                    arguments_json: "{}",
+                                },
+                                veoveo_mcp_apps_extension::WorkbenchTool {
+                                    label: "Verify solution",
+                                    name: "verify_solution",
+                                    arguments_json: r#"{"solution_uri":""}"#,
+                                },
+                            ],
+                        )
+                    };
+                    let resources = if routes {
                         vec![
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Optimize routes",
-                                name: "optimize_routes",
-                                arguments_json: "{}",
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Capabilities",
+                                uri: uris::CAPABILITIES_URI,
                             },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Compare route scenarios",
-                                name: "optimize_route_scenarios",
-                                arguments_json: "{}",
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Route runs",
+                                uri: uris::RUNS_URI,
                             },
-                        ],
-                    )
-                } else {
-                    (
-                        "optimization-models",
-                        "Models",
-                        "Solve GPU mathematical models and inspect verification evidence",
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Route solutions",
+                                uri: uris::SOLUTIONS_URI,
+                            },
+                        ]
+                    } else {
                         vec![
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Solve convex model",
-                                name: "solve_convex",
-                                arguments_json: "{}",
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Solver profiles",
+                                uri: uris::PROFILES_URI,
                             },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Solve mixed-integer model",
-                                name: "solve_milp",
-                                arguments_json: "{}",
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Problems",
+                                uri: uris::PROBLEMS_URI,
                             },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Verify solution",
-                                name: "verify_solution",
-                                arguments_json: r#"{"solution_uri":""}"#,
+                            veoveo_mcp_apps_extension::WorkbenchResource {
+                                label: "Solutions",
+                                uri: uris::SOLUTIONS_URI,
                             },
-                        ],
-                    )
-                };
-                let resources = if routes {
-                    vec![
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Capabilities",
-                            uri: uris::CAPABILITIES_URI,
+                        ]
+                    };
+                    let html = veoveo_mcp_apps_extension::workbench_app_html(
+                        &veoveo_mcp_apps_extension::WorkbenchApp {
+                            app_id,
+                            title,
+                            subtitle,
+                            empty_message: "No optimization runs are visible to this identity.",
+                            resources: &resources,
+                            tools: &tools,
+                            stream_result: None,
                         },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Route runs",
-                            uri: uris::RUNS_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Route solutions",
-                            uri: uris::SOLUTIONS_URI,
-                        },
-                    ]
-                } else {
-                    vec![
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Solver profiles",
-                            uri: uris::PROFILES_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Problems",
-                            uri: uris::PROBLEMS_URI,
-                        },
-                        veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Solutions",
-                            uri: uris::SOLUTIONS_URI,
-                        },
-                    ]
-                };
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id,
-                        title,
-                        subtitle,
-                        empty_message: "No optimization runs are visible to this identity.",
-                        resources: &resources,
-                        tools: &tools,
-                        stream_result: None,
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            if uri == uris::CAPABILITIES_URI {
-                return json_resource(uri, &capabilities(&self.state));
-            }
-            if uri == uris::PROFILES_URI {
-                return json_resource(uri, &profiles());
-            }
-            if let Some(profile_id) = uris::parse_profile_uri(uri) {
-                let profile = profiles()
-                    .iter()
-                    .find(|profile| profile.profile_id == profile_id)
-                    .ok_or_else(|| not_found("solver profile"))?;
-                return json_resource(uri, profile);
-            }
-            if let Ok(collection_request) = OptimizationCollectionUri::parse(uri) {
-                let page = OptimizationReads::new(&self.state.tasks)
-                    .map_err(internal)?
-                    .page(&runtime_owner(&identity), &collection_request)
-                    .await
-                    .map_err(internal)?;
-                return match collection_request.collection() {
-                    OptimizationCollection::Problems => {
-                        let problems = page
-                            .items
-                            .into_iter()
-                            .map(|task| {
-                                let common =
-                                    task.request.common().expect("reader admits solve Tasks");
-                                Ok(ProblemIndexEntry {
-                                    problem_uri: OptimizationProblemUri::parse(uris::problem_uri(
-                                        &common.problem_id,
-                                    ))
-                                    .map_err(internal)?,
-                                    family: common.family,
+                    );
+                    Ok(ReadResourceResult::new(vec![
+                        veoveo_mcp_apps_extension::app_html_contents(uri, &html),
+                    ]))
+                }
+                OptimizationResource::Capabilities => {
+                    json_resource(uri, &capabilities(&self.state))
+                }
+                OptimizationResource::Profiles => json_resource(uri, &profiles()),
+                OptimizationResource::Profile(profile_uri) => {
+                    let profile = profiles()
+                        .iter()
+                        .find(|profile| &profile.profile_id == profile_uri.id())
+                        .ok_or_else(|| not_found("solver profile"))?;
+                    json_resource(uri, profile)
+                }
+                OptimizationResource::Collection(collection_request) => {
+                    let page = OptimizationReads::new(&self.state.tasks)
+                        .map_err(internal)?
+                        .page(&runtime_owner(&identity), collection_request)
+                        .await
+                        .map_err(internal)?;
+                    match collection_request.collection() {
+                        OptimizationCollection::Problems => {
+                            let problems = page
+                                .items
+                                .into_iter()
+                                .map(|task| {
+                                    let common =
+                                        task.request.common().expect("reader admits solve Tasks");
+                                    Ok(ProblemIndexEntry {
+                                        problem_uri: OptimizationProblemUri::new(
+                                            common.problem_id.clone(),
+                                        )
+                                        .map_err(internal)?,
+                                        family: common.family,
+                                    })
                                 })
-                            })
-                            .collect::<Result<Vec<_>, McpError>>()?;
-                        json_resource(
-                            uri,
-                            &ProblemIndexPage {
-                                problems,
-                                limit: OPTIMIZATION_INDEX_PAGE_SIZE,
-                                next_cursor: page.next_cursor,
-                            },
-                        )
-                    }
-                    OptimizationCollection::Runs => {
-                        let runs = page
-                            .items
-                            .into_iter()
-                            .map(|task| {
-                                let common =
-                                    task.request.common().expect("reader admits solve Tasks");
-                                Ok(RunIndexEntry {
-                                    run_uri: OptimizationRunUri::parse(uris::run_uri(
-                                        &common.run_id,
-                                    ))
-                                    .map_err(internal)?,
-                                    family: common.family,
-                                    phase: run_phase(&task.snapshot),
+                                .collect::<Result<Vec<_>, McpError>>()?;
+                            json_resource(
+                                uri,
+                                &ProblemIndexPage {
+                                    problems,
+                                    limit: OPTIMIZATION_INDEX_PAGE_SIZE,
+                                    next_cursor: page.next_cursor,
+                                },
+                            )
+                        }
+                        OptimizationCollection::Runs => {
+                            let runs = page
+                                .items
+                                .into_iter()
+                                .map(|task| {
+                                    let common =
+                                        task.request.common().expect("reader admits solve Tasks");
+                                    Ok(RunIndexEntry {
+                                        run_uri: OptimizationRunUri::new(common.run_id.clone())
+                                            .map_err(internal)?,
+                                        family: common.family,
+                                        phase: run_phase(&task.snapshot),
+                                    })
                                 })
-                            })
-                            .collect::<Result<Vec<_>, McpError>>()?;
-                        json_resource(
-                            uri,
-                            &RunIndexPage {
-                                runs,
-                                limit: OPTIMIZATION_INDEX_PAGE_SIZE,
-                                next_cursor: page.next_cursor,
-                            },
-                        )
+                                .collect::<Result<Vec<_>, McpError>>()?;
+                            json_resource(
+                                uri,
+                                &RunIndexPage {
+                                    runs,
+                                    limit: OPTIMIZATION_INDEX_PAGE_SIZE,
+                                    next_cursor: page.next_cursor,
+                                },
+                            )
+                        }
+                        OptimizationCollection::Solutions => {
+                            let solutions = page
+                                .items
+                                .into_iter()
+                                .map(|task| {
+                                    task.output
+                                        .expect("reader admits successful solution Tasks")
+                                })
+                                .map(|output| SolutionIndexEntry {
+                                    result_uri: output.result_uri,
+                                    family: output.family,
+                                    feasibility: output.feasibility,
+                                    termination: output.termination,
+                                })
+                                .collect();
+                            json_resource(
+                                uri,
+                                &SolutionIndexPage {
+                                    solutions,
+                                    limit: OPTIMIZATION_INDEX_PAGE_SIZE,
+                                    next_cursor: page.next_cursor,
+                                },
+                            )
+                        }
                     }
-                    OptimizationCollection::Solutions => {
-                        let solutions = page
-                            .items
-                            .into_iter()
-                            .map(|task| {
-                                task.output
-                                    .expect("reader admits successful solution Tasks")
-                            })
-                            .map(|output| SolutionIndexEntry {
-                                result_uri: output.result_uri,
-                                family: output.family,
-                                feasibility: output.feasibility,
-                                termination: output.termination,
-                            })
-                            .collect();
-                        json_resource(
-                            uri,
-                            &SolutionIndexPage {
-                                solutions,
-                                limit: OPTIMIZATION_INDEX_PAGE_SIZE,
-                                next_cursor: page.next_cursor,
-                            },
-                        )
-                    }
-                };
-            }
-            if uris::parse_problem_uri(uri).is_some() {
-                let prepared = load_prepared_problem_by_uri(&self.state, &identity, uri)
-                    .await
-                    .map_err(not_found_error)?;
-                return json_resource(uri, prepared.resource());
-            }
-            if let Some(run_id) = uris::parse_run_uri(uri) {
-                let task = OptimizationReads::new(&self.state.tasks)
-                    .map_err(internal)?
-                    .run(&runtime_owner(&identity), &run_id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("run"))?;
-                let common = task.request.common().expect("matched solve task");
-                let solution = if let Some(output) = &task.output {
-                    Some(
-                        load_solution(&self.state, &identity, &caller, output.result_uri.as_str())
+                }
+                OptimizationResource::Problem(problem_uri) => {
+                    let prepared =
+                        load_prepared_problem_by_uri(&self.state, &identity, problem_uri)
                             .await
-                            .map_err(not_found_error)?,
+                            .map_err(not_found_error)?;
+                    json_resource(uri, prepared.resource())
+                }
+                OptimizationResource::Run(run_uri) => {
+                    let task = OptimizationReads::new(&self.state.tasks)
+                        .map_err(internal)?
+                        .run(&runtime_owner(&identity), run_uri.id())
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("run"))?;
+                    let common = task.request.common().expect("matched solve task");
+                    let solution = if let Some(output) = &task.output {
+                        Some(
+                            load_solution(&self.state, &identity, &caller, &output.result_uri)
+                                .await
+                                .map_err(not_found_error)?,
+                        )
+                    } else {
+                        None
+                    };
+                    json_resource(
+                        uri,
+                        &run_record(&self.state, &task.snapshot, common, solution.as_ref())?,
                     )
-                } else {
-                    None
-                };
-                return json_resource(
-                    uri,
-                    &run_record(&self.state, &task.snapshot, common, solution.as_ref())?,
-                );
-            }
-            if let Some(run_id) = uris::parse_run_incumbents_uri(uri) {
-                let solution = solution_for_run(&self.state, &identity, &caller, &run_id).await?;
-                let incumbents = match &solution.detail {
-                    SolutionDetail::Milp { incumbents, .. } => incumbents.clone(),
-                    _ => Vec::new(),
-                };
-                return json_resource(uri, &incumbents);
-            }
-            if uris::parse_solution_uri(uri).is_some() {
-                let solution = load_solution(&self.state, &identity, &caller, uri)
-                    .await
-                    .map_err(not_found_error)?;
-                return json_resource(uri, &solution);
-            }
-            if let Some(solution_id) = uris::parse_solution_routes_uri(uri) {
-                let solution_uri = uris::solution_uri(&solution_id);
-                let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
-                    .await
-                    .map_err(not_found_error)?;
-                let SolutionDetail::Routing { routes, .. } = solution.detail else {
-                    return Err(McpError::invalid_params(
-                        "solution is not a routing solution",
-                        None,
-                    ));
-                };
-                return json_resource(uri, &routes);
-            }
-            if let Some(solution_id) = uris::parse_solution_variables_uri(uri) {
-                let solution_uri = uris::solution_uri(&solution_id);
-                let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
-                    .await
-                    .map_err(not_found_error)?;
-                let variables = match solution.detail {
-                    SolutionDetail::Convex { variables, .. }
-                    | SolutionDetail::Milp { variables, .. } => variables,
-                    SolutionDetail::Routing { .. } => {
+                }
+                OptimizationResource::RunIncumbents(run_id) => {
+                    let solution =
+                        solution_for_run(&self.state, &identity, &caller, run_id).await?;
+                    let incumbents = match &solution.detail {
+                        SolutionDetail::Milp { incumbents, .. } => incumbents.clone(),
+                        _ => Vec::new(),
+                    };
+                    json_resource(uri, &incumbents)
+                }
+                OptimizationResource::Solution(solution_uri) => {
+                    let solution = load_solution(&self.state, &identity, &caller, solution_uri)
+                        .await
+                        .map_err(not_found_error)?;
+                    json_resource(uri, &solution)
+                }
+                OptimizationResource::SolutionRoutes(solution_id) => {
+                    let solution_uri =
+                        OptimizationSolutionUri::new(solution_id.clone()).map_err(internal)?;
+                    let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
+                        .await
+                        .map_err(not_found_error)?;
+                    let SolutionDetail::Routing { routes, .. } = solution.detail else {
                         return Err(McpError::invalid_params(
-                            "solution is not a mathematical solution",
+                            "solution is not a routing solution",
                             None,
                         ));
-                    }
-                };
-                return json_resource(uri, &variables);
-            }
-            if let Some(solution_id) = uris::parse_solution_verification_uri(uri) {
-                let solution_uri = uris::solution_uri(&solution_id);
-                let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
-                    .await
-                    .map_err(not_found_error)?;
-                return json_resource(uri, &solution.verification);
-            }
-            if let Ok(index) = OptimizationUsageIndexUri::parse(uri) {
-                let page = OptimizationUsage::new(&self.state.tasks)
-                    .map_err(internal)?
-                    .page(&runtime_owner(&identity), index.cursor())
-                    .await
-                    .map_err(internal)?;
-                return json_resource(uri, &page);
-            }
-            if let Ok(address) = OptimizationTaskUsageUri::parse(uri) {
-                let records = OptimizationUsage::new(&self.state.tasks)
-                    .map_err(internal)?
-                    .task(&runtime_owner(&identity), &address)
-                    .await
-                    .map_err(internal)?;
-                if records.is_empty() {
-                    return Err(not_found("task usage"));
+                    };
+                    json_resource(uri, &routes)
                 }
-                let task_id = address.task_id();
-                let report = UsageReport::new(task_id.to_string(), address.as_str()).with_records(
-                    records
-                        .into_iter()
-                        .map(|record| usage_record(task_id, record))
-                        .collect(),
-                );
-                return json_resource(uri, &report);
+                OptimizationResource::SolutionVariables(solution_id) => {
+                    let solution_uri =
+                        OptimizationSolutionUri::new(solution_id.clone()).map_err(internal)?;
+                    let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
+                        .await
+                        .map_err(not_found_error)?;
+                    let variables = match solution.detail {
+                        SolutionDetail::Convex { variables, .. }
+                        | SolutionDetail::Milp { variables, .. } => variables,
+                        SolutionDetail::Routing { .. } => {
+                            return Err(McpError::invalid_params(
+                                "solution is not a mathematical solution",
+                                None,
+                            ));
+                        }
+                    };
+                    json_resource(uri, &variables)
+                }
+                OptimizationResource::SolutionVerification(solution_id) => {
+                    let solution_uri =
+                        OptimizationSolutionUri::new(solution_id.clone()).map_err(internal)?;
+                    let solution = load_solution(&self.state, &identity, &caller, &solution_uri)
+                        .await
+                        .map_err(not_found_error)?;
+                    json_resource(uri, &solution.verification)
+                }
+                OptimizationResource::Usage(index) => {
+                    let page = OptimizationUsage::new(&self.state.tasks)
+                        .map_err(internal)?
+                        .page(&runtime_owner(&identity), index.cursor())
+                        .await
+                        .map_err(internal)?;
+                    json_resource(uri, &page)
+                }
+                OptimizationResource::TaskUsage(address) => {
+                    let records = OptimizationUsage::new(&self.state.tasks)
+                        .map_err(internal)?
+                        .task(&runtime_owner(&identity), address)
+                        .await
+                        .map_err(internal)?;
+                    if records.is_empty() {
+                        return Err(not_found("task usage"));
+                    }
+                    let task_id = address.task_id();
+                    let report = UsageReport::new(task_id.to_string(), address.as_str())
+                        .with_records(
+                            records
+                                .into_iter()
+                                .map(|record| usage_record(task_id, record))
+                                .collect(),
+                        );
+                    json_resource(uri, &report)
+                }
+                OptimizationResource::Artifact(artifact_id) => {
+                    let artifact = self
+                        .state
+                        .artifacts
+                        .get(&caller, artifact_id)
+                        .await
+                        .map_err(internal)?
+                        .ok_or_else(|| not_found("artifact"))?;
+                    Ok(ReadResourceResult::new(vec![
+                        ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri)
+                            .with_mime_type(
+                                artifact
+                                    .metadata
+                                    .mime_type
+                                    .unwrap_or_else(|| "application/octet-stream".to_owned()),
+                            ),
+                    ]))
+                }
             }
-            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-                let artifact = self
-                    .state
-                    .artifacts
-                    .get(&caller, &artifact_id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| not_found("artifact"))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri)
-                        .with_mime_type(
-                            artifact
-                                .metadata
-                                .mime_type
-                                .unwrap_or_else(|| "application/octet-stream".to_owned()),
-                        ),
-                ]));
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown Optimization resource `{uri}`"),
-                None,
-            ))
         }
         .await
         .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
@@ -877,14 +836,8 @@ fn run_record(
     });
     Ok(OptimizationRunRecord {
         run_id: common.run_id.clone(),
-        run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::parse(uris::run_uri(
-            &common.run_id,
-        ))
-        .map_err(internal)?,
-        problem_uri: veoveo_optimization_mcp::contract::OptimizationProblemUri::parse(
-            uris::problem_uri(&common.problem_id),
-        )
-        .map_err(internal)?,
+        run_uri: OptimizationRunUri::new(common.run_id.clone()).map_err(internal)?,
+        problem_uri: OptimizationProblemUri::new(common.problem_id.clone()).map_err(internal)?,
         family: common.family,
         phase: run_phase(snapshot),
         incumbent,
@@ -945,7 +898,7 @@ async fn solution_for_run(
         .map_err(internal)?
         .and_then(|task| task.output)
         .ok_or_else(|| not_found("completed run solution"))?;
-    load_solution(state, identity, caller, output.result_uri.as_str())
+    load_solution(state, identity, caller, &output.result_uri)
         .await
         .map_err(not_found_error)
 }
@@ -1022,143 +975,11 @@ fn completion_wire<T: ToString>(page: OptimizationCompletionPage<T>) -> (Vec<Str
     )
 }
 
-fn resource_templates() -> Vec<ResourceTemplate> {
-    [
-        (
-            uris::DOC_TEMPLATE,
-            "Server document",
-            "Embedded crate document.",
-        ),
-        (
-            uris::PROFILE_TEMPLATE,
-            "Solver profile",
-            "Curated bounded cuOpt solver policy.",
-        ),
-        (
-            uris::PROBLEM_TEMPLATE,
-            "Optimization problem",
-            "Immutable normalized problem and dimensions.",
-        ),
-        (
-            uris::PROBLEMS_PAGE_TEMPLATE,
-            "Optimization problem page",
-            "Bounded problem index page selected by its opaque cursor.",
-        ),
-        (
-            uris::RUN_TEMPLATE,
-            "Optimization run",
-            "Durable execution state and engine provenance.",
-        ),
-        (
-            uris::RUNS_PAGE_TEMPLATE,
-            "Optimization run page",
-            "Bounded run index page selected by its opaque cursor.",
-        ),
-        (
-            uris::RUN_INCUMBENTS_TEMPLATE,
-            "MILP incumbents",
-            "Ordered retained incumbent summaries.",
-        ),
-        (
-            uris::SOLUTION_TEMPLATE,
-            "Optimization solution",
-            "Immutable verified solution.",
-        ),
-        (
-            uris::SOLUTIONS_PAGE_TEMPLATE,
-            "Optimization solution page",
-            "Bounded solution index page selected by its opaque cursor.",
-        ),
-        (
-            uris::SOLUTION_ROUTES_TEMPLATE,
-            "Solution routes",
-            "Case-addressed vehicle routes.",
-        ),
-        (
-            uris::SOLUTION_VARIABLES_TEMPLATE,
-            "Solution variables",
-            "Mathematical variable values.",
-        ),
-        (
-            uris::SOLUTION_VERIFICATION_TEMPLATE,
-            "Solution verification",
-            "Independent feasibility and objective checks.",
-        ),
-        (
-            uris::ARTIFACT_TEMPLATE,
-            "Optimization artifact",
-            "Immutable bytes on the shared artifact plane.",
-        ),
-        (
-            OptimizationTaskUsageUri::TEMPLATE,
-            "Optimization task usage",
-            "Measured GPU solve usage.",
-        ),
-        (
-            OptimizationUsageIndexUri::TEMPLATE,
-            "Optimization usage page",
-            "Bounded usage index page selected by its opaque cursor.",
-        ),
-    ]
-    .into_iter()
-    .map(|(uri, title, description)| {
-        ResourceTemplate::new(uri, title)
-            .with_title(title)
-            .with_description(description)
-            .with_mime_type(if uri == uris::DOC_TEMPLATE {
-                "text/markdown"
-            } else {
-                "application/json"
-            })
-    })
-    .collect()
-}
-
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![json_descriptor(
-        uris::DOCS_URI,
-        "Server documents",
-        "Index of crate documents embedded at build time.",
-    )];
-    resources.extend(SERVER_DOCS.iter().map(|doc| {
-        Resource::new(format!("optimization://docs/{}", doc.id), doc.title)
-            .with_title(doc.title)
-            .with_description("Crate document embedded at build time.")
-            .with_mime_type("text/markdown")
-    }));
-    resources.push(json_descriptor(
-        uris::CONTRACT_URI,
-        "Contract declaration",
-        "Machine-readable contract revision, compliance, and capabilities.",
-    ));
-    resources
-}
-
-fn root_resources() -> Vec<Resource> {
-    [
-        (uris::PROFILES_URI, "Solver profiles"),
-        (uris::PROBLEMS_URI, "Optimization problems"),
-        (uris::RUNS_URI, "Optimization runs"),
-        (uris::SOLUTIONS_URI, "Optimization solutions"),
-        (OptimizationUsageIndexUri::ROOT, "Optimization usage"),
-    ]
-    .into_iter()
-    .map(|(uri, title)| json_descriptor(uri, title, "Authorized Optimization index."))
-    .collect()
-}
-
 fn is_subscribable(uri: &str) -> bool {
     matches!(
         uri,
         uris::PROBLEMS_URI | uris::RUNS_URI | uris::SOLUTIONS_URI
     )
-}
-
-fn json_descriptor(uri: &str, title: &str, description: &str) -> Resource {
-    Resource::new(uri.to_owned(), title.to_owned())
-        .with_title(title.to_owned())
-        .with_description(description.to_owned())
-        .with_mime_type("application/json")
 }
 
 fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {

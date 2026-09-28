@@ -1,6 +1,6 @@
 use serde_json::json;
 use std::collections::BTreeSet;
-use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest, uris};
+use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest};
 use veoveo_platform_store::{OpenObject, task_record_id};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
@@ -31,7 +31,7 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
     let problem = ProblemId::parse(format!("problem-{task}")).unwrap();
     let run = RunId::parse(format!("run-{task}")).unwrap();
     let solution = SolutionId::parse(format!("solution-{task}")).unwrap();
-    let solution = OptimizationSolutionUri::parse(uris::solution_uri(&solution)).unwrap();
+    let solution = OptimizationSolutionUri::new(solution).unwrap();
     // A retained record fixture; neither staging nor the GPU solver is executed.
     let request: OptimizationTaskRequest = serde_json::from_value(json!({
         "kind":"solve_convex",
@@ -69,12 +69,12 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
         .unwrap();
     let artifact_id = veoveo_artifact_contract::ArtifactId::new();
     let artifact: veoveo_artifact_contract::ArtifactMetadata = serde_json::from_value(json!({
-        "artifact_id":artifact_id,"artifact_uri":uris::artifact_uri(artifact_id),
+        "artifact_id":artifact_id,"artifact_uri":veoveo_artifact_contract::ArtifactUri::presented(&uris::SCHEME, artifact_id),
         "byte_len":1,"mime_type":"application/json","created_at":"2026-09-28T00:00:00Z"
     }))
     .unwrap();
     let output: OptimizationToolOutput = serde_json::from_value(json!({
-        "run_uri":uris::run_uri(&run),"problem_uri":uris::problem_uri(&problem),"result_uri":solution,
+        "run_uri":OptimizationRunUri::new(run.clone()).unwrap(),"problem_uri":OptimizationProblemUri::new(problem.clone()).unwrap(),"result_uri":solution,
         "family":"convex","feasibility":"feasible","termination":"optimal",
         "summary":{"family":"convex","quality":{"proven_optimal":true}},
         "problem_artifact":artifact,"solution_artifact":artifact

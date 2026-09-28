@@ -17099,6 +17099,7 @@ dependencies = [
  "dotenvy",
  "futures",
  "hex",
+ "iri-string",
  "reqwest 0.13.5",
  "rmcp",
  "rustls",

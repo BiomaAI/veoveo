@@ -43,6 +43,10 @@ run, solution, and evidence resources.
 - Catalog, exact and completion reads use `OptimizationReads`. Match indexed and
   envelope ownership and Work Context in SQL before limits; reject malformed selected
   rows explicitly. Collection positions use the contract's typed cursor and URI.
+- Hosted resources use `OptimizationResource` and domain address builders. Keep IDs
+  typed through loaders and queries. Startup and discovery consume the checked setup.
+- The domain scope vocabulary is empty. Preserve gateway operation policy and current
+  resource authority; adding a scope requires an explicit authorization contract change.
 
 ## Module Boundaries
 
@@ -85,7 +89,7 @@ Contract revision: 3
 - C06: met — one canonical surface; no compatibility projection
 - C07: met
 - C08: met
-- C09: pending — other resource families and scope declarations need typed builders and admission
+- C09: pending — Map reference ownership and DTO relationship admission remain
 - C10: met
 - C11: met
 - C12: met
@@ -107,5 +111,5 @@ Contract revision: 3
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C31: pending — checked MCP setup and installed readiness qualification remain
+- C31: pending — checked MCP setup is implemented; installed readiness qualification remains
 - C32: pending — knowledge-source extension adoption is planned

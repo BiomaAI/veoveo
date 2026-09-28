@@ -49,6 +49,8 @@ retain the `optimization://` scheme.
 | Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 1 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
 | SurrealDB 3.2.4 | Domain-owned parameterized SQL for current owner, Work Context, Task metadata and completed-result selection. The runtime dependency matches the Store driver and installed server. |
 | Veoveo Optimization catalog profile | Collection-bound version 1 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
+| RFC 9562 and the Veoveo concrete URI profile | Output identities use lowercase hyphenated RFC-variant UUIDv7 values with domain prefixes. Resource constructors and parsers use the foundation's URL 2.5.8 component implementation. Profile names use bounded ASCII unreserved characters and exclude relative path segments. |
+| RFC 6570 | Discovery templates use checked declarations; iri-string 0.7.14 expansion is qualified against each typed resource family. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
 ## Design Position
@@ -121,9 +123,13 @@ this feature to qualify its travel-model exchange. The `runtime` feature adds
 compilation, execution clients, verification, Artifact access and the domain readers.
 The default `mcp` feature adds the hosted binary and transport integration.
 
-The usage and collection contracts provide typed builders and checked decoding. Other
-Optimization resource families still need component builders and stronger cross-field admission.
-Server-owned scopes and checked MCP setup are tracked in the active foundations plan.
+The contract owns typed addresses for every hosted resource family. Constructors retain
+domain IDs, and parsing rejects aliases, wrong parents, fragments and unsupported query
+parameters. `OptimizationResource` provides the exhaustive dispatch vocabulary.
+`OptimizationScope` is empty because this server declares no additional domain OAuth
+scopes. Gateway operation policy and current owner, Work Context and label checks
+authorize requests. The public Map travel-model reference still needs admission through
+its owning Map contract; that cross-server dependency work is tracked in the foundations plan.
 
 ## Public MCP Contract
 
@@ -398,6 +404,30 @@ malformed denied records. `tests/index_contract.rs` qualifies cursor wire preser
 typed construction and URI rejection. These are database and contract checks; GPU
 solver and installed acceptance remain separate requirements.
 
+### Resource Admission And Setup
+
+`McpServerSetup<OptimizationContract>` checks the server identity, documents, typed
+resource descriptors and RFC 6570 templates before startup opens the listener. Discovery
+uses that checked inventory, preserving the App metadata and fixed solver profiles.
+Handlers parse a concrete address once and dispatch through `OptimizationResource`.
+Problem and solution loaders retain typed addresses through SQL selection and Artifact
+access. Verification locates its prepared problem through the same SQL reader.
+
+Problem, run, solution and verification IDs require their own prefix followed by a
+lowercase hyphenated RFC-variant UUIDv7. Solver profile IDs contain 1–128 ASCII letters,
+digits, hyphens, underscores or dots, with `.` and `..` excluded. The installed profiles
+use this spelling. URI builders preserve their published strings, and public schemas
+keep string representations. The parser rejects escaped aliases and undeclared children.
+
+Use the coordinated control/executor replacement described above. Preflight retained
+Task inputs, results, prepared problems and solution Artifacts for output IDs and URI
+parents that fail this profile. Compare them with the domain identities, including the
+run and problem referenced by each solution. Preserve rejected bytes for review; readers
+do not normalize, rewrite, or delete them. Rollback restores the prior pair against the
+same stored bytes. Native URI, schema, setup and database checks qualify admission;
+installed retained-data recovery, reverse/forward replacement and GPU acceptance are
+separate gates.
+
 ## Prompts, Completions, And Notifications
 
 Each replica feeds its resource hub from committed Store task and domain-usage
@@ -567,7 +597,7 @@ matches the compiled provenance constant.
 
 | Path | Responsibility |
 |---|---|
-| `src/contract/` | Public problem, profile, solution, verification, ID, and URI-adjacent types. |
+| `src/contract/` | Public problem, profile, solution, verification, IDs, typed addresses, resource variants and discovery URI declarations. |
 | `src/usage.rs` | Owner and Work Context usage reads through TaskRuntime SQL. |
 | `src/compiler/` | Deterministic routing and sparse mathematical compilation. |
 | `src/verification/` | Independent route and mathematical checks. |
@@ -576,6 +606,7 @@ matches the compiled provenance constant.
 | `src/profiles.rs` | Curated immutable solver profiles. |
 | `src/solution_builder.rs` | Typed solution construction, provenance, digest, and initial verification. |
 | `src/bin/server/` | Thin HTTP/MCP wiring, tasks, identity, artifacts, resources, prompts, and output publication. |
+| `src/bin/server/setup.rs` | Checked MCP setup, documents, fixed resource descriptors and templates. |
 | `src/reads.rs` | SQL-scoped exact lookup, collection pages, completion and retained-result consistency. |
 | `src/task_records.rs` | Retained solve and verification Task requests shared by readers and the MCP Task adapter. |
 | `executor/veoveo_cuopt_executor/` | Python cuOpt GPU adapter. |
@@ -597,8 +628,8 @@ or mocked CUDA result cannot satisfy this test.
 
 Contract revision: 3.
 
-C09 has remaining scope and resource-family typing work; checked MCP setup and
-installed readiness qualification for C31 are pending. The knowledge-source extension
+C09 has remaining cross-server Map reference and DTO relationship admission work.
+Checked MCP setup is implemented; installed readiness qualification for C31 is pending. The knowledge-source extension
 (C32) is planned. C06 is satisfied by the single canonical surface. The gateway
 registration states revision 3 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the

@@ -3,6 +3,11 @@
 //! The modules in this namespace define routing, convex optimization, and
 //! MILP as separate problem families with independent resource identities.
 
+mod addresses;
+mod resources;
+mod scopes;
+pub mod uris;
+
 mod common;
 mod index;
 mod model;
@@ -34,3 +39,7 @@ pub const MAX_INLINE_MODEL_NONZEROS: usize = 16_384;
 pub const MAX_ROUTE_CASES: usize = 64;
 pub const MAX_CAPACITY_DIMENSIONS: usize = 64;
 pub const MAX_OBJECTIVES: usize = 6;
+
+pub use addresses::*;
+pub use resources::*;
+pub use scopes::OptimizationScope;

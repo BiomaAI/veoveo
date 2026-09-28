@@ -16,7 +16,6 @@ use crate::{
         OPTIMIZE_ROUTE_SCENARIOS_TASK, OPTIMIZE_ROUTES_TASK, OptimizationTaskRequest,
         SOLVE_CONVEX_TASK, SOLVE_MILP_TASK,
     },
-    uris,
 };
 
 const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
@@ -215,10 +214,7 @@ impl<'a> OptimizationReads<'a> {
             OptimizationCollection::Solutions,
             needle,
             limit,
-            |value| {
-                uris::parse_solution_uri(&value)
-                    .ok_or_else(|| anyhow::anyhow!("invalid stored Optimization solution identity"))
-            },
+            |value| Ok(OptimizationSolutionUri::parse(value)?.id().clone()),
         )
         .await
     }
@@ -356,10 +352,8 @@ fn decode(record: TaskRecord) -> anyhow::Result<VisibleOptimizationTask> {
     if let Some(output) = &output {
         anyhow::ensure!(
             output.family == family
-                && uris::parse_problem_uri(output.problem_uri.as_str()).as_ref()
-                    == Some(&common.problem_id)
-                && uris::parse_run_uri(output.run_uri.as_str()).as_ref() == Some(&common.run_id)
-                && uris::parse_solution_uri(output.result_uri.as_str()).is_some(),
+                && output.problem_uri.id() == &common.problem_id
+                && output.run_uri.id() == &common.run_id,
             "retained Optimization result disagrees with its Task parents"
         );
     }

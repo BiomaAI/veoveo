@@ -280,14 +280,14 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     self.state.as_ref(),
                     &caller.identity,
                     &caller.plane,
-                    input.solution_uri.as_str(),
+                    &input.solution_uri,
                 )
                 .await
                 .map_err(invalid)?;
                 let prepared = load_prepared_problem_by_uri(
                     self.state.as_ref(),
                     &caller.identity,
-                    solution.problem_uri.as_str(),
+                    &solution.problem_uri,
                 )
                 .await
                 .map_err(invalid)?;
@@ -297,13 +297,10 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                         None,
                     ));
                 }
-                let prepared_ref = find_prepared_ref(
-                    self.state.as_ref(),
-                    &caller.identity,
-                    solution.problem_uri.as_str(),
-                )
-                .await
-                .map_err(internal)?;
+                let prepared_ref =
+                    find_prepared_ref(self.state.as_ref(), &caller.identity, &solution.problem_uri)
+                        .await
+                        .map_err(internal)?;
                 let capability =
                     issue_output_capability(self.state.as_ref(), &caller.plane, &task_id, 1)
                         .await
@@ -540,9 +537,9 @@ async fn run_task_inner(
                 )
                 .await;
                 for uri in [
-                    veoveo_optimization_mcp::uris::PROBLEMS_URI,
-                    veoveo_optimization_mcp::uris::RUNS_URI,
-                    veoveo_optimization_mcp::uris::SOLUTIONS_URI,
+                    veoveo_optimization_mcp::contract::uris::PROBLEMS_URI,
+                    veoveo_optimization_mcp::contract::uris::RUNS_URI,
+                    veoveo_optimization_mcp::contract::uris::SOLUTIONS_URI,
                 ] {
                     state.subscriptions.notify_resource_updated(uri).await;
                 }
@@ -1161,32 +1158,18 @@ async fn issue_output_capability(
 async fn find_prepared_ref(
     state: &AppState,
     identity: &GatewayInternalIdentity,
-    problem_uri: &str,
+    problem_uri: &veoveo_optimization_mcp::contract::OptimizationProblemUri,
 ) -> anyhow::Result<PreparedProblemRef> {
-    let caller_owner = runtime_owner(identity);
-    for snapshot in state.tasks.list().await? {
-        if !snapshot.owner.allows(
-            &caller_owner.principal_key,
-            &caller_owner.profile,
-            caller_owner.tenant_key.as_deref(),
-            &caller_owner.data_labels,
-        ) || snapshot.owner.authority.work_context != caller_owner.authority.work_context
-        {
-            continue;
-        }
-        let Ok(request) =
-            serde_json::from_value::<OptimizationTaskRequest>(snapshot.request.clone())
-        else {
-            continue;
-        };
-        let Some(common) = request.common() else {
-            continue;
-        };
-        if veoveo_optimization_mcp::uris::problem_uri(&common.problem_id) == problem_uri {
-            return Ok(common.prepared.clone());
-        }
-    }
-    anyhow::bail!("prepared problem reference is unavailable")
+    let task = veoveo_optimization_mcp::reads::OptimizationReads::new(&state.tasks)?
+        .problem(&runtime_owner(identity), problem_uri.id())
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("prepared problem reference is unavailable"))?;
+    Ok(task
+        .request
+        .common()
+        .expect("reader admits solve Tasks")
+        .prepared
+        .clone())
 }
 
 async fn fail_task(state: &AppState, task_id: &str, code: &str, error: impl std::fmt::Display) {

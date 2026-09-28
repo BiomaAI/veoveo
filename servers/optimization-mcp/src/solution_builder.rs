@@ -363,7 +363,7 @@ fn finish_solution(
     context: SolutionContext,
 ) -> anyhow::Result<OptimizationSolution> {
     let solution_id = SolutionId::new();
-    let solution_uri = OptimizationSolutionUri::parse(crate::uris::solution_uri(&solution_id))?;
+    let solution_uri = OptimizationSolutionUri::new(solution_id.clone())?;
     let mut solution = OptimizationSolution {
         solution_id,
         solution_uri,

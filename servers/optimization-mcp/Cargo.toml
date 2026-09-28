@@ -36,6 +36,10 @@ required-features = ["mcp"]
 name = "index_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "resources"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -111,5 +115,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+# Qualified RFC 6570 expansion, matching the foundation's exact 0.7.14 pin.
+iri-string.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

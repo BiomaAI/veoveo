@@ -160,7 +160,7 @@ fn profile(
 ) -> SolverProfile {
     let profile_id = SolverProfileId::new(id).expect("static profile id is valid");
     SolverProfile {
-        profile_uri: OptimizationProfileUri::parse(format!("optimization://profile/{profile_id}"))
+        profile_uri: OptimizationProfileUri::new(profile_id.clone())
             .expect("static profile URI is valid"),
         profile_id,
         title: title.to_owned(),

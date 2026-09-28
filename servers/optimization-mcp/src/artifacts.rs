@@ -17,7 +17,7 @@ use veoveo_mcp_contract::{
 /// The scheme this server presents artifacts under to clients
 /// (`optimization://artifact/{artifact_id}`). The plane stores the neutral `artifact://`
 /// identity; we re-stamp on the way out so a returned URI resolves here.
-use crate::uris::SCHEME;
+use crate::contract::uris::SCHEME;
 
 /// Thin handle to the shared artifact plane. Cloneable; wraps a pooled client.
 #[derive(Clone)]

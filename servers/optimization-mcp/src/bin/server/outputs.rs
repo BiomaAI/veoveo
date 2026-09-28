@@ -13,7 +13,6 @@ use veoveo_optimization_mcp::{
     },
     problem_store::PreparedProblem,
     state::TaskOwner,
-    uris,
 };
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_types::TaskId;
@@ -135,9 +134,9 @@ pub(super) async fn solution_result(
         },
     };
     let output = OptimizationToolOutput {
-        run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::parse(uris::run_uri(
-            &solution.run_id,
-        ))?,
+        run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::new(
+            solution.run_id.clone(),
+        )?,
         problem_uri: solution.problem_uri.clone(),
         result_uri: solution.solution_uri.clone(),
         family,
@@ -249,7 +248,7 @@ async fn store_bytes_artifact(
         )
         .await?
         .without_download_url()
-        .presented_under_scheme(&veoveo_optimization_mcp::uris::SCHEME))
+        .presented_under_scheme(&veoveo_optimization_mcp::contract::uris::SCHEME))
 }
 
 fn json_link(uri: &str, title: String, description: &str) -> ContentBlock {

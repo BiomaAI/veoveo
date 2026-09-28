@@ -1,3 +1,4 @@
+use super::OptimizationProfileUri;
 use std::{fmt, num::NonZeroU32};
 
 use chrono::{DateTime, Utc};
@@ -24,6 +25,9 @@ pub enum OptimizationContractError {
 
 macro_rules! controlled_id {
     ($name:ident, $label:literal) => {
+        controlled_id!($name, $label, |_: &str| true);
+    };
+    ($name:ident, $label:literal, $admit:expr) => {
         #[derive(
             Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
         )]
@@ -34,7 +38,8 @@ macro_rules! controlled_id {
         impl $name {
             pub fn new(value: impl Into<String>) -> Result<Self, OptimizationContractError> {
                 let value = value.into();
-                if value.is_empty()
+                if !($admit)(&value)
+                    || value.is_empty()
                     || value.len() > 128
                     || value.trim() != value
                     || value.chars().any(|character| {
@@ -93,9 +98,14 @@ macro_rules! output_id {
                 let parsed = value
                     .strip_prefix($prefix)
                     .and_then(|suffix| uuid::Uuid::parse_str(suffix).ok())
-                    .filter(|uuid| uuid.get_version_num() == 7)
+                    .filter(|uuid| {
+                        uuid.get_version_num() == 7 && uuid.get_variant() == uuid::Variant::RFC4122
+                    })
                     .ok_or(OptimizationContractError::InvalidIdentifier($label))?;
-                Ok(Self(format!("{}{}", $prefix, parsed)))
+                if value != format!("{}{}", $prefix, parsed) {
+                    return Err(OptimizationContractError::InvalidIdentifier($label));
+                }
+                Ok(Self(value))
             }
 
             pub fn as_str(&self) -> &str {
@@ -139,7 +149,9 @@ controlled_id!(CapacityDimensionId, "capacity dimension id");
 controlled_id!(RouteCaseId, "route case id");
 controlled_id!(VariableId, "variable id");
 controlled_id!(ConstraintId, "constraint id");
-controlled_id!(SolverProfileId, "solver profile id");
+controlled_id!(SolverProfileId, "solver profile id", |value: &str| {
+    !matches!(value, "." | "..") && !value.contains(':')
+});
 
 output_id!(ProblemId, "problem-", "problem id");
 output_id!(RunId, "run-", "run id");
@@ -204,38 +216,6 @@ uri_type!(MapTravelModelUri, "Map travel-model", |value: &str| {
         .strip_prefix("map://travel-model/")
         .is_some_and(valid_uri_segment)
 });
-uri_type!(
-    OptimizationProblemUri,
-    "Optimization problem",
-    |value: &str| {
-        value
-            .strip_prefix("optimization://problem/")
-            .is_some_and(valid_uri_segment)
-    }
-);
-uri_type!(
-    OptimizationSolutionUri,
-    "Optimization solution",
-    |value: &str| {
-        value
-            .strip_prefix("optimization://solution/")
-            .is_some_and(valid_uri_segment)
-    }
-);
-uri_type!(OptimizationRunUri, "Optimization run", |value: &str| {
-    value
-        .strip_prefix("optimization://run/")
-        .is_some_and(valid_uri_segment)
-});
-uri_type!(
-    OptimizationProfileUri,
-    "Optimization profile",
-    |value: &str| {
-        value
-            .strip_prefix("optimization://profile/")
-            .is_some_and(valid_uri_segment)
-    }
-);
 
 macro_rules! finite_number {
     ($name:ident, $label:literal, $requirement:literal, $predicate:expr) => {
@@ -396,6 +376,5 @@ mod tests {
     fn resource_uris_are_family_specific() {
         assert!(MapTravelModelUri::parse("map://travel-model/travel-1").is_ok());
         assert!(MapTravelModelUri::parse("map://matrix/matrix-1").is_err());
-        assert!(OptimizationSolutionUri::parse("optimization://solution/solution-1").is_ok());
     }
 }
