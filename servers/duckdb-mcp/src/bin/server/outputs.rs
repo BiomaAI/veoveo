@@ -151,9 +151,9 @@ pub(super) async fn record_op_usage(
     Ok(())
 }
 
-pub(super) fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
+pub(super) fn usage_record(task_id: TaskId, record: DomainUsageRecord) -> UsageRecord {
     UsageRecord {
-        task_id: task_id.to_owned(),
+        task_id: task_id.to_string(),
         source_id: record.source_id,
         provider_job_id: record.provider_job_id,
         model_id: record.model_id,

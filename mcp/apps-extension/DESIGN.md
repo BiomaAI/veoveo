@@ -21,6 +21,7 @@ Implemented in this workspace.
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; app-started durable work retains the same task lifecycle and ownership rules as a normal MCP client. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Linked tool arguments and structured results use the same canonical schemas exposed outside the app. |
 | HTML iframe sandbox and Content Security Policy | HTML runs in an opaque-origin `sandbox="allow-scripts"` frame. The default CSP denies remote network access while permitting local `data:` fetches; a live-data App may declare exact origins through `_meta.ui.csp`, which the host validates before adding them. Cookies, storage, and same-origin privilege remain absent. |
+| WHATWG URL | The Workbench uses the browser URL and URLSearchParams APIs to encode opaque continuation cursors under configured resource roots. |
 
 ## The rule
 
@@ -90,6 +91,11 @@ does not change the running snapshot. Deployments obtain new bytes through a new
 immutable image digest.
 
 ## Workbench Collection Pages
+
+Continuation URIs use the browser's `URL` and `URLSearchParams` builders. The App
+sets the `cursor` query parameter as an opaque value; reserved characters cannot
+introduce another parameter or fragment. The configured root supplies the scheme,
+authority and path.
 
 The shared operational workbench recognizes JSON collection pages with an `items`
 array, a positive integral `limit`, and a `next_cursor` string or null. The item

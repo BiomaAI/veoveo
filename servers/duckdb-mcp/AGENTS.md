@@ -30,9 +30,13 @@ engine rather than by narrowing SQL.
 - One replica with a `ReadWriteOnce` workspace is part of correctness; the
   per database write mutex is process local.
 - The library's `contract` feature owns database IDs, tool DTOs, tabular source
-  types and read SQL fragments. Cross-server consumers use that feature with defaults
+  types, read SQL fragments and typed usage resources. Cross-server consumers use that feature with defaults
   disabled. Keep MCP and engine dependencies outside it; source policy belongs to the
-  materializing server. The current URI helpers remain a runtime concern.
+  materializing server. The remaining database and document URI helpers are runtime concerns.
+- Usage reads use `DuckDbUsage` and TaskRuntime's SQL owner policy before grouping
+  and limits. Catalog responses use checked 100-entry pages. Keep the collection
+  cursor and Task IDs typed through query binding. Discovery declares roots and
+  templates without enumerating database or Task records.
 
 ## Build And Test
 
@@ -47,7 +51,8 @@ engine rather than by narrowing SQL.
   expect a long native first build. The fork tracks DuckDB 1.5.5 and removes
   the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.38.
 - Docker is required for SurrealDB backed integration and smoke tests (root
-  README, Develop And Verify).
+  README, Develop And Verify). Usage tests own a disposable pinned Store and remove
+  it on completion.
 - `cargo xtask smoke agent-gateway` downloads the same pinned Spatial archive
   used by the image, verifies its compressed and installed digests,
   and caches it under `target/smoke-assets`.
@@ -58,14 +63,14 @@ engine rather than by narrowing SQL.
 
 Contract revision: 2
 
-Contract-only library consumption and the owner-local source vocabulary are implemented.
-Typed resource builders and checked MCP setup remain work in the
+Contract-only library consumption, source vocabulary and typed usage resources are implemented.
+Database catalog paging, remaining resource builders and checked MCP setup remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: pending — usage catalogs are SQL-filtered pages and discovery declares roots/templates; the owner database catalog still requires bounded paging
 - C05: met
 - C06: met
 - C07: met

@@ -16,15 +16,28 @@ required-features = ["mcp"]
 name = "contract"
 required-features = ["contract"]
 
+[[test]]
+name = "usage_contract"
+required-features = ["contract"]
+
+[[test]]
+name = "usage"
+required-features = ["mcp"]
+
 [features]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-types",
+    "dep:uuid",
+    "dep:base64",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
     "dep:veoveo-artifact-contract",
 ]
 runtime = [
+    "dep:veoveo-task-runtime",
+    "dep:veoveo-platform-store",
     "contract",
     "dep:anyhow",
     "dep:duckdb",
@@ -32,12 +45,10 @@ runtime = [
     "dep:veoveo-artifact-client",
     "dep:veoveo-duckdb-runtime",
     "dep:veoveo-mcp-contract",
-    "dep:veoveo-types",
 ]
 mcp = [
     "runtime",
     "dep:axum",
-    "dep:base64",
     "dep:chrono",
     "dep:clap",
     "dep:dotenvy",
@@ -52,10 +63,7 @@ mcp = [
     "dep:tokio-util",
     "dep:tower-http",
     "dep:tracing",
-    "dep:uuid",
     "dep:veoveo-mcp-apps-extension",
-    "dep:veoveo-platform-store",
-    "dep:veoveo-task-runtime",
 ]
 
 [dependencies]

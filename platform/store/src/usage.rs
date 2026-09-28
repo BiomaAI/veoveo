@@ -144,21 +144,6 @@ impl PlatformStore {
         Ok(response.take(0)?)
     }
 
-    pub async fn domain_usage_task_ids(&self, server: &str) -> Result<Vec<TaskId>, StoreError> {
-        validate_server(server)?;
-        let mut response = self
-            .client()
-            .query("SELECT VALUE task FROM domain_usage WHERE server = $server GROUP BY task ORDER BY task ASC;")
-            .bind(("server", RecordId::new("mcp_server", server.to_owned())))
-            .await?
-            .check()?;
-        response
-            .take::<Vec<RecordId>>(0)?
-            .into_iter()
-            .map(task_id_from_record)
-            .collect()
-    }
-
     pub async fn domain_usage_task_page(
         &self,
         server: &str,

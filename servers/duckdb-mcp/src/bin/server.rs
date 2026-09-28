@@ -46,11 +46,12 @@ use veoveo_duckdb_mcp::{
     contract::{
         DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput,
         DuckDbExportRequest, DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput,
-        DuckDbQueryRequest,
+        DuckDbQueryRequest, DuckDbTaskUsageUri, DuckDbUsageIndexUri,
     },
     engine::{self, EngineSettings, FileExchange, TrustedExtension},
     state::TaskOwner,
     uris,
+    usage::DuckDbUsage,
 };
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
@@ -90,8 +91,7 @@ use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use outputs::usage_record;
 use ownership::{
     databases_for_identity, identity_from_runtime, internal_caller, internal_identity,
-    optional_task_owner, require_task_owner, resolve_readable_database, runtime_owner,
-    task_owner_allows, task_owner_from_identity, task_owner_from_runtime,
+    resolve_readable_database, runtime_owner, task_owner_from_identity, task_owner_from_runtime,
 };
 use sql_ops::ArtifactWriteContext;
 use task_extension::DuckdbTaskService;
@@ -400,59 +400,8 @@ impl ServerHandler for DuckdbMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let mut resources = well_known_resources();
-        resources.extend([
-            veoveo_mcp_apps_extension::app_resource(uris::WORKBENCH_APP_URI, "workbench")
-                .with_title("Workbench")
-                .with_description("Owner-scoped analytical SQL, ingestion, and export."),
-            Resource::new(uris::DBS_ROOT_URI, "dbs")
-                .with_title("DuckDB databases")
-                .with_description("Databases visible to the caller.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::USAGE_ROOT_URI, "usage")
-                .with_title("DuckDB usage ledger")
-                .with_description("Index of task usage resources.")
-                .with_mime_type("application/json"),
-        ]);
-        for database in databases_for_identity(&self.state, &identity)? {
-            resources.push(
-                Resource::new(
-                    uris::db_uri(database.db_id.as_str()),
-                    database.db_id.to_string(),
-                )
-                .with_title(format!("Database {}", database.db_id))
-                .with_description("Schema summary for one database.")
-                .with_mime_type("application/json"),
-            );
-        }
-        // Artifacts live on the shared plane now; duckdb keeps no local artifact
-        // index to enumerate here. They remain readable by their duckdb://artifact
-        // URI through resources/read, which resolves against the plane.
-        for task_id in self
-            .state
-            .tasks
-            .platform_store()
-            .domain_usage_task_ids(SERVER_SLUG)
-            .await
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?
-        {
-            let task_id = task_id.to_string();
-            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                continue;
-            };
-            if !task_owner_allows(&owner, &identity) {
-                continue;
-            }
-            resources.push(
-                Resource::new(
-                    uris::usage_task_uri(&task_id),
-                    format!("usage for task {task_id}"),
-                )
-                .with_description("Usage rows for one duckdb task.")
-                .with_mime_type("application/json"),
-            );
-        }
+        internal_identity(&context)?;
+        let mut resources = resource_catalog();
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -537,7 +486,7 @@ impl ServerHandler for DuckdbMcp {
                             },
                             veoveo_mcp_apps_extension::WorkbenchResource {
                                 label: "Usage",
-                                uri: uris::USAGE_ROOT_URI,
+                                uri: DuckDbUsageIndexUri::ROOT,
                             },
                         ],
                         tools: &[
@@ -586,33 +535,15 @@ impl ServerHandler for DuckdbMcp {
                     .with_mime_type("application/json"),
                 ]));
             }
-            if uri == uris::USAGE_ROOT_URI {
-                let mut entries = Vec::new();
-                for task_id in self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_task_ids(SERVER_SLUG)
+            if let Ok(index) = DuckDbUsageIndexUri::parse(uri) {
+                let page = DuckDbUsage::new(&self.state.tasks)
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    .page(&runtime_owner(&identity), index.cursor())
                     .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                {
-                    let task_id = task_id.to_string();
-                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                        continue;
-                    };
-                    if task_owner_allows(&owner, &identity) {
-                        entries.push(json!({
-                            "task_id": task_id,
-                            "usage_uri": uris::usage_task_uri(&task_id),
-                        }));
-                    }
-                }
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
                 return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(
-                        serde_json::to_string(&entries).unwrap_or_default(),
-                        uri,
-                    )
-                    .with_mime_type("application/json"),
+                    ResourceContents::text(serde_json::to_string(&page).unwrap_or_default(), uri)
+                        .with_mime_type("application/json"),
                 ]));
             }
             if let Some(db_id) = uris::parse_db_uri(uri) {
@@ -622,18 +553,13 @@ impl ServerHandler for DuckdbMcp {
                         .with_mime_type("application/json"),
                 ]));
             }
-            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let durable_task_id = task_id
-                    .parse::<TaskId>()
-                    .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
-                let records = self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+            if let Ok(usage_uri) = DuckDbTaskUsageUri::parse(uri) {
+                let task_id = usage_uri.task_id();
+                let records = DuckDbUsage::new(&self.state.tasks)
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    .task(&runtime_owner(&identity), &usage_uri)
                     .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
                     .into_iter()
                     .map(|record| usage_record(task_id, record))
                     .collect::<Vec<_>>();
@@ -643,7 +569,7 @@ impl ServerHandler for DuckdbMcp {
                         None,
                     ));
                 }
-                let report = UsageReport::new(task_id, uri).with_records(records);
+                let report = UsageReport::new(task_id.to_string(), uri).with_records(records);
                 return Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
                         .with_mime_type("application/json"),
@@ -711,6 +637,25 @@ fn well_known_resources() -> Vec<Resource> {
     resources
 }
 
+/// Discovery declarations do not enumerate database files or Task usage.
+fn resource_catalog() -> Vec<Resource> {
+    let mut resources = well_known_resources();
+    resources.extend([
+        veoveo_mcp_apps_extension::app_resource(uris::WORKBENCH_APP_URI, "workbench")
+            .with_title("Workbench")
+            .with_description("Owner-scoped analytical SQL, ingestion, and export."),
+        Resource::new(uris::DBS_ROOT_URI, "dbs")
+            .with_title("DuckDB databases")
+            .with_description("Databases visible to the caller.")
+            .with_mime_type("application/json"),
+        Resource::new(DuckDbUsageIndexUri::ROOT, "usage")
+            .with_title("DuckDB usage ledger")
+            .with_description("Index of task usage resources.")
+            .with_mime_type("application/json"),
+    ]);
+    resources
+}
+
 /// Templates served by `list_resource_templates` and declared in the
 /// `duckdb://contract` capability inventory.
 fn resource_templates() -> Vec<ResourceTemplate> {
@@ -728,7 +673,11 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             .with_description(
                 "Server-owned immutable export artifact, addressed by occurrence id.",
             ),
-        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+        ResourceTemplate::new(DuckDbUsageIndexUri::TEMPLATE, "usage-page")
+            .with_title("DuckDB usage ledger")
+            .with_description("Caller-owned usage Tasks in pages of at most 100.")
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(DuckDbTaskUsageUri::TEMPLATE, "usage")
             .with_title("DuckDB task usage")
             .with_description("Usage rows for one task, addressed by task id.")
             .with_mime_type("application/json"),
@@ -1266,6 +1215,36 @@ mod well_known_tests {
     };
 
     use super::SERVER_DOCS;
+
+    #[test]
+    fn discovery_uses_collection_roots_and_typed_usage_templates() {
+        use super::{
+            DuckDbTaskUsageUri, DuckDbUsageIndexUri, resource_catalog, resource_templates,
+        };
+        let resources = resource_catalog();
+        assert!(
+            resources
+                .iter()
+                .any(|resource| resource.uri == DuckDbUsageIndexUri::ROOT)
+        );
+        assert!(
+            resources
+                .iter()
+                .any(|resource| resource.uri == super::uris::DBS_ROOT_URI)
+        );
+        assert!(resources.iter().all(|resource| {
+            !resource.uri.starts_with("duckdb://usage/task/")
+                && !resource.uri.starts_with("duckdb://db/")
+        }));
+        let templates = resource_templates();
+        for uri in [DuckDbUsageIndexUri::TEMPLATE, DuckDbTaskUsageUri::TEMPLATE] {
+            assert!(
+                templates
+                    .iter()
+                    .any(|template| template.uri_template == uri)
+            );
+        }
+    }
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {

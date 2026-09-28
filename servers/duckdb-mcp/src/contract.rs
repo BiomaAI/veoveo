@@ -6,6 +6,8 @@ use serde_json::Value;
 use veoveo_artifact_contract::ArtifactMetadata;
 mod read_sql;
 mod source;
+mod usage;
+pub use usage::*;
 
 pub use read_sql::{
     DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,

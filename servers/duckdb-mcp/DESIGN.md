@@ -74,6 +74,7 @@ duckdb__export
 | DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. The generic SQL server explicitly retains native `geometry_always_xy = false` semantics. |
 | [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | SQL can compute MVT geometry and tile blobs. Tile identity, archives, styles, and serving remain Map responsibilities. |
 | HTTPS | Allowlisted external sources are downloaded by the governed materializer. Caller SQL never receives network authority. |
+| Veoveo usage resource profile | `duckdb://usage` pages with native UUIDv7 Task addresses, foundational URI components and version 1 Base64 cursors. |
 | OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
 
 ## Goals
@@ -139,6 +140,7 @@ duckdb://dbs
 duckdb://db/{db_id}
 duckdb://artifact/{artifact_id}
 duckdb://usage
+duckdb://usage{?cursor}
 duckdb://usage/task/{task_id}
 ```
 
@@ -188,15 +190,16 @@ modeled more narrowly.
 ### Library Features
 
 Consumers select `default-features = false, features = ["contract"]` to use the
-server's database ID, source vocabulary and tool DTOs. This feature depends on Serde,
-Schemars and the lightweight Artifact contract. It excludes the DuckDB binding, MCP
+server's database ID, source vocabulary, tool DTOs and usage resource types. This
+feature depends on foundational values, Serde, Schemars, UUID and Base64 support, and
+the lightweight Artifact contract. It excludes the DuckDB binding, MCP
 integration, asynchronous runtime, database client and artifact-service client.
 
-The `runtime` feature adds the engine adapter, owner models, artifact client and
-current URI helpers. The default `mcp` feature adds the hosted binary and its protocol,
-Task and process dependencies. Feature gates apply to dependencies as well as modules.
-The URI helpers still depend on MCP conventions; typed address adoption is tracked in
-the foundations plan.
+The `runtime` feature adds the engine adapter, owner models, Artifact client, usage
+reader and Task runtime. The default `mcp` feature adds the hosted binary and its
+protocol and process dependencies. Feature gates apply to dependencies as well as
+modules. Usage addresses belong to the isolated contract; the remaining database and
+document URI helpers depend on MCP conventions and await typed address adoption.
 
 The library owns SQL-fragment rendering for its read formats and options. Timeseries
 consumes these functions and source types from DuckDB's `contract` feature. The agent
@@ -686,7 +689,10 @@ an empty table list.
 duckdb://usage
 ```
 
-Lists task usage resources visible to the caller.
+Returns `DuckDbUsagePage`: at most 100 `items`, `limit: 100`, and `next_cursor`,
+which is null on the last page. Each entry contains the Task ID and its usage URI.
+The Workbench reads one page at a time through its Previous and Next controls.
+`duckdb://usage{?cursor}` selects a continuation page.
 
 ```text
 duckdb://usage/task/{task_id}
@@ -696,6 +702,25 @@ Returns a `UsageReport` built from the shared platform usage ledger. Each
 operation records actual row quantity under a model id such as `duckdb/query` or
 `duckdb/ingest`. DuckDB work currently has no monetary amount or currency.
 
+`DuckDbUsage` uses TaskRuntime's owner-policy queries for both collections and exact
+reads. SQL checks the caller's principal, profile, optional tenant and full label
+clearance before grouping, ordering and selecting 101 Task IDs for lookahead. Usage
+rows and their linked Tasks must agree on server and tenant, and the Task record must
+agree with its stored owner envelope. The domain's usage policy does not require a
+separate Work Context match. Every read checks current authority; inaccessible or
+missing usage has the same resource-not-found response.
+
+`contract::usage` owns usage addresses, entries, cursor positions and page admission.
+URI builders use the foundational component API and accept native UUIDv7 Task IDs.
+Parsing rejects noncanonical spellings, fragments and unknown or repeated query
+parameters. Entry decoding rejects disagreement between the Task ID and its URI.
+Pages check unique ascending Task IDs, their fixed limit, and agreement between the
+continuation cursor and the last Task in a full page.
+
+Version 1 cursors encode `{"version":1,"collection":"duckdb://usage","after":"<uuid>"}`
+as URL-safe unpadded Base64. They identify a position in this collection and carry no
+authority. The cursor contains a typed Task ID through SQL parameter binding.
+
 ```text
 duckdb://artifact/{artifact_id}
 ```
@@ -704,11 +729,29 @@ Presents immutable bytes produced by DuckDB. The artifact id is an occurrence
 id owned by the shared plane. `resources/read` authorizes through that plane and
 returns a base64 MCP blob with the recorded MIME type.
 
-Artifacts are not enumerated from `resources/list`. DuckDB maintains no private
-artifact index. Tools and tasks return resource links, while the shared artifact
-plane remains the byte and grant authority.
+`resources/list` advertises stable roots, documents and the Workbench App. Database
+files, usage Tasks and Artifact occurrences are reached through resource templates
+and domain catalogs. Tools and Tasks return resource links; the Artifact plane owns
+byte access and grants.
 
 Resource and template lists use cursor pagination with a page size of 100.
+
+### Usage Catalog Deployment
+
+The array-to-page usage response requires a coordinated client/server upgrade. Update
+catalog consumers to `DuckDbUsagePage`, follow `next_cursor` through the declared
+template, and invalidate discovery caches that enumerated Task or database resources.
+The shared Workbench already implements this page format. Stop admission of new
+mutating Tasks and allow `execute` and `ingest` to settle before replacing the
+singleton server; its declared recovery classes continue to govern interrupted work.
+Do not overlap array-producing and page-producing service revisions.
+
+Task requests, exact usage report fields, emitted per-Task URIs and stored usage rows
+need no conversion. Hand-written aliases must be refreshed to canonical Task URIs.
+Rollback restores the previous service and catalog clients together against the same
+data. The server provides no array compatibility adapter. Installed acceptance must
+qualify more than 100 visible Tasks among denied rows, exact reads, current authority,
+root/template discovery and Workbench navigation before this cut is accepted.
 
 ## Shared Artifact Plane
 
@@ -931,6 +974,14 @@ and qualifies source wire forms, defaults, option rejection and SQL quoting. A s
 resolved consumer compiles these cases with only `contract` enabled; dependency metadata
 must exclude MCP, asynchronous, database and server-runtime packages. Timeseries checks
 its unchanged forecast-input schema and exercises its existing source materialization path.
+
+`tests/usage_contract.rs` checks typed usage construction, collection-bound cursors,
+page admission and the Workbench page shape. `tests/usage.rs` qualifies the library
+reader against an isolated pinned Store with denied Tasks ahead of visible rows,
+multiple pages and current label/parent changes. TaskRuntime owns the shared owner
+policy matrix. The Console's Workbench pagination test supplies DuckDB's page and
+cursor profile as headless behavioral coverage; installed and headed hardware
+acceptance are separate checks.
 
 Runtime tests cover:
 

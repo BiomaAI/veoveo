@@ -173,47 +173,6 @@ pub(super) fn identity_from_runtime(
     })
 }
 
-pub(super) async fn optional_task_owner(
-    state: &AppState,
-    task_id: &str,
-) -> Result<Option<TaskOwner>, McpError> {
-    state
-        .tasks
-        .owner(task_id)
-        .await
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?
-        .as_ref()
-        .map(|owner| task_owner_from_runtime(task_id, owner))
-        .transpose()
-        .map_err(|error| McpError::internal_error(error, None))
-}
-
-pub(super) async fn require_task_owner(
-    state: &AppState,
-    context: &RequestContext<RoleServer>,
-    task_id: &str,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
-    let owner = optional_task_owner(state, task_id)
-        .await?
-        .ok_or_else(|| McpError::invalid_request("task ownership record missing", None))?;
-    if task_owner_allows(&owner, &identity) {
-        Ok(identity)
-    } else {
-        Err(McpError::invalid_request(
-            "You don't have permission to access this task.",
-            None,
-        ))
-    }
-}
-
-pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.actor.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.actor.tenant
-        && owner.data_labels.is_subset(&identity.actor.data_labels)
-}
-
 fn owner_storage_key(identity: &GatewayInternalIdentity) -> String {
     let canonical = format!(
         "{}\0{}\0{}\0{}\0{}",

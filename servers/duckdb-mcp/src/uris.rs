@@ -10,8 +10,6 @@ pub const DBS_ROOT_URI: &str = "duckdb://dbs";
 pub const WORKBENCH_APP_URI: &str = "ui://duckdb/workbench.html";
 pub const DB_TEMPLATE: &str = "duckdb://db/{db_id}";
 pub const ARTIFACT_TEMPLATE: &str = "duckdb://artifact/{artifact_id}";
-pub const USAGE_ROOT_URI: &str = "duckdb://usage";
-pub const USAGE_TASK_TEMPLATE: &str = "duckdb://usage/task/{task_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
 /// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins the
@@ -49,16 +47,8 @@ pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::Artifa
     duckdb_uris().artifact_uri(artifact_id)
 }
 
-pub fn usage_task_uri(task_id: &str) -> String {
-    duckdb_uris().usage_task_uri(task_id)
-}
-
 pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     duckdb_uris().parse_artifact_uri(uri)
-}
-
-pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
-    duckdb_uris().parse_usage_task_uri(uri)
 }
 
 #[cfg(test)]
