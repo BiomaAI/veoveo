@@ -44,6 +44,12 @@ output count together. Every output carries `MediaOutputArtifactMetadata` with t
 Task and prediction IDs. The builder checks model agreement, output order, distinct
 Artifact occurrence IDs and Media presentation URIs. Results contain no download URLs.
 
+The MCP adapter in `task_results` publishes that v1 value with one canonical result
+link and the status `Generation completed.`. Both `tasks/get` and Task subscriptions
+use the adapter. Completed Task reads select the linked generation through
+`MediaReads` before projection; working, failed and cancelled payloads keep the
+shared Task model. Retained Task records are never rewritten during projection.
+
 ## Resource Selection
 
 Discovery declares fixed roots and templates without database enumeration. The
@@ -130,24 +136,38 @@ removing support for the prior profile.
 Media owns two stored Task result profiles. The unversioned v0 structured content has
 `prediction` and `artifacts`; `veoveo.ai/media-generation/v1` also carries its schema
 marker, typed Task identity and canonical `result_uri`. Resource reads expose v1.
-The private v0 adapter validates retained Artifact attribution and builds the same
-checked v1 value. An unknown schema or incomplete v1 is rejected, without falling
-through to v0. Reading either profile leaves the persisted Task unchanged.
+`RetainedMediaGeneration` is the explicit compatibility decoder in the contract
+library. Its private v0 wire type validates retained Artifact attribution and builds
+the same checked v1 value. An unknown schema or incomplete v1 is rejected, without
+falling through to v0. Reading either profile leaves the persisted Task unchanged.
+New producers and public Task projections emit v1. The public output schema is
+`MediaGenerationResult`; the CLI schema exporter names it
+`media-generation-result.schema.json`.
 
-The current Task producer emits v0. Its output schema and completion links retain
-that profile while the resource reader establishes a rollback checkpoint that can
-read both versions. The single-result completion handoff is still pending C02 work.
-Deploy the reader checkpoint before a v1 producer; drain Media traffic, active Tasks
-and subscriptions for that producer transition and replace all replicas and consumers
-together. Mixed producer versions are unsupported. A rollback targets the qualified
-reader checkpoint and matching consumers, which can still read retained v1 results.
+The CLI uses the same contract decoder during the rollback support window. It checks
+the declared profile's links against the structured metadata: one result link for
+v1, ordered Artifact links for v0. Download selection uses those checked Artifact
+addresses. The CLI reads the canonical result resource and checks completion equality
+against it. That resource supplies the native Task identity; gateway Task handles are
+opaque routing identities, including when a retained v0 result has no Artifacts.
+MCP core contains no Media profile vocabulary or adapter.
+
+Drain Media traffic, active Tasks and subscriptions, then replace all replicas and
+consumers together. Mixed producer versions are unsupported. Rollback requires a
+reader that accepts both profiles and preserves current-owner Task delivery, with
+consumers that declare both profiles. The qualified source floor is `430b1ddd`;
+retain the current CLI for its v0/v1 download support. The original v0-only CLI cannot
+download a v1 Task result. The native smoke's `--rollback-media-bin` option takes the
+preserved compatible binary and checks reverse and forward replacement against the
+same Store and Artifact plane.
 
 Export affected Tasks and provider jobs before the transition. Preflight both result
 profiles, Task/provider relationships and ordered output attribution; keep rejected
 records for operator review. No destructive conversion is required. Retire the v0
-reader only when every retained or pinned v0 result has expired or passed an
-owner-approved migration with backup and reverse-conversion qualification. Installed
-transition and rollback rehearsal remain acceptance requirements.
+decoder and CLI profile only when every retained or pinned v0 result has expired or
+passed an owner-approved migration with backup and reverse-conversion qualification.
+Installed transition and rollback rehearsal remain acceptance requirements. End the
+installation's v0 rollback window before retiring either decoder.
 
 ## Qualification And Remaining Work
 
@@ -158,15 +178,17 @@ subscription admission before usage exists. Webhook integration covers duplicate
 receipts, another replica, restart recovery, failure and late completion after
 cancellation. Every case has a deadline and owns fixture cleanup.
 
-Contract tests preserve the generation schemas, exercise reserved URI characters,
-and reject invalid cursor/page relationships. They also run in an independently
+Contract tests fix the v1 generation schema, preserve the prediction summary, exercise
+reserved URI characters, and reject invalid cursor/page relationships. They run in an independently
 resolved consumer with only the contract feature. Studio pagination has headless
 behavioral tests; installed and headed hardware acceptance are separate requirements.
 The native MCP smoke exercises generation, typed catalog reads and caller isolation.
 Result cases exercise both retained profiles, current clearance, denied malformed
 payloads, missing parents and unsuccessful Tasks through separate Store connections.
 The MCP smoke reads the complete result and checks it against Task output metadata.
+Both retained profiles pass Task get and subscription projection checks; the terminal
+handoff test requires one result link and identity-free status text.
 
 Installed catalog transition and rollback acceptance are pending. Model-catalog paging,
-remaining URI builders, provider DTO typing and C02's single canonical result handoff
-are tracked in the foundations plan and the [server manual](AGENTS.md).
+remaining URI builders and provider DTO typing are tracked in the foundations plan
+and the [server manual](AGENTS.md).

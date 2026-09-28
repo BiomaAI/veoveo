@@ -1,11 +1,12 @@
 use axum::http::header::CONTENT_TYPE;
-use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use rmcp::model::CallToolResult;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut};
-use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, now_utc, set_related_task_meta};
+use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, now_utc};
 use veoveo_media_mcp::{
-    contract::{GenerationRunOutput, MediaOutputArtifactMetadata},
+    contract::{MediaGenerationResult, MediaOutputArtifactMetadata},
     provider::Prediction,
     state::{MediaTaskContext, data_labels},
+    task_results::generation_tool_result,
 };
 use veoveo_types::TaskId;
 
@@ -99,26 +100,9 @@ pub(super) async fn prediction_result(
         .map(ArtifactMetadata::without_download_url)
         .collect::<Vec<_>>();
 
-    let mut blocks = vec![ContentBlock::text(format!(
-        "prediction {} ({}) completed with {} artifact(s) in {:.1}s",
-        prediction.id,
-        prediction.model,
-        artifacts.len(),
-        prediction.execution_time.unwrap_or_default() / 1000.0,
-    ))];
-    for (i, artifact) in artifacts.iter().enumerate() {
-        let mut link = Resource::new(artifact.artifact_uri.clone(), format!("output-{i}"))
-            .with_description(format!("artifact {i} of prediction {}", prediction.id));
-        if let Some(mime) = &artifact.mime_type {
-            link = link.with_mime_type(mime.clone());
-        }
-        blocks.push(ContentBlock::ResourceLink(link));
-    }
-    let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(GenerationRunOutput {
-        prediction: prediction.summary(),
+    generation_tool_result(MediaGenerationResult::new(
+        task_id,
+        prediction.summary(),
         artifacts,
-    })?);
-    set_related_task_meta(&mut result.meta, task_id.to_string());
-    Ok(result)
+    )?)
 }

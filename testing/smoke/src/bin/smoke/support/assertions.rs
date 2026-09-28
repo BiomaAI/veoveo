@@ -197,19 +197,3 @@ pub(crate) fn assert_reason_summary_at_least(
         );
     }
 }
-
-pub(crate) fn assert_no_audit_denies(summary: &Value) -> Result<()> {
-    let rows = summary
-        .as_array()
-        .ok_or_else(|| anyhow!("audit summary is not an array"))?;
-    for row in rows {
-        let deny = row
-            .get("deny_events")
-            .and_then(Value::as_u64)
-            .unwrap_or_default();
-        if deny != 0 {
-            bail!("audit summary had deny event: {row}");
-        }
-    }
-    Ok(())
-}

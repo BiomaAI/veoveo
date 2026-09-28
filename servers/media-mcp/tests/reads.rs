@@ -5,6 +5,7 @@ mod store;
 #[path = "../src/bin/server/subscriptions.rs"]
 mod subscriptions;
 use chrono::Utc;
+use futures::StreamExt;
 use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_mcp_contract::{UsageKind, UsageRecord};
@@ -13,6 +14,7 @@ use veoveo_media_mcp::{
     provider::Prediction,
     reads::MediaReads,
     state::{MediaProviderJob, MediaState},
+    task_results,
 };
 use veoveo_platform_store::{
     OpenObject, ProviderJobId, ProviderJobRecord, ProviderJobState, task_record_id,
@@ -512,6 +514,17 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
                     .unwrap()
                     .is_none()
             );
+            let working = task_results::get_task(
+                &reader,
+                &caller,
+                rmcp::model::GetTaskParams::new(task.task_id.to_string()),
+            )
+            .await
+            .unwrap();
+            assert!(matches!(
+                working.task.payload,
+                rmcp::model::TaskPayload::Working
+            ));
             db.a.client()
                 .query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
                 .bind(("task", task_record_id(task.task_id)))
@@ -525,6 +538,37 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
                     .await
                     .unwrap(),
                 Some(expected.clone())
+            );
+            let projected = task_results::get_task(
+                &reader,
+                &caller,
+                rmcp::model::GetTaskParams::new(task.task_id.to_string()),
+            )
+            .await
+            .unwrap();
+            assert_eq!(
+                projected.task.task.status_message.as_deref(),
+                Some(task_results::GENERATION_COMPLETED)
+            );
+            let expected_result = serde_json::to_value(
+                task_results::generation_tool_result(expected.clone()).unwrap(),
+            )
+            .unwrap();
+            let rmcp::model::TaskPayload::Completed { result } = &projected.task.payload else {
+                panic!("completed Media Task expected");
+            };
+            assert_eq!(*result, expected_result.as_object().unwrap().clone());
+            let mut subscription = task_results::subscribe_tasks(
+                &reader,
+                caller.clone(),
+                vec![task.task_id.to_string()],
+            )
+            .await
+            .unwrap();
+            assert_eq!(subscription.accepted_task_ids, [task.task_id.to_string()]);
+            assert_eq!(
+                subscription.updates.next().await.unwrap().unwrap(),
+                projected.task
             );
             assert_eq!(
                 reader
@@ -550,6 +594,30 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
     .expect("Media retained result qualification exceeded 60 seconds");
 }
 
+#[test]
+fn generation_handoff_has_one_canonical_link_and_identity_free_status() {
+    let generation = generation_fixture::generation(
+        TaskId::new(),
+        MediaPredictionId::new("provider-job").unwrap(),
+    );
+    let result = task_results::generation_tool_result(generation.clone()).unwrap();
+    assert_eq!(result.content.len(), 2);
+    let rmcp::model::ContentBlock::Text(text) = &result.content[0] else {
+        panic!("status text expected");
+    };
+    assert_eq!(text.text, "Generation completed.");
+    let rmcp::model::ContentBlock::ResourceLink(link) = &result.content[1] else {
+        panic!("single result link expected");
+    };
+    assert_eq!(link.uri, generation.result_uri().as_str());
+    assert_eq!(link.mime_type.as_deref(), Some("application/json"));
+    assert_eq!(
+        result.structured_content,
+        Some(serde_json::to_value(&generation).unwrap())
+    );
+    assert_eq!(result.is_error, Some(false));
+}
+
 #[tokio::test]
 async fn generation_selection_excludes_denied_malformed_results_before_decoding() {
     tokio::time::timeout(Duration::from_secs(60), async {
@@ -573,6 +641,7 @@ async fn generation_selection_excludes_denied_malformed_results_before_decoding(
             db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
                 .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
             assert!(reads.generation_result(&caller, &MediaGenerationUri::new(job.external_job_id)).await.unwrap().is_none());
+            assert!(reads.generation_for_task(&caller, task.task_id).await.unwrap().is_none());
         }
         let (task, job) = create(&writer, &caller, 10, "collision").await;
         let expected = generation_fixture::generation(task.task_id, job.external_job_id);
@@ -583,6 +652,7 @@ async fn generation_selection_excludes_denied_malformed_results_before_decoding(
         db.a.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['mission','secret'] RETURN NONE;")
             .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
         assert!(reads.generation_result(&caller, expected.result_uri()).await.unwrap().is_none());
+        assert!(reads.generation_for_task(&caller, task.task_id).await.unwrap().is_none());
         let mut cleared = caller.clone();
         cleared.data_labels.insert("secret".into());
         assert_eq!(reads.generation_result(&cleared, expected.result_uri()).await.unwrap(), Some(expected));
@@ -595,6 +665,7 @@ async fn generation_selection_excludes_denied_malformed_results_before_decoding(
             db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
                 .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
             assert!(reads.generation_result(denied, expected.result_uri()).await.unwrap().is_none());
+            assert!(reads.generation_for_task(denied, task.task_id).await.unwrap().is_none());
             assert_eq!(reads.generation_result(allowed, expected.result_uri()).await.unwrap(), Some(expected));
         }
     }).await.expect("Media result visibility qualification exceeded 60 seconds");
@@ -631,6 +702,7 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
             db.a.client().query(mutation).bind(("task", task_record_id(task.task_id)))
                 .bind(("job", job.job_id.record_id())).await.unwrap().check().unwrap();
             assert!(reads.generation_result(&caller, expected.result_uri()).await.unwrap().is_none(), "accepted {mutation}");
+            assert!(reads.generation_for_task(&caller, task.task_id).await.unwrap().is_none(), "Task selection accepted {mutation}");
         }
         let (task, job) = create(&writer, &caller, 100, "invalid-visible").await;
         let expected = generation_fixture::generation(task.task_id, job.external_job_id.clone());
@@ -639,6 +711,7 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
         let wrong_parent = generation_fixture::generation(TaskId::new(), job.external_job_id);
         store_result(&writer, task.task_id, json!({"structuredContent": wrong_parent})).await;
         assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err());
+        assert!(reads.generation_for_task(&caller, task.task_id).await.is_err());
         for profile in [
             json!({"schema":"veoveo.ai/media-generation/v2", "prediction":expected.prediction(), "artifacts": expected.artifacts()}),
             json!({"prediction": expected.prediction(), "artifacts": [], "unknown": true}),

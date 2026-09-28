@@ -203,8 +203,8 @@ fn contract_schemas() -> Result<Vec<ContractSchema>> {
     );
     add_schema!(
         schemas,
-        "generation-run-output.schema.json",
-        GenerationRunOutput
+        "media-generation-result.schema.json",
+        MediaGenerationResult
     );
     add_schema!(schemas, "usage-record.schema.json", UsageRecord);
     add_schema!(schemas, "usage-report.schema.json", UsageReport);

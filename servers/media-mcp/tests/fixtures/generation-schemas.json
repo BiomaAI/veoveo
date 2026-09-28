@@ -348,6 +348,9 @@
         "description": "Identity-provider group identifier used by gateway policy.",
         "type": "string"
       },
+      "MediaGenerationUri": {
+        "type": "string"
+      },
       "NoIdentity": false,
       "PolicyVersion": {
         "description": "Immutable policy version identifier emitted with decisions and audit records.",
@@ -355,6 +358,17 @@
       },
       "PrincipalId": {
         "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "ResultSchema": {
+        "enum": [
+          "veoveo.ai/media-generation/v1"
+        ],
+        "type": "string"
+      },
+      "TaskId": {
+        "maxLength": 45,
+        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
         "type": "string"
       },
       "TenantId": {
@@ -367,7 +381,7 @@
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Structured content returned by generation-oriented `run` tools.",
+    "additionalProperties": false,
     "properties": {
       "artifacts": {
         "items": {
@@ -377,13 +391,25 @@
       },
       "prediction": {
         "$ref": "#/$defs/GenerationPredictionSummary"
+      },
+      "result_uri": {
+        "$ref": "#/$defs/MediaGenerationUri"
+      },
+      "schema": {
+        "$ref": "#/$defs/ResultSchema"
+      },
+      "task_id": {
+        "$ref": "#/$defs/TaskId"
       }
     },
     "required": [
+      "schema",
+      "task_id",
+      "result_uri",
       "prediction",
       "artifacts"
     ],
-    "title": "GenerationRunOutput",
+    "title": "MediaGenerationResult",
     "type": "object"
   },
   "summary": {

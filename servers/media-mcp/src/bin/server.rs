@@ -60,7 +60,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
-    contract::GenerationRunOutput,
+    contract::MediaGenerationResult,
     provider::{ModelEntry, Prediction, ProviderClient},
     state::MediaState,
     uris, webhook,
@@ -160,7 +160,7 @@ impl MediaMcp {
     #[tool(
         title = "Run media model",
         description = "Run any media model. Run as an MCP Task and read tasks/get for status and the typed result. Find models at media://models, input schemas at media://model/{model_id}, and billing at media://usage/task/{task_id}.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<GenerationRunOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<MediaGenerationResult>(),
         annotations(
             read_only_hint = false,
             destructive_hint = false,
@@ -315,8 +315,8 @@ impl ServerHandler for MediaMcp {
              (3) read media://model/{model_id} for its exact input JSON Schema; \
              (4) call the `run` tool through the negotiated task extension with {model, input}; \
              (5) read tasks/get or subscribe through subscriptions/listen; \
-             (6) the completed task result contains media://artifact/{artifact_id} links; \
-             (7) read media://usage/task/{task_id} for usage estimates and actual billing."
+             (6) read its canonical media://prediction/{id}/result resource for typed Artifact metadata; \
+             (7) read media://usage/task/{task_id} using the result's native Task ID for usage estimates and actual billing."
                 .into(),
         );
         info

@@ -101,7 +101,7 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         caller: &Self::Caller,
         request: rmcp::model::GetTaskParams,
     ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
-        veoveo_task_runtime::get_durable_task(
+        veoveo_media_mcp::task_results::get_task(
             &self.state.tasks,
             &runtime_owner(&caller.identity),
             request,
@@ -203,7 +203,7 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         caller: &Self::Caller,
         task_ids: Vec<String>,
     ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
-        veoveo_task_runtime::subscribe_durable_tasks(
+        veoveo_media_mcp::task_results::subscribe_tasks(
             &self.state.tasks,
             runtime_owner(&caller.identity),
             task_ids,

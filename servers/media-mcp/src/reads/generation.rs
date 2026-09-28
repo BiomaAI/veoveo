@@ -1,10 +1,8 @@
 //! Retained generation profiles. Authorization precedes selection and decoding.
 use super::{MediaReads, VISIBLE_TASK, bind_owner, predictions::VISIBLE_PREDICTION};
-use crate::contract::{GenerationPredictionSummary, MediaGenerationResult, MediaGenerationUri};
-use serde::Deserialize;
+use crate::contract::{MediaGenerationResult, MediaGenerationUri, RetainedMediaGeneration};
 use surrealdb::types::SurrealValue;
-use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey};
+use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey, task_record_id};
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::TaskId;
 
@@ -14,20 +12,9 @@ struct ResultRow {
     result: OpenObject,
 }
 
-// Explicit retained-data adapter for the pre-v1 Media tool result. An unknown
-// version or incomplete v1 cannot fall through to this closed unversioned shape.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GenerationResultV0 {
-    prediction: GenerationPredictionSummary,
-    artifacts: Vec<ArtifactMetadata>,
-}
-
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum StoredResult {
-    V1(MediaGenerationResult),
-    V0(GenerationResultV0),
+enum Selection<'a> {
+    Resource(&'a MediaGenerationUri),
+    Task(TaskId),
 }
 
 impl MediaReads<'_> {
@@ -36,18 +23,63 @@ impl MediaReads<'_> {
         owner: &TaskOwner,
         uri: &MediaGenerationUri,
     ) -> anyhow::Result<Option<MediaGenerationResult>> {
-        let mut response = bind_owner(self.tasks.platform_store().client().query(format!(
-            "SELECT task, task.result.structuredContent AS result FROM provider_job WHERE {VISIBLE_TASK} AND {VISIBLE_PREDICTION} AND external_job_id = $prediction AND task.status = 'succeeded' AND (task.result.isError ?? false) = false AND task.result.structuredContent.prediction.id = external_job_id LIMIT 1;"
-        )), owner)?.bind(("prediction", uri.prediction_id().to_string())).await?.check()?;
+        self.select_generation(owner, Selection::Resource(uri))
+            .await
+    }
+
+    /// The Task projection uses the same visibility and retained-profile decoder
+    /// as the result resource, including the current provider-job parent.
+    pub async fn generation_for_task(
+        &self,
+        owner: &TaskOwner,
+        task: TaskId,
+    ) -> anyhow::Result<Option<MediaGenerationResult>> {
+        self.select_generation(owner, Selection::Task(task)).await
+    }
+
+    async fn select_generation(
+        &self,
+        owner: &TaskOwner,
+        selection: Selection<'_>,
+    ) -> anyhow::Result<Option<MediaGenerationResult>> {
+        let predicate = match selection {
+            Selection::Resource(_) => "external_job_id = $prediction",
+            Selection::Task(_) => "task = $task",
+        };
+        let query = bind_owner(
+            self.tasks.platform_store().client().query(format!(
+                "SELECT task, task.result.structuredContent AS result FROM provider_job
+             WHERE {VISIBLE_TASK} AND {VISIBLE_PREDICTION} AND {predicate}
+               AND task.status = 'succeeded' AND (task.result.isError ?? false) = false
+               AND task.result.structuredContent.prediction.id = external_job_id LIMIT 1;"
+            )),
+            owner,
+        )?;
+        let query = match selection {
+            Selection::Resource(uri) => query.bind(("prediction", uri.prediction_id().to_string())),
+            Selection::Task(task) => query.bind(("task", task_record_id(task))),
+        };
+        let mut response = query.await?.check()?;
         let rows: Vec<ResultRow> = response.take(0)?;
         rows.into_iter()
             .next()
-            .map(|row| decode(row, uri))
+            .map(|row| {
+                let result = decode(row)?;
+                let matches = match selection {
+                    Selection::Resource(uri) => result.result_uri() == uri,
+                    Selection::Task(task) => result.task_id() == task,
+                };
+                anyhow::ensure!(
+                    matches,
+                    "stored Media generation result disagrees with its selected parent"
+                );
+                Ok(result)
+            })
             .transpose()
     }
 }
 
-fn decode(row: ResultRow, uri: &MediaGenerationUri) -> anyhow::Result<MediaGenerationResult> {
+fn decode(row: ResultRow) -> anyhow::Result<MediaGenerationResult> {
     anyhow::ensure!(
         row.task.table.as_str() == "task",
         "generation parent is not a Task"
@@ -57,13 +89,7 @@ fn decode(row: ResultRow, uri: &MediaGenerationUri) -> anyhow::Result<MediaGener
     };
     let task_id = TaskId::from_uuid(*id);
     let value = serde_json::Value::Object(row.result.into_map().into_iter().collect());
-    let result = match serde_json::from_value::<StoredResult>(value).map_err(|_| anyhow::anyhow!("unsupported or inconsistent stored Media generation result; expected retained v0 or veoveo.ai/media-generation/v1"))? {
-        StoredResult::V1(result) => result,
-        StoredResult::V0(legacy) => MediaGenerationResult::new(task_id, legacy.prediction, legacy.artifacts)?,
-    };
-    anyhow::ensure!(
-        result.task_id() == task_id && result.result_uri() == uri,
-        "stored Media generation result disagrees with its Task or prediction parent"
-    );
-    Ok(result)
+    RetainedMediaGeneration::decode(task_id, value)
+        .map(RetainedMediaGeneration::into_generation)
+        .map_err(|_| anyhow::anyhow!("unsupported or inconsistent stored Media generation result; expected retained v0 or veoveo.ai/media-generation/v1"))
 }

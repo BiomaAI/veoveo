@@ -10,6 +10,7 @@ use veoveo_media_mcp::{
     contract::MediaPredictionUri,
     provider::{ModelEntry, Prediction, ProviderClient},
     state::{MediaProviderEvent, MediaState, WebhookReceipt},
+    task_results::GENERATION_COMPLETED,
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_task_runtime::{TaskFailure, TaskRuntime};
@@ -207,16 +208,7 @@ impl AppState {
             prediction_result(self, &event.prediction, event.job.task_id, &context).await?;
         let result = serde_json::to_value(result)?;
         self.durable
-            .complete_event(
-                &self.tasks,
-                event,
-                Ok(result),
-                format!(
-                    "completed; {} artifact(s); resource {}",
-                    event.prediction.outputs.len(),
-                    MediaPredictionUri::new(event.prediction.id.clone())
-                ),
-            )
+            .complete_event(&self.tasks, event, Ok(result), GENERATION_COMPLETED.into())
             .await?;
         self.subscribers
             .notify_resource_updated(

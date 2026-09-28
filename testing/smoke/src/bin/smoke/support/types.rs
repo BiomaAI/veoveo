@@ -8,33 +8,9 @@ pub(crate) const INTERNAL_TRUST_JWKS: &str = r#"{"keys":[{"kty":"OKP","crv":"Ed2
 pub(crate) const PUBLIC_BASE_URL: &str = "https://veoveo.example";
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct SmokeGenerationRunOutput {
-    pub(crate) artifacts: Vec<SmokeArtifactMetadata>,
-}
-
-#[derive(Debug, Deserialize)]
 pub(crate) struct SmokeFramesBatchOutput {
     pub(crate) result: Value,
-    pub(crate) artifact: Option<SmokeArtifactMetadata>,
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) struct SmokeArtifactMetadata {
-    pub(crate) artifact_id: String,
-    pub(crate) artifact_uri: String,
-    #[serde(default)]
-    pub(crate) download_url: Option<String>,
-    #[serde(default)]
-    pub(crate) metadata: Value,
-    #[serde(default)]
-    pub(crate) compliance: SmokeCompliance,
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct SmokeCompliance {
-    pub(crate) tenant_id: Option<String>,
-    #[serde(default)]
-    pub(crate) data_labels: Vec<String>,
+    pub(crate) artifact: Option<veoveo_artifact_contract::ArtifactMetadata>,
 }
 
 #[derive(Debug, Deserialize)]

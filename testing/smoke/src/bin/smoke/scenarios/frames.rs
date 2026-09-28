@@ -256,11 +256,16 @@ pub(crate) async fn frames_mcp(
     let artifact = batch_output
         .artifact
         .ok_or_else(|| anyhow!("batch output had no artifact metadata"))?;
-    if artifact.artifact_uri != format!("frames://artifact/{}", artifact.artifact_id) {
+    if artifact.artifact_uri
+        != veoveo_artifact_contract::ArtifactUri::presented(
+            &veoveo_types::ResourceScheme::new("frames")?,
+            artifact.artifact_id(),
+        )
+    {
         bail!(
             "batch artifact URI `{}` did not match artifact id `{}`",
             artifact.artifact_uri,
-            artifact.artifact_id
+            artifact.artifact_id()
         );
     }
     if artifact.metadata.get("task_id").and_then(Value::as_str) != Some(task_id.as_str()) {
@@ -272,7 +277,7 @@ pub(crate) async fn frames_mcp(
         &mcp_url,
         [
             "artifact".into(),
-            artifact.artifact_id.clone().into(),
+            artifact.artifact_id().to_string().into(),
             "--output-dir".into(),
             output_dir.as_os_str().to_os_string(),
         ],
@@ -292,7 +297,7 @@ pub(crate) async fn frames_mcp(
             "--internal-work-context".into(),
             "intruder-context".into(),
             "artifact".into(),
-            artifact.artifact_id.clone().into(),
+            artifact.artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir.join("denied-intruder").as_os_str().to_os_string(),
         ],
@@ -312,7 +317,7 @@ pub(crate) async fn frames_mcp(
             "--internal-tenant".into(),
             "other-tenant".into(),
             "artifact".into(),
-            artifact.artifact_id.clone().into(),
+            artifact.artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-cross-tenant")
@@ -345,7 +350,7 @@ pub(crate) async fn frames_mcp(
 
     let post_run_resources = run_frames_mcp(conformance, &mcp_url, ["resources".into()])?;
     not_contains(&post_run_resources, &usage.usage_uri)?;
-    not_contains(&post_run_resources, &artifact.artifact_uri)?;
+    not_contains(&post_run_resources, artifact.artifact_uri.as_str())?;
     let usage_catalog = run_frames_mcp(
         conformance,
         &mcp_url,

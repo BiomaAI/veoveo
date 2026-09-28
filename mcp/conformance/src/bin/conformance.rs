@@ -10,7 +10,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use veoveo_media_mcp::contract::{GenerationPredictionSummary, GenerationRunOutput};
+use veoveo_media_mcp::contract::{GenerationPredictionSummary, MediaGenerationResult};
 
 use anyhow::{Result, anyhow};
 use axum::{

@@ -28,11 +28,26 @@ pub(crate) fn run_mcp(
 }
 
 pub(crate) async fn connect_mcp_client(url: &str, bearer_token: &str) -> Result<SmokeMcpClient> {
+    connect_mcp_handler(url, bearer_token, SmokeMcpHandler).await
+}
+
+pub(crate) async fn connect_tools_only_mcp_client(
+    url: &str,
+    bearer_token: &str,
+) -> Result<RunningService<rmcp::RoleClient, ()>> {
+    connect_mcp_handler(url, bearer_token, ()).await
+}
+
+async fn connect_mcp_handler<H: ClientHandler>(
+    url: &str,
+    bearer_token: &str,
+    handler: H,
+) -> Result<RunningService<rmcp::RoleClient, H>> {
     let transport = StreamableHttpClientTransport::from_config(
         StreamableHttpClientTransportConfig::with_uri(url.to_string())
             .auth_header(bearer_token.to_string()),
     );
-    Ok(SmokeMcpHandler
+    Ok(handler
         .serve_with_lifecycle(
             transport,
             ClientLifecycleMode::Discover {
@@ -42,7 +57,10 @@ pub(crate) async fn connect_mcp_client(url: &str, bearer_token: &str) -> Result<
         .await?)
 }
 
-pub(crate) async fn read_mcp_resource_json(session: &SmokeMcpClient, uri: &str) -> Result<Value> {
+pub(crate) async fn read_mcp_resource_json(
+    session: &rmcp::Peer<rmcp::RoleClient>,
+    uri: &str,
+) -> Result<Value> {
     let result = session
         .read_resource(ReadResourceRequestParams::new(uri))
         .await?;

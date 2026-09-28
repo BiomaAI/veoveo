@@ -348,7 +348,28 @@ TaskRuntime cases and one compile-fail example pass, including the explicitly ru
 query-plan case. Five expanded SQL queries, strict workspace Clippy and native Media
 MCP smoke pass. The installation must replace hosted replicas together to establish
 current-owner delivery; retained-owner preflight and installed qualification are pending.
-The Media producer/consumer handoff remains the next C02 change.
+Media now publishes the checked v1 generation result with one top-level `result_uri`,
+one canonical result link and identity-free terminal text. Its library projects retained
+v0/v1 Task reads and subscriptions through the same SQL-scoped result reader without
+rewriting stored Tasks. The CLI consumes the server-owned contract, verifies completion
+against the result resource, and keeps opaque gateway Task handles separate from native
+Task IDs. Native reverse and forward binary replacement passes against reader floor
+`430b1ddd`, including retained v1 reads and v0 Artifact downloads with the current CLI.
+Gateway smoke qualifies normal Tasks, the tools-only completion adapter, billing,
+Artifact access and the fixture's specific denied Studio discovery record. It derives
+readiness counts from the declared seed and exercises tools-only clients without Task
+capabilities. Frames smoke also passes with the shared Artifact contract consumer.
+Fifty Media cases and six compile-fail examples pass, including exact Task result
+selection under denied and corrupted parent records. The independent 88-package
+consumer passes thirteen cases without MCP, runtime, database or HTTP dependencies;
+the conformance CLI passes six cases. Schema-export smoke, runtime-only Clippy and
+strict workspace Clippy pass.
+C02's local handoff is qualified; the coordinated installation transition, retained-data
+preflight and installed rollback remain pending. Completed fixtures and the temporary
+rollback executable were removed. Twelve superseded Media/CLI/smoke executables from
+before the reader checkpoint were also removed, reclaiming 13 GiB while preserving
+current binaries, compiler libraries, incremental data and build caches. The cluster
+is stopped and the host has 186 GiB free.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -794,8 +815,8 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 #### Migration Inventory And Status
 
 All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
-Frames, Timeseries, DuckDB and Optimization define the `contract` feature. Independent
-consumer qualification is recorded in each owning row. The other nine packages still
+Frames, Timeseries, DuckDB, Optimization and Media define the `contract` feature. Independent
+consumer qualification is recorded in each owning row. The other eight packages still
 need feature isolation. Existing libraries remain the default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
@@ -825,7 +846,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Contract, HTTP, native Store, independent-consumer, and strict workspace Clippy checks pass; qualify installed consumption; retain the documented preflight and recovery requirements for existing data |
 | Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
-| Artifact MCP and remaining Media operations | Media generation result DTOs and prediction/usage contracts now belong to its isolated library feature. Other public operations still depend on shared access/provider contracts and runtime modules | Complete public request/model extraction, closed scopes, remaining resource builders and checked MCP setup; qualify the canonical generation result handoff |
+| Artifact MCP and remaining Media operations | Media generation result DTOs and prediction/usage contracts now belong to its isolated library feature; its canonical completion handoff passes native producer and consumer qualification. Other public operations still depend on shared access/provider contracts and runtime modules | Complete public request/model extraction, closed scopes, remaining resource builders and checked MCP setup; qualify installed behavior |
 | Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static; private driver records and mutations also belong to Frames | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
 | Frames mutation inputs | Frames owns typed mutations, private driver records and world-event vocabulary. World publication checks owner, current labels and head agreement in the transaction; repeated writes settle from authorized matching state. Store has no world draft API | Qualify installed publication, concurrent replay and the coordinated writer upgrade |
 | Frames world metadata construction | Checked summaries, immutable revisions, and source references derive their repeated identities from typed URIs. The contract owns complete-tree validation and hashing; Store reads and UAV use it. Native corruption/visibility and independent schema/consumer checks pass | Qualify installed consumers and the stricter retained-metadata preflight |
@@ -837,8 +858,8 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | DuckDB usage and discovery | The library uses TaskRuntime SQL visibility for 100-entry usage pages and exact reads. Its isolated contract owns usage addresses, collection-bound cursors and checked pages; discovery declares roots/templates without scanning records. The unused unbounded Store usage catalog API is removed. Native reads and Spatial, the independent 74-package contract consumer, and strict runtime/workspace Clippy pass. Workbench cursor construction uses the browser URL API; headless navigation and reserved-character cases pass | Qualify the coordinated array-to-page transition, installed reads and headed hardware Workbench acceptance |
 | Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields; Map consumes the contract feature. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent 90-package consumer preserves eleven solver schemas and excludes service dependencies; Map consumption and strict runtime/workspace Clippy pass | Qualify the coordinated control/executor replacement and installed reads |
 | Other Optimization contracts | Problem/run/solution queries filter indexed owner, profile, tenant, context and labels; envelope agreement and optional-tenant distinctions need qualification. Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and query admission through the domain library; qualify retained rows, collection reads, completion and installed acceptance |
-| Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; both generation schemas are preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
-| Media generation result | The isolated contract owns checked v1 generation results, typed result addresses and output attribution. SQL reads successful linked Tasks under current owner policy; the private v0/v1 decoder preserves stored data. Native contract, database and MCP checks pass, establishing a reader rollback checkpoint | Switch terminal publication and Task projections to the single canonical result handoff; qualify the coordinated producer/client transition and installed rollback before retiring v0 support |
+| Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
+| Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify coordinated hosted replacement and retained-owner preflight; audit domain-specific Task adapters for their additional policy |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |

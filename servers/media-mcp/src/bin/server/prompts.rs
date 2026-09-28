@@ -189,7 +189,7 @@ impl MediaPrompt {
                     format!(
                         "Review media task {}.\n\n\
                          Read tasks/get for current status and the terminal result, \
-                         inspect any media://artifact/{{artifact_id}} links, and read \
+                         read its canonical result_uri for Artifact metadata, and read \
                          {} for estimate and actual billing records. Summarize \
                          artifact count, output types, final cost, and any missing actual usage.",
                         args.task_id, usage,

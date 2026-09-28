@@ -1,7 +1,8 @@
 use super::*;
 use veoveo_media_mcp::contract::{
-    GenerationRunOutput, MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri,
+    MediaGenerationProfile, MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri,
     MediaPredictionPage, MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
+    RetainedMediaGeneration,
 };
 
 pub(crate) async fn media_mcp_auth(
@@ -103,10 +104,14 @@ pub(crate) async fn media_task_run(
     conformance: &Path,
     media: &Path,
     artifact_service: &Path,
+    rollback_media: Option<&Path>,
 ) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
     assert_executable(artifact_service)?;
+    if let Some(rollback_media) = rollback_media {
+        assert_executable(rollback_media)?;
+    }
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -289,28 +294,28 @@ pub(crate) async fn media_task_run(
     let task_id = task_id_from_output(&run_output)?;
     for expected in [
         "poll: Working — submitted; prediction".to_string(),
-        "poll: Completed — completed;".to_string(),
+        "poll: Completed — Generation completed.".to_string(),
         "subscribed to media://prediction/".to_string(),
         "subscription cancelled".to_string(),
     ] {
         contains(&run_output, &expected)?;
     }
-    let structured: GenerationRunOutput = structured_from_output(&run_output)?;
-    let prediction_uri = MediaPredictionUri::new(structured.prediction.id.clone());
+    let structured: MediaGenerationResult = structured_from_output(&run_output)?;
+    let prediction_uri = MediaPredictionUri::new(structured.prediction().id.clone());
     contains(
         &notifications,
         &format!("[resource updated] {prediction_uri}"),
     )?;
-    if structured.artifacts.is_empty() {
+    if structured.artifacts().is_empty() {
         bail!("run output had no artifacts: {run_output}");
     }
-    if structured.artifacts.iter().any(|artifact| {
+    if structured.artifacts().iter().any(|artifact| {
         artifact.metadata.get("task_id").and_then(Value::as_str) != Some(task_id.as_str())
     }) {
         bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
     }
     let media_scheme = veoveo_types::ResourceScheme::new("media")?;
-    if structured.artifacts.iter().any(|artifact| {
+    if structured.artifacts().iter().any(|artifact| {
         artifact.artifact_uri
             != veoveo_artifact_contract::ArtifactUri::presented(
                 &media_scheme,
@@ -319,7 +324,7 @@ pub(crate) async fn media_task_run(
     }) {
         bail!("not all artifact metadata rows used canonical media artifact URIs: {structured:?}");
     }
-    let artifact_uri = structured.artifacts[0].artifact_uri.clone();
+    let artifact_uri = structured.artifacts()[0].artifact_uri.clone();
     assert_output_file(&output_dir, "png")?;
 
     let usage = wait_for_actual_usage(conformance, &mcp_url, &task_id, None)?;
@@ -350,7 +355,7 @@ pub(crate) async fn media_task_run(
             "--internal-work-context".into(),
             "intruder-context".into(),
             "artifact".into(),
-            structured.artifacts[0].artifact_id().to_string().into(),
+            structured.artifacts()[0].artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir.join("denied-artifacts").as_os_str().to_os_string(),
         ],
@@ -369,7 +374,7 @@ pub(crate) async fn media_task_run(
             "--internal-tenant".into(),
             "other-tenant".into(),
             "artifact".into(),
-            structured.artifacts[0].artifact_id().to_string().into(),
+            structured.artifacts()[0].artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-cross-tenant")
@@ -420,13 +425,13 @@ pub(crate) async fn media_task_run(
             )],
         )
     };
-    let result_uri = MediaGenerationUri::new(structured.prediction.id.clone());
+    let result_uri = MediaGenerationUri::new(structured.prediction().id.clone());
     let generation: MediaGenerationResult =
         serde_json::from_str(&read_index(result_uri.as_str())?)?;
     if generation.task_id().to_string() != task_id
         || generation.result_uri() != &result_uri
-        || generation.prediction() != &structured.prediction
-        || generation.artifacts() != structured.artifacts
+        || generation.prediction() != structured.prediction()
+        || generation.artifacts() != structured.artifacts()
     {
         bail!("Media generation resource disagreed with the completed Task");
     }
@@ -495,6 +500,74 @@ pub(crate) async fn media_task_run(
     not_contains(&post_run_resources, artifact_uri.as_str())?;
 
     media_child.stop();
+    if let Some(rollback_media) = rollback_media {
+        let mut rollback = spawn_media_memory_smoke(
+            rollback_media,
+            media_port,
+            &media_base,
+            &plane.platform,
+            &provider_base,
+            &plane.url,
+            &tmpdir.join("media-rollback.log"),
+        )?;
+        wait_for_http(&format!("{media_base}/media/healthz")).await?;
+        let retained: MediaGenerationResult =
+            serde_json::from_str(&read_index(result_uri.as_str())?)?;
+        if retained != generation {
+            bail!("rollback reader changed the retained v1 generation");
+        }
+        let rollback_outputs = tmpdir.join("rollback-outputs");
+        let legacy_run = run_direct_mcp(
+            conformance,
+            &mcp_url,
+            [
+                "run".into(),
+                "fake/image".into(),
+                "--input".into(),
+                r#"{"prompt":"rollback-profile"}"#.into(),
+                "--output-dir".into(),
+                rollback_outputs.as_os_str().to_os_string(),
+            ],
+            [(
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            )],
+        )?;
+        assert_output_file(&rollback_outputs, "png")?;
+        let legacy = RetainedMediaGeneration::decode(
+            task_id_from_output(&legacy_run)?.parse()?,
+            structured_from_output(&legacy_run)?,
+        )?;
+        if legacy.profile() != MediaGenerationProfile::UnversionedV0 {
+            bail!("rollback acceptance requires a qualified v0 producer");
+        }
+        let legacy = legacy.into_generation();
+        let retained: MediaGenerationResult =
+            serde_json::from_str(&read_index(legacy.result_uri().as_str())?)?;
+        if retained != legacy {
+            bail!("rollback reader disagreed with its v0 Task output");
+        }
+        rollback.stop();
+        let mut restored = spawn_media_memory_smoke(
+            media,
+            media_port,
+            &media_base,
+            &plane.platform,
+            &provider_base,
+            &plane.url,
+            &tmpdir.join("media-restored.log"),
+        )?;
+        wait_for_http(&format!("{media_base}/media/healthz")).await?;
+        for expected in [&generation, &legacy] {
+            let retained: MediaGenerationResult =
+                serde_json::from_str(&read_index(expected.result_uri().as_str())?)?;
+            if &retained != expected {
+                bail!("forward replacement changed a retained generation profile");
+            }
+        }
+        restored.stop();
+        println!("media result rollback and forward replacement smoke ok");
+    }
     provider.stop();
     cleanup.remove_on_drop();
     println!("media task run smoke ok");

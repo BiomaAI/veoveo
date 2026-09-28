@@ -107,6 +107,12 @@ The generation CLI drains request-scoped notifications through the SDK's subscri
 handle while waiting for the next Task read. A stream error or premature end fails the
 command; it does not submit another Task.
 
+Media generation completion uses the server library's checked result contract. The
+CLI compares structured completion metadata with the canonical result resource and
+downloads its typed Artifact addresses. Gateway Task handles stay opaque; Media's
+resource supplies the native Task identity. The declared v0/v1 rollback profiles and
+retirement conditions belong to the [Media design](../../servers/media-mcp/DESIGN.md#generation-result-profiles-and-recovery).
+
 ## Distribution
 
 The thin `certify` binary is copied into the digest-addressed

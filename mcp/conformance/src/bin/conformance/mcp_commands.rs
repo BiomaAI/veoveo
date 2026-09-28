@@ -1,6 +1,10 @@
 use std::collections::BTreeSet;
 
-use anyhow::bail;
+use anyhow::{Context, bail};
+use veoveo_media_mcp::contract::{
+    GenerationPredictionSummary, MediaGenerationProfile, MediaGenerationUri,
+    RetainedMediaGeneration,
+};
 
 use super::client::Client;
 use super::*;
@@ -760,7 +764,50 @@ pub(super) async fn cmd_run(
         TaskPayload::Cancelled => return Err(anyhow!("task was cancelled")),
         other => return Err(anyhow!("unexpected non-terminal task state: {other:?}")),
     };
-    let outputs = print_call_tool_result(&result);
+    ensure_call_tool_succeeded(&result)?;
+    let links = print_call_tool_result(&result);
+    let outputs = if uris.scheme() == &veoveo_types::ResourceScheme::new("media")? {
+        let value = result
+            .structured_content
+            .clone()
+            .ok_or_else(|| anyhow!("Media completion omitted its structured generation result"))?;
+        let prediction: GenerationPredictionSummary = serde_json::from_value(
+            value
+                .get("prediction")
+                .cloned()
+                .context("Media completion omitted its prediction")?,
+        )?;
+        // Gateway Task handles are opaque. The domain resource supplies the native
+        // Task identity even for retained v0 results with no output Artifacts.
+        let uri = MediaGenerationUri::new(prediction.id);
+        let canonical: MediaGenerationResult =
+            serde_json::from_value(read_resource_json(client, uri.as_str()).await?)?;
+        let retained = RetainedMediaGeneration::decode(canonical.task_id(), value).context(
+            "unsupported Media result profile; use compatible Media server and CLI releases",
+        )?;
+        let generation = retained.generation();
+        anyhow::ensure!(
+            generation == &canonical && generation.result_uri() == &uri,
+            "Media completion disagrees with its canonical generation resource"
+        );
+        let artifacts = generation
+            .artifacts()
+            .iter()
+            .map(|artifact| artifact.artifact_uri.to_string())
+            .collect::<Vec<_>>();
+        match retained.profile() {
+            MediaGenerationProfile::V1 if links != [generation.result_uri().to_string()] => {
+                bail!("Media completion must link exactly its canonical generation result");
+            }
+            MediaGenerationProfile::UnversionedV0 if links != artifacts => {
+                bail!("retained Media v0 completion links disagree with its output metadata");
+            }
+            _ => {}
+        }
+        artifacts
+    } else {
+        links
+    };
 
     if !outputs.is_empty() {
         std::fs::create_dir_all(&output_dir)?;

@@ -8,6 +8,8 @@ pub mod provider;
 pub mod reads;
 #[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "mcp")]
+pub mod task_results;
 #[cfg(feature = "runtime")]
 pub mod uris;
 #[cfg(feature = "runtime")]

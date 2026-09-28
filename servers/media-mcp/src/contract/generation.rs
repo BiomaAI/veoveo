@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::MediaPredictionId;
-use veoveo_artifact_contract::ArtifactMetadata;
 
 /// Public, provider-neutral summary of the provider job behind a completed task.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -22,11 +21,4 @@ pub struct GenerationPredictionSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timings: Option<Value>,
     pub output_count: usize,
-}
-
-/// Structured content returned by generation-oriented `run` tools.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct GenerationRunOutput {
-    pub prediction: GenerationPredictionSummary,
-    pub artifacts: Vec<ArtifactMetadata>,
 }

@@ -3,13 +3,13 @@ mod fixture;
 
 use serde_json::json;
 use veoveo_media_mcp::contract::{
-    GenerationPredictionSummary, GenerationRunOutput, MediaGenerationResult, MediaGenerationUri,
-    MediaPredictionId,
+    GenerationPredictionSummary, MediaGenerationProfile, MediaGenerationResult, MediaGenerationUri,
+    MediaPredictionId, RetainedMediaGeneration,
 };
 use veoveo_types::{ResourceAddress, TaskId};
 #[test]
 fn generation_schemas_preserve_the_published_profile() {
-    let actual = serde_json::json!({"summary":schemars::schema_for!(GenerationPredictionSummary),"output":schemars::schema_for!(GenerationRunOutput)});
+    let actual = serde_json::json!({"summary":schemars::schema_for!(GenerationPredictionSummary),"output":schemars::schema_for!(MediaGenerationResult)});
     assert_eq!(
         actual,
         serde_json::from_str::<serde_json::Value>(include_str!("fixtures/generation-schemas.json"))
@@ -147,4 +147,32 @@ fn canonical_result_rejects_unknown_profile_fields() {
     let mut bad = wire;
     bad.as_object_mut().unwrap().remove("schema");
     assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
+}
+
+#[test]
+fn retained_profiles_normalize_to_one_checked_result_and_reject_unknown_versions() {
+    let task = TaskId::new();
+    let result = fixture::generation(task, MediaPredictionId::new("job").unwrap());
+    let legacy = json!({"prediction": result.prediction(), "artifacts":result.artifacts()});
+    for (profile, value) in [
+        (MediaGenerationProfile::UnversionedV0, legacy.clone()),
+        (
+            MediaGenerationProfile::V1,
+            serde_json::to_value(&result).unwrap(),
+        ),
+    ] {
+        let decoded = RetainedMediaGeneration::decode(task, value.clone()).unwrap();
+        assert_eq!(decoded.profile(), profile);
+        assert_eq!(decoded.generation(), &result);
+        assert_eq!(decoded.into_generation(), result);
+        assert!(RetainedMediaGeneration::decode(TaskId::new(), value).is_err());
+    }
+    for schema in ["veoveo.ai/media-generation/v2", "unexpected"] {
+        let mut bad = legacy.clone();
+        bad["schema"] = json!(schema);
+        assert!(RetainedMediaGeneration::decode(task, bad).is_err());
+    }
+    let mut incomplete = legacy;
+    incomplete["schema"] = json!(MediaGenerationResult::SCHEMA);
+    assert!(RetainedMediaGeneration::decode(task, incomplete).is_err());
 }

@@ -1,4 +1,6 @@
 use super::*;
+use veoveo_media_mcp::contract::MediaGenerationResult;
+use veoveo_platform_store::{GatewayAuditKind, PlatformStore, StoreConfig, StoreCredentials};
 
 pub(crate) async fn gateway_task_run(
     conformance: &Path,
@@ -11,6 +13,8 @@ pub(crate) async fn gateway_task_run(
     assert_executable(media)?;
     assert_executable(gateway)?;
     assert_executable(artifact_service)?;
+    let seed: veoveo_mcp_contract::GatewayControlPlane =
+        serde_json::from_slice(&fs::read(control_plane)?)?;
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -70,7 +74,7 @@ pub(crate) async fn gateway_task_run(
         &gateway_log,
     )?;
     wait_for_http(&format!("{gateway_base}/healthz")).await?;
-    assert_ready_profiles(&gateway_base, 2).await?;
+    assert_ready_profiles(&gateway_base, seed.profiles.len().try_into()?).await?;
 
     let token = gateway_id_jag_token(
         conformance,
@@ -116,11 +120,11 @@ pub(crate) async fn gateway_task_run(
     )?;
     contains(&complete_output, "fake/image")?;
 
-    let run_output = run_mcp(
+    let run_result = run_raw(
         conformance,
-        &gateway_base,
-        token,
         [
+            "--url".into(),
+            format!("{gateway_base}/mcp/operator").into(),
             "run".into(),
             "fake/image".into(),
             "--tool-name".into(),
@@ -130,32 +134,51 @@ pub(crate) async fn gateway_task_run(
             "--output-dir".into(),
             output_dir.as_os_str().to_os_string(),
         ],
+        [("MCP_BEARER_TOKEN", token.into())],
     )?;
+    let run_output = String::from_utf8(run_result.stdout)?;
+    let notifications = String::from_utf8(run_result.stderr)?;
+    if !run_result.status.success() {
+        bail!(
+            "gateway Media run failed: {}\nstdout:\n{run_output}\nstderr:\n{notifications}",
+            run_result.status
+        );
+    }
+    contains(&notifications, "[resource updated] media://prediction/")?;
     let task_id = task_id_from_output(&run_output)?;
     for expected in [
         "poll: Working — submitted; prediction".to_string(),
         "subscribed to media://prediction/".to_string(),
-        "  [resource updated] media://prediction/".to_string(),
-        "poll: Completed — completed; 1 artifact(s)".to_string(),
+        "poll: Completed — Generation completed.".to_string(),
         "subscription cancelled".to_string(),
     ] {
         contains(&run_output, &expected)?;
     }
 
-    let structured: SmokeGenerationRunOutput = structured_from_output(&run_output)?;
-    if structured.artifacts.is_empty() {
+    let structured: MediaGenerationResult = structured_from_output(&run_output)?;
+    let native_task_id = structured.task_id().to_string();
+    if native_task_id == task_id {
+        bail!("gateway exposed the native Media Task as its public handle");
+    }
+    if structured.artifacts().is_empty() {
         bail!("run output had no artifacts: {run_output}");
     }
-    for artifact in &structured.artifacts {
-        if artifact.metadata.get("task_id").and_then(Value::as_str) != Some(task_id.as_str()) {
-            bail!("artifact metadata did not use task id `{task_id}`: {artifact:?}");
+    for artifact in structured.artifacts() {
+        if artifact.metadata.get("task_id").and_then(Value::as_str) != Some(native_task_id.as_str())
+        {
+            bail!("artifact metadata did not use native task id `{native_task_id}`: {artifact:?}");
         }
-        if artifact.compliance.tenant_id.as_deref() != Some("tenant-a")
+        if artifact
+            .compliance
+            .tenant_id
+            .as_ref()
+            .map(|tenant| tenant.as_str())
+            != Some("tenant-a")
             || !artifact
                 .compliance
                 .data_labels
                 .iter()
-                .any(|label| label == "cui")
+                .any(|label| label.as_str() == "cui")
         {
             bail!("artifact compliance labels were not propagated: {artifact:?}");
         }
@@ -165,13 +188,16 @@ pub(crate) async fn gateway_task_run(
     let usage = wait_for_actual_usage(
         conformance,
         &format!("{gateway_base}/mcp/operator"),
-        &task_id,
+        &native_task_id,
         Some(token),
     )?;
-    assert_usage_report(&usage, "media", &task_id)?;
+    assert_usage_report(&usage, "media", &native_task_id)?;
 
     let full_session = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), token).await?;
-    let full_tools = full_session.list_tools(Default::default()).await?;
+    let full_tools = full_session
+        .list_tools(Default::default())
+        .await
+        .context("full-MCP tool discovery")?;
     if full_tools.tools.iter().any(|tool| {
         matches!(
             tool.name.as_ref(),
@@ -203,8 +229,13 @@ pub(crate) async fn gateway_task_run(
         ],
     )?;
     let compat_token = compat_token.trim();
-    let session = connect_mcp_client(&format!("{gateway_base}/mcp/operator"), compat_token).await?;
-    let listed_tools = session.list_tools(Default::default()).await?;
+    let session =
+        connect_tools_only_mcp_client(&format!("{gateway_base}/mcp/operator"), compat_token)
+            .await?;
+    let listed_tools = session
+        .list_tools(Default::default())
+        .await
+        .context("compatibility tool discovery")?;
     for expected_tool in [
         "media__artifact",
         "media__models",
@@ -232,7 +263,8 @@ pub(crate) async fn gateway_task_run(
                 .unwrap(),
             ),
         )
-        .await?;
+        .await
+        .context("Media model compatibility helper")?;
     if models_result.is_error == Some(true) {
         bail!("gateway media__models returned an error: {models_result:?}");
     }
@@ -261,7 +293,8 @@ pub(crate) async fn gateway_task_run(
                     .unwrap(),
             ),
         )
-        .await?;
+        .await
+        .context("Media model schema compatibility helper")?;
     if schema_result.is_error == Some(true) {
         bail!("gateway media__model_schema returned an error: {schema_result:?}");
     }
@@ -290,7 +323,8 @@ pub(crate) async fn gateway_task_run(
                 .unwrap(),
             ),
         )
-        .await?;
+        .await
+        .context("Media direct-call Task adapter")?;
     if direct_result.is_error == Some(true) {
         bail!("direct gateway tools/call returned an error: {direct_result:?}");
     }
@@ -302,17 +336,17 @@ pub(crate) async fn gateway_task_run(
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow!("direct tools/call returned no gateway task id: {direct_result:?}"))?
         .to_string();
-    let direct_structured: SmokeGenerationRunOutput = serde_json::from_value(
+    let direct_structured: MediaGenerationResult = serde_json::from_value(
         direct_result
             .structured_content
             .clone()
             .ok_or_else(|| anyhow!("direct tools/call returned no structured output"))?,
     )?;
-    if direct_structured.artifacts.is_empty() {
+    if direct_structured.artifacts().is_empty() {
         bail!("direct tools/call returned no artifacts: {direct_result:?}");
     }
     if direct_structured
-        .artifacts
+        .artifacts()
         .iter()
         .any(|artifact| artifact.download_url.is_some())
     {
@@ -322,14 +356,15 @@ pub(crate) async fn gateway_task_run(
         .call_tool(
             CallToolRequestParams::new("media__artifact").with_arguments(
                 serde_json::json!({
-                    "artifact_uri": direct_structured.artifacts[0].artifact_uri
+                    "artifact_uri": direct_structured.artifacts()[0].artifact_uri
                 })
                 .as_object()
                 .cloned()
                 .unwrap(),
             ),
         )
-        .await?;
+        .await
+        .context("Media Artifact compatibility helper")?;
     if artifact_result.is_error == Some(true) {
         bail!("media__artifact returned an error: {artifact_result:?}");
     }
@@ -369,7 +404,7 @@ pub(crate) async fn gateway_task_run(
             "--internal-profile".into(),
             "admin".into(),
             "usage".into(),
-            task_id.clone().into(),
+            native_task_id.clone().into(),
         ],
         [(
             "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
@@ -384,7 +419,7 @@ pub(crate) async fn gateway_task_run(
             "--internal-profile".into(),
             "admin".into(),
             "artifact".into(),
-            structured.artifacts[0].artifact_id.clone().into(),
+            structured.artifacts()[0].artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-gateway-artifacts")
@@ -399,7 +434,7 @@ pub(crate) async fn gateway_task_run(
 
     gateway_child.stop();
     let audit_summary = run_gateway_json(gateway, "audit-method-summary", platform_store)?;
-    assert_no_audit_denies(&audit_summary)?;
+    assert_media_discovery_denial(platform_store).await?;
     assert_audit_method(&audit_summary, "completion/complete", 1, 0)?;
     assert_audit_method(&audit_summary, "tools/call", 6, 0)?;
     assert_audit_method(&audit_summary, "tasks/cancel", 1, 0)?;
@@ -411,5 +446,52 @@ pub(crate) async fn gateway_task_run(
     provider.stop();
     cleanup.remove_on_drop();
     println!("gateway task run smoke ok");
+    Ok(())
+}
+
+async fn assert_media_discovery_denial(platform: &PlatformStoreSmoke) -> Result<()> {
+    let store = PlatformStore::connect(
+        StoreConfig::builder(
+            &platform.endpoint,
+            &platform.namespace,
+            &platform.database,
+            StoreCredentials::database(
+                SURREAL_RUNTIME_USER,
+                secrecy::SecretString::from(SURREAL_RUNTIME_PASSWORD),
+            ),
+        )
+        .build()?,
+    )
+    .await?;
+    let mut denied = 0;
+    for record in store.gateway_audit_events(GatewayAuditKind::Policy).await? {
+        let event: veoveo_mcp_contract::AuditEvent = serde_json::from_value(
+            record
+                .details
+                .as_map()
+                .get("event")
+                .cloned()
+                .context("policy audit omitted its event")?,
+        )?;
+        if event.decision.effect == veoveo_mcp_contract::PolicyEffect::Deny {
+            denied += 1;
+            // The fixture exposes media resources, excluding the ui-scheme App.
+            let expected_target = matches!(&event.target,
+                veoveo_mcp_contract::PolicyTarget::Resource { server, uri }
+                if server.as_str() == "media" && uri.as_str() == "ui://media/studio.html"
+            );
+            anyhow::ensure!(
+                event.action == veoveo_mcp_contract::GatewayAction::ResourcesList
+                    && event.decision.reason
+                        == veoveo_mcp_contract::PolicyReasonCode::UnknownResource
+                    && expected_target,
+                "unexpected gateway policy denial: {event:?}"
+            );
+        }
+    }
+    anyhow::ensure!(
+        denied == 1,
+        "expected one Studio discovery denial, got {denied}"
+    );
     Ok(())
 }
