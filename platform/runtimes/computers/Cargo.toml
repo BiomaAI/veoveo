@@ -8,7 +8,7 @@ build = "build.rs"
 [dependencies]
 futures.workspace = true
 hex.workspace = true
-hyper-util = { version = "=0.1.20", features = ["tokio"] }
+hyper-util = { version = "=0.1.21", features = ["tokio"] }
 prost.workspace = true
 prost-reflect = { version = "=0.16.5", features = ["serde"] }
 prost-types = "=0.14.4"
