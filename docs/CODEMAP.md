@@ -491,7 +491,7 @@ The only durable platform persistence layer.
 | `artifact_uploads/lifecycle.rs` and `artifact_uploads/publication.rs` | fenced initialization/finalization, manifest freeze, atomic occurrence and receipt publication, cancellation, and retained cleanup accounting |
 | `migrations/0050_artifact_uploads.surql` | durable upload/part state, storage accounting, and repository-owned current-authority digest functions |
 | `artifact_reads.rs`, `artifact_reads/` | task-bound read delegation, current policy identity, and atomic distinct-occurrence quotas; specified in the Artifact service design |
-| `coordinates.rs`, `frame_worlds.rs` | coordinate-operation persistence plus frame-world mutations and private readback; Frames owns authorized world queries |
+| `frame_worlds.rs` | frame-world mutations and private readback; Frames owns authorized world queries and operation persistence |
 | `map.rs` | source, release, active-pointer, mobility, restriction, snapshot, route, matrix, and acquisition persistence |
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
@@ -675,6 +675,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `servers/frames-mcp/src/contract/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
+| `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
 | `servers/frames-mcp/src/bin/server/discovery.rs`, `resources.rs`, `completion.rs` | fixed discovery, resource payloads, and MCP completion adapters |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |

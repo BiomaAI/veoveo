@@ -15,7 +15,7 @@ use crate::{
         ConvertFrameOutput, ConvertFrameRequest, CoordinatePoint, EcefPosition,
         FrameSourceReference, WorldFramePosition,
     },
-    uris, world,
+    world,
 };
 
 const WGS84_A: f64 = 6_378_137.0;
@@ -224,13 +224,8 @@ fn provenance(
     let operation_id = CoordinateOperationId::new(format!("op-{}", uuid::Uuid::now_v7()))
         .expect("generated operation id is valid");
     CoordinateOperationProvenance {
-        operation: CoordinateOperationRef {
-            operation_uri: uris::operation_uri(operation_id.as_str()),
-            operation_id,
-            source_frame,
-            target_frame,
-            created_at: Utc::now(),
-        },
+        operation: CoordinateOperationRef::new(operation_id, Utc::now())
+            .with_frames(source_frame, target_frame),
         kind: CoordinateOperationKind::FrameConversion,
         source_crs: None,
         target_crs,

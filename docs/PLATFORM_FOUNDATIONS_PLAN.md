@@ -127,8 +127,8 @@ All 17 Frames library cases and 11 adapter cases pass. Twelve independently reso
 consumer cases preserve contract isolation, and four compile-fail cases reject wrong
 ID types. The native Frames MCP smoke passes world authoring, paged catalog reads,
 conversion, batch tasks, Artifact access, and usage reads. Strict workspace Clippy passes.
-Operation authority remains implementation work; installed acceptance is pending,
-including the declared catalog array-to-page coordinated upgrade.
+Installed acceptance is pending, including the declared catalog array-to-page
+coordinated upgrade.
 Native Task identity now belongs to `veoveo-types`; Store owns its explicit UUID record
 adapter and all consumers import the foundational type directly. UUID wire admission
 and generation are preserved, including TaskRuntime's external v7 check. Seventy-five
@@ -151,7 +151,22 @@ anchor even when the Task/time index is selected. Requalify this case during Pha
 database upgrade. All 17 Frames library cases, 11 adapter cases, three usage contract
 cases, and five compile-fail cases pass. The native MCP smoke qualifies batch usage,
 paged resource decoding, and wrong-principal/tenant/profile denial. Strict workspace
-Clippy passes. Frames operation authority and installed catalog acceptance remain work.
+Clippy passes. Installed catalog acceptance remains work.
+Frames now owns operation queries, driver records, immutable recording transactions,
+and typed operation scopes. SQL applies principal, tenant, profile, labels, and current
+Task-parent agreement before returning provenance. Recording checks the Task inside the
+same transaction as the operation and outbox event. Four native database cases pass:
+direct isolation and concurrent replay, Task authority changes, additive migration over
+historical records, and rollback/retry after injected event-publication failure. The
+UUIDv7 storage-admission case also passes. The new authority v1 profile leaves retained
+v0 records unchanged and inaccessible through public resource reads; the owning design
+declares the coordinated drain, export and recovery requirements. Operation addresses
+use the foundational builder, and checked provenance construction/decoding enforces
+ID/URI agreement without changing existing schemas. Sixteen independent contract
+consumer cases pass without runtime dependencies, and six compile-fail cases pass. The
+native MCP smoke passes direct and Task-backed operation reads and denial under a
+different principal, tenant or profile. Store regressions and strict workspace Clippy
+pass. Installed operation acceptance is pending.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -626,9 +641,10 @@ default owner; the inventory must not become a central domain-type registry.
 | Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static and Store's unscoped world readbacks are private to mutations | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
 | Frames mutation inputs | Store mutation drafts still accept raw world/revision keys and complete definition objects | Keep the public mutation contract in Frames and move domain admission to its repository adapter without making Store depend on a server runtime |
 | Frames world metadata construction | Public world summaries, revisions, and source references repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
-| Frames operation and stream references | World/revision/frame addresses use typed component builders; operation resource and dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
+| Frames operation references | Operation addresses use typed component builders; checked provenance derives its ID from the URI and rejects conflicting wire identity. Existing schema snapshots and independent contract consumption pass | Qualify installed consumption and the documented retained-provenance preflight |
+| Frames stream references | Dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
 | Frames usage visibility and pages | TaskRuntime applies current Task owner policy and linked-record agreement in SQL before grouping and limiting usage. Frames owns checked pages and typed Task cursors/URIs in its isolated contract feature; native denied-row and cursor cases pass | Qualify installed reads and subscriptions; enforce the documented coordinated catalog upgrade and retained-reference preflight |
-| Frames operation visibility | Operation reads post-filter labels and do not enforce the owner/profile isolation promised by the design | Define persisted operation authority for direct and Task execution, enforce it in SQL, and qualify retained-data admission and caller isolation |
+| Frames operation visibility | Frames owns SQL-scoped operation reads and transactional authority/immutable replay checks; native caller, parent, migration and event-rollback cases pass. Version 1 stores profile authority; historical version 0 records are preserved without public access | Qualify installed direct/Task operation reads and execute the documented coordinated upgrade |
 | Other usage query owners | Timeseries, Optimization, and DuckDB retain separate usage selection paths. Optimization's policy additionally compares Work Context identity | Migrate each owning policy into SQL; adopt shared Task owner queries only where they preserve that domain's full policy, and add context-aware selection where required |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | DuckDB, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
@@ -830,7 +846,8 @@ Work:
    writers, and confirm how much of that cost the shared sequence causes.
 2. Inventory every outbox writer and consumer with `git grep -n "outbox"`. Writers
    include `agents/runtime/src/runtime.rs`, `platform/store/src/artifact_access_requests.rs`,
-   `coordinates.rs`, `frame_worlds.rs`, `map_authoring.rs`, and `map_presentations.rs`.
+   `frame_worlds.rs`, `map_authoring.rs`, `map_presentations.rs`, and
+   `servers/frames-mcp/src/state/operations/record.surql`.
    Consumers include the agent manager, the agent runtime, gateway agent events,
    `platform/task-runtime/src/runtime/subscriptions.rs`,
    `servers/artifact-mcp/src/bin/server/subscriptions.rs`,

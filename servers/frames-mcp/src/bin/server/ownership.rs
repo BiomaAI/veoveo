@@ -111,3 +111,34 @@ pub(super) async fn frame_scope_from_runtime(
         data_labels: owner.data_labels.clone(),
     })
 }
+
+pub(super) fn operation_scope_from_identity(
+    identity: &GatewayInternalIdentity,
+) -> veoveo_frames_mcp::state::FrameOperationScope {
+    veoveo_frames_mcp::state::FrameOperationScope::new(
+        identity.actor.id.clone(),
+        identity.actor.tenant.clone(),
+        identity.profile.clone(),
+        identity.actor.data_labels.clone(),
+    )
+}
+
+pub(super) fn operation_scope_from_runtime(
+    owner: &TaskOwner,
+) -> anyhow::Result<veoveo_frames_mcp::state::FrameOperationScope> {
+    Ok(veoveo_frames_mcp::state::FrameOperationScope::new(
+        veoveo_types::PrincipalId::new(owner.principal_key.clone())?,
+        owner
+            .tenant_key
+            .clone()
+            .map(veoveo_types::TenantId::new)
+            .transpose()?,
+        veoveo_mcp_contract::GatewayProfileId::new(owner.profile.clone())?,
+        owner
+            .data_labels
+            .iter()
+            .cloned()
+            .map(veoveo_types::DataLabelId::new)
+            .collect::<Result<_, _>>()?,
+    ))
+}

@@ -2,7 +2,7 @@
 use super::{BATCH_ARTIFACT_MIME, SERVER_DOCS};
 use rmcp::model::{Resource, ResourceTemplate, ServerCapabilities};
 use veoveo_frames_mcp::{
-    contract::{FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldsUri},
+    contract::{FrameOperationUri, FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldsUri},
     uris,
 };
 
@@ -94,7 +94,7 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
             .with_title("Revision-scoped world frame")
             .with_description("Typed frame node inside one immutable world revision.")
             .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::OPERATION_TEMPLATE, "operation")
+        ResourceTemplate::new(FrameOperationUri::TEMPLATE, "operation")
             .with_title("Coordinate operation")
             .with_description("Recorded operation provenance.")
             .with_mime_type("application/json"),

@@ -932,21 +932,6 @@ pub struct FrameWorldRevisionRecord {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
-pub struct CoordinateOperationRecord {
-    pub id: RecordId,
-    pub tenant: RecordId,
-    pub owner: RecordId,
-    pub task: Option<RecordId>,
-    pub operation_key: String,
-    pub kind: String,
-    pub provenance: OpenObject,
-    pub classification: String,
-    pub labels: Vec<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, SurrealValue)]
 pub struct MapSourceRecord {
     pub id: RecordId,
     pub tenant: RecordId,

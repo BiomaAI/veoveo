@@ -2,7 +2,10 @@
 use super::{
     BATCH_ARTIFACT_MIME, FramesMcp, SERVER_DOCS,
     outputs::usage_record,
-    ownership::{frame_scope_from_identity, internal_caller, internal_identity, runtime_owner},
+    ownership::{
+        frame_scope_from_identity, internal_caller, internal_identity,
+        operation_scope_from_identity, runtime_owner,
+    },
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use rmcp::{
@@ -13,7 +16,7 @@ use rmcp::{
 use serde::Serialize;
 use veoveo_frames_mcp::{
     contract::{
-        CoordinateOperationId, FRAME_USAGE_PAGE_SIZE, FrameTaskUsageUri, FrameUsageCursor,
+        FRAME_USAGE_PAGE_SIZE, FrameOperationUri, FrameTaskUsageUri, FrameUsageCursor,
         FrameUsageIndexUri, FrameUsagePage, FrameWorldsUri,
     },
     uris,
@@ -166,18 +169,17 @@ impl FramesMcp {
                     })?;
                 return json_resource(uri, &world);
             }
-            if let Some(operation_id) = uris::parse_operation_uri(uri) {
-                let operation_id = CoordinateOperationId::new(operation_id)
-                    .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+            if let Ok(operation_uri) = FrameOperationUri::parse(uri) {
+                let operation_scope = operation_scope_from_identity(&identity);
                 let operation = self
                     .state
                     .frames
-                    .get_operation(&scope, &operation_id)
+                    .get_operation(&operation_scope, &operation_uri)
                     .await
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?
                     .ok_or_else(|| {
                         McpError::resource_not_found(
-                            format!("unknown operation `{operation_id}`"),
+                            format!("unknown operation `{operation_uri}`"),
                             None,
                         )
                     })?;

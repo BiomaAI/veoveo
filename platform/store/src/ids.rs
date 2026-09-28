@@ -100,7 +100,6 @@ domain_id!(MediaUsageId, "media_usage");
 domain_id!(DomainUsageId, "domain_usage");
 domain_id!(FrameWorldRecordId, "frame_world");
 domain_id!(FrameWorldRevisionRecordId, "frame_world_revision");
-domain_id!(CoordinateOperationId, "coordinate_operation");
 domain_id!(RecordingDatasetId, "recording_dataset");
 domain_id!(RecordingId, "recording");
 domain_id!(RecordingLayerId, "recording_layer");

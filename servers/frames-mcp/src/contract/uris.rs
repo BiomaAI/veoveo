@@ -7,7 +7,7 @@ use veoveo_types::{
     UriSegment,
 };
 
-use super::{FrameId, FrameIdError, FrameWorldId, FrameWorldRevisionId};
+use super::{CoordinateOperationId, FrameId, FrameIdError, FrameWorldId, FrameWorldRevisionId};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FrameUriError {
@@ -21,7 +21,7 @@ impl fmt::Display for FrameUriError {
         match self {
             Self::Components(error) => error.fmt(f),
             Self::Identity(error) => error.fmt(f),
-            Self::Route => f.write_str("expected a Frames world, revision, or frame route without escapes, query, or extra segments"),
+            Self::Route => f.write_str("expected a Frames world, revision, frame, or operation route without escapes, query, or extra segments"),
         }
     }
 }
@@ -235,3 +235,54 @@ impl WorldFrameUri {
     }
 }
 wire_traits!(WorldFrameUri);
+
+/// Address of one recorded Frames operation. It carries its operation identity.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "String", into = "String")]
+pub struct FrameOperationUri {
+    wire: ResourceUri,
+    operation_id: CoordinateOperationId,
+}
+
+impl FrameOperationUri {
+    pub const TEMPLATE: &str = "frames://operation/{operation_id}";
+
+    /// ```compile_fail
+    /// use veoveo_frames_mcp::contract::{FrameOperationUri, FrameWorldId};
+    /// FrameOperationUri::new(&FrameWorldId::new("world").unwrap());
+    /// ```
+    pub fn new(operation_id: &CoordinateOperationId) -> Self {
+        let wire = ResourceUriBuilder::new("frames://operation")
+            .expect("declared operation root")
+            .segment(UriSegment::new(operation_id.as_str()).expect("typed operation ID"))
+            .build()
+            .expect("typed operation address");
+        Self {
+            wire,
+            operation_id: operation_id.clone(),
+        }
+    }
+
+    pub fn parse(value: impl AsRef<str>) -> Result<Self, FrameUriError> {
+        let value = value.as_ref();
+        let parts = ResourceUriParts::parse(value)?;
+        let segments = parts.path_segments().collect::<Vec<_>>();
+        if parts.scheme() != "frames"
+            || parts.authority() != "operation"
+            || parts.has_query()
+            || segments.len() != 1
+        {
+            return Err(FrameUriError::Route);
+        }
+        let result = Self::new(&CoordinateOperationId::new(segments[0].as_ref())?);
+        if result.as_str() != value {
+            return Err(FrameUriError::Route);
+        }
+        Ok(result)
+    }
+
+    pub fn operation_id(&self) -> &CoordinateOperationId {
+        &self.operation_id
+    }
+}
+wire_traits!(FrameOperationUri);

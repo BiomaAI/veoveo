@@ -57,9 +57,10 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 
 Contract revision: 3
 
-Operation-resource owner/profile enforcement is incomplete: records have no profile
-identity and current reads apply only tenant and labels. The foundations plan tracks
-the persisted authority contract and SQL migration before installed acceptance.
+Operation resources enforce tenant, owner, profile, labels, and current Task parent
+checks in SQL. Version 0 records without stored authority remain private to administrative
+export; the owning design declares the coordinated upgrade. Installed qualification
+remains in the foundations plan.
 
 - C01: met
 - C02: met

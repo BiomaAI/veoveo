@@ -16777,6 +16777,7 @@ dependencies = [
  "serde_json",
  "sguaba",
  "sha2 0.11.0",
+ "surrealdb",
  "tokio",
  "tokio-util",
  "tower",

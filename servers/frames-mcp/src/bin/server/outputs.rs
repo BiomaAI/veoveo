@@ -65,8 +65,8 @@ async fn store_artifact(
     put.metadata = serde_json::json!({
         "task_id": task_id,
         "artifact_format": "frames_batch_json",
-        "operation_id": output.result.provenance.operation.operation_id,
-        "operation_uri": output.result.provenance.operation.operation_uri,
+        "operation_id": output.result.provenance.operation.operation_id(),
+        "operation_uri": output.result.provenance.operation.operation_uri(),
         "source_frame": output.result.provenance.operation.source_frame,
         "target_frame": output.result.provenance.operation.target_frame,
         "source_crs": output.result.provenance.source_crs,
@@ -89,11 +89,11 @@ async fn record_usage(
     let metadata = OpenObject::new(BTreeMap::from([
         (
             "operation_id".to_owned(),
-            serde_json::json!(output.result.provenance.operation.operation_id),
+            serde_json::json!(output.result.provenance.operation.operation_id()),
         ),
         (
             "operation_uri".to_owned(),
-            serde_json::json!(output.result.provenance.operation.operation_uri),
+            serde_json::json!(output.result.provenance.operation.operation_uri()),
         ),
         (
             "target_frame".to_owned(),
@@ -106,7 +106,14 @@ async fn record_usage(
         .upsert_domain_usage(DomainUsageDraft {
             task_id,
             server: "frames".to_owned(),
-            source_id: Some(output.result.provenance.operation.operation_id.to_string()),
+            source_id: Some(
+                output
+                    .result
+                    .provenance
+                    .operation
+                    .operation_id()
+                    .to_string(),
+            ),
             provider_job_id: None,
             model_id: "frames/batch-convert-frame".to_owned(),
             kind: DomainUsageKind::Actual,

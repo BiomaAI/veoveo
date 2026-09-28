@@ -178,8 +178,6 @@ pub enum StoreError {
     FrameWorldConflict(String),
     #[error("frame world `{0}` was not found")]
     FrameWorldNotFound(String),
-    #[error("coordinate operation `{0}` conflicts with its durable provenance")]
-    CoordinateOperationConflict(String),
     #[error("invalid map field {field}: {reason}")]
     InvalidMapField {
         field: &'static str,

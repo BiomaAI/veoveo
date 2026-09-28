@@ -209,14 +209,16 @@ pub(crate) async fn frames_mcp(
     let converted: Value = structured_from_output(&convert)?;
     assert_json_pointer_str(&converted, "/points/0/kind", "world_frame")?;
     assert_json_pointer_str(&converted, "/points/0/frame_uri", &robot_frame_uri)?;
-    let operation_id = operation_id(&converted, "/provenance/operation/operation_id")?;
+    let operation_uri = veoveo_frames_mcp::contract::FrameOperationUri::new(
+        &veoveo_frames_mcp::contract::CoordinateOperationId::new(operation_id(
+            &converted,
+            "/provenance/operation/operation_id",
+        )?)?,
+    );
     let operation = run_frames_mcp(
         conformance,
         &mcp_url,
-        [
-            "resource".into(),
-            format!("frames://operation/{operation_id}").into(),
-        ],
+        ["resource".into(), operation_uri.to_string().into()],
     )?;
     contains(&operation, "\"kind\": \"frame_conversion\"")?;
     contains(&operation, &robot_frame_uri)?;
@@ -238,6 +240,19 @@ pub(crate) async fn frames_mcp(
     contains(&batch, "output: frames://artifact/")?;
     let batch_output: SmokeFramesBatchOutput = structured_from_output(&batch)?;
     assert_json_pointer_str(&batch_output.result, "/points/0/kind", "ecef_wgs84")?;
+    let batch_operation_uri = veoveo_frames_mcp::contract::FrameOperationUri::new(
+        &veoveo_frames_mcp::contract::CoordinateOperationId::new(operation_id(
+            &batch_output.result,
+            "/provenance/operation/operation_id",
+        )?)?,
+    );
+    let batch_operation = run_frames_mcp(
+        conformance,
+        &mcp_url,
+        ["resource".into(), batch_operation_uri.to_string().into()],
+    )?;
+    contains(&batch_operation, batch_operation_uri.as_str())?;
+
     let artifact = batch_output
         .artifact
         .ok_or_else(|| anyhow!("batch output had no artifact metadata"))?;
@@ -364,16 +379,23 @@ pub(crate) async fn frames_mcp(
             "frames".into(),
         ];
         args.extend(identity.into_iter().map(OsString::from));
-        args.extend(["resource".into(), usage_uri.to_string().into()]);
-        assert_direct_mcp_denied(
-            conformance,
-            &mcp_url,
-            args,
-            [(
-                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-                INTERNAL_SIGNING_KEY_DER_B64.into(),
-            )],
-        )?;
+        for uri in [
+            usage_uri.as_str(),
+            operation_uri.as_str(),
+            batch_operation_uri.as_str(),
+        ] {
+            let mut read = args.clone();
+            read.extend(["resource".into(), uri.into()]);
+            assert_direct_mcp_denied(
+                conformance,
+                &mcp_url,
+                read,
+                [(
+                    "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                    INTERNAL_SIGNING_KEY_DER_B64.into(),
+                )],
+            )?;
+        }
     }
 
     frames_child.stop();

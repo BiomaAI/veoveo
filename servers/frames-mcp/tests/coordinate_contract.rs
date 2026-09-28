@@ -305,3 +305,52 @@ fn address_parsing_rejects_aliases_wrong_routes_and_unexpected_components() {
         assert!(serde_json::from_value::<WorldFrameUri>(serde_json::json!(invalid)).is_err());
     }
 }
+
+#[test]
+fn operation_addresses_and_references_keep_their_identity_in_agreement() {
+    use veoveo_frames_mcp::contract::{
+        CoordinateOperationId, CoordinateOperationRef, FrameOperationUri,
+    };
+    use veoveo_types::ResourceAddress;
+    let id = CoordinateOperationId::new("op-01950000-0000-7000-8000-000000000001").unwrap();
+    let uri = FrameOperationUri::new(&id);
+    assert_eq!(
+        uri.as_str(),
+        "frames://operation/op-01950000-0000-7000-8000-000000000001"
+    );
+    assert_eq!(FrameOperationUri::parse(uri.as_str()).unwrap(), uri);
+    assert_eq!(
+        <FrameOperationUri as ResourceAddress>::parse(&uri.to_uri().unwrap()).unwrap(),
+        uri
+    );
+    let reference =
+        CoordinateOperationRef::new(id.clone(), "2026-01-01T00:00:00Z".parse().unwrap());
+    let wire = serde_json::to_value(&reference).unwrap();
+    assert_eq!(
+        wire,
+        serde_json::json!({"operation_id":id,"operation_uri":uri,"created_at":"2026-01-01T00:00:00Z"})
+    );
+    assert_eq!(
+        serde_json::from_value::<CoordinateOperationRef>(wire.clone()).unwrap(),
+        reference
+    );
+    let mut wrong = wire;
+    wrong["operation_id"] = serde_json::json!("op-other");
+    assert!(serde_json::from_value::<CoordinateOperationRef>(wrong).is_err());
+    for wrong in [
+        "frames://operation",
+        "frames://operation/",
+        "frames://operation/x/extra",
+        "frames://operation/x?",
+        "frames://operation/x?q=y",
+        "frames://operation/x#fragment",
+        "frames://operation/%78",
+        "frames://user@operation/x",
+        "frames://operation:123/x",
+        "Frames://operation/x",
+        "frames://operation/..",
+        "map://operation/x",
+    ] {
+        assert!(FrameOperationUri::parse(wrong).is_err(), "{wrong}");
+    }
+}

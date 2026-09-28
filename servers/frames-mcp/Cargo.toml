@@ -41,6 +41,7 @@ runtime = [
     "dep:reqwest",
     "dep:sguaba",
     "dep:sha2",
+    "dep:surrealdb",
     "dep:uuid",
     "dep:veoveo-artifact-client",
     "dep:veoveo-mcp-contract",
@@ -87,6 +88,9 @@ secrecy = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
+# Match Store's qualified 3.2.4 driver types; upgrade with Store in foundations Phase 4.
+# Upstream stable 3.3.0 verified 2026-09-27; mixing driver versions breaks query bindings.
+surrealdb = { version = "=3.2.4", default-features = false, optional = true }
 sguaba = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"], optional = true }
 tokio-util = { workspace = true, optional = true }

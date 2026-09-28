@@ -1,4 +1,4 @@
-use super::{CoordinateOperationId, WorldFrameUri};
+use super::{CoordinateOperationId, FrameOperationUri, FrameUriError, WorldFrameUri};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -25,14 +25,78 @@ pub enum CoordinateOperationKind {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(try_from = "OperationRefWire", into = "OperationRefWire")]
 pub struct CoordinateOperationRef {
-    pub operation_id: CoordinateOperationId,
-    pub operation_uri: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    operation_uri: FrameOperationUri,
     pub source_frame: Option<CoordinateSpace>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub target_frame: Option<CoordinateSpace>,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+struct OperationRefWire {
+    operation_id: CoordinateOperationId,
+    #[schemars(with = "String")]
+    operation_uri: FrameOperationUri,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source_frame: Option<CoordinateSpace>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    target_frame: Option<CoordinateSpace>,
+    created_at: DateTime<Utc>,
+}
+
+impl CoordinateOperationRef {
+    pub fn new(operation_id: CoordinateOperationId, created_at: DateTime<Utc>) -> Self {
+        Self {
+            operation_uri: FrameOperationUri::new(&operation_id),
+            source_frame: None,
+            target_frame: None,
+            created_at,
+        }
+    }
+
+    pub fn with_frames(
+        mut self,
+        source: Option<CoordinateSpace>,
+        target: Option<CoordinateSpace>,
+    ) -> Self {
+        self.source_frame = source;
+        self.target_frame = target;
+        self
+    }
+
+    pub fn operation_id(&self) -> &CoordinateOperationId {
+        self.operation_uri.operation_id()
+    }
+    pub fn operation_uri(&self) -> &FrameOperationUri {
+        &self.operation_uri
+    }
+}
+
+impl TryFrom<OperationRefWire> for CoordinateOperationRef {
+    type Error = FrameUriError;
+    fn try_from(value: OperationRefWire) -> Result<Self, Self::Error> {
+        if value.operation_uri.operation_id() != &value.operation_id {
+            return Err(FrameUriError::Route);
+        }
+        Ok(Self {
+            operation_uri: value.operation_uri,
+            source_frame: value.source_frame,
+            target_frame: value.target_frame,
+            created_at: value.created_at,
+        })
+    }
+}
+impl From<CoordinateOperationRef> for OperationRefWire {
+    fn from(value: CoordinateOperationRef) -> Self {
+        Self {
+            operation_id: value.operation_id().clone(),
+            operation_uri: value.operation_uri,
+            source_frame: value.source_frame,
+            target_frame: value.target_frame,
+            created_at: value.created_at,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -61,13 +125,14 @@ mod tests {
     #[test]
     fn operation_provenance_round_trips() {
         let provenance = CoordinateOperationProvenance {
-            operation: CoordinateOperationRef {
-                operation_id: CoordinateOperationId::new("op-test").unwrap(),
-                operation_uri: "frames://operation/op-test".to_string(),
-                source_frame: Some(CoordinateSpace::Wgs84),
-                target_frame: Some(CoordinateSpace::EcefWgs84),
-                created_at: "2026-01-01T00:00:00Z".parse().unwrap(),
-            },
+            operation: CoordinateOperationRef::new(
+                CoordinateOperationId::new("op-test").unwrap(),
+                "2026-01-01T00:00:00Z".parse().unwrap(),
+            )
+            .with_frames(
+                Some(CoordinateSpace::Wgs84),
+                Some(CoordinateSpace::EcefWgs84),
+            ),
             kind: CoordinateOperationKind::FrameConversion,
             source_crs: Some(CrsId::new("EPSG:4326").unwrap()),
             target_crs: Some(CrsId::new("EPSG:4978").unwrap()),
@@ -81,8 +146,8 @@ mod tests {
         let json = serde_json::to_string(&provenance).unwrap();
         let back: CoordinateOperationProvenance = serde_json::from_str(&json).unwrap();
         assert_eq!(
-            provenance.operation.operation_id,
-            back.operation.operation_id
+            provenance.operation.operation_id(),
+            back.operation.operation_id()
         );
         assert_eq!(provenance.kind, back.kind);
         assert_eq!(provenance.source_crs, back.source_crs);

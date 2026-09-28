@@ -151,7 +151,7 @@ impl FramesMcp {
         let scope = frame_scope_from_identity(&self.state, &identity).await?;
         let worlds = resolve_worlds(&self.state, &scope, &args).await?;
         let output = engine::convert_frame(args, &worlds).map_err(invalid_params)?;
-        record_direct_operation(&self.state, &scope, &output.provenance).await?;
+        record_direct_operation(&self.state, &identity, &output.provenance).await?;
         structured_result(
             format!("converted {} point(s)", output.points.len()),
             &output,
@@ -261,12 +261,16 @@ fn invalid_params(err: impl std::fmt::Display) -> McpError {
 
 async fn record_direct_operation(
     state: &AppState,
-    scope: &FrameScope,
+    identity: &veoveo_mcp_contract::GatewayInternalIdentity,
     provenance: &veoveo_frames_mcp::contract::CoordinateOperationProvenance,
 ) -> Result<(), McpError> {
     state
         .frames
-        .record_operation(scope, None, provenance)
+        .record_operation(
+            &ownership::operation_scope_from_identity(identity),
+            None,
+            provenance,
+        )
         .await
         .map_err(|error| McpError::internal_error(error.to_string(), None))
 }
@@ -531,10 +535,10 @@ fn stamp_batch_provenance(
     operation_id: CoordinateOperationId,
     created_at: DateTime<Utc>,
 ) {
-    result.provenance.operation.operation_id = operation_id;
-    result.provenance.operation.operation_uri =
-        uris::operation_uri(result.provenance.operation.operation_id.as_str());
-    result.provenance.operation.created_at = created_at;
+    let previous = &result.provenance.operation;
+    result.provenance.operation =
+        veoveo_frames_mcp::contract::CoordinateOperationRef::new(operation_id, created_at)
+            .with_frames(previous.source_frame.clone(), previous.target_frame.clone());
 }
 
 async fn start_batch_task(
@@ -722,9 +726,17 @@ async fn run_task_inner(
         Ok(task_id) => task_id,
         Err(error) => fail!(format!("invalid durable task id: {error}")),
     };
+    let operation_scope = match ownership::operation_scope_from_runtime(&owner) {
+        Ok(scope) => scope,
+        Err(error) => fail!(format!("operation authority failed: {error}")),
+    };
     if let Err(error) = state
         .frames
-        .record_operation(&scope, Some(platform_task_id), &converted.provenance)
+        .record_operation(
+            &operation_scope,
+            Some(platform_task_id),
+            &converted.provenance,
+        )
         .await
     {
         fail!(format!("operation provenance write failed: {error}"));
@@ -954,8 +966,8 @@ mod task_tests {
         let mut replay =
             engine::convert_frame(request, &engine::ResolvedWorlds::default()).unwrap();
         assert_ne!(
-            first.provenance.operation.operation_id,
-            replay.provenance.operation.operation_id
+            first.provenance.operation.operation_id(),
+            replay.provenance.operation.operation_id()
         );
 
         let operation_id =

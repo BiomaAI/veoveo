@@ -9,19 +9,19 @@ use veoveo_platform_store::{
     ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState,
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
-    CoordinateOperationDraft, FrameWorldDraft, FrameWorldRevisionDraft, GatewayReplayKind,
-    GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord, InvocationMode,
-    MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
-    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
-    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
-    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey,
-    RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
-    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
-    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
-    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
-    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
-    deterministic_work_context_id, gateway_replay_record_id, migrations,
+    FrameWorldDraft, FrameWorldRevisionDraft, GatewayReplayKind, GatewayReplayRecord,
+    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapCompositionDraft,
+    MapCompositionRevisionDraft, MapCompositionUpdateDraft, MapFeatureCommitDraft,
+    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapLayerProductDraft,
+    MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft,
+    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
+    RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId, RecordingLayerKind,
+    RecordingLayerState, RecordingProjectionReceiptDraft, RecordingProjectionState,
+    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal, RecordingState, ShareLinkId,
+    StoreConfig, StoreCredentials, StoreError, TimeAuthorityReleaseDraft,
+    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
+    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
+    gateway_replay_record_id, migrations,
 };
 use veoveo_types::TaskId;
 
@@ -508,7 +508,7 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
 }
 
 #[tokio::test]
-async fn frame_world_revisions_and_operations_are_durable_and_idempotent() {
+async fn frame_world_revisions_are_durable_and_idempotent() {
     if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
         return;
     }
@@ -581,36 +581,6 @@ async fn frame_world_revisions_and_operations_are_durable_and_idempotent() {
         .unwrap();
     assert!(!replay.created);
     assert_eq!(replay.revision.id, publication.revision.id);
-
-    let operation_key = format!("op-{}", Uuid::now_v7());
-    let created_at = Utc::now();
-    let draft = CoordinateOperationDraft {
-        identity: identity.clone(),
-        task_id: None,
-        operation_key: operation_key.clone(),
-        kind: "frame_conversion".to_owned(),
-        provenance: OpenObject::new(BTreeMap::from([(
-            "operation_id".to_owned(),
-            serde_json::json!(operation_key),
-        )])),
-        classification: "gateway_labels".to_owned(),
-        labels: vec!["cui".to_owned()],
-        created_at,
-    };
-    let first = store
-        .upsert_coordinate_operation(draft.clone())
-        .await
-        .unwrap();
-    let replay = store.upsert_coordinate_operation(draft).await.unwrap();
-    assert_eq!(first.id, replay.id);
-    assert_eq!(first.operation_key, operation_key);
-    assert!(
-        store
-            .coordinate_operation(identity.tenant_id, &operation_key)
-            .await
-            .unwrap()
-            .is_some()
-    );
 }
 
 /// Run explicitly with:

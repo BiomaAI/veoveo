@@ -12,7 +12,6 @@ pub const WORLD_TEMPLATE: &str = "frames://world/{world_id}";
 pub const WORLD_REVISION_TEMPLATE: &str = "frames://world/{world_id}/revision/{revision_id}";
 pub const WORLD_FRAME_TEMPLATE: &str =
     "frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}";
-pub const OPERATION_TEMPLATE: &str = "frames://operation/{operation_id}";
 pub const ARTIFACT_TEMPLATE: &str = "frames://artifact/{artifact_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
@@ -24,10 +23,6 @@ pub const DOC_TEMPLATE: &str = "frames://docs/{doc_id}";
 
 fn frames_uris() -> ServerResourceUris {
     ServerResourceUris::new(SCHEME.clone())
-}
-
-pub fn operation_uri(operation_id: &str) -> String {
-    format!("frames://operation/{operation_id}")
 }
 
 pub fn doc_uri(doc_id: &str) -> String {
@@ -52,11 +47,6 @@ pub fn parse_world_revision_uri(uri: &str) -> Option<FrameWorldRevisionUri> {
 
 pub fn parse_world_frame_uri(uri: &str) -> Option<WorldFrameUri> {
     WorldFrameUri::parse(uri).ok()
-}
-
-pub fn parse_operation_uri(uri: &str) -> Option<&str> {
-    uri.strip_prefix("frames://operation/")
-        .filter(|operation_id| !operation_id.is_empty() && !operation_id.contains('/'))
 }
 
 pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {

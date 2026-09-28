@@ -1,6 +1,6 @@
 use super::Migration;
 
-pub(super) const MIGRATIONS: [Migration; 95] = [
+pub(super) const MIGRATIONS: [Migration; 96] = [
     Migration {
         version: 0,
         name: "schema_migrations",
@@ -572,5 +572,11 @@ pub(super) const MIGRATIONS: [Migration; 95] = [
         name: "map_derivations",
         filename: "0094_map_derivations.surql",
         sql: include_str!("../../migrations/0094_map_derivations.surql"),
+    },
+    Migration {
+        version: 95,
+        name: "frames_operation_authority",
+        filename: "0095_frames_operation_authority.surql",
+        sql: include_str!("../../migrations/0095_frames_operation_authority.surql"),
     },
 ];

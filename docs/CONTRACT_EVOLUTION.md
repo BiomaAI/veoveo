@@ -345,6 +345,13 @@ are optional, and binaries require the runtime features. Tests, CLI tools, and
 cross-server consumers use the owning library. A separate contract crate needs a
 concrete dependency or independent release requirement.
 
+The domain runtime owns SQL that implements its authorization and persistence rules.
+It uses Store's connection, record primitives and transaction facilities; the shared
+schema catalog stays in Store. Domain driver records and queries belong behind the
+runtime feature, where they can use the owning contract without making Store depend
+on a server. Shared platform policies, such as Task ownership, stay in their platform
+runtime and expose typed operations that declare the authority they establish.
+
 The Artifact plane's common model lives in `platform/artifacts/contract`. Its MCP
 server depends on the plane's HTTP client, so placing that client's required model
 in the server package would create a Cargo dependency cycle. The separate library

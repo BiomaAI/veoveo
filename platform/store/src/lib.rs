@@ -12,7 +12,6 @@ mod artifact_uploads;
 mod artifacts;
 mod changefeed;
 mod config;
-mod coordinates;
 mod error;
 mod frame_worlds;
 mod gateway_control;
@@ -60,7 +59,6 @@ pub use changefeed::{
     ChangefeedBatch, ChangefeedCursor, ChangefeedEntry, LiveStream, decode_changefeed_entry,
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
-pub use coordinates::CoordinateOperationDraft;
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
 pub use frame_worlds::{FrameWorldDraft, FrameWorldPublication, FrameWorldRevisionDraft};
 pub use gateway_retention::GATEWAY_AUDIT_BATCH_LIMIT;

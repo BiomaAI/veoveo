@@ -18,7 +18,7 @@ struct WorldDesignArgs {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct TransformExplainArgs {
-    operation_id: String,
+    operation_id: veoveo_frames_mcp::contract::CoordinateOperationId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,10 +125,10 @@ impl FramesPrompt {
                 Ok(prompt_text(
                     self.description(),
                     format!(
-                        "Read frames://operation/{} and explain the transform chain, \
+                        "Read {} and explain the transform chain, \
                          source/target frame, datum assumptions, engine, \
                          approximation status, and any warnings in operator-readable language.",
-                        args.operation_id
+                        veoveo_frames_mcp::contract::FrameOperationUri::new(&args.operation_id)
                     ),
                 ))
             }

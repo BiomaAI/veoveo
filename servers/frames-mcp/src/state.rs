@@ -1,15 +1,14 @@
 use std::collections::BTreeSet;
 
 use crate::contract::{
-    CoordinateOperationId, CoordinateOperationProvenance, FrameWorldId, FrameWorldRevision,
-    FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri, WorldFrameUri,
+    FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri,
+    WorldFrameUri,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use veoveo_platform_store::{
-    CoordinateOperationDraft, FrameWorldDraft, FrameWorldRecord, FrameWorldRevisionDraft,
-    FrameWorldRevisionRecord, OpenObject, PlatformIdentity, PlatformStore,
+    FrameWorldDraft, FrameWorldRecord, FrameWorldRevisionDraft, FrameWorldRevisionRecord,
+    OpenObject, PlatformIdentity, PlatformStore,
 };
-use veoveo_types::TaskId;
 
 use crate::{
     contract::{CreateWorldRequest, FrameWorldSummary, PublishWorldOutput, PublishWorldRequest},
@@ -17,7 +16,9 @@ use crate::{
 };
 
 mod completion;
+mod operations;
 mod reads;
+pub use operations::FrameOperationScope;
 
 #[cfg(test)]
 mod catalog_tests;
@@ -122,51 +123,6 @@ impl FramesState {
         }
         Ok(revision)
     }
-
-    pub async fn record_operation(
-        &self,
-        scope: &FrameScope,
-        task_id: Option<TaskId>,
-        provenance: &CoordinateOperationProvenance,
-    ) -> Result<()> {
-        let kind = serde_json::to_value(&provenance.kind)?
-            .as_str()
-            .ok_or_else(|| anyhow!("coordinate operation kind did not serialize as a string"))?
-            .to_owned();
-        self.store
-            .upsert_coordinate_operation(CoordinateOperationDraft {
-                identity: scope.identity.clone(),
-                task_id,
-                operation_key: provenance.operation.operation_id.to_string(),
-                kind,
-                provenance: object_from_value(serde_json::to_value(provenance)?)?,
-                classification: "gateway_labels".to_owned(),
-                labels: scope.data_labels.iter().cloned().collect(),
-                created_at: provenance.operation.created_at,
-            })
-            .await?;
-        Ok(())
-    }
-
-    pub async fn get_operation(
-        &self,
-        scope: &FrameScope,
-        operation_id: &CoordinateOperationId,
-    ) -> Result<Option<CoordinateOperationProvenance>> {
-        let Some(record) = self
-            .store
-            .coordinate_operation(scope.identity.tenant_id, operation_id.as_str())
-            .await?
-        else {
-            return Ok(None);
-        };
-        if !labels_allow(&record.labels, &scope.data_labels) {
-            return Ok(None);
-        }
-        Ok(Some(serde_json::from_value(value_from_object(
-            record.provenance,
-        ))?))
-    }
 }
 
 fn world_summary(record: FrameWorldRecord) -> Result<FrameWorldSummary> {
@@ -214,8 +170,4 @@ fn object_from_value(value: serde_json::Value) -> Result<OpenObject> {
 
 fn value_from_object(object: OpenObject) -> serde_json::Value {
     serde_json::Value::Object(object.into_map().into_iter().collect())
-}
-
-fn labels_allow(required: &[String], caller: &BTreeSet<String>) -> bool {
-    required.iter().all(|label| caller.contains(label))
 }
