@@ -1,7 +1,5 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use veoveo_mcp_contract::IssuedArtifactWriteCapability;
-use veoveo_optimization_mcp::{
+//! Optimization-owned retained Task requests. Runtime-only; never part of the public wire contract.
+use crate::{
     contract::{
         OptimizationProfileUri, OptimizationSolution, OptimizeRouteScenariosRequest,
         OptimizeRoutesRequest, ProblemFamily, ProblemId, RunId, SolveConvexRequest,
@@ -9,14 +7,17 @@ use veoveo_optimization_mcp::{
     },
     problem_store::PreparedProblemRef,
 };
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use veoveo_mcp_contract::IssuedArtifactWriteCapability;
 
-pub(super) const OPTIMIZE_ROUTES_TASK: &str = "optimize_routes";
-pub(super) const OPTIMIZE_ROUTE_SCENARIOS_TASK: &str = "optimize_route_scenarios";
-pub(super) const SOLVE_CONVEX_TASK: &str = "solve_convex";
-pub(super) const SOLVE_MILP_TASK: &str = "solve_milp";
-pub(super) const VERIFY_SOLUTION_TASK: &str = "verify_solution";
+pub const OPTIMIZE_ROUTES_TASK: &str = "optimize_routes";
+pub const OPTIMIZE_ROUTE_SCENARIOS_TASK: &str = "optimize_route_scenarios";
+pub const SOLVE_CONVEX_TASK: &str = "solve_convex";
+pub const SOLVE_MILP_TASK: &str = "solve_milp";
+pub const VERIFY_SOLUTION_TASK: &str = "verify_solution";
 
-pub(crate) const TASK_TOOLS: &[&str] = &[
+pub const TASK_TOOLS: &[&str] = &[
     OPTIMIZE_ROUTES_TASK,
     OPTIMIZE_ROUTE_SCENARIOS_TASK,
     SOLVE_CONVEX_TASK,
@@ -25,7 +26,7 @@ pub(crate) const TASK_TOOLS: &[&str] = &[
 ];
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(super) struct SolveTaskCommon {
+pub struct SolveTaskCommon {
     pub problem_id: ProblemId,
     pub run_id: RunId,
     pub family: ProblemFamily,
@@ -36,7 +37,7 @@ pub(super) struct SolveTaskCommon {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub(super) struct PreparedVerifyTask {
+pub struct PreparedVerifyTask {
     pub input: VerifySolutionRequest,
     pub solution: OptimizationSolution,
     pub prepared: PreparedProblemRef,
@@ -46,7 +47,7 @@ pub(super) struct PreparedVerifyTask {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub(super) enum OptimizationTaskRequest {
+pub enum OptimizationTaskRequest {
     OptimizeRoutes {
         common: SolveTaskCommon,
         input: OptimizeRoutesRequest,

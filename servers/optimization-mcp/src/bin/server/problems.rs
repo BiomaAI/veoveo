@@ -22,10 +22,7 @@ use veoveo_optimization_mcp::{
     uris,
 };
 
-use super::{
-    app_state::AppState,
-    index::{find_problem_task, find_solution_task},
-};
+use super::{app_state::AppState, ownership::runtime_owner};
 
 pub(super) async fn prepare_routes(
     state: &AppState,
@@ -172,7 +169,8 @@ pub(super) async fn load_solution(
 ) -> anyhow::Result<OptimizationSolution> {
     let solution_uri =
         veoveo_optimization_mcp::contract::OptimizationSolutionUri::parse(solution_uri.to_owned())?;
-    let task = find_solution_task(state, identity, &solution_uri)
+    let task = veoveo_optimization_mcp::reads::OptimizationReads::new(&state.tasks)?
+        .solution(&runtime_owner(identity), &solution_uri)
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized solution {solution_uri}"))?;
     let output = task
@@ -200,7 +198,8 @@ pub(super) async fn load_prepared_problem_by_uri(
 ) -> anyhow::Result<PreparedProblem> {
     let problem_id = uris::parse_problem_uri(problem_uri)
         .ok_or_else(|| anyhow::anyhow!("invalid Optimization problem URI"))?;
-    let task = find_problem_task(state, identity, &problem_id)
+    let task = veoveo_optimization_mcp::reads::OptimizationReads::new(&state.tasks)?
+        .problem(&runtime_owner(identity), &problem_id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized problem {problem_uri}"))?;
     let common = task

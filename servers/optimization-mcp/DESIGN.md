@@ -47,6 +47,8 @@ retain the `optimization://` scheme.
 | `veoveo.ai/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
 | Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 1 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
+| SurrealDB 3.2.4 | Domain-owned parameterized SQL for current owner, Work Context, Task metadata and completed-result selection. The runtime dependency matches the Store driver and installed server. |
+| Veoveo Optimization catalog profile | Collection-bound version 1 Base64 cursors over creation time and native UUIDv7 Task identity; concrete addresses use the shared URI component builder. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
 ## Design Position
@@ -116,11 +118,11 @@ The `contract` feature exposes the public model through `contract` with default
 features disabled. It gates dependencies as well as modules, excluding the MCP
 adapter, Store, TaskRuntime, Artifact client, compiler and executor. Map imports
 this feature to qualify its travel-model exchange. The `runtime` feature adds
-compilation, execution clients, verification, Artifact access and the usage reader.
+compilation, execution clients, verification, Artifact access and the domain readers.
 The default `mcp` feature adds the hosted binary and transport integration.
 
-The usage contract provides typed builders and checked decoding. Other Optimization
-resource families still need component builders and stronger cross-field admission.
+The usage and collection contracts provide typed builders and checked decoding. Other
+Optimization resource families still need component builders and stronger cross-field admission.
 Server-owned scopes and checked MCP setup are tracked in the active foundations plan.
 
 ## Public MCP Contract
@@ -360,6 +362,42 @@ run, and solution reads use indexed domain identities under the full caller
 authority and never load the current collection. Resource reads repeat
 authorization. Usage reads return the same not-found response for absent and inaccessible Tasks.
 
+### Catalog Selection And Recovery
+
+`OptimizationReads` owns problem, run and solution queries in the runtime library.
+Its caller passes a `TaskOwner`, typed domain identities and a collection address.
+SQL compares indexed owner, profile and tenant with their owner-envelope values,
+preserves absent versus explicit installation tenants, and checks the indexed Work
+Context against both retained authority representations. Labels and domain Task kinds
+are selected before limits and completion grouping. Solution queries additionally
+require a successful Task and a non-error structured result.
+
+Selected rows must decode as the declared solve family. A completed result must agree
+with its problem and run parents. Invalid visible records fail the read; adapters do
+not silently remove them from a page. Completion returns typed domain IDs and reports
+malformed selected identities. Missing and denied exact identities both return no row.
+
+`OptimizationIndexCursor` preserves the version 1 fields `version`, `collection`,
+`created_at` and `task_id`, including emitted Base64 bytes. It requires a native RFC
+UUIDv7 identity. `OptimizationCollectionUri` binds that cursor to its collection,
+uses the shared component builder and rejects aliases, fragments and extra query
+parameters. A saved position grants no access; each continuation rechecks SQL policy.
+
+Replace all control replicas together after active solves settle. Before the upgrade,
+inspect retained Tasks for disagreements among indexed ownership, envelope ownership,
+Work Context fields, Task kind, family and output parents. Preserve rejected records
+for operator review; the reader performs no conversion or deletion. The wire profiles
+and solver protocol are unchanged. A rollback restores the prior control/executor
+pair against the same Store and its earlier read policy; require operator acceptance
+of that policy difference before reopening traffic. Installation acceptance must
+exercise retained records, permission changes and reverse/forward replacement.
+
+`tests/reads.rs` uses separate Store connections and disposable fixtures for catalog
+continuations, exact lookup, completion, optional tenants, changed clearance and
+malformed denied records. `tests/index_contract.rs` qualifies cursor wire preservation,
+typed construction and URI rejection. These are database and contract checks; GPU
+solver and installed acceptance remain separate requirements.
+
 ## Prompts, Completions, And Notifications
 
 Each replica feeds its resource hub from committed Store task and domain-usage
@@ -538,7 +576,8 @@ matches the compiled provenance constant.
 | `src/profiles.rs` | Curated immutable solver profiles. |
 | `src/solution_builder.rs` | Typed solution construction, provenance, digest, and initial verification. |
 | `src/bin/server/` | Thin HTTP/MCP wiring, tasks, identity, artifacts, resources, prompts, and output publication. |
-| `src/bin/server/index.rs` | Authorization-scoped exact lookup, compact collection pages, opaque cursors, bounded completion search. |
+| `src/reads.rs` | SQL-scoped exact lookup, collection pages, completion and retained-result consistency. |
+| `src/task_records.rs` | Retained solve and verification Task requests shared by readers and the MCP Task adapter. |
 | `executor/veoveo_cuopt_executor/` | Python cuOpt GPU adapter. |
 | `tests/cuopt_gpu.rs` | Ignored hardware-GPU acceptance test. |
 

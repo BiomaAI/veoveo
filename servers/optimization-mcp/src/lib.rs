@@ -11,9 +11,13 @@ pub mod problem_store;
 #[cfg(feature = "runtime")]
 pub mod profiles;
 #[cfg(feature = "runtime")]
+pub mod reads;
+#[cfg(feature = "runtime")]
 pub mod solution_builder;
 #[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "runtime")]
+pub mod task_records;
 #[cfg(feature = "runtime")]
 pub mod uris;
 #[cfg(feature = "runtime")]

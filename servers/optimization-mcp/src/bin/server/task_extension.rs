@@ -9,6 +9,9 @@ use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, PlaneCaller,
 };
+use veoveo_optimization_mcp::task_records::{
+    OptimizationTaskRequest, PreparedVerifyTask, SolveTaskCommon, TASK_TOOLS, VERIFY_SOLUTION_TASK,
+};
 use veoveo_optimization_mcp::{
     contract::{
         EngineProvenance, NonNegativeF64, OptimizationAuthority, OptimizationSolution,
@@ -44,10 +47,6 @@ use super::{
     problems::{
         load_prepared_problem_by_uri, load_solution, prepare_convex, prepare_milp,
         prepare_route_scenarios, prepare_routes,
-    },
-    records::{
-        OptimizationTaskRequest, PreparedVerifyTask, SolveTaskCommon, TASK_TOOLS,
-        VERIFY_SOLUTION_TASK,
     },
 };
 

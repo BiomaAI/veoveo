@@ -23,15 +23,18 @@ use veoveo_mcp_contract::{
 };
 use veoveo_optimization_mcp::{
     contract::{
-        CUOPT_CONTAINER_DIGEST, CUOPT_STABLE_VERSION, EngineProvenance, OptimizationAuthority,
-        OptimizationProblemUri, OptimizationRunRecord, OptimizationRunUri, OptimizationSolution,
-        OptimizationSolutionUri, OptimizationTaskUsageUri, OptimizationToolOutput,
-        OptimizationUsageIndexUri, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
-        ProblemFamily, RunPhase, RunTimings, SolutionDetail, SolutionFeasibility,
-        SolveConvexRequest, SolveMilpRequest, SolverTermination, VerifySolutionOutput,
-        VerifySolutionRequest,
+        CUOPT_CONTAINER_DIGEST, CUOPT_STABLE_VERSION, EngineProvenance,
+        OPTIMIZATION_INDEX_PAGE_SIZE, OptimizationAuthority, OptimizationCollection,
+        OptimizationCollectionUri, OptimizationIndexCursor, OptimizationProblemUri,
+        OptimizationRunRecord, OptimizationRunUri, OptimizationSolution, OptimizationSolutionUri,
+        OptimizationTaskUsageUri, OptimizationToolOutput, OptimizationUsageIndexUri,
+        OptimizeRouteScenariosRequest, OptimizeRoutesRequest, ProblemFamily, RunPhase, RunTimings,
+        SolutionDetail, SolutionFeasibility, SolveConvexRequest, SolveMilpRequest,
+        SolverTermination, VerifySolutionOutput, VerifySolutionRequest,
     },
     profiles::profiles,
+    reads::{OptimizationCompletionPage, OptimizationReads},
+    task_records::SolveTaskCommon,
     uris,
     usage::OptimizationUsage,
 };
@@ -41,14 +44,9 @@ use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,
-    index::{
-        OPTIMIZATION_INDEX_PAGE_SIZE, OptimizationCollection, OptimizationCompletionDomain,
-        completion_candidates, find_run_task, parse_collection_uri, visible_task_page,
-    },
     ownership::{internal_caller, internal_identity, runtime_owner, task_owner_from_runtime},
     problems::{load_prepared_problem_by_uri, load_solution},
     prompts::OptimizationPrompt,
-    records::SolveTaskCommon,
     task_extension::OptimizationTaskExtension,
 };
 
@@ -470,26 +468,29 @@ impl ServerHandler for OptimizationMcp {
                     .ok_or_else(|| not_found("solver profile"))?;
                 return json_resource(uri, profile);
             }
-            if let Some(collection_request) = parse_collection_uri(uri)
-                .map_err(|error| McpError::invalid_params(error.to_string(), None))?
-            {
-                let page = visible_task_page(&self.state, &identity, &collection_request).await?;
-                return match collection_request.collection {
+            if let Ok(collection_request) = OptimizationCollectionUri::parse(uri) {
+                let page = OptimizationReads::new(&self.state.tasks)
+                    .map_err(internal)?
+                    .page(&runtime_owner(&identity), &collection_request)
+                    .await
+                    .map_err(internal)?;
+                return match collection_request.collection() {
                     OptimizationCollection::Problems => {
                         let problems = page
                             .items
                             .into_iter()
-                            .filter_map(|task| {
-                                let common = task.request.common()?;
-                                Some(ProblemIndexEntry {
+                            .map(|task| {
+                                let common =
+                                    task.request.common().expect("reader admits solve Tasks");
+                                Ok(ProblemIndexEntry {
                                     problem_uri: OptimizationProblemUri::parse(uris::problem_uri(
                                         &common.problem_id,
                                     ))
-                                    .ok()?,
+                                    .map_err(internal)?,
                                     family: common.family,
                                 })
                             })
-                            .collect();
+                            .collect::<Result<Vec<_>, McpError>>()?;
                         json_resource(
                             uri,
                             &ProblemIndexPage {
@@ -503,18 +504,19 @@ impl ServerHandler for OptimizationMcp {
                         let runs = page
                             .items
                             .into_iter()
-                            .filter_map(|task| {
-                                let common = task.request.common()?;
-                                Some(RunIndexEntry {
+                            .map(|task| {
+                                let common =
+                                    task.request.common().expect("reader admits solve Tasks");
+                                Ok(RunIndexEntry {
                                     run_uri: OptimizationRunUri::parse(uris::run_uri(
                                         &common.run_id,
                                     ))
-                                    .ok()?,
+                                    .map_err(internal)?,
                                     family: common.family,
                                     phase: run_phase(&task.snapshot),
                                 })
                             })
-                            .collect();
+                            .collect::<Result<Vec<_>, McpError>>()?;
                         json_resource(
                             uri,
                             &RunIndexPage {
@@ -528,7 +530,10 @@ impl ServerHandler for OptimizationMcp {
                         let solutions = page
                             .items
                             .into_iter()
-                            .filter_map(|task| task.output)
+                            .map(|task| {
+                                task.output
+                                    .expect("reader admits successful solution Tasks")
+                            })
                             .map(|output| SolutionIndexEntry {
                                 result_uri: output.result_uri,
                                 family: output.family,
@@ -554,8 +559,11 @@ impl ServerHandler for OptimizationMcp {
                 return json_resource(uri, prepared.resource());
             }
             if let Some(run_id) = uris::parse_run_uri(uri) {
-                let task = find_run_task(&self.state, &identity, &run_id)
-                    .await?
+                let task = OptimizationReads::new(&self.state.tasks)
+                    .map_err(internal)?
+                    .run(&runtime_owner(&identity), &run_id)
+                    .await
+                    .map_err(internal)?
                     .ok_or_else(|| not_found("run"))?;
                 let common = task.request.common().expect("matched solve task");
                 let solution = if let Some(output) = &task.output {
@@ -785,7 +793,7 @@ struct ProblemIndexPage {
     problems: Vec<ProblemIndexEntry>,
     limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    next_cursor: Option<String>,
+    next_cursor: Option<OptimizationIndexCursor>,
 }
 
 #[derive(Debug, Serialize)]
@@ -800,7 +808,7 @@ struct RunIndexPage {
     runs: Vec<RunIndexEntry>,
     limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    next_cursor: Option<String>,
+    next_cursor: Option<OptimizationIndexCursor>,
 }
 
 #[derive(Debug, Serialize)]
@@ -816,7 +824,7 @@ struct SolutionIndexPage {
     solutions: Vec<SolutionIndexEntry>,
     limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    next_cursor: Option<String>,
+    next_cursor: Option<OptimizationIndexCursor>,
 }
 
 fn capabilities(state: &AppState) -> OptimizationCapabilities {
@@ -930,8 +938,11 @@ async fn solution_for_run(
     caller: &veoveo_mcp_contract::PlaneCaller,
     run_id: &veoveo_optimization_mcp::contract::RunId,
 ) -> Result<OptimizationSolution, McpError> {
-    let output = find_run_task(state, identity, run_id)
-        .await?
+    let output = OptimizationReads::new(&state.tasks)
+        .map_err(internal)?
+        .run(&runtime_owner(identity), run_id)
+        .await
+        .map_err(internal)?
         .and_then(|task| task.output)
         .ok_or_else(|| not_found("completed run solution"))?;
     load_solution(state, identity, caller, output.result_uri.as_str())
@@ -962,9 +973,9 @@ async fn completion_values(
         ));
     }
     let domain = if template == uris::PROBLEM_TEMPLATE {
-        Some(OptimizationCompletionDomain::Problems)
+        Some(OptimizationCollection::Problems)
     } else if template == uris::RUN_TEMPLATE || template == uris::RUN_INCUMBENTS_TEMPLATE {
-        Some(OptimizationCompletionDomain::Runs)
+        Some(OptimizationCollection::Runs)
     } else if matches!(
         template,
         uris::SOLUTION_TEMPLATE
@@ -972,16 +983,43 @@ async fn completion_values(
             | uris::SOLUTION_VARIABLES_TEMPLATE
             | uris::SOLUTION_VERIFICATION_TEMPLATE
     ) {
-        Some(OptimizationCompletionDomain::Solutions)
+        Some(OptimizationCollection::Solutions)
     } else {
         None
     };
     let Some(domain) = domain else {
         return Ok((Vec::new(), Some(0), false));
     };
-    let page =
-        completion_candidates(state, identity, domain, needle, CompletionInfo::MAX_VALUES).await?;
-    Ok((page.values, None, page.has_more))
+    let reads = OptimizationReads::new(&state.tasks).map_err(internal)?;
+    let owner = runtime_owner(identity);
+    let (values, has_more) = match domain {
+        OptimizationCollection::Problems => completion_wire(
+            reads
+                .complete_problems(&owner, needle, CompletionInfo::MAX_VALUES)
+                .await
+                .map_err(internal)?,
+        ),
+        OptimizationCollection::Runs => completion_wire(
+            reads
+                .complete_runs(&owner, needle, CompletionInfo::MAX_VALUES)
+                .await
+                .map_err(internal)?,
+        ),
+        OptimizationCollection::Solutions => completion_wire(
+            reads
+                .complete_solutions(&owner, needle, CompletionInfo::MAX_VALUES)
+                .await
+                .map_err(internal)?,
+        ),
+    };
+    Ok((values, None, has_more))
+}
+
+fn completion_wire<T: ToString>(page: OptimizationCompletionPage<T>) -> (Vec<String>, bool) {
+    (
+        page.values.into_iter().map(|id| id.to_string()).collect(),
+        page.has_more,
+    )
 }
 
 fn resource_templates() -> Vec<ResourceTemplate> {

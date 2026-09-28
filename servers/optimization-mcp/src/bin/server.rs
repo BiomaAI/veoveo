@@ -28,8 +28,6 @@ mod app_state;
 mod config;
 #[path = "server/host.rs"]
 mod host;
-#[path = "server/index.rs"]
-mod index;
 #[path = "server/internal_auth.rs"]
 mod internal_auth;
 #[path = "server/outputs.rs"]
@@ -40,8 +38,6 @@ mod ownership;
 mod problems;
 #[path = "server/prompts.rs"]
 mod prompts;
-#[path = "server/records.rs"]
-mod records;
 #[path = "server/service.rs"]
 mod service;
 #[path = "server/task_extension.rs"]

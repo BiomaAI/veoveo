@@ -4,6 +4,7 @@
 //! MILP as separate problem families with independent resource identities.
 
 mod common;
+mod index;
 mod model;
 mod profile;
 mod routing;
@@ -11,6 +12,7 @@ mod solution;
 mod usage;
 
 pub use common::*;
+pub use index::*;
 pub use model::*;
 pub use profile::*;
 pub use routing::*;

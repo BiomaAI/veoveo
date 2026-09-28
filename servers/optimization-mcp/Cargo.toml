@@ -28,6 +28,14 @@ required-features = ["mcp"]
 name = "cuopt_gpu"
 required-features = ["runtime"]
 
+[[test]]
+name = "reads"
+required-features = ["mcp"]
+
+[[test]]
+name = "index_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -42,6 +50,7 @@ contract = [
     "dep:veoveo-artifact-contract",
 ]
 runtime = [
+    "dep:surrealdb",
     "contract",
     "dep:anyhow",
     "dep:hex",
@@ -69,6 +78,8 @@ mcp = [
 ]
 
 [dependencies]
+# Matches the qualified Store driver; upstream stable verified at https://github.com/surrealdb/surrealdb/releases/tag/v3.2.4.
+surrealdb = { version = "=3.2.4", default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

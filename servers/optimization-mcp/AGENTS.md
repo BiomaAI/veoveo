@@ -40,11 +40,16 @@ run, solution, and evidence resources.
   link, and identity-free status text. Verification does not invent a product.
 - Dynamic indexes, completion search, and usage discovery stay bounded at the
   authoritative store. Exact reads never scan the full task collection.
+- Catalog, exact and completion reads use `OptimizationReads`. Match indexed and
+  envelope ownership and Work Context in SQL before limits; reject malformed selected
+  rows explicitly. Collection positions use the contract's typed cursor and URI.
 
 ## Module Boundaries
 
 - `src/contract/`: public controlled types and versions.
 - `src/usage.rs`: current owner and Work Context policy through TaskRuntime SQL.
+- `src/reads.rs`: problem, run and solution SQL selection and retained-row validation.
+- `src/task_records.rs`: runtime-only retained requests shared with the Task adapter.
 - `src/compiler/`: deterministic public-to-private solver compilation.
 - `src/verification/`: cuOpt-independent solution checks.
 - `src/executor/`: private typed protocol and Unix-socket client.

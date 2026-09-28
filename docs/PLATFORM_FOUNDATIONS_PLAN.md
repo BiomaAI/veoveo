@@ -370,6 +370,23 @@ rollback executable were removed. Twelve superseded Media/CLI/smoke executables 
 before the reader checkpoint were also removed, reclaiming 13 GiB while preserving
 current binaries, compiler libraries, incremental data and build caches. The cluster
 is stopped and the host has 186 GiB free.
+Optimization now owns problem, run, solution and completion selection in its runtime
+library. SQL matches indexed ownership and Work Context against retained owner and
+authority fields before limits or grouping, preserving absent versus explicit
+installation tenants. Selected malformed records fail explicitly. Typed domain IDs
+reach driver binding, and collection builders preserve version 1 cursor bytes while
+checking native Task identity and collection membership. MCP handlers use these readers;
+the binary's separate query and retained-request modules are removed.
+Thirty-nine Optimization cases and three compile-fail examples pass, including denied
+rows ahead of full pages, changed clearance between continuations, mismatched ownership
+fields and malformed selected results. Ten expanded SELECT forms pass the pinned
+SurrealDB 3.2.4 validator. The independent 90-package contract consumer passes seven
+checks without MCP, runtime, database or HTTP dependencies. Runtime-only and strict
+workspace Clippy pass. These checks qualify database and contract behavior; the GPU
+solver case is ignored. Retained-record preflight and coordinated installed replacement
+remain pending. Other resource families, typed scopes and checked MCP setup remain
+work. Disposable fixtures have stopped, the cluster stays stopped and the host has
+179 GiB free.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -857,7 +874,8 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Timeseries usage | The library delegates pages and exact reads to TaskRuntime's SQL owner policy; typed usage URIs, cursors and checked pages belong to its isolated contract feature. Valid version 1 cursor bytes and response fields are preserved. Native denied-row, continuation, label-change and parent-metadata cases pass; the independent 75-package consumer and strict runtime/workspace Clippy pass | Complete other resource builders and checked MCP setup; qualify the coordinated replica replacement and installed reads |
 | DuckDB usage and discovery | The library uses TaskRuntime SQL visibility for 100-entry usage pages and exact reads. Its isolated contract owns usage addresses, collection-bound cursors and checked pages; discovery declares roots/templates without scanning records. The unused unbounded Store usage catalog API is removed. Native reads and Spatial, the independent 74-package contract consumer, and strict runtime/workspace Clippy pass. Workbench cursor construction uses the browser URL API; headless navigation and reserved-character cases pass | Qualify the coordinated array-to-page transition, installed reads and headed hardware Workbench acceptance |
 | Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields; Map consumes the contract feature. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent 90-package consumer preserves eleven solver schemas and excludes service dependencies; Map consumption and strict runtime/workspace Clippy pass | Qualify the coordinated control/executor replacement and installed reads |
-| Other Optimization contracts | Problem/run/solution queries filter indexed owner, profile, tenant, context and labels; envelope agreement and optional-tenant distinctions need qualification. Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and query admission through the domain library; qualify retained rows, collection reads, completion and installed acceptance |
+| Optimization catalogs | Domain-owned readers match indexed and retained owner/context fields in SQL before pagination, exact lookup and completion. Optional tenants remain distinct; selected malformed records fail explicitly. Typed collection builders preserve version 1 cursor bytes. Native database checks, independent contract consumption and strict Clippy pass | Qualify retained-record preflight, changed permissions and coordinated reverse/forward replacement in the installation |
+| Other Optimization contracts | Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and admission through the domain library; qualify installed acceptance |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

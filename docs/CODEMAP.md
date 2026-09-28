@@ -876,13 +876,14 @@ admission and recovery synchronize the local worker inventory in
 | `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
-| `servers/optimization-mcp/src/contract/` | isolated contract feature: public routing, route-scenario, convex, MILP, solution, verification, solver-profile and checked usage contracts |
+| `servers/optimization-mcp/src/contract/` | isolated contract feature: public routing, route-scenario, convex, MILP, solution, verification, solver-profile, checked usage and collection-position contracts |
 | `servers/optimization-mcp/src/compiler/` | deterministic conversion into cuOpt routing arrays and sparse mathematical structures |
 | `servers/optimization-mcp/src/verification/` | cuOpt-independent routing feasibility, mathematical feasibility, integrality, and objective checks |
 | `servers/optimization-mcp/src/executor/` | private Unix-socket protocol and Rust client |
 | `servers/optimization-mcp/executor/` | pinned Python cuOpt 26.08 GPU adapter and hardware health check |
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
-| `servers/optimization-mcp/src/bin/server/index.rs` | authorization-scoped lookup, stable pagination with opaque cursors, and completion search |
+| `servers/optimization-mcp/src/reads.rs` | domain-owned SQL selection under matching owner envelopes and Work Context metadata, typed exact lookup, stable pagination and completion search |
+| `servers/optimization-mcp/src/task_records.rs` | runtime-only retained solve and verification requests shared by readers and MCP Task execution |
 | `servers/optimization-mcp/src/usage.rs` | usage pages and exact reads through TaskRuntime SQL with current owner and Work Context checks |
 | `deploy/contract/src/lib.rs` | portable Optimization capability, Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |
 | `deploy/helm/veoveo/definitions/domain-services.yaml` | single Optimization Pod, CPU control container, one-GPU cuOpt sidecar, shared socket, memory-backed shared memory, and persistent workspace |
