@@ -29,11 +29,20 @@ engine rather than by narrowing SQL.
   polling fallbacks.
 - One replica with a `ReadWriteOnce` workspace is part of correctness; the
   per database write mutex is process local.
+- The library's `contract` feature owns database IDs, tool DTOs, tabular source
+  types and read SQL fragments. Cross-server consumers use that feature with defaults
+  disabled. Keep MCP and engine dependencies outside it; source policy belongs to the
+  materializing server. The current URI helpers remain a runtime concern.
 
 ## Build And Test
 
 - `cargo check -p veoveo-duckdb-mcp`
 - `cargo test -p veoveo-duckdb-mcp`
+- `cargo test -p veoveo-duckdb-mcp --no-default-features --features contract`
+  checks public contracts. Qualify dependency isolation with a separately resolved
+  consumer, since workspace feature unification can hide a runtime dependency.
+- `cargo clippy -p veoveo-duckdb-mcp --no-default-features --features runtime --all-targets -- -D warnings`
+  checks the library independently of the hosted binary.
 - The crate links the DuckDB C library through the pinned `duckdb-rs` fork;
   expect a long native first build. The fork tracks DuckDB 1.5.5 and removes
   the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.38.
@@ -48,6 +57,10 @@ engine rather than by narrowing SQL.
 ## Contract Compliance
 
 Contract revision: 2
+
+Contract-only library consumption and the owner-local source vocabulary are implemented.
+Typed resource builders and checked MCP setup remain work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

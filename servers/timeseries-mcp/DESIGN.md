@@ -18,6 +18,11 @@ structured output.
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
 
+The forecast request imports `DuckDbSource` and read SQL rendering from the DuckDB
+server library with only its `contract` feature enabled. Timeseries owns source
+materialization and forecasting; this dependency provides no DuckDB hosted runtime.
+The source and forecast request schemas preserve their published fields and defaults.
+
 ## MCP surface
 
 | Kind | Name | Notes |

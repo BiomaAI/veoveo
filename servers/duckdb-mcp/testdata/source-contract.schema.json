@@ -1,0 +1,1587 @@
+{
+  "DuckDbColumn": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "type_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "type_name"
+    ],
+    "title": "DuckDbColumn",
+    "type": "object"
+  },
+  "DuckDbDatabaseId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Owner-scoped name of a mutable hosted database file.",
+    "title": "DuckDbDatabaseId",
+    "type": "string"
+  },
+  "DuckDbExecuteOutput": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "db_created": {
+        "type": "boolean"
+      },
+      "rows_changed": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "statements": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "db",
+      "statements",
+      "rows_changed",
+      "db_created"
+    ],
+    "title": "DuckDbExecuteOutput",
+    "type": "object"
+  },
+  "DuckDbExecuteRequest": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "create_if_missing": {
+        "default": false,
+        "type": "boolean"
+      },
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "sql": {
+        "description": "DDL/DML SQL executed on a writable connection.",
+        "type": "string"
+      },
+      "timeout_ms": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "db",
+      "sql"
+    ],
+    "title": "DuckDbExecuteRequest",
+    "type": "object"
+  },
+  "DuckDbExportFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "enum": [
+          "parquet",
+          "csv"
+        ],
+        "type": "string"
+      },
+      {
+        "const": "duck_db",
+        "description": "Full database snapshot as one immutable `.duckdb` file.",
+        "type": "string"
+      }
+    ],
+    "title": "DuckDbExportFormat"
+  },
+  "DuckDbExportOutput": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "byte_len": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "default": null
+          },
+          "mime_type": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactReleaseState": {
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "rows_exported": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "db",
+      "rows_exported",
+      "artifact"
+    ],
+    "title": "DuckDbExportOutput",
+    "type": "object"
+  },
+  "DuckDbExportRequest": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      },
+      "DuckDbExportFormat": {
+        "oneOf": [
+          {
+            "enum": [
+              "parquet",
+              "csv"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "duck_db",
+            "description": "Full database snapshot as one immutable `.duckdb` file.",
+            "type": "string"
+          }
+        ]
+      },
+      "DuckDbExportSelection": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "table",
+                "type": "string"
+              },
+              "table": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "table"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Read-only SQL whose result set is exported.",
+            "properties": {
+              "kind": {
+                "const": "sql",
+                "type": "string"
+              },
+              "sql": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "sql"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "The whole database as a snapshot (format must be `duck_db`).",
+            "properties": {
+              "kind": {
+                "const": "database",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "format": {
+        "$ref": "#/$defs/DuckDbExportFormat"
+      },
+      "selection": {
+        "$ref": "#/$defs/DuckDbExportSelection"
+      }
+    },
+    "required": [
+      "db",
+      "selection",
+      "format"
+    ],
+    "title": "DuckDbExportRequest",
+    "type": "object"
+  },
+  "DuckDbExportSelection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "properties": {
+          "kind": {
+            "const": "table",
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "table"
+        ],
+        "type": "object"
+      },
+      {
+        "description": "Read-only SQL whose result set is exported.",
+        "properties": {
+          "kind": {
+            "const": "sql",
+            "type": "string"
+          },
+          "sql": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "sql"
+        ],
+        "type": "object"
+      },
+      {
+        "description": "The whole database as a snapshot (format must be `duck_db`).",
+        "properties": {
+          "kind": {
+            "const": "database",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbExportSelection"
+  },
+  "DuckDbFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "auto",
+      "csv",
+      "parquet",
+      "json",
+      "ndjson"
+    ],
+    "title": "DuckDbFormat",
+    "type": "string"
+  },
+  "DuckDbIngestMode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "const": "create",
+        "description": "Create the table; error if it already exists.",
+        "type": "string"
+      },
+      {
+        "const": "append",
+        "description": "Append to an existing table.",
+        "type": "string"
+      },
+      {
+        "const": "replace",
+        "description": "Replace the table contents.",
+        "type": "string"
+      }
+    ],
+    "title": "DuckDbIngestMode"
+  },
+  "DuckDbIngestOutput": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "db_created": {
+        "type": "boolean"
+      },
+      "rows_ingested": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "table": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "db",
+      "table",
+      "rows_ingested",
+      "db_created"
+    ],
+    "title": "DuckDbIngestOutput",
+    "type": "object"
+  },
+  "DuckDbIngestRequest": {
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      },
+      "DuckDbFormat": {
+        "enum": [
+          "auto",
+          "csv",
+          "parquet",
+          "json",
+          "ndjson"
+        ],
+        "type": "string"
+      },
+      "DuckDbIngestMode": {
+        "oneOf": [
+          {
+            "const": "create",
+            "description": "Create the table; error if it already exists.",
+            "type": "string"
+          },
+          {
+            "const": "append",
+            "description": "Append to an existing table.",
+            "type": "string"
+          },
+          {
+            "const": "replace",
+            "description": "Replace the table contents.",
+            "type": "string"
+          }
+        ]
+      },
+      "DuckDbReadOptions": {
+        "properties": {
+          "delimiter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "header": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "timestamp_format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DuckDbSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "csv": {
+                "type": "string"
+              },
+              "filename": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "const": "inline_csv",
+                "type": "string"
+              },
+              "options": {
+                "$ref": "#/$defs/DuckDbReadOptions",
+                "default": {}
+              }
+            },
+            "required": [
+              "kind",
+              "csv"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "format": {
+                "$ref": "#/$defs/DuckDbFormat"
+              },
+              "kind": {
+                "const": "uri",
+                "type": "string"
+              },
+              "options": {
+                "$ref": "#/$defs/DuckDbReadOptions",
+                "default": {}
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "uri",
+              "format"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "format": {
+                "$ref": "#/$defs/DuckDbFormat"
+              },
+              "kind": {
+                "const": "uris",
+                "type": "string"
+              },
+              "options": {
+                "$ref": "#/$defs/DuckDbReadOptions",
+                "default": {}
+              },
+              "uris": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "uris",
+              "format"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+            "properties": {
+              "format": {
+                "$ref": "#/$defs/DuckDbFormat"
+              },
+              "kind": {
+                "const": "artifact",
+                "type": "string"
+              },
+              "options": {
+                "$ref": "#/$defs/DuckDbReadOptions",
+                "default": {}
+              },
+              "uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              }
+            },
+            "required": [
+              "kind",
+              "uri",
+              "format"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "create_db_if_missing": {
+        "default": false,
+        "type": "boolean"
+      },
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "mode": {
+        "$ref": "#/$defs/DuckDbIngestMode"
+      },
+      "source": {
+        "$ref": "#/$defs/DuckDbSource"
+      },
+      "table": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "db",
+      "table",
+      "source",
+      "mode"
+    ],
+    "title": "DuckDbIngestRequest",
+    "type": "object"
+  },
+  "DuckDbQueryOutput": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "byte_len": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "default": null
+          },
+          "mime_type": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactReleaseState": {
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "DuckDbColumn": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type_name"
+        ],
+        "type": "object"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "artifact": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "columns": {
+        "items": {
+          "$ref": "#/$defs/DuckDbColumn"
+        },
+        "type": "array"
+      },
+      "row_count": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "rows": {
+        "description": "Row-major values; present only for inline output.",
+        "items": {
+          "items": true,
+          "type": "array"
+        },
+        "type": "array"
+      },
+      "truncated": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "columns",
+      "row_count",
+      "truncated"
+    ],
+    "title": "DuckDbQueryOutput",
+    "type": "object"
+  },
+  "DuckDbQueryOutputMode": {
+    "$defs": {
+      "DuckDbExportFormat": {
+        "oneOf": [
+          {
+            "enum": [
+              "parquet",
+              "csv"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "duck_db",
+            "description": "Full database snapshot as one immutable `.duckdb` file.",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "description": "Rows inline in the tool result, subject to the server's row/byte caps.",
+        "properties": {
+          "mode": {
+            "const": "inline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "type": "object"
+      },
+      {
+        "description": "Rows written to an immutable artifact; the result carries the link.",
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/DuckDbExportFormat"
+          },
+          "mode": {
+            "const": "artifact",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "format"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbQueryOutputMode"
+  },
+  "DuckDbQueryRequest": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "type": "string"
+      },
+      "DuckDbExportFormat": {
+        "oneOf": [
+          {
+            "enum": [
+              "parquet",
+              "csv"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "duck_db",
+            "description": "Full database snapshot as one immutable `.duckdb` file.",
+            "type": "string"
+          }
+        ]
+      },
+      "DuckDbQueryOutputMode": {
+        "oneOf": [
+          {
+            "description": "Rows inline in the tool result, subject to the server's row/byte caps.",
+            "properties": {
+              "mode": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Rows written to an immutable artifact; the result carries the link.",
+            "properties": {
+              "format": {
+                "$ref": "#/$defs/DuckDbExportFormat"
+              },
+              "mode": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "format"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "attach": {
+        "description": "Additional readable databases attached read-only under their db ids.",
+        "items": {
+          "$ref": "#/$defs/DuckDbDatabaseId"
+        },
+        "type": "array"
+      },
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "output": {
+        "$ref": "#/$defs/DuckDbQueryOutputMode",
+        "default": {
+          "mode": "inline"
+        }
+      },
+      "row_limit": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "sql": {
+        "description": "Read-only SQL. Enforced by a read-only connection, not by parsing.",
+        "type": "string"
+      },
+      "timeout_ms": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "db",
+      "sql"
+    ],
+    "title": "DuckDbQueryRequest",
+    "type": "object"
+  },
+  "DuckDbReadOptions": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "delimiter": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "extra": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "header": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "timestamp_format": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "title": "DuckDbReadOptions",
+    "type": "object"
+  },
+  "DuckDbSource": {
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DuckDbFormat": {
+        "enum": [
+          "auto",
+          "csv",
+          "parquet",
+          "json",
+          "ndjson"
+        ],
+        "type": "string"
+      },
+      "DuckDbReadOptions": {
+        "properties": {
+          "delimiter": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "extra": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "header": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "timestamp_format": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "properties": {
+          "csv": {
+            "type": "string"
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "const": "inline_csv",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          }
+        },
+        "required": [
+          "kind",
+          "csv"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "kind": {
+            "const": "uri",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "uri": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "uri",
+          "format"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "kind": {
+            "const": "uris",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "uris",
+          "format"
+        ],
+        "type": "object"
+      },
+      {
+        "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/DuckDbFormat"
+          },
+          "kind": {
+            "const": "artifact",
+            "type": "string"
+          },
+          "options": {
+            "$ref": "#/$defs/DuckDbReadOptions",
+            "default": {}
+          },
+          "uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          }
+        },
+        "required": [
+          "kind",
+          "uri",
+          "format"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbSource"
+  }
+}

@@ -18,12 +18,12 @@ use re_sdk_types::archetypes::{Scalars, TextDocument};
 use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-use veoveo_duckdb_runtime::{
-    EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
-};
-use veoveo_mcp_contract::{
+use veoveo_duckdb_mcp::contract::{
     DuckDbFormat, DuckDbReadOptions, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
     duckdb_read_function_sql, duckdb_read_options_sql,
+};
+use veoveo_duckdb_runtime::{
+    EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
 };
 
 const DEFAULT_SERIES_ID: &str = "series";
@@ -761,7 +761,7 @@ mod tests {
         TimeseriesTableMapping,
     };
     use serde::Deserialize;
-    use veoveo_mcp_contract::{DuckDbFormat, DuckDbSource};
+    use veoveo_duckdb_mcp::contract::{DuckDbFormat, DuckDbSource};
 
     use super::*;
 

@@ -13,11 +13,11 @@ use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 use duckdb::{Connection, params};
 use uuid::Uuid;
+use veoveo_duckdb_mcp::contract::{duckdb_quote_identifier, duckdb_quote_literal};
 use veoveo_duckdb_runtime::{
     EngineSettings, FileAccess, QueryLimits, open_connection, run_read_only_query,
     validate_single_statement,
 };
-use veoveo_mcp_contract::{duckdb_quote_identifier, duckdb_quote_literal};
 
 const MEMORY_QUERY_MAX_BYTES: u64 = 1_048_576;
 

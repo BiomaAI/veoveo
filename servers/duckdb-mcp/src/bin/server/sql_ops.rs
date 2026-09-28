@@ -18,7 +18,8 @@ use veoveo_duckdb_mcp::{
         DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportFormat,
         DuckDbExportOutput, DuckDbExportRequest, DuckDbExportSelection, DuckDbIngestMode,
         DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryOutputMode,
-        DuckDbQueryRequest,
+        DuckDbQueryRequest, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
+        duckdb_read_function_sql, duckdb_read_options_sql,
     },
     engine::{self, AttachSpec, FileExchange},
     state::TaskOwner,
@@ -27,9 +28,8 @@ use veoveo_duckdb_runtime::{
     AuthorizedArtifact, materialize_authorized_artifact, materialize_https_source,
 };
 use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, DuckDbSource, GatewayInternalIdentity,
-    IssuedArtifactWriteCapability, PlaneCaller, duckdb_quote_identifier, duckdb_quote_literal,
-    duckdb_read_function_sql, duckdb_read_options_sql,
+    ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssuedArtifactWriteCapability,
+    PlaneCaller,
 };
 
 use super::{

@@ -26,7 +26,7 @@ Implemented in this workspace. The current server provides:
 
 - the `veoveo-duckdb-mcp` crate under `servers/duckdb-mcp`
 - the shared hardened runtime under `platform/runtimes/duckdb`
-- the shared `DuckDbSource` contract in `veoveo_mcp_contract::duckdb`
+- the public `DuckDbSource` contract in `veoveo_duckdb_mcp::contract`
 - `query`, `execute`, `ingest`, and `export` tools
 - owner-scoped mutable database files
 - direct and durable final-extension execution
@@ -185,6 +185,26 @@ Controlled request and result shapes use server-owned Rust structs and enums.
 Raw JSON appears only where DuckDB values or extensible read options cannot be
 modeled more narrowly.
 
+### Library Features
+
+Consumers select `default-features = false, features = ["contract"]` to use the
+server's database ID, source vocabulary and tool DTOs. This feature depends on Serde,
+Schemars and the lightweight Artifact contract. It excludes the DuckDB binding, MCP
+integration, asynchronous runtime, database client and artifact-service client.
+
+The `runtime` feature adds the engine adapter, owner models, artifact client and
+current URI helpers. The default `mcp` feature adds the hosted binary and its protocol,
+Task and process dependencies. Feature gates apply to dependencies as well as modules.
+The URI helpers still depend on MCP conventions; typed address adoption is tracked in
+the foundations plan.
+
+The library owns SQL-fragment rendering for its read formats and options. Timeseries
+consumes these functions and source types from DuckDB's `contract` feature. The agent
+kernel imports its SQL quoting helpers through the same feature. MCP core
+contains no DuckDB source vocabulary or re-export. The Rust ownership change preserves
+the tool schemas, serialized source fields and persisted Task request forms, so stored
+requests need no conversion. Each materializing server still enforces its source policy.
+
 ### Database Identity
 
 `DuckDbDatabaseId` is an owner-local logical name. It accepts one through 64
@@ -218,7 +238,7 @@ state; they are not part of the physical filename.
 
 ### Shared Data Source
 
-`veoveo_mcp_contract::duckdb::DuckDbSource` is shared by hosted servers that
+`veoveo_duckdb_mcp::contract::DuckDbSource` is shared by hosted servers that
 need the same governed tabular input vocabulary.
 
 ```text
@@ -869,9 +889,6 @@ behind the artifact-plane and gateway download authorization paths.
 The server follows the repository's domain-server module boundary.
 
 ```text
-mcp/contract/src/duckdb.rs
-  shared DuckDbSource and safe SQL-fragment construction
-
 platform/runtimes/duckdb/
   src/engine.rs
   src/source.rs
@@ -882,6 +899,9 @@ servers/duckdb-mcp/
   src/
     lib.rs
     contract.rs
+    contract/
+      source.rs
+      read_sql.rs
     engine.rs
     artifacts.rs
     state.rs
@@ -905,6 +925,12 @@ extension handling remain focused modules. New map, catalog, or feature-service
 behavior must not accumulate in this binary.
 
 ## Testing Strategy
+
+The contract suite compares all 17 public schemas with their pre-extraction snapshots
+and qualifies source wire forms, defaults, option rejection and SQL quoting. A separately
+resolved consumer compiles these cases with only `contract` enabled; dependency metadata
+must exclude MCP, asynchronous, database and server-runtime packages. Timeseries checks
+its unchanged forecast-input schema and exercises its existing source materialization path.
 
 Runtime tests cover:
 

@@ -31,6 +31,9 @@ returns structured output with a bounded chartable preview.
 - Forecast completion exposes one canonical `result_uri`, one resource link,
   and identity-free status text. Usage discovery is bounded and cursor-paged;
   exact task usage remains directly addressable.
+- Import tabular source types and read SQL helpers from `veoveo-duckdb-mcp` with
+  default features disabled and `contract` enabled. Timeseries keeps ownership of
+  source materialization and forecasting; MCP core contains no source vocabulary.
 
 ## Build And Test
 

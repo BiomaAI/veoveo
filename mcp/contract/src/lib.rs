@@ -18,7 +18,6 @@ pub mod bootstrap;
 pub mod catalog;
 pub mod deployment;
 pub mod docs;
-pub mod duckdb;
 pub mod gateway;
 pub mod generation;
 pub mod host;
@@ -85,10 +84,6 @@ pub use deployment::{
     SelfHostedDeploymentProfile, ServerPublicEndpoint, ServiceToServiceSecurity,
     ServiceToServiceTransport, SurrealDbVersion, SurrealStorageEngine, TelemetryCollectorKind,
     TelemetryDeployment, TelemetrySignal, TenantModel, TenantModelKind,
-};
-pub use duckdb::{
-    DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSqlBuildError, duckdb_quote_identifier,
-    duckdb_quote_literal, duckdb_read_function_sql, duckdb_read_options_sql,
 };
 pub use gateway::{
     APP_RESOURCE_DEPENDENCIES_META_KEY, APP_TOOL_DEPENDENCIES_META_KEY, AccessTokenSubject,

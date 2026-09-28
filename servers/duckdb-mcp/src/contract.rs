@@ -4,7 +4,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_mcp_contract::DuckDbSource;
+mod read_sql;
+mod source;
+
+pub use read_sql::{
+    DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_read_options_sql,
+};
+pub use source::{DuckDbFormat, DuckDbReadOptions, DuckDbSource};
 
 /// Owner-scoped name of a mutable hosted database file.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]

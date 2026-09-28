@@ -421,7 +421,6 @@ even when that server is first-party.
 | `artifact_service.rs` | artifact-plane requests, capabilities, share links, native async port |
 | `artifact_service/upload.rs` and `artifact_service/upload/policy.rs` | resumable HTTP upload identities, descriptors, receipts, errors, explicit quota policy, and checked multipart layout/manifest validation |
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
-| `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
 | `server_contract.rs` | open MCP associations for server-owned scopes and resources; typed concrete and RFC 6570 template descriptors, document checks and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
@@ -932,8 +931,8 @@ DuckDB-specific ownership:
 |---|---|
 | `servers/duckdb-mcp/DESIGN.md` | public contract, runtime boundary, tasks, persistence, deployment, and limits |
 | `platform/runtimes/duckdb/` | engine runtime with resource limits, closed Spatial axis policy, effective-setting verification, and sandbox primitives |
-| `mcp/contract/src/duckdb.rs` | cross-server source types |
-| `servers/duckdb-mcp/src/contract.rs` | server-local tool request and result types |
+| `servers/duckdb-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | database IDs and tool request/result types; isolated contract feature with runtime and hosted MCP feature gates |
+| `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | cross-server tabular source types and read SQL fragments owned by DuckDB; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |
 | `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | direct and task SQL operation contracts and interruption behavior |
@@ -1173,7 +1172,7 @@ dispatch preflights and budgeted execution.
 | `tools.rs` | MCP tool dispatch and durable task descriptor capture |
 | `tasks.rs` | detached watcher lease/resume/result-to-wake flow |
 | `wake.rs` | outbox/changefeed wake delivery, including heartbeat-only batches acknowledged without an episode |
-| `memory.rs` | persistent memory API over analytical stores |
+| `memory.rs` | persistent memory API over analytical stores; SQL quoting consumes DuckDB's isolated library contract |
 | `timeline.rs` | snapshot dataframe read-back over the agent's RRD segments capped to the most recent rows because rows become model input |
 | `context.rs` | per-episode context assembly as a view over the memory planes |
 | `llm.rs` | episode LLM construction from the manifest's provider-neutral model config |

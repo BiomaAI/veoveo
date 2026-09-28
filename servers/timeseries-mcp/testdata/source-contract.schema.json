@@ -1,0 +1,346 @@
+{
+  "$defs": {
+    "ArtifactUri": {
+      "description": "Neutral or server-presented Artifact occurrence URI.",
+      "type": "string"
+    },
+    "DuckDbFormat": {
+      "enum": [
+        "auto",
+        "csv",
+        "parquet",
+        "json",
+        "ndjson"
+      ],
+      "type": "string"
+    },
+    "DuckDbReadOptions": {
+      "properties": {
+        "delimiter": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extra": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "header": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "timestamp_format": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "DuckDbSource": {
+      "oneOf": [
+        {
+          "properties": {
+            "csv": {
+              "type": "string"
+            },
+            "filename": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "kind": {
+              "const": "inline_csv",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            }
+          },
+          "required": [
+            "kind",
+            "csv"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "kind": {
+              "const": "uri",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "kind",
+            "uri",
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "kind": {
+              "const": "uris",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "uris": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "uris",
+            "format"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
+          "properties": {
+            "format": {
+              "$ref": "#/$defs/DuckDbFormat"
+            },
+            "kind": {
+              "const": "artifact",
+              "type": "string"
+            },
+            "options": {
+              "$ref": "#/$defs/DuckDbReadOptions",
+              "default": {}
+            },
+            "uri": {
+              "$ref": "#/$defs/ArtifactUri"
+            }
+          },
+          "required": [
+            "kind",
+            "uri",
+            "format"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TimeseriesFilterCombination": {
+      "enum": [
+        "all",
+        "any"
+      ],
+      "type": "string"
+    },
+    "TimeseriesFilterPredicate": {
+      "oneOf": [
+        {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "op": {
+              "const": "eq",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeseriesFilterValue"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "op": {
+              "const": "ne",
+              "type": "string"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeseriesFilterValue"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "value"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "op": {
+              "const": "in",
+              "type": "string"
+            },
+            "values": {
+              "items": {
+                "$ref": "#/$defs/TimeseriesFilterValue"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "op",
+            "column",
+            "values"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "column": {
+              "type": "string"
+            },
+            "op": {
+              "const": "is_not_null",
+              "type": "string"
+            }
+          },
+          "required": [
+            "op",
+            "column"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "TimeseriesFilterValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "format": "int64",
+          "type": "integer"
+        },
+        {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "format": "double",
+          "type": "number"
+        }
+      ]
+    },
+    "TimeseriesForecastMethod": {
+      "enum": [
+        "naive_trend"
+      ],
+      "type": "string"
+    },
+    "TimeseriesRowFilter": {
+      "properties": {
+        "combination": {
+          "$ref": "#/$defs/TimeseriesFilterCombination",
+          "default": "all"
+        },
+        "predicates": {
+          "items": {
+            "$ref": "#/$defs/TimeseriesFilterPredicate"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "predicates"
+      ],
+      "type": "object"
+    },
+    "TimeseriesTableMapping": {
+      "properties": {
+        "series_column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "time_column": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value_column": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "value_column"
+      ],
+      "type": "object"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "horizon": {
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "mapping": {
+      "$ref": "#/$defs/TimeseriesTableMapping"
+    },
+    "method": {
+      "$ref": "#/$defs/TimeseriesForecastMethod",
+      "default": "naive_trend"
+    },
+    "source": {
+      "$ref": "#/$defs/DuckDbSource"
+    },
+    "training_filter": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeseriesRowFilter"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "source",
+    "mapping",
+    "horizon"
+  ],
+  "title": "TimeseriesForecastRequest",
+  "type": "object"
+}

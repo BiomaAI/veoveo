@@ -12,6 +12,7 @@ name = "timeseries-mcp"
 path = "src/bin/server.rs"
 
 [dependencies]
+veoveo-duckdb-mcp = { path = "../duckdb-mcp", default-features = false, features = ["contract"] }
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
 anyhow.workspace = true

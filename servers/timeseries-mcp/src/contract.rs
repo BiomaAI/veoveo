@@ -4,7 +4,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
-use veoveo_mcp_contract::DuckDbSource;
+use veoveo_duckdb_mcp::contract::DuckDbSource;
 
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
@@ -185,7 +185,17 @@ pub struct TimeseriesForecastOutput {
 
 #[cfg(test)]
 mod terminal_contract_tests {
-    use super::TimeseriesForecastOutput;
+    use super::{TimeseriesForecastOutput, TimeseriesForecastRequest};
+
+    #[test]
+    fn forecast_input_preserves_the_duckdb_source_contract_schema() {
+        let baseline: serde_json::Value =
+            serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
+        assert_eq!(
+            serde_json::to_value(schemars::schema_for!(TimeseriesForecastRequest)).unwrap(),
+            baseline
+        );
+    }
 
     #[test]
     fn forecast_output_schema_has_one_canonical_result_handoff() {

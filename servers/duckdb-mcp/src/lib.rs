@@ -4,8 +4,15 @@
 //! (no external access from SQL), immutable artifact exports, and durable
 //! task and usage state in the shared platform store.
 
+#[cfg(feature = "runtime")]
 pub mod artifacts;
+#[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "contract")]
+pub use contract::*;
+#[cfg(feature = "runtime")]
 pub mod engine;
+#[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "runtime")]
 pub mod uris;

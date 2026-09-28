@@ -9,6 +9,13 @@ every provider API. JSON manifests, managed generation admission and the dispatc
 preflight endpoint are repository-owned contracts. SurrealDB owns scheduling and
 Task delivery; DuckDB and Rerun hold local analytical projections.
 
+## Analytical Memory
+
+The kernel opens local memory through `veoveo-duckdb-runtime` and imports SQL quoting
+from `veoveo-duckdb-mcp` with defaults disabled and only `contract` enabled. This shares
+the DuckDB owner's syntax handling without enabling its hosted process or service clients.
+Memory queries retain the runtime's file, network and configuration restrictions.
+
 ## Managed Configuration
 
 An installation-reviewed manifest defines the runtime package and memory schema.
