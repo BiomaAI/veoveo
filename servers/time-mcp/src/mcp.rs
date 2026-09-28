@@ -670,12 +670,13 @@ fn adapt_zone_completion_v1(template: &str) -> &str {
 }
 
 fn default_clock_policy() -> ClockQualityPolicy {
-    ClockQualityPolicy {
-        maximum_error_nanoseconds: 100_000_000,
-        maximum_stratum: 4,
-        minimum_source_diversity: 2,
-        maximum_holdover_seconds: 300,
-    }
+    ClockQualityPolicy::builder()
+        .maximum_error_nanoseconds(100_000_000)
+        .maximum_stratum(4)
+        .minimum_source_diversity(2)
+        .maximum_holdover_seconds(300)
+        .build()
+        .expect("valid built-in Time clock policy")
 }
 
 #[cfg(test)]

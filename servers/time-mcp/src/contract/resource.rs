@@ -8,14 +8,14 @@ use veoveo_types::{
     UriSegment,
 };
 
-use super::{AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId};
+use super::{AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeVersion};
 use crate::uris;
 
 mod cursor;
 mod identifiers;
 mod release;
 pub use cursor::{CalendarCursor, EpochCursor, EventCursor};
-pub use identifiers::{TimeDocument, TimeVersion, TimeZoneId};
+pub use identifiers::{TimeDocument, TimeZoneId};
 pub use release::TimeAuthorityReleaseUri;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -269,5 +269,11 @@ impl fmt::Display for TimeResource {
         self.to_uri()
             .expect("validated Time resource components")
             .fmt(f)
+    }
+}
+
+impl From<super::TimeVersionError> for TimeResourceError {
+    fn from(_: super::TimeVersionError) -> Self {
+        Self::InvalidVersion
     }
 }

@@ -45,7 +45,7 @@ pub(crate) struct TimeAcquisitionDraft {
 pub(crate) struct TimeAcquisitionUpdate {
     pub(crate) tenant_id: TenantId,
     pub(crate) acquisition_key: TimeAcquisitionId,
-    pub(crate) expected_record_version: i64,
+    pub(crate) expected_record_version: TimeVersion,
     pub(crate) status: TimeAcquisitionState,
     pub(crate) phase: String,
     pub(crate) staged_release_key: Option<AuthorityReleaseId>,
@@ -89,8 +89,5 @@ pub(crate) struct TimeTemporalEventDraft {
 #[derive(Clone, Debug)]
 pub(crate) struct TimeClockPolicyDraft {
     pub(crate) identity: PlatformIdentity,
-    pub(crate) maximum_error_nanoseconds: i64,
-    pub(crate) maximum_stratum: i64,
-    pub(crate) minimum_source_diversity: i64,
-    pub(crate) maximum_holdover_seconds: i64,
+    pub(crate) policy: ClockQualityPolicy,
 }

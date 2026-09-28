@@ -332,6 +332,12 @@ tenant's stored default. Policy controls maximum error, maximum stratum, minimum
 source diversity, and maximum holdover age. An installation without an observation
 socket reports an unmeasured system clock with an unbounded error estimate.
 
+`ClockQualityPolicy` exposes a named builder and read-only accessors. JSON decoding
+uses the same validation. Maximum error in nanoseconds and maximum holdover in
+seconds must lie in `1..=i64::MAX`; maximum stratum is `1..=15`, and minimum source
+diversity is `1..=u32::MAX`. The published schema declares those bounds. Assessment
+requests and persisted policies share this contract.
+
 The health endpoint proves that the authority and configured clock adapter can be
 read. Mission acceptance remains a policy decision returned by `assess_clock` and
 `time://clock/quality`. The clock-derived `time://clock/current` resource includes
@@ -510,7 +516,7 @@ identity; Store owns the migration catalog. Time uses the same pinned SurrealDB 
 SDK as Store, behind its `runtime` feature. Contract-only consumers do not resolve it.
 
 Catalog calls retain source, release, acquisition, calendar, epoch and event ID types
-through the persistence interface. Calendar and epoch versions use `TimeVersion`.
+through the persistence interface. Calendar, epoch and existing-record guards use `TimeVersion`.
 Collection queries accept `CalendarCursor`, `EpochCursor` or `EventCursor` directly;
 requested epoch batches and completion parents also retain their domain IDs. The
 driver binds their text and numeric values alongside typed database identity records.
@@ -542,6 +548,21 @@ All tables are schema-full and carry a 30-day changefeed. Platform migrations cr
 their fields and indexes during installation bootstrap. The server connects with the
 database-scoped runtime identity and never applies migrations.
 
+### Version Guards
+
+`TimeVersion` admits positive integers through `i64::MAX`. Source replacement,
+event transitions and release activation require it. Clock-policy replacement and
+active-pointer admission use `TimeWriteGuard::Absent` or `Existing(TimeVersion)`;
+serialization keeps the established numeric zero/positive representation. Source
+creation keeps its separate `record_version: 0` request sentinel. These request
+schemas reject values outside their storage range before dispatch.
+
+Every lifecycle increment checks the storage maximum. Exhaustion fails the write
+without wrapping, resetting or changing the stored value. Release activation checks
+both proposed versions before dispatch. Retirement increments the previous release
+inside that transaction with a positive, below-maximum version predicate; failure
+rolls back the candidate release and pointer together.
+
 ### Retained Catalog Metadata
 
 `catalog/records.rs` converts SQL-selected rows into public values. It checks each
@@ -569,9 +590,16 @@ competing updates. Stored lifecycle versions must be positive. A staged acquisit
 release reference must satisfy the stored release-ID profile. Body decoding and
 consistency errors identify the entity and field without quoting stored content.
 
+`catalog/clock.rs` checks the physical clock-policy ID and tenant, converts stored
+signed scalars without narrowing, and admits the policy and version through their
+contract types. Invalid scalar diagnostics name the field without quoting stored
+values. Reads leave rejected rows unchanged.
+
 The metadata admission profile uses the existing tables and JSON representation.
 The Time owner must preflight retained catalogs before an installation upgrade,
-checking bodies and keys under each tenant and event owner. Export rejected rows
+checking bodies and keys under each tenant and event owner, plus clock scalar bounds
+and positive lifecycle versions. Clients must send policies within the declared bounds;
+zero-version update requests are supported only where the absence guard applies. Export rejected rows
 for investigation and correct them through an explicit operator repair before retrying.
 Drain Time requests, acquisition workers and event watchers during the coordinated
 upgrade; overlapping readers could otherwise disagree about corrupt records. Keep a
@@ -580,8 +608,8 @@ and rollback restores that snapshot with the prior image. The disposable referen
 installation uses the foundations plan's authorized reset. Installed preflight and
 rollback qualification remain pending.
 
-Active-authority pointer/parent consistency, clock-policy scalar admission and broader
-public DTO construction have separate work in the foundations inventory.
+Active-authority pointer/parent consistency and broader public DTO construction have
+separate work in the foundations inventory.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
@@ -647,6 +675,8 @@ Examples of agent requests include:
 | `src/authority.rs` | TZif context and IANA leap-second interpretation |
 | `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
+| `src/contract/clock_policy.rs`, `src/contract/version.rs` | validated policy builder, numeric request schemas, positive versions and optional-row guards |
+| `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission, SQL visibility and atomic activation |
@@ -670,7 +700,11 @@ Time runtime tests cover stored URL/ID admission, SQL isolation and pagination, 
 epoch batches and completion. Retained-metadata cases corrupt rows through a separate
 fixture connection, verify read/collection rejection, preserve lifecycle columns, and
 reject acquisition identity changes before writing. Isolated authority tests use separate connections to
-qualify retirement and competing pointer updates. Store tests own schema migrations.
+qualify retirement, competing pointer updates and exhaustion rollback followed by retry.
+Numeric contract cases compare schema bounds with JSON admission, and compile-fail
+examples reject unchecked construction. Native scalar cases reject negative, zero,
+truncated and exhausted values without changing rows; competing clock replacements
+admit one writer. Store tests own schema migrations.
 Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.

@@ -168,10 +168,18 @@ pub struct CreateTemporalEventRequest {
     pub idempotency_key: String,
 }
 
+/// Cancellation requires the version of an existing event.
+/// ```compile_fail
+/// use veoveo_time_mcp::{CancelTemporalEventRequest, TemporalEventId, TimeWriteGuard};
+/// let request = CancelTemporalEventRequest {
+///     event_id: TemporalEventId::new("event-example").unwrap(),
+///     expected_record_version: TimeWriteGuard::Absent,
+/// };
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CancelTemporalEventRequest {
     pub event_id: TemporalEventId,
-    pub expected_record_version: u64,
+    pub expected_record_version: super::TimeVersion,
 }
 
 /// One page of a Time collection, in the order declared by its resource.

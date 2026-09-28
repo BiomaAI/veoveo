@@ -57,8 +57,8 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .activate_time_authority_release(
                 &identity,
                 &first_key,
-                1,
-                0,
+                crate::TimeVersion::new(1).unwrap(),
+                crate::TimeWriteGuard::new(0).unwrap(),
                 serde_json::json!({"state": "active"}).to_string(),
             )
             .await
@@ -75,8 +75,8 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .activate_time_authority_release(
                 &identity,
                 &second_key,
-                1,
-                1,
+                crate::TimeVersion::new(1).unwrap(),
+                crate::TimeWriteGuard::new(1).unwrap(),
                 serde_json::json!({"state": "active"}).to_string(),
             )
             .await
@@ -111,8 +111,20 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
         }
         let other = TimePersistence::new(db.a.clone());
         let (left, right) = tokio::join!(
-            store.activate_time_authority_release(&identity, &left_key, 1, 2, "{}".into()),
-            other.activate_time_authority_release(&identity, &right_key, 1, 2, "{}".into()),
+            store.activate_time_authority_release(
+                &identity,
+                &left_key,
+                crate::TimeVersion::new(1).unwrap(),
+                crate::TimeWriteGuard::new(2).unwrap(),
+                "{}".into()
+            ),
+            other.activate_time_authority_release(
+                &identity,
+                &right_key,
+                crate::TimeVersion::new(1).unwrap(),
+                crate::TimeWriteGuard::new(2).unwrap(),
+                "{}".into()
+            ),
         );
         assert_ne!(
             left.is_ok(),
@@ -147,6 +159,90 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
                 .state,
             TimeAuthorityReleaseState::Retired
         );
+
+        // Exhaustion in the previous release must roll back the new release and
+        // pointer together; neither may commit before retirement succeeds.
+        let winner_record = time_record("time_authority_release", winner);
+        db.a.client()
+            .query("UPDATE $record SET record_version = $version RETURN NONE;")
+            .bind(("record", winner_record.clone()))
+            .bind(("version", i64::MAX))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        let candidate =
+            AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
+        store
+            .create_time_authority_release(create_release(candidate.clone(), "e".repeat(64)))
+            .await
+            .unwrap();
+        assert!(
+            store
+                .activate_time_authority_release(
+                    &identity,
+                    &candidate,
+                    TimeVersion::FIRST,
+                    TimeWriteGuard::Existing(TimeVersion::new(3).unwrap()),
+                    "{}".into(),
+                )
+                .await
+                .is_err()
+        );
+        let unchanged = store
+            .time_authority_release(identity.tenant_id, &candidate)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(unchanged.state, TimeAuthorityReleaseState::Staged);
+        assert_eq!(unchanged.record_version, 1);
+        let unchanged = store
+            .active_time_authority(identity.tenant_id, TimeDatasetKind::LeapSeconds)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(unchanged.release_key, winner.as_str());
+        assert_eq!(unchanged.record_version, 3);
+        let unchanged = store
+            .time_authority_release(identity.tenant_id, winner)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(unchanged.state, TimeAuthorityReleaseState::Active);
+        assert_eq!(unchanged.record_version, i64::MAX);
+
+        db.a.client()
+            .query("UPDATE $record SET record_version = $version RETURN NONE;")
+            .bind(("record", winner_record))
+            .bind(("version", 2_i64))
+            .await
+            .unwrap()
+            .check()
+            .unwrap();
+        store
+            .activate_time_authority_release(
+                &identity,
+                &candidate,
+                TimeVersion::FIRST,
+                TimeWriteGuard::Existing(TimeVersion::new(3).unwrap()),
+                "{}".into(),
+            )
+            .await
+            .unwrap();
+        let pointer = store
+            .active_time_authority(identity.tenant_id, TimeDatasetKind::LeapSeconds)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(pointer.release_key, candidate.as_str());
+        assert_eq!(pointer.record_version, 4);
+        let retired = store
+            .time_authority_release(identity.tenant_id, winner)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(retired.state, TimeAuthorityReleaseState::Retired);
+        assert_eq!(retired.record_version, 3);
     })
     .await
     .expect("authority activation qualification exceeded 90 seconds");

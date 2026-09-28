@@ -168,9 +168,10 @@ impl TimeApplication {
                 () = tokio::time::sleep(delay) => {
                     if let Ok(Some(current)) = state.catalog.event(&scope, &event.event_id).await
                         && current.state == crate::contract::TemporalEventState::Scheduled
+                        && let Ok(version) = crate::TimeVersion::new(current.record_version)
                         && state
                             .catalog
-                            .mark_event_due(&scope, &current.event_id, current.record_version)
+                            .mark_event_due(&scope, &current.event_id, version)
                             .await
                             .is_ok()
                     {

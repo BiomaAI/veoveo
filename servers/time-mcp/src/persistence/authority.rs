@@ -32,10 +32,9 @@ impl TimePersistence {
     pub(crate) async fn replace_time_source(
         &self,
         draft: TimeSourceDraft,
-        expected_record_version: i64,
+        expected_record_version: TimeVersion,
     ) -> Result<TimeSourceRecord, PersistenceError> {
         validate_source(&draft)?;
-        validate_positive("expected_record_version", expected_record_version)?;
         let mut response = self.client().query("UPDATE $record MERGE { name: $name, dataset_kind: $dataset_kind, source_url: $source_url, expected_content_type: $expected_content_type, enabled: $enabled, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
             .bind(("record", time_record("time_source", &draft.source_key)))
             .bind(("tenant", draft.identity.tenant_id.record_id()))
@@ -45,8 +44,8 @@ impl TimePersistence {
             .bind(("expected_content_type", draft.expected_content_type))
             .bind(("enabled", draft.enabled))
             .bind(("canonical_json", draft.canonical_json))
-            .bind(("expected", expected_record_version))
-            .bind(("next", expected_record_version + 1)).await?.check()?;
+            .bind(("expected", expected_record_version.get() as i64))
+            .bind(("next", expected_record_version.checked_next()?.get() as i64)).await?.check()?;
         response
             .take::<Option<TimeSourceRecord>>(0)?
             .ok_or_else(|| conflict("source", draft.source_key.to_string()))
@@ -140,23 +139,26 @@ impl TimePersistence {
         &self,
         identity: &PlatformIdentity,
         release_key: &AuthorityReleaseId,
-        expected_release_version: i64,
-        expected_pointer_version: i64,
+        expected_release_version: TimeVersion,
+        expected_pointer_version: TimeWriteGuard,
         canonical_json: String,
     ) -> Result<TimeAuthorityReleaseRecord, PersistenceError> {
         validate_key("release_key", release_key, "time-release-")?;
-        validate_positive("expected_release_version", expected_release_version)?;
+        let next_release = expected_release_version.checked_next()?;
+        let next_pointer = expected_pointer_version.next_version()?;
         validate_json(&canonical_json)?;
         let release = self
             .time_authority_release(identity.tenant_id, release_key)
             .await?
             .ok_or_else(|| conflict("authority release", release_key.to_string()))?;
-        if release.record_version != expected_release_version {
+        if release.record_version != expected_release_version.get() as i64 {
             return Err(conflict("authority release", release_key.to_string()));
         }
         let kind = release.dataset_kind;
         let pointer = self.active_time_authority(identity.tenant_id, kind).await?;
-        if pointer.as_ref().map_or(0, |record| record.record_version) != expected_pointer_version {
+        if pointer.as_ref().map_or(0, |record| record.record_version)
+            != expected_pointer_version.expected_version() as i64
+        {
             return Err(conflict(
                 "active authority",
                 dataset_kind_key(kind).to_owned(),
@@ -167,9 +169,9 @@ impl TimePersistence {
         let retire_previous = previous
             .as_ref()
             .filter(|previous| previous.as_str() != release_key.as_str())
-            .map(|_| "UPDATE ONLY $previous_release MERGE { state: 'retired', record_version: record_version + 1, updated_at: time::now() } WHERE tenant = $tenant;")
+            .map(|_| "LET $previous_retired = (UPDATE ONLY $previous_release MERGE { state: 'retired', record_version: record_version + 1, updated_at: time::now() } WHERE tenant = $tenant AND record_version > 0 AND record_version < $max_version RETURN AFTER); IF $previous_retired = NONE { THROW 'time_previous_authority_conflict'; };")
             .unwrap_or_default();
-        let pointer_statement = if expected_pointer_version == 0 {
+        let pointer_statement = if expected_pointer_version == TimeWriteGuard::Absent {
             "CREATE ONLY $active CONTENT { tenant: $tenant, dataset_kind: $dataset_kind, release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: 1 } RETURN NONE;"
         } else {
             "LET $pointer_updated = (UPDATE ONLY $active MERGE { release_key: $release_key, previous_release_key: $previous, activated_by: $owner, activated_at: time::now(), record_version: $next_pointer } WHERE tenant = $tenant AND record_version = $expected_pointer RETURN AFTER); IF $pointer_updated = NONE { THROW 'time_active_authority_conflict'; };"
@@ -196,10 +198,14 @@ impl TimePersistence {
             .bind(("dataset_kind", kind))
             .bind(("release_key", release_key.to_string()))
             .bind(("previous", previous))
-            .bind(("expected_pointer", expected_pointer_version))
-            .bind(("next_pointer", expected_pointer_version + 1))
-            .bind(("expected_release", expected_release_version))
-            .bind(("next_release", expected_release_version + 1))
+            .bind((
+                "expected_pointer",
+                expected_pointer_version.expected_version() as i64,
+            ))
+            .bind(("next_pointer", next_pointer.get() as i64))
+            .bind(("max_version", i64::MAX))
+            .bind(("expected_release", expected_release_version.get() as i64))
+            .bind(("next_release", next_release.get() as i64))
             .bind(("canonical_json", canonical_json))
             .await?
             .check()

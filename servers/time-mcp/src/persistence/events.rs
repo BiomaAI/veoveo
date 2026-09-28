@@ -71,14 +71,14 @@ impl TimePersistence {
         &self,
         identity: &PlatformIdentity,
         event_key: &TemporalEventId,
-        expected: i64,
+        expected: TimeVersion,
         state: TimeTemporalEventState,
         canonical_json: String,
     ) -> Result<TimeTemporalEventRecord, PersistenceError> {
         validate_key("event_key", event_key, "event-")?;
         validate_json(&canonical_json)?;
         let mut response = self.client().query("UPDATE $record MERGE { state: $state, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND owner = $owner AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_temporal_event", event_key))).bind(("tenant", identity.tenant_id.record_id())).bind(("owner", identity.principal_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).bind(("expected", expected)).bind(("next", expected + 1)).await?.check()?;
+            .bind(("record", time_record("time_temporal_event", event_key))).bind(("tenant", identity.tenant_id.record_id())).bind(("owner", identity.principal_id.record_id())).bind(("state", state)).bind(("canonical_json", canonical_json)).bind(("expected", expected.get() as i64)).bind(("next", expected.checked_next()?.get() as i64)).await?.check()?;
         response
             .take::<Option<TimeTemporalEventRecord>>(0)?
             .ok_or_else(|| conflict("temporal event", event_key.to_string()))

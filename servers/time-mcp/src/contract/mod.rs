@@ -1,13 +1,17 @@
 mod admin;
 mod calendar;
+mod clock_policy;
 mod ids;
 mod resource;
 mod scopes;
 mod time;
+mod version;
 
 pub use admin::*;
 pub use calendar::*;
+pub use clock_policy::*;
 pub use ids::*;
 pub use resource::*;
 pub use scopes::*;
 pub use time::*;
+pub use version::*;

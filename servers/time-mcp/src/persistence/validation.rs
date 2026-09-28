@@ -48,15 +48,6 @@ pub(super) fn validate_event(draft: &TimeTemporalEventDraft) -> Result<(), Persi
     validate_json(&draft.canonical_json)
 }
 
-pub(super) fn validate_clock_policy(draft: &TimeClockPolicyDraft) -> Result<(), PersistenceError> {
-    validate_positive("maximum_error_nanoseconds", draft.maximum_error_nanoseconds)?;
-    if !(1..=15).contains(&draft.maximum_stratum) {
-        return Err(invalid("maximum_stratum", "must be in 1..=15"));
-    }
-    validate_positive("minimum_source_diversity", draft.minimum_source_diversity)?;
-    validate_positive("maximum_holdover_seconds", draft.maximum_holdover_seconds)
-}
-
 pub(crate) fn validate_key(
     field: &'static str,
     value: impl AsRef<str>,
@@ -198,25 +189,5 @@ mod tests {
         );
         assert!(validate_https_url("source_url", "http://example.test/tzdb").is_err());
         assert!(validate_https_url("source_url", "https://user@example.test/tzdb").is_err());
-    }
-
-    #[test]
-    fn clock_policy_has_operational_bounds() {
-        let identity = PlatformIdentity {
-            tenant_id: TenantId::new(),
-            principal_id: veoveo_platform_store::PrincipalId::new(),
-            tenant_key: "tenant-test".to_owned(),
-            principal_key: "principal-test".to_owned(),
-        };
-        assert!(
-            validate_clock_policy(&TimeClockPolicyDraft {
-                identity,
-                maximum_error_nanoseconds: 1_000_000,
-                maximum_stratum: 4,
-                minimum_source_diversity: 2,
-                maximum_holdover_seconds: 300
-            })
-            .is_ok()
-        );
     }
 }

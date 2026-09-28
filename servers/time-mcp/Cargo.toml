@@ -20,6 +20,10 @@ required-features = ["contract"]
 name = "resource_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "numeric_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

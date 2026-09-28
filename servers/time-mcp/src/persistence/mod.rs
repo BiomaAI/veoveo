@@ -2,8 +2,8 @@
 
 use crate::catalog::TimeCompletion;
 use crate::contract::{
-    AuthorityReleaseId, CalendarId, MissionEpochId, TemporalEventId, TimeAcquisitionId,
-    TimeSourceId, TimeVersion,
+    AuthorityReleaseId, CalendarId, ClockQualityPolicy, MissionEpochId, TemporalEventId,
+    TimeAcquisitionId, TimeSourceId, TimeVersion, TimeVersionError, TimeWriteGuard,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -43,6 +43,8 @@ impl TimePersistence {
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum PersistenceError {
+    #[error(transparent)]
+    Version(#[from] TimeVersionError),
     #[error(transparent)]
     Database(#[from] surrealdb::Error),
     #[error("invalid time field {field}: {reason}")]

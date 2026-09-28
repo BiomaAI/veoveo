@@ -89,7 +89,7 @@ pub struct CreateSourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaceSourceRequest {
     pub source: TimeSource,
-    pub expected_record_version: u64,
+    pub expected_record_version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -101,8 +101,8 @@ pub struct CreateAcquisitionRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ActivateReleaseRequest {
-    pub expected_release_record_version: u64,
-    pub expected_active_pointer_version: u64,
+    pub expected_release_record_version: super::TimeVersion,
+    pub expected_active_pointer_version: super::TimeWriteGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -126,7 +126,7 @@ pub struct UpsertMissionEpochRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct ReplaceClockQualityPolicyRequest {
     pub policy: ClockQualityPolicy,
-    pub expected_record_version: u64,
+    pub expected_record_version: super::TimeWriteGuard,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

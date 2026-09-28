@@ -304,7 +304,7 @@ pub(super) async fn create_epoch(
 pub(super) async fn get_clock_policy(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-) -> ApiResult<(ClockQualityPolicy, u64)> {
+) -> ApiResult<(ClockQualityPolicy, crate::TimeVersion)> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
     Ok(Json(state.catalog.clock_policy(&scope).await?.ok_or_else(
         || ApiError::not_found("clock policy is not configured"),
@@ -315,7 +315,7 @@ pub(super) async fn replace_clock_policy(
     State(state): State<Arc<TimeApplication>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
     Json(request): Json<ReplaceClockQualityPolicyRequest>,
-) -> ApiResult<(ClockQualityPolicy, u64)> {
+) -> ApiResult<(ClockQualityPolicy, crate::TimeVersion)> {
     let scope = state.scope(&identity).await.map_err(ApiError::internal)?;
     let result = state
         .catalog

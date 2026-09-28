@@ -185,18 +185,18 @@ pub fn assess_clock(quality: ClockQuality, policy: ClockQualityPolicy) -> ClockA
     if !quality.synchronized {
         violations.push("clock is not synchronized".to_owned());
     }
-    if quality.error_bound_nanoseconds > policy.maximum_error_nanoseconds {
+    if quality.error_bound_nanoseconds > policy.maximum_error_nanoseconds() {
         violations.push("clock error bound exceeds policy".to_owned());
     }
-    if quality.stratum > policy.maximum_stratum {
+    if quality.stratum > policy.maximum_stratum() {
         violations.push("clock stratum exceeds policy".to_owned());
     }
-    if quality.source_diversity < policy.minimum_source_diversity {
+    if quality.source_diversity < policy.minimum_source_diversity() {
         violations.push("clock source diversity is below policy".to_owned());
     }
     if quality
         .holdover_age_seconds
-        .is_some_and(|age| age > policy.maximum_holdover_seconds)
+        .is_some_and(|age| age > policy.maximum_holdover_seconds())
     {
         violations.push("clock holdover age exceeds policy".to_owned());
     }
@@ -239,12 +239,13 @@ mod tests {
         assert!(quality.traceability.contains(&"nts".to_owned()));
         let assessment = assess_clock(
             quality,
-            ClockQualityPolicy {
-                maximum_error_nanoseconds: 10_000_000,
-                maximum_stratum: 4,
-                minimum_source_diversity: 1,
-                maximum_holdover_seconds: 60,
-            },
+            ClockQualityPolicy::builder()
+                .maximum_error_nanoseconds(10_000_000)
+                .maximum_stratum(4)
+                .minimum_source_diversity(1)
+                .maximum_holdover_seconds(60)
+                .build()
+                .expect("valid built-in Time clock policy"),
         );
         assert!(assessment.acceptable);
     }

@@ -14,6 +14,7 @@ use veoveo_platform_store::{PlatformStore, PrincipalKind};
 use crate::test_store as fixture;
 
 mod metadata;
+mod numeric;
 
 async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeAccessContext {
     TimeAccessContext {
@@ -144,7 +145,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .transition_time_temporal_event(
                     &owner.identity,
                     &peer_event,
-                    1,
+                    crate::TimeVersion::FIRST,
                     StoredEventState::Cancelled,
                     "{}".into(),
                 )
@@ -163,13 +164,18 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         let own_id = TemporalEventId::new("event-ffffffff-ffff-7000-8000-000000000000").unwrap();
         assert_eq!(
             catalog
-                .cancel_event(&owner, &own_id, 1)
+                .cancel_event(&owner, &own_id, crate::TimeVersion::FIRST)
                 .await
                 .unwrap()
                 .state,
             TemporalEventState::Cancelled
         );
-        assert!(catalog.cancel_event(&owner, &own_id, 1).await.is_err());
+        assert!(
+            catalog
+                .cancel_event(&owner, &own_id, crate::TimeVersion::FIRST)
+                .await
+                .is_err()
+        );
 
         let matches = TimePersistence::new(db.a.clone())
             .complete_time_values(&owner.identity, TimeCompletion::EventId, "", 101)

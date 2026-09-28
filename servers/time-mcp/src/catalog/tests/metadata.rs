@@ -6,7 +6,12 @@ use std::{collections::BTreeMap, time::Duration};
 use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::PlatformStore;
 
-async fn set(store: &PlatformStore, record: &RecordId, field: &str, value: impl SurrealValue) {
+pub(super) async fn set(
+    store: &PlatformStore,
+    record: &RecordId,
+    field: &str,
+    value: impl SurrealValue,
+) {
     // Deliberate corruption through the fixture writer, bypassing catalog admission.
     store
         .client()
@@ -237,7 +242,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             );
             assert!(
                 catalog
-                    .cancel_event(&owner, &event.event_id, 1)
+                    .cancel_event(&owner, &event.event_id, crate::TimeVersion::FIRST)
                     .await
                     .is_err(),
                 "{field}"
@@ -295,7 +300,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
         set(&db.a, &record, "record_version", 1_i64).await;
         assert_eq!(
             catalog
-                .cancel_event(&owner, &event.event_id, 1)
+                .cancel_event(&owner, &event.event_id, crate::TimeVersion::FIRST)
                 .await
                 .unwrap()
                 .state,
@@ -384,7 +389,12 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .await
             .unwrap();
         catalog
-            .activate_release(&owner, &release.release_id, 1, 0)
+            .activate_release(
+                &owner,
+                &release.release_id,
+                crate::TimeVersion::FIRST,
+                crate::TimeWriteGuard::new(0).unwrap(),
+            )
             .await
             .unwrap();
         let record = RecordId::new("time_authority_release", release.release_id.to_string());
@@ -395,7 +405,12 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         second.source_digest_sha256 = "b".repeat(64);
         let second = catalog.create_release(&owner, second).await.unwrap();
         catalog
-            .activate_release(&owner, &second.release_id, 1, 1)
+            .activate_release(
+                &owner,
+                &second.release_id,
+                crate::TimeVersion::FIRST,
+                crate::TimeWriteGuard::new(1).unwrap(),
+            )
             .await
             .unwrap();
         assert_eq!(body(&db.a, &record).await, active_body);

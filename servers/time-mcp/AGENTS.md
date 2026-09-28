@@ -65,6 +65,13 @@ leap second assumptions.
   ordering fields, redacted diagnostics and immutable acquisition metadata. Preserve
   the lifecycle-column rules and upgrade requirements in the design's Retained Catalog
   Metadata section; stale release-state bodies can represent valid retired records.
+- `src/contract/clock_policy.rs` owns the checked policy builder and JSON bounds.
+  Positive `TimeVersion` guards and optional-row `TimeWriteGuard` guards stay typed
+  through writes; numeric zero means absence only for clock and active-pointer writes.
+  Source creation keeps its existing zero-version sentinel. Check every increment.
+- `src/catalog/tests/numeric.rs` qualifies clock scalar rejection, optimistic clock
+  writes and exhausted versions without row mutation. Authority qualification verifies
+  that retirement exhaustion rolls back both the candidate and pointer.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -77,8 +84,8 @@ and collection cursors. Every resource route uses the shared URI builder and par
 The MCP feature associates those types through `McpServerContract`; hosted startup,
 discovery and scope membership consume its checked setup.
 The runtime owns typed persistence inputs, the stored UUID key profile and checked
-catalog body decoding. Broader DTO typing, pointer/parent and clock scalar admission,
-and installed qualification remain work in the
+catalog body decoding, clock-policy admission and checked version updates. Broader
+DTO typing, pointer/parent consistency and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

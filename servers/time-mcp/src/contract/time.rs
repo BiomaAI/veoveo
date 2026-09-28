@@ -1,3 +1,4 @@
+use super::ClockQualityPolicy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::Sha256Digest;
@@ -192,14 +193,6 @@ pub struct ClockQuality {
     pub source_diversity: u32,
     pub traceability: Vec<String>,
     pub observed_at: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ClockQualityPolicy {
-    pub maximum_error_nanoseconds: u64,
-    pub maximum_stratum: u8,
-    pub minimum_source_diversity: u32,
-    pub maximum_holdover_seconds: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

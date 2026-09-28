@@ -106,7 +106,7 @@ impl TimePersistence {
             validate_key("staged_release_key", release, "time-release-")?;
         }
         let mut response = self.client().query("UPDATE $record MERGE { status: $status, phase: $phase, staged_release_key: $staged, canonical_json: $canonical_json, record_version: $next, updated_at: time::now() } WHERE tenant = $tenant AND record_version = $expected RETURN AFTER;")
-            .bind(("record", time_record("time_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged", update.staged_release_key.map(String::from))).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version)).bind(("next", update.expected_record_version + 1)).await?.check()?;
+            .bind(("record", time_record("time_acquisition", &update.acquisition_key))).bind(("tenant", update.tenant_id.record_id())).bind(("status", update.status)).bind(("phase", update.phase)).bind(("staged", update.staged_release_key.map(String::from))).bind(("canonical_json", update.canonical_json)).bind(("expected", update.expected_record_version.get() as i64)).bind(("next", update.expected_record_version.checked_next()?.get() as i64)).await?.check()?;
         response
             .take::<Option<TimeAcquisitionRecord>>(0)?
             .ok_or_else(|| conflict("acquisition", update.acquisition_key.to_string()))

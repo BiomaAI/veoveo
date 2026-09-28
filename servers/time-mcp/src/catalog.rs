@@ -1,3 +1,4 @@
+mod clock;
 mod pages;
 mod records;
 
@@ -30,19 +31,18 @@ pub enum TimeCompletion {
 use crate::persistence::{
     TimeAcquisitionDraft, TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
     TimeAuthorityReleaseDraft, TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState,
-    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft,
-    TimePersistence, TimeSourceDraft, TimeTemporalEventDraft,
-    TimeTemporalEventState as StoreEventState,
+    TimeCalendarVersionDraft, TimeDatasetKind, TimeMissionEpochDraft, TimePersistence,
+    TimeSourceDraft, TimeTemporalEventDraft, TimeTemporalEventState as StoreEventState,
 };
 use anyhow::{Context, Result, bail};
 use veoveo_platform_store::{PlatformIdentity, PlatformStore};
 use veoveo_types::Sha256Digest;
 
 use crate::contract::{
-    AuthorityRelease, AuthorityReleaseState, CalendarId, ClockQualityPolicy, MissionEpoch,
-    OperationalCalendar, TemporalEvent, TemporalEventId, TemporalEventState, TimeAcquisition,
-    TimeAcquisitionId, TimeAcquisitionStatus, TimeAuthorityReference, TimeAuthorityReleaseUri,
-    TimeAuthoritySource, TimeSource, TimeSourceId,
+    AuthorityRelease, AuthorityReleaseState, CalendarId, MissionEpoch, OperationalCalendar,
+    TemporalEvent, TemporalEventId, TemporalEventState, TimeAcquisition, TimeAcquisitionId,
+    TimeAcquisitionStatus, TimeAuthorityReference, TimeAuthorityReleaseUri, TimeAuthoritySource,
+    TimeSource, TimeSourceId,
 };
 
 #[derive(Clone, Debug)]
@@ -108,9 +108,9 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         mut source: TimeSource,
-        expected: u64,
+        expected: crate::TimeVersion,
     ) -> Result<TimeSource> {
-        source.record_version = expected + 1;
+        source.record_version = expected.checked_next()?.get();
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
             .persistence
@@ -125,7 +125,7 @@ impl TimeCatalog {
                     enabled: source.enabled,
                     canonical_json,
                 },
-                expected.try_into()?,
+                expected,
             )
             .await?;
         source_from_record(record)
@@ -203,8 +203,8 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         id: &crate::contract::AuthorityReleaseId,
-        expected_release: u64,
-        expected_pointer: u64,
+        expected_release: crate::TimeVersion,
+        expected_pointer: crate::TimeWriteGuard,
     ) -> Result<AuthorityRelease> {
         let mut release = self
             .release(scope, id)
@@ -214,15 +214,15 @@ impl TimeCatalog {
             anyhow::bail!("only a staged authority release can be activated");
         }
         release.state = AuthorityReleaseState::Active;
-        release.record_version = expected_release + 1;
+        release.record_version = expected_release.checked_next()?.get();
         let canonical_json = serde_json::to_string(&release)?;
         let record = self
             .persistence
             .activate_time_authority_release(
                 &scope.identity,
                 id,
-                expected_release.try_into()?,
-                expected_pointer.try_into()?,
+                expected_release,
+                expected_pointer,
                 canonical_json,
             )
             .await?;
@@ -370,7 +370,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         mut acquisition: TimeAcquisition,
     ) -> Result<TimeAcquisition> {
-        let expected = acquisition.record_version;
+        let expected = crate::TimeVersion::new(acquisition.record_version)?;
+        let next = expected.checked_next()?;
         let current = self
             .acquisition(scope, &acquisition.acquisition_id)
             .await?
@@ -382,7 +383,7 @@ impl TimeCatalog {
                 && acquisition.created_at == current.created_at,
             "an acquisition update cannot change its source, expected digest or creation time"
         );
-        acquisition.record_version += 1;
+        acquisition.record_version = next.get();
         acquisition.updated_at = chrono::Utc::now();
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
@@ -390,7 +391,7 @@ impl TimeCatalog {
             .update_time_acquisition(TimeAcquisitionUpdate {
                 tenant_id: scope.identity.tenant_id,
                 acquisition_key: acquisition.acquisition_id.clone(),
-                expected_record_version: expected.try_into()?,
+                expected_record_version: expected,
                 status: acquisition_state(acquisition.status),
                 phase: acquisition.phase.clone(),
                 staged_release_key: acquisition.staged_release_id.clone(),
@@ -506,20 +507,20 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         id: &TemporalEventId,
-        expected: u64,
+        expected: crate::TimeVersion,
     ) -> Result<TemporalEvent> {
         let mut event = self
             .event(scope, id)
             .await?
             .context("unknown temporal event")?;
         event.state = TemporalEventState::Cancelled;
-        event.record_version = expected + 1;
+        event.record_version = expected.checked_next()?.get();
         let record = self
             .persistence
             .transition_time_temporal_event(
                 &scope.identity,
                 id,
-                expected.try_into()?,
+                expected,
                 StoreEventState::Cancelled,
                 serde_json::to_string(&event)?,
             )
@@ -531,7 +532,7 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         id: &TemporalEventId,
-        expected: u64,
+        expected: crate::TimeVersion,
     ) -> Result<TemporalEvent> {
         let mut event = self
             .event(scope, id)
@@ -541,61 +542,18 @@ impl TimeCatalog {
             return Ok(event);
         }
         event.state = TemporalEventState::Due;
-        event.record_version = expected + 1;
+        event.record_version = expected.checked_next()?.get();
         let record = self
             .persistence
             .transition_time_temporal_event(
                 &scope.identity,
                 id,
-                expected.try_into()?,
+                expected,
                 StoreEventState::Due,
                 serde_json::to_string(&event)?,
             )
             .await?;
         event_from_record(record)
-    }
-
-    pub async fn clock_policy(
-        &self,
-        scope: &TimeAccessContext,
-    ) -> Result<Option<(ClockQualityPolicy, u64)>> {
-        Ok(self
-            .persistence
-            .time_clock_policy(scope.identity.tenant_id)
-            .await?
-            .map(|record| {
-                (
-                    ClockQualityPolicy {
-                        maximum_error_nanoseconds: record.maximum_error_nanoseconds as u64,
-                        maximum_stratum: record.maximum_stratum as u8,
-                        minimum_source_diversity: record.minimum_source_diversity as u32,
-                        maximum_holdover_seconds: record.maximum_holdover_seconds as u64,
-                    },
-                    record.record_version as u64,
-                )
-            }))
-    }
-
-    pub async fn replace_clock_policy(
-        &self,
-        scope: &TimeAccessContext,
-        policy: ClockQualityPolicy,
-        expected: u64,
-    ) -> Result<(ClockQualityPolicy, u64)> {
-        let record = self
-            .persistence
-            .replace_time_clock_policy(
-                TimeClockPolicyDraft {
-                    identity: scope.identity.clone(),
-                    maximum_error_nanoseconds: policy.maximum_error_nanoseconds.try_into()?,
-                    maximum_stratum: i64::from(policy.maximum_stratum),
-                    minimum_source_diversity: i64::from(policy.minimum_source_diversity),
-                    maximum_holdover_seconds: policy.maximum_holdover_seconds.try_into()?,
-                },
-                expected.try_into()?,
-            )
-            .await?;
-        Ok((policy, record.record_version.try_into()?))
     }
 }
 
