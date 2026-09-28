@@ -15,7 +15,11 @@ impl TimePersistence {
             .await?
         {
             if existing.source_key == draft.source_key.as_str()
-                && existing.expected_source_digest_sha256 == draft.expected_source_digest_sha256
+                && existing.expected_source_digest_sha256.as_deref()
+                    == draft
+                        .expected_source_digest_sha256
+                        .as_ref()
+                        .map(AuthoritySourceDigest::as_hex)
             {
                 return Ok(existing);
             }
@@ -30,7 +34,7 @@ impl TimePersistence {
             owner: draft.identity.principal_id.record_id(),
             acquisition_key: draft.acquisition_key.to_string(),
             source_key: draft.source_key.to_string(),
-            expected_source_digest_sha256: draft.expected_source_digest_sha256,
+            expected_source_digest_sha256: draft.expected_source_digest_sha256.map(String::from),
             idempotency_key: draft.idempotency_key,
             status: draft.status,
             phase: draft.phase,

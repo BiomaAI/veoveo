@@ -24,6 +24,10 @@ required-features = ["contract"]
 name = "numeric_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "digest_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

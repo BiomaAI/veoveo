@@ -1,4 +1,5 @@
 mod activation;
+mod digest;
 use super::*;
 use crate::{contract::*, test_store::TestDb};
 use chrono::Utc;
@@ -142,7 +143,7 @@ async fn stage(
                 state: AuthorityReleaseState::Staged,
                 version_label: "fixture".into(),
                 source_url: source.url,
-                source_digest_sha256: hex::encode(Sha256::digest(bytes)),
+                source_digest_sha256: hex::encode(Sha256::digest(bytes)).parse().unwrap(),
                 artifact_path: path.to_str().unwrap().into(),
                 retrieved_at: now,
                 validated_at: now,

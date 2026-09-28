@@ -87,7 +87,7 @@ impl TimePersistence {
             state: draft.state,
             version_label: draft.version_label,
             source_url: draft.source_url,
-            source_digest_sha256: draft.source_digest_sha256,
+            source_digest_sha256: draft.source_digest_sha256.into(),
             artifact_path: draft.artifact_path,
             retrieved_at: draft.retrieved_at,
             validated_at: draft.validated_at,

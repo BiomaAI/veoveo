@@ -56,7 +56,7 @@ async fn release(
                 state: AuthorityReleaseState::Staged,
                 version_label: "test".into(),
                 source_url: source.url,
-                source_digest_sha256: "a".repeat(64),
+                source_digest_sha256: "a".repeat(64).parse().unwrap(),
                 artifact_path: "/tmp/time-authority-test".into(),
                 retrieved_at: now,
                 validated_at: now,

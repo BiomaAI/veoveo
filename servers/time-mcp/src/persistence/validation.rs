@@ -17,7 +17,6 @@ pub(super) fn validate_release(draft: &TimeAuthorityReleaseDraft) -> Result<(), 
     validate_key("source_key", &draft.source_key, "time-source-")?;
     validate_text("version_label", &draft.version_label, 256)?;
     validate_https_url("source_url", &draft.source_url)?;
-    validate_sha256("source_digest_sha256", &draft.source_digest_sha256)?;
     validate_absolute_path("artifact_path", &draft.artifact_path)?;
     if draft.validated_at < draft.retrieved_at {
         return Err(invalid("validated_at", "must not precede retrieval"));
@@ -132,16 +131,6 @@ pub(super) fn validate_absolute_path(
 ) -> Result<(), PersistenceError> {
     if !value.starts_with('/') || value.contains("/../") || value.chars().any(char::is_control) {
         return Err(invalid(field, "must be a confined absolute path"));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_sha256(field: &'static str, value: &str) -> Result<(), PersistenceError> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(invalid(
-            field,
-            "must contain 64 hexadecimal SHA-256 characters",
-        ));
     }
     Ok(())
 }

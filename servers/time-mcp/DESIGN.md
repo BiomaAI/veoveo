@@ -49,6 +49,7 @@ retain the `time://` scheme.
 | [RFC 9557](https://www.rfc-editor.org/rfc/rfc9557.html) | Timestamp input with an IANA time-zone annotation and explicit ambiguity policy. |
 | IANA Time Zone Database and [TZif RFC 8536](https://www.rfc-editor.org/rfc/rfc8536.html) | Versioned civil-time authority, compiled release products, zone completion, and fold/gap resolution. |
 | IANA `leap-seconds.list` | Versioned TAI-UTC transition authority. Every canonical instant binds its TZDB and leap-second releases. |
+| SHA-256 representations | Time's admin and stored metadata use 64 bare hexadecimal digits with spelling preserved. Shared provenance uses the foundational lowercase `sha256:` representation; `AuthoritySourceDigest` owns the adapter. |
 | TAI, UTC, TT, TDB, GPS, and Galileo system time | Typed projections from one integral TAI instant. The server records authority and uncertainty rather than treating scales as interchangeable strings. |
 | [NTPv4 RFC 5905](https://www.rfc-editor.org/rfc/rfc5905.html) and [Network Time Security RFC 8915](https://www.rfc-editor.org/rfc/rfc8915.html) | Approved node clocks may use NTP/NTS. Time MCP consumes a bounded `ntpd-rs` observation; it does not act as an NTP network endpoint. |
 | HTTPS | Registered IANA authority sources are acquired under fixed host, media, digest, size, and elapsed-time policy. |
@@ -197,6 +198,23 @@ releases name the registered source and producing acquisition. Image-provided
 authorities use the explicit `bootstrap` source kind and a digest of the packaged
 source file. Consumers can therefore admit a result from its returned references
 without searching the authority catalog.
+
+`AuthoritySourceDigest` validates the existing bare-hexadecimal admin format through
+the foundational `Sha256Digest`. The type preserves uppercase and lowercase spelling
+on serialization and in acquisition idempotency comparisons. Download verification
+compares the canonical digest values, and provenance emits the lowercase `sha256:`
+form. This distinction preserves existing requests while admitting uppercase retained
+releases into provenance. Release and acquisition metadata, acquisition requests and
+persistence drafts carry the type; only driver records contain digest strings.
+The JSON Schema enforces exactly 64 hexadecimal characters, and diagnostics do not
+quote a rejected digest.
+
+Valid stored digests need no conversion. Retained-catalog preflight must check each
+release digest and each present acquisition digest even when the JSON body matches
+the indexed value. Malformed records require the operator repair and coordinated
+drain described in Retained Catalog Metadata. Native tests cover preserved spelling,
+idempotency, provenance and matching malformed copies; installed qualification uses
+the same upgrade and snapshot rollback procedure.
 
 ### Acquisition Flow
 
@@ -752,6 +770,7 @@ Examples of agent requests include:
 | `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
 | `src/contract/clock_policy.rs`, `src/contract/version.rs` | validated policy builder, numeric request schemas, positive versions and optional-row guards |
+| `src/contract/digest.rs` | Time's bare-hexadecimal digest adapter over the foundational SHA-256 type |
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |

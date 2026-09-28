@@ -70,6 +70,11 @@ leap second assumptions.
   Positive `TimeVersion` guards and optional-row `TimeWriteGuard` guards stay typed
   through writes; numeric zero means absence only for clock and active-pointer writes.
   Source creation keeps its existing zero-version sentinel. Check every increment.
+- `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
+  equality. Download checks compare its canonical digest values; provenance uses the
+  foundational `sha256:` representation. Keep digests typed through persistence drafts.
+  `tests/digest_contract.rs` and `src/registry/tests/digest.rs` qualify the wire adapter,
+  uppercase retained records and malformed matching body/column values.
 - `src/catalog/tests/numeric.rs` qualifies clock scalar rejection, optimistic clock
   writes and exhausted versions without row mutation. Authority qualification verifies
   that retirement exhaustion rolls back both the candidate and pointer.

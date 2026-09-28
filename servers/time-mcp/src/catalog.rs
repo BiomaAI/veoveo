@@ -38,7 +38,6 @@ use crate::persistence::{
 };
 use anyhow::{Context, Result, bail};
 use veoveo_platform_store::{PlatformIdentity, PlatformStore};
-use veoveo_types::Sha256Digest;
 
 use crate::contract::{
     AuthorityRelease, AuthorityReleaseState, CalendarId, MissionEpoch, OperationalCalendar,
@@ -243,7 +242,7 @@ impl TimeCatalog {
                 source_id: release.source_id.clone(),
                 acquisition_id: acquisition.acquisition_id,
             },
-            source_digest: Sha256Digest::from_hex(release.source_digest_sha256.clone())?,
+            source_digest: release.source_digest_sha256.canonical().clone(),
             version_label: release.version_label.clone(),
         })
     }

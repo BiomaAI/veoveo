@@ -378,7 +378,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     dataset_kind: source.dataset_kind,
                     version_label: "2026".into(),
                     source_url: source.url.clone(),
-                    source_digest_sha256: "a".repeat(64),
+                    source_digest_sha256: "a".repeat(64).parse().unwrap(),
                     artifact_path: "/var/lib/veoveo/time/releases/fixture/leaps".into(),
                     state: AuthorityReleaseState::Staged,
                     retrieved_at: now,
@@ -402,7 +402,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let mut second = release.clone();
         second.release_id =
             AuthorityReleaseId::new("time-release-00000000-0000-7000-8000-000000000002").unwrap();
-        second.source_digest_sha256 = "b".repeat(64);
+        second.source_digest_sha256 = "b".repeat(64).parse().unwrap();
         let second = catalog.create_release(&owner, second).await.unwrap();
         catalog
             .activate_release(
@@ -459,7 +459,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     )
                     .unwrap(),
                     source_id: source.source_id.clone(),
-                    expected_source_digest_sha256: Some("a".repeat(64)),
+                    expected_source_digest_sha256: Some("a".repeat(64).parse().unwrap()),
                     status: TimeAcquisitionStatus::Queued,
                     phase: "queued".into(),
                     staged_release_id: Some(release.release_id.clone()),

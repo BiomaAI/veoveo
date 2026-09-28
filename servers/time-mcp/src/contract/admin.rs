@@ -47,7 +47,7 @@ pub struct AuthorityRelease {
     pub dataset_kind: AuthorityDatasetKind,
     pub version_label: String,
     pub source_url: String,
-    pub source_digest_sha256: String,
+    pub source_digest_sha256: super::AuthoritySourceDigest,
     pub artifact_path: String,
     pub state: AuthorityReleaseState,
     pub retrieved_at: DateTime<Utc>,
@@ -70,7 +70,7 @@ pub enum TimeAcquisitionStatus {
 pub struct TimeAcquisition {
     pub acquisition_id: TimeAcquisitionId,
     pub source_id: TimeSourceId,
-    pub expected_source_digest_sha256: Option<String>,
+    pub expected_source_digest_sha256: Option<super::AuthoritySourceDigest>,
     pub status: TimeAcquisitionStatus,
     pub phase: String,
     pub staged_release_id: Option<AuthorityReleaseId>,
@@ -95,7 +95,7 @@ pub struct ReplaceSourceRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateAcquisitionRequest {
     pub source_id: TimeSourceId,
-    pub expected_source_digest_sha256: Option<String>,
+    pub expected_source_digest_sha256: Option<super::AuthoritySourceDigest>,
     pub idempotency_key: String,
 }
 

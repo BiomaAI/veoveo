@@ -21,7 +21,8 @@ use crate::{
     catalog::{TimeAccessContext, TimeCatalog},
     contract::{
         AuthorityDatasetKind, AuthorityRelease, AuthorityReleaseId, AuthorityReleaseState,
-        TimeAcquisition, TimeAcquisitionId, TimeAcquisitionStatus, TimeSource,
+        AuthoritySourceDigest, TimeAcquisition, TimeAcquisitionId, TimeAcquisitionStatus,
+        TimeSource,
     },
 };
 
@@ -65,14 +66,11 @@ impl AcquisitionService {
         &self,
         scope: TimeAccessContext,
         source: TimeSource,
-        expected_digest: Option<String>,
+        expected_digest: Option<AuthoritySourceDigest>,
         idempotency_key: String,
     ) -> Result<TimeAcquisition> {
         if !source.enabled {
             bail!("time authority source is disabled");
-        }
-        if let Some(digest) = &expected_digest {
-            validate_sha256(digest)?;
         }
         if idempotency_key.trim().is_empty() {
             bail!("time acquisition idempotency key must not be empty");
@@ -83,7 +81,7 @@ impl AcquisitionService {
             .await?
         {
             if existing.source_id == source.source_id
-                && existing.expected_source_digest_sha256.as_deref() == expected_digest.as_deref()
+                && existing.expected_source_digest_sha256 == expected_digest
             {
                 return Ok(existing);
             }
@@ -202,7 +200,7 @@ impl AcquisitionService {
         scope: TimeAccessContext,
         source: TimeSource,
         acquisition_id: TimeAcquisitionId,
-        expected_digest: Option<String>,
+        expected_digest: Option<AuthoritySourceDigest>,
         cancellation: CancellationToken,
     ) -> Result<()> {
         self.progress(
@@ -220,7 +218,7 @@ impl AcquisitionService {
         let digest = self.download(&source, &raw, cancellation.clone()).await?;
         if expected_digest
             .as_ref()
-            .is_some_and(|expected| !expected.eq_ignore_ascii_case(&digest))
+            .is_some_and(|expected| expected.canonical() != digest.canonical())
         {
             bail!("authority source digest does not match the acquisition request");
         }
@@ -287,7 +285,7 @@ impl AcquisitionService {
         source: &TimeSource,
         destination: &Path,
         cancellation: CancellationToken,
-    ) -> Result<String> {
+    ) -> Result<AuthoritySourceDigest> {
         let response = self
             .client
             .get(&source.url)
@@ -323,7 +321,7 @@ impl AcquisitionService {
             file.write_all(&chunk).await?;
         }
         file.flush().await?;
-        Ok(hex::encode(digest.finalize()))
+        AuthoritySourceDigest::parse(hex::encode(digest.finalize())).map_err(Into::into)
     }
 
     async fn build_tzdb(
@@ -441,7 +439,7 @@ fn extract_tzdb(raw: &Path, destination: &Path, maximum_bytes: u64) -> Result<()
     Ok(())
 }
 
-fn leap_version_label(content: &str, digest: &str) -> String {
+fn leap_version_label(content: &str, digest: &AuthoritySourceDigest) -> String {
     content
         .lines()
         .find_map(|line| {
@@ -450,7 +448,7 @@ fn leap_version_label(content: &str, digest: &str) -> String {
                 .filter(|value| !value.is_empty())
         })
         .map_or_else(
-            || format!("iana-{}", &digest[..12]),
+            || format!("iana-{}", &digest.as_hex()[..12]),
             |hash| format!("iana-{}", hash.chars().take(24).collect::<String>()),
         )
 }
@@ -458,13 +456,6 @@ fn leap_version_label(content: &str, digest: &str) -> String {
 fn check_cancelled(cancellation: &CancellationToken) -> Result<()> {
     if cancellation.is_cancelled() {
         bail!("authority acquisition cancelled");
-    }
-    Ok(())
-}
-
-fn validate_sha256(value: &str) -> Result<()> {
-    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        bail!("expected digest must be 64 hexadecimal characters");
     }
     Ok(())
 }
@@ -503,7 +494,10 @@ mod tests {
     #[test]
     fn leap_release_label_is_stable() {
         assert_eq!(
-            leap_version_label("#h abcdef\n", &"0".repeat(64)),
+            leap_version_label(
+                "#h abcdef\n",
+                &AuthoritySourceDigest::parse("0".repeat(64)).unwrap()
+            ),
             "iana-abcdef"
         );
     }

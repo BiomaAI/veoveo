@@ -40,7 +40,7 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
                 state: TimeAuthorityReleaseState::Staged,
                 version_label: format!("iana-{}", &digest[..12]),
                 source_url: "https://example.com/leap-seconds.list".to_owned(),
-                source_digest_sha256: digest,
+                source_digest_sha256: digest.parse().unwrap(),
                 artifact_path: "/var/lib/veoveo/time/releases/test/leap-seconds.list".to_owned(),
                 retrieved_at: Utc::now(),
                 validated_at: Utc::now(),
