@@ -1,10 +1,17 @@
+#[cfg(feature = "runtime")]
 pub mod artifacts;
+#[cfg(feature = "contract")]
 pub mod contract;
+#[cfg(feature = "runtime")]
 pub mod forecast;
+#[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "runtime")]
 pub mod uris;
+#[cfg(feature = "runtime")]
+pub mod usage;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "mcp"))]
 mod forecast_app_tests {
     const FORECAST_APP_HTML: &str = include_str!("../assets/forecast-app.html");
     const MAX_APP_HTML_BYTES: usize = 2 * 1024 * 1024;

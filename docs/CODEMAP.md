@@ -700,7 +700,8 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
-| `servers/timeseries-mcp/src/bin/server/usage_index.rs` | authorization-filtered usage discovery with stable task ordering and opaque cursors |
+| `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
+| `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
 | `servers/uav-sim-mcp/src/server/resources.rs`, `index.rs`, `task_index.rs`, `control_authority/reads.rs`, `bootstrap.rs` | service construction and shutdown, static domain discovery, SQL-scoped pages and completions, direct mission/Task reads, and resource invalidation |

@@ -34,13 +34,23 @@ returns structured output with a bounded chartable preview.
 - Import tabular source types and read SQL helpers from `veoveo-duckdb-mcp` with
   default features disabled and `contract` enabled. Timeseries keeps ownership of
   source materialization and forecasting; MCP core contains no source vocabulary.
+- Usage reads use `TimeseriesUsage` and TaskRuntime's SQL owner policy before limits.
+  Keep Task IDs and cursor positions typed through query admission. The library's
+  isolated `contract` feature owns usage addresses and pages; use its component
+  builders at callers and keep runtime dependencies outside that feature.
 
 ## Build And Test
 
 - `cargo check -p veoveo-timeseries-mcp`
 - `cargo test -p veoveo-timeseries-mcp`
-- Tests use bundled DuckDB through `veoveo-duckdb-runtime` and fixtures under
-  `servers/timeseries-mcp/testdata/`; no GPU and no external services.
+- `cargo test -p veoveo-timeseries-mcp --no-default-features --features contract`
+  checks public types. Independently resolve a contract-only consumer to qualify
+  dependency isolation outside workspace feature unification.
+- `cargo clippy -p veoveo-timeseries-mcp --no-default-features --features runtime --all-targets -- -D warnings`
+  checks the runtime library without hosted binary features.
+- Forecast tests use bundled DuckDB through `veoveo-duckdb-runtime` and fixtures under
+  `servers/timeseries-mcp/testdata/`. Usage integration tests require Docker for the
+  isolated pinned SurrealDB fixture and clean it up on completion. No GPU is required.
 - The container builds from `servers/timeseries-mcp/Dockerfile` (needs
   Docker); Helm material is the `timeseries-mcp` domain service in
   `deploy/helm/veoveo`.
@@ -48,6 +58,10 @@ returns structured output with a bounded chartable preview.
 ## Contract Compliance
 
 Contract revision: 3
+
+Typed usage contracts and contract-only library consumption are implemented. Broader
+resource builders and checked MCP setup remain in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met

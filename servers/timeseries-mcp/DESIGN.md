@@ -17,11 +17,21 @@ structured output.
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
+| Veoveo usage resource profile | `timeseries://usage` pages and native UUIDv7 Task addresses; the shared URI component profile and version 1 Base64 cursor described under Usage Reads. |
 
 The forecast request imports `DuckDbSource` and read SQL rendering from the DuckDB
 server library with only its `contract` feature enabled. Timeseries owns source
 materialization and forecasting; this dependency provides no DuckDB hosted runtime.
 The source and forecast request schemas preserve their published fields and defaults.
+
+## Library Features
+
+The library's `contract` feature exposes forecast DTOs and typed usage addresses,
+cursor positions, and pages. Consumers disable default features. Its dependencies
+contain serialization, schema and foundational values plus DuckDB's contract feature;
+they exclude the MCP runtime, database engines, network clients and Rerun runtime.
+`runtime` adds forecasting, Artifact access, owner models and the usage reader.
+`mcp` adds the hosted binary and is enabled by default.
 
 ## MCP surface
 
@@ -57,6 +67,49 @@ response-budget diagnostic without partial content.
 and a mixed filter acknowledges only its task IDs. The server advertises neither
 resource subscriptions nor resource-list changes because it has no resource event
 source.
+
+## Usage Reads
+
+`TimeseriesUsage` binds reads to the Timeseries Task runtime. TaskRuntime selects
+usage under the caller's principal, profile, optional tenant and complete label
+clearance in SQL. The usage row and its Task must agree on server and tenant;
+the Task record and stored owner envelope must agree on identity. These checks
+precede grouping, ordering and the 101-row lookahead that supplies each 100-entry
+page. Exact reads apply the same predicate in one query. A missing or inaccessible
+Task produces the same resource-not-found response. This usage policy does not
+require an additional Work Context match.
+
+`contract::usage` owns `TimeseriesTaskUsageUri`, `TimeseriesUsageIndexUri`,
+`TimeseriesUsageCursor`, entries and pages. Constructors use the foundational URI
+component builder and require native UUIDv7 Task identities. Parsing rejects aliases,
+fragments and unknown or duplicate query parameters. Entries derive their Task ID
+from the URI; decoding rejects conflicting identities. Pages enforce ascending unique
+Task IDs, the fixed limit, and agreement between a continuation cursor and the last
+entry of a full page.
+
+The cursor uses URL-safe unpadded Base64 over the version 1 JSON object
+`{"version":1,"task_id":"<uuid>"}`. It is a position, and every subsequent query
+checks current visibility. The page fields are `usage`, `limit` and optional
+`next_cursor`; terminal pages omit the cursor. The URI profile is a Veoveo extension
+over the shared [resource component profile](../../platform/types/DESIGN.md).
+
+### Usage Deployment And Qualification
+
+Coordinate replacement of every Timeseries replica when adopting SQL-filtered pages.
+Mixed replicas can produce short nonterminal pages from the older post-read filter,
+which checked page consumers reject. Existing emitted URI spellings, cursor bytes,
+forecast payloads and usage rows require no conversion. Native Task addresses use
+canonical UUIDv7 text; clients must refresh noncanonical hand-written addresses.
+The change writes no retained data. Rollback uses the previous service image with
+the same store, and reinstates its earlier pagination behavior. Installed acceptance
+must exercise multiple pages with denied rows, exact usage reads and renewed authority
+before this transition is accepted.
+
+`tests/usage_contract.rs` checks wire preservation, typed construction and malformed
+inputs. `tests/usage.rs` uses the isolated pinned Store fixture to check page filling,
+cursor continuation, current labels and parent metadata through the library reader.
+TaskRuntime owns the complete shared owner-policy matrix. Contract isolation is
+qualified with an independent consumer; runtime-only builds check feature composition.
 
 ## MCP App (ext-apps "2026-01-26")
 

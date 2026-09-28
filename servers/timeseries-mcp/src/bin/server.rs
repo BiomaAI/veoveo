@@ -49,9 +49,13 @@ use veoveo_task_runtime::{
 };
 use veoveo_timeseries_mcp::{
     artifacts::ArtifactRepository,
-    contract::{TimeseriesForecastOutput, TimeseriesForecastRequest},
+    contract::{
+        TimeseriesForecastOutput, TimeseriesForecastRequest, TimeseriesTaskUsageUri,
+        TimeseriesUsageIndexUri,
+    },
     forecast::{RRD_MIME_TYPE, run_forecast},
     uris,
+    usage::TimeseriesUsage,
 };
 use veoveo_types::TaskId;
 
@@ -71,8 +75,6 @@ mod outputs;
 mod ownership;
 #[path = "server/task_extension.rs"]
 mod task_extension;
-#[path = "server/usage_index.rs"]
-mod usage_index;
 
 use app_state::{AppState, update_task};
 use config::Args;
@@ -80,11 +82,10 @@ use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use outputs::{forecast_result, usage_record};
 use ownership::{
-    internal_caller, internal_identity, require_task_owner, runtime_owner,
-    task_owner_from_identity, task_owner_from_runtime,
+    internal_caller, internal_identity, runtime_owner, task_owner_from_identity,
+    task_owner_from_runtime,
 };
 use task_extension::TimeseriesTaskService;
-use usage_index::{load_usage_index_page, parse_usage_index_uri};
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3000;
 const MCP_TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1000;
@@ -342,7 +343,7 @@ impl ServerHandler for TimeseriesMcp {
                     "Interactive MCP App rendering forecast previews and re-running the \
                      forecast tool.",
                 ),
-            Resource::new(uris::USAGE_ROOT_URI, "usage")
+            Resource::new(TimeseriesUsageIndexUri::ROOT, "usage")
                 .with_title("Timeseries usage ledger")
                 .with_description("Index of task usage resources.")
                 .with_mime_type("application/json"),
@@ -391,11 +392,11 @@ impl ServerHandler for TimeseriesMcp {
                     "Server-owned immutable Rerun RRD artifact, addressed by occurrence id.",
                 )
                 .with_mime_type(RRD_MIME_TYPE),
-            ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
+            ResourceTemplate::new(TimeseriesTaskUsageUri::TEMPLATE, "usage")
                 .with_title("Timeseries task usage")
                 .with_description("Usage rows for one task, addressed by task id.")
                 .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::USAGE_INDEX_TEMPLATE, "usage-page")
+            ResourceTemplate::new(TimeseriesUsageIndexUri::TEMPLATE, "usage-page")
                 .with_title("Timeseries usage page")
                 .with_description("Bounded usage index page selected by its opaque cursor.")
                 .with_mime_type("application/json"),
@@ -462,27 +463,24 @@ impl ServerHandler for TimeseriesMcp {
                     ),
                 ]));
             }
-            if let Some(after) =
-                parse_usage_index_uri(uri).map_err(|error| McpError::invalid_params(error, None))?
-            {
-                let page = load_usage_index_page(&self.state, &identity, after).await?;
+            if let Ok(index) = TimeseriesUsageIndexUri::parse(uri) {
+                let page = TimeseriesUsage::new(&self.state.tasks)
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    .page(&runtime_owner(&identity), index.cursor())
+                    .await
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
                 return Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(serde_json::to_string(&page).unwrap_or_default(), uri)
                         .with_mime_type("application/json"),
                 ]));
             }
-            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let durable_task_id = task_id.parse::<TaskId>().map_err(|err| {
-                    McpError::invalid_params(format!("invalid task id: {err}"), None)
-                })?;
-                let records = self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_for_task(SERVER_SLUG, durable_task_id)
+            if let Ok(usage_uri) = TimeseriesTaskUsageUri::parse(uri) {
+                let task_id = usage_uri.task_id();
+                let records = TimeseriesUsage::new(&self.state.tasks)
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
+                    .task(&runtime_owner(&identity), &usage_uri)
                     .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
                     .into_iter()
                     .map(|record| usage_record(task_id, record))
                     .collect::<Vec<_>>();
@@ -492,7 +490,7 @@ impl ServerHandler for TimeseriesMcp {
                         None,
                     ));
                 }
-                let report = UsageReport::new(task_id, uri).with_records(records);
+                let report = UsageReport::new(task_id.to_string(), uri).with_records(records);
                 return Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
                         .with_mime_type("application/json"),
