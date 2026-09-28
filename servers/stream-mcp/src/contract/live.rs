@@ -1,4 +1,8 @@
-//! Stream live-session wire types shared with external acceptance clients.
+use super::{
+    PipelineId, PipelineUri, SessionCursor, SessionId, SessionPreviewUri, SessionResultsUri,
+    SessionUri,
+};
+// Stream live-session wire types shared with external acceptance clients.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,24 +10,24 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StartLiveSessionRequest {
-    pub pipeline_id: String,
+    pub pipeline_id: PipelineId,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StopLiveSessionRequest {
-    pub session_id: String,
+    pub session_id: SessionId,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct StartLiveSessionOutput {
-    pub session_id: String,
-    pub session_uri: String,
-    pub results_uri: String,
-    pub pipeline_uri: String,
+    pub session_id: SessionId,
+    pub session_uri: SessionUri,
+    pub results_uri: SessionResultsUri,
+    pub pipeline_uri: PipelineUri,
     pub ingress: LiveIngressView,
     pub video: LiveVideoView,
-    pub preview_uri: String,
+    pub preview_uri: SessionPreviewUri,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recording_output: Option<LiveRecordingOutputView>,
     pub started_at: String,
@@ -31,7 +35,7 @@ pub struct StartLiveSessionOutput {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct StopLiveSessionOutput {
-    pub session_uri: String,
+    pub session_uri: SessionUri,
     pub lifecycle: LiveSessionLifecycle,
     pub received_video_frames: u64,
     pub processed_frames: u64,
@@ -99,14 +103,14 @@ pub struct LiveRecordingOutputView {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct LiveSessionView {
-    pub session_id: String,
-    pub session_uri: String,
-    pub results_uri: String,
-    pub pipeline_id: String,
-    pub pipeline_uri: String,
+    pub session_id: SessionId,
+    pub session_uri: SessionUri,
+    pub results_uri: SessionResultsUri,
+    pub pipeline_id: PipelineId,
+    pub pipeline_uri: PipelineUri,
     pub ingress: LiveIngressView,
     pub video: LiveVideoView,
-    pub preview_uri: String,
+    pub preview_uri: SessionPreviewUri,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recording_output: Option<LiveRecordingOutputView>,
     pub lifecycle: LiveSessionLifecycle,
@@ -128,5 +132,5 @@ pub struct LiveSessionsPage {
     pub sessions: Vec<LiveSessionView>,
     pub limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub next_cursor: Option<String>,
+    pub next_cursor: Option<SessionCursor>,
 }

@@ -13,6 +13,9 @@ provider-neutral.
 ## Invariants
 
 - Own `stream://` and `ui://stream/live.html`.
+- Keep IDs, resource addresses and collection cursors in the contract-only library.
+  Use Stream constructors and the shared URI builder; serialize strings at protocol
+  boundaries. Run reads and subscriptions use SQL owner selection.
 - Keep replay result validation and `StreamArtifactUri` in the contract-only library.
   Producers and cross-server consumers share those checks. The producer also verifies
   detection bounds against its input dimensions; portable checks cannot prove GPU

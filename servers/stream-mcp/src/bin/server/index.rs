@@ -1,81 +1,24 @@
 use std::collections::BTreeSet;
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rmcp::{ErrorData as McpError, model::CompletionInfo};
-use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use veoveo_platform_store::{RecordId, deterministic_principal_id, deterministic_tenant_id};
-use veoveo_stream_mcp::{
-    contract::{LiveSessionsPage, RunPage},
-    uris,
-};
+use veoveo_stream_mcp::contract::{LiveSessionsPage, RunCursor, RunId, RunPage, SessionCursor};
 use veoveo_task_runtime::{TaskOwner, TaskPageCursor, TaskRuntime};
 
 use super::{internal, live::LiveSessionManager, run_view};
 
 const PAGE_SIZE: usize = 100;
-const CURSOR_VERSION: u8 = 1;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct CollectionCursor<T> {
-    version: u8,
-    collection: String,
-    position: T,
-}
-
-type RunCursor = CollectionCursor<TaskPageCursor>;
-type SessionCursor = CollectionCursor<uuid::Uuid>;
-
-pub(super) fn parse_collection<T: DeserializeOwned>(
-    uri: &str,
-    root: &str,
-) -> Result<Option<Option<CollectionCursor<T>>>, McpError> {
-    if uri == root {
-        return Ok(Some(None));
-    }
-    let Some(query) = uri
-        .strip_prefix(root)
-        .and_then(|suffix| suffix.strip_prefix('?'))
-    else {
-        return Ok(None);
-    };
-    let invalid = || McpError::invalid_params("invalid Stream collection cursor", None);
-    let encoded = query
-        .strip_prefix("cursor=")
-        .filter(|value| {
-            !value.is_empty() && value.len() <= 1024 && !value.contains(['&', '=', '?', '#'])
-        })
-        .ok_or_else(invalid)?;
-    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(|_| invalid())?;
-    let cursor: CollectionCursor<T> = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-    if cursor.version != CURSOR_VERSION || cursor.collection != root {
-        return Err(invalid());
-    }
-    Ok(Some(Some(cursor)))
-}
-
-fn encode_cursor<T: Serialize>(root: &str, position: T) -> Result<String, McpError> {
-    serde_json::to_vec(&CollectionCursor {
-        version: CURSOR_VERSION,
-        collection: root.to_owned(),
-        position,
-    })
-    .map(|bytes| URL_SAFE_NO_PAD.encode(bytes))
-    .map_err(internal)
-}
-
 pub(super) async fn runs_page(
     tasks: &TaskRuntime,
     owner: &TaskOwner,
     after: Option<&RunCursor>,
 ) -> Result<RunPage, McpError> {
+    let after = after.map(|cursor| TaskPageCursor {
+        created_at: cursor.created_at(),
+        task_id: cursor.run_id().task_id(),
+    });
     let page = tasks
-        .list_page_for_owner(
-            owner,
-            &["run_recording"],
-            after.map(|cursor| &cursor.position),
-            PAGE_SIZE,
-        )
+        .list_page_for_owner(owner, &["run_recording"], after.as_ref(), PAGE_SIZE)
         .await
         .map_err(internal)?;
     Ok(RunPage {
@@ -83,7 +26,11 @@ pub(super) async fn runs_page(
         limit: PAGE_SIZE,
         next_cursor: page
             .next_cursor
-            .map(|position| encode_cursor(uris::RUNS_URI, position))
+            .map(|position| {
+                RunId::try_from(position.task_id)
+                    .map(|id| RunCursor::new(position.created_at, id))
+                    .map_err(internal)
+            })
             .transpose()?,
     })
 }
@@ -94,15 +41,12 @@ pub(super) async fn sessions_page(
     before: Option<&SessionCursor>,
 ) -> Result<LiveSessionsPage, McpError> {
     let page = live
-        .page(owner, before.map(|cursor| cursor.position), PAGE_SIZE)
+        .page(owner, before.map(SessionCursor::session_id), PAGE_SIZE)
         .await;
     Ok(LiveSessionsPage {
         sessions: page.sessions,
         limit: PAGE_SIZE,
-        next_cursor: page
-            .next_before
-            .map(|position| encode_cursor(uris::SESSIONS_URI, position))
-            .transpose()?,
+        next_cursor: page.next_before.map(SessionCursor::new),
     })
 }
 

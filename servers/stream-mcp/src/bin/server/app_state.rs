@@ -4,7 +4,8 @@ use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
-    artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::StreamExecutor,
+    artifacts::ArtifactRepository, catalog::PipelineCatalog, contract::RunId,
+    executor::StreamExecutor,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
 
@@ -25,10 +26,10 @@ pub(super) struct AppState {
     pub(super) live: Arc<LiveSessionManager>,
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+pub(super) async fn update_task(state: &AppState, task_id: RunId, transition: TaskTransition) {
     let transition = if state
         .tasks
-        .is_cancel_requested(task_id)
+        .is_cancel_requested(&task_id.to_string())
         .await
         .unwrap_or(false)
     {
@@ -36,8 +37,12 @@ pub(super) async fn update_task(state: &AppState, task_id: &str, transition: Tas
     } else {
         transition
     };
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "failed to transition durable stream task: {error}");
+    if let Err(error) = state
+        .tasks
+        .transition(&task_id.to_string(), transition)
+        .await
+    {
+        tracing::warn!(%task_id, "failed to transition durable stream task: {error}");
     }
     state
         .subscribers

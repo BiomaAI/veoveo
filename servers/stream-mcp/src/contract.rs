@@ -2,6 +2,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 
+mod cursor;
+mod ids;
+mod resources;
+pub use cursor::{RunCursor, SessionCursor};
+pub use ids::{ModelId, PipelineId, RunId, SessionId, StreamContractError};
+pub use resources::{
+    ModelUri, PipelineUri, RunResultsUri, RunUri, SessionPreviewUri, SessionResultsUri, SessionUri,
+    StreamDocument, StreamResource,
+};
+
 mod artifact;
 mod results;
 pub use artifact::{StreamArtifactUri, StreamArtifactUriError};
@@ -16,7 +26,7 @@ pub use veoveo_recording_video::contract::{
 #[serde(deny_unknown_fields)]
 pub struct RunRecordingRequest {
     pub video: RecordingVideoSelection,
-    pub pipeline_id: String,
+    pub pipeline_id: PipelineId,
     #[serde(default)]
     pub sampling: SamplingPolicy,
     #[serde(default)]
@@ -69,8 +79,8 @@ pub struct FrameDetections {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalysisResults {
     pub schema: StreamResultsSchema,
-    pub pipeline_id: String,
-    pub model_id: String,
+    pub pipeline_id: PipelineId,
+    pub model_id: ModelId,
     pub recording_uri: String,
     pub entity_path: String,
     pub timeline: String,
@@ -84,10 +94,10 @@ pub struct AnalysisResults {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct RunRecordingOutput {
-    pub run_uri: String,
-    pub results_uri: String,
-    pub pipeline_uri: String,
-    pub model_uri: String,
+    pub run_uri: RunUri,
+    pub results_uri: RunResultsUri,
+    pub pipeline_uri: PipelineUri,
+    pub model_uri: ModelUri,
     pub summary: AnalysisSummary,
     pub results_artifact: ArtifactMetadata,
     pub annotations_artifact: ArtifactMetadata,
@@ -107,13 +117,13 @@ pub struct AnalysisSummary {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PipelineView {
-    pub id: String,
-    pub uri: String,
+    pub id: PipelineId,
+    pub uri: PipelineUri,
     pub title: String,
     pub description: String,
     pub profile: PipelineProfile,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_uri: Option<String>,
+    pub model_uri: Option<ModelUri>,
     pub supports_recording_replay: bool,
     pub supports_live_input: bool,
 }
@@ -139,8 +149,8 @@ pub enum PerceptionOperation {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct ModelView {
-    pub id: String,
-    pub uri: String,
+    pub id: ModelId,
+    pub uri: ModelUri,
     pub title: String,
     pub description: String,
     pub format: ModelFormat,
@@ -154,12 +164,12 @@ pub enum ModelFormat {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct RunView {
-    pub run_uri: String,
-    pub results_uri: String,
-    pub task_id: String,
+    pub run_uri: RunUri,
+    pub results_uri: RunResultsUri,
+    pub task_id: RunId,
     pub status: String,
     pub progress: f64,
-    pub pipeline_id: String,
+    pub pipeline_id: PipelineId,
     pub recording_uri: String,
     pub entity_path: String,
     pub timeline: String,
@@ -178,7 +188,7 @@ pub struct RunPage {
     pub runs: Vec<RunView>,
     pub limit: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub next_cursor: Option<String>,
+    pub next_cursor: Option<RunCursor>,
 }
 
 mod live;
@@ -196,8 +206,8 @@ pub struct LiveResultFrame {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct LiveResultsView {
     pub schema: String,
-    pub session_id: String,
-    pub pipeline_id: String,
+    pub session_id: SessionId,
+    pub pipeline_id: PipelineId,
     pub frames: Vec<LiveResultFrame>,
     pub processed_frames: u64,
     pub dropped_result_frames: u64,
@@ -217,7 +227,7 @@ pub struct EncodedVideoChunk {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct LivePreviewView {
     pub schema: String,
-    pub session_id: String,
+    pub session_id: SessionId,
     pub video: LiveVideoView,
     pub chunks: Vec<EncodedVideoChunk>,
     pub dropped_chunks: u64,

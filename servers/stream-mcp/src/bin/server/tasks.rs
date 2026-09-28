@@ -17,7 +17,7 @@ use veoveo_recording_video::contract::validate_video_selection;
 use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
 use veoveo_stream_mcp::{
     annotation::write_annotation_rrd,
-    contract::{RecordingVideoSelection, RunRecordingRequest, SamplingPolicy},
+    contract::{RecordingVideoSelection, RunId, RunRecordingRequest, SamplingPolicy},
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
@@ -159,12 +159,15 @@ pub(super) async fn resume_task(state: Arc<AppState>, snapshot: TaskSnapshot) ->
     let request: DurableStreamRequest = match serde_json::from_value(snapshot.request.clone()) {
         Ok(request) => request,
         Err(error) => {
-            let task_id = snapshot.task_id.to_string();
-            state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+            let task_id = RunId::try_from(snapshot.task_id)?;
+            state
+                .tasks
+                .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+                .await?;
             state
                 .tasks
                 .transition(
-                    &task_id,
+                    &task_id.to_string(),
                     TaskTransition::Failed(TaskFailure::new(
                         "invalid_task_request",
                         error.to_string(),
@@ -188,12 +191,15 @@ async fn schedule_task(
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
 ) -> Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = RunId::try_from(snapshot.task_id)?;
+    let claimed = state
+        .tasks
+        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+        .await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         authority,
         progress,
@@ -201,14 +207,14 @@ async fn schedule_task(
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(&task_id.to_string(), cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: RunId,
     request: DurableStreamRequest,
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
@@ -216,7 +222,7 @@ async fn run_task(
 ) {
     let work = run_task_inner(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         authority,
         progress,
@@ -230,8 +236,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "stream task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "stream task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -242,7 +248,7 @@ async fn run_task(
 
 async fn run_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: RunId,
     request: DurableStreamRequest,
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
@@ -251,15 +257,15 @@ async fn run_task_inner(
     macro_rules! fail {
         ($message:expr) => {{
             let message: String = $message;
-            tracing::warn!(task_id, "stream task failed: {message}");
-            complete_tool_error(&state, &task_id, message).await;
+            tracing::warn!(%task_id, "stream task failed: {message}");
+            complete_tool_error(&state, task_id, message).await;
             return;
         }};
     }
 
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.02,
         "waiting for local stream capacity",
@@ -271,14 +277,14 @@ async fn run_task_inner(
             Err(error) => fail!(format!("stream work queue closed: {error}")),
         },
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
     };
     let _work_slot = work_slot;
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.1,
         "resolving governed recording",
@@ -290,7 +296,7 @@ async fn run_task_inner(
         authority,
         ArtifactReadAuthority::Task {
             capability: &request.artifact_read_capability,
-            task_id: ArtifactTaskId::parse(&task_id).expect("durable task ID is UUIDv7"),
+            task_id: ArtifactTaskId::parse(task_id.to_string()).expect("durable task ID is UUIDv7"),
         },
         video.clone(),
         state.source_limits.clone(),
@@ -301,11 +307,11 @@ async fn run_task_inner(
             Err(error) => fail!(format!("video materialization failed: {error:#}")),
         },
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
     };
-    set_progress(&state, &task_id, &progress, 0.35, "video clip materialized").await;
+    set_progress(&state, task_id, &progress, 0.35, "video clip materialized").await;
     let result = match request.input {
         StreamTaskInput::RunRecording(input) => {
             let Some(pipeline) = state.catalog.pipeline(&input.pipeline_id).cloned() else {
@@ -333,7 +339,7 @@ async fn run_task_inner(
             }
             set_progress(
                 &state,
-                &task_id,
+                task_id,
                 &progress,
                 0.45,
                 "running DeepStream inference",
@@ -349,7 +355,7 @@ async fn run_task_inner(
                 state
                     .executor
                     .analyze(veoveo_stream_mcp::executor::StreamAnalysisRequest {
-                        task_id: &task_id,
+                        task_id,
                         input_mp4: &input_path,
                         decode_start_index: source.clip.decode_start_index,
                         input_width: source.clip.width,
@@ -367,22 +373,22 @@ async fn run_task_inner(
                     Err(error) => fail!(format!("DeepStream analysis failed: {error:#}")),
                 },
                 () = cancellation.cancelled() => {
-                    update_task(&state, &task_id, TaskTransition::Cancelled).await;
+                    update_task(&state, task_id, TaskTransition::Cancelled).await;
                     return;
                 }
             };
             set_progress(
                 &state,
-                &task_id,
+                task_id,
                 &progress,
                 0.8,
                 "writing derived annotation layer",
             )
             .await;
-            let annotation_task_id = task_id.clone();
+            let annotation_task_id = task_id;
             let annotation_results = analysis.clone();
             let annotations_rrd = match tokio::task::spawn_blocking(move || {
-                write_annotation_rrd(&annotation_task_id, &annotation_results)
+                write_annotation_rrd(annotation_task_id, &annotation_results)
             })
             .await
             {
@@ -393,7 +399,7 @@ async fn run_task_inner(
             publish_analysis(
                 &state,
                 &request.artifact_write_capability,
-                &task_id,
+                task_id,
                 AnalysisProducts {
                     results: analysis,
                     annotations_rrd,
@@ -405,7 +411,7 @@ async fn run_task_inner(
         }
     };
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     let result = match result {
@@ -419,7 +425,7 @@ async fn run_task_inner(
     };
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Succeeded {
             message: "completed; stream artifacts available".to_owned(),
             result: payload,
@@ -430,7 +436,7 @@ async fn run_task_inner(
 
 async fn set_progress(
     state: &AppState,
-    task_id: &str,
+    task_id: RunId,
     progress: &Option<TaskProgress>,
     value: f64,
     message: &str,
@@ -438,7 +444,7 @@ async fn set_progress(
     if let Err(error) = state
         .tasks
         .transition(
-            task_id,
+            &task_id.to_string(),
             TaskTransition::Running {
                 message: message.to_owned(),
                 progress: value,
@@ -446,7 +452,7 @@ async fn set_progress(
         )
         .await
     {
-        tracing::warn!(task_id, "failed to persist stream progress: {error}");
+        tracing::warn!(%task_id, "failed to persist stream progress: {error}");
     }
     state
         .subscribers
@@ -461,7 +467,7 @@ async fn notify_progress(progress: &Option<TaskProgress>, value: f64, message: &
     }
 }
 
-async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+async fn complete_tool_error(state: &AppState, task_id: RunId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
     let transition = match serde_json::to_value(result) {
         Ok(result) => TaskTransition::Succeeded { message, result },
@@ -502,11 +508,11 @@ fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
 
 pub(super) async fn completed_payload(
     state: &AppState,
-    task_id: &str,
+    task_id: RunId,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     match state
         .tasks
-        .await_payload_state(task_id)
+        .await_payload_state(&task_id.to_string())
         .await
         .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?
     {

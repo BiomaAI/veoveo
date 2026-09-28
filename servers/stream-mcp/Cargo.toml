@@ -22,6 +22,9 @@ required-features = ["contract"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:base64",
+    "dep:chrono",
+    "dep:uuid",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
@@ -33,7 +36,7 @@ runtime = [
     "contract",
     "veoveo-recording-video/runtime",
     "dep:anyhow",
-    "dep:chrono",
+    "chrono/clock",
     "dep:tempfile",
     "dep:tokio",
     "dep:re_sdk",
@@ -45,7 +48,6 @@ runtime = [
 mcp = [
     "runtime",
     "dep:axum",
-    "dep:base64",
     "dep:clap",
     "dep:dotenvy",
     "dep:futures",
@@ -55,7 +57,6 @@ mcp = [
     "dep:tokio-util",
     "dep:tower-http",
     "dep:tracing",
-    "dep:uuid",
     "dep:veoveo-mcp-apps-extension",
     "dep:veoveo-platform-store",
     "dep:veoveo-recording-reader",
@@ -68,7 +69,7 @@ veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
 clap = { workspace = true, optional = true }
 dotenvy = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }

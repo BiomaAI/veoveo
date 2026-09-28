@@ -674,6 +674,19 @@ MCP, Store, async or GPU dependencies. Strict all-target, all-feature Clippy pas
 both servers and their smoke/flight consumers. Installed and GPU acceptance remain
 pending.
 
+Stream's contract now owns distinct pipeline, model, run and live-session IDs,
+typed resource addresses and collection-bound cursors. The catalog, native runner
+protocols, worker calls and flight acceptance client carry those types. Resource
+reads dispatch one parsed address; run reads and subscription admission select the
+caller-owned Task in SQL. Public tests reject noncanonical addresses, invalid IDs,
+wrong-collection cursors and unknown cursor fields. Stream, Reason and flight native
+suites pass 127 checks; the warm-host timing case is intentionally excluded. Ten
+independent contract-consumer checks preserve all 37 Stream schema snapshots, and the
+70-package Linux graph excludes MCP, Store, async, Rerun and GPU dependencies and Chrono
+clock. Four compile-fail examples and strict all-target, all-feature Clippy pass.
+Fixture cleanup returns Docker to its 13 retained volumes with no running containers.
+DTO relationship validation, checked MCP setup and installed/GPU acceptance remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1183,7 +1196,7 @@ default owner; the inventory must not become a central domain-type registry.
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify current scope enforcement on every installed UAV replica |
 | Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
-| Stream | Isolated `contract` features compose Artifact and recorded-video contracts; `runtime` and `mcp` gate execution and hosted integration. The contract owns `StreamArtifactUri`, the replay schema enum and portable result/detection checks consumed by Reason. Its 37 schema snapshots and independent consumer pass without runtime dependencies. The flight client imports Stream through its library; native control-plane and Store checks pass | Migrate domain IDs, resources, cursors, DTO relationships and checked MCP setup; qualify installed and GPU behavior |
+| Stream | Its isolated contract owns distinct catalog and execution IDs, typed addresses and collection cursors, Stream Artifact URIs, the replay schema and portable result checks consumed by Reason. The server and flight client use those types; run reads and subscriptions select caller-owned Tasks in SQL. All 37 schema snapshots and independent contract checks pass without runtime dependencies | Complete DTO relationship validation and checked MCP setup; qualify installed and GPU behavior |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
 | Recording and View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |

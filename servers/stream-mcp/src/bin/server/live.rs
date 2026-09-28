@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_stream_mcp::contract::{ModelId, PipelineId, PipelineUri, SessionId};
 
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -40,14 +41,14 @@ pub(super) struct LiveSessionManager {
     max_event_bytes: usize,
     max_video_chunk_bytes: usize,
     subscribers: Arc<SubscriptionHub>,
-    sessions: Mutex<BTreeMap<String, Arc<LiveSession>>>,
-    active_pipelines: Mutex<BTreeSet<String>>,
+    sessions: Mutex<BTreeMap<SessionId, Arc<LiveSession>>>,
+    active_pipelines: Mutex<BTreeSet<PipelineId>>,
 }
 
 struct LiveSession {
-    session_id: String,
-    pipeline_id: String,
-    pipeline_uri: String,
+    session_id: SessionId,
+    pipeline_id: PipelineId,
+    pipeline_uri: PipelineUri,
     ingress: veoveo_stream_mcp::contract::LiveIngressView,
     video: LiveVideoView,
     input_width: u16,
@@ -76,7 +77,7 @@ struct LiveSessionState {
 
 pub(super) struct LiveSessionPage {
     pub sessions: Vec<LiveSessionView>,
-    pub next_before: Option<uuid::Uuid>,
+    pub next_before: Option<SessionId>,
 }
 
 #[derive(Deserialize)]
@@ -92,7 +93,7 @@ enum LiveRunnerEvent {
 #[serde(deny_unknown_fields)]
 struct LiveRunnerRequest {
     schema: &'static str,
-    session_id: String,
+    session_id: SessionId,
     input_width: u16,
     input_height: u16,
     pipeline: RunnerPipeline,
@@ -106,7 +107,7 @@ struct LiveRunnerRequest {
 #[derive(Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerPipeline {
-    pipeline_id: String,
+    pipeline_id: PipelineId,
     graph: GStreamerGraphConfig,
     profile: RunnerPipelineProfile,
 }
@@ -161,7 +162,7 @@ impl From<&TrackerConfig> for RunnerTracker {
 #[derive(Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerModel {
-    model_id: String,
+    model_id: ModelId,
     model_path: PathBuf,
     format: veoveo_stream_mcp::contract::ModelFormat,
 }
@@ -217,7 +218,7 @@ impl LiveSessionManager {
 
     pub(super) async fn start(
         self: &Arc<Self>,
-        pipeline_id: &str,
+        pipeline_id: &PipelineId,
         owner: TaskOwner,
     ) -> Result<StartLiveSessionOutput> {
         let pipeline = self
@@ -257,13 +258,14 @@ impl LiveSessionManager {
 
     async fn start_reserved(
         self: &Arc<Self>,
-        pipeline_id: &str,
+        pipeline_id: &PipelineId,
         live: &veoveo_stream_mcp::catalog::LivePipelineConfig,
         profile: &PipelineProfileConfig,
         model: Option<&ModelConfig>,
         owner: TaskOwner,
     ) -> Result<StartLiveSessionOutput> {
-        let session_id = uuid::Uuid::now_v7().to_string();
+        let session_id =
+            SessionId::try_from(uuid::Uuid::now_v7()).expect("generated UUIDv7 session");
         let work = tempfile::Builder::new()
             .prefix("veoveo-stream-live-")
             .tempdir()
@@ -275,7 +277,7 @@ impl LiveSessionManager {
             .context("binding the live Stream runner event socket")?;
         let request = LiveRunnerRequest {
             schema: LIVE_RUNNER_REQUEST_SCHEMA,
-            session_id: session_id.clone(),
+            session_id,
             input_width: live.input_width,
             input_height: live.input_height,
             pipeline: RunnerPipeline {
@@ -334,9 +336,9 @@ impl LiveSessionManager {
         let recording_output = live
             .recording_output
             .clone()
-            .map(|config| LiveRecordingOutput::start(session_id.clone(), config));
+            .map(|config| LiveRecordingOutput::start(session_id.to_string(), config));
         let session = Arc::new(LiveSession {
-            session_id: session_id.clone(),
+            session_id,
             pipeline_id: pipeline_id.to_owned(),
             pipeline_uri: uris::pipeline_uri(pipeline_id),
             ingress: live.ingress.view(),
@@ -365,20 +367,20 @@ impl LiveSessionManager {
         self.sessions
             .lock()
             .await
-            .insert(session_id.clone(), session.clone());
+            .insert(session_id, session.clone());
         tokio::spawn(
             self.clone()
                 .consume_events(session.clone(), stream, stderr_path),
         );
 
         Ok(StartLiveSessionOutput {
-            session_id: session_id.clone(),
-            session_uri: uris::session_uri(&session_id),
-            results_uri: uris::session_results_uri(&session_id),
+            session_id,
+            session_uri: uris::session_uri(session_id),
+            results_uri: uris::session_results_uri(session_id),
             pipeline_uri: uris::pipeline_uri(pipeline_id),
             ingress: live.ingress.view(),
             video: live.video_view(),
-            preview_uri: uris::session_preview_uri(&session_id),
+            preview_uri: uris::session_preview_uri(session_id),
             recording_output: session
                 .recording_output
                 .as_ref()
@@ -462,10 +464,10 @@ impl LiveSessionManager {
             });
         }
         self.subscribers
-            .notify_resource_updated(uris::session_uri(&session.session_id))
+            .notify_resource_updated(uris::session_uri(session.session_id))
             .await;
         self.subscribers
-            .notify_resource_updated(uris::session_results_uri(&session.session_id))
+            .notify_resource_updated(uris::session_results_uri(session.session_id))
             .await;
     }
 
@@ -511,10 +513,10 @@ impl LiveSessionManager {
             recording.try_record(timestamp_us, keyframe, bytes);
         }
         self.subscribers
-            .notify_resource_updated(uris::session_uri(&session.session_id))
+            .notify_resource_updated(uris::session_uri(session.session_id))
             .await;
         self.subscribers
-            .notify_resource_updated(uris::session_preview_uri(&session.session_id))
+            .notify_resource_updated(uris::session_preview_uri(session.session_id))
             .await;
         Ok(())
     }
@@ -558,13 +560,13 @@ impl LiveSessionManager {
             .await
             .remove(&session.pipeline_id);
         self.subscribers
-            .notify_resource_updated(uris::session_uri(&session.session_id))
+            .notify_resource_updated(uris::session_uri(session.session_id))
             .await;
     }
 
     pub(super) async fn stop(
         &self,
-        session_id: &str,
+        session_id: SessionId,
         caller: &TaskOwner,
     ) -> Result<Option<StopLiveSessionOutput>> {
         let Some(session) = self.owned(session_id, caller).await else {
@@ -601,13 +603,12 @@ impl LiveSessionManager {
     pub(super) async fn page(
         &self,
         caller: &TaskOwner,
-        before: Option<uuid::Uuid>,
+        before: Option<SessionId>,
         limit: usize,
     ) -> LiveSessionPage {
         assert!((1..=1000).contains(&limit));
-        let before = before.map(|id| id.to_string());
         let upper = before
-            .as_deref()
+            .as_ref()
             .map_or(std::ops::Bound::Unbounded, std::ops::Bound::Excluded);
         // Admission and the limit precede cloning or locking mutable session state.
         // Session UUIDs are v7; descending keys put newer sessions first.
@@ -615,7 +616,7 @@ impl LiveSessionManager {
             .sessions
             .lock()
             .await
-            .range::<str, _>((std::ops::Bound::Unbounded, upper))
+            .range::<SessionId, _>((std::ops::Bound::Unbounded, upper))
             .rev()
             .filter(|(_, session)| reader_allows(&session.owner, caller))
             .take(limit + 1)
@@ -623,10 +624,7 @@ impl LiveSessionManager {
             .collect::<Vec<_>>();
         let more = sessions.len() > limit;
         sessions.truncate(limit);
-        let next_before = more.then(|| {
-            uuid::Uuid::parse_str(&sessions.last().expect("nonempty page").session_id)
-                .expect("session IDs are generated UUIDs")
-        });
+        let next_before = more.then(|| sessions.last().expect("nonempty page").session_id);
         let mut views = Vec::with_capacity(sessions.len());
         for session in sessions {
             let state = session.state.lock().await;
@@ -649,15 +647,17 @@ impl LiveSessionManager {
             .lock()
             .await
             .iter()
-            .filter(|(id, session)| id.contains(needle) && reader_allows(&session.owner, caller))
+            .filter(|(id, session)| {
+                id.to_string().contains(needle) && reader_allows(&session.owner, caller)
+            })
             .take(limit)
-            .map(|(id, _)| id.clone())
+            .map(|(id, _)| id.to_string())
             .collect()
     }
 
     pub(super) async fn view(
         &self,
-        session_id: &str,
+        session_id: SessionId,
         caller: &TaskOwner,
     ) -> Option<LiveSessionView> {
         let session = self.readable(session_id, caller).await?;
@@ -667,14 +667,14 @@ impl LiveSessionManager {
 
     pub(super) async fn results(
         &self,
-        session_id: &str,
+        session_id: SessionId,
         caller: &TaskOwner,
     ) -> Option<LiveResultsView> {
         let session = self.readable(session_id, caller).await?;
         let state = session.state.lock().await;
         Some(LiveResultsView {
             schema: LIVE_RESULTS_SCHEMA.to_owned(),
-            session_id: session.session_id.clone(),
+            session_id: session.session_id,
             pipeline_id: session.pipeline_id.clone(),
             frames: state.frames.iter().cloned().collect(),
             processed_frames: state.processed_frames,
@@ -684,7 +684,7 @@ impl LiveSessionManager {
 
     pub(super) async fn preview(
         &self,
-        session_id: &str,
+        session_id: SessionId,
         caller: &TaskOwner,
     ) -> Option<LivePreviewView> {
         let session = self.readable(session_id, caller).await?;
@@ -696,7 +696,7 @@ impl LiveSessionManager {
             .unwrap_or(state.video_chunks.len());
         Some(LivePreviewView {
             schema: LIVE_PREVIEW_SCHEMA.to_owned(),
-            session_id: session.session_id.clone(),
+            session_id: session.session_id,
             video: session.video.clone(),
             chunks: state
                 .video_chunks
@@ -709,17 +709,21 @@ impl LiveSessionManager {
         })
     }
 
-    pub(super) async fn readable_by(&self, session_id: &str, caller: &TaskOwner) -> bool {
+    pub(super) async fn readable_by(&self, session_id: SessionId, caller: &TaskOwner) -> bool {
         self.readable(session_id, caller).await.is_some()
     }
 
-    async fn readable(&self, session_id: &str, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
-        let session = self.sessions.lock().await.get(session_id).cloned()?;
+    async fn readable(
+        &self,
+        session_id: SessionId,
+        caller: &TaskOwner,
+    ) -> Option<Arc<LiveSession>> {
+        let session = self.sessions.lock().await.get(&session_id).cloned()?;
         reader_allows(&session.owner, caller).then_some(session)
     }
 
-    async fn owned(&self, session_id: &str, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
-        let session = self.sessions.lock().await.get(session_id).cloned()?;
+    async fn owned(&self, session_id: SessionId, caller: &TaskOwner) -> Option<Arc<LiveSession>> {
+        let session = self.sessions.lock().await.get(&session_id).cloned()?;
         owner_allows(&session.owner, caller).then_some(session)
     }
 }
@@ -758,14 +762,14 @@ fn owner_allows(owner: &TaskOwner, caller: &TaskOwner) -> bool {
 
 fn session_view(session: &LiveSession, state: &LiveSessionState) -> LiveSessionView {
     LiveSessionView {
-        session_id: session.session_id.clone(),
-        session_uri: uris::session_uri(&session.session_id),
-        results_uri: uris::session_results_uri(&session.session_id),
+        session_id: session.session_id,
+        session_uri: uris::session_uri(session.session_id),
+        results_uri: uris::session_results_uri(session.session_id),
         pipeline_id: session.pipeline_id.clone(),
         pipeline_uri: session.pipeline_uri.clone(),
         ingress: session.ingress.clone(),
         video: session.video.clone(),
-        preview_uri: uris::session_preview_uri(&session.session_id),
+        preview_uri: uris::session_preview_uri(session.session_id),
         recording_output: session
             .recording_output
             .as_ref()
@@ -782,7 +786,7 @@ fn session_view(session: &LiveSession, state: &LiveSessionState) -> LiveSessionV
 
 fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessionOutput {
     StopLiveSessionOutput {
-        session_uri: uris::session_uri(&session.session_id),
+        session_uri: uris::session_uri(session.session_id),
         lifecycle: state.lifecycle,
         received_video_frames: state.received_video_frames,
         processed_frames: state.processed_frames,
@@ -842,7 +846,7 @@ mod tests {
         let catalog = PipelineCatalog::new(
             vec![],
             vec![PipelineConfig {
-                id: "preview".to_owned(),
+                id: "preview".parse().unwrap(),
                 title: "Preview".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::PassThrough,
@@ -887,11 +891,18 @@ mod tests {
         .unwrap()
     }
 
+    fn indexed_session_id(id: u128) -> SessionId {
+        SessionId::try_from(uuid::Uuid::from_u128(
+            0x01983da0000070008000000000000000 | id,
+        ))
+        .unwrap()
+    }
+
     fn indexed_session(id: u128, owner: TaskOwner) -> Arc<LiveSession> {
         Arc::new(LiveSession {
-            session_id: uuid::Uuid::from_u128(id).to_string(),
-            pipeline_id: "preview".into(),
-            pipeline_uri: uris::pipeline_uri("preview"),
+            session_id: indexed_session_id(id),
+            pipeline_id: "preview".parse().unwrap(),
+            pipeline_uri: uris::pipeline_uri(&"preview".parse().unwrap()),
             ingress: veoveo_stream_mcp::contract::LiveIngressView {
                 transport: veoveo_stream_mcp::contract::LiveTransport::RtpH264Udp,
                 host: "fixture".into(),
@@ -952,14 +963,14 @@ mod tests {
                 .sessions
                 .lock()
                 .await
-                .insert(outside_page.session_id.clone(), outside_page.clone());
+                .insert(outside_page.session_id, outside_page.clone());
             for id in 2..=107 {
                 let session = indexed_session(id, owner.clone());
                 manager
                     .sessions
                     .lock()
                     .await
-                    .insert(session.session_id.clone(), session);
+                    .insert(session.session_id, session);
             }
             let mut private_owner = owner;
             private_owner.data_labels.insert("secret".into());
@@ -969,17 +980,17 @@ mod tests {
                 .sessions
                 .lock()
                 .await
-                .insert(hidden.session_id.clone(), hidden.clone());
+                .insert(hidden.session_id, hidden.clone());
             let first = manager.page(&caller, None, 100).await;
             assert_eq!(first.sessions.len(), 100);
             assert_eq!(
                 first.sessions.first().unwrap().session_id,
-                uuid::Uuid::from_u128(107).to_string()
+                indexed_session_id(107)
             );
-            assert_eq!(first.next_before, Some(uuid::Uuid::from_u128(8)));
+            assert_eq!(first.next_before, Some(indexed_session_id(8)));
             let values = manager.complete_ids(&caller, "", 101).await;
             assert_eq!(values.len(), 101);
-            let last = uuid::Uuid::from_u128(107).to_string();
+            let last = indexed_session_id(107).to_string();
             assert_eq!(manager.complete_ids(&caller, &last, 101).await, vec![last]);
             drop(outside_lock);
             // A new session arriving between page reads must not duplicate older IDs.
@@ -988,7 +999,7 @@ mod tests {
                 .sessions
                 .lock()
                 .await
-                .insert(newest.session_id.clone(), newest);
+                .insert(newest.session_id, newest);
             let tail = manager.page(&caller, first.next_before, 100).await;
             assert_eq!(tail.sessions.len(), 7);
             assert!(tail.next_before.is_none());

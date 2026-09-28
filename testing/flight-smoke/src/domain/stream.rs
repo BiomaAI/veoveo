@@ -1,14 +1,18 @@
 use super::*;
+use veoveo_stream_mcp::{
+    contract::{PipelineId, SessionId, SessionPreviewUri, SessionResultsUri},
+    uris as stream_uris,
+};
 
 pub(super) struct AcceptanceLiveSession {
-    pub(super) session_id: String,
-    pub(super) preview_uri: String,
+    pub(super) session_id: SessionId,
+    pub(super) preview_uri: SessionPreviewUri,
     pub(super) owned_by_acceptance: bool,
 }
 
 pub(super) async fn prepare_live_stream_pipeline(
     operator: &OperatorClient<'_>,
-    pipeline_id: &str,
+    pipeline_id: &PipelineId,
 ) -> Result<AcceptanceLiveSession> {
     // Bound the preflight over domain-owned pages. Exhaustion fails before starting
     // a duplicate runner when the active session lies beyond our read budget.
@@ -55,18 +59,10 @@ pub(super) async fn prepare_live_stream_pipeline(
             "Stream session preflight exceeded 100 pages"
         );
         ensure!(
-            seen.insert(cursor.clone()),
+            seen.insert(cursor.as_str().to_owned()),
             "Stream session cursor repeated"
         );
-        ensure!(
-            cursor.len() <= 1024
-                && !cursor.is_empty()
-                && cursor
-                    .bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_'),
-            "invalid Stream session cursor"
-        );
-        uri = format!("stream://sessions?cursor={cursor}");
+        uri = stream_uris::sessions_uri(Some(cursor)).to_string();
     }
 
     let started: StartLiveSessionOutput = serde_json::from_value(
@@ -89,12 +85,12 @@ pub(super) async fn prepare_live_stream_pipeline(
 
 pub(super) fn reusable_live_stream_session<'a>(
     sessions: &'a [LiveSessionView],
-    pipeline_id: &str,
+    pipeline_id: &PipelineId,
 ) -> Result<Option<&'a LiveSessionView>> {
     let active = sessions
         .iter()
         .filter(|session| {
-            session.pipeline_id == pipeline_id
+            &session.pipeline_id == pipeline_id
                 && matches!(
                     session.lifecycle,
                     LiveSessionLifecycle::Starting | LiveSessionLifecycle::Running
@@ -109,18 +105,17 @@ pub(super) fn reusable_live_stream_session<'a>(
 }
 
 pub(super) fn acceptance_live_session(
-    session_id: &str,
-    results_uri: &str,
-    preview_uri: &str,
+    session_id: &SessionId,
+    results_uri: &SessionResultsUri,
+    preview_uri: &SessionPreviewUri,
     owned_by_acceptance: bool,
 ) -> Result<AcceptanceLiveSession> {
     ensure!(
-        results_uri == format!("stream://session/{session_id}/results")
-            && preview_uri == format!("stream://session/{session_id}/preview"),
+        results_uri.id() == session_id && preview_uri.id() == session_id,
         "Stream returned inconsistent live-session resources for {session_id}: results={results_uri}, preview={preview_uri}"
     );
     Ok(AcceptanceLiveSession {
-        session_id: session_id.to_owned(),
+        session_id: *session_id,
         preview_uri: preview_uri.to_owned(),
         owned_by_acceptance,
     })
@@ -128,7 +123,7 @@ pub(super) fn acceptance_live_session(
 
 pub(super) async fn stop_live_stream_session(
     operator: &OperatorClient<'_>,
-    session_id: &str,
+    session_id: &SessionId,
     phase: &str,
 ) -> Result<()> {
     let output: StopLiveSessionOutput = serde_json::from_value(
@@ -150,12 +145,12 @@ pub(super) async fn stop_live_stream_session(
 
 pub(super) async fn wait_for_live_stream(
     operator: &OperatorClient<'_>,
-    session_id: &str,
-    preview_uri: &str,
+    session_id: &SessionId,
+    preview_uri: &SessionPreviewUri,
     acceptance: &StreamScenario,
 ) -> Result<Value> {
-    let session_uri = format!("stream://session/{session_id}");
-    let results_uri = format!("{session_uri}/results");
+    let session_uri = stream_uris::session_uri(*session_id).to_string();
+    let results_uri = stream_uris::session_results_uri(*session_id).to_string();
     let timeout = Duration::from_secs(acceptance.live_timeout_seconds);
     let deadline = tokio::time::Instant::now() + timeout;
     loop {
@@ -170,7 +165,7 @@ pub(super) async fn wait_for_live_stream(
             .resource(&results_uri, Duration::from_secs(60))
             .await?;
         let preview = operator
-            .resource(preview_uri, Duration::from_secs(60))
+            .resource(&preview_uri.to_string(), Duration::from_secs(60))
             .await?;
         let current = serde_json::json!({
             "session": session,

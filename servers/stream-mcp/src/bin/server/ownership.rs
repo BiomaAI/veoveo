@@ -8,8 +8,6 @@ use veoveo_recording_reader::RecordingReadAuthority;
 use veoveo_task_runtime::TaskOwner;
 use veoveo_types::{DataLabelId, PrincipalId, TenantId};
 
-use super::app_state::AppState;
-
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
 ) -> Result<GatewayInternalIdentity, McpError> {
@@ -115,38 +113,4 @@ pub(super) fn recording_authority_from_runtime(
             .collect::<Result<BTreeSet<_>, _>>()
             .map_err(|error| error.to_string())?,
     ))
-}
-
-pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    let caller = runtime_owner(identity);
-    owner.allows(
-        &caller.principal_key,
-        &caller.profile,
-        caller.tenant_key.as_deref(),
-        &caller.data_labels,
-    )
-}
-
-pub(super) async fn require_task_owner(
-    state: &AppState,
-    context: &RequestContext<RoleServer>,
-    task_id: &str,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
-    let owner = state
-        .tasks
-        .owner(task_id)
-        .await
-        .map_err(|error| McpError::internal_error(error.to_string(), None))?
-        .ok_or_else(|| {
-            McpError::resource_not_found(format!("Stream run `{task_id}` was not found."), None)
-        })?;
-    if task_owner_allows(&owner, &identity) {
-        Ok(identity)
-    } else {
-        Err(McpError::resource_not_found(
-            format!("Stream run `{task_id}` was not found."),
-            None,
-        ))
-    }
 }

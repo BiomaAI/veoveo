@@ -76,7 +76,7 @@ pub(super) struct RecordingAcceptance {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct StreamScenario {
-    pub(super) live_pipeline_id: String,
+    pub(super) live_pipeline_id: veoveo_stream_mcp::contract::PipelineId,
     pub(super) minimum_live_frames: u64,
     pub(super) maximum_result_age_ms: u64,
     pub(super) live_timeout_seconds: u64,
@@ -218,8 +218,7 @@ impl UavAcceptanceScenario {
             "mission parameters are outside the accepted flight envelope"
         );
         ensure!(
-            !self.stream.live_pipeline_id.trim().is_empty()
-                && self.stream.minimum_live_frames > 0
+            self.stream.minimum_live_frames > 0
                 && self.stream.maximum_result_age_ms > 0
                 && self.stream.live_timeout_seconds > 0,
             "Stream live acceptance must require a pipeline, frames, freshness, and timeout"

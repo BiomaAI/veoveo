@@ -7,7 +7,8 @@ fn canonical_scenario() -> PathBuf {
         .join("../../showcase/uav-sim/scenarios/new-york-aerial.json")
 }
 
-fn live_session(session_id: &str, pipeline_id: &str, lifecycle: &str) -> LiveSessionView {
+fn live_session(session_number: u8, pipeline_id: &str, lifecycle: &str) -> LiveSessionView {
+    let session_id = format!("01983da0-0000-7000-8000-{session_number:012x}");
     serde_json::from_value(serde_json::json!({
         "session_id": session_id,
         "session_uri": format!("stream://session/{session_id}"),
@@ -163,23 +164,26 @@ fn stream_product_acceptance_rejects_duplicate_camera_products() {
 #[test]
 fn stream_preflight_reuses_one_visible_session_without_claiming_ownership() {
     let sessions = vec![
-        live_session("stopped", "traffic", "stopped"),
-        live_session("active", "traffic", "running"),
-        live_session("other", "another-pipeline", "running"),
+        live_session(1, "traffic", "stopped"),
+        live_session(2, "traffic", "running"),
+        live_session(3, "another-pipeline", "running"),
     ];
-    let selected = reusable_live_stream_session(&sessions, "traffic")
+    let selected = reusable_live_stream_session(&sessions, &"traffic".parse().unwrap())
         .unwrap()
         .unwrap();
-    assert_eq!(selected.session_id, "active");
+    assert_eq!(
+        selected.session_id.to_string(),
+        "01983da0-0000-7000-8000-000000000002"
+    );
 }
 
 #[test]
 fn stream_preflight_rejects_multiple_visible_active_sessions() {
     let sessions = vec![
-        live_session("first", "traffic", "starting"),
-        live_session("second", "traffic", "running"),
+        live_session(1, "traffic", "starting"),
+        live_session(2, "traffic", "running"),
     ];
-    assert!(reusable_live_stream_session(&sessions, "traffic").is_err());
+    assert!(reusable_live_stream_session(&sessions, &"traffic".parse().unwrap()).is_err());
 }
 
 #[test]

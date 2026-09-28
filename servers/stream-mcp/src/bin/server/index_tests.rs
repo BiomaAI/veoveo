@@ -44,56 +44,6 @@ fn owner() -> TaskOwner {
     }
 }
 
-#[test]
-fn collection_cursors_validate_shape_version_and_collection() {
-    let position = TaskPageCursor {
-        created_at: chrono::Utc::now(),
-        task_id: TaskId::new(),
-    };
-    let encoded = encode_cursor(uris::RUNS_URI, position.clone()).unwrap();
-    let parse = |uri: &str| parse_collection::<TaskPageCursor>(uri, uris::RUNS_URI);
-    let cursor = parse(&format!("stream://runs?cursor={encoded}"))
-        .unwrap()
-        .unwrap()
-        .unwrap();
-    assert_eq!(cursor.position, position);
-    assert_eq!(parse(uris::RUNS_URI).unwrap(), Some(None));
-    assert_eq!(parse("stream://models").unwrap(), None);
-    for suffix in [
-        "?",
-        "?cursor=",
-        "?offset=1",
-        "?cursor=bad",
-        "?cursor=one&cursor=two",
-    ] {
-        assert!(parse(&format!("stream://runs{suffix}")).is_err());
-    }
-    for cursor in [
-        CollectionCursor {
-            version: 2,
-            ..cursor.clone()
-        },
-        CollectionCursor {
-            collection: uris::SESSIONS_URI.into(),
-            ..cursor
-        },
-    ] {
-        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).unwrap());
-        assert!(parse(&format!("stream://runs?cursor={encoded}")).is_err());
-    }
-    let id = uuid::Uuid::now_v7();
-    let encoded = encode_cursor(uris::SESSIONS_URI, id).unwrap();
-    let parsed = parse_collection::<uuid::Uuid>(
-        &format!("stream://sessions?cursor={encoded}"),
-        uris::SESSIONS_URI,
-    )
-    .unwrap()
-    .unwrap()
-    .unwrap();
-    assert_eq!(parsed.position, id);
-    assert!(parse(&format!("stream://runs?cursor={encoded}")).is_err());
-}
-
 fn request() -> serde_json::Value {
     let capability = json!({
         "capability_id": uuid::Uuid::now_v7(),
@@ -125,14 +75,14 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
         let mut expected_tasks = Vec::new();
         let mut expected_artifacts = Vec::new();
         for index in 0..103 {
-            let mut owner = owner();
+            let mut task_owner = owner();
             if index == 0 {
-                owner.data_labels.insert("restricted".into());
+                task_owner.data_labels.insert("restricted".into());
             }
             let task = tasks
                 .create(CreateTask {
                     task_id: TaskId::new(),
-                    owner,
+                    owner: task_owner,
                     server: "stream".into(),
                     task_type: if index == 1 {
                         "unrelated"
@@ -174,6 +124,27 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .check()
                 .unwrap();
+            if index <= 2 {
+                let id = RunId::try_from(task.task_id).unwrap();
+                let selected = super::super::resources::run_snapshot(&tasks, &owner(), id).await;
+                assert_eq!(selected.is_ok(), index == 2);
+                if index == 2 {
+                    for field in ["principal", "profile", "tenant"] {
+                        let mut reader = owner();
+                        match field {
+                            "principal" => reader.principal_key = "stranger".into(),
+                            "profile" => reader.profile = "stranger".into(),
+                            "tenant" => reader.tenant_key = Some("stranger".into()),
+                            _ => unreachable!(),
+                        }
+                        assert!(
+                            super::super::resources::run_snapshot(&tasks, &reader, id)
+                                .await
+                                .is_err()
+                        );
+                    }
+                }
+            }
             if index >= 2 {
                 expected_tasks.push(task.task_id.to_string());
                 expected_artifacts.push(artifact);
@@ -182,13 +153,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
         let page = runs_page(&tasks, &owner(), None).await.unwrap();
         assert_eq!(page.limit, 100);
         assert_eq!(page.runs.len(), 100);
-        let cursor = parse_collection::<TaskPageCursor>(
-            &format!("stream://runs?cursor={}", page.next_cursor.unwrap()),
-            uris::RUNS_URI,
-        )
-        .unwrap()
-        .unwrap()
-        .unwrap();
+        let cursor = RunCursor::parse(page.next_cursor.unwrap().as_str()).unwrap();
         let tail = runs_page(&tasks, &owner(), Some(&cursor)).await.unwrap();
         assert_eq!(tail.runs.len(), 1);
         assert!(tail.next_cursor.is_none());
@@ -196,7 +161,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             page.runs
                 .into_iter()
                 .chain(tail.runs)
-                .map(|r| r.task_id)
+                .map(|r| r.task_id.to_string())
                 .collect::<Vec<_>>(),
             expected_tasks
         );

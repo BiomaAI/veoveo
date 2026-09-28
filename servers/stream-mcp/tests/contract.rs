@@ -2,6 +2,8 @@ use veoveo_stream_mcp::contract::*;
 
 #[path = "contract/replay.rs"]
 mod replay;
+#[path = "contract/resources.rs"]
+mod resources;
 
 #[test]
 fn replay_requests_share_the_video_owner_and_preserve_defaults() {
@@ -28,7 +30,7 @@ fn replay_requests_share_the_video_owner_and_preserve_defaults() {
 fn live_admission_and_lifecycle_types_are_available_to_clients() {
     let request: StartLiveSessionRequest =
         serde_json::from_value(serde_json::json!({"pipeline_id": "traffic"})).unwrap();
-    assert_eq!(request.pipeline_id, "traffic");
+    assert_eq!(request.pipeline_id.as_str(), "traffic");
     assert!(
         serde_json::from_value::<StartLiveSessionRequest>(serde_json::json!({
             "pipeline_id": "traffic", "launch": "untrusted graph"

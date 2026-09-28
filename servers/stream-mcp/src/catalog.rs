@@ -1,3 +1,4 @@
+use crate::contract::{ModelId, PipelineId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -23,7 +24,7 @@ struct CatalogDocument {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelConfig {
-    pub id: String,
+    pub id: ModelId,
     pub title: String,
     pub description: String,
     pub format: ModelFormat,
@@ -33,7 +34,7 @@ pub struct ModelConfig {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PipelineConfig {
-    pub id: String,
+    pub id: PipelineId,
     pub title: String,
     pub description: String,
     pub profile: PipelineProfileConfig,
@@ -49,7 +50,7 @@ pub enum PipelineProfileConfig {
     PassThrough,
     Perception {
         operation: PerceptionOperation,
-        model_id: String,
+        model_id: ModelId,
         inference_config_path: PathBuf,
         #[serde(default)]
         tracker: Option<TrackerConfig>,
@@ -69,7 +70,7 @@ impl PipelineProfileConfig {
         }
     }
 
-    pub fn model_id(&self) -> Option<&str> {
+    pub fn model_id(&self) -> Option<&ModelId> {
         match self {
             Self::PassThrough => None,
             Self::Perception { model_id, .. } => Some(model_id),
@@ -97,7 +98,7 @@ impl PipelineProfileConfig {
 #[derive(Clone, Copy, Debug)]
 pub struct PerceptionProfile<'a> {
     pub operation: PerceptionOperation,
-    pub model_id: &'a str,
+    pub model_id: &'a ModelId,
     pub inference_config_path: &'a Path,
     pub tracker: Option<&'a TrackerConfig>,
 }
@@ -211,8 +212,8 @@ pub struct TrackerConfig {
 
 #[derive(Clone, Debug)]
 pub struct PipelineCatalog {
-    models: BTreeMap<String, ModelConfig>,
-    pipelines: BTreeMap<String, PipelineConfig>,
+    models: BTreeMap<ModelId, ModelConfig>,
+    pipelines: BTreeMap<PipelineId, PipelineConfig>,
 }
 
 impl PipelineCatalog {
@@ -229,7 +230,6 @@ impl PipelineCatalog {
     pub fn new(models: Vec<ModelConfig>, pipelines: Vec<PipelineConfig>) -> Result<Self> {
         let mut model_map = BTreeMap::new();
         for model in models {
-            validate_id("model id", &model.id)?;
             ensure!(!model.title.trim().is_empty(), "model title is required");
             ensure!(
                 model.model_path.is_absolute(),
@@ -249,7 +249,6 @@ impl PipelineCatalog {
         let mut live_ports = BTreeSet::new();
         let mut pipeline_map = BTreeMap::new();
         for pipeline in pipelines {
-            validate_id("pipeline id", &pipeline.id)?;
             ensure!(
                 !pipeline.title.trim().is_empty(),
                 "pipeline title is required"
@@ -319,11 +318,11 @@ impl PipelineCatalog {
         })
     }
 
-    pub fn pipeline(&self, id: &str) -> Option<&PipelineConfig> {
+    pub fn pipeline(&self, id: &PipelineId) -> Option<&PipelineConfig> {
         self.pipelines.get(id)
     }
 
-    pub fn model(&self, id: &str) -> Option<&ModelConfig> {
+    pub fn model(&self, id: &ModelId) -> Option<&ModelConfig> {
         self.models.get(id)
     }
 
@@ -335,11 +334,11 @@ impl PipelineCatalog {
         self.models.values().map(model_view).collect()
     }
 
-    pub fn pipeline_ids(&self) -> BTreeSet<String> {
+    pub fn pipeline_ids(&self) -> BTreeSet<PipelineId> {
         self.pipelines.keys().cloned().collect()
     }
 
-    pub fn model_ids(&self) -> BTreeSet<String> {
+    pub fn model_ids(&self) -> BTreeSet<ModelId> {
         self.models.keys().cloned().collect()
     }
 
@@ -374,7 +373,10 @@ impl PipelineCatalog {
     }
 }
 
-fn validate_recording_output(output: &RecordingOutputConfig, pipeline_id: &str) -> Result<()> {
+fn validate_recording_output(
+    output: &RecordingOutputConfig,
+    pipeline_id: &PipelineId,
+) -> Result<()> {
     ensure!(
         output.proxy_url.starts_with("rerun+http://127.0.0.1:")
             || output.proxy_url.starts_with("rerun+http://[::1]:"),
@@ -420,8 +422,8 @@ pub fn model_view(config: &ModelConfig) -> ModelView {
 
 fn validate_profile(
     profile: &PipelineProfileConfig,
-    models: &BTreeMap<String, ModelConfig>,
-    pipeline_id: &str,
+    models: &BTreeMap<ModelId, ModelConfig>,
+    pipeline_id: &PipelineId,
 ) -> Result<()> {
     let Some(profile) = profile.perception() else {
         return Ok(());
@@ -533,7 +535,7 @@ fn validate_graph(
     Ok(())
 }
 
-fn validate_ingress(ingress: &RtpH264UdpIngress, pipeline_id: &str) -> Result<()> {
+fn validate_ingress(ingress: &RtpH264UdpIngress, pipeline_id: &PipelineId) -> Result<()> {
     ensure!(
         !ingress.advertised_host.trim().is_empty()
             && ingress.advertised_host.len() <= 253
@@ -552,7 +554,7 @@ fn validate_ingress(ingress: &RtpH264UdpIngress, pipeline_id: &str) -> Result<()
     Ok(())
 }
 
-fn validate_avc_codec(codec: &str, pipeline_id: &str) -> Result<()> {
+fn validate_avc_codec(codec: &str, pipeline_id: &PipelineId) -> Result<()> {
     ensure!(
         codec.len() == 11
             && codec.starts_with("avc1.")
@@ -586,7 +588,7 @@ mod tests {
 
     fn model() -> ModelConfig {
         ModelConfig {
-            id: "detector".to_owned(),
+            id: "detector".parse().unwrap(),
             title: "Detector".to_owned(),
             description: String::new(),
             format: ModelFormat::TensorRtEngine,
@@ -611,12 +613,12 @@ mod tests {
         let error = PipelineCatalog::new(
             vec![model()],
             vec![PipelineConfig {
-                id: "detect".to_owned(),
+                id: "detect".parse().unwrap(),
                 title: "Detect".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::Perception {
                     operation: PerceptionOperation::ObjectDetection,
-                    model_id: "missing".to_owned(),
+                    model_id: "missing".parse().unwrap(),
                     inference_config_path: "/etc/stream/detect.txt".into(),
                     tracker: None,
                 },
@@ -633,12 +635,12 @@ mod tests {
         let error = PipelineCatalog::new(
             vec![model()],
             vec![PipelineConfig {
-                id: "track".to_owned(),
+                id: "track".parse().unwrap(),
                 title: "Track".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::Perception {
                     operation: PerceptionOperation::ObjectDetectionTracking,
-                    model_id: "detector".to_owned(),
+                    model_id: "detector".parse().unwrap(),
                     inference_config_path: "/etc/stream/detect.txt".into(),
                     tracker: None,
                 },
@@ -655,7 +657,7 @@ mod tests {
         let catalog = PipelineCatalog::new(
             vec![],
             vec![PipelineConfig {
-                id: "preview".to_owned(),
+                id: "preview".parse().unwrap(),
                 title: "Preview".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::PassThrough,
@@ -728,7 +730,7 @@ mod tests {
         let error = PipelineCatalog::new(
             vec![],
             vec![PipelineConfig {
-                id: "preview".to_owned(),
+                id: "preview".parse().unwrap(),
                 title: "Preview".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::PassThrough,
@@ -745,7 +747,7 @@ mod tests {
         let error = PipelineCatalog::new(
             vec![],
             vec![PipelineConfig {
-                id: "preview".to_owned(),
+                id: "preview".parse().unwrap(),
                 title: "Preview".to_owned(),
                 description: String::new(),
                 profile: PipelineProfileConfig::PassThrough,
@@ -768,7 +770,7 @@ mod tests {
         assert_eq!(catalog.model_ids().len(), 1);
         assert!(
             catalog
-                .pipeline("detect-objects")
+                .pipeline(&"detect-objects".parse().unwrap())
                 .is_some_and(|pipeline| pipeline.live.is_some())
         );
     }

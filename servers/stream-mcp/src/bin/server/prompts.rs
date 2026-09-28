@@ -56,11 +56,12 @@ impl StreamPrompt {
             timeline: Option<String>,
             start: Option<i64>,
             end: Option<i64>,
-            pipeline_id: Option<String>,
+            pipeline_id: veoveo_stream_mcp::contract::PipelineId,
         }
         let args: Args = serde_json::from_value(Value::Object(arguments.unwrap_or_default()))
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
-        let pipeline_id = args.pipeline_id.as_deref().unwrap_or("<required>");
+        let pipeline_id = &args.pipeline_id;
+        let pipeline_uri = veoveo_stream_mcp::uris::pipeline_uri(pipeline_id);
         let text = match self {
             Self::RunRecording => format!(
                 "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
@@ -73,7 +74,7 @@ impl StreamPrompt {
                     .map_or_else(|| "<required>".to_owned(), |value| value.to_string()),
             ),
             Self::StartLiveSession => format!(
-                "Read stream://pipeline/{pipeline_id} and verify it supports live input. Call start_live_session with that pipeline_id, then subscribe to the returned session and results resources. Send the source to the returned ingress without waiting for Recording Hub."
+                "Read {pipeline_uri} and verify it supports live input. Call start_live_session with that pipeline_id, then subscribe to the returned session and results resources. Send the source to the returned ingress without waiting for Recording Hub."
             ),
         };
         Ok(GetPromptResult::new(vec![PromptMessage::new_text(
@@ -87,4 +88,26 @@ fn required(name: &str, description: &str) -> PromptArgument {
     PromptArgument::new(name)
         .with_description(description)
         .with_required(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn live_prompt_requires_an_admitted_pipeline_id_and_builds_its_address() {
+        let render = |id: &str| {
+            StreamPrompt::StartLiveSession.render(Some(
+                [("pipeline_id".into(), Value::String(id.into()))]
+                    .into_iter()
+                    .collect(),
+            ))
+        };
+        let response = serde_json::to_string(&render("camera-2").unwrap()).unwrap();
+        assert!(response.contains("stream://pipeline/camera-2"));
+        assert!(StreamPrompt::StartLiveSession.render(None).is_err());
+        for id in ["camera/other", "camera?cursor=bad", "", "Camera"] {
+            assert!(render(id).is_err());
+        }
+    }
 }

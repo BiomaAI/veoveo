@@ -1101,14 +1101,15 @@ and Artifact publication.
 | Path | Responsibility |
 |---|---|
 | `src/contract.rs`, `src/contract/live.rs` | replay, video, result, sampling, detection, timeline, and output types; the pure live-session module is also compiled by the focused flight client |
+| `src/contract/ids.rs`, `cursor.rs`, `resources.rs`, `src/uris.rs` | Stream-owned catalog and execution IDs, typed collection continuations, and resource parsing/building available to contract-only consumers |
+| `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
-| `src/uris.rs` | `stream://` URIs |
 | `src/bin/server/live.rs` | owner-scoped live runner lifecycle plus result and encoded-preview ring buffers |
-| `src/bin/server/index.rs`, `src/bin/server/index_tests.rs` | authorized run and session pages, collection cursors, bounded completion, and isolated Store qualification |
+| `src/bin/server/index.rs`, `src/bin/server/index_tests.rs` | authorized run and session pages, typed cursor integration, bounded completion, and isolated Store qualification |
 | `src/bin/server/recording_output.rs` | optional non-blocking fan-out of existing H.264 units to the pod-local Recording forwarder |
 | `src/bin/server/app.rs`, `assets/live.html` | self-contained Stream MCP App resource for actual encoded video, typed overlays, and decode-path reporting |
 | `apps/console/web/tests/stream-pagination.test.mjs` (repository root) | headless behavioral checks for Stream App page navigation using the Console's maintained Playwright dependency |

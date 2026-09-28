@@ -16,6 +16,7 @@ over encoded sensor streams and governed recordings.
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`; `ui://stream/live.html` is a self-contained App using canonical Stream tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Pipeline profiles, RTP ingress, live sessions, detections, encoded preview chunks, recording selections, and artifact results use closed typed shapes. |
 | Stream replay `veoveo.stream-results/v1` | The contract library owns the version enum, complete result model and portable validation shared by producers and consumers. |
+| Stream resource addresses | `StreamResource` owns the route vocabulary. Distinct catalog IDs and UUIDv7 run/session IDs compose through foundational URI builders. Collection continuations use distinct typed JSON/base64url cursors. |
 | Stream Artifact addresses | `StreamArtifactUri` wraps the Artifact contract's presented address with the fixed `stream` scheme and a typed Artifact occurrence ID. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; recording replay is durable, cancellable, resumable from governed identity, and returns its terminal payload through `tasks/get`. A live session is direct bounded work, not an indefinitely running task. |
 | [GStreamer 1.0](https://gstreamer.freedesktop.org/documentation/) | Operator-admitted native launch graphs are private installation configuration. Clients select stable pipeline IDs and never submit launch text. |
@@ -43,7 +44,16 @@ requires it. Feature selection preserves the JSON fields, schema names and retai
 source-snapshot digest. Runtime source access still requires current authorization.
 `StreamArtifactUri` is available through `contract`. It delegates parsing and building
 to the Artifact owner's `ArtifactUri`, preserves admitted wire spelling and implements
-the foundational `ResourceAddress` trait. Other URI helpers belong to `runtime`.
+the foundational `ResourceAddress` trait. The contract-only `uris` module builds
+catalog, run and live-session addresses from their owning IDs. `PipelineId` and
+`ModelId` admit lowercase catalog names of at most 128 ASCII characters; `RunId`
+and `SessionId` admit canonical RFC UUIDv7 values. Run and session cursor types
+validate their collection, version and position before a reader queries state.
+The resource handler parses one `StreamResource` and dispatches its typed address.
+Run reads and subscription admission select caller-owned Tasks in SQL. Private
+live-session reads apply the session manager's ownership rules before materializing
+the in-memory view. Each DTO exposes typed identities and addresses; validation of
+all relationships between repeated fields is still pending.
 
 Public contract tests compare every exported schema with the captured wire profile.
 Run those tests through an independent Cargo consumer to check dependency isolation;

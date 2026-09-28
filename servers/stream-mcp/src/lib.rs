@@ -11,5 +11,5 @@ pub mod catalog;
 pub mod contract;
 #[cfg(feature = "runtime")]
 pub mod executor;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;

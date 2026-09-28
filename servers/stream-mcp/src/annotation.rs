@@ -1,3 +1,4 @@
+use crate::contract::{ModelId, PipelineId, RunId, RunUri};
 use std::fs;
 
 use anyhow::{Context, Result};
@@ -15,10 +16,10 @@ pub const MP4_MIME_TYPE: &str = "video/mp4";
 #[derive(Serialize)]
 struct AnnotationProvenance<'a> {
     schema: &'static str,
-    run_uri: String,
+    run_uri: RunUri,
     results_schema: &'a crate::contract::StreamResultsSchema,
-    pipeline_id: &'a str,
-    model_id: &'a str,
+    pipeline_id: &'a PipelineId,
+    model_id: &'a ModelId,
     recording_uri: &'a str,
     entity_path: &'a str,
     timeline: &'a str,
@@ -26,7 +27,7 @@ struct AnnotationProvenance<'a> {
     requested_range: crate::contract::IndexRange,
 }
 
-pub fn write_annotation_rrd(task_id: &str, results: &AnalysisResults) -> Result<Vec<u8>> {
+pub fn write_annotation_rrd(task_id: RunId, results: &AnalysisResults) -> Result<Vec<u8>> {
     let temp = tempfile::Builder::new()
         .prefix("veoveo-stream-annotations-")
         .suffix(".rrd")
@@ -34,7 +35,7 @@ pub fn write_annotation_rrd(task_id: &str, results: &AnalysisResults) -> Result<
         .context("creating annotation RRD")?;
     let path = temp.path().to_path_buf();
     let recording = RecordingStreamBuilder::new("veoveo_stream_run")
-        .recording_id(task_id.to_owned())
+        .recording_id(task_id.to_string())
         .recording_name(format!("stream run {task_id}"))
         .save(&path)
         .context("opening annotation RRD sink")?;

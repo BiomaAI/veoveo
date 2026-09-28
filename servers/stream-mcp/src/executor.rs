@@ -1,3 +1,4 @@
+use crate::contract::{ModelId, PipelineId, RunId};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -27,7 +28,7 @@ pub struct StreamExecutor {
 }
 
 pub struct StreamAnalysisRequest<'a> {
-    pub task_id: &'a str,
+    pub task_id: RunId,
     pub input_mp4: &'a Path,
     pub decode_start_index: i64,
     pub input_width: u16,
@@ -105,7 +106,7 @@ impl StreamExecutor {
             .context("recording replay currently requires a perception profile")?;
         let request = RunnerRequest {
             schema: RUNNER_REQUEST_SCHEMA.to_owned(),
-            task_id: analysis.task_id.to_owned(),
+            task_id: analysis.task_id,
             input_mp4: analysis.input_mp4.to_path_buf(),
             input_width: analysis.input_width,
             input_height: analysis.input_height,
@@ -234,7 +235,7 @@ impl StreamExecutor {
 #[serde(deny_unknown_fields)]
 struct RunnerRequest {
     schema: String,
-    task_id: String,
+    task_id: RunId,
     input_mp4: PathBuf,
     input_width: u16,
     input_height: u16,
@@ -252,7 +253,7 @@ struct RunnerRequest {
 #[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerPipeline {
-    pipeline_id: String,
+    pipeline_id: PipelineId,
     graph: GStreamerGraphConfig,
     profile: RunnerPerceptionProfile,
 }
@@ -295,7 +296,7 @@ impl From<&TrackerConfig> for RunnerTracker {
 #[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerModel {
-    model_id: String,
+    model_id: ModelId,
     model_path: PathBuf,
     format: crate::contract::ModelFormat,
 }
@@ -401,12 +402,12 @@ mod tests {
             },
         };
         let pipeline = PipelineConfig {
-            id: "detect".to_owned(),
+            id: "detect".parse().unwrap(),
             title: "Detect".to_owned(),
             description: String::new(),
             profile: PipelineProfileConfig::Perception {
                 operation: PerceptionOperation::ObjectDetection,
-                model_id: "detector".to_owned(),
+                model_id: "detector".parse().unwrap(),
                 inference_config_path: "/etc/stream/detect.txt".into(),
                 tracker: None,
             },
@@ -422,7 +423,7 @@ mod tests {
             live: None,
         };
         let model = ModelConfig {
-            id: "detector".to_owned(),
+            id: "detector".parse().unwrap(),
             title: "Detector".to_owned(),
             description: String::new(),
             format: ModelFormat::TensorRtEngine,
@@ -436,7 +437,7 @@ mod tests {
         };
         let results = executor
             .analyze(StreamAnalysisRequest {
-                task_id: "01983da0-0000-7000-8000-000000000001",
+                task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
                 input_mp4: &input,
                 decode_start_index: 100,
                 input_width: 32,
