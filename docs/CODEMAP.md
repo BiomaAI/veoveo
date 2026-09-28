@@ -894,6 +894,7 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/mcp/resources.rs` | resource reads through the server's typed address contract; static documentation and App reads precede state access |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
 | `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | fixed-size collection envelopes and catalog APIs using domain cursor types |
+| `servers/time-mcp/src/catalog/records.rs` | checked retained identity, version and indexed metadata decoding; lifecycle-column authority and redacted body diagnostics |
 | `servers/time-mcp/src/persistence/` | private temporal driver records, typed IDs/versions/cursors through query and mutation admission, SQL visibility and atomic authority activation; shared Store owns the connection and migrations |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) covers the

@@ -23,6 +23,7 @@ mod validation;
 
 pub(crate) use drafts::*;
 pub(crate) use records::*;
+pub(crate) use validation::validate_key;
 use validation::*;
 
 #[derive(Clone)]

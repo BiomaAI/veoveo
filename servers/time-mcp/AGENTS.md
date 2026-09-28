@@ -61,6 +61,10 @@ leap second assumptions.
   selection, event transition isolation, page boundaries, requested epoch batches,
   and bounded distinct completion against the
   pinned disposable SurrealDB fixture.
+- `src/catalog/tests/metadata.rs` qualifies retained body/key agreement, indexed
+  ordering fields, redacted diagnostics and immutable acquisition metadata. Preserve
+  the lifecycle-column rules and upgrade requirements in the design's Retained Catalog
+  Metadata section; stale release-state bodies can represent valid retired records.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -72,8 +76,9 @@ The library exposes the contract feature and owns its typed scopes, resource var
 and collection cursors. Every resource route uses the shared URI builder and parser.
 The MCP feature associates those types through `McpServerContract`; hosted startup,
 discovery and scope membership consume its checked setup.
-The runtime owns typed persistence inputs and the stored UUID key profile. Broader
-DTO typing, retained-body consistency and installed qualification remain work in the
+The runtime owns typed persistence inputs, the stored UUID key profile and checked
+catalog body decoding. Broader DTO typing, pointer/parent and clock scalar admission,
+and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

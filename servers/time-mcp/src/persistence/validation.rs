@@ -57,7 +57,7 @@ pub(super) fn validate_clock_policy(draft: &TimeClockPolicyDraft) -> Result<(), 
     validate_positive("maximum_holdover_seconds", draft.maximum_holdover_seconds)
 }
 
-pub(super) fn validate_key(
+pub(crate) fn validate_key(
     field: &'static str,
     value: impl AsRef<str>,
     prefix: &'static str,

@@ -1,4 +1,10 @@
 mod pages;
+mod records;
+
+use records::{
+    acquisition_from_record, calendar_from_record, epoch_from_record, event_from_record,
+    release_from_record, source_from_record,
+};
 #[cfg(test)]
 mod tests;
 
@@ -22,11 +28,10 @@ pub enum TimeCompletion {
 }
 
 use crate::persistence::{
-    TimeAcquisitionDraft, TimeAcquisitionRecord, TimeAcquisitionState as StoreAcquisitionState,
-    TimeAcquisitionUpdate, TimeAuthorityReleaseDraft, TimeAuthorityReleaseRecord,
-    TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState, TimeCalendarVersionDraft,
-    TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft, TimePersistence, TimeSourceDraft,
-    TimeSourceRecord, TimeTemporalEventDraft, TimeTemporalEventRecord,
+    TimeAcquisitionDraft, TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState,
+    TimeCalendarVersionDraft, TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft,
+    TimePersistence, TimeSourceDraft, TimeTemporalEventDraft,
     TimeTemporalEventState as StoreEventState,
 };
 use anyhow::{Context, Result, bail};
@@ -366,6 +371,17 @@ impl TimeCatalog {
         mut acquisition: TimeAcquisition,
     ) -> Result<TimeAcquisition> {
         let expected = acquisition.record_version;
+        let current = self
+            .acquisition(scope, &acquisition.acquisition_id)
+            .await?
+            .context("unknown Time acquisition")?;
+        anyhow::ensure!(
+            acquisition.source_id == current.source_id
+                && acquisition.expected_source_digest_sha256
+                    == current.expected_source_digest_sha256
+                && acquisition.created_at == current.created_at,
+            "an acquisition update cannot change its source, expected digest or creation time"
+        );
         acquisition.record_version += 1;
         acquisition.updated_at = chrono::Utc::now();
         let canonical_json = serde_json::to_string(&acquisition)?;
@@ -402,7 +418,7 @@ impl TimeCatalog {
                 canonical_json,
             })
             .await?;
-        serde_json::from_str(&record.canonical_json).context("decoding stored operational calendar")
+        calendar_from_record(record)
     }
 
     pub async fn calendar(
@@ -414,10 +430,7 @@ impl TimeCatalog {
         self.persistence
             .time_calendar_version(scope.identity.tenant_id, id, version)
             .await?
-            .map(|record| {
-                serde_json::from_str(&record.canonical_json)
-                    .context("decoding stored operational calendar")
-            })
+            .map(calendar_from_record)
             .transpose()
     }
 
@@ -439,7 +452,7 @@ impl TimeCatalog {
                 canonical_json,
             })
             .await?;
-        serde_json::from_str(&record.canonical_json).context("decoding stored mission epoch")
+        epoch_from_record(record)
     }
 
     pub async fn epoch(
@@ -450,10 +463,7 @@ impl TimeCatalog {
         self.persistence
             .latest_time_mission_epoch(scope.identity.tenant_id, id)
             .await?
-            .map(|record| {
-                serde_json::from_str(&record.canonical_json)
-                    .context("decoding stored mission epoch")
-            })
+            .map(epoch_from_record)
             .transpose()
     }
 
@@ -586,43 +596,6 @@ impl TimeCatalog {
             )
             .await?;
         Ok((policy, record.record_version.try_into()?))
-    }
-}
-
-fn source_from_record(record: TimeSourceRecord) -> Result<TimeSource> {
-    let mut value: TimeSource = serde_json::from_str(&record.canonical_json)?;
-    value.record_version = record.record_version.try_into()?;
-    Ok(value)
-}
-fn release_from_record(record: TimeAuthorityReleaseRecord) -> Result<AuthorityRelease> {
-    let mut value: AuthorityRelease = serde_json::from_str(&record.canonical_json)?;
-    value.state = release_state_from_store(record.state);
-    value.record_version = record.record_version.try_into()?;
-    Ok(value)
-}
-fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<TimeAcquisition> {
-    let mut value: TimeAcquisition = serde_json::from_str(&record.canonical_json)?;
-    value.status = acquisition_state_from_store(record.status);
-    value.phase = record.phase;
-    value.staged_release_id = record
-        .staged_release_key
-        .map(TimeAcquisitionReleaseId::parse)
-        .transpose()?;
-    value.record_version = record.record_version.try_into()?;
-    value.updated_at = record.updated_at;
-    Ok(value)
-}
-fn event_from_record(record: TimeTemporalEventRecord) -> Result<TemporalEvent> {
-    let mut value: TemporalEvent = serde_json::from_str(&record.canonical_json)?;
-    value.state = event_state_from_store(record.state);
-    value.record_version = record.record_version.try_into()?;
-    Ok(value)
-}
-
-struct TimeAcquisitionReleaseId;
-impl TimeAcquisitionReleaseId {
-    fn parse(value: String) -> Result<crate::contract::AuthorityReleaseId> {
-        crate::contract::AuthorityReleaseId::new(value).map_err(anyhow::Error::msg)
     }
 }
 

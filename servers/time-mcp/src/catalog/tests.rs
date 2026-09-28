@@ -13,6 +13,8 @@ use veoveo_platform_store::{PlatformStore, PrincipalKind};
 
 use crate::test_store as fixture;
 
+mod metadata;
+
 async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeAccessContext {
     TimeAccessContext {
         identity: store

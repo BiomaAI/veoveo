@@ -525,8 +525,7 @@ references keep their public spelling and are not converted into database keys.
 The persistence admission check applies before stored reads and writes. It does not
 narrow public provenance deserialization or rewrite retained keys. Store's migrations
 define tables and record fields; the Time contract defines JSON bodies and cursor versions.
-Broader DTO field typing and retained-body consistency checks remain in the foundations
-plan.
+Broader DTO field typing remains in the foundations plan.
 
 | Table | Responsibility |
 |---|---|
@@ -542,6 +541,47 @@ plan.
 All tables are schema-full and carry a 30-day changefeed. Platform migrations create
 their fields and indexes during installation bootstrap. The server connects with the
 database-scoped runtime identity and never applies migrations.
+
+### Retained Catalog Metadata
+
+`catalog/records.rs` converts SQL-selected rows into public values. It checks each
+stored UUID key against the typed ID in the JSON body and the physical record ID.
+Calendar and epoch keys include their positive version. Event and epoch nanoseconds
+must be below one billion. SQL applies tenant and event-owner visibility before this
+conversion; a visible inconsistent record fails its read or page without being dropped
+from the results. Reads never repair or rewrite retained data.
+
+| Entity | Body fields that must agree with the row | Values taken from lifecycle columns |
+|---|---|---|
+| Source | ID, name, dataset kind, URL, content type, enabled flag | record version |
+| Authority release | release and source IDs, dataset kind, version label, URL, digest, artifact path, retrieval and validation times | state, record version |
+| Acquisition | acquisition and source IDs, expected digest | status, phase, staged release ID, record version, update time |
+| Calendar | ID, version, name, zone | none |
+| Mission epoch | ID, version, name, TAI seconds and nanosecond | none |
+| Temporal event | ID, name, due TAI seconds and nanosecond | state, record version |
+
+Lifecycle columns can advance while a historical JSON body keeps its earlier values.
+Retirement uses this rule for release state and version. Acquisition creation time
+in the public body records enqueue time; the row's creation time records insertion.
+Acquisition updates preserve the public creation time, source and expected digest.
+The catalog checks those values before dispatch, and the SQL version predicate fences
+competing updates. Stored lifecycle versions must be positive. A staged acquisition
+release reference must satisfy the stored release-ID profile. Body decoding and
+consistency errors identify the entity and field without quoting stored content.
+
+The metadata admission profile uses the existing tables and JSON representation.
+The Time owner must preflight retained catalogs before an installation upgrade,
+checking bodies and keys under each tenant and event owner. Export rejected rows
+for investigation and correct them through an explicit operator repair before retrying.
+Drain Time requests, acquisition workers and event watchers during the coordinated
+upgrade; overlapping readers could otherwise disagree about corrupt records. Keep a
+database snapshot and the prior image for rollback. The upgrade performs no conversion,
+and rollback restores that snapshot with the prior image. The disposable reference
+installation uses the foundations plan's authorized reset. Installed preflight and
+rollback qualification remain pending.
+
+Active-authority pointer/parent consistency, clock-policy scalar admission and broader
+public DTO construction have separate work in the foundations inventory.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
@@ -608,6 +648,7 @@ Examples of agent requests include:
 | `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
+| `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission, SQL visibility and atomic activation |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |
 | `src/registry.rs` | tenant authority caches and activation preflight |
@@ -626,7 +667,9 @@ equivalence, DST ambiguity, DST-aware schedule expansion, half-open interval alg
 timeline violations, clock policy, canonical URIs, acquisition configuration, and
 archive traversal rejection.
 Time runtime tests cover stored URL/ID admission, SQL isolation and pagination, requested
-epoch batches and completion. Isolated authority tests use separate connections to
+epoch batches and completion. Retained-metadata cases corrupt rows through a separate
+fixture connection, verify read/collection rejection, preserve lifecycle columns, and
+reject acquisition identity changes before writing. Isolated authority tests use separate connections to
 qualify retirement and competing pointer updates. Store tests own schema migrations.
 Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration

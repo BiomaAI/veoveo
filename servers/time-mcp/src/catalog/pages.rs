@@ -1,4 +1,6 @@
-use super::{TimeAccessContext, TimeCatalog, event_from_record};
+use super::{
+    TimeAccessContext, TimeCatalog, calendar_from_record, epoch_from_record, event_from_record,
+};
 use crate::contract::TemporalEventState;
 use crate::{
     contract::{
@@ -7,7 +9,7 @@ use crate::{
     },
     index,
 };
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 impl TimeCatalog {
     pub async fn calendars_page(
@@ -27,10 +29,7 @@ impl TimeCatalog {
                     TimeVersion::new(row.calendar_version.try_into()?)?,
                 ))
             },
-            |row| {
-                serde_json::from_str(&row.canonical_json)
-                    .context("decoding stored operational calendar")
-            },
+            calendar_from_record,
         )
     }
     pub async fn epochs_page(
@@ -50,9 +49,7 @@ impl TimeCatalog {
                     TimeVersion::new(row.epoch_version.try_into()?)?,
                 ))
             },
-            |row| {
-                serde_json::from_str(&row.canonical_json).context("decoding stored mission epoch")
-            },
+            epoch_from_record,
         )
     }
     pub async fn events_page(
@@ -93,10 +90,7 @@ impl TimeCatalog {
                 .latest_time_mission_epochs(scope.identity.tenant_id, keys)
                 .await?;
             for row in rows {
-                epochs.push(
-                    serde_json::from_str(&row.canonical_json)
-                        .context("decoding stored mission epoch")?,
-                );
+                epochs.push(epoch_from_record(row)?);
             }
         }
         Ok(epochs)
