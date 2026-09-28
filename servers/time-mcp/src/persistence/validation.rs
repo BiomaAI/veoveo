@@ -42,7 +42,6 @@ pub(super) fn validate_acquisition(draft: &TimeAcquisitionDraft) -> Result<(), P
 pub(super) fn validate_event(draft: &TimeTemporalEventDraft) -> Result<(), PersistenceError> {
     validate_key("event_key", &draft.event_key, "event-")?;
     validate_text("name", &draft.name, 256)?;
-    validate_nanosecond(draft.due_nanosecond)?;
     validate_text("idempotency_key", &draft.idempotency_key, 256)?;
     validate_json(&draft.canonical_json)
 }
@@ -84,13 +83,6 @@ pub(super) fn validate_text(
 pub(super) fn validate_positive(field: &'static str, value: i64) -> Result<(), PersistenceError> {
     if value < 1 {
         return Err(invalid(field, "must be positive"));
-    }
-    Ok(())
-}
-
-pub(super) fn validate_nanosecond(value: i64) -> Result<(), PersistenceError> {
-    if !(0..1_000_000_000).contains(&value) {
-        return Err(invalid("nanosecond", "must be in 0..1000000000"));
     }
     Ok(())
 }

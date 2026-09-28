@@ -1,4 +1,4 @@
-use super::ClockQualityPolicy;
+use super::{ClockQualityPolicy, SubsecondNanoseconds, TimeInstant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_types::Sha256Digest;
@@ -63,21 +63,6 @@ pub struct EffectiveTimeAuthority {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct TimeInstant {
-    /// Integral TAI seconds elapsed since 1970-01-01 00:00:00 TAI.
-    pub tai_seconds_since_1970: i64,
-    pub nanosecond: u32,
-    pub uncertainty_nanoseconds: u64,
-    pub authority: AuthorityBinding,
-}
-
-impl TimeInstant {
-    pub fn total_nanoseconds(&self) -> i128 {
-        i128::from(self.tai_seconds_since_1970) * 1_000_000_000 + i128::from(self.nanosecond)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CivilTime {
     pub local_datetime: String,
     pub zone_id: String,
@@ -111,12 +96,12 @@ pub enum TimeExpression {
     Unix {
         seconds: i64,
         #[serde(default)]
-        nanosecond: u32,
+        nanosecond: SubsecondNanoseconds,
     },
     Tai {
         seconds_since_1970: i64,
         #[serde(default)]
-        nanosecond: u32,
+        nanosecond: SubsecondNanoseconds,
     },
     Gps {
         week: u32,

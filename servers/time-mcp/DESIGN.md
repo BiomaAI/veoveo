@@ -110,6 +110,15 @@ for persisted `TimeSource` metadata. `CreateSourceRequest` keeps its existing ne
 fields and required numeric zero. Catalog creation publishes version one. Mutation
 guards and metadata keep their types through catalog calls and event settlement.
 
+`SubsecondNanoseconds` admits `0..=999999999` in instants, Unix/TAI expressions,
+event cursors and persistence drafts. It serializes as the existing numeric field;
+omitted expression fractions default to zero. Uncertainty and offsets describe
+durations and keep their separate integer ranges. `TimeInstant::from_total_nanoseconds`
+splits negative coordinates with Euclidean division and rejects a seconds value outside
+`i64`. Epoch-relative resolution uses that constructor. Fractional numeric conversion
+checks the floating-point upper endpoint and rounding carry before adding its epoch.
+Protocol-library calls and database driver records receive raw integers at their adapters.
+
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
 names once through `scope_enum!`. MCP handlers and Task admission use the enum when
 checking authenticated grants. Administrative configuration accepts a validated
@@ -706,7 +715,10 @@ values. Reads leave rejected rows unchanged.
 The metadata admission profile uses the existing tables and JSON representation.
 The Time owner must preflight retained catalogs before an installation upgrade,
 checking bodies and keys under each tenant and event owner, plus clock scalar bounds
-and positive lifecycle versions. Clients must send policies within the declared bounds;
+and positive lifecycle versions. Every stored instant fraction must be within
+`0..=999999999`; matching out-of-range JSON and indexed columns still fail admission.
+The public instant and Unix/TAI schemas declare this same subsecond range. Clients must
+send policies within the declared bounds;
 zero-version update requests are supported only where the absence guard applies. Export rejected rows
 for investigation and correct them through an explicit operator repair before retrying.
 Drain Time requests, acquisition workers and event watchers during the coordinated
@@ -795,6 +807,7 @@ Examples of agent requests include:
 | `src/contract/clock_policy.rs`, `src/contract/version.rs` | validated policy builder, numeric request schemas, positive versions and optional-row guards |
 | `src/contract/digest.rs` | Time's bare-hexadecimal digest adapter over the foundational SHA-256 type |
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
+| `src/contract/instant.rs` | checked subsecond values, instant metadata and lossless total-coordinate conversion |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
 | `src/catalog/records/lifecycle.rs` | retained lifecycle-body DTOs and construction with the checked current column version |

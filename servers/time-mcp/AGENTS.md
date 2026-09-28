@@ -76,6 +76,12 @@ leap second assumptions.
   current columns supply typed versions. Keep that stored profile separate from public
   metadata admission. `tests/metadata_versions.rs` checks schemas and wire boundaries;
   `src/registry/tests/lifecycle.rs` checks retained bodies and current column authority.
+- `contract/instant.rs` owns subsecond admission and checked total-coordinate
+  construction. Keep `SubsecondNanoseconds` through requests, cursors and persistence
+  drafts; convert at protocol-library and database-driver adapters. Durations have
+  separate ranges. `tests/instant_contract.rs` checks wire/schema bounds, defaults,
+  negative fractions and both signed-seconds endpoints. Native metadata checks reject
+  matching invalid body/column fractions without rewriting stored rows.
 - `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
   equality. Download checks compare its canonical digest values; provenance uses the
   foundational `sha256:` representation. Keep digests typed through persistence drafts.

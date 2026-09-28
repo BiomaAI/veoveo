@@ -221,7 +221,8 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
         let record = RecordId::new("time_temporal_event", event.event_id.to_string());
         let original = body(&db.a, &record).await;
         let mut wrong_due = instant();
-        wrong_due.nanosecond += 1;
+        wrong_due.nanosecond =
+            crate::SubsecondNanoseconds::new(wrong_due.nanosecond.get() + 1).unwrap();
         for (field, value) in [
             (
                 "event_id",
@@ -266,8 +267,8 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
             }
             assert_eq!(body(&db.a, &record).await, bad);
         }
-        let mut invalid_due = instant();
-        invalid_due.nanosecond = 1_000_000_000;
+        let mut invalid_due = json!(instant());
+        invalid_due["nanosecond"] = 1_000_000_000.into();
         set(
             &db.a,
             &record,
@@ -282,7 +283,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
                 .await
                 .unwrap_err()
                 .to_string()
-                .contains("due_nanosecond")
+                .contains("canonical_json")
         );
         set(&db.a, &record, "due_nanosecond", 17_i64).await;
         set(&db.a, &record, "canonical_json", original).await;
@@ -577,4 +578,120 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
     })
     .await
     .expect("Time administrative metadata qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::new().await;
+        let owner = scope(&db.a, "time-subseconds", "owner").await;
+        let foreign = scope(&db.a, "time-subseconds-other", "owner").await;
+        let catalog = TimeCatalog::new(db.b.clone());
+        let mut value = instant();
+        value.nanosecond = SubsecondNanoseconds::MAX;
+        let epoch = catalog
+            .create_epoch(
+                &owner,
+                MissionEpoch {
+                    epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
+                        .unwrap(),
+                    name: "epoch".into(),
+                    instant: value.clone(),
+                    version: TimeVersion::FIRST,
+                },
+            )
+            .await
+            .unwrap();
+        let event = catalog
+            .create_event(
+                &owner,
+                TemporalEvent {
+                    event_id: TemporalEventId::new("event-00000000-0000-7000-8000-000000000001")
+                        .unwrap(),
+                    name: "event".into(),
+                    due: value,
+                    state: TemporalEventState::Scheduled,
+                    record_version: TimeVersion::FIRST,
+                },
+                "subseconds".into(),
+            )
+            .await
+            .unwrap();
+        let records = [
+            (
+                RecordId::new("time_mission_epoch", format!("{}:1", epoch.epoch_id)),
+                "instant",
+                "nanosecond",
+            ),
+            (
+                RecordId::new("time_temporal_event", event.event_id.to_string()),
+                "due",
+                "due_nanosecond",
+            ),
+        ];
+        let mut originals = Vec::new();
+        for (record, _, _) in &records {
+            originals.push(body(&db.a, record).await);
+        }
+        for nanos in [-1_i64, 1_000_000_000, i64::from(u32::MAX), i64::MAX] {
+            for ((record, field, column), original) in records.iter().zip(&originals) {
+                let mut corrupted: serde_json::Value = serde_json::from_str(original).unwrap();
+                corrupted[field]["nanosecond"] = nanos.into();
+                set(&db.a, record, "canonical_json", corrupted.to_string()).await;
+                set(&db.a, record, column, nanos).await;
+            }
+            let errors = [
+                catalog.epoch(&owner, &epoch.epoch_id).await.unwrap_err(),
+                catalog.epochs_page(&owner, None).await.unwrap_err(),
+                catalog.event(&owner, &event.event_id).await.unwrap_err(),
+                catalog.events_page(&owner, None, None).await.unwrap_err(),
+            ];
+            for error in errors {
+                let message = format!("{error:#}");
+                assert!(message.contains("canonical_json"));
+                assert!(!message.contains(&nanos.to_string()));
+            }
+            assert!(
+                catalog
+                    .epochs_page(&foreign, None)
+                    .await
+                    .unwrap()
+                    .items
+                    .is_empty()
+            );
+            assert!(
+                catalog
+                    .events_page(&foreign, None, None)
+                    .await
+                    .unwrap()
+                    .items
+                    .is_empty()
+            );
+            for ((record, field, _), original) in records.iter().zip(&originals) {
+                let mut expected: serde_json::Value = serde_json::from_str(original).unwrap();
+                expected[field]["nanosecond"] = nanos.into();
+                assert_eq!(body(&db.a, record).await, expected.to_string());
+            }
+        }
+        for ((record, _, column), original) in records.iter().zip(&originals) {
+            set(&db.a, record, "canonical_json", original.clone()).await;
+            set(
+                &db.a,
+                record,
+                column,
+                i64::from(SubsecondNanoseconds::MAX.get()),
+            )
+            .await;
+        }
+        assert_eq!(
+            catalog.epoch(&owner, &epoch.epoch_id).await.unwrap(),
+            Some(epoch)
+        );
+        assert_eq!(
+            catalog.event(&owner, &event.event_id).await.unwrap(),
+            Some(event)
+        );
+    })
+    .await
+    .expect("Time subsecond metadata qualification exceeded 90 seconds");
 }

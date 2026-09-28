@@ -415,7 +415,7 @@ impl TimeCatalog {
                 name: epoch.name.clone(),
                 epoch_version: epoch.version,
                 tai_seconds_since_1970: epoch.instant.tai_seconds_since_1970,
-                nanosecond: i64::from(epoch.instant.nanosecond),
+                nanosecond: epoch.instant.nanosecond,
                 canonical_json,
             })
             .await?;
@@ -449,7 +449,7 @@ impl TimeCatalog {
                 name: event.name.clone(),
                 state: event_state(event.state),
                 due_tai_seconds_since_1970: event.due.tai_seconds_since_1970,
-                due_nanosecond: i64::from(event.due.nanosecond),
+                due_nanosecond: event.due.nanosecond,
                 idempotency_key,
                 canonical_json,
             })

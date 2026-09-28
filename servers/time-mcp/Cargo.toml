@@ -32,6 +32,10 @@ required-features = ["contract"]
 name = "metadata_versions"
 required-features = ["contract"]
 
+[[test]]
+name = "instant_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

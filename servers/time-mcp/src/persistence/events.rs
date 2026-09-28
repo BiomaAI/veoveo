@@ -16,7 +16,7 @@ impl TimePersistence {
         {
             if existing.name == draft.name
                 && existing.due_tai_seconds_since_1970 == draft.due_tai_seconds_since_1970
-                && existing.due_nanosecond == draft.due_nanosecond
+                && existing.due_nanosecond == i64::from(draft.due_nanosecond.get())
             {
                 return Ok(existing);
             }
@@ -30,7 +30,7 @@ impl TimePersistence {
             name: draft.name,
             state: draft.state,
             due_tai_seconds_since_1970: draft.due_tai_seconds_since_1970,
-            due_nanosecond: draft.due_nanosecond,
+            due_nanosecond: i64::from(draft.due_nanosecond.get()),
             idempotency_key: draft.idempotency_key,
             canonical_json: draft.canonical_json,
             record_version: 1,

@@ -254,8 +254,7 @@ pub(super) fn epoch_from_record(record: TimeMissionEpochRecord) -> Result<Missio
     check(
         kind,
         "nanosecond",
-        value.instant.nanosecond < 1_000_000_000
-            && i64::from(value.instant.nanosecond) == record.nanosecond,
+        i64::from(value.instant.nanosecond.get()) == record.nanosecond,
     )?;
     Ok(value)
 }
@@ -275,8 +274,7 @@ pub(super) fn event_from_record(record: TimeTemporalEventRecord) -> Result<Tempo
     check(
         kind,
         "due_nanosecond",
-        value.due.nanosecond < 1_000_000_000
-            && i64::from(value.due.nanosecond) == record.due_nanosecond,
+        i64::from(value.due.nanosecond.get()) == record.due_nanosecond,
     )?;
     value.state = event_state_from_store(record.state);
     Ok(value)

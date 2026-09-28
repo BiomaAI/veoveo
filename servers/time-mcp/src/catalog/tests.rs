@@ -34,7 +34,7 @@ async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeAccessCo
 fn instant() -> TimeInstant {
     TimeInstant {
         tai_seconds_since_1970: 2_000_000_000,
-        nanosecond: 17,
+        nanosecond: crate::SubsecondNanoseconds::new(17).unwrap(),
         uncertainty_nanoseconds: 0,
         authority: AuthorityBinding {
             tzdb_release_id: AuthorityReleaseId::new("time-release-tzdb").unwrap(),
@@ -481,7 +481,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 name: "unrelated".into(),
                 epoch_version: crate::TimeVersion::new(1).unwrap(),
                 tai_seconds_since_1970: 0,
-                nanosecond: 0,
+                nanosecond: crate::SubsecondNanoseconds::ZERO,
                 canonical_json: "{}".into(),
             })
             .await

@@ -16,9 +16,9 @@ use crate::{
         ConvertTimeOutput, ConvertTimeRequest, Disambiguation, EvaluateWindowsOutput,
         EvaluateWindowsRequest, ExpandScheduleOutput, ExpandScheduleRequest, MissionEpoch,
         RecurrenceFrequency, ResolveTimeOutput, ResolveTimeRequest, ScaleRepresentation,
-        ScheduleOccurrence, TimeExpression, TimeInstant, TimeScale, TimeWindow, TimelineViolation,
-        ValidateTimelineOutput, ValidateTimelineRequest, Weekday, WindowOperation,
-        ZonedRepresentation,
+        ScheduleOccurrence, SubsecondNanoseconds, TimeExpression, TimeInstant, TimeScale,
+        TimeWindow, TimelineViolation, ValidateTimelineOutput, ValidateTimelineRequest, Weekday,
+        WindowOperation, ZonedRepresentation,
     },
 };
 
@@ -138,11 +138,17 @@ impl TemporalEngine {
         Ok(EvaluateWindowsOutput {
             windows: ranges
                 .iter()
-                .map(|range| TimeWindow {
-                    start: instant_from_nanos(range.start, authority.clone()),
-                    end: instant_from_nanos(range.end, authority.clone()),
+                .map(|range| {
+                    Ok(TimeWindow {
+                        start: TimeInstant::from_total_nanoseconds(
+                            range.start,
+                            0,
+                            authority.clone(),
+                        )?,
+                        end: TimeInstant::from_total_nanoseconds(range.end, 0, authority.clone())?,
+                    })
                 })
-                .collect(),
+                .collect::<Result<_>>()?,
         })
     }
 
@@ -346,22 +352,16 @@ impl TemporalEngine {
             TimeExpression::Unix {
                 seconds,
                 nanosecond,
-            } => {
-                validate_nanosecond(*nanosecond)?;
-                (
-                    seconds
-                        .checked_add(self.authority.leap_seconds.offset_for_utc(*seconds)?)
-                        .context("Unix timestamp exceeds the supported range")?,
-                    *nanosecond,
-                )
-            }
+            } => (
+                seconds
+                    .checked_add(self.authority.leap_seconds.offset_for_utc(*seconds)?)
+                    .context("Unix timestamp exceeds the supported range")?,
+                *nanosecond,
+            ),
             TimeExpression::Tai {
                 seconds_since_1970,
                 nanosecond,
-            } => {
-                validate_nanosecond(*nanosecond)?;
-                (*seconds_since_1970, *nanosecond)
-            }
+            } => (*seconds_since_1970, *nanosecond),
             TimeExpression::Gps {
                 week,
                 seconds_of_week,
@@ -386,7 +386,7 @@ impl TemporalEngine {
                 let timestamp = parse_military_dtg(value)?;
                 instant_parts_from_unix(
                     timestamp.timestamp(),
-                    timestamp.timestamp_subsec_nanos(),
+                    SubsecondNanoseconds::new(timestamp.timestamp_subsec_nanos())?,
                     &self.authority,
                 )?
             }
@@ -399,8 +399,11 @@ impl TemporalEngine {
                     .get(epoch_id.as_str())
                     .context("mission epoch is not active")?;
                 let total = epoch.instant.total_nanoseconds() + i128::from(*offset_nanoseconds);
-                let instant = instant_from_nanos(total, self.authority.binding.clone());
-                return Ok(instant);
+                return Ok(TimeInstant::from_total_nanoseconds(
+                    total,
+                    0,
+                    self.authority.binding.clone(),
+                )?);
             }
         };
         Ok(TimeInstant {
@@ -418,7 +421,7 @@ impl TemporalEngine {
             .leap_seconds
             .utc_from_tai(instant.tai_seconds_since_1970)?;
         let utc_seconds = utc_coordinate.unix_seconds;
-        let timestamp = Timestamp::new(utc_seconds, instant.nanosecond as i32)?;
+        let timestamp = Timestamp::new(utc_seconds, instant.nanosecond.get() as i32)?;
         let gps_seconds = instant.tai_seconds_since_1970 - GPS_EPOCH_TAI_SECONDS_SINCE_1970;
         let (gps_week, gps_seconds_of_week) = if gps_seconds < 0 {
             (None, None)
@@ -427,12 +430,12 @@ impl TemporalEngine {
                 Some((gps_seconds / SECONDS_PER_WEEK as i64) as u32),
                 Some(
                     (gps_seconds % SECONDS_PER_WEEK as i64) as f64
-                        + f64::from(instant.nanosecond) / 1_000_000_000.0,
+                        + f64::from(instant.nanosecond.get()) / 1_000_000_000.0,
                 ),
             )
         };
         let utc = Utc
-            .timestamp_opt(utc_seconds, instant.nanosecond)
+            .timestamp_opt(utc_seconds, instant.nanosecond.get())
             .single()
             .context("instant is outside the UTC projection range")?;
         let julian_day_tai = julian_day_tai(&instant);
@@ -453,7 +456,7 @@ impl TemporalEngine {
         if instant.authority != self.authority.binding {
             bail!("instant references a non-active temporal authority");
         }
-        validate_nanosecond(instant.nanosecond)
+        Ok(())
     }
 }
 
@@ -479,29 +482,21 @@ fn validate_zone_id(value: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_nanosecond(value: u32) -> Result<()> {
-    if value >= 1_000_000_000 {
-        bail!("nanosecond must be below one billion");
-    }
-    Ok(())
-}
-
 fn instant_parts_from_timestamp(
     timestamp: Timestamp,
     authority: &AuthorityContext,
-) -> Result<(i64, u32)> {
+) -> Result<(i64, SubsecondNanoseconds)> {
     let total = timestamp.as_nanosecond();
     let utc_seconds = total.div_euclid(NANOS_PER_SECOND) as i64;
-    let nanosecond = total.rem_euclid(NANOS_PER_SECOND) as u32;
+    let nanosecond = SubsecondNanoseconds::new(total.rem_euclid(NANOS_PER_SECOND) as u32)?;
     instant_parts_from_unix(utc_seconds, nanosecond, authority)
 }
 
 fn instant_parts_from_unix(
     utc_seconds: i64,
-    nanosecond: u32,
+    nanosecond: SubsecondNanoseconds,
     authority: &AuthorityContext,
-) -> Result<(i64, u32)> {
-    validate_nanosecond(nanosecond)?;
+) -> Result<(i64, SubsecondNanoseconds)> {
     Ok((
         utc_seconds
             .checked_add(authority.leap_seconds.offset_for_utc(utc_seconds)?)
@@ -518,7 +513,7 @@ fn timestamp_from_instant(
         .leap_seconds
         .utc_from_tai(instant.tai_seconds_since_1970)?;
     Ok((
-        Timestamp::new(coordinate.unix_seconds, instant.nanosecond as i32)?,
+        Timestamp::new(coordinate.unix_seconds, instant.nanosecond.get() as i32)?,
         coordinate.is_leap_second,
     ))
 }
@@ -538,31 +533,32 @@ fn render_leap_second(mut value: String, is_leap_second: bool) -> Result<String>
     Ok(value)
 }
 
-fn split_fractional_seconds(seconds: f64, base: i64) -> Result<(i64, u32)> {
+fn split_fractional_seconds(seconds: f64, base: i64) -> Result<(i64, SubsecondNanoseconds)> {
     if !seconds.is_finite() {
         bail!("time coordinate must be finite");
     }
     let whole = seconds.floor();
-    if whole < i64::MIN as f64 || whole > i64::MAX as f64 {
+    // i64::MAX rounds up to 2^63 in f64; that upper endpoint is excluded.
+    if whole < i64::MIN as f64 || whole >= i64::MAX as f64 {
         bail!("time coordinate exceeds the supported range");
     }
     let mut nanosecond = ((seconds - whole) * 1_000_000_000.0).round() as i64;
     let mut whole = whole as i64;
     if nanosecond == 1_000_000_000 {
-        whole += 1;
+        whole = whole.checked_add(1).context("time coordinate overflow")?;
         nanosecond = 0;
     }
     Ok((
         base.checked_add(whole)
             .context("time coordinate overflow")?,
-        nanosecond as u32,
+        SubsecondNanoseconds::new(nanosecond as u32)?,
     ))
 }
 
 fn julian_day_tai(instant: &TimeInstant) -> f64 {
     JULIAN_DAY_AT_1970_TAI
         + instant.tai_seconds_since_1970 as f64 / 86_400.0
-        + f64::from(instant.nanosecond) / 86_400_000_000_000.0
+        + f64::from(instant.nanosecond.get()) / 86_400_000_000_000.0
 }
 
 fn scale_representation(
@@ -572,12 +568,12 @@ fn scale_representation(
 ) -> ScaleRepresentation {
     let (seconds, reference_epoch) = match scale {
         TimeScale::Utc => (
-            canonical.unix_seconds as f64 + f64::from(canonical.instant.nanosecond) / 1e9,
+            canonical.unix_seconds as f64 + f64::from(canonical.instant.nanosecond.get()) / 1e9,
             "1970-01-01T00:00:00Z",
         ),
         TimeScale::Tai => (
             canonical.instant.tai_seconds_since_1970 as f64
-                + f64::from(canonical.instant.nanosecond) / 1e9,
+                + f64::from(canonical.instant.nanosecond.get()) / 1e9,
             "1970-01-01T00:00:00 TAI",
         ),
         TimeScale::Tt => (
@@ -608,8 +604,6 @@ fn scale_representation(
 }
 
 fn validate_window(window: &TimeWindow) -> Result<()> {
-    validate_nanosecond(window.start.nanosecond)?;
-    validate_nanosecond(window.end.nanosecond)?;
     if window.start.authority != window.end.authority {
         bail!("window bounds must use the same authority");
     }
@@ -624,15 +618,6 @@ fn window_set(windows: &[TimeWindow]) -> RangeSet<i128> {
         .iter()
         .map(|window| window.start.total_nanoseconds()..window.end.total_nanoseconds())
         .collect()
-}
-
-fn instant_from_nanos(total: i128, authority: crate::contract::AuthorityBinding) -> TimeInstant {
-    TimeInstant {
-        tai_seconds_since_1970: total.div_euclid(NANOS_PER_SECOND) as i64,
-        nanosecond: total.rem_euclid(NANOS_PER_SECOND) as u32,
-        uncertainty_nanoseconds: 0,
-        authority,
-    }
 }
 
 fn parse_local_datetime(value: &str) -> Result<NaiveDateTime> {
@@ -876,7 +861,7 @@ mod tests {
         let authority = engine.authority.binding.clone();
         let instant = |seconds| TimeInstant {
             tai_seconds_since_1970: seconds,
-            nanosecond: 0,
+            nanosecond: SubsecondNanoseconds::ZERO,
             uncertainty_nanoseconds: 0,
             authority: authority.clone(),
         };
@@ -998,7 +983,7 @@ mod tests {
             name: "Launch".to_owned(),
             instant: TimeInstant {
                 tai_seconds_since_1970: seconds,
-                nanosecond: 0,
+                nanosecond: SubsecondNanoseconds::ZERO,
                 uncertainty_nanoseconds: 0,
                 authority: authority.clone(),
             },
@@ -1030,7 +1015,7 @@ mod tests {
             .unwrap();
         let leap = TimeInstant {
             tai_seconds_since_1970: midnight.instant.tai_seconds_since_1970 - 1,
-            nanosecond: 500_000_000,
+            nanosecond: SubsecondNanoseconds::new(500_000_000).unwrap(),
             uncertainty_nanoseconds: 0,
             authority: engine.authority.binding.clone(),
         };
@@ -1045,5 +1030,76 @@ mod tests {
         assert_eq!(projected.canonical.utc_rfc3339, "2016-12-31T23:59:60.5Z");
         assert!(projected.zoned[0].rfc9557.contains("23:59:60.5"));
         assert!(projected.zoned[1].rfc9557.contains("18:59:60.5"));
+    }
+
+    #[test]
+    fn epoch_relative_coordinates_reject_seconds_overflow() {
+        let engine = engine();
+        let id = crate::MissionEpochId::new("epoch-coordinate-limit").unwrap();
+        for (seconds, nanos, overflow_offset) in [
+            (i64::MAX, SubsecondNanoseconds::MAX, 1),
+            (i64::MIN, SubsecondNanoseconds::ZERO, -1),
+        ] {
+            let instant = TimeInstant {
+                tai_seconds_since_1970: seconds,
+                nanosecond: nanos,
+                uncertainty_nanoseconds: 0,
+                authority: engine.authority.binding.clone(),
+            };
+            let total = instant.total_nanoseconds();
+            engine.replace_epochs([MissionEpoch {
+                epoch_id: id.clone(),
+                name: "limit".into(),
+                instant,
+                version: crate::TimeVersion::FIRST,
+            }]);
+            let overflow = TimeExpression::EpochRelative {
+                epoch_id: id.clone(),
+                offset_nanoseconds: overflow_offset,
+            };
+            assert!(
+                engine
+                    .resolve_expression(&overflow)
+                    .unwrap_err()
+                    .to_string()
+                    .contains("signed 64-bit seconds range")
+            );
+            let valid = engine
+                .resolve_expression(&TimeExpression::EpochRelative {
+                    epoch_id: id.clone(),
+                    offset_nanoseconds: -overflow_offset,
+                })
+                .unwrap();
+            assert_eq!(
+                valid.total_nanoseconds(),
+                total - i128::from(overflow_offset)
+            );
+        }
+    }
+
+    #[test]
+    fn fractional_coordinates_round_without_saturating_or_wrapping() {
+        assert_eq!(
+            split_fractional_seconds(-0.25, 0).unwrap(),
+            (-1, SubsecondNanoseconds::new(750_000_000).unwrap())
+        );
+        assert_eq!(
+            split_fractional_seconds(0.999_999_999_6, 0).unwrap(),
+            (1, SubsecondNanoseconds::ZERO)
+        );
+        assert_eq!(
+            split_fractional_seconds(i64::MIN as f64, 0).unwrap(),
+            (i64::MIN, SubsecondNanoseconds::ZERO)
+        );
+        for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, i64::MAX as f64] {
+            assert!(split_fractional_seconds(value, 0).is_err());
+        }
+        let last_float = f64::from_bits((i64::MAX as f64).to_bits() - 1);
+        assert_eq!(
+            split_fractional_seconds(last_float, 0).unwrap().0,
+            last_float as i64
+        );
+        assert!(split_fractional_seconds(1.0, i64::MAX).is_err());
+        assert!(split_fractional_seconds(-1.0, i64::MIN).is_err());
     }
 }

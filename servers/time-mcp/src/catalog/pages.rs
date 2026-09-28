@@ -68,8 +68,8 @@ impl TimeCatalog {
                 Ok(EventCursor::new(
                     &TemporalEventId::new(&row.event_key).map_err(anyhow::Error::msg)?,
                     row.due_tai_seconds_since_1970,
-                    row.due_nanosecond.try_into()?,
-                )?)
+                    crate::SubsecondNanoseconds::new(row.due_nanosecond.try_into()?)?,
+                ))
             },
             event_from_record,
         )

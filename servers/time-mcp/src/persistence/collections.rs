@@ -59,7 +59,6 @@ impl TimePersistence {
         validate_limit(limit)?;
         if let Some(after) = after {
             validate_key("event_key", after.event_id(), "event-")?;
-            validate_nanosecond(i64::from(after.nanosecond()))?;
         }
         let mut response = self.client().query(
             "SELECT * FROM time_temporal_event WHERE tenant = $tenant AND owner = $owner AND ($state = NONE OR state = $state) AND ($after_key = NONE OR due_tai_seconds_since_1970 > $after_seconds OR (due_tai_seconds_since_1970 = $after_seconds AND due_nanosecond > $after_nanosecond) OR (due_tai_seconds_since_1970 = $after_seconds AND due_nanosecond = $after_nanosecond AND event_key > $after_key)) ORDER BY due_tai_seconds_since_1970 ASC, due_nanosecond ASC, event_key ASC LIMIT $limit;"
@@ -68,7 +67,7 @@ impl TimePersistence {
             .bind(("state", state))
             .bind(("after_key", after.map(|after| after.event_id().to_string())))
             .bind(("after_seconds", after.map(|after| after.tai_seconds())))
-            .bind(("after_nanosecond", after.map(|after| i64::from(after.nanosecond()))))
+            .bind(("after_nanosecond", after.map(|after| i64::from(after.nanosecond().get()))))
             .bind(("limit", limit)).await?.check()?;
         Ok(response.take(0)?)
     }

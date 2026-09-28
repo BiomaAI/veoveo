@@ -70,7 +70,7 @@ pub(crate) struct TimeMissionEpochDraft {
     pub(crate) name: String,
     pub(crate) epoch_version: TimeVersion,
     pub(crate) tai_seconds_since_1970: i64,
-    pub(crate) nanosecond: i64,
+    pub(crate) nanosecond: SubsecondNanoseconds,
     pub(crate) canonical_json: String,
 }
 
@@ -81,7 +81,7 @@ pub(crate) struct TimeTemporalEventDraft {
     pub(crate) name: String,
     pub(crate) state: TimeTemporalEventState,
     pub(crate) due_tai_seconds_since_1970: i64,
-    pub(crate) due_nanosecond: i64,
+    pub(crate) due_nanosecond: SubsecondNanoseconds,
     pub(crate) idempotency_key: String,
     pub(crate) canonical_json: String,
 }

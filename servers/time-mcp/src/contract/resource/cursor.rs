@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use super::{TimeResourceError, TimeVersion};
 use crate::{
-    contract::{CalendarId, MissionEpochId, TemporalEventId},
+    contract::{CalendarId, MissionEpochId, SubsecondNanoseconds, TemporalEventId},
     uris,
 };
 
@@ -19,28 +19,8 @@ struct VersionPosition<I> {
 #[serde(deny_unknown_fields)]
 struct EventPosition {
     tai_seconds: i64,
-    nanosecond: u32,
+    nanosecond: SubsecondNanoseconds,
     event_key: TemporalEventId,
-}
-
-trait Position {
-    fn validate(&self) -> Result<(), TimeResourceError>;
-}
-
-impl<I> Position for VersionPosition<I> {
-    fn validate(&self) -> Result<(), TimeResourceError> {
-        Ok(())
-    }
-}
-
-impl Position for EventPosition {
-    fn validate(&self) -> Result<(), TimeResourceError> {
-        if self.nanosecond >= 1_000_000_000 {
-            Err(TimeResourceError::InvalidCursor)
-        } else {
-            Ok(())
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize)]
@@ -51,10 +31,7 @@ struct WireCursor<P> {
     position: P,
 }
 
-fn decode<P: DeserializeOwned + Position>(
-    wire: &str,
-    collection: &str,
-) -> Result<P, TimeResourceError> {
+fn decode<P: DeserializeOwned>(wire: &str, collection: &str) -> Result<P, TimeResourceError> {
     if wire.is_empty() || wire.len() > 2048 {
         return Err(TimeResourceError::InvalidCursor);
     }
@@ -64,7 +41,6 @@ fn decode<P: DeserializeOwned + Position>(
     if cursor.version != 1 || cursor.collection != collection {
         return Err(TimeResourceError::InvalidCursor);
     }
-    cursor.position.validate()?;
     Ok(cursor.position)
 }
 
@@ -163,18 +139,17 @@ impl EpochCursor {
 }
 
 impl EventCursor {
-    pub fn new(
-        key: &TemporalEventId,
-        tai_seconds: i64,
-        nanosecond: u32,
-    ) -> Result<Self, TimeResourceError> {
+    /// ```compile_fail
+    /// use veoveo_time_mcp::{EventCursor, TemporalEventId};
+    /// EventCursor::new(&TemporalEventId::new("event-example").unwrap(), 0, 1_000_000_000);
+    /// ```
+    pub fn new(key: &TemporalEventId, tai_seconds: i64, nanosecond: SubsecondNanoseconds) -> Self {
         let position = EventPosition {
             event_key: key.clone(),
             tai_seconds,
             nanosecond,
         };
-        position.validate()?;
-        Ok(Self::from_position(position))
+        Self::from_position(position)
     }
     pub fn event_id(&self) -> &TemporalEventId {
         &self.position.event_key
@@ -182,7 +157,7 @@ impl EventCursor {
     pub fn tai_seconds(&self) -> i64 {
         self.position.tai_seconds
     }
-    pub fn nanosecond(&self) -> u32 {
+    pub fn nanosecond(&self) -> SubsecondNanoseconds {
         self.position.nanosecond
     }
 }

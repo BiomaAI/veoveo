@@ -1,6 +1,6 @@
 use veoveo_time_mcp::contract::{
     AuthorityReleaseId, CalendarCursor, CalendarId, EpochCursor, EventCursor, MissionEpochId,
-    TemporalEventId, TimeDocument, TimeResource, TimeVersion, TimeZoneId,
+    SubsecondNanoseconds, TemporalEventId, TimeDocument, TimeResource, TimeVersion, TimeZoneId,
 };
 use veoveo_types::{ResourceAddress, ResourceUri};
 
@@ -20,7 +20,7 @@ fn rfc6570_declarations_expand_to_the_typed_domain_builders() {
     let release = AuthorityReleaseId::new("time-release-iana").unwrap();
     let calendar_cursor = CalendarCursor::new(&calendar, version());
     let epoch_cursor = EpochCursor::new(&epoch, version());
-    let event_cursor = EventCursor::new(&event, -42, 999_999_999).unwrap();
+    let event_cursor = EventCursor::new(&event, -42, SubsecondNanoseconds::MAX);
     let cases = [
         (
             uris::DOC_TEMPLATE,
@@ -205,14 +205,11 @@ fn pages_round_trip_with_their_own_cursor_types_and_existing_v1_tokens() {
             )),
         },
         TimeResource::Events {
-            cursor: Some(
-                EventCursor::new(
-                    &TemporalEventId::new("event-one").unwrap(),
-                    -42,
-                    999_999_999,
-                )
-                .unwrap(),
-            ),
+            cursor: Some(EventCursor::new(
+                &TemporalEventId::new("event-one").unwrap(),
+                -42,
+                SubsecondNanoseconds::MAX,
+            )),
         },
     ] {
         assert!(!address.is_subscribable());
@@ -266,8 +263,6 @@ fn cursors_validate_family_identity_position_and_envelope() {
     for token in ["".to_owned(), "0".into(), "gg".into(), "0".repeat(2050)] {
         assert!(CalendarCursor::parse(token).is_err());
     }
-    let id = TemporalEventId::new("event-one").unwrap();
-    assert!(EventCursor::new(&id, 0, 1_000_000_000).is_err());
     for nanos in [-1, 1_000_000_000] {
         let value = serde_json::json!({"version":1,"collection":"time://events","position":{"event_key":"event-one","tai_seconds":0,"nanosecond":nanos}});
         assert!(EventCursor::parse(hex::encode(serde_json::to_vec(&value).unwrap())).is_err());

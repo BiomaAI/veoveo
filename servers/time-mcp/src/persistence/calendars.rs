@@ -67,7 +67,6 @@ impl TimePersistence {
         validate_key("epoch_key", &draft.epoch_key, "epoch-")?;
         validate_text("name", &draft.name, 256)?;
         validate_positive("epoch_version", draft.epoch_version.get() as i64)?;
-        validate_nanosecond(draft.nanosecond)?;
         validate_json(&draft.canonical_json)?;
         let now = Utc::now();
         let record_key = format!("{}:{}", draft.epoch_key, draft.epoch_version.get());
@@ -78,7 +77,7 @@ impl TimePersistence {
             name: draft.name,
             epoch_version: draft.epoch_version.get() as i64,
             tai_seconds_since_1970: draft.tai_seconds_since_1970,
-            nanosecond: draft.nanosecond,
+            nanosecond: i64::from(draft.nanosecond.get()),
             canonical_json: draft.canonical_json,
             created_at: now,
             updated_at: now,
