@@ -40,7 +40,7 @@ use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository,
     catalog::PipelineCatalog,
-    contract::{RunId, RunRecordingOutput, RunRecordingRequest, SessionId, StreamResource},
+    contract::{RunId, RunRecordingOutput, RunRecordingRequest},
     executor::StreamExecutor,
     uris,
 };
@@ -78,12 +78,17 @@ mod setup;
 #[cfg(test)]
 #[path = "../../../../testing/fixtures/store.rs"]
 mod store_fixture;
+#[path = "server/subscriptions.rs"]
+mod subscriptions;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 #[path = "server/task_results.rs"]
 mod task_results;
 #[path = "server/tasks.rs"]
 mod tasks;
+#[cfg(test)]
+#[path = "server/test_support.rs"]
+mod test_support;
 
 use app_state::AppState;
 use config::Args;
@@ -397,30 +402,17 @@ impl ServerHandler for StreamMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        let identity = internal_identity(&request_context)?;
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            if let Some(session_id) = subscribable_session_id(uri) {
-                let owner = runtime_owner(&identity);
-                if !self.state.live.readable_by(session_id, &owner).await {
-                    return Err(McpError::resource_not_found(
-                        "Stream session not found",
-                        None,
-                    ));
-                }
-            } else {
-                let task_id = subscribable_run_id(uri)?;
-                resources::run_snapshot(&self.state.tasks, &runtime_owner(&identity), task_id)
-                    .await?;
-            }
-        }
-        // TODO(foundations): C27 needs shared Task-backed run-resource updates alongside
-        // the process-owned live-session notification hub.
-        veoveo_task_runtime::listen_durable_subscriptions(
+        let caller = veoveo_task_runtime::DurableTaskService::authenticate(
             &self.task_service,
+            context.request_context(),
+        )?;
+        subscriptions::listen(
+            &self.task_service,
+            &caller,
+            &self.state.tasks,
+            self.state.live.clone(),
+            caller.owner(),
             context,
-            Some(self.state.subscribers.as_ref()),
-            None,
         )
         .await
     }
@@ -485,19 +477,6 @@ impl ServerHandler for StreamMcp {
             .collect();
         index::bounded_completion(matches).map(CompleteResult::new)
     }
-}
-
-fn subscribable_run_id(uri: &str) -> Result<RunId, McpError> {
-    StreamResource::parse(uri)
-        .ok()
-        .and_then(|resource| resource.subscription_run())
-        .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
-}
-
-fn subscribable_session_id(uri: &str) -> Option<SessionId> {
-    StreamResource::parse(uri)
-        .ok()
-        .and_then(|resource| resource.subscription_session())
 }
 
 fn mcp_page<T>(
@@ -667,7 +646,7 @@ async fn main() -> anyhow::Result<()> {
         args.max_detections_per_frame,
         args.max_live_event_bytes,
         args.max_live_video_chunk_bytes,
-        subscribers.clone(),
+        subscribers,
     )?);
     let state = Arc::new(AppState {
         live_app,
@@ -680,7 +659,6 @@ async fn main() -> anyhow::Result<()> {
         max_artifact_bytes: args.max_artifact_bytes,
         max_inline_resource_bytes: args.max_inline_resource_bytes,
         work_slots: Arc::new(tokio::sync::Semaphore::new(args.max_concurrent_jobs)),
-        subscribers,
         live,
     });
     for snapshot in recovery.resumable {

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
@@ -22,7 +21,6 @@ pub(super) struct AppState {
     pub(super) max_artifact_bytes: u64,
     pub(super) max_inline_resource_bytes: u64,
     pub(super) work_slots: Arc<tokio::sync::Semaphore>,
-    pub(super) subscribers: Arc<SubscriptionHub>,
     pub(super) live: Arc<LiveSessionManager>,
 }
 
@@ -44,12 +42,4 @@ pub(super) async fn update_task(state: &AppState, task_id: RunId, transition: Ta
     {
         tracing::warn!(%task_id, "failed to transition durable stream task: {error}");
     }
-    state
-        .subscribers
-        .notify_resource_updated(veoveo_stream_mcp::uris::run_uri(task_id))
-        .await;
-    state
-        .subscribers
-        .notify_resource_updated(veoveo_stream_mcp::uris::results_uri(task_id))
-        .await;
 }

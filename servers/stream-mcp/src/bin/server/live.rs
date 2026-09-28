@@ -167,6 +167,12 @@ struct RunnerModel {
 }
 
 impl LiveSessionManager {
+    pub(super) fn listen_updates(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<veoveo_mcp_contract::ResourceUpdate> {
+        self.subscribers.listen()
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         catalog: Arc<PipelineCatalog>,
@@ -836,7 +842,7 @@ mod tests {
         }
     }
 
-    fn session_index() -> LiveSessionManager {
+    pub(super) fn session_index() -> LiveSessionManager {
         use veoveo_stream_mcp::catalog::{LivePipelineConfig, PipelineConfig, RtpH264UdpIngress};
         let catalog = PipelineCatalog::new(
             vec![],
@@ -893,7 +899,7 @@ mod tests {
         .unwrap()
     }
 
-    fn indexed_session(id: u128, owner: TaskOwner) -> Arc<LiveSession> {
+    pub(super) fn indexed_session(id: u128, owner: TaskOwner) -> Arc<LiveSession> {
         Arc::new(LiveSession {
             session_id: indexed_session_id(id),
             pipeline_id: "preview".parse().unwrap(),
@@ -1081,5 +1087,26 @@ mod tests {
         assert!(source.contains("veoveo-stream-probe-failure"));
         assert!(source.contains("GST_MESSAGE_APPLICATION"));
         assert!(source.contains("index = context.request.decode_start_index + pts"));
+    }
+}
+
+#[cfg(test)]
+pub(super) mod subscription_fixture {
+    use super::*;
+
+    // Retained session metadata only: these fixtures never launch a GPU runner.
+    pub async fn new(
+        owner: TaskOwner,
+    ) -> (Arc<LiveSessionManager>, SessionId, Arc<SubscriptionHub>) {
+        let manager = Arc::new(tests::session_index());
+        let session = tests::indexed_session(1, owner);
+        let id = session.session_id;
+        manager.sessions.lock().await.insert(id, session);
+        let hub = manager.subscribers.clone();
+        (manager, id, hub)
+    }
+
+    pub async fn remove(manager: &LiveSessionManager, id: SessionId) {
+        manager.sessions.lock().await.remove(&id);
     }
 }

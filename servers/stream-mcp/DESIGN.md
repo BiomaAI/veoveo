@@ -73,14 +73,26 @@ registrations and the embedded manual declare contract revision 3.
 
 The server accepts requested Task updates and mutable run/session resource addresses.
 Static catalogs accept no list-change subscriptions. Live sessions have a process-local
-GPU owner; their notifications use its local hub.
+GPU owner; their notifications use its local hub. `RunResource` implements the foundational
+`TaskResourceAddress` trait only for run and run-results addresses. The request listener
+combines these resources and explicit Task IDs into one authorized shared Task watch.
+Its initial snapshot and Store connection reconciliation supply current run state across
+server instances and event-retention gaps.
+
+The listener attaches to the live-session hub before admission and validates session
+access before each delivery. A fresh listener or an overflowing local buffer reconciles
+only the requested live-session resources. Run updates never come from this hub. Each
+request accepts at most 256 resource addresses and 256 distinct Tasks, owns its SDK sink,
+and releases both sources when cancelled. A live owner process replacement removes its
+sessions; callers must start new sessions on the replacement. This live lifecycle does
+not change the persistence or cross-instance delivery of recording runs.
 
 ### Contract Compliance
 
 C02 tool schemas and result delivery use a canonical top-level `result_uri`.
 Installed product reads and GPU completion await reference qualification.
-C27 is pending for run-resource updates: their local notifications
-must move to the shared Task-backed resource watch. Installed Discover/list readiness
+C27 uses the shared Task source for runs and the admitted GPU owner for live sessions.
+Installed mixed-source delivery still requires reference qualification. Discover/list readiness
 (C31) and knowledge-source publication (C32) require the work recorded in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
 API and declaration consistency; it does not establish these runtime guarantees.

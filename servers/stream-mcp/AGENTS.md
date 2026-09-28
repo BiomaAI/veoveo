@@ -21,6 +21,9 @@ provider-neutral.
 - Keep IDs, resource addresses and collection cursors in the contract-only library.
   Use Stream constructors and the shared URI builder; serialize strings at protocol
   boundaries. Run reads and subscriptions use SQL owner selection.
+- Run resources implement `TaskResourceAddress` and use the shared authorized Task watch.
+  The live-owner hub supplies only live-session addresses. Recheck session access before
+  sending updates; reconcile live resources on reconnect or buffer overflow.
 - Keep replay result validation and `StreamArtifactUri` in the contract-only library.
   Producers and cross-server consumers share those checks. The producer also verifies
   detection bounds against its input dimensions; portable checks cannot prove GPU
@@ -97,7 +100,7 @@ Contract revision: 3
 - C24: met
 - C25: met
 - C26: met
-- C27: pending — run-resource invalidations still use the local hub; adopt the shared Task-backed resource watch
+- C27: met — one authorized shared Task watch supplies run updates; the listener composes live-owner updates with current session checks and reconnect reconciliation
 - C28: met — static resource discovery declares no list-change capability; session and task changes update contents
 - C29: met
 - C30: met

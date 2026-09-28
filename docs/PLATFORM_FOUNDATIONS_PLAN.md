@@ -714,7 +714,20 @@ schema snapshots change. Live Monitor follows the returned session URI; its navi
 start and stop behavior passes the headless browser harness. Strict all-target, all-feature
 Clippy passes for Stream, Reason, flight and smoke. Installed clients now read and validate
 canonical results, but reference and GPU qualification remain deferred while workloads are
-stopped. C27 shared run-resource notifications are the next Stream implementation task.
+stopped.
+
+Stream run resources now implement `TaskResourceAddress`. One shared authorized Task
+watch supplies run invalidations and requested Task status; a request-scoped listener
+composes live-session updates from their GPU owner's hub. The listener checks live access
+before delivery and reconciles only live addresses on reconnect or hub overflow. Native
+qualification covers independent Store clients, current-result reconnect baselines,
+malformed denied records, session removal and official MCP cancellation. During a forced
+Store outage, live updates continue and run completion reconciles after reconnect even
+when retained events have expired. The Stream suite passes 51 native checks, its isolated
+consumer passes 18, and six compile-fail examples pass. All 37 DTO snapshots remain
+unchanged. The independent Linux consumer resolves 71 packages, including the consumer, without MCP, asynchronous runtime,
+Store, Rerun or GPU dependencies. Strict all-target, all-feature Clippy passes for Stream,
+Reason, flight and smoke. Reference cross-replica and live-owner qualification remain open.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -1225,7 +1238,7 @@ default owner; the inventory must not become a central domain-type registry.
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify current scope enforcement on every installed UAV replica |
 | Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
-| Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Complete C27 shared run-resource notifications; strengthen remaining result/recording references; qualify canonical result reads, Task delivery and GPU behavior on the reference installation |
+| Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
 | Recording and View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
@@ -1646,4 +1659,4 @@ not complete while a row remains.
 | Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
-| Phase 3 Stream C27 | `servers/stream-mcp/src/bin/server.rs` | Drive run-resource invalidations from the shared authorized Task watch while retaining live-session notifications from their process owner | Checked discovery exposes the current gap; the mixed resource listener needs native multi-instance and reconnect qualification |
+| Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

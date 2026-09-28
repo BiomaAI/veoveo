@@ -38,6 +38,12 @@ pub(super) struct AuthenticatedCaller {
     plane: PlaneCaller,
 }
 
+impl AuthenticatedCaller {
+    pub(super) fn owner(&self) -> veoveo_task_runtime::TaskOwner {
+        runtime_owner(&self.identity)
+    }
+}
+
 impl DurableTaskService for StreamTaskService {
     type Caller = AuthenticatedCaller;
 

@@ -235,3 +235,30 @@ fn stream_declares_no_additional_domain_scopes() {
         assert!(StreamScope::try_from(&ScopeName::new(name).unwrap()).is_err());
     }
 }
+
+#[test]
+fn only_run_resources_implement_the_shared_task_address_contract() {
+    use veoveo_types::{ResourceAddress, TaskResourceAddress};
+    let id: RunId = ID.parse().unwrap();
+    for resource in [RunResource::run(id), RunResource::results(id)] {
+        assert_eq!(resource.task_id(), id.task_id());
+        let uri = resource.to_uri().unwrap();
+        assert_eq!(RunResource::parse(uri.as_str()).unwrap(), resource);
+        let wire = serde_json::to_value(&resource).unwrap();
+        assert_eq!(wire, uri.as_str());
+        assert_eq!(
+            serde_json::from_value::<RunResource>(wire).unwrap(),
+            resource
+        );
+    }
+    for uri in [
+        "stream://runs".to_owned(),
+        "stream://pipelines".to_owned(),
+        uris::session_uri(ID.parse().unwrap()).to_string(),
+        uris::session_results_uri(ID.parse().unwrap()).to_string(),
+        uris::session_preview_uri(ID.parse().unwrap()).to_string(),
+        uris::artifact_uri(ID.parse().unwrap()).to_string(),
+    ] {
+        assert!(RunResource::parse(&uri).is_err(), "{uri}");
+    }
+}

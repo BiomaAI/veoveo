@@ -1106,6 +1106,8 @@ and Artifact publication.
 | `src/bin/server/setup.rs` and `setup_tests.rs` | checked Stream MCP declarations, typed catalog descriptors and registration validation |
 | `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
 | `src/bin/server/task_results.rs`, `task_results_tests.rs` | typed tool-product handoffs and current Task result validation after SQL authorization; native cross-instance delivery and reconnect qualification |
+| `src/contract/subscriptions.rs`, `src/bin/server/subscriptions.rs`, `subscriptions_tests.rs` | typed Task-backed run addresses and composition with authorized live-owner updates; reconnect, overflow and MCP cancellation qualification |
+| `src/bin/server/test_support.rs` | inert capabilities and current products shared by native Task delivery and subscription fixtures |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |

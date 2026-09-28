@@ -4,12 +4,14 @@ use serde::{Deserialize, Serialize};
 mod cursor;
 mod ids;
 mod resources;
+mod subscriptions;
 pub use cursor::{RunCursor, SessionCursor};
 pub use ids::{ModelId, PipelineId, RunId, SessionId, StreamContractError};
 pub use resources::{
     ModelUri, PipelineUri, RunResultsUri, RunUri, SessionPreviewUri, SessionResultsUri, SessionUri,
     StreamDocument, StreamResource,
 };
+pub use subscriptions::RunResource;
 
 mod artifact;
 mod results;
