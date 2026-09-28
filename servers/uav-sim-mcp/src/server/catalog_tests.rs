@@ -100,27 +100,7 @@ fn server(store: &PlatformStore) -> super::service::UavSimMcp {
         )
         .unwrap(),
     )));
-    let audit = super::live_view_audit::LiveViewAudit::new(store.clone());
-    let live_views = super::live_view::LiveViewService::new(
-        adapter.clone(),
-        audit.clone(),
-        super::live_view::LiveViewConfig {
-            session_duration: Duration::from_secs(30),
-            public_stream_url: "wss://example.test/uav-sim/live".into(),
-            maximum_frame_age_ms: 1000,
-        },
-    )
-    .unwrap();
-    super::service::UavSimMcp::new(Arc::new(super::state::AppState {
-        session_id: SessionId::new("native-session").unwrap(),
-        adapter,
-        tasks: TaskRuntime::new(store.clone(), "uav-sim", "discovery-test"),
-        control_authority: VehicleControlAuthority::new(store.clone()),
-        subscribers: Arc::new(SubscriptionHub::new()),
-        live_views,
-        live_view_audit: audit,
-        live_view_connect_origin: "wss://example.test".into(),
-    }))
+    super::service::UavSimMcp::new(super::test_support::state(store, adapter, "discovery-test"))
 }
 
 async fn task(

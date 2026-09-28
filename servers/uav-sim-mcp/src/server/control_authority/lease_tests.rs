@@ -122,7 +122,12 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
                 assert!(active.revision > previous);
             }
             if let Some(old) = previous_guard.as_ref() {
-                assert!(first.finish_execution(old, true).await.is_err());
+                assert!(
+                    first
+                        .finish_execution(old, execution::Settlement::Completed)
+                        .await
+                        .is_err()
+                );
                 assert_eq!(
                     lease(&first, &pilot, &executing).await,
                     active,
@@ -146,11 +151,17 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
                 active,
                 "busy admission must roll back its lease write"
             );
-            first.finish_execution(&guard, true).await.unwrap();
+            first
+                .finish_execution(&guard, execution::Settlement::Completed)
+                .await
+                .unwrap();
             let released = lease(&first, &pilot, &executing).await;
             assert!(released.released_at.is_some());
             assert!(released.revision > active.revision);
-            first.finish_execution(&guard, true).await.unwrap();
+            first
+                .finish_execution(&guard, execution::Settlement::Completed)
+                .await
+                .unwrap();
             assert_eq!(
                 lease(&first, &pilot, &executing).await,
                 released,
@@ -201,12 +212,18 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
             Err(ControlAuthorityError::VehicleBusy(_))
         ));
         assert_eq!(lease(&authority, &pilot, &a).await, expired);
-        authority.finish_execution(&guard, false).await.unwrap();
+        authority
+            .finish_execution(&guard, execution::Settlement::NotDispatched)
+            .await
+            .unwrap();
         let (_, next) = authority
             .begin_execution(&pilot, &b.plan_id, 0)
             .await
             .unwrap();
-        authority.finish_execution(&next, true).await.unwrap();
+        authority
+            .finish_execution(&next, execution::Settlement::Completed)
+            .await
+            .unwrap();
     })
     .await
     .expect("expired executing lease qualification exceeded 60 seconds");
@@ -232,11 +249,11 @@ async fn native_plan_and_lease_writes_roll_back_together() {
         let active = lease(&authority, &pilot, &executing).await;
         db.b.client().query("DEFINE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'completed' THEN { THROW 'fixture rejects settlement'; };")
             .await.unwrap().check().unwrap();
-        assert!(authority.finish_execution(&guard, true).await.is_err());
+        assert!(authority.finish_execution(&guard, execution::Settlement::Completed).await.is_err());
         assert_eq!(lease(&authority, &pilot, &executing).await, active);
         assert_eq!(authority.visible_plan(&pilot, false, &executing.plan_id).await.unwrap().unwrap(), executing);
         db.b.client().query("REMOVE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan;").await.unwrap().check().unwrap();
-        authority.finish_execution(&guard, true).await.unwrap();
+        authority.finish_execution(&guard, execution::Settlement::Completed).await.unwrap();
     }).await.expect("transaction rollback qualification exceeded 60 seconds");
 }
 
@@ -259,7 +276,10 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
             .begin_execution(&pilot, &a.plan_id, 0)
             .await
             .unwrap();
-        authority.finish_execution(&guard, true).await.unwrap();
+        authority
+            .finish_execution(&guard, execution::Settlement::Completed)
+            .await
+            .unwrap();
         let b = authority
             .prepare_plan(&pilot, mission_request("second"))
             .await

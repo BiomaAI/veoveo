@@ -27,7 +27,7 @@ impl ExecutionScope {
 #[derive(Clone, Debug)]
 struct CommandLeaseToken(Uuid);
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(in crate::server) struct MissionExecutionGuard {
     plan_record_id: RecordId,
     plan_id: MissionPlanId,
@@ -40,9 +40,25 @@ pub(in crate::server) struct MissionExecutionGuard {
 }
 
 impl MissionExecutionGuard {
-    pub(in crate::server) fn plan_id(&self) -> &MissionPlanId {
-        &self.plan_id
+    pub(in crate::server) fn dispatch(self) -> DispatchedMission {
+        DispatchedMission(self)
     }
+}
+
+/// Dispatch consumes the right to release authority on a local setup error.
+#[derive(Debug)]
+pub(in crate::server) struct DispatchedMission(MissionExecutionGuard);
+
+impl DispatchedMission {
+    pub(in crate::server) fn plan_id(&self) -> &MissionPlanId {
+        &self.0.plan_id
+    }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Settlement {
+    Completed,
+    NotDispatched,
 }
 
 /// Checked caller and retained plan, before the transaction rechecks current authority.
@@ -174,10 +190,30 @@ impl VehicleControlAuthority {
         Ok((plan, guard))
     }
 
-    pub(in crate::server) async fn finish_execution(
+    pub(in crate::server) async fn abort_execution(
         &self,
         guard: &MissionExecutionGuard,
-        succeeded: bool,
+    ) -> Result<()> {
+        self.finish_execution(guard, Settlement::NotDispatched)
+            .await
+    }
+
+    pub(in crate::server) async fn complete_execution(
+        &self,
+        dispatched: &DispatchedMission,
+        receipt: &crate::adapter::CompletedOperation,
+    ) -> Result<()> {
+        let guard = &dispatched.0;
+        if !receipt.confirms_mission(&guard.session, &guard.vehicle, &guard.mission) {
+            return Err(ControlAuthorityError::Conflict);
+        }
+        self.finish_execution(guard, Settlement::Completed).await
+    }
+
+    pub(super) async fn finish_execution(
+        &self,
+        guard: &MissionExecutionGuard,
+        settlement: Settlement,
     ) -> Result<()> {
         let record = self.plan_record(&guard.plan_record_id).await?;
         let mut plan = plan_view(&record)?;
@@ -192,10 +228,9 @@ impl VehicleControlAuthority {
         {
             return Err(ControlAuthorityError::Conflict);
         }
-        let terminal = if succeeded {
-            MissionPlanLifecycle::Completed
-        } else {
-            MissionPlanLifecycle::Failed
+        let terminal = match settlement {
+            Settlement::Completed => MissionPlanLifecycle::Completed,
+            Settlement::NotDispatched => MissionPlanLifecycle::Failed,
         };
         if plan.state != MissionPlanLifecycle::Executing && plan.state != terminal {
             return Err(ControlAuthorityError::Conflict);
@@ -217,7 +252,13 @@ impl VehicleControlAuthority {
             .bind(("record", guard.plan_record_id.clone()))
             .bind(("expected_plan", record))
             .bind(("canonical", serde_json::to_string(&plan)?))
-            .bind(("state", if succeeded { "completed" } else { "failed" }))
+            .bind((
+                "state",
+                match settlement {
+                    Settlement::Completed => "completed",
+                    Settlement::NotDispatched => "failed",
+                },
+            ))
             .bind(("lease", guard.lease_record_id.clone()))
             .bind(("lease_token", guard.token.0.to_string()))
             .bind(("tenant", tenant))

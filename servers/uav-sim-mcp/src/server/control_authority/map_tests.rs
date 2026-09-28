@@ -133,7 +133,10 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
             .await
             .unwrap();
         assert_eq!(executing.state, MissionPlanLifecycle::Executing);
-        reader.finish_execution(&guard, true).await.unwrap();
+        reader
+            .finish_execution(&guard, execution::Settlement::Completed)
+            .await
+            .unwrap();
         assert_eq!(
             reader
                 .visible_plan(&pilot, false, &plan.plan_id)

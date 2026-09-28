@@ -15,15 +15,19 @@ use veoveo_platform_store::{
 
 use crate::{
     contract::{
-        CameraState, CaptureDatasetResult, CommandAcknowledgement, ConfigureWorldOutput,
-        ConfigureWorldRequest, DurableOperation, DurableOperationResult, MissionId,
-        MissionLifecycle, MissionResult, RecordingCatalogLifecycle, RecordingId, RecordingKey,
-        RecordingPublisherLifecycle, RecordingState, RuntimeTimingState, ScenarioResult, SessionId,
-        SimulationCommand, SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
+        CameraState, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
+        DurableOperation, DurableOperationResult, MissionLifecycle, MissionResult,
+        RecordingCatalogLifecycle, RecordingId, RecordingKey, RecordingPublisherLifecycle,
+        RecordingState, RuntimeTimingState, ScenarioResult, SessionId, SimulationCommand,
+        SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
         VehicleFlightState, VehicleState,
     },
     uris,
 };
+
+mod completion;
+use completion::AdapterDurableOperationResult;
+pub(crate) use completion::CompletedOperation;
 
 const RECORDING_APPLICATION_ID: &str = "veoveo-uav-sim";
 const RECORDING_CATALOG_ATTEMPTS: usize = 100;
@@ -63,43 +67,6 @@ struct AdapterSimulationState {
     updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterScenarioResult {
-    session_id: SessionId,
-    elapsed_seconds: f64,
-    final_simulation_time_s: f64,
-    collision_count: u64,
-    recording_keys: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterMissionResult {
-    mission_id: MissionId,
-    lifecycle: MissionLifecycle,
-    started_at: DateTime<Utc>,
-    finished_at: DateTime<Utc>,
-    completed_waypoints: u64,
-    recording_keys: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct AdapterCaptureDatasetResult {
-    session_id: SessionId,
-    elapsed_seconds: f64,
-    recording_keys: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(tag = "result", content = "output", rename_all = "snake_case")]
-enum AdapterDurableOperationResult {
-    RunScenario(AdapterScenarioResult),
-    ExecuteMission(AdapterMissionResult),
-    CaptureDataset(AdapterCaptureDatasetResult),
-}
-
 #[derive(Clone)]
 pub struct HttpAdapter {
     client: Client,
@@ -127,6 +94,8 @@ impl HttpAdapter {
         }
         let client = Client::builder()
             .timeout(timeout)
+            .retry(reqwest::retry::never())
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(AdapterError::Transport)?;
         let event_client = Client::builder()
@@ -265,10 +234,10 @@ impl HttpAdapter {
         self.post("v1/commands", command).await
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &self,
         operation: &DurableOperation,
-    ) -> Result<DurableOperationResult, AdapterError> {
+    ) -> Result<CompletedOperation, AdapterError> {
         let simulated_duration = match operation {
             DurableOperation::RunScenario(request) => Some(request.duration_seconds),
             DurableOperation::CaptureDataset(request) => Some(request.duration_seconds),
@@ -282,34 +251,7 @@ impl HttpAdapter {
         let result: AdapterDurableOperationResult = self
             .post_with_timeout("v1/operations", operation, timeout)
             .await?;
-        Ok(match result {
-            AdapterDurableOperationResult::RunScenario(value) => {
-                DurableOperationResult::RunScenario(ScenarioResult {
-                    session_id: value.session_id,
-                    elapsed_seconds: value.elapsed_seconds,
-                    final_simulation_time_s: value.final_simulation_time_s,
-                    collision_count: value.collision_count,
-                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
-                })
-            }
-            AdapterDurableOperationResult::ExecuteMission(value) => {
-                DurableOperationResult::ExecuteMission(MissionResult {
-                    mission_id: value.mission_id,
-                    lifecycle: value.lifecycle,
-                    started_at: value.started_at,
-                    finished_at: value.finished_at,
-                    completed_waypoints: value.completed_waypoints,
-                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
-                })
-            }
-            AdapterDurableOperationResult::CaptureDataset(value) => {
-                DurableOperationResult::CaptureDataset(CaptureDatasetResult {
-                    session_id: value.session_id,
-                    elapsed_seconds: value.elapsed_seconds,
-                    recording_uris: self.resolve_recording_keys(value.recording_keys).await?,
-                })
-            }
-        })
+        result.correlate(operation)
     }
 
     async fn resolve_recording_keys(
@@ -733,14 +675,23 @@ impl Adapter {
         }
     }
 
-    pub async fn execute(
+    pub(crate) async fn execute(
         &self,
         operation: &DurableOperation,
-    ) -> Result<DurableOperationResult, AdapterError> {
+    ) -> Result<CompletedOperation, AdapterError> {
         match self {
             Self::Http(adapter) => adapter.execute(operation).await,
-            Self::Fake(adapter) => adapter.lock().await.execute(operation),
+            Self::Fake(adapter) => {
+                CompletedOperation::new(operation, adapter.lock().await.execute(operation)?)
+            }
         }
+    }
+
+    pub(crate) async fn resolve_result(
+        &self,
+        completed: CompletedOperation,
+    ) -> Result<DurableOperationResult, AdapterError> {
+        completed.resolve(self).await
     }
 }
 
@@ -756,6 +707,8 @@ pub enum AdapterError {
     InvalidResponse(#[source] serde_json::Error),
     #[error("adapter rejected the request with {status}: {detail}")]
     Rejected { status: StatusCode, detail: String },
+    #[error("adapter completion does not match the dispatched operation")]
+    UncorrelatedCompletion,
     #[error("unknown simulation session `{0}`")]
     UnknownSession(String),
     #[error("unknown vehicle `{0}`")]

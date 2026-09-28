@@ -198,6 +198,32 @@ Durable task tools use `interrupted_indeterminate` recovery. An unclean interrup
 never replays physical work. The default fleet controller keeps the configured fleet
 on its admitted loop until a later mission command takes authority.
 
+The adapter's completion profile is one cluster-private authenticated HTTP request
+and a definitive synchronous response. Its request client disables automatic retries
+and redirects. A mission
+receipt must name the dispatched mission, report `completed`, account for every requested
+waypoint, and have ordered start/finish timestamps. The worker also correlates the
+session and single vehicle against its command guard. Other operation receipts must
+match the requested result kind and session. Recording catalog lookup follows this
+physical observation and can fail independently.
+
+Task cancellation stops waiting for that response. The Python runtime executes its
+mission in a thread, and closing HTTP does not stop the PX4 command. Cancellation,
+request timeout, HTTP rejection, malformed or mismatched completion, and Task lease loss
+before a confirmed completion leave the plan executing and its vehicle fenced. An interrupted Task reports
+`interrupted_indeterminate` when its worker still holds the Task lease. A stale worker
+cannot settle the Task; TaskRuntime recovery applies the declared interruption profile.
+An executing plan means admission is unsettled; it does not assert current vehicle motion.
+Queued mission recovery fails the interrupted Task without decoding its public plan
+request as a simulator command or dispatching it again.
+
+The worker renews its 120-second Task lease every 40 seconds. Simulator requests use
+the configured operation timeout; scenario and capture requests extend it to at least
+twenty times their requested duration plus 120 seconds. Recording resolution permits
+100 reads per key at 100-millisecond intervals. There is no operation-status poller,
+resumable completion receipt, or qualified remote abort in this profile. An operator
+must reconcile an unknown simulator outcome before releasing its vehicle fence.
+
 ## Vehicle Authority And Mission Admission
 
 An authenticated gateway principal controls a vehicle only through a UAV-owned grant.
@@ -262,6 +288,14 @@ settle another execution or release its lease. Repeating the same terminal outco
 the same retained token is a no-op. Admission can replace an orphaned or terminal lease
 only when no executing plan exists for the vehicle. The server preserves unknown database
 outcomes for reconciliation and never replays physical work from an uncertain result.
+
+Dispatch consumes the local admission guard. Only an undispatched guard can release
+authority after a setup error; a dispatched guard requires a correlated completion receipt.
+The worker commits physical completion before resolving recordings or publishing the Task
+result. A recording failure produces `uav_sim_result_unavailable` while the plan stays
+completed. Cancellation concurrent with confirmed completion produces
+`completed_after_cancellation` when the Task cancellation transition has already won.
+Neither Task delivery failure changes the settled physical outcome.
 
 This profile requires a coordinated Map/UAV/client upgrade with UAV command admission
 drained and executing missions settled. Drain every UAV replica and worker before
@@ -601,9 +635,16 @@ PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
 
 ## Contract Compliance
 
-The server implements MCP contract revision 2. Its control-plane registration declares
-that revision and the complete tool, resource, subscription, task, and App capabilities.
-Compliance gaps are not hidden in deployment values or fixture behavior.
+The normative target is MCP contract revision 3. The [agent manual](AGENTS.md#contract-compliance)
+records each requirement. Gateway registration still needs its revision declaration,
+and installed readiness qualification is pending.
+
+Mission admission precedes Task creation, so a crash can leave an executing plan without
+its Task. Unknown outcomes preserve that plan and its lease. Persisted dispatch/Task
+correlation, retained completion details across process loss, and installed recovery
+qualification remain work in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
+The synchronous adapter profile does not provide a remote abort or resumable observation
+that could settle such an outcome automatically.
 
 ## Resource Query Modules
 

@@ -19,7 +19,7 @@ use crate::contract::{
 };
 use crate::uris;
 
-use super::control_authority::MissionExecutionGuard;
+use super::control_authority::{DispatchedMission, MissionExecutionGuard};
 use super::ownership::runtime_owner;
 use super::state::AppState;
 
@@ -125,8 +125,32 @@ pub(super) async fn resume_queued_operation(
     state: Arc<AppState>,
     snapshot: TaskSnapshot,
 ) -> Result<(), String> {
+    if snapshot.task_type == "execute_vehicle_mission_plan" {
+        // The public request contains a plan address, never a replayable simulator command.
+        // Recovery has no live dispatch guard. Preserve any retained vehicle fence.
+        let id = snapshot.task_id.to_string();
+        state
+            .tasks
+            .claim(&id, TASK_LEASE_DURATION)
+            .await
+            .map_err(|error| error.to_string())?;
+        state
+            .tasks
+            .transition(
+                &id,
+                indeterminate("mission worker interrupted before recovery"),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+        return Ok(());
+    }
     let operation: DurableOperation =
         serde_json::from_value(snapshot.request.clone()).map_err(|error| error.to_string())?;
+    if matches!(operation, DurableOperation::ExecuteMission(_))
+        || operation.task_type() != snapshot.task_type
+    {
+        return Err("retained UAV Task type does not match its declared recovery profile".into());
+    }
     schedule_operation(state, snapshot, operation, None)
         .await
         .map(|_| ())
@@ -138,13 +162,16 @@ async fn schedule_operation(
     operation: DurableOperation,
     authority: Option<MissionExecutionGuard>,
 ) -> Result<TaskSnapshot, String> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = match state.tasks.claim(&task_id, TASK_LEASE_DURATION).await {
+    let task_id = snapshot.task_id;
+    let claimed = match state
+        .tasks
+        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+        .await
+    {
         Ok(claimed) => claimed,
         Err(error) => {
             if let Some(guard) = authority.as_ref()
-                && let Err(finalize_error) =
-                    state.control_authority.finish_execution(guard, false).await
+                && let Err(finalize_error) = state.control_authority.abort_execution(guard).await
             {
                 tracing::error!(%finalize_error, "failed to release UAV mission authority after task claim failure");
             }
@@ -154,7 +181,7 @@ async fn schedule_operation(
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         operation,
         authority,
         cancellation.clone(),
@@ -162,7 +189,7 @@ async fn schedule_operation(
     let worker_cancellation = cancellation.clone();
     if let Err(error) = state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(&task_id.to_string(), cancellation, join)
         .await
     {
         worker_cancellation.cancel();
@@ -172,14 +199,14 @@ async fn schedule_operation(
 }
 
 async fn release_failed_execution(state: &AppState, guard: &MissionExecutionGuard) {
-    if let Err(error) = state.control_authority.finish_execution(guard, false).await {
+    if let Err(error) = state.control_authority.abort_execution(guard).await {
         tracing::error!(%error, "failed to release UAV mission authority after task start failure");
     }
 }
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     operation: DurableOperation,
     authority: Option<MissionExecutionGuard>,
     cancellation: CancellationToken,
@@ -189,41 +216,38 @@ async fn run_task(
         DurableOperation::ExecuteMission(request) => Some(uris::mission(&request.mission_id)),
         _ => None,
     };
+    let authority = authority.map(MissionExecutionGuard::dispatch);
     let work = execute_operation(
         state.clone(),
-        task_id.clone(),
+        task_id,
         operation,
+        authority.as_ref(),
         cancellation.clone(),
     );
     tokio::pin!(work);
     let mut heartbeat = tokio::time::interval(TASK_LEASE_HEARTBEAT);
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     heartbeat.tick().await;
-    let mut next = loop {
+    let next = loop {
         tokio::select! {
             next = &mut work => break next,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, %error, "UAV simulation task lease heartbeat failed");
-                    cancellation.cancel();
-                    break TaskTransition::Cancelled;
+                match state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                    Ok(snapshot) => {
+                        if snapshot.cancel_requested_at.is_some() {
+                            cancellation.cancel();
+                        }
+                    }
+                    Err(error) => {
+                        tracing::warn!(%task_id, %error, "UAV simulation task lease heartbeat failed");
+                        cancellation.cancel();
+                        break indeterminate("Task lease heartbeat failed; simulator outcome is unknown");
+                    }
                 }
             }
         }
     };
     if let Some(guard) = authority.as_ref() {
-        let succeeded = matches!(&next, TaskTransition::Succeeded { .. });
-        if let Err(error) = state
-            .control_authority
-            .finish_execution(guard, succeeded)
-            .await
-        {
-            tracing::error!(task_id, %error, "failed to finalize UAV mission authority");
-            next = TaskTransition::Failed(TaskFailure::new(
-                "mission_authority_finalization_failed",
-                error.to_string(),
-            ));
-        }
         state
             .subscribers
             .notify_resource_updated(uris::MISSION_PLANS)
@@ -233,7 +257,7 @@ async fn run_task(
             .notify_resource_updated(uris::mission_plan(guard.plan_id()))
             .await;
     }
-    transition(&state, &task_id, next).await;
+    transition(&state, task_id, next).await;
     state
         .subscribers
         .notify_resource_updated(uris::session(&session_id))
@@ -249,22 +273,51 @@ async fn run_task(
 
 async fn execute_operation(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     operation: DurableOperation,
+    authority: Option<&DispatchedMission>,
     cancellation: CancellationToken,
 ) -> TaskTransition {
-    let result = tokio::select! {
-        result = async {
-            state.adapter.execute(&operation).await
-        } => result.map_err(|error| error.to_string()),
+    let observed = tokio::select! {
+        result = state.adapter.execute(&operation) => result,
         () = cancellation.cancelled() => {
-            return TaskTransition::Cancelled;
+            return indeterminate("Task wait cancelled; simulator outcome is unknown");
         }
     };
-    if cancellation.is_cancelled() {
-        return TaskTransition::Cancelled;
+    let completed = match observed {
+        Ok(completed) => completed,
+        Err(error) => {
+            tracing::warn!(%task_id, %error, "UAV simulator outcome is unknown");
+            return indeterminate(
+                "simulator completion could not be confirmed; inspect the mission before retrying",
+            );
+        }
+    };
+    // A correlated physical completion is settled before catalog enrichment or Task delivery.
+    // Cancellation after this receipt cannot turn it into a failed physical mission.
+    if let Some(guard) = authority
+        && let Err(error) = state
+            .control_authority
+            .complete_execution(guard, &completed)
+            .await
+    {
+        tracing::error!(%task_id, %error, "failed to persist UAV mission completion");
+        return TaskTransition::Failed(TaskFailure::new(
+            "mission_authority_finalization_failed",
+            "simulator reported completion but mission settlement is unresolved; inspect the mission before retrying",
+        ));
     }
-    match result.and_then(operation_tool_result) {
+    let result = state.adapter.resolve_result(completed).await;
+    if cancellation.is_cancelled() {
+        return TaskTransition::Failed(TaskFailure::new(
+            "completed_after_cancellation",
+            "simulator completion was confirmed after cancellation of the Task wait; inspect the mission plan",
+        ));
+    }
+    match result
+        .map_err(|error| error.to_string())
+        .and_then(operation_tool_result)
+    {
         Ok(result) => match serde_json::to_value(result) {
             Ok(result) => TaskTransition::Succeeded {
                 message: "completed".to_owned(),
@@ -276,10 +329,16 @@ async fn execute_operation(
             )),
         },
         Err(error) => {
-            tracing::warn!(task_id, %error, "UAV simulation task failed");
-            TaskTransition::Failed(TaskFailure::new("uav_sim_operation_failed", error))
+            tracing::warn!(%task_id, %error, "UAV completed operation result could not be published");
+            TaskTransition::Failed(TaskFailure::new("uav_sim_result_unavailable", error))
         }
     }
+}
+
+fn indeterminate(reason: &str) -> TaskTransition {
+    let mut failure = TaskFailure::interrupted_indeterminate();
+    failure.message = reason.to_owned();
+    TaskTransition::Failed(failure)
 }
 
 fn mission_operation(plan: &VehicleMissionPlan) -> Result<DurableOperation, String> {
@@ -360,9 +419,25 @@ fn recovery_class(_operation: &DurableOperation) -> RecoveryClass {
     RecoveryClass::InterruptedIndeterminate
 }
 
-async fn transition(state: &AppState, task_id: &str, next: TaskTransition) {
-    if let Err(error) = state.tasks.transition(task_id, next).await {
-        tracing::warn!(task_id, %error, "UAV simulation task transition failed");
+async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
+    let completed = matches!(next, TaskTransition::Succeeded { .. });
+    if let Err(error) = state.tasks.transition(&task_id.to_string(), next).await {
+        // Cancellation may commit between observing completion and publishing its Task result.
+        // The physical receipt has already settled the mission; preserve that distinction.
+        if completed
+            && let Ok(Some(snapshot)) = state.tasks.get(&task_id.to_string()).await
+            && snapshot.status == veoveo_platform_store::TaskStatus::CancelRequested
+        {
+            let next = TaskTransition::Failed(TaskFailure::new(
+                "completed_after_cancellation",
+                "simulator completion was confirmed after cancellation of the Task wait; inspect the mission plan",
+            ));
+            if let Err(error) = state.tasks.transition(&task_id.to_string(), next).await {
+                tracing::warn!(%task_id, %error, "UAV completed Task cancellation settlement failed");
+            }
+            return;
+        }
+        tracing::warn!(%task_id, %error, "UAV simulation task transition failed");
     }
 }
 
@@ -484,3 +559,6 @@ mod tests {
         assert_eq!(request.vehicles[0].waypoints[1].hold_seconds, 8.0);
     }
 }
+
+#[cfg(test)]
+mod native_tests;

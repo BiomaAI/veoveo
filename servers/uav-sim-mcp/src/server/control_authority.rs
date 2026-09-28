@@ -18,7 +18,7 @@ use crate::contract::{
 };
 
 mod execution;
-pub(super) use execution::MissionExecutionGuard;
+pub(super) use execution::{DispatchedMission, MissionExecutionGuard};
 mod map_handoff;
 mod reads;
 use map_handoff::{RouteRequirement, validate_map_handoff};

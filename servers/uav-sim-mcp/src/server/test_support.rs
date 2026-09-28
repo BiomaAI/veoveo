@@ -64,3 +64,37 @@ pub(super) fn identity(
 
 #[path = "../../../../testing/fixtures/store.rs"]
 pub(super) mod fixture;
+
+/// Native protocol fixtures share the hosted composition without simulator startup.
+pub(super) fn state(
+    store: &veoveo_platform_store::PlatformStore,
+    adapter: std::sync::Arc<crate::adapter::Adapter>,
+    worker: &str,
+) -> std::sync::Arc<super::state::AppState> {
+    use super::control_authority::VehicleControlAuthority;
+    use crate::contract::SessionId;
+    use std::{sync::Arc, time::Duration};
+    use veoveo_mcp_contract::SubscriptionHub;
+    use veoveo_task_runtime::TaskRuntime;
+    let audit = super::live_view_audit::LiveViewAudit::new(store.clone());
+    let live_views = super::live_view::LiveViewService::new(
+        adapter.clone(),
+        audit.clone(),
+        super::live_view::LiveViewConfig {
+            session_duration: Duration::from_secs(30),
+            public_stream_url: "wss://example.test/uav-sim/live".into(),
+            maximum_frame_age_ms: 1000,
+        },
+    )
+    .unwrap();
+    Arc::new(super::state::AppState {
+        session_id: SessionId::new("native-session").unwrap(),
+        adapter,
+        tasks: TaskRuntime::new(store.clone(), "uav-sim", worker),
+        control_authority: VehicleControlAuthority::new(store.clone()),
+        subscribers: Arc::new(SubscriptionHub::new()),
+        live_views,
+        live_view_audit: audit,
+        live_view_connect_origin: "wss://example.test".into(),
+    })
+}

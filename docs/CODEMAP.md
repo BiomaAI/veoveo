@@ -992,6 +992,8 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
 | `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
+| `servers/uav-sim-mcp/src/adapter/completion.rs` | operation-correlated simulator receipts and independent recording-result resolution |
+| `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | dispatch guard consumption, interrupted Task handling, queued mission recovery without replay, and native HTTP/Store failure qualification |
 | `platform/store/migrations/0097_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |
 | `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
 | `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV route-status, geometry, freshness and motion policy over Map-owned handoff types |

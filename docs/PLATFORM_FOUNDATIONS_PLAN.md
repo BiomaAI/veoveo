@@ -534,9 +534,23 @@ Clippy passes. The transactions, lookup and index validate under the pinned 3.2.
 The owning design requires every replica and worker to drain before this coordinated
 upgrade or rollback. Rollback builds must retain the additive index and current Store
 catalog; restoring an older installation snapshot requires all database writers drained.
-Retained formats are unchanged. Installed qualification remains pending. Follow-up UAV acceptance must trace adapter cancellation, Task lease-loss
-settlement and the crash interval between admission and Task creation; database exclusion
-alone does not establish that simulator work has stopped.
+Retained formats are unchanged. Installed qualification remains pending.
+UAV dispatch now consumes its admission guard, and only a correlated simulator completion
+can release a dispatched mission's lease. Cancellation, Task lease loss, HTTP rejection,
+timeout, redirects and invalid completion preserve the executing plan and vehicle fence.
+The request client disables automatic retries and redirects. Completion checks operation
+kind, mission/session identity, lifecycle, waypoint count and timestamp order before it
+settles the plan. Recording lookup and Task result publication follow physical settlement;
+failures in either cannot mark a completed mission failed. Queued mission recovery reports
+an interrupted outcome without replay or a startup decoding failure. Task IDs stay typed
+through worker calls. Seven native HTTP/Store cases cover continued remote work after
+HTTP cancellation, lease loss, mismatched replies, catalog failure, cancellation races,
+transaction rollback and queued recovery; the full UAV suite passes 58 checks and strict workspace Clippy passes. The fixture
+owns its background jobs and disposable Store containers and supplies no GPU acceptance.
+Persisting Task/dispatch correlation before admission and retaining complete observations
+across process loss remain work. In particular, the crash interval between admission and
+Task creation can still leave a fenced plan without a Task. Installed recovery, operator
+reconciliation and reverse/forward replacement need qualification before deployment.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -1032,7 +1046,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Map source catalog | Map owns typed addresses, collection-bound cursors and checked public summaries. Exact reads, pages and completion select the tenant in SQL before limits; selected documents must agree with indexed metadata. Native isolation, continuation, redaction and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer walks the page envelope and the unbounded Store list is removed | Qualify source-ID and retained-document preflight, installed page traversal and the coordinated server/client upgrade with rollback |
 | Map mobility catalogs | Map owns checked profile versions, exact and collection addresses, composite cursors and complete-profile pages. SQL selects tenant, parent, ID and numeric version before limits. Native isolation, ordering, completion and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer traverses pages and the unbounded Store read is removed | Qualify retained-reference preflight, installed traversal and coordinated replacement with rollback; UAV grants/handoff and the flight harness now consume Map-owned address types |
 | UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify adapter/Task recovery, retained-data preflight, installed grant/mission behavior and coordinated replacement with rollback; isolate UAV's own contract feature |
-| UAV execution exclusion | Typed drafts and guards bind caller and mission identity. Admission writes the vehicle lease and plan in one transaction; settlement checks the admitting token and releases its lease atomically. Native RocksDB contention across principals, expired execution fencing, stale guards, monotonic revisions, rollback and index selection pass | Qualify simulator/Task recovery and installed behavior; drain all replicas/workers for upgrade or rollback, preflight retained correlation and preserve the current Store catalog in rollback builds |
+| UAV execution exclusion | Typed drafts and guards bind caller and mission identity. Admission writes the vehicle lease and plan in one transaction; dispatch consumes the local abort right and settlement requires a correlated simulator completion. Native RocksDB contention, stale guards, expiry, rollback, HTTP cancellation with continued remote work, Task lease loss, invalid replies, catalog failure and queued recovery pass | Persist Task/dispatch correlation before admission and retain complete observations across process loss; qualify installed recovery and operator reconciliation. Drain all replicas/workers for upgrade or rollback, preflight retained correlation and preserve the current Store catalog in rollback builds |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
