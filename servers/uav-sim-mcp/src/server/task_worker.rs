@@ -19,7 +19,7 @@ use crate::contract::{
 };
 use crate::uris;
 
-use super::control_authority::{DispatchedMission, MissionExecutionGuard};
+use super::control_authority::{DispatchedMission, MissionExecutionGuard, task_link};
 use super::ownership::runtime_owner;
 use super::state::AppState;
 
@@ -53,43 +53,51 @@ pub(super) async fn start_vehicle_mission_plan(
     request: ExecuteVehicleMissionPlanRequest,
     retention_pins: BTreeSet<TaskRetentionPin>,
 ) -> Result<TaskSnapshot, String> {
-    let (plan, guard) = state
+    let draft = state
         .control_authority
-        .begin_execution(
+        .prepare_execution(
             &caller.identity,
             &request.plan_id,
             request.expected_revision,
         )
         .await
         .map_err(|error| error.to_string())?;
-    let operation = match mission_operation(&plan) {
-        Ok(operation) => operation,
-        Err(error) => {
-            release_failed_execution(&state, &guard).await;
-            return Err(error);
-        }
-    };
-    let task_request = match serde_json::to_value(&request) {
-        Ok(request) => request,
-        Err(error) => {
-            release_failed_execution(&state, &guard).await;
-            return Err(error.to_string());
-        }
-    };
+    let operation = mission_operation(draft.plan())?;
+    let mut retention_pins = retention_pins;
+    retention_pins.insert(task_link::retention_pin());
     let created = create_task(
         &state,
         &caller,
         "execute_vehicle_mission_plan",
-        task_request,
+        serde_json::to_value(&request).map_err(|error| error.to_string())?,
         RecoveryClass::InterruptedIndeterminate,
         retention_pins,
     )
-    .await;
-    let created = match created {
-        Ok(created) => created,
+    .await?;
+    let (_, guard) = match state
+        .control_authority
+        .admit_execution(draft, &state.tasks, &created.snapshot)
+        .await
+    {
+        Ok(admitted) => admitted,
         Err(error) => {
-            release_failed_execution(&state, &guard).await;
-            return Err(error);
+            let id = created.snapshot.task_id;
+            // Claiming closes admission's queued-state guard, including a transaction with a lost reply.
+            if state
+                .tasks
+                .claim(&id.to_string(), TASK_LEASE_DURATION)
+                .await
+                .is_ok()
+            {
+                transition(
+                    &state,
+                    id,
+                    indeterminate("mission admission did not authorize dispatch; inspect the plan"),
+                )
+                .await;
+            }
+            release_settled_pin(&state, id).await;
+            return Err(error.to_string());
         }
     };
     schedule_operation(state, created.snapshot, operation, Some(guard)).await
@@ -142,6 +150,7 @@ pub(super) async fn resume_queued_operation(
             )
             .await
             .map_err(|error| error.to_string())?;
+        release_settled_pin(&state, snapshot.task_id).await;
         return Ok(());
     }
     let operation: DurableOperation =
@@ -163,6 +172,12 @@ async fn schedule_operation(
     authority: Option<MissionExecutionGuard>,
 ) -> Result<TaskSnapshot, String> {
     let task_id = snapshot.task_id;
+    if authority
+        .as_ref()
+        .is_some_and(|guard| guard.task_id() != task_id)
+    {
+        return Err("mission dispatch guard belongs to a different Task".into());
+    }
     let claimed = match state
         .tasks
         .claim(&task_id.to_string(), TASK_LEASE_DURATION)
@@ -175,6 +190,7 @@ async fn schedule_operation(
             {
                 tracing::error!(%finalize_error, "failed to release UAV mission authority after task claim failure");
             }
+            release_settled_pin(&state, task_id).await;
             return Err(error.to_string());
         }
     };
@@ -196,12 +212,6 @@ async fn schedule_operation(
         return Err(error.to_string());
     }
     Ok(claimed.snapshot)
-}
-
-async fn release_failed_execution(state: &AppState, guard: &MissionExecutionGuard) {
-    if let Err(error) = state.control_authority.abort_execution(guard).await {
-        tracing::error!(%error, "failed to release UAV mission authority after task start failure");
-    }
 }
 
 async fn run_task(
@@ -258,6 +268,9 @@ async fn run_task(
             .await;
     }
     transition(&state, task_id, next).await;
+    if authority.is_some() {
+        release_settled_pin(&state, task_id).await;
+    }
     state
         .subscribers
         .notify_resource_updated(uris::session(&session_id))
@@ -438,6 +451,58 @@ async fn transition(state: &AppState, task_id: TaskId, next: TaskTransition) {
             return;
         }
         tracing::warn!(%task_id, %error, "UAV simulation task transition failed");
+    }
+}
+
+async fn release_settled_pin(state: &AppState, task_id: TaskId) {
+    let result = async {
+        let Some(snapshot) = state.tasks.get(&task_id.to_string()).await? else {
+            return Ok::<(), anyhow::Error>(());
+        };
+        if snapshot.is_terminal()
+            && state
+                .control_authority
+                .task_retention_releasable(&snapshot)
+                .await?
+        {
+            state
+                .tasks
+                .acknowledge_retention_pin(&task_id.to_string(), &task_link::retention_pin())
+                .await?;
+        }
+        Ok(())
+    }
+    .await;
+    if let Err(error) = result {
+        tracing::warn!(%task_id, %error, "mission Task retains its execution pin");
+    }
+}
+
+/// Startup repairs a lost retention acknowledgement without querying or replaying the simulator.
+pub(super) async fn reconcile_mission_retention(state: &AppState) -> anyhow::Result<()> {
+    let before = chrono::Utc::now();
+    let work = async {
+        let mut after = None;
+        loop {
+            let ids = state
+                .control_authority
+                .settled_task_ids(after, before)
+                .await?;
+            if ids.is_empty() {
+                return Ok::<(), anyhow::Error>(());
+            }
+            after = ids.last().copied();
+            for id in ids {
+                release_settled_pin(state, id).await;
+            }
+        }
+    };
+    match tokio::time::timeout(Duration::from_secs(30), work).await {
+        Ok(result) => result,
+        Err(_) => {
+            tracing::warn!("mission retention startup budget reached; remaining Tasks stay pinned");
+            Ok(())
+        }
     }
 }
 

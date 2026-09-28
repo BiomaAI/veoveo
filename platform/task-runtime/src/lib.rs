@@ -5,6 +5,7 @@
 //! against durable state and every state transition emits an ordered outbox
 //! event in the same transaction.
 
+mod admission;
 mod leases;
 mod mcp;
 mod provider_resume;

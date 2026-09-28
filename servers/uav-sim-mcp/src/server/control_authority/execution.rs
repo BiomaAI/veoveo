@@ -1,7 +1,8 @@
 //! Vehicle exclusion and plan state change commit in one database transaction.
 use super::*;
 use crate::contract::MissionId;
-use veoveo_types::{PrincipalId, TenantId, WorkContextId};
+use veoveo_task_runtime::{RecoveryClass, TaskOwner, TaskRuntime, TaskSnapshot, TaskStatus};
+use veoveo_types::{PrincipalId, TaskId, TenantId, WorkContextId};
 
 const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
 const ADMIT: &str = include_str!("execution/admit.surql");
@@ -37,9 +38,14 @@ pub(in crate::server) struct MissionExecutionGuard {
     session: SessionId,
     vehicle: VehicleId,
     mission: MissionId,
+    task: TaskId,
 }
 
 impl MissionExecutionGuard {
+    pub(in crate::server) fn task_id(&self) -> TaskId {
+        self.task
+    }
+
     pub(in crate::server) fn dispatch(self) -> DispatchedMission {
         DispatchedMission(self)
     }
@@ -62,27 +68,22 @@ pub(super) enum Settlement {
 }
 
 /// Checked caller and retained plan, before the transaction rechecks current authority.
-pub(super) struct ExecutionDraft {
+pub(in crate::server) struct ExecutionDraft {
     record: PlanRecord,
     plan: VehicleMissionPlan,
     lease_record_id: RecordId,
     scope: ExecutionScope,
+    owner: TaskOwner,
+}
+
+impl ExecutionDraft {
+    pub(in crate::server) fn plan(&self) -> &VehicleMissionPlan {
+        &self.plan
+    }
 }
 
 impl VehicleControlAuthority {
-    pub(in crate::server) async fn begin_execution(
-        &self,
-        identity: &GatewayInternalIdentity,
-        plan_id: &MissionPlanId,
-        expected_revision: u64,
-    ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
-        let draft = self
-            .prepare_execution(identity, plan_id, expected_revision)
-            .await?;
-        self.admit_execution(draft).await
-    }
-
-    pub(super) async fn prepare_execution(
+    pub(in crate::server) async fn prepare_execution(
         &self,
         identity: &GatewayInternalIdentity,
         plan_id: &MissionPlanId,
@@ -116,6 +117,7 @@ impl VehicleControlAuthority {
             lease_record_id: vehicle_lease_record_id(identity, &plan.session_id, &plan.vehicle_id),
             record,
             plan,
+            owner: super::super::ownership::runtime_owner(identity),
             scope: ExecutionScope {
                 tenant: identity.authority.tenant.clone(),
                 context: identity.authority.work_context.clone(),
@@ -124,16 +126,33 @@ impl VehicleControlAuthority {
         })
     }
 
-    pub(super) async fn admit_execution(
+    pub(in crate::server) async fn admit_execution(
         &self,
         draft: ExecutionDraft,
+        tasks: &TaskRuntime,
+        task: &TaskSnapshot,
     ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
         let ExecutionDraft {
             record,
             mut plan,
             lease_record_id,
             scope,
+            owner,
         } = draft;
+        let request = crate::contract::ExecuteVehicleMissionPlanRequest {
+            plan_id: plan.plan_id.clone(),
+            expected_revision: plan.revision,
+        };
+        if task.server != "uav-sim"
+            || task.task_type != "execute_vehicle_mission_plan"
+            || task.owner != owner
+            || task.request != serde_json::to_value(request)?
+            || task.status != TaskStatus::Queued
+            || task.recovery_class != RecoveryClass::InterruptedIndeterminate
+            || !task.retention_pins.contains(&task_link::retention_pin())
+        {
+            return Err(ControlAuthorityError::Conflict);
+        }
         let (tenant, context) = scope.records()?;
         let now = Utc::now();
         let requirement = RouteRequirement::new(&plan.map_route)?;
@@ -151,32 +170,50 @@ impl VehicleControlAuthority {
         let query = ADMIT
             .replace("__PERMITTED_GRANT__", reads::PERMITTED)
             .replace("__EXECUTING_PLANS__", EXECUTING_PLANS);
-        let response = self
-            .store
-            .client()
-            .query(query)
-            .bind(("record", record.id.clone()))
-            .bind(("expected_plan", record.clone()))
-            .bind(("canonical", serde_json::to_string(&plan)?))
-            .bind(("lease", lease_record_id.clone()))
-            .bind(("lease_token", token.0.to_string()))
-            .bind(("lease_expires", now + COMMAND_LEASE_TTL))
-            .bind(("now", now))
-            .bind(("tenant", tenant))
-            .bind(("work_context", context))
-            .bind(("principal", scope.principal.to_string()))
-            .bind(("simulation_session", plan.session_id.to_string()))
-            .bind(("vehicle", plan.vehicle_id.to_string()))
-            .bind(("mission", plan.mission_id.to_string()))
-            .bind((
-                "permissions",
-                permission_strings(&BTreeSet::from([VehicleControlPermission::Execute])),
-            ))
-            .bind(("profile", profile))
-            .bind(("advisory", advisory))
-            .bind(("max_revision", i64::MAX))
-            .await?;
-        check_transaction(response, &plan.vehicle_id)?;
+        tasks
+            .commit_admission(
+                task,
+                &query,
+                vec![
+                    ("record", (record.id.clone()).into_value()),
+                    ("expected_plan", (record.clone()).into_value()),
+                    ("canonical", (serde_json::to_string(&plan)?).into_value()),
+                    ("lease", (lease_record_id.clone()).into_value()),
+                    ("lease_token", (token.0.to_string()).into_value()),
+                    ("lease_expires", (now + COMMAND_LEASE_TTL).into_value()),
+                    ("now", (now).into_value()),
+                    ("tenant", (tenant).into_value()),
+                    ("work_context", (context).into_value()),
+                    ("principal", (scope.principal.to_string()).into_value()),
+                    (
+                        "simulation_session",
+                        (plan.session_id.to_string()).into_value(),
+                    ),
+                    ("vehicle", (plan.vehicle_id.to_string()).into_value()),
+                    ("mission", (plan.mission_id.to_string()).into_value()),
+                    (
+                        "permissions",
+                        (permission_strings(&BTreeSet::from([VehicleControlPermission::Execute])))
+                            .into_value(),
+                    ),
+                    ("profile", (profile).into_value()),
+                    ("advisory", (advisory).into_value()),
+                    ("max_revision", (i64::MAX).into_value()),
+                    (
+                        "task",
+                        veoveo_platform_store::task_record_id(task.task_id).into_value(),
+                    ),
+                    ("execution", task_link::record(task.task_id).into_value()),
+                ],
+            )
+            .await
+            .map_err(|error| match error {
+                veoveo_task_runtime::TaskError::Conflict(_) => ControlAuthorityError::Conflict,
+                veoveo_task_runtime::TaskError::Database(error) => {
+                    transaction_error(error, &plan.vehicle_id)
+                }
+                other => ControlAuthorityError::Task(other),
+            })?;
         let guard = MissionExecutionGuard {
             plan_record_id: record.id,
             plan_id: plan.plan_id.clone(),
@@ -186,6 +223,7 @@ impl VehicleControlAuthority {
             session: plan.session_id.clone(),
             vehicle: plan.vehicle_id.clone(),
             mission: plan.mission_id.clone(),
+            task: task.task_id,
         };
         Ok((plan, guard))
     }
@@ -249,6 +287,8 @@ impl VehicleControlAuthority {
             .store
             .client()
             .query(FINISH)
+            .bind(("task", veoveo_platform_store::task_record_id(guard.task)))
+            .bind(("execution", task_link::record(guard.task)))
             .bind(("record", guard.plan_record_id.clone()))
             .bind(("expected_plan", record))
             .bind(("canonical", serde_json::to_string(&plan)?))
@@ -276,22 +316,26 @@ impl VehicleControlAuthority {
 
 fn check_transaction(mut response: surrealdb::IndexedResults, vehicle: &VehicleId) -> Result<()> {
     if let Some(error) = veoveo_platform_store::primary_transaction_error(response.take_errors()) {
-        let message = error.to_string();
-        if message.contains("uav_vehicle_busy") {
-            return Err(ControlAuthorityError::VehicleBusy(vehicle.to_string()));
-        }
-        if message.contains("uav_execution_forbidden") {
-            return Err(ControlAuthorityError::Forbidden);
-        }
-        if message.contains("uav_execution_conflict")
-            || matches!(
-                error.query_details(),
-                Some(surrealdb::types::QueryError::TransactionConflict)
-            )
-        {
-            return Err(ControlAuthorityError::Conflict);
-        }
-        return Err(error.into());
+        return Err(transaction_error(error, vehicle));
     }
     Ok(())
+}
+
+fn transaction_error(error: surrealdb::Error, vehicle: &VehicleId) -> ControlAuthorityError {
+    let message = error.to_string();
+    if message.contains("uav_vehicle_busy") {
+        return ControlAuthorityError::VehicleBusy(vehicle.to_string());
+    }
+    if message.contains("uav_execution_forbidden") {
+        return ControlAuthorityError::Forbidden;
+    }
+    if message.contains("uav_execution_conflict")
+        || matches!(
+            error.query_details(),
+            Some(surrealdb::types::QueryError::TransactionConflict)
+        )
+    {
+        return ControlAuthorityError::Conflict;
+    }
+    error.into()
 }

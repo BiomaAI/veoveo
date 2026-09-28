@@ -137,7 +137,15 @@ fn mission_sql() -> String {
     format!(
         "LET $matching_plans = ({});
          SELECT * FROM task WITH INDEX task_uav_plan WHERE {VISIBLE} AND {MISSION_TASK}
-         AND request.input.plan_id IN $matching_plans
+         AND request.input.plan_id IN $matching_plans.plan_id
+         AND (request.input.plan_id IN $matching_plans[WHERE execution_profile = 'legacy_v1'].plan_id
+           OR id IN (SELECT VALUE task FROM uav_mission_execution
+             WHERE plan IN $matching_plans.id AND tenant = $tenant AND work_context = $context
+             AND principal_key = $principal_key AND plan.execution_profile = 'task_linked_v1'
+             AND plan.tenant = tenant AND plan.work_context = work_context
+             AND plan.principal_key = principal_key AND plan.state != 'prepared'
+             AND task.request.input.plan_id = plan.plan_id
+             AND record::id(id) = record::id(task)))
          ORDER BY created_at DESC, id DESC LIMIT 1",
         mission_plan_sql()
     )
@@ -145,7 +153,7 @@ fn mission_sql() -> String {
 
 fn mission_plan_sql() -> String {
     format!(
-        "SELECT VALUE plan_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE} AND mission_id = $mission"
+        "SELECT id, plan_id, execution_profile FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE} AND mission_id = $mission"
     )
 }
 

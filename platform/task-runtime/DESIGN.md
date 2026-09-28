@@ -24,6 +24,7 @@ the owning domain.
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
+`admission` composes a domain admission with the exact queued, unclaimed Task.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
 `runtime/owner_subscriptions` delivers the selected current state to public listeners.
 
@@ -37,6 +38,25 @@ Subscription baselines read the newest available outbox sequence through the
 sequence index in reverse order. The available-time index would scan and sort
 historical events before applying the limit. A native query-plan regression checks
 the reverse scan and exclusion of future events against the pinned database.
+
+## Queued Task Admission
+
+`commit_admission` accepts a retained Task snapshot, trusted repository SQL and bound
+values. The transaction requires the same server, owner, request, recovery class,
+retention pins and update timestamp. It rejects cancellation and any execution claim.
+A write to the Task record serializes admission against concurrent cancellation, claims
+and edits. The domain body guards its own resource state in that same transaction.
+Task status, timestamps and recovery behavior are unchanged by a successful admission.
+
+Create and pin the Task before calling this helper. The owning domain persists its
+Task link and resource exclusion in the supplied body. The helper does not claim the
+Task or authorize a provider effect. It never retries; an uncertain database reply
+cannot authorize dispatch or release protection. `_admission_` bindings belong to the
+runtime. Domain vocabulary and policy stay in the server that composes the transaction.
+
+`tests/admission.rs` qualifies committed and rolled-back domain writes on the pinned
+database, changed requests and owners, cancellation, execution claims and pin removal.
+It exercises all four recovery classes without changing their stored profiles.
 
 ## Provider Observation
 

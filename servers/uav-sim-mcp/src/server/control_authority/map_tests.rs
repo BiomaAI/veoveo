@@ -122,14 +122,13 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
             .await
             .unwrap();
         assert!(matches!(
-            reader.begin_execution(&pilot, &plan.plan_id, 0).await,
+            execution_test_support::begin(&reader, &pilot, &plan.plan_id, 0).await,
             Err(ControlAuthorityError::Forbidden)
         ));
         let mut replacement = grant(&pilot, "replacement");
         replacement.allow_planning_advisory = true;
         authority.grant(&pilot, replacement).await.unwrap();
-        let (executing, guard) = reader
-            .begin_execution(&pilot, &plan.plan_id, 0)
+        let (executing, guard) = execution_test_support::begin(&reader, &pilot, &plan.plan_id, 0)
             .await
             .unwrap();
         assert_eq!(executing.state, MissionPlanLifecycle::Executing);
@@ -181,8 +180,9 @@ async fn native_execution_rechecks_grant_after_preflight() {
             )
             .await
             .unwrap();
+        let (tasks, task) = execution_test_support::task(&authority, &pilot, draft.plan()).await;
         assert!(matches!(
-            authority.admit_execution(draft).await,
+            authority.admit_execution(draft, &tasks, &task).await,
             Err(ControlAuthorityError::Forbidden)
         ));
         let retained = authority
@@ -251,7 +251,7 @@ async fn native_selected_plan_metadata_and_grant_profile_fail_closed() {
             .bind(("record", record_id)).await.unwrap().check().unwrap();
         assert!(authority.visible_plan(&pilot, false, &plan.plan_id).await.is_err());
         assert!(authority.plans_page(&pilot, false, None).await.is_err());
-        assert!(authority.begin_execution(&pilot, &plan.plan_id, 0).await.is_err());
+        assert!(execution_test_support::begin(&authority, &pilot, &plan.plan_id, 0).await.is_err());
         let peer = identity("retained", "operations", "peer", &[]);
         assert!(authority.plans_page(&peer, false, None).await.unwrap().items.is_empty());
         let bad_grant = scoped_record_id("uav_vehicle_control_grant", &pilot, "matching");

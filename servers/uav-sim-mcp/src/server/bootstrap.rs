@@ -106,6 +106,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
             .await
             .map_err(anyhow::Error::msg)?;
     }
+    super::super::task_worker::reconcile_mission_retention(&state).await?;
 
     let shutdown = CancellationToken::new();
     let target_observer = tokio::spawn(super::super::agent_targets::observe(

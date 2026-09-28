@@ -108,6 +108,12 @@ async fn task(
     identity: &GatewayInternalIdentity,
     plan: &VehicleMissionPlan,
 ) -> veoveo_task_runtime::TaskSnapshot {
+    // These catalog fixtures qualify the declared retained legacy profile.
+    tasks.platform_store().client().query("UPDATE uav_vehicle_mission_plan SET execution_profile = 'legacy_v1' WHERE tenant = $tenant AND work_context = $context AND principal_key = $principal AND plan_id = $plan;")
+        .bind(("tenant", veoveo_platform_store::deterministic_tenant_id(identity.authority.tenant.as_str()).unwrap().record_id()))
+        .bind(("context", veoveo_platform_store::deterministic_work_context_id(identity.authority.tenant.as_str(), identity.authority.work_context.as_str()).unwrap().record_id()))
+        .bind(("principal", identity.actor.id.to_string())).bind(("plan", plan.plan_id.to_string()))
+        .await.unwrap().check().unwrap();
     tasks
         .create(CreateTask {
             task_id: TaskId::new(),

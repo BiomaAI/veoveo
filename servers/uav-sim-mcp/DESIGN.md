@@ -17,7 +17,8 @@ for visualization.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
-| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease and plan transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
+| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
+| UAV execution read profiles | Internal `legacy_v1` retained-plan adapter and `task_linked_v1` exact Task correlation; public plan JSON is unchanged. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
@@ -132,12 +133,14 @@ The flight smoke consumes the typed envelope with a 60-second, 100-page bound.
 This response change is a coordinated foundations installation upgrade: deploy the
 server, pilot instructions, and consumer harness together.
 
-Mission resource URIs resolve the latest caller-owned execution Task for that mission
-in the current Work Context. The query follows `ExecuteVehicleMissionPlanRequest`'s
-stored plan ID to the UAV-owned plan. A tenant/context/principal/mission index selects
-matching plans before the Task query uses its server/plan index. Native `EXPLAIN FULL`
-qualification checks both access paths. An admitted plan without an execution Task is
-absent from the mission collection. These indexes add no new persisted mission state.
+Mission resource URIs resolve the latest caller-owned admitted Task for that mission
+in the current Work Context. SQL follows the plan's exact execution link and verifies
+its Task identity, tenant, context and principal before ordering and selecting a row.
+A later rejected attempt cannot hide the admitted Task. A tenant/context/principal/mission
+index selects matching plans before the Task query uses its server/plan index. Native
+`EXPLAIN FULL` qualification checks both access paths. A missing or damaged link on a
+`task_linked_v1` plan supplies no result. Retained `legacy_v1` plans use the declared
+read adapter below until their original Tasks expire or operators repair their records.
 Usage resources preserve the shared Task read profile:
 server, actor, tenant, gateway profile, and data-label clearance. Their reads can span
 the same actor's Work Contexts. Native Store invalidations for grants, plans, and Tasks
@@ -247,7 +250,8 @@ operator prompt
   -> Map MCP prepares veoveo.ai/map-route-handoff/v1
   -> UAV MCP verifies grant, profile, provenance, freshness, and Frames revision
   -> UAV MCP persists one principal-bound single-vehicle plan
-  -> UAV MCP acquires the exclusive vehicle command lease
+  -> UAV MCP creates and pins the queued Task
+  -> UAV MCP admits that Task, plan and exclusive vehicle command lease atomically
   -> private simulator adapter executes the admitted waypoints
 ```
 
@@ -267,9 +271,13 @@ UAV rejects stale, invalidated and unavailable route statuses explicitly.
 Grant selection applies tenant, Work Context, principal, session, vehicle, permission,
 validity, profile and advisory approval in SQL before selecting one grant. Execution
 repeats the profile-aware check. Its transaction also requires a current matching grant,
-an unexpired prepared plan, and an unchanged retained record. It writes the vehicle's
-lease and moves the plan to executing in that transaction. Rejection rolls back both
-writes. An uncertain database outcome keeps the retained state fenced for reconciliation.
+an unexpired prepared plan, and an unchanged retained record. TaskRuntime checks and
+writes the queued, unclaimed Task in the same transaction, rejecting cancellation or
+changes to its owner, request or required pins. Admission writes the vehicle lease,
+moves the plan to executing and creates a unique Task-to-plan execution link containing
+the admitting lease token. Rejection rolls back all these writes. Task creation precedes
+admission, so an executing plan always has its retained Task identity. An uncertain
+database outcome keeps the retained state fenced for reconciliation.
 SQL-selected plan documents must agree with indexed identity, ownership, profile, route digest, lifecycle and timestamps
 before they are returned or used for execution. These checks reject corrupt selected
 records; they do not remove records from a page after SQL selection.
@@ -282,7 +290,7 @@ that lookup. Lease expiry does not establish that simulator work stopped and nev
 replacement while such a plan exists. Lease revisions increase across
 replacement and release; exhausted counters reject mutation.
 
-Finalization checks the admitting token and the retained plan's identity and metadata.
+Finalization checks the exact Task link, admitting token and retained plan metadata.
 It settles the plan and releases that lease in one transaction. An obsolete token cannot
 settle another execution or release its lease. Repeating the same terminal outcome with
 the same retained token is a no-op. Admission can replace an orphaned or terminal lease
@@ -297,23 +305,46 @@ completed. Cancellation concurrent with confirmed completion produces
 `completed_after_cancellation` when the Task cancellation transition has already won.
 Neither Task delivery failure changes the settled physical outcome.
 
+The `uav-sim:mission-execution` retention pin protects the Task through an unresolved
+mission, including after its interruption failure and ordinary result TTL. A terminal
+Task can release this pin when its plan is settled or when the plan is still prepared
+and has no link to that Task. Other consumers' pins are preserved. At startup, SQL
+selects terminal pinned Tasks whose plans are prepared or settled before its 100-row
+page limit. UUID cursors and a fixed creation cutoff bound traversal of the starting
+set. Exact reads validate each selected plan document before releasing the pin. The
+pass has a 30-second budget; unfinished or invalid records stay pinned. This repairs
+lost acknowledgements without querying the simulator or replaying a command.
+An existing execution link that disagrees with Task input or ownership keeps its pin
+and reports the mismatch for repair.
+
+### Retained Execution Profiles And Deployment
+
+The UAV server owns the `legacy_v1` read adapter for retained plans that predate exact
+Task linking. It uses their original owner-scoped plan-ID correlation. New plans use
+`task_linked_v1`; admitting a prepared legacy plan promotes it and writes its link
+atomically. Reapplying the additive schema preserves promoted profiles and links.
+The adapter never weakens the current authorization predicates or dispatch policy.
+Retire it only after a retained-data preflight proves that every remaining legacy
+plan's Task has expired under normal retention or an operator has repaired and qualified
+its exact correlation, and the installation rollback window has closed. No read infers
+an execution link for a newer profile.
+
 This profile requires a coordinated Map/UAV/client upgrade with UAV command admission
 drained and executing missions settled. Drain every UAV replica and worker before
-replacing the prior two-step lease implementation; overlapping versions cannot establish
-vehicle exclusion. Retained uncertain executions must be reconciled before the drain
-finishes. Lease and plan formats stay unchanged. Preflight ownership agreement, active
-plan/lease correlation and available revision capacity; preserve malformed or unresolved
-records for repair. Valid handoff and grant JSON keep their wire shape. Preflight retained
-grants and plans for canonical Map mobility-profile IDs,
+applying the execution-profile schema or replacing workers; overlapping writers are
+unsupported. Retained uncertain executions must be reconciled before the drain finishes.
+The database adds an execution profile and link records; public plan and grant JSON
+keep their wire shape. Preflight ownership agreement, active plan/lease correlation
+and available revision capacity; preserve malformed or unresolved
+records for repair. Preflight retained grants and plans for canonical Map mobility-profile IDs,
 positive versions within the signed integer range, valid Map validation IDs, declared
 position fields, and document/index agreement. Preserve rejected records for operator
 repair; readers do not rewrite them. Back up retained records before any repair.
-Rollback restores the prior Map/UAV/client versions and any repaired records from that
-backup, using the same drain. A rollback build must retain the additive mission index
-and current Store migration catalog. Older catalogs reject the advanced database;
-restoring an older installation snapshot instead requires draining all database writers
-and accepting the snapshot's recovery point. The operator must accept the prior
-implementation's weaker profile admission and command-lease exclusion.
+Rollback uses the same drain and a build that understands the execution profile and
+links and retains the current Store catalog. A pre-profile UAV binary is incompatible
+even with an updated catalog because its whole-record admission comparison omits the
+new field. Returning to that binary requires restoring the pre-upgrade database snapshot
+with every database writer drained and accepting that snapshot's recovery point.
 Installed grant reads, mission admission and reverse/forward replacement require
 qualification before this transition is accepted.
 
@@ -639,16 +670,19 @@ The normative target is MCP contract revision 3. The [agent manual](AGENTS.md#co
 records each requirement. Gateway registration still needs its revision declaration,
 and installed readiness qualification is pending.
 
-Mission admission precedes Task creation, so a crash can leave an executing plan without
-its Task. Unknown outcomes preserve that plan and its lease. Persisted dispatch/Task
-correlation, retained completion details across process loss, and installed recovery
-qualification remain work in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
+Mission admission retains its exact Task identity before dispatch. Unknown outcomes
+preserve that plan, lease and Task pin. Retained completion details across process loss
+and installed recovery qualification remain work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md).
 The synchronous adapter profile does not provide a remote abort or resumable observation
 that could settle such an outcome automatically.
 
 ## Resource Query Modules
 
 `server/control_authority/reads.rs` owns SQL grant and plan selection.
+`server/control_authority/task_link.rs` owns execution read profiles, typed Task links
+and SQL retention selection. `task_link_tests.rs` qualifies migration reapplication,
+correlation, rollback and filtering before page limits against an isolated Store.
 `server/task_index.rs` owns Task usage and mission correlations. `server/index.rs`
 encodes collection cursors, and `server/resources.rs` composes discovery, reads,
 completion, and subscription admission. `server/bootstrap.rs` constructs the service,

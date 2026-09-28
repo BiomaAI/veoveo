@@ -36,14 +36,18 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   grants vehicle authority. Every vehicle mutation requires a current UAV-owned
   principal grant; mission execution additionally requires the exact admitted
   plan revision and an exclusive vehicle command lease. Acquire that lease and admit
-  the plan in one transaction; finalize the plan and release its admitting token together.
+  the plan with its exact retained Task link in one transaction. Create and pin the
+  queued Task first; compose admission through TaskRuntime's queued-snapshot guard.
+  Finalize the plan and release its admitting token together.
   Lease expiry cannot displace an executing plan. Preserve uncertain outcomes for
   reconciliation, and reject exhausted revisions without modifying retained records.
 - Dispatch consumes the admission guard. Only a correlated simulator completion can
   release a dispatched mission's authority. Task cancellation, lease loss, HTTP rejection
   or timeout, and invalid responses preserve the vehicle fence. Resolve recording
   references after settling physical completion. Queued mission recovery never replays
-  a public plan request as a private simulator command.
+  a public plan request as a private simulator command. Keep unresolved mission Tasks
+  pinned. Release only this domain's pin after settlement or proven non-admission;
+  select startup retention candidates in SQL before paging.
 - Every session starts `unconfigured`. `configure_world` binds it exactly once
   to an immutable Frames world revision and a static simulation frame from that
   revision. The adapter derives Cesium and Newton fleet georeferencing from that

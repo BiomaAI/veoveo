@@ -19,13 +19,19 @@ use crate::contract::{
 
 mod execution;
 pub(super) use execution::{DispatchedMission, MissionExecutionGuard};
+pub(super) mod task_link;
+use task_link::ExecutionProfile;
 mod map_handoff;
 mod reads;
 use map_handoff::{RouteRequirement, validate_map_handoff};
 #[cfg(test)]
+mod execution_test_support;
+#[cfg(test)]
 mod lease_tests;
 #[cfg(test)]
 mod map_tests;
+#[cfg(test)]
+mod task_link_tests;
 pub(super) use reads::{ControlCollection, grant_collection};
 
 const PLAN_TTL: Duration = Duration::minutes(15);
@@ -53,6 +59,8 @@ pub(super) enum ControlAuthorityError {
         "vehicle `{0}` has an executing or unresolved mission; inspect its mission and Task before retrying"
     )]
     VehicleBusy(String),
+    #[error(transparent)]
+    Task(#[from] veoveo_task_runtime::TaskError),
     #[error(transparent)]
     Store(#[from] veoveo_platform_store::StoreError),
     #[error(transparent)]
@@ -122,6 +130,7 @@ struct PlanRecord {
     map_route_digest_sha256: String,
     map_mobility_profile_uri: String,
     state: String,
+    execution_profile: ExecutionProfile,
     canonical_json: String,
     expires_at: DateTime<Utc>,
     revision: i64,
@@ -142,6 +151,7 @@ struct PlanContent {
     map_route_digest_sha256: String,
     map_mobility_profile_uri: String,
     state: String,
+    execution_profile: ExecutionProfile,
     canonical_json: String,
     expires_at: DateTime<Utc>,
     revision: i64,
@@ -276,6 +286,7 @@ impl VehicleControlAuthority {
             map_route_digest_sha256: plan.map_route.route_digest_sha256.clone(),
             map_mobility_profile_uri: plan.map_route.mobility_profile_uri.as_str().to_owned(),
             state: "prepared".to_owned(),
+            execution_profile: ExecutionProfile::TaskLinkedV1,
             canonical_json: serde_json::to_string(&plan)?,
             expires_at: plan.expires_at,
             revision: 0,
@@ -472,12 +483,22 @@ fn scoped_record_id(
     identity: &GatewayInternalIdentity,
     local_id: &str,
 ) -> RecordId {
+    scoped_context_record_id(
+        table,
+        &identity.authority.tenant,
+        &identity.authority.work_context,
+        local_id,
+    )
+}
+
+fn scoped_context_record_id(
+    table: &str,
+    tenant: &veoveo_types::TenantId,
+    context: &veoveo_types::WorkContextId,
+    local_id: &str,
+) -> RecordId {
     let key = hex::encode(Sha256::digest(
-        format!(
-            "{}:{}:{local_id}",
-            identity.authority.tenant, identity.authority.work_context
-        )
-        .as_bytes(),
+        format!("{tenant}:{context}:{local_id}").as_bytes(),
     ));
     RecordId::new(table, key)
 }

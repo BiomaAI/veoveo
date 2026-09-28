@@ -84,9 +84,11 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
                 .prepare_execution(&peer, &b.plan_id, 0)
                 .await
                 .unwrap();
+            let (a_tasks, a_task) = execution_test_support::task(&first, &pilot, &a).await;
+            let (b_tasks, b_task) = execution_test_support::task(&second, &peer, &b).await;
             let (left, right) = tokio::join!(
-                first.admit_execution(a_draft),
-                second.admit_execution(b_draft)
+                first.admit_execution(a_draft, &a_tasks, &a_task),
+                second.admit_execution(b_draft, &b_tasks, &b_task)
             );
             assert_ne!(
                 left.is_ok(),
@@ -143,7 +145,7 @@ async fn native_two_replicas_admit_exactly_one_plan_per_vehicle() {
                 loser
             );
             assert!(matches!(
-                second.begin_execution(loser_owner, &loser.plan_id, 0).await,
+                execution_test_support::begin(&second, loser_owner, &loser.plan_id, 0).await,
                 Err(ControlAuthorityError::VehicleBusy(_))
             ));
             assert_eq!(
@@ -194,8 +196,7 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
             .prepare_plan(&pilot, mission_request("second"))
             .await
             .unwrap();
-        let (_, guard) = authority
-            .begin_execution(&pilot, &a.plan_id, 0)
+        let (_, guard) = execution_test_support::begin(&authority, &pilot, &a.plan_id, 0)
             .await
             .unwrap();
         let lease_id = vehicle_lease_record_id(&pilot, &a.session_id, &a.vehicle_id);
@@ -208,7 +209,7 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
             .unwrap();
         let expired = lease(&authority, &pilot, &a).await;
         assert!(matches!(
-            authority.begin_execution(&pilot, &b.plan_id, 0).await,
+            execution_test_support::begin(&authority, &pilot, &b.plan_id, 0).await,
             Err(ControlAuthorityError::VehicleBusy(_))
         ));
         assert_eq!(lease(&authority, &pilot, &a).await, expired);
@@ -216,8 +217,7 @@ async fn native_expiry_does_not_release_executing_vehicle_authority() {
             .finish_execution(&guard, execution::Settlement::NotDispatched)
             .await
             .unwrap();
-        let (_, next) = authority
-            .begin_execution(&pilot, &b.plan_id, 0)
+        let (_, next) = execution_test_support::begin(&authority, &pilot, &b.plan_id, 0)
             .await
             .unwrap();
         authority
@@ -240,12 +240,12 @@ async fn native_plan_and_lease_writes_roll_back_together() {
         let prepared = authority.prepare_plan(&pilot, mission_request("rollback")).await.unwrap();
         db.b.client().query("DEFINE EVENT reject_admission ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'executing' THEN { THROW 'fixture rejects admission'; };")
             .await.unwrap().check().unwrap();
-        assert!(authority.begin_execution(&pilot, &prepared.plan_id, 0).await.is_err());
+        assert!(execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0).await.is_err());
         assert_eq!(authority.visible_plan(&pilot, false, &prepared.plan_id).await.unwrap().unwrap(), prepared);
         let mut response = db.b.client().query("SELECT VALUE id FROM uav_vehicle_command_lease;").await.unwrap().check().unwrap();
         assert!(response.take::<Vec<RecordId>>(0).unwrap().is_empty());
         db.b.client().query("REMOVE EVENT reject_admission ON TABLE uav_vehicle_mission_plan;").await.unwrap().check().unwrap();
-        let (executing, guard) = authority.begin_execution(&pilot, &prepared.plan_id, 0).await.unwrap();
+        let (executing, guard) = execution_test_support::begin(&authority, &pilot, &prepared.plan_id, 0).await.unwrap();
         let active = lease(&authority, &pilot, &executing).await;
         db.b.client().query("DEFINE EVENT reject_settlement ON TABLE uav_vehicle_mission_plan WHEN $after.state = 'completed' THEN { THROW 'fixture rejects settlement'; };")
             .await.unwrap().check().unwrap();
@@ -272,8 +272,7 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
             .prepare_plan(&pilot, mission_request("first"))
             .await
             .unwrap();
-        let (_, guard) = authority
-            .begin_execution(&pilot, &a.plan_id, 0)
+        let (_, guard) = execution_test_support::begin(&authority, &pilot, &a.plan_id, 0)
             .await
             .unwrap();
         authority
@@ -297,8 +296,9 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
             .unwrap()
             .check()
             .unwrap();
+        let (tasks, task) = execution_test_support::task(&authority, &pilot, draft.plan()).await;
         assert!(matches!(
-            authority.admit_execution(draft).await,
+            authority.admit_execution(draft, &tasks, &task).await,
             Err(ControlAuthorityError::Conflict)
         ));
         assert_eq!(lease(&authority, &pilot, &a).await, before);
@@ -320,7 +320,7 @@ async fn native_admission_rechecks_all_plan_metadata_and_revision_exhaustion() {
             .unwrap();
         let exhausted = lease(&authority, &pilot, &a).await;
         assert!(matches!(
-            authority.begin_execution(&pilot, &b.plan_id, 0).await,
+            execution_test_support::begin(&authority, &pilot, &b.plan_id, 0).await,
             Err(ControlAuthorityError::Conflict)
         ));
         assert_eq!(lease(&authority, &pilot, &a).await, exhausted);

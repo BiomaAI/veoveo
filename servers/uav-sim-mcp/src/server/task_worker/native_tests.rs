@@ -203,9 +203,10 @@ impl MissionCase {
             .prepare_plan(&pilot, mission_request("mission"))
             .await
             .unwrap();
-        let (plan, guard) = state
+        let plan = prepared;
+        let draft = state
             .control_authority
-            .begin_execution(&pilot, &prepared.plan_id, 0)
+            .prepare_execution(&pilot, &plan.plan_id, 0)
             .await
             .unwrap();
         let caller = PlaneCaller {
@@ -223,10 +224,15 @@ impl MissionCase {
             })
             .unwrap(),
             RecoveryClass::InterruptedIndeterminate,
-            BTreeSet::new(),
+            BTreeSet::from([task_link::retention_pin()]),
         )
         .await
         .unwrap();
+        let (plan, guard) = state
+            .control_authority
+            .admit_execution(draft, &state.tasks, &created.snapshot)
+            .await
+            .unwrap();
         let task_id = created.snapshot.task_id;
         state
             .tasks
@@ -304,13 +310,25 @@ impl MissionCase {
             )
             .await
             .unwrap();
-        assert!(matches!(
-            self.state
-                .control_authority
-                .begin_execution(&self.pilot, &next.plan_id, 0)
-                .await,
-            Err(ControlAuthorityError::VehicleBusy(_))
-        ));
+        let error = start_vehicle_mission_plan(
+            self.state.clone(),
+            PlaneCaller {
+                bearer_token: "native-fixture".into(),
+                identity: self.pilot.clone(),
+                memberships: BTreeSet::new(),
+            },
+            ExecuteVehicleMissionPlanRequest {
+                plan_id: next.plan_id,
+                expected_revision: next.revision,
+            },
+            BTreeSet::new(),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            error,
+            ControlAuthorityError::VehicleBusy(next.vehicle_id.to_string()).to_string()
+        );
     }
 }
 
@@ -333,8 +351,20 @@ async fn native_cancellation_keeps_vehicle_fenced_after_provider_continues() {
             .unwrap();
         let task = case.wait().await;
         assert_eq!(task.status, TaskStatus::Failed);
+        assert!(task.retention_pins.contains(&task_link::retention_pin()));
         assert_eq!(task.error.unwrap().code, "interrupted_indeterminate");
         case.assert_fenced().await;
+        reconcile_mission_retention(&case.state).await.unwrap();
+        assert!(
+            case.state
+                .tasks
+                .get(&case.task_id.to_string())
+                .await
+                .unwrap()
+                .unwrap()
+                .retention_pins
+                .contains(&task_link::retention_pin())
+        );
         case.http.state.release.notify_one();
         tokio::time::timeout(Duration::from_secs(5), case.http.state.finished.notified())
             .await
@@ -417,12 +447,7 @@ async fn native_completion_releases_vehicle_even_when_recording_projection_fails
                 .prepare_plan(&case.pilot, mission_request("next"))
                 .await
                 .unwrap();
-            let (_, guard) = case
-                .state
-                .control_authority
-                .begin_execution(&case.pilot, &next.plan_id, 0)
-                .await
-                .unwrap();
+            let (_, guard) = admit(&case.state, &case.pilot, &next).await.unwrap();
             case.state
                 .control_authority
                 .abort_execution(&guard)
@@ -567,9 +592,10 @@ async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_co
             .prepare_plan(&pilot, mission_request("queued"))
             .await
             .unwrap();
-        let (plan, guard) = state
+        let plan = prepared;
+        let draft = state
             .control_authority
-            .begin_execution(&pilot, &prepared.plan_id, 0)
+            .prepare_execution(&pilot, &plan.plan_id, 0)
             .await
             .unwrap();
         let caller = PlaneCaller {
@@ -587,10 +613,15 @@ async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_co
             })
             .unwrap(),
             RecoveryClass::InterruptedIndeterminate,
-            BTreeSet::new(),
+            BTreeSet::from([task_link::retention_pin()]),
         )
         .await
         .unwrap();
+        let (plan, guard) = state
+            .control_authority
+            .admit_execution(draft, &state.tasks, &created.snapshot)
+            .await
+            .unwrap();
         drop(guard); // Process loss before claim; the retained request is a public plan address.
         let recovery = state.tasks.recover().await.unwrap();
         assert_eq!(recovery.resumable.len(), 1);
@@ -622,13 +653,144 @@ async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_co
             .await
             .unwrap();
         assert!(matches!(
-            state
-                .control_authority
-                .begin_execution(&pilot, &next.plan_id, 0)
-                .await,
+            admit(&state, &pilot, &next).await,
             Err(ControlAuthorityError::VehicleBusy(_))
         ));
     })
     .await
     .expect("queued recovery qualification exceeded 65 seconds");
+}
+
+async fn admit(
+    state: &AppState,
+    pilot: &GatewayInternalIdentity,
+    plan: &VehicleMissionPlan,
+) -> Result<(VehicleMissionPlan, MissionExecutionGuard), ControlAuthorityError> {
+    let draft = state
+        .control_authority
+        .prepare_execution(pilot, &plan.plan_id, plan.revision)
+        .await?;
+    let caller = PlaneCaller {
+        bearer_token: "native-fixture".into(),
+        identity: pilot.clone(),
+        memberships: BTreeSet::new(),
+    };
+    let created = create_task(
+        state,
+        &caller,
+        "execute_vehicle_mission_plan",
+        serde_json::to_value(ExecuteVehicleMissionPlanRequest {
+            plan_id: plan.plan_id.clone(),
+            expected_revision: plan.revision,
+        })
+        .unwrap(),
+        RecoveryClass::InterruptedIndeterminate,
+        BTreeSet::from([task_link::retention_pin()]),
+    )
+    .await
+    .unwrap();
+    state
+        .control_authority
+        .admit_execution(draft, &state.tasks, &created.snapshot)
+        .await
+}
+
+#[tokio::test]
+async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task() {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let db = TestDb::new().await;
+    tokio::time::timeout(Duration::from_secs(65), async {
+        let http = HttpFixture::new(Reply::Completed).await;
+        let adapter = Arc::new(Adapter::Http(Box::new(
+            HttpAdapter::new(
+                http.url.clone(),
+                Duration::from_secs(1),
+                Duration::from_secs(1),
+                "native-fixture".into(),
+                db.a.clone(),
+                "native",
+            )
+            .unwrap(),
+        )));
+        let state = test_support::state(&db.a, adapter, "replacement");
+        let pilot = test_support::identity("pre-admission", "operations", "pilot", &[]);
+        state
+            .control_authority
+            .grant(&pilot, grant(&pilot, "grant"))
+            .await
+            .unwrap();
+        let plan = state
+            .control_authority
+            .prepare_plan(&pilot, mission_request("never-admitted"))
+            .await
+            .unwrap();
+        let caller = PlaneCaller {
+            bearer_token: "native-fixture".into(),
+            identity: pilot.clone(),
+            memberships: BTreeSet::new(),
+        };
+        let external = TaskRetentionPin::new("native:consumer").unwrap();
+        let task = create_task(
+            &state,
+            &caller,
+            "execute_vehicle_mission_plan",
+            serde_json::to_value(ExecuteVehicleMissionPlanRequest {
+                plan_id: plan.plan_id.clone(),
+                expected_revision: 0,
+            })
+            .unwrap(),
+            RecoveryClass::InterruptedIndeterminate,
+            BTreeSet::from([task_link::retention_pin(), external.clone()]),
+        )
+        .await
+        .unwrap()
+        .snapshot;
+        // The process stopped after Task creation, before any admission or simulator request.
+        let recovered = state.tasks.recover().await.unwrap();
+        assert_eq!(recovered.resumable.len(), 1);
+        resume_queued_operation(
+            state.clone(),
+            recovered.resumable.into_iter().next().unwrap(),
+        )
+        .await
+        .unwrap();
+        let failed = state
+            .tasks
+            .get(&task.task_id.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(failed.status, TaskStatus::Failed);
+        assert_eq!(failed.retention_pins, BTreeSet::from([external.clone()]));
+        // A lost acknowledgement after a terminal write is repaired independently of Task recovery.
+        state
+            .tasks
+            .adopt_retention_pin_for_repair(&task.task_id.to_string(), &task_link::retention_pin())
+            .await
+            .unwrap();
+        assert!(state.tasks.recover().await.unwrap().resumable.is_empty());
+        reconcile_mission_retention(&state).await.unwrap();
+        assert_eq!(
+            state
+                .tasks
+                .get(&task.task_id.to_string())
+                .await
+                .unwrap()
+                .unwrap()
+                .retention_pins,
+            BTreeSet::from([external])
+        );
+        assert_eq!(
+            state
+                .control_authority
+                .visible_plan(&pilot, false, &plan.plan_id)
+                .await
+                .unwrap()
+                .unwrap(),
+            plan
+        );
+        assert_eq!(http.state.calls.load(Ordering::SeqCst), 0);
+    })
+    .await
+    .expect("pre-admission restart qualification exceeded 65 seconds");
 }

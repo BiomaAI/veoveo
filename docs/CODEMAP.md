@@ -541,6 +541,7 @@ observation lease and cancellation epoch in one transaction.
 | `../types/src/task.rs` and `../store/src/task_ids.rs` | foundational native Task identity and explicit Store record conversion |
 | [`DESIGN.md`](../platform/task-runtime/DESIGN.md) | durable Task and recovery-class contract, provider observation, migration and rollback |
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
+| `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
 | `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | shared SQL owner selection for exact reads, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
@@ -991,9 +992,10 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant and mission-plan schemas consuming Map and Frames contracts; shared live-view types |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
-| `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
+| `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional Task-link/lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
+| `servers/uav-sim-mcp/src/server/control_authority/task_link.rs`, `task_link_tests.rs`, `execution_test_support.rs` | explicit retained execution profiles, native Task correlation, SQL retention selection and isolated admission fixtures; Store migration `0098` adds their profile and link records |
 | `servers/uav-sim-mcp/src/adapter/completion.rs` | operation-correlated simulator receipts and independent recording-result resolution |
-| `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | dispatch guard consumption, interrupted Task handling, queued mission recovery without replay, and native HTTP/Store failure qualification |
+| `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | pinned Task creation before admission, dispatch guard consumption, interrupted Task handling, recovery without replay, settled-pin repair and native HTTP/Store failure qualification |
 | `platform/store/migrations/0097_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |
 | `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
 | `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV route-status, geometry, freshness and motion policy over Map-owned handoff types |

@@ -1296,6 +1296,7 @@ fn authority_error(error: ControlAuthorityError) -> McpError {
             McpError::invalid_request(error.to_string(), None)
         }
         ControlAuthorityError::Store(_)
+        | ControlAuthorityError::Task(_)
         | ControlAuthorityError::Database(_)
         | ControlAuthorityError::Json(_)
         | ControlAuthorityError::Index(_) => McpError::internal_error(error.to_string(), None),
