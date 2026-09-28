@@ -153,8 +153,8 @@ impl TemporalEngine {
         if request.maximum_occurrences == 0 || request.maximum_occurrences > 1_000_000 {
             bail!("maximum_occurrences must be in 1..=1000000");
         }
-        if request.calendar.version == 0 || request.calendar.name.trim().is_empty() {
-            bail!("calendar version and name must be set");
+        if request.calendar.name.trim().is_empty() {
+            bail!("calendar name must be set");
         }
         validate_zone_id(&request.calendar.zone_id)?;
         let zone = self.authority.tzdb.get(&request.calendar.zone_id)?;
@@ -916,7 +916,7 @@ mod tests {
             .expand_schedule(&ExpandScheduleRequest {
                 calendar: OperationalCalendar {
                     calendar_id: CalendarId::new("calendar-dst-test").unwrap(),
-                    version: 1,
+                    version: crate::TimeVersion::new(1).unwrap(),
                     name: "Eastern operations".to_owned(),
                     zone_id: "America/New_York".to_owned(),
                     windows: vec![CalendarWindow {
@@ -1002,7 +1002,7 @@ mod tests {
                 uncertainty_nanoseconds: 0,
                 authority: authority.clone(),
             },
-            version,
+            version: crate::TimeVersion::new(version).unwrap(),
         };
         engine.replace_epochs([epoch(4, 4_000), epoch(2, 2_000), epoch(3, 3_000)]);
         let resolved = engine

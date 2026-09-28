@@ -1,5 +1,6 @@
 mod activation;
 mod digest;
+mod lifecycle;
 use super::*;
 use crate::{contract::*, test_store::TestDb};
 use chrono::Utc;
@@ -115,14 +116,14 @@ async fn stage(
     let source = catalog
         .create_source(
             scope,
-            TimeSource {
+            crate::NewTimeSource {
                 source_id: TimeSourceId::new(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "fixture".into(),
                 dataset_kind: kind,
                 url: "https://example.test/data".into(),
                 expected_content_type: "text/plain".into(),
                 enabled: true,
-                record_version: 0,
+                record_version: crate::SourceCreationVersion,
             },
         )
         .await
@@ -147,7 +148,7 @@ async fn stage(
                 artifact_path: path.to_str().unwrap().into(),
                 retrieved_at: now,
                 validated_at: now,
-                record_version: 1,
+                record_version: crate::TimeVersion::new(1).unwrap(),
             },
         )
         .await
@@ -169,7 +170,7 @@ async fn stage(
                 message: "".into(),
                 created_at: now,
                 updated_at: now,
-                record_version: 1,
+                record_version: crate::TimeVersion::new(1).unwrap(),
             },
             Uuid::now_v7().to_string(),
         )
@@ -289,7 +290,7 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         engine.replace_epochs([MissionEpoch {
             epoch_id: epoch_id.clone(),
             name: "request local".into(),
-            version: 1,
+            version: crate::TimeVersion::new(1).unwrap(),
             instant: resolved(&engine),
         }]);
         let isolated = restarted.authority_engine(&reader, &owner).await.unwrap();
@@ -539,7 +540,7 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
                             name: format!("event {index}"),
                             due: due.clone(),
                             state: TemporalEventState::Scheduled,
-                            record_version: 1,
+                            record_version: crate::TimeVersion::new(1).unwrap(),
                         },
                         format!("fixture-{index}"),
                     )

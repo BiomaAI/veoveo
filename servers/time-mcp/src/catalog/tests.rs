@@ -52,7 +52,7 @@ async fn event(catalog: &TimeCatalog, owner: &TimeAccessContext, key: &str) -> T
                 name: key.into(),
                 due: instant(),
                 state: TemporalEventState::Scheduled,
-                record_version: 1,
+                record_version: crate::TimeVersion::new(1).unwrap(),
             },
             key.into(),
         )
@@ -239,7 +239,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                             .unwrap(),
                         name: "launch".into(),
                         instant: instant(),
-                        version,
+                        version: crate::TimeVersion::new(version).unwrap(),
                     },
                 )
                 .await
@@ -252,7 +252,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
                         .unwrap(),
-                        version,
+                        version: crate::TimeVersion::new(version).unwrap(),
                         name: "Operations".into(),
                         zone_id: "UTC".into(),
                         windows: Vec::new(),
@@ -268,7 +268,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 OperationalCalendar {
                     calendar_id: CalendarId::new("calendar-00000000-0000-7000-8000-000000000002")
                         .unwrap(),
-                    version: 42,
+                    version: crate::TimeVersion::new(42).unwrap(),
                     name: "Other".into(),
                     zone_id: "UTC".into(),
                     windows: Vec::new(),
@@ -284,7 +284,8 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .await
                 .unwrap()
                 .unwrap()
-                .version,
+                .version
+                .get(),
             12
         );
         assert_eq!(
@@ -293,7 +294,8 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .await
                 .unwrap()
                 .unwrap()
-                .version,
+                .version
+                .get(),
             12
         );
         assert!(catalog.epoch(&foreign, &epoch_id).await.unwrap().is_none());
@@ -379,7 +381,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                         epoch_id: epoch_id.clone(),
                         name: "launch".into(),
                         instant: instant(),
-                        version,
+                        version: crate::TimeVersion::new(version).unwrap(),
                     },
                 )
                 .await
@@ -392,7 +394,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                             "calendar-00000000-0000-7000-8000-000000000001",
                         )
                         .unwrap(),
-                        version,
+                        version: crate::TimeVersion::new(version).unwrap(),
                         name: "Operations".into(),
                         zone_id: "UTC".into(),
                         windows: Vec::new(),
@@ -404,7 +406,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         }
         let first = catalog.epochs_page(&owner, None).await.unwrap();
         assert_eq!(first.items.len(), 100);
-        assert_eq!(first.items[0].version, 113);
+        assert_eq!(first.items[0].version.get(), 113);
         assert!(first.next_cursor.is_some());
         let last = first.items.last().unwrap();
         let position: crate::EpochCursor = serde_json::from_value(
@@ -412,10 +414,14 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         )
         .unwrap();
         assert_eq!(position.epoch_id(), &last.epoch_id);
-        assert_eq!(position.version().get(), last.version);
+        assert_eq!(position.version(), last.version);
         let second = catalog.epochs_page(&owner, Some(&position)).await.unwrap();
         assert_eq!(
-            second.items.iter().map(|e| e.version).collect::<Vec<_>>(),
+            second
+                .items
+                .iter()
+                .map(|e| e.version.get())
+                .collect::<Vec<_>>(),
             vec![13, 12, 2, 1]
         );
         assert!(second.next_cursor.is_none());
@@ -429,21 +435,21 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         );
         let first = catalog.calendars_page(&owner, None).await.unwrap();
         assert_eq!(first.items.len(), 100);
-        assert_eq!(first.items[0].version, 113);
+        assert_eq!(first.items[0].version.get(), 113);
         let last = first.items.last().unwrap();
         let position: crate::CalendarCursor = serde_json::from_value(
             serde_json::to_value(first.next_cursor.as_ref().unwrap()).unwrap(),
         )
         .unwrap();
         assert_eq!(position.calendar_id(), &last.calendar_id);
-        assert_eq!(position.version().get(), last.version);
+        assert_eq!(position.version(), last.version);
         let second = catalog
             .calendars_page(&peer, Some(&position))
             .await
             .unwrap();
         assert_eq!(second.items.len(), 5);
         assert!(second.next_cursor.is_none());
-        assert_eq!(second.items.last().unwrap().version, 42);
+        assert_eq!(second.items.last().unwrap().version.get(), 42);
         let scheduled = catalog
             .events_page(&owner, None, Some(TemporalEventState::Scheduled))
             .await
@@ -486,7 +492,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         ];
         let epochs = catalog.epochs_for_keys(&owner, &requested).await.unwrap();
         assert_eq!(epochs.len(), 1);
-        assert_eq!(epochs[0].version, 113);
+        assert_eq!(epochs[0].version.get(), 113);
         assert!(
             catalog
                 .epochs_for_keys(&foreign, &requested)

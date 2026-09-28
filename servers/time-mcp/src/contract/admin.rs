@@ -29,6 +29,11 @@ pub enum AuthorityReleaseState {
     Quarantined,
 }
 
+/// Persisted metadata always carries a positive version.
+/// ```compile_fail
+/// use veoveo_time_mcp::TimeSource;
+/// fn cannot_clear_version(source: &mut TimeSource) { source.record_version = 0; }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeSource {
     pub source_id: TimeSourceId,
@@ -37,7 +42,24 @@ pub struct TimeSource {
     pub url: String,
     pub expected_content_type: String,
     pub enabled: bool,
-    pub record_version: u64,
+    pub record_version: super::TimeVersion,
+}
+
+/// Source-creation input retains the published zero-version wire field.
+/// ```compile_fail
+/// use veoveo_time_mcp::{NewTimeSource, TimeSource};
+/// fn create(source: NewTimeSource) {}
+/// fn cannot_recreate(existing: TimeSource) { create(existing); }
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct NewTimeSource {
+    pub source_id: TimeSourceId,
+    pub name: String,
+    pub dataset_kind: AuthorityDatasetKind,
+    pub url: String,
+    pub expected_content_type: String,
+    pub enabled: bool,
+    pub record_version: super::SourceCreationVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -52,7 +74,7 @@ pub struct AuthorityRelease {
     pub state: AuthorityReleaseState,
     pub retrieved_at: DateTime<Utc>,
     pub validated_at: DateTime<Utc>,
-    pub record_version: u64,
+    pub record_version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -77,12 +99,12 @@ pub struct TimeAcquisition {
     pub message: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub record_version: u64,
+    pub record_version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct CreateSourceRequest {
-    pub source: TimeSource,
+    pub source: NewTimeSource,
     pub idempotency_key: String,
 }
 

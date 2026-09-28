@@ -40,10 +40,10 @@ use anyhow::{Context, Result, bail};
 use veoveo_platform_store::{PlatformIdentity, PlatformStore};
 
 use crate::contract::{
-    AuthorityRelease, AuthorityReleaseState, CalendarId, MissionEpoch, OperationalCalendar,
-    TemporalEvent, TemporalEventId, TemporalEventState, TimeAcquisition, TimeAcquisitionId,
-    TimeAcquisitionStatus, TimeAuthorityReference, TimeAuthorityReleaseUri, TimeAuthoritySource,
-    TimeSource, TimeSourceId,
+    AuthorityRelease, AuthorityReleaseState, CalendarId, MissionEpoch, NewTimeSource,
+    OperationalCalendar, TemporalEvent, TemporalEventId, TemporalEventState, TimeAcquisition,
+    TimeAcquisitionId, TimeAcquisitionStatus, TimeAuthorityReference, TimeAuthorityReleaseUri,
+    TimeAuthoritySource, TimeSource, TimeSourceId,
 };
 
 #[derive(Clone, Debug)]
@@ -85,9 +85,17 @@ impl TimeCatalog {
     pub async fn create_source(
         &self,
         scope: &TimeAccessContext,
-        mut source: TimeSource,
+        source: NewTimeSource,
     ) -> Result<TimeSource> {
-        source.record_version = 1;
+        let source = TimeSource {
+            source_id: source.source_id,
+            name: source.name,
+            dataset_kind: source.dataset_kind,
+            url: source.url,
+            expected_content_type: source.expected_content_type,
+            enabled: source.enabled,
+            record_version: crate::TimeVersion::FIRST,
+        };
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
             .persistence
@@ -111,7 +119,7 @@ impl TimeCatalog {
         mut source: TimeSource,
         expected: crate::TimeVersion,
     ) -> Result<TimeSource> {
-        source.record_version = expected.checked_next()?.get();
+        source.record_version = expected.checked_next()?;
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
             .persistence
@@ -328,7 +336,7 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         mut acquisition: TimeAcquisition,
     ) -> Result<TimeAcquisition> {
-        let expected = crate::TimeVersion::new(acquisition.record_version)?;
+        let expected = acquisition.record_version;
         let next = expected.checked_next()?;
         let current = self
             .acquisition(scope, &acquisition.acquisition_id)
@@ -341,7 +349,7 @@ impl TimeCatalog {
                 && acquisition.created_at == current.created_at,
             "an acquisition update cannot change its source, expected digest or creation time"
         );
-        acquisition.record_version = next.get();
+        acquisition.record_version = next;
         acquisition.updated_at = chrono::Utc::now();
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
@@ -370,7 +378,7 @@ impl TimeCatalog {
             .create_time_calendar_version(TimeCalendarVersionDraft {
                 identity: scope.identity.clone(),
                 calendar_key: calendar.calendar_id.clone(),
-                calendar_version: crate::TimeVersion::new(calendar.version)?,
+                calendar_version: calendar.version,
                 name: calendar.name.clone(),
                 zone_id: calendar.zone_id.clone(),
                 state: TimeCalendarState::Active,
@@ -405,7 +413,7 @@ impl TimeCatalog {
                 identity: scope.identity.clone(),
                 epoch_key: epoch.epoch_id.clone(),
                 name: epoch.name.clone(),
-                epoch_version: crate::TimeVersion::new(epoch.version)?,
+                epoch_version: epoch.version,
                 tai_seconds_since_1970: epoch.instant.tai_seconds_since_1970,
                 nanosecond: i64::from(epoch.instant.nanosecond),
                 canonical_json,
@@ -472,7 +480,7 @@ impl TimeCatalog {
             .await?
             .context("unknown temporal event")?;
         event.state = TemporalEventState::Cancelled;
-        event.record_version = expected.checked_next()?.get();
+        event.record_version = expected.checked_next()?;
         let record = self
             .persistence
             .transition_time_temporal_event(
@@ -500,7 +508,7 @@ impl TimeCatalog {
             return Ok(event);
         }
         event.state = TemporalEventState::Due;
-        event.record_version = expected.checked_next()?.get();
+        event.record_version = expected.checked_next()?;
         let record = self
             .persistence
             .transition_time_temporal_event(

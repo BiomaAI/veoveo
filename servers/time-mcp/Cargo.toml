@@ -28,6 +28,10 @@ required-features = ["contract"]
 name = "digest_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "metadata_versions"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

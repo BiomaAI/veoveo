@@ -150,7 +150,7 @@ async fn activation_serializes_both_families_from_the_preflighted_pair() {
                 .unwrap()
                 .unwrap();
             assert_eq!(unchanged.state, AuthorityReleaseState::Staged);
-            assert_eq!(unchanged.record_version, 1);
+            assert_eq!(unchanged.record_version.get(), 1);
             let committed = left
                 .release(&owner, &winner.release_id)
                 .await
@@ -241,7 +241,7 @@ async fn changed_preflight_inputs_reject_publication_and_roll_back_the_fence() {
                 .unwrap()
                 .unwrap();
             assert_eq!(candidate.state, AuthorityReleaseState::Staged);
-            assert_eq!(candidate.record_version, 1);
+            assert_eq!(candidate.record_version.get(), 1);
         }
         let draft = prepare(&registry, &catalog, &owner, &tzdb, TimeWriteGuard::Absent).await;
         assert!(catalog.commit_activation(&foreign, draft).await.is_err());

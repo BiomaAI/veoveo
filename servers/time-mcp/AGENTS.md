@@ -69,7 +69,13 @@ leap second assumptions.
 - `src/contract/clock_policy.rs` owns the checked policy builder and JSON bounds.
   Positive `TimeVersion` guards and optional-row `TimeWriteGuard` guards stay typed
   through writes; numeric zero means absence only for clock and active-pointer writes.
-  Source creation keeps its existing zero-version sentinel. Check every increment.
+  All public metadata and immutable calendar/epoch versions use `TimeVersion`.
+  Source creation takes `NewTimeSource` with the zero-only `SourceCreationVersion`.
+  Check every increment; avoid converting a metadata version back through a raw integer.
+- `catalog/records/lifecycle.rs` preserves unsigned historical body versions while
+  current columns supply typed versions. Keep that stored profile separate from public
+  metadata admission. `tests/metadata_versions.rs` checks schemas and wire boundaries;
+  `src/registry/tests/lifecycle.rs` checks retained bodies and current column authority.
 - `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
   equality. Download checks compare its canonical digest values; provenance uses the
   foundational `sha256:` representation. Keep digests typed through persistence drafts.

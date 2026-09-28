@@ -149,7 +149,10 @@ fn source_creation_keeps_its_zero_sentinel_while_updates_require_a_version() {
             "enabled":true, "record_version":0}, "idempotency_key":"create"
     }))
     .unwrap();
-    assert_eq!(request.source.record_version, 0);
+    assert_eq!(
+        request.source.record_version,
+        veoveo_time_mcp::SourceCreationVersion
+    );
     for (value, valid) in [
         (0, false),
         (1, true),

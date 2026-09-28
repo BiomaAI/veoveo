@@ -102,6 +102,14 @@ The default feature is `mcp`; the binary requires it. Native catalog tests requi
 shared task and identity contracts; only the contract feature promises dependency
 isolation from those components.
 
+All source, release, acquisition and event metadata carry `TimeVersion`, as do
+immutable calendar and epoch versions. The type admits `1..=i64::MAX`, preserves the
+numeric JSON representation and checks advancement for exhaustion. Source creation
+uses `NewTimeSource` with the zero-only `SourceCreationVersion`; it cannot substitute
+for persisted `TimeSource` metadata. `CreateSourceRequest` keeps its existing nested
+fields and required numeric zero. Catalog creation publishes version one. Mutation
+guards and metadata keep their types through catalog calls and event settlement.
+
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
 names once through `scope_enum!`. MCP handlers and Task admission use the enum when
 checking authenticated grants. Administrative configuration accepts a validated
@@ -675,6 +683,21 @@ competing updates. Stored lifecycle versions must be positive. A staged acquisit
 release reference must satisfy the stored release-ID profile. Body decoding and
 consistency errors identify the entity and field without quoting stored content.
 
+`catalog/records/lifecycle.rs` owns decoding of the existing unversioned lifecycle
+body representation. Its private DTOs admit the historical unsigned `record_version`
+field, including zero and values above the database range, while the checked column
+supplies the public `TimeVersion`. Bodies with negative, missing or nonnumeric
+counters still fail admission. The decoder preserves the same field shape and reads
+without rewriting storage. Calendar and epoch versions describe immutable identities
+and must agree with their columns; they use the positive type in both representations.
+These decoders remain necessary while stored lifecycle bodies can trail their columns;
+retiring them requires an explicit persisted-format migration with recovery and rollback.
+
+Public metadata and inline calendar/epoch inputs require positive versions within
+the database range. Clients must use the creation shape only when creating a source.
+The Time owner qualifies this stricter input profile through the coordinated drain
+and retained-data preflight below. Valid response and creation wire values are unchanged.
+
 `catalog/clock.rs` checks the physical clock-policy ID and tenant, converts stored
 signed scalars without narrowing, and admits the policy and version through their
 contract types. Invalid scalar diagnostics name the field without quoting stored
@@ -774,6 +797,7 @@ Examples of agent requests include:
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
+| `src/catalog/records/lifecycle.rs` | retained lifecycle-body DTOs and construction with the checked current column version |
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission and SQL visibility |
 | `src/persistence/active.rs`, `src/persistence/activation.rs` | joined pointer/release admission and transactional activation relationship checks |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |

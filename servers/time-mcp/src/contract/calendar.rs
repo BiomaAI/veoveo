@@ -49,7 +49,7 @@ pub struct CalendarWindow {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct OperationalCalendar {
     pub calendar_id: CalendarId,
-    pub version: u64,
+    pub version: super::TimeVersion,
     pub name: String,
     pub zone_id: String,
     pub windows: Vec<CalendarWindow>,
@@ -62,7 +62,7 @@ pub struct MissionEpoch {
     pub epoch_id: MissionEpochId,
     pub name: String,
     pub instant: TimeInstant,
-    pub version: u64,
+    pub version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -150,7 +150,7 @@ pub struct TemporalEvent {
     pub name: String,
     pub due: TimeInstant,
     pub state: TemporalEventState,
-    pub record_version: u64,
+    pub record_version: super::TimeVersion,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

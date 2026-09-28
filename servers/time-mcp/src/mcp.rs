@@ -235,7 +235,7 @@ impl TimeMcp {
             name: request.name,
             due: request.due,
             state: TemporalEventState::Scheduled,
-            record_version: 1,
+            record_version: crate::TimeVersion::new(1).unwrap(),
         };
         let event = self
             .state

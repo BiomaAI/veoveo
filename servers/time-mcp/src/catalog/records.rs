@@ -1,4 +1,5 @@
 //! Checked conversion of SQL-selected records into the public Time model.
+mod lifecycle;
 
 use super::{
     acquisition_state_from_store, event_state_from_store, release_state_from_store, source_kind,
@@ -107,7 +108,8 @@ fn record_id(entity: Entity, id: &RecordId, key: String) -> Result<()> {
 
 pub(super) fn source_from_record(record: TimeSourceRecord) -> Result<TimeSource> {
     let kind = Entity::Source;
-    let mut value: TimeSource = body(kind, &record.canonical_json)?;
+    let value = body::<lifecycle::TimeSourceBody>(kind, &record.canonical_json)?
+        .into_current(version(kind, "record_version", record.record_version)?);
     identity(kind, &record.source_key, value.source_id.as_str())?;
     record_id(kind, &record.id, record.source_key)?;
     check(kind, "name", value.name == record.name)?;
@@ -123,13 +125,13 @@ pub(super) fn source_from_record(record: TimeSourceRecord) -> Result<TimeSource>
         value.expected_content_type == record.expected_content_type,
     )?;
     check(kind, "enabled", value.enabled == record.enabled)?;
-    value.record_version = version(kind, "record_version", record.record_version)?.get();
     Ok(value)
 }
 
 pub(super) fn release_from_record(record: TimeAuthorityReleaseRecord) -> Result<AuthorityRelease> {
     let kind = Entity::Release;
-    let mut value: AuthorityRelease = body(kind, &record.canonical_json)?;
+    let mut value = body::<lifecycle::AuthorityReleaseBody>(kind, &record.canonical_json)?
+        .into_current(version(kind, "record_version", record.record_version)?);
     identity(kind, &record.release_key, value.release_id.as_str())?;
     record_id(kind, &record.id, record.release_key)?;
     reference(
@@ -172,13 +174,13 @@ pub(super) fn release_from_record(record: TimeAuthorityReleaseRecord) -> Result<
     )?;
     // Retirement changes these columns without rewriting the historical JSON body.
     value.state = release_state_from_store(record.state);
-    value.record_version = version(kind, "record_version", record.record_version)?.get();
     Ok(value)
 }
 
 pub(super) fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<TimeAcquisition> {
     let kind = Entity::Acquisition;
-    let mut value: TimeAcquisition = body(kind, &record.canonical_json)?;
+    let mut value = body::<lifecycle::TimeAcquisitionBody>(kind, &record.canonical_json)?
+        .into_current(version(kind, "record_version", record.record_version)?);
     identity(kind, &record.acquisition_key, value.acquisition_id.as_str())?;
     record_id(kind, &record.id, record.acquisition_key)?;
     reference(
@@ -210,7 +212,6 @@ pub(super) fn acquisition_from_record(record: TimeAcquisitionRecord) -> Result<T
             AuthorityReleaseId::new(key).map_err(|_| invalid(kind, "staged_release_key").into())
         })
         .transpose()?;
-    value.record_version = version(kind, "record_version", record.record_version)?.get();
     value.updated_at = record.updated_at;
     Ok(value)
 }
@@ -222,7 +223,7 @@ pub(super) fn calendar_from_record(
     let value: OperationalCalendar = body(kind, &record.canonical_json)?;
     identity(kind, &record.calendar_key, value.calendar_id.as_str())?;
     let version = version(kind, "calendar_version", record.calendar_version)?;
-    check(kind, "calendar_version", value.version == version.get())?;
+    check(kind, "calendar_version", value.version == version)?;
     record_id(
         kind,
         &record.id,
@@ -238,7 +239,7 @@ pub(super) fn epoch_from_record(record: TimeMissionEpochRecord) -> Result<Missio
     let value: MissionEpoch = body(kind, &record.canonical_json)?;
     identity(kind, &record.epoch_key, value.epoch_id.as_str())?;
     let version = version(kind, "epoch_version", record.epoch_version)?;
-    check(kind, "epoch_version", value.version == version.get())?;
+    check(kind, "epoch_version", value.version == version)?;
     record_id(
         kind,
         &record.id,
@@ -261,7 +262,8 @@ pub(super) fn epoch_from_record(record: TimeMissionEpochRecord) -> Result<Missio
 
 pub(super) fn event_from_record(record: TimeTemporalEventRecord) -> Result<TemporalEvent> {
     let kind = Entity::Event;
-    let mut value: TemporalEvent = body(kind, &record.canonical_json)?;
+    let mut value = body::<lifecycle::TemporalEventBody>(kind, &record.canonical_json)?
+        .into_current(version(kind, "record_version", record.record_version)?);
     identity(kind, &record.event_key, value.event_id.as_str())?;
     record_id(kind, &record.id, record.event_key)?;
     check(kind, "name", value.name == record.name)?;
@@ -277,6 +279,5 @@ pub(super) fn event_from_record(record: TimeTemporalEventRecord) -> Result<Tempo
             && i64::from(value.due.nanosecond) == record.due_nanosecond,
     )?;
     value.state = event_state_from_store(record.state);
-    value.record_version = version(kind, "record_version", record.record_version)?.get();
     Ok(value)
 }

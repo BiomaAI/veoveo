@@ -32,14 +32,14 @@ async fn release(
     let source = catalog
         .create_source(
             scope,
-            TimeSource {
+            crate::NewTimeSource {
                 source_id: TimeSourceId::new(format!("time-source-{}", Uuid::now_v7())).unwrap(),
                 name: "source".into(),
                 dataset_kind: kind,
                 url: "https://example.test/data".into(),
                 expected_content_type: "text/plain".into(),
                 enabled: true,
-                record_version: 0,
+                record_version: crate::SourceCreationVersion,
             },
         )
         .await
@@ -60,7 +60,7 @@ async fn release(
                 artifact_path: "/tmp/time-authority-test".into(),
                 retrieved_at: now,
                 validated_at: now,
-                record_version: 1,
+                record_version: crate::TimeVersion::new(1).unwrap(),
             },
         )
         .await

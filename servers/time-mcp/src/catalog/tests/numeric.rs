@@ -111,7 +111,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
         let source = catalog
             .create_source(
                 &owner,
-                TimeSource {
+                crate::NewTimeSource {
                     source_id: TimeSourceId::new(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
@@ -121,7 +121,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                     url: "https://example.test/tzdb".into(),
                     expected_content_type: "application/gzip".into(),
                     enabled: true,
-                    record_version: 0,
+                    record_version: crate::SourceCreationVersion,
                 },
             )
             .await
@@ -162,7 +162,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                     message: "".into(),
                     created_at: now,
                     updated_at: now,
-                    record_version: 1,
+                    record_version: crate::TimeVersion::new(1).unwrap(),
                 },
                 "numeric".into(),
             )
@@ -176,10 +176,13 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
             .unwrap()
             .unwrap();
         for version in [0, i64::MAX as u64, u64::MAX] {
-            let mut changed = retained.clone();
-            changed.record_version = version;
-            changed.phase = "changed".into();
-            assert!(catalog.update_acquisition(&owner, changed).await.is_err());
+            let mut wire = serde_json::to_value(&retained).unwrap();
+            wire["record_version"] = version.into();
+            wire["phase"] = "changed".into();
+            match serde_json::from_value::<TimeAcquisition>(wire) {
+                Ok(changed) => assert!(catalog.update_acquisition(&owner, changed).await.is_err()),
+                Err(_) => assert!(crate::TimeVersion::new(version).is_err()),
+            }
             assert_eq!(
                 catalog
                     .acquisition(&owner, &acquisition.acquisition_id)
@@ -198,7 +201,7 @@ async fn exhausted_source_acquisition_and_event_versions_cannot_advance() {
                     name: "event".into(),
                     due: instant(),
                     state: TemporalEventState::Scheduled,
-                    record_version: 1,
+                    record_version: crate::TimeVersion::new(1).unwrap(),
                 },
                 "numeric".into(),
             )

@@ -100,7 +100,7 @@ impl AcquisitionService {
             message: "authority acquisition queued".to_owned(),
             created_at: now,
             updated_at: now,
-            record_version: 1,
+            record_version: crate::TimeVersion::new(1).unwrap(),
         };
         let acquisition = self
             .catalog
@@ -265,7 +265,7 @@ impl AcquisitionService {
             state: AuthorityReleaseState::Staged,
             retrieved_at: now,
             validated_at: now,
-            record_version: 1,
+            record_version: crate::TimeVersion::new(1).unwrap(),
         };
         self.catalog.create_release(&scope, release).await?;
         self.progress(

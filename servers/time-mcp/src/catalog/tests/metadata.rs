@@ -61,7 +61,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
                 OperationalCalendar {
                     calendar_id: CalendarId::new("calendar-00000000-0000-7000-8000-000000000001")
                         .unwrap(),
-                    version: 1,
+                    version: crate::TimeVersion::new(1).unwrap(),
                     name: "operations".into(),
                     zone_id: "UTC".into(),
                     windows: vec![],
@@ -154,7 +154,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
                         .unwrap(),
                     name: "mission".into(),
                     instant: instant(),
-                    version: 1,
+                    version: crate::TimeVersion::new(1).unwrap(),
                 },
             )
             .await
@@ -212,7 +212,7 @@ async fn collection_reads_reject_identity_and_ordering_conflicts_after_sql_visib
                     name: "launch".into(),
                     due: instant(),
                     state: TemporalEventState::Scheduled,
-                    record_version: 1,
+                    record_version: crate::TimeVersion::new(1).unwrap(),
                 },
                 "launch".into(),
             )
@@ -321,7 +321,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         let source = catalog
             .create_source(
                 &owner,
-                TimeSource {
+                crate::NewTimeSource {
                     source_id: TimeSourceId::new(
                         "time-source-00000000-0000-7000-8000-000000000001",
                     )
@@ -331,7 +331,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     url: "https://example.test/leaps".into(),
                     expected_content_type: "text/plain".into(),
                     enabled: true,
-                    record_version: 1,
+                    record_version: crate::SourceCreationVersion,
                 },
             )
             .await
@@ -383,7 +383,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     state: AuthorityReleaseState::Staged,
                     retrieved_at: now,
                     validated_at: now,
-                    record_version: 1,
+                    record_version: crate::TimeVersion::new(1).unwrap(),
                 },
             )
             .await
@@ -420,7 +420,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .unwrap()
             .unwrap();
         assert_eq!(retired.state, AuthorityReleaseState::Retired);
-        assert_eq!(retired.record_version, 3);
+        assert_eq!(retired.record_version.get(), 3);
         for (field, value) in [
             ("release_id", json!(second.release_id)),
             (
@@ -466,7 +466,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
                     message: "".into(),
                     created_at: now,
                     updated_at: now,
-                    record_version: 1,
+                    record_version: crate::TimeVersion::new(1).unwrap(),
                 },
                 "acquire".into(),
             )
@@ -536,7 +536,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         updated.status = TimeAcquisitionStatus::Succeeded;
         updated.phase = "complete".into();
         let updated = catalog.update_acquisition(&owner, updated).await.unwrap();
-        assert_eq!(updated.record_version, 2);
+        assert_eq!(updated.record_version.get(), 2);
         let other = TimeCatalog::new(db.a.clone());
         let mut left = updated.clone();
         left.phase = "left".into();
@@ -548,7 +548,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
         );
         assert_ne!(left.is_ok(), right.is_ok(), "one version fence may advance");
         let winner = left.or(right).unwrap();
-        assert_eq!(winner.record_version, 3);
+        assert_eq!(winner.record_version.get(), 3);
         // Historical bodies may lag mutable lifecycle columns.
         set(&db.a, &record, "canonical_json", original).await;
         let restored = catalog
@@ -558,7 +558,7 @@ async fn administrative_metadata_preserves_lifecycle_columns_and_rejects_conflic
             .unwrap();
         assert_eq!(restored.status, TimeAcquisitionStatus::Succeeded);
         assert_eq!(restored.phase, winner.phase);
-        assert_eq!(restored.record_version, 3);
+        assert_eq!(restored.record_version.get(), 3);
         set(
             &db.a,
             &record,

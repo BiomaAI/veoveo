@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub enum TimeVersionError {
     InvalidVersion,
     InvalidGuard,
+    InvalidCreation,
     Exhausted,
 }
 
@@ -15,12 +16,47 @@ impl fmt::Display for TimeVersionError {
         f.write_str(match self {
             Self::InvalidVersion => "Time version must be in 1..=9223372036854775807",
             Self::InvalidGuard => "Time version guard must be in 0..=9223372036854775807",
+            Self::InvalidCreation => "Time source creation requires record_version 0",
             Self::Exhausted => "Time record_version is exhausted",
         })
     }
 }
 
 impl Error for TimeVersionError {}
+
+/// The source-creation wire sentinel; it cannot represent a persisted version.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "u64", into = "u64")]
+pub struct SourceCreationVersion;
+
+impl TryFrom<u64> for SourceCreationVersion {
+    type Error = TimeVersionError;
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        if value == 0 {
+            Ok(Self)
+        } else {
+            Err(TimeVersionError::InvalidCreation)
+        }
+    }
+}
+
+impl From<SourceCreationVersion> for u64 {
+    fn from(_: SourceCreationVersion) -> Self {
+        0
+    }
+}
+
+impl JsonSchema for SourceCreationVersion {
+    fn inline_schema() -> bool {
+        true
+    }
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "SourceCreationVersion".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({"type":"integer", "const":0})
+    }
+}
 
 /// A positive Time version that fits the database's signed integer range.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

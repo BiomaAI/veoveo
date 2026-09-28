@@ -34,7 +34,7 @@ impl TimeCatalog {
             .context("unknown authority release")?;
         let release = release_from_record(candidate.clone())?;
         if release.state != AuthorityReleaseState::Staged
-            || release.record_version != expected_release.get()
+            || release.record_version != expected_release
         {
             bail!("authority activation requires the expected staged release version");
         }
@@ -69,7 +69,7 @@ impl TimeCatalog {
             expected_pointer,
         } = draft;
         release.state = AuthorityReleaseState::Active;
-        release.record_version = expected_release.checked_next()?.get();
+        release.record_version = expected_release.checked_next()?;
         let canonical_json = serde_json::to_string(&release)?;
         let record = self
             .persistence
