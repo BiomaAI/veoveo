@@ -57,6 +57,7 @@ the `map://` scheme.
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
 | Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 1 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
+| Map source resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 source IDs, checked public summaries, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://sources`. Exact and collection templates follow RFC 6570. |
 | Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
@@ -657,6 +658,39 @@ as source metadata. The contract classifies sequenced deltas, effective-event
 feeds, and observation streams as operational feeds governed by continuity,
 update-chain, and expiry rules.
 
+### Source Catalog Reads
+
+Map owns source reads in `catalog/sources.rs`. The database applies tenant selection
+before exact lookup, completion and page limits. Sources are shared within a tenant;
+the creator is attribution, and disabled sources remain visible for administration.
+The reader checks source and dataset identity, physical record identity, indexed name,
+adapter, authority, map families, enablement and version against the validated document.
+Store timestamps record persistence activity separately from document timestamps.
+Queries have a five-second database deadline.
+
+`MapSourceUri` accepts a typed `MapSourceId`; `MapSourcesUri` accepts the typed collection
+cursor. `map://sources` returns `items`, `limit: 100` and nullable `next_cursor`, ordered
+by source ID. A version 1 hex-encoded JSON cursor binds `map://sources` and the last
+returned source ID. Each request reapplies current tenant access; pages do not hold a
+snapshot across requests. Completion matches in SQL before grouping and its 101-row
+lookahead limit. Selected malformed documents fail exact reads and pages explicitly.
+
+`SourceSummary` exposes the same public metadata on exact resources and catalog pages.
+It excludes acquisition locations, credentials, publisher key references, media-type
+controls and acquisition limits. Its checked decoder validates name, license, families,
+version and timestamps. Map Explorer follows every source page before replacing its
+view; a continuation failure preserves the prior view.
+
+This collection profile requires a coordinated Map/client upgrade. Drain acquisition
+and routing Tasks, then replace Map replicas and Map Explorer together. Consumers
+replace array decoding with page traversal. Preflight source IDs and their references in releases, acquisitions, source features,
+rasters and derivations for lowercase hyphenated RFC-variant UUIDv5/v7 spelling,
+and check selected document/index agreement. Preserve rejected rows for operator
+repair before restoring traffic. The reader does not rewrite stored records.
+Rollback restores the prior server/client pair against the same rows and discards new
+cursors; operators must accept the prior reader's weaker checks. Installed paging,
+retained-record repair and reverse/forward replacement are required qualification.
+
 ### Network And File Controls
 
 The Rust process resolves every input from a registered source before invoking
@@ -1135,6 +1169,7 @@ Resource templates are:
 
 ```text
 map://source/{source_id}
+map://sources{?cursor}
 map://datasets{?cursor}
 map://dataset/{dataset_id}{?cursor}
 map://dataset/{dataset_id}/release/{release_id}

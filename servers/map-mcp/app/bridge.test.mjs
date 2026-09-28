@@ -58,14 +58,14 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
     await new Promise(resolve => setImmediate(resolve));
     --active;
     if (uri === 'map://feature-layers') throw Error('service unavailable');
-    return ["map://datasets", "map://acquisitions", "map://publications", "map://compositions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
+    return ["map://sources", "map://datasets", "map://acquisitions", "map://publications", "map://compositions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
   };
   await assert.rejects(readMapSnapshot(access, read), /feature-layers: service unavailable/);
   assert.equal(max, 4);
   assert.ok(!mapSubscriptionUris(access).includes('map://sources'));
   assert.ok(!mapSubscriptionUris(access).includes('map://acquisitions'));
   const calls = [];
-  const snapshot = await readMapSnapshot(access, async uri => {calls.push(uri);return [{id:1}];}, new Set(['map://sources']));
+  const snapshot = await readMapSnapshot(access, async uri => {calls.push(uri);return {items:[{id:1}],limit:100,next_cursor:null};}, new Set(['map://sources']));
   assert.deepEqual(calls, ['map://sources']);
   assert.deepEqual(snapshot, {sources:[{id:1}]});
   assert.deepEqual(mapSubscriptionUris({feature_read:true}), ['map://feature-layers','map://publications','map://compositions']);
@@ -78,7 +78,7 @@ test('dataset refresh walks pages before publishing a flat release collection', 
     calls.push(uri);
     if (uri === 'map://datasets') return {items:[{release_id:'first'}], limit:100, next_cursor:'aabb'};
     if (uri === 'map://datasets?cursor=aabb') return {items:[{release_id:'last'}], limit:100, next_cursor:null};
-    return [];
+    return uri === 'map://sources' ? {items:[],limit:100,next_cursor:null} : [];
   };
   const snapshot = await readMapSnapshot({dataset_read:true}, read, new Set(['map://active-releases']));
   assert.deepEqual(snapshot.datasets, [{release_id:'first'}, {release_id:'last'}]);
@@ -145,4 +145,22 @@ test('collection continuation preserves its parent query through the URL builder
   });
   assert.deepEqual(calls, [root, root + '&cursor=aabb']);
   assert.deepEqual(items, [{id: 1}, {id: 2}]);
+});
+
+
+test('source refresh walks all pages and rejects a failed continuation', async () => {
+  const calls = [];
+  const read = async uri => {
+    calls.push(uri);
+    return uri === 'map://sources'
+      ? {items:[{source_id:'first'}],limit:100,next_cursor:'aabb'}
+      : {items:[{source_id:'last'}],limit:100,next_cursor:null};
+  };
+  const snapshot = await readMapSnapshot({dataset_read:true}, read, new Set(['map://sources']));
+  assert.deepEqual(calls, ['map://sources', 'map://sources?cursor=aabb']);
+  assert.deepEqual(snapshot, {sources:[{source_id:'first'}, {source_id:'last'}]});
+  await assert.rejects(readMapSnapshot({dataset_read:true}, async uri => {
+    if (uri !== 'map://sources') throw Error('source continuation failed');
+    return read(uri);
+  }, new Set(['map://sources'])), /source continuation failed/);
 });

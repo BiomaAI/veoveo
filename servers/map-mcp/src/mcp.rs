@@ -18,7 +18,6 @@ use rmcp::{
     tool_handler, tool_router,
 };
 use serde::Serialize;
-use serde_json::json;
 use veoveo_mcp_contract::{GatewayInternalIdentity, Page, PlaneCaller, docs::ServerDocs, paginate};
 use veoveo_types::ScopeDefinition;
 
@@ -32,16 +31,16 @@ use crate::{
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, InspectPositionOutput,
         InspectPositionRequest, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
-        LocationId, MapDatasetId, MapRouteHandoff, MapScope, MapSourceId, MobilityProfile,
-        MobilityProfileId, PrepareRouteHandoffRequest, PublishRestrictionRequest,
-        QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
-        RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
-        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest,
-        RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
-        RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
-        SourceFeatureId, SpatialDerivation, SpatialDerivationId, TransformCrsOutput,
-        TransformCrsRequest, TravelModelRecord, ValidateGeofenceOutput, ValidateGeofenceRequest,
-        ValidateRouteRequest, WithdrawRestrictionRequest,
+        LocationId, MapDatasetId, MapRouteHandoff, MapScope, MobilityProfile, MobilityProfileId,
+        PrepareRouteHandoffRequest, PublishRestrictionRequest, QuerySourceFeaturesOutput,
+        QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
+        ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
+        ReleaseMutationResponse, ReplaceSourceRequest, RestrictionMutationOutput, RouteId,
+        RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest, RouteValidation,
+        SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId, SpatialDerivation,
+        SpatialDerivationId, TransformCrsOutput, TransformCrsRequest, TravelModelRecord,
+        ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
+        WithdrawRestrictionRequest,
     },
     geodesy,
     prompts::MapPrompt,

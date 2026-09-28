@@ -3,7 +3,6 @@ use crate::{PlatformIdentity, PlatformStore, StoreError};
 
 #[derive(Clone, Debug)]
 pub enum MapCatalogCompletion {
-    Source,
     Dataset,
     Release { dataset: Option<String> },
     MobilityProfile,
@@ -21,7 +20,6 @@ impl PlatformStore {
     ) -> Result<Vec<String>, StoreError> {
         validate_needle(needle)?;
         let (table, field, predicate, parent) = match domain {
-            MapCatalogCompletion::Source => ("map_source", "source_key", "true", None),
             MapCatalogCompletion::Dataset => ("map_dataset_release", "dataset_key", "true", None),
             MapCatalogCompletion::Release { dataset } => (
                 "map_dataset_release",

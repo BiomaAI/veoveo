@@ -3,6 +3,7 @@ pub mod owned;
 pub mod releases;
 pub mod restrictions;
 pub mod routing_authority;
+pub mod sources;
 use chrono::Utc;
 use veoveo_platform_store::{
     MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,
@@ -13,7 +14,7 @@ use veoveo_platform_store::{
 
 use crate::contract::{
     AcquisitionJob, AcquisitionPhase, AcquisitionProgress, AcquisitionStatus, ActiveReleasePointer,
-    CreateAcquisitionRequest, DatasetRelease, DatasetReleaseState, MapSourceId, MobilityProfile,
+    CreateAcquisitionRequest, DatasetRelease, DatasetReleaseState, MobilityProfile,
     OperationalSnapshot, RegisteredSource, Restriction, RouteMatrix, RoutePlan, RouteStatus,
 };
 
@@ -68,27 +69,6 @@ impl MapCatalog {
             .replace_map_source(draft, integer_version(expected_record_version)?)
             .await?;
         Ok(source)
-    }
-
-    pub async fn source(
-        &self,
-        scope: &MapAccessContext,
-        source_id: &MapSourceId,
-    ) -> Result<Option<RegisteredSource>> {
-        self.store
-            .map_source(scope.identity.tenant_id, source_id.as_str())
-            .await?
-            .map(|record| decode(&record.canonical_json, "map source"))
-            .transpose()
-    }
-
-    pub async fn list_sources(&self, scope: &MapAccessContext) -> Result<Vec<RegisteredSource>> {
-        self.store
-            .list_map_sources(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .map(|record| decode(&record.canonical_json, "map source"))
-            .collect()
     }
 
     pub async fn create_release(

@@ -42,6 +42,9 @@ Map Explorer App.
 - Restriction addresses and pages use the contract's typed builders. The domain reader
   applies tenant and operational time/family/withdrawal predicates in SQL. It rejects
   selected document/index disagreement and operations above 10,000 effective restrictions.
+- Source addresses, summaries and pages use the contract types. Tenant selection runs
+  in SQL before limits; selected documents must agree with indexed metadata. Public
+  summaries omit acquisition endpoints, credentials and publisher key references.
 - Routing authority uses the domain SQL reader across active pointers, releases and
   enabled sources. Preserve tenant/dataset agreement, active state, departure validity
   and map-family selection; selected retained documents must agree with indexed fields.
@@ -99,12 +102,12 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, source, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met
 - C08: met
-- C09: pending — metadata, travel-model and restriction references use typed addresses; other URI families and DTO relationship admission remain
+- C09: pending — metadata, travel-model, restriction and source references use typed addresses; other URI families and DTO relationship admission remain
 - C10: met
 - C11: met
 - C12: met

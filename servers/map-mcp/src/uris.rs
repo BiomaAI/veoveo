@@ -10,7 +10,7 @@ pub const DOCS_URI: &str = "map://docs";
 pub const CONTRACT_URI: &str = "map://contract";
 
 pub const DATASETS_URI: &str = "map://datasets";
-pub const SOURCES_URI: &str = "map://sources";
+pub const SOURCES_URI: &str = crate::contract::MapSourcesUri::ROOT;
 pub const ACQUISITIONS_URI: &str = "map://acquisitions";
 pub const ACTIVE_RELEASES_URI: &str = "map://active-releases";
 pub const LOCATIONS_URI: &str = "map://locations";
@@ -30,7 +30,7 @@ pub const COMPOSITIONS_URI: &str = "map://compositions";
 pub const WORKSPACE_URI: &str = "map://workspace";
 
 pub const DOC_TEMPLATE: &str = "map://docs/{doc_id}";
-pub const SOURCE_TEMPLATE: &str = "map://source/{source_id}";
+pub const SOURCE_TEMPLATE: &str = crate::contract::MapSourceUri::TEMPLATE;
 pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASETS_PAGE_TEMPLATE: &str = "map://datasets{?cursor}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}{?cursor}";
@@ -79,10 +79,6 @@ pub const WORKSPACE_APP_URI: &str = "ui://map/workspace.html";
 
 pub fn doc_uri(doc_id: &str) -> String {
     format!("map://docs/{doc_id}")
-}
-
-pub fn source_uri(id: &str) -> String {
-    format!("map://source/{id}")
 }
 
 pub fn acquisition_uri(id: &str) -> String {

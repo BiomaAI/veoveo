@@ -14,7 +14,6 @@ impl MapMcp {
         let needle = &request.argument.value;
         let argument = request.argument.name.as_str();
         let catalog = match (template, argument) {
-            (uris::SOURCE_TEMPLATE, "source_id") => Some(Catalog::Source),
             (uris::DATASET_TEMPLATE | uris::RELEASE_TEMPLATE, "dataset_id") => {
                 Some(Catalog::Dataset)
             }
@@ -108,6 +107,15 @@ impl MapMcp {
                 .analytics
                 .complete_geography(&scope.tenant_key(), GeographyCompletion::Facility, needle)
                 .map_err(internal)?,
+            (uris::SOURCE_TEMPLATE, "source_id") => self
+                .state
+                .catalog
+                .complete_sources(scope, needle)
+                .await
+                .map_err(internal)?
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
             (uris::RESTRICTION_TEMPLATE, "restriction_id") => self
                 .state
                 .catalog

@@ -452,7 +452,7 @@ in one SurrealQL statement. SQL checks tenant and dataset agreement, active stat
 departure validity and compatible map families. Routing, matrices, travel models and
 reachable areas consume its complete typed release/family sets. The reader validates
 selected documents and pointer identity; it replaces full source/release scans and one
-active-pointer lookup per release. Public source and mobility catalog pages remain work.
+active-pointer lookup per release. Public mobility catalog pages remain work.
 Three native database cases cover 125 eligible releases behind 110 foreign records,
 pointer replacement, source disablement, exact validity boundaries, seventeen excluded
 relationship/lifecycle cases, twelve inconsistent documents and invalid pointer identity
@@ -464,6 +464,23 @@ Resource cleanup removed eighteen superseded Map, Optimization and Store test ex
 reclaiming 10.2 GiB. The newest two large executable variants per selected test target were
 preserved, along with service binaries, compiled libraries, incremental data, build caches,
 images and volumes. Both worktrees are preserved and the reference cluster stays stopped.
+Map source exact reads, pages and completion now belong to Map's typed catalog reader.
+Tenant selection precedes SQL limits, and selected documents must agree with indexed
+identity, dataset, name, adapter, authority, families, enablement and version. The public
+contract owns source addresses, version 1 collection cursors and checked summaries that
+preserve the existing public fields while excluding acquisition endpoints and secret
+references. The unbounded Store source list and Store source completion branch are removed.
+Map Explorer and the browser acceptance fixture consume the 100-item page envelope.
+Two native database cases cover 125 visible records behind 110 malformed foreign rows,
+current-tenant continuation, disabled-source visibility, completion bounds and literal
+search text, public-field redaction, ten document corruptions and a wrong physical ID.
+The full Map suite passes 147 cases and thirteen compile-fail examples, including both
+million-feature Spatial checks. Eleven App behavioral tests and four expanded statements
+under the pinned SurrealDB 3.2.4 validator pass. The independent 140-package consumer
+passes 23 checks without service dependencies. Store completion, runtime-only Clippy
+and strict workspace Clippy pass. The owning design declares source-ID and
+retained-document preflight, a coordinated server/client replacement and rollback.
+Installed paging, reverse/forward replacement and other Map catalog roots remain pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -956,6 +973,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Map travel-model reads and shared references | Map owns typed model addresses and version 1 native Task cursors. Optimization imports the owner library's contract feature. SQL selects caller-owned successful results before limits and grouping, checking stored owner/request/result agreement. Native paging, clearance, malformed-row and isolated-consumer checks pass | Qualify retained-data preflight, installed collection traversal and coordinated array-to-page replacement with rollback; complete DTO relationship admission |
 | Map restriction reads | Map owns typed addresses, collection-bound cursors and checked compact pages. SQL applies tenant visibility before limits and operational time/family/withdrawal selection. Exact reads and pages reject indexed/document disagreement. Native page, validity, corruption, overflow and independent consumer checks pass; the unbounded Store list is removed | Qualify retained-data preflight and the coordinated array-to-summary-page installation transition with rollback; finish broader restriction DTO admission |
 | Map routing authority | One domain-owned SQL statement selects compatible enabled sources through tenant/dataset-matching active pointers and valid active releases. Typed release/family sets replace full-catalog scans and per-release lookups. Native tenant, lifecycle, parent, boundary-time and retained-document cases pass | Qualify retained-data preflight, installed routing and coordinated reverse/forward replacement; finish other internal release selections |
+| Map source catalog | Map owns typed addresses, collection-bound cursors and checked public summaries. Exact reads, pages and completion select the tenant in SQL before limits; selected documents must agree with indexed metadata. Native isolation, continuation, redaction and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer walks the page envelope and the unbounded Store list is removed | Qualify source-ID and retained-document preflight, installed page traversal and the coordinated server/client upgrade with rollback |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

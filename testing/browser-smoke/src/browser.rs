@@ -3225,14 +3225,14 @@ fn map_workspace_acceptance_harness(address: std::net::SocketAddr) -> String {
                 {"geometry_type": "Point", "circle_color": "#b34f68", "circle_radius_px": 7.0}
             ]}
         },
-        "map://sources": [{
+        "map://sources": {"items": [{
             "source_id": "source-0198-map-workspace",
             "dataset_id": "dataset-0198-map-workspace",
             "name": "San Salvador reference source",
             "enabled": true,
             "adapter_kind": "authority_vector",
             "record_version": 1
-        }],
+        }], "limit": 100, "next_cursor": null},
         "map://datasets": {
             "items": [{
                 "release_id": "release-0198-map-workspace",

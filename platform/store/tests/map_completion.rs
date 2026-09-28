@@ -122,43 +122,8 @@ async fn qualify() {
         .await
         .unwrap();
     let dataset = key("dataset");
-    for n in 0..110 {
-        source(
-            &db.a,
-            &foreign,
-            format!("source-{n:08x}-0000-7000-8000-000000000000"),
-            &dataset,
-        )
-        .await;
-    }
-    let mut sources = Vec::new();
-    for n in 1000..1125 {
-        let id = format!("source-{n:08x}-0000-7000-8000-000000000000");
-        source(&db.a, &identity, id.clone(), &dataset).await;
-        sources.push(id);
-    }
-    assert_eq!(
-        db.b.complete_map_catalog(&identity, MapCatalogCompletion::Source, "")
-            .await
-            .unwrap(),
-        sources[..101]
-    );
-    assert_eq!(
-        db.b.complete_map_catalog(
-            &identity,
-            MapCatalogCompletion::Source,
-            &sources[124].to_uppercase()
-        )
-        .await
-        .unwrap(),
-        vec![sources[124].clone()]
-    );
-    assert!(
-        db.b.complete_map_catalog(&identity, MapCatalogCompletion::Source, "' OR true --")
-            .await
-            .unwrap()
-            .is_empty()
-    );
+    let sources = [key("source")];
+    source(&db.a, &identity, sources[0].clone(), &dataset).await;
     let first = release(&db.a, &identity, &dataset, &sources[0]).await;
     let second = release(&db.a, &identity, &dataset, &sources[0]).await;
     let other_dataset = key("dataset");

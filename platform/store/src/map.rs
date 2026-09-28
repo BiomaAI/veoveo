@@ -330,25 +330,13 @@ impl PlatformStore {
             })
     }
 
-    pub async fn map_source(
+    async fn map_source(
         &self,
         tenant_id: TenantId,
         source_key: &str,
     ) -> Result<Option<MapSourceRecord>, StoreError> {
         validate_public_key("source_key", source_key, "source-")?;
         select_one(self, map_record("map_source", source_key), tenant_id).await
-    }
-
-    pub async fn list_map_sources(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapSourceRecord>, StoreError> {
-        select_tenant_list(
-            self,
-            "SELECT * FROM map_source WHERE tenant = $tenant ORDER BY name ASC;",
-            tenant_id,
-        )
-        .await
     }
 
     pub async fn create_map_release(

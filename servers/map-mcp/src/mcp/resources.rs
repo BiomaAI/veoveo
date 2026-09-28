@@ -304,18 +304,6 @@ impl MapMcp {
                 return Ok(result);
             }
             match uri {
-                uris::SOURCES_URI => {
-                    let sources = self
-                        .state
-                        .catalog
-                        .list_sources(&scope)
-                        .await
-                        .map_err(internal)?;
-                    return json_resource(
-                        uri,
-                        &sources.iter().map(public_source).collect::<Vec<_>>(),
-                    );
-                }
                 uris::LOCATIONS_URI => {
                     return json_resource(
                         uri,
@@ -359,6 +347,15 @@ impl MapMcp {
                 }
                 _ => {}
             }
+            if let Ok(address) = crate::contract::MapSourcesUri::parse(uri) {
+                let page = self
+                    .state
+                    .catalog
+                    .sources_page(&scope, &address)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &page);
+            }
             if let Ok(address) = crate::contract::MapRestrictionsUri::parse(uri) {
                 let page = self
                     .state
@@ -375,16 +372,18 @@ impl MapMcp {
                     .map_err(internal)?;
                 return json_resource(uri, &page);
             }
-            if let Some(value) = uris::parse_single(uri, "map://source/") {
-                let id = MapSourceId::parse(value).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapSourceUri::parse(uri) {
                 let source = self
                     .state
                     .catalog
-                    .source(&scope, &id)
+                    .source(&scope, address.id())
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| not_found("source"))?;
-                return json_resource(uri, &public_source(&source));
+                return json_resource(
+                    uri,
+                    &crate::contract::SourceSummary::new(&source).map_err(internal)?,
+                );
             }
             if let Some((dataset, release)) = uris::parse_release(uri) {
                 let dataset_id = MapDatasetId::parse(dataset).map_err(invalid_params)?;
@@ -523,21 +522,4 @@ impl MapMcp {
         .await
         .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
-}
-
-fn public_source(source: &RegisteredSource) -> serde_json::Value {
-    json!({
-        "source_id": source.source_id,
-        "dataset_id": source.dataset_id,
-        "name": source.name,
-        "adapter_kind": source.adapter_kind,
-        "authority": source.authority,
-        "acquisition_model": source.acquisition_model,
-        "map_families": source.map_families,
-        "license": source.license,
-        "enabled": source.enabled,
-        "record_version": source.record_version,
-        "created_at": source.created_at,
-        "updated_at": source.updated_at,
-    })
 }

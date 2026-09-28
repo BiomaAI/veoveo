@@ -528,7 +528,10 @@ fn validate_optional_controlled(
     Ok(())
 }
 
-fn validate_controlled(value: &str, maximum_length: usize) -> Result<(), SourceContractError> {
+pub(super) fn validate_controlled(
+    value: &str,
+    maximum_length: usize,
+) -> Result<(), SourceContractError> {
     if value.is_empty() || value.len() > maximum_length || value.chars().any(char::is_control) {
         return Err(SourceContractError::InvalidControlledValue);
     }

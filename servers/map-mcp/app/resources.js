@@ -2,7 +2,7 @@ const resources = [
   ["map://feature-layers", "layers", "feature_read", true, true],
   ["map://publications", "publications", "feature_read", true, true],
   ["map://compositions", "compositions", "feature_read", true, true],
-  ["map://sources", "sources", "dataset_read", false],
+  ["map://sources", "sources", "dataset_read", false, true],
   ["map://datasets", "datasets", "dataset_read", true, true],
   ["map://active-releases", "activeReleases", "dataset_read"],
   ["map://mobility-profiles", "profiles", "dataset_read"],

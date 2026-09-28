@@ -123,7 +123,7 @@ macro_rules! map_id {
 
 map_id!(MapDatasetId, "dataset-");
 map_id!(DatasetReleaseId, "release-");
-map_id!(MapSourceId, "source-");
+map_id!(MapSourceId, "source-", true);
 map_id!(SourceFeatureId, "source-feature-");
 map_id!(RasterProductId, "raster-");
 map_id!(RasterDerivationId, "raster-derivation-");
