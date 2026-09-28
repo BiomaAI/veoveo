@@ -22,10 +22,8 @@ use veoveo_reason_mcp::{
     },
     grounding::extract_grounding,
 };
-use veoveo_recording_video::{
-    RecordingSourceSnapshot, materialize_video, recording_id_from_uri, timeline_kind,
-    validate_video_selection,
-};
+use veoveo_recording_video::contract::{RecordingSourceSnapshot, validate_video_selection};
+use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
     TaskRetentionPin, TaskSnapshot, TaskTransition,

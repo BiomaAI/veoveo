@@ -462,9 +462,11 @@ in Recording MCP. Stream and Reason consume this library through the video mater
 
 ### `platform/recordings/video`
 
-Owns video selection and task-start materialization for Stream replay and Reason. It
-takes Recording reader plans, combines immutable Artifact-backed layers with acknowledged
-live ingest parts, and remuxes the selected H.264 range without re-encoding.
+Exposes video selection and captured source identity through its isolated `contract`
+feature. Its `runtime` feature owns task-start materialization for Stream replay and
+Reason. It takes Recording reader plans, combines immutable Artifact-backed layers
+with acknowledged live ingest parts, and remuxes the selected H.264 range without
+re-encoding.
 
 ### `platform/recordings/protocol`
 
@@ -696,7 +698,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
 | `servers/media-mcp` | webhook-completed provider media work and artifact outputs |
 | `servers/optimization-mcp` | typed cuOpt routing and route-scenario problems, convex and MILP models, GPU execution, independent verification, and immutable problem/run/solution records |
-| `servers/stream-mcp` | admitted live and replay GStreamer execution, typed pipeline profiles and results, encoded preview, and the Stream MCP App |
+| `servers/stream-mcp` | isolated `contract` feature for replay and live-session models; `runtime` and `mcp` enable admitted GStreamer execution, encoded preview, and the Stream MCP App |
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
@@ -1066,9 +1068,12 @@ quarantine and restart recovery.
 
 ### `platform/recordings/video`
 
-`src/lib.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
-selection contract, `VideoSourceLimits`, clip materialization authorized by a read plan
-with MP4 remux and no transcoding, and recording-URI validation.
+`src/contract.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
+selection contract; `contract/source_snapshot.rs` owns public source identities and
+their digest. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
+MP4 remux and recording-URI admission. `runtime/source_snapshot.rs` maps private reader
+identities without exposing source paths. Contract-only consumers exclude the reader,
+Store, MCP and Rerun.
 
 ### `servers/recording-mcp`
 
@@ -1119,7 +1124,7 @@ depend on Recording Hub.
 
 | Path | Responsibility |
 |---|---|
-| `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types |
+| `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
 | `src/grounding.rs` | typed Stream-results grounding subset extraction |

@@ -9,9 +9,6 @@ mod browser;
 mod cli;
 mod domain;
 mod support;
-#[allow(dead_code)]
-#[path = "../../../servers/stream-mcp/src/contract/live.rs"]
-mod wire;
 use cli::{Args, SmokeCommand};
 use domain::{uav_showcase_up, uav_showcase_verify, uav_sim_verify};
 

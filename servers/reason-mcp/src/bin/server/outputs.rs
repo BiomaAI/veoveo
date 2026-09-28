@@ -11,7 +11,7 @@ use veoveo_reason_mcp::{
     contract::{AnalyzeRecordingOutput, ReasoningResults, ReasoningSummary},
     uris,
 };
-use veoveo_recording_video::MaterializedVideo;
+use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_types::DataLabelId;
 use veoveo_types::TaskId;
 

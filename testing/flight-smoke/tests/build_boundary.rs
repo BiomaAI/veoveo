@@ -37,8 +37,8 @@ fn focused_clients_exclude_service_implementations() {
         for line in graph.lines().filter(|line| !line.is_empty()) {
             let name = line.split_whitespace().next().unwrap();
             let features = line.split_once("features=").unwrap().1;
-            let contract_only =
-                name.ends_with("-mcp") && features.split_whitespace().next() == Some("contract");
+            let contract_only = (name.ends_with("-mcp") || name == "veoveo-recording-video")
+                && features.split_whitespace().next() == Some("contract");
             assert!(
                 !name.starts_with("veoveo-")
                     || contract_only

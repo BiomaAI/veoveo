@@ -6,7 +6,7 @@ use serde::Serialize;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
-use veoveo_recording_video::MaterializedVideo;
+use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_stream_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
     contract::{AnalysisResults, AnalysisSummary, RunRecordingOutput},

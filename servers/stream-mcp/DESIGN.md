@@ -24,6 +24,29 @@ over encoded sensor streams and governed recordings.
 | [WebCodecs](https://www.w3.org/TR/webcodecs/) and Media Capabilities | The App decodes the existing H.264 access units with `VideoDecoder`; Media Capabilities must report the exact stream as supported and smooth. The App identifies whether the browser reports power-efficient or software H.264 decode. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD and `VideoStream` | Recording replay consumes authorized H.264 `VideoStream` ranges. Derived detections are published as typed JSON and immutable RRD annotations. |
 
+## Library Features
+
+Clients import `veoveo-stream-mcp` with `default-features = false` and
+`features = ["contract"]`. The public `contract` module owns the domain request,
+response and result models. Video selection and source identity come from the
+[recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
+through its contract feature. Artifact metadata comes from the Artifact contract.
+These imports exclude MCP integration, asynchronous runtimes, database clients,
+Rerun and GPU execution libraries.
+
+The `runtime` feature adds catalog loading, artifact access, runner execution,
+response validation and Rerun annotations. The `mcp` feature adds the hosted server,
+HTTP authentication, Tasks and App integration. Defaults enable `mcp`, and the binary
+requires it. Feature selection preserves the JSON fields, schema names and retained
+source-snapshot digest. Runtime source access still requires current authorization.
+The URI helper module belongs to `runtime`; contract-only imports do not expose
+its string-based address constructors.
+
+Public contract tests compare every exported schema with the captured wire profile.
+Run those tests through an independent Cargo consumer to check dependency isolation;
+a workspace build can unify runtime features. Native runner fixtures exercise process
+and validation behavior. GPU and installed acceptance use the owning workload checks.
+
 ## Ownership Boundary
 
 The public contract is provider-neutral:
@@ -46,9 +69,8 @@ provide fragments, properties, element factories, filesystem paths, or model
 paths.
 
 The live-session wire types live in `src/contract/live.rs`. The server and focused
-flight acceptance client compile that same pure domain module with Serde
-and JSON Schema support. Acceptance does not link the Stream service to decode its
-public responses.
+flight acceptance client import those types through the Stream library. The client
+selects only `contract`, which excludes service execution and its dependencies.
 
 ## Live Data Path
 

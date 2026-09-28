@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 veoveo-types.workspace = true
+veoveo-stream-mcp = { path = "../../servers/stream-mcp", default-features = false, features = ["contract"] }
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
 veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["contract"] }
@@ -28,5 +29,4 @@ tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite.workspace = true
 url.workspace = true
 uuid.workspace = true
-schemars.workspace = true
 veoveo-mcp-contract.workspace = true

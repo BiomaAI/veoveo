@@ -16755,7 +16755,6 @@ dependencies = [
  "image",
  "reqwest 0.13.5",
  "rustls",
- "schemars 1.2.2",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -16766,6 +16765,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
+ "veoveo-stream-mcp",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
 ]

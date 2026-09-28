@@ -49,6 +49,29 @@ the in-process embedding path, and a complete Reason task. Remove the override
 when vLLM supports the required codec release or the adapter qualifies against
 vLLM's own pin.
 
+## Library Features
+
+Clients import `veoveo-reason-mcp` with `default-features = false` and
+`features = ["contract"]`. The public `contract` module owns the domain request,
+response and result models. Video selection and source identity come from the
+[recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
+through its contract feature. Artifact metadata comes from the Artifact contract.
+These imports exclude MCP integration, asynchronous runtimes, database clients,
+Rerun and GPU execution libraries.
+
+The `runtime` feature adds catalog loading, artifact access, runner execution,
+response validation and Rerun annotations. The `mcp` feature adds the hosted server,
+HTTP authentication, Tasks and App integration. Defaults enable `mcp`, and the binary
+requires it. Feature selection preserves the JSON fields, schema names and retained
+source-snapshot digest. Runtime source access still requires current authorization.
+The URI helper module belongs to `runtime`; contract-only imports do not expose
+its string-based address constructors.
+
+Public contract tests compare every exported schema with the captured wire profile.
+Run those tests through an independent Cargo consumer to check dependency isolation;
+a workspace build can unify runtime features. Native runner fixtures exercise process
+and validation behavior. GPU and installed acceptance use the owning workload checks.
+
 ## Data path
 
 The Rust executable comes from the shared Rust 1.98.1 Bookworm control compiler.

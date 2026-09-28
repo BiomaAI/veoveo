@@ -616,6 +616,23 @@ with an unreachable simulator, including App CSP and caller metadata. Final regi
 and embedded-declaration checks pass for both gateway files. The independent consumer
 passes 11 checks, preserving 97 schemas without runtime dependencies, and strict workspace
 Clippy passes. Installed readiness, recovery and GPU acceptance remain pending.
+Reason and Stream now expose contract, runtime and MCP features with optional
+implementation dependencies. The existing recorded-video library separates selectors
+and captured source identities from authorized materialization. Reader conversions
+stay in its runtime module, preserving source order, optional fields and snapshot
+hashes without exposing local paths. Three independent consumers pass nine public
+checks; the Linux graphs contain 33 packages for video and 68 for each server, with
+no MCP, async, database, Rerun or GPU dependencies and no Chrono clock. Reason's 25
+and Stream's 37 captured schemas are unchanged. The flight client imports Stream's
+contract feature instead of including its source file, and its dependency checks
+continue to reject service execution. Native video, Reason, Stream and flight suites
+pass 110 checks; runtime-only and workspace strict Clippy pass. Six image source-input
+checks pass, and warm flight dispatch reaches validation in 0.90–0.92 seconds without
+cluster access. Removed 17.23 GiB of obsolete linked executables and the temporary
+schema exporters while preserving dependency and incremental caches. Domain IDs,
+resource builders, checked setup and cross-server grounding ownership remain work.
+Installed and GPU acceptance are pending; these native fixtures provide control-plane
+qualification.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -1061,9 +1078,10 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 #### Migration Inventory And Status
 
 All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
-Frames, Timeseries, DuckDB, Optimization, Media and UAV define the `contract` feature. Independent
-consumer qualification is recorded in each owning row. The other seven packages still
-need feature isolation. Existing libraries remain the default owner; the inventory must not become a central domain-type registry.
+Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason and Stream define the
+`contract` feature. Independent consumer qualification is recorded in each owning row.
+The other five packages still need feature isolation. Existing libraries remain the
+default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
@@ -1119,7 +1137,9 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
 | UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types. Checked MCP setup supplies startup, configuration, documents, templates and typed scope membership; native discovery and all 22 template expansions pass. Both gateway registrations declare revision 3 | Complete broader DTO relationships and cross-language construction; qualify installed consumers, URI admission preflight and recovery |
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify installed replacement of every UAV replica; rollback builds must preserve Task scope enforcement |
-| Reason, Recording, Stream, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
+| Reason and Stream | Isolated `contract` features compose Artifact and recorded-video contracts; `runtime` and `mcp` gate execution and hosted integration. Independent Linux consumers preserve 25 Reason and 37 Stream schemas and exclude runtime dependencies. The flight client imports Stream through its library; native control-plane and Store checks pass | Migrate domain IDs, resources, cursors, DTO relationships and checked MCP setup; replace copied cross-server result subsets through declared owner contracts; qualify installed and GPU behavior |
+| Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners while preserving retained snapshot digests and declaring any wire transition |
+| Recording and View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

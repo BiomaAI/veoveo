@@ -1,9 +1,6 @@
 use std::collections::BTreeSet;
 use std::process::Stdio;
 
-use crate::wire::{
-    LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
-};
 use crate::{browser, support::*};
 use anyhow::ensure;
 use anyhow::{Context, Result, bail};
@@ -19,6 +16,9 @@ use veoveo_frames_mcp::contract::{
     FrameWorldTree, Wgs84Position,
 };
 use veoveo_map_mcp::contract::MapMobilityProfileUri;
+use veoveo_stream_mcp::contract::{
+    LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
+};
 use veoveo_types::ScopeDefinition;
 
 use veoveo_uav_sim_mcp::contract::{

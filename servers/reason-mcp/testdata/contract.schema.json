@@ -1,0 +1,2347 @@
+{
+  "AnalyzeRecordingRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnalyzeRecordingRequest",
+    "type": "object",
+    "properties": {
+      "video": {
+        "$ref": "#/$defs/RecordingVideoSelection"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "task": {
+        "$ref": "#/$defs/ReasoningTask"
+      },
+      "sampling": {
+        "$ref": "#/$defs/ObservationSampling",
+        "default": {
+          "max_frames": 32
+        }
+      },
+      "decode": {
+        "$ref": "#/$defs/DecodePolicy",
+        "default": {
+          "mode": "greedy"
+        }
+      },
+      "grounding": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/GroundingReference"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "include_source_clip": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "video",
+      "pipeline_id",
+      "task"
+    ],
+    "$defs": {
+      "RecordingVideoSelection": {
+        "type": "object",
+        "properties": {
+          "recording_uri": {
+            "description": "Canonical `recording://recordings/{recording_id}` URI.",
+            "type": "string"
+          },
+          "entity_path": {
+            "description": "Exact Rerun entity path containing `VideoStream` samples.",
+            "type": "string"
+          },
+          "timeline": {
+            "description": "Rerun duration, timestamp, or sequence timeline.",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "recording_uri",
+          "entity_path",
+          "timeline",
+          "range"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "description": "Describe what happens in the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "const": "describe_segment"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "description": "Detect events matching the prompt inside the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "detect_events"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "prompt"
+            ]
+          },
+          {
+            "description": "Answer one question about the selected range.",
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "answer_question"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "question"
+            ]
+          }
+        ]
+      },
+      "ObservationSampling": {
+        "description": "How many decoded frames the model observes across the requested range.",
+        "type": "object",
+        "properties": {
+          "max_frames": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "max_frames"
+        ]
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "greedy"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "format": "float"
+              },
+              "top_p": {
+                "type": "number",
+                "format": "float"
+              },
+              "seed": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "mode": {
+                "type": "string",
+                "const": "sampled"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ]
+          }
+        ]
+      },
+      "GroundingReference": {
+        "description": "The results artifact of a completed Stream perception run over the same\nrecording. Pass it so detected events can cite track IDs.",
+        "type": "object",
+        "properties": {
+          "results_artifact_uri": {
+            "description": "`stream://artifact/{uuidv7}` identity of a typed perception\nresults artifact, exactly as a completed perception analysis\npresents it.",
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "results_artifact_uri"
+        ]
+      }
+    }
+  },
+  "ReasoningTask": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ReasoningTask",
+    "description": "One typed reasoning task over the selected video range.",
+    "oneOf": [
+      {
+        "description": "Describe what happens in the selected range.",
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "const": "describe_segment"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "description": "Detect events matching the prompt inside the selected range.",
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "detect_events"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "prompt"
+        ]
+      },
+      {
+        "description": "Answer one question about the selected range.",
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "answer_question"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "question"
+        ]
+      }
+    ]
+  },
+  "ObservationSampling": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ObservationSampling",
+    "description": "How many decoded frames the model observes across the requested range.",
+    "type": "object",
+    "properties": {
+      "max_frames": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "max_frames"
+    ]
+  },
+  "DecodePolicy": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DecodePolicy",
+    "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "greedy"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "temperature": {
+            "type": "number",
+            "format": "float"
+          },
+          "top_p": {
+            "type": "number",
+            "format": "float"
+          },
+          "seed": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "const": "sampled"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "temperature",
+          "top_p",
+          "seed"
+        ]
+      }
+    ]
+  },
+  "GroundingReference": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GroundingReference",
+    "description": "The results artifact of a completed Stream perception run over the same\nrecording. Pass it so detected events can cite track IDs.",
+    "type": "object",
+    "properties": {
+      "results_artifact_uri": {
+        "description": "`stream://artifact/{uuidv7}` identity of a typed perception\nresults artifact, exactly as a completed perception analysis\npresents it.",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "results_artifact_uri"
+    ]
+  },
+  "GroundingDetections": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GroundingDetections",
+    "description": "Bounded typed subset of perception detections embedded in the durable\nrequest at submission time.",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "source_artifact_uri": {
+        "type": "string"
+      },
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/GroundingFrame"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "schema",
+      "source_artifact_uri",
+      "frames"
+    ],
+    "$defs": {
+      "GroundingFrame": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/GroundingDetection"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "index",
+          "detections"
+        ]
+      },
+      "GroundingDetection": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "label"
+        ]
+      }
+    }
+  },
+  "GroundingFrame": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GroundingFrame",
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "detections": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/GroundingDetection"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "index",
+      "detections"
+    ],
+    "$defs": {
+      "GroundingDetection": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "label"
+        ]
+      }
+    }
+  },
+  "GroundingDetection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "GroundingDetection",
+    "type": "object",
+    "properties": {
+      "label": {
+        "type": "string"
+      },
+      "track_id": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "label"
+    ]
+  },
+  "ReasoningAnswer": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ReasoningAnswer",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "description"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ReasonedEvent"
+            }
+          },
+          "kind": {
+            "type": "string",
+            "const": "events"
+          }
+        },
+        "required": [
+          "kind",
+          "events"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "const": "answer"
+          }
+        },
+        "required": [
+          "kind",
+          "text"
+        ]
+      }
+    ],
+    "$defs": {
+      "ReasonedEvent": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "description": "Inclusive source-timeline index range of the event.",
+            "$ref": "#/$defs/IndexRange"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "track_ids": {
+            "description": "Perception track identities cited from the request's grounding.",
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  },
+  "ReasonedEvent": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ReasonedEvent",
+    "type": "object",
+    "properties": {
+      "range": {
+        "description": "Inclusive source-timeline index range of the event.",
+        "$ref": "#/$defs/IndexRange"
+      },
+      "label": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "track_ids": {
+        "description": "Perception track identities cited from the request's grounding.",
+        "type": "array",
+        "items": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0
+        }
+      }
+    },
+    "required": [
+      "range",
+      "label",
+      "description"
+    ],
+    "$defs": {
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  },
+  "ConfidenceBasis": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ConfidenceBasis",
+    "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+    "type": "string",
+    "enum": [
+      "model_reported"
+    ]
+  },
+  "ReasoningResults": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ReasoningResults",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "model_id": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "timeline_kind": {
+        "$ref": "#/$defs/VideoTimelineKind"
+      },
+      "requested_range": {
+        "$ref": "#/$defs/IndexRange"
+      },
+      "source_snapshot": {
+        "$ref": "#/$defs/RecordingSourceSnapshot"
+      },
+      "task": {
+        "$ref": "#/$defs/ReasoningTask"
+      },
+      "answer": {
+        "$ref": "#/$defs/ReasoningAnswer"
+      },
+      "observed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "elapsed_ms": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "prompt_revision": {
+        "type": "string"
+      },
+      "model_digest": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "decode": {
+        "$ref": "#/$defs/DecodePolicy"
+      },
+      "confidence_basis": {
+        "$ref": "#/$defs/ConfidenceBasis"
+      }
+    },
+    "required": [
+      "schema",
+      "pipeline_id",
+      "model_id",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "timeline_kind",
+      "requested_range",
+      "source_snapshot",
+      "task",
+      "answer",
+      "observed_frames",
+      "elapsed_ms",
+      "prompt_revision",
+      "decode",
+      "confidence_basis"
+    ],
+    "$defs": {
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "type": "string",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "RecordingSourceSnapshot": {
+        "description": "Exact immutable recording inputs captured for one analysis run.\n\nThe complete list belongs in a governed results artifact. Artifact\ndescriptors carry only its SHA-256 digest so their control-plane shape\nremains bounded as a recording accumulates source parts.",
+        "type": "object",
+        "properties": {
+          "recording_id": {
+            "type": "string"
+          },
+          "dataset_id": {
+            "type": "string"
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RecordingSourceIdentity"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "recording_id",
+          "dataset_id",
+          "captured_at",
+          "sources"
+        ]
+      },
+      "RecordingSourceIdentity": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "string"
+          },
+          "layer_name": {
+            "type": "string"
+          },
+          "layer_ordinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/$defs/RecordingSourceIdentityKind"
+          },
+          "part_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "layer_id",
+          "layer_name",
+          "kind",
+          "byte_len",
+          "sha256"
+        ]
+      },
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      },
+      "ReasoningTask": {
+        "description": "One typed reasoning task over the selected video range.",
+        "oneOf": [
+          {
+            "description": "Describe what happens in the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "const": "describe_segment"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "description": "Detect events matching the prompt inside the selected range.",
+            "type": "object",
+            "properties": {
+              "prompt": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "detect_events"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "prompt"
+            ]
+          },
+          {
+            "description": "Answer one question about the selected range.",
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "answer_question"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "question"
+            ]
+          }
+        ]
+      },
+      "ReasoningAnswer": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "description"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/ReasonedEvent"
+                }
+              },
+              "kind": {
+                "type": "string",
+                "const": "events"
+              }
+            },
+            "required": [
+              "kind",
+              "events"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "const": "answer"
+              }
+            },
+            "required": [
+              "kind",
+              "text"
+            ]
+          }
+        ]
+      },
+      "ReasonedEvent": {
+        "type": "object",
+        "properties": {
+          "range": {
+            "description": "Inclusive source-timeline index range of the event.",
+            "$ref": "#/$defs/IndexRange"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "track_ids": {
+            "description": "Perception track identities cited from the request's grounding.",
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0
+            }
+          }
+        },
+        "required": [
+          "range",
+          "label",
+          "description"
+        ]
+      },
+      "DecodePolicy": {
+        "description": "Decode parameters. Greedy decoding is the deterministic default; sampled\ndecoding is opt-in and its parameters are recorded in the result.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "greedy"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "temperature": {
+                "type": "number",
+                "format": "float"
+              },
+              "top_p": {
+                "type": "number",
+                "format": "float"
+              },
+              "seed": {
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0
+              },
+              "mode": {
+                "type": "string",
+                "const": "sampled"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "temperature",
+              "top_p",
+              "seed"
+            ]
+          }
+        ]
+      },
+      "ConfidenceBasis": {
+        "description": "Confidence provenance of a reasoning result. Reasoning output is\nmodel-reported and never calibrated detector output.",
+        "type": "string",
+        "enum": [
+          "model_reported"
+        ]
+      }
+    }
+  },
+  "AnalyzeRecordingOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnalyzeRecordingOutput",
+    "type": "object",
+    "properties": {
+      "analysis_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "pipeline_uri": {
+        "type": "string"
+      },
+      "model_uri": {
+        "type": "string"
+      },
+      "summary": {
+        "$ref": "#/$defs/ReasoningSummary"
+      },
+      "results_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "annotations_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "source_clip_artifact": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "analysis_uri",
+      "results_uri",
+      "pipeline_uri",
+      "model_uri",
+      "summary",
+      "results_artifact",
+      "annotations_artifact"
+    ],
+    "$defs": {
+      "ReasoningSummary": {
+        "type": "object",
+        "properties": {
+          "observed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "event_count": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "decode_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_end_index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "observed_frames",
+          "event_count",
+          "elapsed_ms",
+          "decode_start_index",
+          "requested_start_index",
+          "requested_end_index"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  },
+  "ReasoningSummary": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ReasoningSummary",
+    "type": "object",
+    "properties": {
+      "observed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "event_count": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "elapsed_ms": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "decode_start_index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "requested_start_index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "requested_end_index": {
+        "type": "integer",
+        "format": "int64"
+      }
+    },
+    "required": [
+      "observed_frames",
+      "event_count",
+      "elapsed_ms",
+      "decode_start_index",
+      "requested_start_index",
+      "requested_end_index"
+    ]
+  },
+  "PipelineView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PipelineView",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "uri": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "operation": {
+        "$ref": "#/$defs/PipelineOperation"
+      },
+      "model_uri": {
+        "type": "string"
+      },
+      "prompt_revision": {
+        "type": "string"
+      },
+      "observation_width": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      },
+      "observation_height": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "id",
+      "uri",
+      "title",
+      "description",
+      "operation",
+      "model_uri",
+      "prompt_revision",
+      "observation_width",
+      "observation_height"
+    ],
+    "$defs": {
+      "PipelineOperation": {
+        "type": "string",
+        "enum": [
+          "video_reasoning"
+        ]
+      }
+    }
+  },
+  "PipelineOperation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PipelineOperation",
+    "type": "string",
+    "enum": [
+      "video_reasoning"
+    ]
+  },
+  "ModelView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelView",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "uri": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "format": {
+        "$ref": "#/$defs/ModelFormat"
+      },
+      "model_digest": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "uri",
+      "title",
+      "description",
+      "format"
+    ],
+    "$defs": {
+      "ModelFormat": {
+        "oneOf": [
+          {
+            "description": "A locally mounted world-model checkpoint directory or file, supplied\nby the deployment. Runtime optimization belongs to the runner image,\nnever to the request path.",
+            "type": "string",
+            "const": "local_checkpoint"
+          }
+        ]
+      }
+    }
+  },
+  "ModelFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelFormat",
+    "oneOf": [
+      {
+        "description": "A locally mounted world-model checkpoint directory or file, supplied\nby the deployment. Runtime optimization belongs to the runner image,\nnever to the request path.",
+        "type": "string",
+        "const": "local_checkpoint"
+      }
+    ]
+  },
+  "AnalysisView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnalysisView",
+    "type": "object",
+    "properties": {
+      "analysis_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "task_id": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "progress": {
+        "type": "number",
+        "format": "double"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "task_kind": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "output": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/AnalyzeRecordingOutput"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "analysis_uri",
+      "results_uri",
+      "task_id",
+      "status",
+      "progress",
+      "pipeline_id",
+      "task_kind",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "created_at",
+      "updated_at"
+    ],
+    "$defs": {
+      "AnalyzeRecordingOutput": {
+        "type": "object",
+        "properties": {
+          "analysis_uri": {
+            "type": "string"
+          },
+          "results_uri": {
+            "type": "string"
+          },
+          "pipeline_uri": {
+            "type": "string"
+          },
+          "model_uri": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/$defs/ReasoningSummary"
+          },
+          "results_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "annotations_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "source_clip_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "analysis_uri",
+          "results_uri",
+          "pipeline_uri",
+          "model_uri",
+          "summary",
+          "results_artifact",
+          "annotations_artifact"
+        ]
+      },
+      "ReasoningSummary": {
+        "type": "object",
+        "properties": {
+          "observed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "event_count": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "decode_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_end_index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "observed_frames",
+          "event_count",
+          "elapsed_ms",
+          "decode_start_index",
+          "requested_start_index",
+          "requested_end_index"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  },
+  "IndexRange": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "IndexRange",
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "end": {
+        "type": "integer",
+        "format": "int64"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "start",
+      "end"
+    ]
+  },
+  "RecordingSourceIdentity": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceIdentity",
+    "type": "object",
+    "properties": {
+      "layer_id": {
+        "type": "string"
+      },
+      "layer_name": {
+        "type": "string"
+      },
+      "layer_ordinal": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "int64"
+      },
+      "kind": {
+        "$ref": "#/$defs/RecordingSourceIdentityKind"
+      },
+      "part_sequence": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 0
+      },
+      "byte_len": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "sha256": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "layer_id",
+      "layer_name",
+      "kind",
+      "byte_len",
+      "sha256"
+    ],
+    "$defs": {
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      }
+    }
+  },
+  "RecordingSourceIdentityKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceIdentityKind",
+    "type": "string",
+    "enum": [
+      "committed_layer",
+      "live_ingest_part"
+    ]
+  },
+  "RecordingSourceSnapshot": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceSnapshot",
+    "description": "Exact immutable recording inputs captured for one analysis run.\n\nThe complete list belongs in a governed results artifact. Artifact\ndescriptors carry only its SHA-256 digest so their control-plane shape\nremains bounded as a recording accumulates source parts.",
+    "type": "object",
+    "properties": {
+      "recording_id": {
+        "type": "string"
+      },
+      "dataset_id": {
+        "type": "string"
+      },
+      "captured_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/RecordingSourceIdentity"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "recording_id",
+      "dataset_id",
+      "captured_at",
+      "sources"
+    ],
+    "$defs": {
+      "RecordingSourceIdentity": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "string"
+          },
+          "layer_name": {
+            "type": "string"
+          },
+          "layer_ordinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/$defs/RecordingSourceIdentityKind"
+          },
+          "part_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "layer_id",
+          "layer_name",
+          "kind",
+          "byte_len",
+          "sha256"
+        ]
+      },
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      }
+    }
+  },
+  "RecordingVideoSelection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingVideoSelection",
+    "type": "object",
+    "properties": {
+      "recording_uri": {
+        "description": "Canonical `recording://recordings/{recording_id}` URI.",
+        "type": "string"
+      },
+      "entity_path": {
+        "description": "Exact Rerun entity path containing `VideoStream` samples.",
+        "type": "string"
+      },
+      "timeline": {
+        "description": "Rerun duration, timestamp, or sequence timeline.",
+        "type": "string"
+      },
+      "range": {
+        "$ref": "#/$defs/IndexRange"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "range"
+    ],
+    "$defs": {
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  },
+  "VideoTimelineKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "VideoTimelineKind",
+    "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+    "type": "string",
+    "enum": [
+      "duration_nanoseconds",
+      "timestamp_nanoseconds"
+    ]
+  }
+}

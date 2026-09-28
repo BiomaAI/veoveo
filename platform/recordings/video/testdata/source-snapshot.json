@@ -1,0 +1,23 @@
+{
+  "recording_id": "01983da0-0000-7000-8000-000000000000",
+  "dataset_id": "01983da0-0000-7000-8000-000000000001",
+  "captured_at": "2026-09-28T00:00:00Z",
+  "sources": [
+    {
+      "layer_id": "01983da0-0000-7000-8000-000000000002",
+      "layer_name": "archive",
+      "layer_ordinal": 1,
+      "kind": "committed_layer",
+      "byte_len": 128,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "layer_id": "01983da0-0000-7000-8000-000000000003",
+      "layer_name": "camera/front",
+      "kind": "live_ingest_part",
+      "part_sequence": 7,
+      "byte_len": 64,
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

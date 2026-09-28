@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 
-pub use veoveo_recording_video::{
+pub use veoveo_recording_video::contract::{
     IndexRange, RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
     RecordingVideoSelection, VideoTimelineKind,
 };

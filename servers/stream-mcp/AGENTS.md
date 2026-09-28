@@ -34,6 +34,11 @@ provider-neutral.
 
 ## Build And Test
 
+- Public consumers select `default-features = false, features = ["contract"]`.
+  Keep its dependencies free of MCP, Store, Rerun and runtime execution. `runtime`
+  supplies domain execution; `mcp` adds hosted transport and is the default.
+  Qualify the contract tests through an independent consumer as well as the service.
+
 - `cargo check -p veoveo-stream-mcp`
 - `cargo test -p veoveo-stream-mcp --all-targets`
 - `cargo xtask image build --target stream-mcp`

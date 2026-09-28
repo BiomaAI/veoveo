@@ -16,7 +16,7 @@ pub(super) async fn prepare_live_stream_pipeline(
     let mut seen = BTreeSet::new();
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     for page_number in 0..100 {
-        let page: crate::wire::LiveSessionsPage = serde_json::from_value(
+        let page: veoveo_stream_mcp::contract::LiveSessionsPage = serde_json::from_value(
             operator
                 .resource(
                     &uri,

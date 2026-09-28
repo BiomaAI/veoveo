@@ -13,9 +13,8 @@ use veoveo_mcp_contract::{
     IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
     IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller,
 };
-use veoveo_recording_video::{
-    materialize_video, recording_id_from_uri, timeline_kind, validate_video_selection,
-};
+use veoveo_recording_video::contract::validate_video_selection;
+use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
 use veoveo_stream_mcp::{
     annotation::write_annotation_rrd,
     contract::{RecordingVideoSelection, RunRecordingRequest, SamplingPolicy},

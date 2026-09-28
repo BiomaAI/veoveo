@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_recording_reader::RecordingReader;
-use veoveo_recording_video::VideoSourceLimits;
+use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::StreamExecutor,
 };

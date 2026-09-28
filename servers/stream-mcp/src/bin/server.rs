@@ -41,7 +41,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_recording_reader::RecordingReader;
-use veoveo_recording_video::VideoSourceLimits;
+use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository,
     catalog::{PipelineCatalog, model_view, pipeline_view},

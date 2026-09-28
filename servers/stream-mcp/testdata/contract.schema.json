@@ -1,0 +1,3859 @@
+{
+  "RunRecordingRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunRecordingRequest",
+    "type": "object",
+    "properties": {
+      "video": {
+        "$ref": "#/$defs/RecordingVideoSelection"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "sampling": {
+        "$ref": "#/$defs/SamplingPolicy",
+        "default": {
+          "mode": "every_frame"
+        }
+      },
+      "include_source_clip": {
+        "type": "boolean",
+        "default": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "video",
+      "pipeline_id"
+    ],
+    "$defs": {
+      "RecordingVideoSelection": {
+        "type": "object",
+        "properties": {
+          "recording_uri": {
+            "description": "Canonical `recording://recordings/{recording_id}` URI.",
+            "type": "string"
+          },
+          "entity_path": {
+            "description": "Exact Rerun entity path containing `VideoStream` samples.",
+            "type": "string"
+          },
+          "timeline": {
+            "description": "Rerun duration, timestamp, or sequence timeline.",
+            "type": "string"
+          },
+          "range": {
+            "$ref": "#/$defs/IndexRange"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "recording_uri",
+          "entity_path",
+          "timeline",
+          "range"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "SamplingPolicy": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "mode": {
+                "type": "string",
+                "const": "every_frame"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "step": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              },
+              "mode": {
+                "type": "string",
+                "const": "every_nth"
+              }
+            },
+            "required": [
+              "mode",
+              "step"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "count": {
+                "type": "integer",
+                "format": "uint32",
+                "minimum": 0
+              },
+              "mode": {
+                "type": "string",
+                "const": "maximum_frames"
+              }
+            },
+            "required": [
+              "mode",
+              "count"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "SamplingPolicy": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "SamplingPolicy",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "const": "every_frame"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "step": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "const": "every_nth"
+          }
+        },
+        "required": [
+          "mode",
+          "step"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "count": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "mode": {
+            "type": "string",
+            "const": "maximum_frames"
+          }
+        },
+        "required": [
+          "mode",
+          "count"
+        ]
+      }
+    ]
+  },
+  "BoundingBox2D": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "BoundingBox2D",
+    "type": "object",
+    "properties": {
+      "x": {
+        "type": "number",
+        "format": "float"
+      },
+      "y": {
+        "type": "number",
+        "format": "float"
+      },
+      "width": {
+        "type": "number",
+        "format": "float"
+      },
+      "height": {
+        "type": "number",
+        "format": "float"
+      }
+    },
+    "required": [
+      "x",
+      "y",
+      "width",
+      "height"
+    ]
+  },
+  "Detection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Detection",
+    "type": "object",
+    "properties": {
+      "class_id": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      },
+      "label": {
+        "type": "string"
+      },
+      "confidence": {
+        "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "float"
+      },
+      "tracker_confidence": {
+        "description": "Tracker confidence when the selected tracker exposes one.",
+        "type": [
+          "number",
+          "null"
+        ],
+        "format": "float"
+      },
+      "bounds": {
+        "$ref": "#/$defs/BoundingBox2D"
+      },
+      "track_id": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "class_id",
+      "label",
+      "bounds"
+    ],
+    "$defs": {
+      "BoundingBox2D": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          },
+          "height": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      }
+    }
+  },
+  "FrameDetections": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "FrameDetections",
+    "type": "object",
+    "properties": {
+      "index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "detections": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/Detection"
+        }
+      }
+    },
+    "required": [
+      "index",
+      "detections"
+    ],
+    "$defs": {
+      "Detection": {
+        "type": "object",
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "tracker_confidence": {
+            "description": "Tracker confidence when the selected tracker exposes one.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "bounds": {
+            "$ref": "#/$defs/BoundingBox2D"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "class_id",
+          "label",
+          "bounds"
+        ]
+      },
+      "BoundingBox2D": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          },
+          "height": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      }
+    }
+  },
+  "AnalysisResults": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnalysisResults",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "model_id": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "timeline_kind": {
+        "$ref": "#/$defs/VideoTimelineKind"
+      },
+      "requested_range": {
+        "$ref": "#/$defs/IndexRange"
+      },
+      "source_snapshot": {
+        "$ref": "#/$defs/RecordingSourceSnapshot"
+      },
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/FrameDetections"
+        }
+      },
+      "processed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "elapsed_ms": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "schema",
+      "pipeline_id",
+      "model_id",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "timeline_kind",
+      "requested_range",
+      "source_snapshot",
+      "frames",
+      "processed_frames",
+      "elapsed_ms"
+    ],
+    "$defs": {
+      "VideoTimelineKind": {
+        "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+        "type": "string",
+        "enum": [
+          "duration_nanoseconds",
+          "timestamp_nanoseconds"
+        ]
+      },
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      },
+      "RecordingSourceSnapshot": {
+        "description": "Exact immutable recording inputs captured for one analysis run.\n\nThe complete list belongs in a governed results artifact. Artifact\ndescriptors carry only its SHA-256 digest so their control-plane shape\nremains bounded as a recording accumulates source parts.",
+        "type": "object",
+        "properties": {
+          "recording_id": {
+            "type": "string"
+          },
+          "dataset_id": {
+            "type": "string"
+          },
+          "captured_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/RecordingSourceIdentity"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "recording_id",
+          "dataset_id",
+          "captured_at",
+          "sources"
+        ]
+      },
+      "RecordingSourceIdentity": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "string"
+          },
+          "layer_name": {
+            "type": "string"
+          },
+          "layer_ordinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/$defs/RecordingSourceIdentityKind"
+          },
+          "part_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "layer_id",
+          "layer_name",
+          "kind",
+          "byte_len",
+          "sha256"
+        ]
+      },
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      },
+      "FrameDetections": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "detections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Detection"
+            }
+          }
+        },
+        "required": [
+          "index",
+          "detections"
+        ]
+      },
+      "Detection": {
+        "type": "object",
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "tracker_confidence": {
+            "description": "Tracker confidence when the selected tracker exposes one.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "bounds": {
+            "$ref": "#/$defs/BoundingBox2D"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "class_id",
+          "label",
+          "bounds"
+        ]
+      },
+      "BoundingBox2D": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          },
+          "height": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      }
+    }
+  },
+  "RunRecordingOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunRecordingOutput",
+    "type": "object",
+    "properties": {
+      "run_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "pipeline_uri": {
+        "type": "string"
+      },
+      "model_uri": {
+        "type": "string"
+      },
+      "summary": {
+        "$ref": "#/$defs/AnalysisSummary"
+      },
+      "results_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "annotations_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "source_clip_artifact": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "run_uri",
+      "results_uri",
+      "pipeline_uri",
+      "model_uri",
+      "summary",
+      "results_artifact",
+      "annotations_artifact"
+    ],
+    "$defs": {
+      "AnalysisSummary": {
+        "type": "object",
+        "properties": {
+          "processed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "detection_count": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "decode_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_end_index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "processed_frames",
+          "detection_count",
+          "elapsed_ms",
+          "decode_start_index",
+          "requested_start_index",
+          "requested_end_index"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  },
+  "AnalysisSummary": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "AnalysisSummary",
+    "type": "object",
+    "properties": {
+      "processed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "detection_count": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "elapsed_ms": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "decode_start_index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "requested_start_index": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "requested_end_index": {
+        "type": "integer",
+        "format": "int64"
+      }
+    },
+    "required": [
+      "processed_frames",
+      "detection_count",
+      "elapsed_ms",
+      "decode_start_index",
+      "requested_start_index",
+      "requested_end_index"
+    ]
+  },
+  "PipelineView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PipelineView",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "uri": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "profile": {
+        "$ref": "#/$defs/PipelineProfile"
+      },
+      "model_uri": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "supports_recording_replay": {
+        "type": "boolean"
+      },
+      "supports_live_input": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "uri",
+      "title",
+      "description",
+      "profile",
+      "supports_recording_replay",
+      "supports_live_input"
+    ],
+    "$defs": {
+      "PipelineProfile": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "pass_through"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "operation": {
+                "$ref": "#/$defs/PerceptionOperation"
+              },
+              "tracking": {
+                "type": "boolean"
+              },
+              "kind": {
+                "type": "string",
+                "const": "perception"
+              }
+            },
+            "required": [
+              "kind",
+              "operation",
+              "tracking"
+            ]
+          }
+        ]
+      },
+      "PerceptionOperation": {
+        "type": "string",
+        "enum": [
+          "object_detection",
+          "object_detection_tracking",
+          "instance_segmentation",
+          "pose_estimation"
+        ]
+      }
+    }
+  },
+  "PipelineProfile": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PipelineProfile",
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "pass_through"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "$ref": "#/$defs/PerceptionOperation"
+          },
+          "tracking": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "const": "perception"
+          }
+        },
+        "required": [
+          "kind",
+          "operation",
+          "tracking"
+        ]
+      }
+    ],
+    "$defs": {
+      "PerceptionOperation": {
+        "type": "string",
+        "enum": [
+          "object_detection",
+          "object_detection_tracking",
+          "instance_segmentation",
+          "pose_estimation"
+        ]
+      }
+    }
+  },
+  "PerceptionOperation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "PerceptionOperation",
+    "type": "string",
+    "enum": [
+      "object_detection",
+      "object_detection_tracking",
+      "instance_segmentation",
+      "pose_estimation"
+    ]
+  },
+  "ModelView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelView",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "uri": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "format": {
+        "$ref": "#/$defs/ModelFormat"
+      }
+    },
+    "required": [
+      "id",
+      "uri",
+      "title",
+      "description",
+      "format"
+    ],
+    "$defs": {
+      "ModelFormat": {
+        "type": "string",
+        "enum": [
+          "tensor_rt_engine"
+        ]
+      }
+    }
+  },
+  "ModelFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "ModelFormat",
+    "type": "string",
+    "enum": [
+      "tensor_rt_engine"
+    ]
+  },
+  "RunView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunView",
+    "type": "object",
+    "properties": {
+      "run_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "task_id": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "progress": {
+        "type": "number",
+        "format": "double"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "recording_uri": {
+        "type": "string"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "output": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RunRecordingOutput"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "run_uri",
+      "results_uri",
+      "task_id",
+      "status",
+      "progress",
+      "pipeline_id",
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "created_at",
+      "updated_at"
+    ],
+    "$defs": {
+      "RunRecordingOutput": {
+        "type": "object",
+        "properties": {
+          "run_uri": {
+            "type": "string"
+          },
+          "results_uri": {
+            "type": "string"
+          },
+          "pipeline_uri": {
+            "type": "string"
+          },
+          "model_uri": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/$defs/AnalysisSummary"
+          },
+          "results_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "annotations_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "source_clip_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "run_uri",
+          "results_uri",
+          "pipeline_uri",
+          "model_uri",
+          "summary",
+          "results_artifact",
+          "annotations_artifact"
+        ]
+      },
+      "AnalysisSummary": {
+        "type": "object",
+        "properties": {
+          "processed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "detection_count": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "decode_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_end_index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "processed_frames",
+          "detection_count",
+          "elapsed_ms",
+          "decode_start_index",
+          "requested_start_index",
+          "requested_end_index"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  },
+  "RunPage": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RunPage",
+    "description": "One authorized page of durable recording runs, ordered by creation time and ID.",
+    "type": "object",
+    "properties": {
+      "runs": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/RunView"
+        }
+      },
+      "limit": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      },
+      "next_cursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "runs",
+      "limit"
+    ],
+    "$defs": {
+      "RunView": {
+        "type": "object",
+        "properties": {
+          "run_uri": {
+            "type": "string"
+          },
+          "results_uri": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number",
+            "format": "double"
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "recording_uri": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RunRecordingOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "run_uri",
+          "results_uri",
+          "task_id",
+          "status",
+          "progress",
+          "pipeline_id",
+          "recording_uri",
+          "entity_path",
+          "timeline",
+          "created_at",
+          "updated_at"
+        ]
+      },
+      "RunRecordingOutput": {
+        "type": "object",
+        "properties": {
+          "run_uri": {
+            "type": "string"
+          },
+          "results_uri": {
+            "type": "string"
+          },
+          "pipeline_uri": {
+            "type": "string"
+          },
+          "model_uri": {
+            "type": "string"
+          },
+          "summary": {
+            "$ref": "#/$defs/AnalysisSummary"
+          },
+          "results_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "annotations_artifact": {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          "source_clip_artifact": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactMetadata"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "run_uri",
+          "results_uri",
+          "pipeline_uri",
+          "model_uri",
+          "summary",
+          "results_artifact",
+          "annotations_artifact"
+        ]
+      },
+      "AnalysisSummary": {
+        "type": "object",
+        "properties": {
+          "processed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "detection_count": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "decode_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_start_index": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "requested_end_index": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "processed_frames",
+          "detection_count",
+          "elapsed_ms",
+          "decode_start_index",
+          "requested_start_index",
+          "requested_end_index"
+        ]
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "type": "object",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "mime_type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "filename": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "metadata": {
+            "default": null
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ArtifactReleaseState": {
+        "type": "string",
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ]
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "type": "object",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            }
+          },
+          "retention_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "principal"
+              },
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "group"
+              },
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ]
+          }
+        ]
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "direct"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "delegated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "invocation_mode": {
+                "type": "string",
+                "const": "automated"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ]
+          }
+        ]
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      }
+    }
+  },
+  "LiveResultFrame": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveResultFrame",
+    "type": "object",
+    "properties": {
+      "index": {
+        "description": "Decode-order identity assigned after the GPU decoder. Presentation timestamps\nare intentionally not used because AVC reordering can make them non-monotonic.",
+        "type": "integer",
+        "format": "int64"
+      },
+      "observed_at": {
+        "type": "string"
+      },
+      "detections": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/Detection"
+        }
+      }
+    },
+    "required": [
+      "index",
+      "observed_at",
+      "detections"
+    ],
+    "$defs": {
+      "Detection": {
+        "type": "object",
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "tracker_confidence": {
+            "description": "Tracker confidence when the selected tracker exposes one.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "bounds": {
+            "$ref": "#/$defs/BoundingBox2D"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "class_id",
+          "label",
+          "bounds"
+        ]
+      },
+      "BoundingBox2D": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          },
+          "height": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      }
+    }
+  },
+  "LiveResultsView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveResultsView",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "session_id": {
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "frames": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/LiveResultFrame"
+        }
+      },
+      "processed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "dropped_result_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "schema",
+      "session_id",
+      "pipeline_id",
+      "frames",
+      "processed_frames",
+      "dropped_result_frames"
+    ],
+    "$defs": {
+      "LiveResultFrame": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "description": "Decode-order identity assigned after the GPU decoder. Presentation timestamps\nare intentionally not used because AVC reordering can make them non-monotonic.",
+            "type": "integer",
+            "format": "int64"
+          },
+          "observed_at": {
+            "type": "string"
+          },
+          "detections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Detection"
+            }
+          }
+        },
+        "required": [
+          "index",
+          "observed_at",
+          "detections"
+        ]
+      },
+      "Detection": {
+        "type": "object",
+        "properties": {
+          "class_id": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "label": {
+            "type": "string"
+          },
+          "confidence": {
+            "description": "Detector confidence. DeepStream does not provide this value for every\nclustering mode or tracker-propagated object.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "tracker_confidence": {
+            "description": "Tracker confidence when the selected tracker exposes one.",
+            "type": [
+              "number",
+              "null"
+            ],
+            "format": "float"
+          },
+          "bounds": {
+            "$ref": "#/$defs/BoundingBox2D"
+          },
+          "track_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "class_id",
+          "label",
+          "bounds"
+        ]
+      },
+      "BoundingBox2D": {
+        "type": "object",
+        "properties": {
+          "x": {
+            "type": "number",
+            "format": "float"
+          },
+          "y": {
+            "type": "number",
+            "format": "float"
+          },
+          "width": {
+            "type": "number",
+            "format": "float"
+          },
+          "height": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ]
+      }
+    }
+  },
+  "EncodedVideoChunk": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "EncodedVideoChunk",
+    "type": "object",
+    "properties": {
+      "sequence": {
+        "description": "Decode-order identity. This is the ordering contract for retained chunks.",
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "timestamp_us": {
+        "description": "H.264 presentation timestamp in microseconds. AVC frame reordering can make\npresentation timestamps non-monotonic in decode sequence.",
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "keyframe": {
+        "type": "boolean"
+      },
+      "data_base64": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "sequence",
+      "timestamp_us",
+      "keyframe",
+      "data_base64"
+    ]
+  },
+  "LivePreviewView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LivePreviewView",
+    "type": "object",
+    "properties": {
+      "schema": {
+        "type": "string"
+      },
+      "session_id": {
+        "type": "string"
+      },
+      "video": {
+        "$ref": "#/$defs/LiveVideoView"
+      },
+      "chunks": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/EncodedVideoChunk"
+        }
+      },
+      "dropped_chunks": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "received_video_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "schema",
+      "session_id",
+      "video",
+      "chunks",
+      "dropped_chunks",
+      "received_video_frames"
+    ],
+    "$defs": {
+      "LiveVideoView": {
+        "type": "object",
+        "properties": {
+          "codec": {
+            "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "height": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "frame_rate": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "expected_bitrate_bps": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "codec",
+          "width",
+          "height",
+          "frame_rate",
+          "expected_bitrate_bps"
+        ]
+      },
+      "EncodedVideoChunk": {
+        "type": "object",
+        "properties": {
+          "sequence": {
+            "description": "Decode-order identity. This is the ordering contract for retained chunks.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "timestamp_us": {
+            "description": "H.264 presentation timestamp in microseconds. AVC frame reordering can make\npresentation timestamps non-monotonic in decode sequence.",
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "keyframe": {
+            "type": "boolean"
+          },
+          "data_base64": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sequence",
+          "timestamp_us",
+          "keyframe",
+          "data_base64"
+        ]
+      }
+    }
+  },
+  "IndexRange": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "IndexRange",
+    "type": "object",
+    "properties": {
+      "start": {
+        "type": "integer",
+        "format": "int64"
+      },
+      "end": {
+        "type": "integer",
+        "format": "int64"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "start",
+      "end"
+    ]
+  },
+  "RecordingSourceIdentity": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceIdentity",
+    "type": "object",
+    "properties": {
+      "layer_id": {
+        "type": "string"
+      },
+      "layer_name": {
+        "type": "string"
+      },
+      "layer_ordinal": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "int64"
+      },
+      "kind": {
+        "$ref": "#/$defs/RecordingSourceIdentityKind"
+      },
+      "part_sequence": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "format": "uint64",
+        "minimum": 0
+      },
+      "byte_len": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "sha256": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "layer_id",
+      "layer_name",
+      "kind",
+      "byte_len",
+      "sha256"
+    ],
+    "$defs": {
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      }
+    }
+  },
+  "RecordingSourceIdentityKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceIdentityKind",
+    "type": "string",
+    "enum": [
+      "committed_layer",
+      "live_ingest_part"
+    ]
+  },
+  "RecordingSourceSnapshot": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingSourceSnapshot",
+    "description": "Exact immutable recording inputs captured for one analysis run.\n\nThe complete list belongs in a governed results artifact. Artifact\ndescriptors carry only its SHA-256 digest so their control-plane shape\nremains bounded as a recording accumulates source parts.",
+    "type": "object",
+    "properties": {
+      "recording_id": {
+        "type": "string"
+      },
+      "dataset_id": {
+        "type": "string"
+      },
+      "captured_at": {
+        "type": "string",
+        "format": "date-time"
+      },
+      "sources": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/RecordingSourceIdentity"
+        }
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "recording_id",
+      "dataset_id",
+      "captured_at",
+      "sources"
+    ],
+    "$defs": {
+      "RecordingSourceIdentity": {
+        "type": "object",
+        "properties": {
+          "layer_id": {
+            "type": "string"
+          },
+          "layer_name": {
+            "type": "string"
+          },
+          "layer_ordinal": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "kind": {
+            "$ref": "#/$defs/RecordingSourceIdentityKind"
+          },
+          "part_sequence": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "uint64",
+            "minimum": 0
+          },
+          "byte_len": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "layer_id",
+          "layer_name",
+          "kind",
+          "byte_len",
+          "sha256"
+        ]
+      },
+      "RecordingSourceIdentityKind": {
+        "type": "string",
+        "enum": [
+          "committed_layer",
+          "live_ingest_part"
+        ]
+      }
+    }
+  },
+  "RecordingVideoSelection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "RecordingVideoSelection",
+    "type": "object",
+    "properties": {
+      "recording_uri": {
+        "description": "Canonical `recording://recordings/{recording_id}` URI.",
+        "type": "string"
+      },
+      "entity_path": {
+        "description": "Exact Rerun entity path containing `VideoStream` samples.",
+        "type": "string"
+      },
+      "timeline": {
+        "description": "Rerun duration, timestamp, or sequence timeline.",
+        "type": "string"
+      },
+      "range": {
+        "$ref": "#/$defs/IndexRange"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "recording_uri",
+      "entity_path",
+      "timeline",
+      "range"
+    ],
+    "$defs": {
+      "IndexRange": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "end": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "start",
+          "end"
+        ]
+      }
+    }
+  },
+  "VideoTimelineKind": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "VideoTimelineKind",
+    "description": "Timeline kinds a remuxed clip can preserve. Sequence timelines carry no\nmedia time and are rejected at materialization mapping.",
+    "type": "string",
+    "enum": [
+      "duration_nanoseconds",
+      "timestamp_nanoseconds"
+    ]
+  },
+  "StartLiveSessionRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StartLiveSessionRequest",
+    "type": "object",
+    "properties": {
+      "pipeline_id": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "pipeline_id"
+    ]
+  },
+  "StopLiveSessionRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StopLiveSessionRequest",
+    "type": "object",
+    "properties": {
+      "session_id": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "session_id"
+    ]
+  },
+  "StartLiveSessionOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StartLiveSessionOutput",
+    "type": "object",
+    "properties": {
+      "session_id": {
+        "type": "string"
+      },
+      "session_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "pipeline_uri": {
+        "type": "string"
+      },
+      "ingress": {
+        "$ref": "#/$defs/LiveIngressView"
+      },
+      "video": {
+        "$ref": "#/$defs/LiveVideoView"
+      },
+      "preview_uri": {
+        "type": "string"
+      },
+      "recording_output": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/LiveRecordingOutputView"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "started_at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_id",
+      "session_uri",
+      "results_uri",
+      "pipeline_uri",
+      "ingress",
+      "video",
+      "preview_uri",
+      "started_at"
+    ],
+    "$defs": {
+      "LiveIngressView": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "$ref": "#/$defs/LiveTransport"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "payload_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "clock_rate": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "caps": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transport",
+          "host",
+          "port",
+          "payload_type",
+          "clock_rate",
+          "caps"
+        ]
+      },
+      "LiveTransport": {
+        "type": "string",
+        "enum": [
+          "rtp_h264_udp"
+        ]
+      },
+      "LiveVideoView": {
+        "type": "object",
+        "properties": {
+          "codec": {
+            "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "height": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "frame_rate": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "expected_bitrate_bps": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "codec",
+          "width",
+          "height",
+          "frame_rate",
+          "expected_bitrate_bps"
+        ]
+      },
+      "LiveRecordingOutputView": {
+        "type": "object",
+        "properties": {
+          "recording_key": {
+            "type": "string"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveRecordingLifecycle"
+          },
+          "forwarded_video_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "recording_key",
+          "application_id",
+          "entity_path",
+          "timeline",
+          "lifecycle",
+          "forwarded_video_frames"
+        ]
+      },
+      "LiveRecordingLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "forwarding",
+          "draining",
+          "failed",
+          "stopped"
+        ]
+      }
+    }
+  },
+  "StopLiveSessionOutput": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "StopLiveSessionOutput",
+    "type": "object",
+    "properties": {
+      "session_uri": {
+        "type": "string"
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/LiveSessionLifecycle"
+      },
+      "received_video_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "processed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "recording_output": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/LiveRecordingOutputView"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "stopped_at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_uri",
+      "lifecycle",
+      "received_video_frames",
+      "processed_frames",
+      "stopped_at"
+    ],
+    "$defs": {
+      "LiveSessionLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "running",
+          "failed",
+          "stopped"
+        ]
+      },
+      "LiveRecordingOutputView": {
+        "type": "object",
+        "properties": {
+          "recording_key": {
+            "type": "string"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveRecordingLifecycle"
+          },
+          "forwarded_video_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "recording_key",
+          "application_id",
+          "entity_path",
+          "timeline",
+          "lifecycle",
+          "forwarded_video_frames"
+        ]
+      },
+      "LiveRecordingLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "forwarding",
+          "draining",
+          "failed",
+          "stopped"
+        ]
+      }
+    }
+  },
+  "LiveIngressView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveIngressView",
+    "type": "object",
+    "properties": {
+      "transport": {
+        "$ref": "#/$defs/LiveTransport"
+      },
+      "host": {
+        "type": "string"
+      },
+      "port": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "payload_type": {
+        "type": "integer",
+        "format": "uint8",
+        "minimum": 0,
+        "maximum": 255
+      },
+      "clock_rate": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      },
+      "caps": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "transport",
+      "host",
+      "port",
+      "payload_type",
+      "clock_rate",
+      "caps"
+    ],
+    "$defs": {
+      "LiveTransport": {
+        "type": "string",
+        "enum": [
+          "rtp_h264_udp"
+        ]
+      }
+    }
+  },
+  "LiveVideoView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveVideoView",
+    "type": "object",
+    "properties": {
+      "codec": {
+        "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+        "type": "string"
+      },
+      "width": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "height": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "frame_rate": {
+        "type": "integer",
+        "format": "uint16",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "expected_bitrate_bps": {
+        "type": "integer",
+        "format": "uint32",
+        "minimum": 0
+      }
+    },
+    "required": [
+      "codec",
+      "width",
+      "height",
+      "frame_rate",
+      "expected_bitrate_bps"
+    ]
+  },
+  "LiveTransport": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveTransport",
+    "type": "string",
+    "enum": [
+      "rtp_h264_udp"
+    ]
+  },
+  "LiveSessionLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveSessionLifecycle",
+    "type": "string",
+    "enum": [
+      "starting",
+      "running",
+      "failed",
+      "stopped"
+    ]
+  },
+  "LiveRecordingLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveRecordingLifecycle",
+    "type": "string",
+    "enum": [
+      "starting",
+      "forwarding",
+      "draining",
+      "failed",
+      "stopped"
+    ]
+  },
+  "LiveRecordingOutputView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveRecordingOutputView",
+    "type": "object",
+    "properties": {
+      "recording_key": {
+        "type": "string"
+      },
+      "application_id": {
+        "type": "string"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "timeline": {
+        "type": "string"
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/LiveRecordingLifecycle"
+      },
+      "forwarded_video_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "recording_key",
+      "application_id",
+      "entity_path",
+      "timeline",
+      "lifecycle",
+      "forwarded_video_frames"
+    ],
+    "$defs": {
+      "LiveRecordingLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "forwarding",
+          "draining",
+          "failed",
+          "stopped"
+        ]
+      }
+    }
+  },
+  "LiveSessionView": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveSessionView",
+    "type": "object",
+    "properties": {
+      "session_id": {
+        "type": "string"
+      },
+      "session_uri": {
+        "type": "string"
+      },
+      "results_uri": {
+        "type": "string"
+      },
+      "pipeline_id": {
+        "type": "string"
+      },
+      "pipeline_uri": {
+        "type": "string"
+      },
+      "ingress": {
+        "$ref": "#/$defs/LiveIngressView"
+      },
+      "video": {
+        "$ref": "#/$defs/LiveVideoView"
+      },
+      "preview_uri": {
+        "type": "string"
+      },
+      "recording_output": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/LiveRecordingOutputView"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/LiveSessionLifecycle"
+      },
+      "started_at": {
+        "type": "string"
+      },
+      "stopped_at": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "received_video_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "processed_frames": {
+        "type": "integer",
+        "format": "uint64",
+        "minimum": 0
+      },
+      "newest_result_at": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "session_id",
+      "session_uri",
+      "results_uri",
+      "pipeline_id",
+      "pipeline_uri",
+      "ingress",
+      "video",
+      "preview_uri",
+      "lifecycle",
+      "started_at",
+      "received_video_frames",
+      "processed_frames"
+    ],
+    "$defs": {
+      "LiveIngressView": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "$ref": "#/$defs/LiveTransport"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "payload_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "clock_rate": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "caps": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transport",
+          "host",
+          "port",
+          "payload_type",
+          "clock_rate",
+          "caps"
+        ]
+      },
+      "LiveTransport": {
+        "type": "string",
+        "enum": [
+          "rtp_h264_udp"
+        ]
+      },
+      "LiveVideoView": {
+        "type": "object",
+        "properties": {
+          "codec": {
+            "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "height": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "frame_rate": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "expected_bitrate_bps": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "codec",
+          "width",
+          "height",
+          "frame_rate",
+          "expected_bitrate_bps"
+        ]
+      },
+      "LiveRecordingOutputView": {
+        "type": "object",
+        "properties": {
+          "recording_key": {
+            "type": "string"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveRecordingLifecycle"
+          },
+          "forwarded_video_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "recording_key",
+          "application_id",
+          "entity_path",
+          "timeline",
+          "lifecycle",
+          "forwarded_video_frames"
+        ]
+      },
+      "LiveRecordingLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "forwarding",
+          "draining",
+          "failed",
+          "stopped"
+        ]
+      },
+      "LiveSessionLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "running",
+          "failed",
+          "stopped"
+        ]
+      }
+    }
+  },
+  "LiveSessionsPage": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveSessionsPage",
+    "description": "One authorized page of process-local live sessions, newest IDs first.",
+    "type": "object",
+    "properties": {
+      "sessions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/LiveSessionView"
+        }
+      },
+      "limit": {
+        "type": "integer",
+        "format": "uint",
+        "minimum": 0
+      },
+      "next_cursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "sessions",
+      "limit"
+    ],
+    "$defs": {
+      "LiveSessionView": {
+        "type": "object",
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "session_uri": {
+            "type": "string"
+          },
+          "results_uri": {
+            "type": "string"
+          },
+          "pipeline_id": {
+            "type": "string"
+          },
+          "pipeline_uri": {
+            "type": "string"
+          },
+          "ingress": {
+            "$ref": "#/$defs/LiveIngressView"
+          },
+          "video": {
+            "$ref": "#/$defs/LiveVideoView"
+          },
+          "preview_uri": {
+            "type": "string"
+          },
+          "recording_output": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/LiveRecordingOutputView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveSessionLifecycle"
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "stopped_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "received_video_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "processed_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "newest_result_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "session_id",
+          "session_uri",
+          "results_uri",
+          "pipeline_id",
+          "pipeline_uri",
+          "ingress",
+          "video",
+          "preview_uri",
+          "lifecycle",
+          "started_at",
+          "received_video_frames",
+          "processed_frames"
+        ]
+      },
+      "LiveIngressView": {
+        "type": "object",
+        "properties": {
+          "transport": {
+            "$ref": "#/$defs/LiveTransport"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "payload_type": {
+            "type": "integer",
+            "format": "uint8",
+            "minimum": 0,
+            "maximum": 255
+          },
+          "clock_rate": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          },
+          "caps": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "transport",
+          "host",
+          "port",
+          "payload_type",
+          "clock_rate",
+          "caps"
+        ]
+      },
+      "LiveTransport": {
+        "type": "string",
+        "enum": [
+          "rtp_h264_udp"
+        ]
+      },
+      "LiveVideoView": {
+        "type": "object",
+        "properties": {
+          "codec": {
+            "description": "RFC 6381 AVC codec string admitted with the native pipeline.",
+            "type": "string"
+          },
+          "width": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "height": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "frame_rate": {
+            "type": "integer",
+            "format": "uint16",
+            "minimum": 0,
+            "maximum": 65535
+          },
+          "expected_bitrate_bps": {
+            "type": "integer",
+            "format": "uint32",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "codec",
+          "width",
+          "height",
+          "frame_rate",
+          "expected_bitrate_bps"
+        ]
+      },
+      "LiveRecordingOutputView": {
+        "type": "object",
+        "properties": {
+          "recording_key": {
+            "type": "string"
+          },
+          "application_id": {
+            "type": "string"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "timeline": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveRecordingLifecycle"
+          },
+          "forwarded_video_frames": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "recording_key",
+          "application_id",
+          "entity_path",
+          "timeline",
+          "lifecycle",
+          "forwarded_video_frames"
+        ]
+      },
+      "LiveRecordingLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "forwarding",
+          "draining",
+          "failed",
+          "stopped"
+        ]
+      },
+      "LiveSessionLifecycle": {
+        "type": "string",
+        "enum": [
+          "starting",
+          "running",
+          "failed",
+          "stopped"
+        ]
+      }
+    }
+  }
+}

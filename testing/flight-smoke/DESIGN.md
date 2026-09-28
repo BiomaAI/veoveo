@@ -6,7 +6,7 @@
 |---|---|
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
 | Flight scenario | Runtime-loaded `veoveo.uav-sim-acceptance/v11` JSON with bounded typed mission, world, video and observation parameters |
-| Stream live sessions | Server-owned `servers/stream-mcp/src/contract/live.rs` wire types, compiled directly without the Stream service |
+| Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |

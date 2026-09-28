@@ -37,6 +37,11 @@ appear in its public MCP identities.
 
 ## Build And Test
 
+- Public consumers select `default-features = false, features = ["contract"]`.
+  Keep its dependencies free of MCP, Store, Rerun and runtime execution. `runtime`
+  supplies domain execution; `mcp` adds hosted transport and is the default.
+  Qualify the contract tests through an independent consumer as well as the service.
+
 - `cargo check -p veoveo-reason-mcp`
 - `cargo test -p veoveo-reason-mcp` — crate tests run without a GPU.
 - The GPU smoke requires an NVIDIA driver compatible with the image's CUDA

@@ -45,7 +45,7 @@ use veoveo_reason_mcp::{
     uris,
 };
 use veoveo_recording_reader::RecordingReader;
-use veoveo_recording_video::VideoSourceLimits;
+use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapshot};
 
 #[path = "server/admin.rs"]

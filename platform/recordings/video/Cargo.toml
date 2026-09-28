@@ -7,17 +7,43 @@ edition.workspace = true
 name = "veoveo_recording_video"
 path = "src/lib.rs"
 
+[[test]]
+name = "contract"
+required-features = ["contract"]
+
+[features]
+default = ["runtime"]
+contract = [
+    "dep:anyhow",
+    "dep:chrono",
+    "dep:hex",
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:sha2",
+]
+runtime = [
+    "contract",
+    "dep:tokio",
+    "dep:uuid",
+    "dep:veoveo-mcp-contract",
+    "dep:veoveo-platform-store",
+    "dep:veoveo-rrd",
+    "dep:veoveo-recording-reader",
+]
+
 [dependencies]
-anyhow.workspace = true
-chrono.workspace = true
-hex.workspace = true
-schemars.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-tokio = { workspace = true, features = ["rt"] }
-uuid.workspace = true
-veoveo-mcp-contract = { workspace = true, default-features = false }
-veoveo-platform-store.workspace = true
-veoveo-rrd.workspace = true
-veoveo-recording-reader.workspace = true
+anyhow = { workspace = true, optional = true }
+# Match the qualified workspace release; public snapshots need date/time values only.
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
+hex = { workspace = true, optional = true }
+schemars = { workspace = true, features = ["chrono04"], optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["rt"], optional = true }
+uuid = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
+veoveo-platform-store = { workspace = true, optional = true }
+veoveo-rrd = { workspace = true, optional = true }
+veoveo-recording-reader = { workspace = true, optional = true }
