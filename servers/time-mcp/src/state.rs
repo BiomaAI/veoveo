@@ -114,7 +114,7 @@ impl TimeApplication {
                     .events_page(
                         scope,
                         after.as_ref(),
-                        Some(veoveo_platform_store::TimeTemporalEventState::Scheduled),
+                        Some(crate::contract::TemporalEventState::Scheduled),
                     )
                     .await?;
                 for event in page.items {

@@ -478,7 +478,7 @@ impl ServerHandler for TimeMcp {
         request: CompleteRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CompleteResult, McpError> {
-        use veoveo_platform_store::TimeCompletion;
+        use crate::catalog::TimeCompletion;
 
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
@@ -497,8 +497,7 @@ impl ServerHandler for TimeMcp {
                     .and_then(|context| context.get_argument("calendar_id"))
                     .map(|key| crate::contract::CalendarId::new(key.clone()))
                     .transpose()
-                    .map_err(invalid_params)?
-                    .map(|key| key.to_string()),
+                    .map_err(invalid_params)?,
             }),
             (uris::EPOCH_TEMPLATE, "epoch_id") => Some(TimeCompletion::EpochId),
             (uris::EVENT_TEMPLATE, "event_id") => Some(TimeCompletion::EventId),
@@ -508,8 +507,7 @@ impl ServerHandler for TimeMcp {
             let values = self
                 .state
                 .catalog
-                .store()
-                .complete_time_values(&scope.identity, domain, &request.argument.value, 101)
+                .complete_values(&scope, domain, &request.argument.value, 101)
                 .await
                 .map_err(internal)?;
             let has_more = values.len() > CompletionInfo::MAX_VALUES;

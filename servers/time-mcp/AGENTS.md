@@ -48,17 +48,16 @@ leap second assumptions.
   dependencies through other packages.
 - `cargo clippy -p veoveo-time-mcp --no-default-features --features runtime --all-targets -- -D warnings`
   checks runtime composition independently from the MCP feature.
-- Platform store behavior lives in `platform/store` (`src/time.rs`,
-  migrations `0019_time_domain.surql` and
-  `0043_time_acquisition_release_index.surql`); run its tests when touching
-  persistence. The shared SurrealDB integration harness covers the store
-  boundary.
+- Time owns its private `src/persistence/` queries, driver records and mutation
+  validation. Store owns migrations `0019_time_domain.surql` and
+  `0043_time_acquisition_release_index.surql`. Runtime library tests use the shared
+  isolated SurrealDB fixture; schema changes also require Store migration checks.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` checks
   page navigation behavior headlessly; it provides no visual or GPU acceptance.
 - The container builds from `servers/time-mcp/Dockerfile` (needs Docker);
   Helm material is the `time-mcp` domain service in `deploy/helm/veoveo`.
   No GPU requirement.
-- `tests/catalog_queries.rs` qualifies SQL tenant and owner predicates, latest epoch
+- `src/catalog/tests.rs` qualifies SQL tenant and owner predicates, latest epoch
   selection, event transition isolation, page boundaries, requested epoch batches,
   and bounded distinct completion against the
   pinned disposable SurrealDB fixture.
@@ -73,7 +72,8 @@ The library exposes the contract feature and owns its typed scopes, resource var
 and collection cursors. Every resource route uses the shared URI builder and parser.
 The MCP feature associates those types through `McpServerContract`; hosted startup,
 discovery and scope membership consume its checked setup.
-Store query-key typing and installed qualification remain work in the
+The runtime owns typed persistence inputs and the stored UUID key profile. Broader
+DTO typing, retained-body consistency and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

@@ -477,7 +477,8 @@ share this crate.
 
 ### `platform/store`
 
-The only durable platform persistence layer.
+Shared database connections, schema migrations and platform persistence operations.
+Domain runtimes can own private queries and driver records over these connections.
 
 | File | Responsibility |
 |---|---|
@@ -502,7 +503,6 @@ The only durable platform persistence layer.
 | `map_authoring.rs` | Work Context-scoped feature layers, immutable schema/style/feature revisions, atomic changesets, heads, publications, and authoring outbox events |
 | `map_projection.rs` | indexed Map changeset replay up to the committed Map head |
 | `map_presentations.rs` | immutable publication products plus publication-pinned map compositions and revisions |
-| `time.rs` | authority sources and releases, active pointers, acquisitions, calendars, epochs, clock policy, and events |
 | `recordings.rs`, `recordings/reads.rs` | recording lifecycle, SQL tenant/label visibility, cursor pages, bounded completion and layer counts |
 | `recording_ingest.rs`, `recording_blueprints.rs` | producer streams, idempotent batch checkpoints, immutable producer Blueprint revisions, and journal state |
 | `usage.rs` | shared domain/media usage records |
@@ -893,8 +893,8 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/mcp/setup.rs` | Time's MCP associations, typed static resource descriptors and checked setup for startup, discovery and scope membership |
 | `servers/time-mcp/src/mcp/resources.rs` | resource reads through the server's typed address contract; static documentation and App reads precede state access |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
-| `platform/store/src/time.rs`, `platform/store/src/time/collections.rs` | tenant temporal catalog, optimistic release activation, acquisition-to-release provenance lookup, SQL-scoped owner events, bounded pages and completion, requested latest epochs, and clock policy |
-| `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | fixed-size collection envelopes, catalog APIs using domain cursor types, and conversion to Time Store query DTOs |
+| `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | fixed-size collection envelopes and catalog APIs using domain cursor types |
+| `servers/time-mcp/src/persistence/` | private temporal driver records, typed IDs/versions/cursors through query and mutation admission, SQL visibility and atomic authority activation; shared Store owns the connection and migrations |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) covers the
 protocol, authority, administration, deployment, and synchronization-observation

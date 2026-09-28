@@ -13,10 +13,6 @@ path = "src/bin/server.rs"
 required-features = ["mcp"]
 
 [[test]]
-name = "catalog_queries"
-required-features = ["runtime"]
-
-[[test]]
 name = "contract"
 required-features = ["contract"]
 
@@ -50,6 +46,7 @@ runtime = [
     "dep:tokio",
     "dep:tokio-util",
     "dep:thiserror",
+    "dep:surrealdb",
     "dep:tracing",
     "dep:url",
     "dep:uuid",
@@ -102,6 +99,9 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true
 veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
+
+# Match Store's qualified driver types; upgrade together in foundations Phase 4.
+surrealdb = { version = "=3.2.4", default-features = false, optional = true }
 
 [dev-dependencies]
 iri-string.workspace = true

@@ -30,8 +30,8 @@ pub(crate) fn page<R, T, C>(
 #[cfg(feature = "mcp")]
 pub(crate) fn query_error(error: anyhow::Error) -> McpError {
     if matches!(
-        error.downcast_ref::<veoveo_platform_store::StoreError>(),
-        Some(veoveo_platform_store::StoreError::InvalidTimeField { .. })
+        error.downcast_ref::<crate::persistence::PersistenceError>(),
+        Some(crate::persistence::PersistenceError::InvalidTimeField { .. })
     ) {
         McpError::invalid_params("invalid Time collection cursor", None)
     } else {

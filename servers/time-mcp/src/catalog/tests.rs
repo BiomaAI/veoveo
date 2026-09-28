@@ -1,17 +1,17 @@
 use std::time::Duration;
 
-use veoveo_platform_store::{
-    PlatformStore, PrincipalKind, TimeCompletion, TimeMissionEpochDraft,
-    TimeTemporalEventState as StoredEventState,
+use crate::catalog::TimeCompletion;
+use crate::persistence::{
+    TimeMissionEpochDraft, TimePersistence, TimeTemporalEventState as StoredEventState,
 };
-use veoveo_time_mcp::{
+use crate::{
     AuthorityBinding, AuthorityReleaseId, CalendarId, MissionEpoch, MissionEpochId,
     OperationalCalendar, TemporalEvent, TemporalEventId, TemporalEventState, TimeInstant,
     catalog::{TimeAccessContext, TimeCatalog},
 };
+use veoveo_platform_store::{PlatformStore, PrincipalKind};
 
-#[path = "../../../testing/fixtures/store.rs"]
-mod fixture;
+use crate::test_store as fixture;
 
 async fn scope(store: &PlatformStore, tenant: &str, owner: &str) -> TimeAccessContext {
     TimeAccessContext {
@@ -97,10 +97,10 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .unwrap()
                 .is_none()
         );
-        let own =
-            db.a.list_time_temporal_events(&owner.identity, None, None, 101)
-                .await
-                .unwrap();
+        let own = TimePersistence::new(db.a.clone())
+            .list_time_temporal_events(&owner.identity, None, None, 101)
+            .await
+            .unwrap();
         assert_eq!(own.len(), 101);
         assert!(
             own.iter()
@@ -111,7 +111,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(page.items.len(), 100);
         assert!(page.next_cursor.is_some());
         let last = page.items.last().unwrap();
-        let cursor: veoveo_time_mcp::EventCursor = serde_json::from_value(
+        let cursor: crate::EventCursor = serde_json::from_value(
             serde_json::to_value(page.next_cursor.as_ref().unwrap()).unwrap(),
         )
         .unwrap();
@@ -136,27 +136,18 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .items
                 .is_empty()
         );
-        let due =
-            db.a.due_time_temporal_events(&owner.identity, 2_000_000_000, 17, 3)
+        // A persistence caller cannot bypass the same owner predicate on a transition.
+        assert!(
+            TimePersistence::new(db.a.clone())
+                .transition_time_temporal_event(
+                    &owner.identity,
+                    &peer_event,
+                    1,
+                    StoredEventState::Cancelled,
+                    "{}".into(),
+                )
                 .await
-                .unwrap();
-        assert_eq!(due.len(), 3);
-        assert!(
-            due.iter()
-                .all(|row| row.owner == owner.identity.principal_id.record_id())
-        );
-
-        // A Store caller cannot bypass the same owner predicate on a transition.
-        assert!(
-            db.a.transition_time_temporal_event(
-                &owner.identity,
-                peer_event.as_str(),
-                1,
-                StoredEventState::Cancelled,
-                "{}".into(),
-            )
-            .await
-            .is_err()
+                .is_err()
         );
         assert_eq!(
             catalog
@@ -178,10 +169,10 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         );
         assert!(catalog.cancel_event(&owner, &own_id, 1).await.is_err());
 
-        let matches =
-            db.a.complete_time_values(&owner.identity, TimeCompletion::EventId, "", 101)
-                .await
-                .unwrap();
+        let matches = TimePersistence::new(db.a.clone())
+            .complete_time_values(&owner.identity, TimeCompletion::EventId, "", 101)
+            .await
+            .unwrap();
         assert_eq!(matches.len(), 101);
         assert_eq!(
             matches.first().unwrap(),
@@ -192,36 +183,40 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
             "event-ffffffff-ffff-7000-8000-000000000064"
         );
         assert_eq!(
-            db.a.complete_time_values(
-                &owner.identity,
-                TimeCompletion::EventId,
-                "FFFFFFFF-FFFF-7000-8000-000000000065",
-                101
-            )
-            .await
-            .unwrap(),
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(
+                    &owner.identity,
+                    TimeCompletion::EventId,
+                    "FFFFFFFF-FFFF-7000-8000-000000000065",
+                    101
+                )
+                .await
+                .unwrap(),
             vec!["event-ffffffff-ffff-7000-8000-000000000065"]
         );
         assert!(
-            db.a.complete_time_values(
-                &owner.identity,
-                TimeCompletion::EventId,
-                "00000000-0000-7000",
-                101
-            )
-            .await
-            .unwrap()
-            .is_empty()
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(
+                    &owner.identity,
+                    TimeCompletion::EventId,
+                    "00000000-0000-7000",
+                    101
+                )
+                .await
+                .unwrap()
+                .is_empty()
         );
         assert!(
-            db.a.complete_time_values(&owner.identity, TimeCompletion::EventId, "' OR true;", 101)
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(&owner.identity, TimeCompletion::EventId, "' OR true;", 101)
                 .await
                 .unwrap()
                 .is_empty()
         );
         for limit in [0, 102] {
             assert!(
-                db.a.complete_time_values(&owner.identity, TimeCompletion::EventId, "", limit)
+                TimePersistence::new(db.a.clone())
+                    .complete_time_values(&owner.identity, TimeCompletion::EventId, "", limit)
                     .await
                     .is_err()
             );
@@ -305,57 +300,65 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .is_none()
         );
         assert_eq!(
-            db.a.complete_time_values(
-                &owner.identity,
-                TimeCompletion::EpochId,
-                "EPOCH-00000000-0000-7000-8000-000000000001",
-                101
-            )
-            .await
-            .unwrap(),
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(
+                    &owner.identity,
+                    TimeCompletion::EpochId,
+                    "EPOCH-00000000-0000-7000-8000-000000000001",
+                    101
+                )
+                .await
+                .unwrap(),
             vec!["epoch-00000000-0000-7000-8000-000000000001"]
         );
         assert_eq!(
-            db.a.complete_time_values(
-                &owner.identity,
-                TimeCompletion::CalendarId,
-                "CALENDAR-00000000-0000-7000-8000-000000000001",
-                101
-            )
-            .await
-            .unwrap(),
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(
+                    &owner.identity,
+                    TimeCompletion::CalendarId,
+                    "CALENDAR-00000000-0000-7000-8000-000000000001",
+                    101
+                )
+                .await
+                .unwrap(),
             vec!["calendar-00000000-0000-7000-8000-000000000001"]
         );
         let versions = || TimeCompletion::CalendarVersion {
-            calendar_key: Some("calendar-00000000-0000-7000-8000-000000000001".into()),
+            calendar_key: Some(
+                CalendarId::new("calendar-00000000-0000-7000-8000-000000000001").unwrap(),
+            ),
         };
         assert_eq!(
-            db.a.complete_time_values(&peer.identity, versions(), "", 101)
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(&peer.identity, versions(), "", 101)
                 .await
                 .unwrap(),
             vec!["1", "12", "2"]
         );
         assert!(
-            db.a.complete_time_values(&peer.identity, versions(), "42", 101)
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(&peer.identity, versions(), "42", 101)
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert!(
-            db.a.complete_time_values(&foreign.identity, versions(), "", 101)
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(&foreign.identity, versions(), "", 101)
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert_eq!(
-            db.a.complete_time_values(
-                &owner.identity,
-                TimeCompletion::CalendarVersion { calendar_key: None },
-                "42",
-                101
-            )
-            .await
-            .unwrap(),
+            TimePersistence::new(db.a.clone())
+                .complete_time_values(
+                    &owner.identity,
+                    TimeCompletion::CalendarVersion { calendar_key: None },
+                    "42",
+                    101
+                )
+                .await
+                .unwrap(),
             vec!["42"]
         );
 
@@ -396,7 +399,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(first.items[0].version, 113);
         assert!(first.next_cursor.is_some());
         let last = first.items.last().unwrap();
-        let position: veoveo_time_mcp::EpochCursor = serde_json::from_value(
+        let position: crate::EpochCursor = serde_json::from_value(
             serde_json::to_value(first.next_cursor.as_ref().unwrap()).unwrap(),
         )
         .unwrap();
@@ -420,7 +423,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert_eq!(first.items.len(), 100);
         assert_eq!(first.items[0].version, 113);
         let last = first.items.last().unwrap();
-        let position: veoveo_time_mcp::CalendarCursor = serde_json::from_value(
+        let position: crate::CalendarCursor = serde_json::from_value(
             serde_json::to_value(first.next_cursor.as_ref().unwrap()).unwrap(),
         )
         .unwrap();
@@ -434,7 +437,7 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         assert!(second.next_cursor.is_none());
         assert_eq!(second.items.last().unwrap().version, 42);
         let scheduled = catalog
-            .events_page(&owner, None, Some(StoredEventState::Scheduled))
+            .events_page(&owner, None, Some(TemporalEventState::Scheduled))
             .await
             .unwrap();
         assert_eq!(scheduled.items.len(), 100);
@@ -449,24 +452,26 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
         let position = scheduled.next_cursor.as_ref().unwrap();
         assert_eq!(position.event_id(), &last.event_id);
         let last_scheduled = catalog
-            .events_page(&owner, Some(position), Some(StoredEventState::Scheduled))
+            .events_page(&owner, Some(position), Some(TemporalEventState::Scheduled))
             .await
             .unwrap();
         assert_eq!(last_scheduled.items.len(), 1);
         assert!(last_scheduled.next_cursor.is_none());
 
         // An unrelated malformed payload must never reach a request's epoch decoder.
-        db.a.create_time_mission_epoch(TimeMissionEpochDraft {
-            identity: owner.identity.clone(),
-            epoch_key: "epoch-00000000-0000-7000-8000-000000000010".into(),
-            name: "unrelated".into(),
-            epoch_version: 1,
-            tai_seconds_since_1970: 0,
-            nanosecond: 0,
-            canonical_json: "{}".into(),
-        })
-        .await
-        .unwrap();
+        TimePersistence::new(db.a.clone())
+            .create_time_mission_epoch(TimeMissionEpochDraft {
+                identity: owner.identity.clone(),
+                epoch_key: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000010")
+                    .unwrap(),
+                name: "unrelated".into(),
+                epoch_version: crate::TimeVersion::new(1).unwrap(),
+                tai_seconds_since_1970: 0,
+                nanosecond: 0,
+                canonical_json: "{}".into(),
+            })
+            .await
+            .unwrap();
         let requested = vec![
             epoch_id.clone(),
             MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000099").unwrap(),
@@ -482,15 +487,14 @@ async fn sql_filters_owner_tenant_latest_version_and_completion_before_limit() {
                 .is_empty()
         );
         assert!(
-            db.a.latest_time_mission_epochs(
-                owner.identity.tenant_id,
-                &vec![epoch_id.to_string(); 101]
-            )
-            .await
-            .is_err()
+            TimePersistence::new(db.a.clone())
+                .latest_time_mission_epochs(owner.identity.tenant_id, &vec![epoch_id.clone(); 101])
+                .await
+                .is_err()
         );
         assert!(
-            db.a.list_time_mission_epochs(owner.identity.tenant_id, None, 102)
+            TimePersistence::new(db.a.clone())
+                .list_time_mission_epochs(owner.identity.tenant_id, None, 102)
                 .await
                 .is_err()
         );

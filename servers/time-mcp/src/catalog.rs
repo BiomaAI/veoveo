@@ -1,15 +1,36 @@
 mod pages;
+#[cfg(test)]
+mod tests;
 
-use anyhow::{Context, Result, bail};
-use veoveo_platform_store::{
-    PlatformIdentity, PlatformStore, TimeAcquisitionDraft, TimeAcquisitionRecord,
-    TimeAcquisitionState as StoreAcquisitionState, TimeAcquisitionUpdate,
-    TimeAuthorityReleaseDraft, TimeAuthorityReleaseRecord,
+/// Store-backed completion domains. SQL identifiers come only from this enum.
+/// ```compile_fail
+/// use veoveo_time_mcp::{catalog::TimeCompletion, MissionEpochId};
+/// TimeCompletion::CalendarVersion {
+///     calendar_key: Some(MissionEpochId::new("epoch-example").unwrap()),
+/// };
+/// ```
+/// ```compile_fail
+/// use veoveo_time_mcp::catalog::TimeCompletion;
+/// TimeCompletion::CalendarVersion { calendar_key: Some("calendar-example".to_owned()) };
+/// ```
+#[derive(Clone, Debug)]
+pub enum TimeCompletion {
+    CalendarId,
+    CalendarVersion { calendar_key: Option<CalendarId> },
+    EpochId,
+    EventId,
+}
+
+use crate::persistence::{
+    TimeAcquisitionDraft, TimeAcquisitionRecord, TimeAcquisitionState as StoreAcquisitionState,
+    TimeAcquisitionUpdate, TimeAuthorityReleaseDraft, TimeAuthorityReleaseRecord,
     TimeAuthorityReleaseState as StoreReleaseState, TimeCalendarState, TimeCalendarVersionDraft,
-    TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft, TimeSourceDraft,
+    TimeClockPolicyDraft, TimeDatasetKind, TimeMissionEpochDraft, TimePersistence, TimeSourceDraft,
     TimeSourceRecord, TimeTemporalEventDraft, TimeTemporalEventRecord,
     TimeTemporalEventState as StoreEventState,
 };
+use anyhow::{Context, Result, bail};
+use veoveo_platform_store::{PlatformIdentity, PlatformStore};
 use veoveo_types::Sha256Digest;
 
 use crate::contract::{
@@ -32,16 +53,27 @@ impl TimeAccessContext {
 
 #[derive(Clone)]
 pub struct TimeCatalog {
-    store: PlatformStore,
+    persistence: TimePersistence,
 }
 
 impl TimeCatalog {
     pub fn new(store: PlatformStore) -> Self {
-        Self { store }
+        Self {
+            persistence: TimePersistence::new(store),
+        }
     }
 
-    pub fn store(&self) -> &PlatformStore {
-        &self.store
+    pub async fn complete_values(
+        &self,
+        scope: &TimeAccessContext,
+        domain: TimeCompletion,
+        needle: &str,
+        limit: u32,
+    ) -> Result<Vec<String>> {
+        Ok(self
+            .persistence
+            .complete_time_values(&scope.identity, domain, needle, limit)
+            .await?)
     }
 
     pub async fn create_source(
@@ -52,10 +84,10 @@ impl TimeCatalog {
         source.record_version = 1;
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
-            .store
+            .persistence
             .create_time_source(TimeSourceDraft {
                 identity: scope.identity.clone(),
-                source_key: source.source_id.to_string(),
+                source_key: source.source_id.clone(),
                 name: source.name.clone(),
                 dataset_kind: source_kind(source.dataset_kind),
                 source_url: source.url.clone(),
@@ -76,11 +108,11 @@ impl TimeCatalog {
         source.record_version = expected + 1;
         let canonical_json = serde_json::to_string(&source)?;
         let record = self
-            .store
+            .persistence
             .replace_time_source(
                 TimeSourceDraft {
                     identity: scope.identity.clone(),
-                    source_key: source.source_id.to_string(),
+                    source_key: source.source_id.clone(),
                     name: source.name.clone(),
                     dataset_kind: source_kind(source.dataset_kind),
                     source_url: source.url.clone(),
@@ -99,15 +131,15 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         id: &TimeSourceId,
     ) -> Result<Option<TimeSource>> {
-        self.store
-            .time_source(scope.identity.tenant_id, id.as_str())
+        self.persistence
+            .time_source(scope.identity.tenant_id, id)
             .await?
             .map(source_from_record)
             .transpose()
     }
 
     pub async fn list_sources(&self, scope: &TimeAccessContext) -> Result<Vec<TimeSource>> {
-        self.store
+        self.persistence
             .list_time_sources(scope.identity.tenant_id)
             .await?
             .into_iter()
@@ -122,11 +154,11 @@ impl TimeCatalog {
     ) -> Result<AuthorityRelease> {
         let canonical_json = serde_json::to_string(&release)?;
         let record = self
-            .store
+            .persistence
             .create_time_authority_release(TimeAuthorityReleaseDraft {
                 identity: scope.identity.clone(),
-                release_key: release.release_id.to_string(),
-                source_key: release.source_id.to_string(),
+                release_key: release.release_id.clone(),
+                source_key: release.source_id.clone(),
                 dataset_kind: source_kind(release.dataset_kind),
                 state: release_state(release.state),
                 version_label: release.version_label.clone(),
@@ -146,15 +178,15 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         id: &crate::contract::AuthorityReleaseId,
     ) -> Result<Option<AuthorityRelease>> {
-        self.store
-            .time_authority_release(scope.identity.tenant_id, id.as_str())
+        self.persistence
+            .time_authority_release(scope.identity.tenant_id, id)
             .await?
             .map(release_from_record)
             .transpose()
     }
 
     pub async fn list_releases(&self, scope: &TimeAccessContext) -> Result<Vec<AuthorityRelease>> {
-        self.store
+        self.persistence
             .list_time_authority_releases(scope.identity.tenant_id)
             .await?
             .into_iter()
@@ -180,10 +212,10 @@ impl TimeCatalog {
         release.record_version = expected_release + 1;
         let canonical_json = serde_json::to_string(&release)?;
         let record = self
-            .store
+            .persistence
             .activate_time_authority_release(
                 &scope.identity,
-                id.as_str(),
+                id,
                 expected_release.try_into()?,
                 expected_pointer.try_into()?,
                 canonical_json,
@@ -197,14 +229,18 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
     ) -> Result<Vec<AuthorityRelease>> {
         let pointers = self
-            .store
+            .persistence
             .list_active_time_authorities(scope.identity.tenant_id)
             .await?;
         let mut releases = Vec::new();
         for pointer in pointers {
             if let Some(record) = self
-                .store
-                .time_authority_release(scope.identity.tenant_id, &pointer.release_key)
+                .persistence
+                .time_authority_release(
+                    scope.identity.tenant_id,
+                    &crate::AuthorityReleaseId::new(pointer.release_key)
+                        .map_err(anyhow::Error::msg)?,
+                )
                 .await?
             {
                 releases.push(release_from_record(record)?);
@@ -256,19 +292,16 @@ impl TimeCatalog {
     ) -> Result<TimeAcquisition> {
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
-            .store
+            .persistence
             .create_time_acquisition(TimeAcquisitionDraft {
                 identity: scope.identity.clone(),
-                acquisition_key: acquisition.acquisition_id.to_string(),
-                source_key: acquisition.source_id.to_string(),
+                acquisition_key: acquisition.acquisition_id.clone(),
+                source_key: acquisition.source_id.clone(),
                 expected_source_digest_sha256: acquisition.expected_source_digest_sha256.clone(),
                 idempotency_key,
                 status: acquisition_state(acquisition.status),
                 phase: acquisition.phase.clone(),
-                staged_release_key: acquisition
-                    .staged_release_id
-                    .as_ref()
-                    .map(ToString::to_string),
+                staged_release_key: acquisition.staged_release_id.clone(),
                 canonical_json,
             })
             .await?;
@@ -280,8 +313,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         id: &TimeAcquisitionId,
     ) -> Result<Option<TimeAcquisition>> {
-        self.store
-            .time_acquisition(scope.identity.tenant_id, id.as_str())
+        self.persistence
+            .time_acquisition(scope.identity.tenant_id, id)
             .await?
             .map(acquisition_from_record)
             .transpose()
@@ -292,8 +325,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         release_id: &crate::contract::AuthorityReleaseId,
     ) -> Result<Option<TimeAcquisition>> {
-        self.store
-            .time_acquisition_for_release(scope.identity.tenant_id, release_id.as_str())
+        self.persistence
+            .time_acquisition_for_release(scope.identity.tenant_id, release_id)
             .await?
             .map(acquisition_from_record)
             .transpose()
@@ -304,10 +337,10 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         idempotency_key: &str,
     ) -> Result<Option<TimeAcquisition>> {
-        self.store
+        self.persistence
             .time_acquisition_for_idempotency(
                 scope.identity.tenant_id,
-                scope.identity.principal_id.record_id(),
+                scope.identity.principal_id,
                 idempotency_key,
             )
             .await?
@@ -319,7 +352,7 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
     ) -> Result<Vec<TimeAcquisition>> {
-        self.store
+        self.persistence
             .list_time_acquisitions(scope.identity.tenant_id)
             .await?
             .into_iter()
@@ -337,17 +370,14 @@ impl TimeCatalog {
         acquisition.updated_at = chrono::Utc::now();
         let canonical_json = serde_json::to_string(&acquisition)?;
         let record = self
-            .store
+            .persistence
             .update_time_acquisition(TimeAcquisitionUpdate {
                 tenant_id: scope.identity.tenant_id,
-                acquisition_key: acquisition.acquisition_id.to_string(),
+                acquisition_key: acquisition.acquisition_id.clone(),
                 expected_record_version: expected.try_into()?,
                 status: acquisition_state(acquisition.status),
                 phase: acquisition.phase.clone(),
-                staged_release_key: acquisition
-                    .staged_release_id
-                    .as_ref()
-                    .map(ToString::to_string),
+                staged_release_key: acquisition.staged_release_id.clone(),
                 canonical_json,
             })
             .await?;
@@ -361,11 +391,11 @@ impl TimeCatalog {
     ) -> Result<OperationalCalendar> {
         let canonical_json = serde_json::to_string(&calendar)?;
         let record = self
-            .store
+            .persistence
             .create_time_calendar_version(TimeCalendarVersionDraft {
                 identity: scope.identity.clone(),
-                calendar_key: calendar.calendar_id.to_string(),
-                calendar_version: calendar.version.try_into()?,
+                calendar_key: calendar.calendar_id.clone(),
+                calendar_version: crate::TimeVersion::new(calendar.version)?,
                 name: calendar.name.clone(),
                 zone_id: calendar.zone_id.clone(),
                 state: TimeCalendarState::Active,
@@ -381,8 +411,8 @@ impl TimeCatalog {
         id: &CalendarId,
         version: crate::contract::TimeVersion,
     ) -> Result<Option<OperationalCalendar>> {
-        self.store
-            .time_calendar_version(scope.identity.tenant_id, id.as_str(), version.get() as i64)
+        self.persistence
+            .time_calendar_version(scope.identity.tenant_id, id, version)
             .await?
             .map(|record| {
                 serde_json::from_str(&record.canonical_json)
@@ -398,12 +428,12 @@ impl TimeCatalog {
     ) -> Result<MissionEpoch> {
         let canonical_json = serde_json::to_string(&epoch)?;
         let record = self
-            .store
+            .persistence
             .create_time_mission_epoch(TimeMissionEpochDraft {
                 identity: scope.identity.clone(),
-                epoch_key: epoch.epoch_id.to_string(),
+                epoch_key: epoch.epoch_id.clone(),
                 name: epoch.name.clone(),
-                epoch_version: epoch.version.try_into()?,
+                epoch_version: crate::TimeVersion::new(epoch.version)?,
                 tai_seconds_since_1970: epoch.instant.tai_seconds_since_1970,
                 nanosecond: i64::from(epoch.instant.nanosecond),
                 canonical_json,
@@ -417,8 +447,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         id: &crate::contract::MissionEpochId,
     ) -> Result<Option<MissionEpoch>> {
-        self.store
-            .latest_time_mission_epoch(scope.identity.tenant_id, id.as_str())
+        self.persistence
+            .latest_time_mission_epoch(scope.identity.tenant_id, id)
             .await?
             .map(|record| {
                 serde_json::from_str(&record.canonical_json)
@@ -435,10 +465,10 @@ impl TimeCatalog {
     ) -> Result<TemporalEvent> {
         let canonical_json = serde_json::to_string(&event)?;
         let record = self
-            .store
+            .persistence
             .create_time_temporal_event(TimeTemporalEventDraft {
                 identity: scope.identity.clone(),
-                event_key: event.event_id.to_string(),
+                event_key: event.event_id.clone(),
                 name: event.name.clone(),
                 state: event_state(event.state),
                 due_tai_seconds_since_1970: event.due.tai_seconds_since_1970,
@@ -455,8 +485,8 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         id: &TemporalEventId,
     ) -> Result<Option<TemporalEvent>> {
-        self.store
-            .time_temporal_event(&scope.identity, id.as_str())
+        self.persistence
+            .time_temporal_event(&scope.identity, id)
             .await?
             .map(event_from_record)
             .transpose()
@@ -475,10 +505,10 @@ impl TimeCatalog {
         event.state = TemporalEventState::Cancelled;
         event.record_version = expected + 1;
         let record = self
-            .store
+            .persistence
             .transition_time_temporal_event(
                 &scope.identity,
-                id.as_str(),
+                id,
                 expected.try_into()?,
                 StoreEventState::Cancelled,
                 serde_json::to_string(&event)?,
@@ -503,10 +533,10 @@ impl TimeCatalog {
         event.state = TemporalEventState::Due;
         event.record_version = expected + 1;
         let record = self
-            .store
+            .persistence
             .transition_time_temporal_event(
                 &scope.identity,
-                id.as_str(),
+                id,
                 expected.try_into()?,
                 StoreEventState::Due,
                 serde_json::to_string(&event)?,
@@ -520,7 +550,7 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
     ) -> Result<Option<(ClockQualityPolicy, u64)>> {
         Ok(self
-            .store
+            .persistence
             .time_clock_policy(scope.identity.tenant_id)
             .await?
             .map(|record| {
@@ -543,7 +573,7 @@ impl TimeCatalog {
         expected: u64,
     ) -> Result<(ClockQualityPolicy, u64)> {
         let record = self
-            .store
+            .persistence
             .replace_time_clock_policy(
                 TimeClockPolicyDraft {
                     identity: scope.identity.clone(),

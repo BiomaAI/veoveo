@@ -37,3 +37,9 @@ pub mod uris;
 pub async fn run() -> anyhow::Result<()> {
     server::run().await
 }
+
+#[cfg(feature = "runtime")]
+mod persistence;
+#[cfg(all(test, feature = "runtime"))]
+#[path = "../../../testing/fixtures/store.rs"]
+mod test_store;

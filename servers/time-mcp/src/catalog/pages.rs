@@ -1,4 +1,5 @@
 use super::{TimeAccessContext, TimeCatalog, event_from_record};
+use crate::contract::TemporalEventState;
 use crate::{
     contract::{
         CalendarCursor, CalendarId, CollectionPage, EpochCursor, EventCursor, MissionEpoch,
@@ -7,7 +8,6 @@ use crate::{
     index,
 };
 use anyhow::{Context, Result};
-use veoveo_platform_store::{TimeEventCursor, TimeTemporalEventState, TimeVersionCursor};
 
 impl TimeCatalog {
     pub async fn calendars_page(
@@ -15,13 +15,9 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         after: Option<&CalendarCursor>,
     ) -> Result<CollectionPage<OperationalCalendar, CalendarCursor>> {
-        let after = after.map(|cursor| TimeVersionCursor {
-            key: cursor.calendar_id().to_string(),
-            version: cursor.version().get() as i64,
-        });
         let rows = self
-            .store
-            .list_time_calendar_versions(scope.identity.tenant_id, after.as_ref(), 101)
+            .persistence
+            .list_time_calendar_versions(scope.identity.tenant_id, after, 101)
             .await?;
         index::page(
             rows,
@@ -42,13 +38,9 @@ impl TimeCatalog {
         scope: &TimeAccessContext,
         after: Option<&EpochCursor>,
     ) -> Result<CollectionPage<MissionEpoch, EpochCursor>> {
-        let after = after.map(|cursor| TimeVersionCursor {
-            key: cursor.epoch_id().to_string(),
-            version: cursor.version().get() as i64,
-        });
         let rows = self
-            .store
-            .list_time_mission_epochs(scope.identity.tenant_id, after.as_ref(), 101)
+            .persistence
+            .list_time_mission_epochs(scope.identity.tenant_id, after, 101)
             .await?;
         index::page(
             rows,
@@ -67,16 +59,11 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
         after: Option<&EventCursor>,
-        state: Option<TimeTemporalEventState>,
+        state: Option<TemporalEventState>,
     ) -> Result<CollectionPage<TemporalEvent, EventCursor>> {
-        let after = after.map(|cursor| TimeEventCursor {
-            tai_seconds: cursor.tai_seconds(),
-            nanosecond: i64::from(cursor.nanosecond()),
-            event_key: cursor.event_id().to_string(),
-        });
         let rows = self
-            .store
-            .list_time_temporal_events(&scope.identity, after.as_ref(), state, 101)
+            .persistence
+            .list_time_temporal_events(&scope.identity, after, state.map(super::event_state), 101)
             .await?;
         index::page(
             rows,
@@ -101,10 +88,9 @@ impl TimeCatalog {
         );
         let mut epochs = Vec::new();
         for keys in keys.chunks(100) {
-            let keys: Vec<_> = keys.iter().map(ToString::to_string).collect();
             let rows = self
-                .store
-                .latest_time_mission_epochs(scope.identity.tenant_id, &keys)
+                .persistence
+                .latest_time_mission_epochs(scope.identity.tenant_id, keys)
                 .await?;
             for row in rows {
                 epochs.push(

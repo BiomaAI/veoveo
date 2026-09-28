@@ -53,6 +53,7 @@ retain the `time://` scheme.
 | [NTPv4 RFC 5905](https://www.rfc-editor.org/rfc/rfc5905.html) and [Network Time Security RFC 8915](https://www.rfc-editor.org/rfc/rfc8915.html) | Approved node clocks may use NTP/NTS. Time MCP consumes a bounded `ntpd-rs` observation; it does not act as an NTP network endpoint. |
 | HTTPS | Registered IANA authority sources are acquired under fixed host, media, digest, size, and elapsed-time policy. |
 | OAuth bearer and signed JWT identity | Read, schedule, event, task, and authority-administration scopes are fixed by gateway policy and verified again in the hosted server. |
+| SurrealDB 3.2.4 and SurrealQL | Private runtime persistence uses Store's qualified Rust SDK version and connection. Bound parameters carry domain values; SQL applies catalog visibility, ordering, paging and activation transactions. Store owns schema migrations. |
 
 ## Domain Contract
 
@@ -503,6 +504,30 @@ proxied operation in the standard audit path.
 
 SurrealDB is the canonical temporal catalog and task store.
 
+The runtime's private `persistence/` modules own temporal queries, driver records,
+mutation drafts and validation. `PlatformStore` supplies the connection and platform
+identity; Store owns the migration catalog. Time uses the same pinned SurrealDB 3.2.4
+SDK as Store, behind its `runtime` feature. Contract-only consumers do not resolve it.
+
+Catalog calls retain source, release, acquisition, calendar, epoch and event ID types
+through the persistence interface. Calendar and epoch versions use `TimeVersion`.
+Collection queries accept `CalendarCursor`, `EpochCursor` or `EventCursor` directly;
+requested epoch batches and completion parents also retain their domain IDs. The
+driver binds their text and numeric values alongside typed database identity records.
+Only fixed table/field choices and fixed activation clauses enter SQL construction.
+Tenant and event-owner predicates, sorting, grouping and limits execute in SurrealDB.
+
+Public Time IDs accept bounded prefixed names because bootstrap authority provenance
+can name image-provided releases. Stored catalog keys require the corresponding
+prefix followed by a UUID whose version is 7, preserving the existing persistence
+profile. Public syntax does not establish that a stored record exists. Bootstrap
+references keep their public spelling and are not converted into database keys.
+The persistence admission check applies before stored reads and writes. It does not
+narrow public provenance deserialization or rewrite retained keys. Store's migrations
+define tables and record fields; the Time contract defines JSON bodies and cursor versions.
+Broader DTO field typing and retained-body consistency checks remain in the foundations
+plan.
+
 | Table | Responsibility |
 |---|---|
 | `time_source` | registered IANA source endpoints and media policy |
@@ -582,7 +607,8 @@ Examples of agent requests include:
 | `src/authority.rs` | TZif context and IANA leap-second interpretation |
 | `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
-| `src/catalog.rs`, `src/catalog/pages.rs` | typed platform-store projection, owner isolation, bounded collections, and requested epoch lookup |
+| `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
+| `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission, SQL visibility and atomic activation |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |
 | `src/registry.rs` | tenant authority caches and activation preflight |
 | `src/acquisition/` | bounded download, validation, compilation, staging, cancellation |
@@ -591,7 +617,6 @@ Examples of agent requests include:
 | `src/prompts.rs` | reusable temporal interaction prompts |
 | `src/server/tasks.rs` | final Task API adapter, leases, recovery, subscriptions |
 | `src/server/` | configuration, internal auth, host checks, HTTP assembly |
-| `platform/store/src/time.rs` | SurrealDB persistence methods and validation |
 | `platform/store/migrations/0019_time_domain.surql` | temporal schema and indexes |
 
 ## Verification
@@ -600,7 +625,10 @@ Unit tests cover leap authority validation, positive-leap projection, RFC/GPS/DT
 equivalence, DST ambiguity, DST-aware schedule expansion, half-open interval algebra,
 timeline violations, clock policy, canonical URIs, acquisition configuration, and
 archive traversal rejection.
-Platform-store tests cover URL, id, migration, and policy invariants. Gateway validation,
+Time runtime tests cover stored URL/ID admission, SQL isolation and pagination, requested
+epoch batches and completion. Isolated authority tests use separate connections to
+qualify retirement and competing pointer updates. Store tests own schema migrations.
+Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.
 

@@ -233,6 +233,18 @@ The gateway audit design declares the coordinated drain,
 snapshot rollback and adapter retirement; installed transition qualification is pending.
 Cleanup removed 14.6 GiB of superseded test executables and kept the newest binary for
 each target, current qualification binaries, libraries, fingerprints and compiler caches.
+Time now owns its queries, mutation drafts and private driver records over Store's
+connection. Domain IDs, calendar/epoch versions, completion parents and collection
+cursors stay typed until driver conversion. Public bootstrap names and the stored
+UUIDv7 key profile keep their existing admission rules. Two isolated database cases
+qualify SQL visibility, paging, completion and competing authority activations;
+27 expanded query variants pass the pinned CLI validator. Time and Store checks pass
+91 native cases and eight compile-fail examples; two existing Store cases are ignored
+and are not counted as acceptance. The 72-package independent consumer passes 19 cases
+without runtime dependencies. Runtime-only and workspace Clippy pass. Cleanup removed
+the obsolete Time catalog test executable and reclaimed 0.73 GiB without touching build
+caches. Broader Time DTO typing, retained-body/key consistency and installed acceptance
+remain work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -697,8 +709,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed behavior; enforce the documented retained-data preflight and coordinated drain for relative frame-ID rejection |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
-| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them. The MCP feature uses checked server setup for startup, discovery and scope membership | Resolve Store query-key typing and broader DTO field types; qualify installed hosted behavior and the zone-template upgrade drain |
-| Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion | Complete broader DTO field types and retained-body/key consistency; qualify installed hosted behavior and the zone-template upgrade drain |
+| Time identity admission | Time owns both profiles: public IDs accept bounded prefixed names, including bootstrap authority references, while stored catalog keys require UUIDv7 suffixes. Persistence validates the stored profile without narrowing public provenance; Store has no Time query or draft API and owns the shared connection and migrations | Qualify installed and retained-data behavior; use the declared profiles when strengthening public metadata construction |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |
