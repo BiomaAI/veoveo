@@ -5,7 +5,8 @@
 The fixture implements the resource portion of MCP `2026-07-28` over stateless
 Streamable HTTP. JSON carries reading values and embedded contract documents.
 The foundational concrete URI profile defines `observatory://` parsing and component
-construction. Its one RFC 6570 template has a single path variable.
+construction. Its RFC 6570 declaration has a single path variable and passes the
+foundational template parser before its MCP descriptor is constructed.
 
 ## Ownership And Qualification
 

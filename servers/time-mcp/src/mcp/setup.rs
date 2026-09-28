@@ -4,9 +4,11 @@ use rmcp::model::{Resource, ResourceTemplate, ServerCapabilities, ServerConfig};
 use veoveo_mcp_contract::{
     ServerSlug,
     docs::ServerDocs,
-    server_contract::{McpResource, McpServerContract, McpServerSetup, McpSetupError},
+    server_contract::{
+        McpResource, McpResourceTemplate, McpServerContract, McpServerSetup, McpSetupError,
+    },
 };
-use veoveo_types::ResourceScheme;
+use veoveo_types::{ResourceScheme, ResourceTemplateUri};
 
 use super::SERVER_DOCS;
 use crate::{
@@ -40,7 +42,7 @@ impl McpServerContract for TimeContract {
     fn resources() -> Result<Vec<McpResource<TimeResource>>, McpSetupError> {
         resources()
     }
-    fn resource_templates() -> Vec<ResourceTemplate> {
+    fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
         resource_templates()
     }
 }
@@ -127,58 +129,79 @@ fn server_info() -> ServerConfig {
     info
 }
 
-fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
-    ResourceTemplate::new(uri, title)
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
+fn template(
+    uri: &str,
+    title: &str,
+    description: &str,
+    mime: &str,
+) -> Result<McpResourceTemplate, McpSetupError> {
+    let template = ResourceTemplateUri::new(uri).map_err(|_| McpSetupError::InvalidTemplate)?;
+    McpResourceTemplate::new(template, |uri| {
+        ResourceTemplate::new(uri, title)
+            .with_title(title)
+            .with_description(description)
+            .with_mime_type(mime)
+    })
 }
 
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        template(
+fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
+    [
+        (
             uris::CALENDARS_TEMPLATE,
             "Calendar page",
             "A page of 100 calendar versions.",
+            "application/json",
         ),
-        template(
+        (
             uris::EPOCHS_TEMPLATE,
             "Epoch page",
             "A page of 100 mission epoch versions.",
+            "application/json",
         ),
-        template(
+        (
             uris::EVENTS_TEMPLATE,
             "Event page",
             "A page of 100 owner-scoped events.",
+            "application/json",
         ),
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        template(
+        (
+            uris::DOC_TEMPLATE,
+            "Server document",
+            "Embedded crate document body (contract C18).",
+            "text/markdown",
+        ),
+        (
             uris::ZONE_TEMPLATE,
             "IANA time zone",
             "Zone interpretation under active TZDB.",
+            "application/json",
         ),
-        template(
+        (
             uris::AUTHORITY_RELEASE_TEMPLATE,
             "Time authority release",
             "Immutable compiler-ready authority provenance.",
+            "application/json",
         ),
-        template(
+        (
             uris::CALENDAR_TEMPLATE,
             "Operational calendar",
             "Versioned operational calendar.",
+            "application/json",
         ),
-        template(
+        (
             uris::EPOCH_TEMPLATE,
             "Mission epoch",
             "Versioned mission epoch.",
+            "application/json",
         ),
-        template(
+        (
             uris::EVENT_TEMPLATE,
             "Temporal event",
             "Owner-scoped temporal event.",
+            "application/json",
         ),
     ]
+    .into_iter()
+    .map(|(uri, title, description, mime)| template(uri, title, description, mime))
+    .collect()
 }

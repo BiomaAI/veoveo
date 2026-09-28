@@ -3,8 +3,8 @@ use std::{collections::BTreeSet, fmt, marker::PhantomData};
 
 use rmcp::model::{Resource, ResourceTemplate, ServerConfig};
 use veoveo_types::{
-    ResourceAddress, ResourceScheme, ResourceUri, ResourceUriBuilder, ScopeDefinition, ScopeName,
-    UriAuthority, UriSegment,
+    ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUriBuilder, ScopeDefinition,
+    ScopeName, UriAuthority, UriSegment,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ pub trait McpServerContract {
     fn resources() -> Result<Vec<McpResource<Self::Resource>>, McpSetupError>;
     /// Fixed protocol declarations. Owners qualify template expansion against
     /// their typed parser; the generic policy matcher is not an RFC 6570 engine.
-    fn resource_templates() -> Vec<ResourceTemplate>;
+    fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError>;
 }
 
 /// One protocol descriptor bound to its domain address. The builder can reuse
@@ -75,13 +75,52 @@ impl<A: ResourceAddress + Eq> McpResource<A> {
     }
 }
 
+/// A descriptor whose template has passed RFC 6570 admission.
+/// ```compile_fail
+/// use veoveo_mcp_contract::server_contract::McpResourceTemplate;
+/// use veoveo_types::ResourceUri;
+/// use rmcp::model::ResourceTemplate;
+/// McpResourceTemplate::new(ResourceUri::new("example://items/{id}").unwrap(),
+///     |uri| ResourceTemplate::new(uri, "Items"));
+/// ```
+#[derive(Debug, Clone)]
+pub struct McpResourceTemplate {
+    template: ResourceTemplateUri,
+    descriptor: ResourceTemplate,
+}
+
+impl McpResourceTemplate {
+    pub fn new(
+        template: ResourceTemplateUri,
+        describe: impl FnOnce(&str) -> ResourceTemplate,
+    ) -> Result<Self, McpSetupError> {
+        let descriptor = describe(template.as_str());
+        if descriptor.uri_template != template.as_str() {
+            return Err(McpSetupError::DescriptorTemplateMismatch);
+        }
+        if descriptor.name.trim().is_empty() {
+            return Err(McpSetupError::InvalidTemplate);
+        }
+        Ok(Self {
+            template,
+            descriptor,
+        })
+    }
+    pub fn template(&self) -> &ResourceTemplateUri {
+        &self.template
+    }
+    pub fn descriptor(&self) -> &ResourceTemplate {
+        &self.descriptor
+    }
+}
+
 /// A validated setup consumed by hosted handlers for initialization and discovery.
 /// Construction requires typed resources and verifies the well-known documents.
 /// Resource reads and tool handlers still enforce the caller's current policy.
 pub struct McpServerSetup<C: McpServerContract> {
     info: ServerConfig,
     resources: Vec<McpResource<C::Resource>>,
-    templates: Vec<ResourceTemplate>,
+    templates: Vec<McpResourceTemplate>,
     scopes: BTreeSet<ScopeName>,
     documents: &'static ServerDocs,
     contract: PhantomData<fn() -> C>,
@@ -145,18 +184,11 @@ impl<C: McpServerContract> McpServerSetup<C> {
                 return Err(McpSetupError::MissingWellKnownResource);
             }
         }
-        let mut templates = C::resource_templates();
-        templates.sort_by(|a, b| a.uri_template.cmp(&b.uri_template));
+        let mut templates = C::resource_templates()?;
+        templates.sort_by(|a, b| a.template.cmp(&b.template));
         let mut declared_templates = BTreeSet::new();
         for template in &templates {
-            // The current reference type admits templates lexically. Do not use
-            // the gateway's simple policy selector parser for RFC 6570 operators.
-            ResourceUri::new(template.uri_template.clone())
-                .map_err(|_| McpSetupError::InvalidTemplate)?;
-            if template.name.trim().is_empty() {
-                return Err(McpSetupError::InvalidTemplate);
-            }
-            if !declared_templates.insert(template.uri_template.as_str()) {
+            if !declared_templates.insert(template.template.as_str()) {
                 return Err(McpSetupError::DuplicateTemplate);
             }
         }
@@ -176,7 +208,7 @@ impl<C: McpServerContract> McpServerSetup<C> {
     pub fn resources(&self) -> &[McpResource<C::Resource>] {
         &self.resources
     }
-    pub fn resource_templates(&self) -> &[ResourceTemplate] {
+    pub fn resource_templates(&self) -> &[McpResourceTemplate] {
         &self.templates
     }
     pub fn documents(&self) -> &'static ServerDocs {
@@ -235,6 +267,7 @@ pub enum McpSetupError {
     InvalidDocument,
     MissingWellKnownResource,
     InvalidTemplate,
+    DescriptorTemplateMismatch,
     DuplicateTemplate,
 }
 
@@ -263,7 +296,10 @@ impl fmt::Display for McpSetupError {
                 "resource discovery must include docs, contract, and every embedded document"
             }
             Self::InvalidTemplate => {
-                "resource template requires an absolute reference and nonblank name"
+                "resource template requires valid absolute RFC 6570 syntax and a nonblank name"
+            }
+            Self::DescriptorTemplateMismatch => {
+                "resource metadata builder changed the typed template"
             }
             Self::DuplicateTemplate => "resource discovery contains a duplicate template",
         })

@@ -4,9 +4,11 @@ use rmcp::model::{Implementation, Resource, ResourceTemplate, ServerCapabilities
 use veoveo_mcp_contract::{
     ServerSlug,
     docs::ServerDocs,
-    server_contract::{McpResource, McpServerContract, McpServerSetup, McpSetupError},
+    server_contract::{
+        McpResource, McpResourceTemplate, McpServerContract, McpServerSetup, McpSetupError,
+    },
 };
-use veoveo_types::{ResourceAddress, ResourceScheme, ResourceUri, ScopeName};
+use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri, ScopeName};
 
 veoveo_types::scope_enum! {
     enum Permission { Read => "independent:read", Write => "independent:write" }
@@ -137,16 +139,20 @@ impl<const CASE: u8> McpServerContract for Fixture<CASE> {
             })
             .collect()
     }
-    fn resource_templates() -> Vec<ResourceTemplate> {
-        match CASE {
-            BAD_TEMPLATE => vec![ResourceTemplate::new("relative/{id}", "Invalid")],
-            DUPLICATE_TEMPLATE => vec![ResourceTemplate::new("independent://item/{id}", "One"); 2],
-            // The owning codec, not a gateway policy selector, qualifies RFC 6570 expansion.
-            _ => vec![ResourceTemplate::new(
-                "independent://item/{+id}{?cursor}",
-                "Item",
-            )],
-        }
+    fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
+        let text = if CASE == BAD_TEMPLATE {
+            "relative/{id}"
+        } else {
+            "independent://item/{+id}{?cursor}"
+        };
+        let template =
+            ResourceTemplateUri::new(text).map_err(|_| McpSetupError::InvalidTemplate)?;
+        let descriptor =
+            McpResourceTemplate::new(template, |uri| ResourceTemplate::new(uri, "Item"))?;
+        Ok(vec![
+            descriptor;
+            if CASE == DUPLICATE_TEMPLATE { 2 } else { 1 }
+        ])
     }
 }
 
@@ -200,7 +206,7 @@ fn setup_preserves_typed_addresses_metadata_and_rfc6570_declarations() {
         );
     }
     assert_eq!(
-        setup.resource_templates()[0].uri_template,
+        setup.resource_templates()[0].template().as_str(),
         "independent://item/{+id}{?cursor}"
     );
     assert_eq!(
@@ -246,4 +252,21 @@ fn document_and_discovery_coverage_is_checked_before_serving() {
 fn invalid_or_duplicate_template_declarations_are_rejected() {
     rejects::<BAD_TEMPLATE>(McpSetupError::InvalidTemplate);
     rejects::<DUPLICATE_TEMPLATE>(McpSetupError::DuplicateTemplate);
+}
+
+#[test]
+fn template_metadata_cannot_override_the_validated_reference() {
+    let template = ResourceTemplateUri::new("independent://item/{id}").unwrap();
+    assert_eq!(
+        McpResourceTemplate::new(template.clone(), |_| ResourceTemplate::new(
+            "foreign://{id}",
+            "Other"
+        ))
+        .unwrap_err(),
+        McpSetupError::DescriptorTemplateMismatch
+    );
+    assert_eq!(
+        McpResourceTemplate::new(template, |uri| ResourceTemplate::new(uri, " ")).unwrap_err(),
+        McpSetupError::InvalidTemplate
+    );
 }

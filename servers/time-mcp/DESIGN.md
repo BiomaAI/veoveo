@@ -114,6 +114,12 @@ documents. The setup preserves App metadata and Time's reserved-expansion and qu
 templates; the owning resource tests qualify their routes. Installation-defined
 administrative scopes continue through their configured `ScopeName` policy.
 
+Template descriptors use `McpResourceTemplate` and the foundational RFC 6570 type.
+Native contract tests expand every Time declaration through iri-string and compare
+the result with `TimeResource` construction. Reserved zone names preserve slashes
+and plus signs; collection templates cover both an absent cursor and each typed
+cursor envelope. Concrete resource reads continue through the same owning parser.
+
 `TimeResource` owns every resource route and implements `ResourceAddress`. Its variants
 carry the corresponding ID, version, zone key, or collection cursor. The parser uses
 the shared URI components and the builder emits one spelling for each address. Reads

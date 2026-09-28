@@ -22,6 +22,7 @@ complies with in its crate documents and in its contract resource.
 | MCP multi-round requests, SEP-2322 | `input_required`, protected opaque `requestState`, and retry `inputResponses`; server-initiated elicitation is excluded |
 | MCP subscriptions | request-scoped `subscriptions/listen` with an authorized accepted filter; resource subscribe and unsubscribe are excluded |
 | JSON Schema 2020-12 | ordinary SDK and Pydantic generation with bounded references and composition; gateway configuration, deployment and provenance schemas remain typed |
+| RFC 6570 URI Templates | Checked MCP setup uses the foundational ASCII-template profile and iri-string 0.7.14 parser; domain tests qualify expansion against typed resource addresses. Gateway policy selectors retain their documented restricted matching language. |
 | W3C Trace Context and Baggage | `traceparent`, `tracestate`, and `baggage` in MCP request metadata with the authenticated HTTP boundary as the trust gate |
 | OAuth 2.0, RFC 8414, RFC 9207, RFC 8707, RFC 9728, and OpenID Connect Discovery 1.0 | private-installation profile with installation or governed managed-client registrations, exact issuer and resource binding, step-up scopes, and `private_key_jwt`; OAuth Dynamic Client Registration is excluded |
 | Veoveo resumable artifact HTTP upload | repository-owned JSON admission/completion and raw part PUT contract, UUIDv7 idempotency, SHA-256 integrity, and bounded browser-safe 64-bit counters; independent of MCP methods |
@@ -143,9 +144,11 @@ resource capability, and duplicate declarations before handlers serve discovery.
 provides sorted resources and templates and compares typed permissions against an
 authenticated grant set. An empty scope vocabulary is valid. Undeclared permissions
 fail the membership check, and unrelated grants do not invalidate the caller's set.
-Template checks establish lexical validity and uniqueness; owners qualify RFC 6570
-expansion against their resource parser. The gateway's simple policy selector is not
-used as a template parser. This setup establishes API and declaration consistency;
+`McpResourceTemplate` binds metadata to the foundational `ResourceTemplateUri`, which
+uses the RFC 6570 parser. Its builder rejects a descriptor that changes the admitted
+template. Setup checks template uniqueness, and owners qualify expansion against
+their resource parser. The gateway's simple policy selector is not used as a template
+parser. This setup establishes API and declaration consistency;
 hosted conformance and domain tests establish the relevant behavior. Authentication,
 resource visibility, and operation policy stay with their existing owners.
 Server contracts may use the foundation's `scope_enum!` declaration helper to generate

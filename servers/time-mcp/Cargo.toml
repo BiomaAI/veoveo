@@ -104,6 +104,7 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+iri-string.workspace = true
 serde_json.workspace = true
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

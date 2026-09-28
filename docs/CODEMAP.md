@@ -370,6 +370,9 @@ to database record keys. TaskRuntime owns lifecycle and its external v7 admissio
 `src/resource_components/authority.rs` validates unescaped authorities, and
 `src/resource_components/builder.rs` encodes typed scheme, authority, path, and query inputs
 at the serialization step.
+`src/resource_template.rs` owns the separate ASCII RFC 6570 template profile and
+checked expansion through iri-string; gateway policy selectors keep their existing
+restricted matching semantics.
 
 ### `mcp/apps-extension`
 
@@ -417,7 +420,7 @@ even when that server is first-party.
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
-| `server_contract.rs` | open MCP associations for server-owned scopes and resources; checked descriptor, document and discovery setup consumed by hosted handlers |
+| `server_contract.rs` | open MCP associations for server-owned scopes and resources; typed concrete and RFC 6570 template descriptors, document checks and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | gateway, OAuth, and configuration newtypes, including principal display metadata, which authorization never reads; platform identity comes from `platform/types` |

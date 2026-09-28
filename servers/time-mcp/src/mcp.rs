@@ -413,7 +413,14 @@ impl ServerHandler for TimeMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(SERVER_SETUP.resource_templates().to_vec(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -766,7 +773,7 @@ mod tests {
             assert!(
                 templates
                     .iter()
-                    .any(|resource| resource.uri_template == template)
+                    .any(|resource| resource.template().as_str() == template)
             );
         }
     }

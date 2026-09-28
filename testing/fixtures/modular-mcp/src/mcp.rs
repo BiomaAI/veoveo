@@ -14,9 +14,11 @@ use std::{collections::BTreeSet, sync::LazyLock};
 use veoveo_mcp_contract::{
     ServerSlug,
     docs::ServerDocs,
-    server_contract::{McpResource, McpServerContract, McpServerSetup, McpSetupError},
+    server_contract::{
+        McpResource, McpResourceTemplate, McpServerContract, McpServerSetup, McpSetupError,
+    },
 };
-use veoveo_types::{ResourceAddress, ResourceScheme, ResourceUri, ScopeName};
+use veoveo_types::{ResourceAddress, ResourceScheme, ResourceTemplateUri, ResourceUri, ScopeName};
 
 pub struct ObservatoryContract;
 pub static DOCUMENTS: LazyLock<ServerDocs> =
@@ -75,11 +77,12 @@ impl McpServerContract for ObservatoryContract {
         })
         .collect()
     }
-    fn resource_templates() -> Vec<ResourceTemplate> {
-        vec![
-            ResourceTemplate::new("observatory://reading/{reading_id}", "Reading")
-                .with_mime_type("application/json"),
-        ]
+    fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
+        let template = ResourceTemplateUri::new("observatory://reading/{reading_id}")
+            .map_err(|_| McpSetupError::InvalidTemplate)?;
+        Ok(vec![McpResourceTemplate::new(template, |uri| {
+            ResourceTemplate::new(uri, "Reading").with_mime_type("application/json")
+        })?])
     }
 }
 
@@ -135,7 +138,11 @@ impl ServerHandler for ObservatoryMcp {
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
         authorize(&context)?;
         Ok(ListResourceTemplatesResult {
-            resource_templates: SETUP.resource_templates().to_vec(),
+            resource_templates: SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
             next_cursor: None,
             result_type: Some(rmcp::model::ResultType::COMPLETE),
             ttl_ms: Some(veoveo_mcp_contract::PRIVATE_CATALOG_TTL_MS),

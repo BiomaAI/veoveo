@@ -10,6 +10,7 @@
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
+| [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
 | Rust extension interfaces | Public `ScopeDefinition` and `ResourceAddress` traits permit implementations in independent libraries |
 | SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
@@ -19,12 +20,13 @@
 `veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
 `Sha256Digest`, and `Sha256DigestError`. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
+`ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
 Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
 `DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`
 and `InvocationProvenance` describe direct, delegated, or automated attribution.
 `TaskId` identifies a native platform Task independently of its database record or MCP handle.
-It depends on Serde, Schemars, URL, percent encoding, and UUID. It contains no protocol transport, asynchronous
+It depends on Serde, Schemars, URL, percent encoding, iri-string, and UUID. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
 
 Identity syntax and attribution establish no authority. Authentication, policy
@@ -144,6 +146,42 @@ shared with identifier validation in higher layers.
 JSON Schema pattern. Its `from_hex` constructor accepts the unprefixed lowercase
 digest produced by hashing libraries; serialization includes the `sha256:` prefix.
 
+## Resource Templates
+
+`ResourceTemplateUri` preserves a validated template's spelling and serializes as a
+JSON string. Its constructor and deserializer apply the same RFC 6570 parser. A
+literal-only template is valid, and repeated variable occurrences preserve their
+names and order. URI templates can describe fragments or addresses whose authority
+depends on variables; validating their syntax does not prove that every expansion
+will satisfy a server's concrete resource profile.
+
+`expand` accepts the upstream library's `Context` interface and produces a
+`ResourceUri` only after `ResourceUriParts` accepts the result. Owners keep required
+parameters typed in their constructors and validate the resulting domain route.
+RFC 6570 permits undefined variables; expansion alone cannot establish required IDs,
+parent relationships, query policy, or authorization. The library handles reserved,
+path, query, list, associative, prefix and explode expansion. The concrete profile
+can reject valid RFC expansions, including fragments and repeated query keys.
+Errors retain no template text, binding values, or upstream error payload.
+
+The parser accepts ASCII template literals; percent-encoded literals and Unicode
+binding values are supported. Admission additionally rejects zero, leading-zero and
+five-digit prefix modifiers and empty dotted variable-name components. The pinned
+library accepts those spellings, and some five-digit values overflow its expansion
+parser's internal integer conversion. The guards check modifiers and names after the
+library validates expression structure. Remove each guard when a qualified upstream
+release rejects its retained negative cases. These are consumer-side admission checks;
+the dependency source is unmodified.
+
+The exact iri-string pin is the stable `0.7.14` release verified against the
+[upstream registry](https://crates.io/crates/iri-string) on 2026-09-27. URL does not
+parse RFC 6570 templates, so this dependency supplies that missing parser and
+expansion engine with only its standard-library feature. Concrete component handling
+continues to use the qualified URL profile. The gateway's existing
+`ResourceUriTemplate` policy selector accepts a narrower pattern language and has
+its own matching semantics. Neither that selector nor an opaque historical
+`ResourceUri` is implicitly converted to `ResourceTemplateUri`.
+
 ## Qualification
 
 Native tests check string serialization and schemas, invalid input rejection, scope
@@ -153,6 +191,10 @@ generic names and references where domain implementations are required. Componen
 tests cover every printable ASCII character, Unicode, encoded separators, duplicate
 query names, normalization, templates, and malformed input. Time's contract consumes
 the builder and implements `ResourceAddress` for its authority-release URI.
+Template tests cover RFC operators and modifiers, malformed expressions, string
+schemas, variable spelling, and concrete-profile rejection after expansion. Time
+compares every declared template with its typed resource builders, including reserved
+zone names and all collection cursors.
 Identity tests compare all eleven schemas with a fixture captured before extraction,
 preserve the three lexical profiles and tagged JSON forms, and reject invalid nested
 IDs and missing attribution. Compile-fail examples reject crossed identity types,

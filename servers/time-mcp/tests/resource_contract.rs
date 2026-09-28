@@ -9,6 +9,110 @@ fn version() -> TimeVersion {
 }
 
 #[test]
+fn rfc6570_declarations_expand_to_the_typed_domain_builders() {
+    use iri_string::template::simple_context::SimpleContext;
+    use veoveo_time_mcp::uris;
+    use veoveo_types::ResourceTemplateUri;
+
+    let calendar = CalendarId::new("calendar-one").unwrap();
+    let epoch = MissionEpochId::new("epoch-one").unwrap();
+    let event = TemporalEventId::new("event-one").unwrap();
+    let release = AuthorityReleaseId::new("time-release-iana").unwrap();
+    let calendar_cursor = CalendarCursor::new(&calendar, version());
+    let epoch_cursor = EpochCursor::new(&epoch, version());
+    let event_cursor = EventCursor::new(&event, -42, 999_999_999).unwrap();
+    let cases = [
+        (
+            uris::DOC_TEMPLATE,
+            TimeResource::Document(TimeDocument::Agents),
+            vec![("doc_id", "agents".into())],
+        ),
+        (
+            uris::ZONE_TEMPLATE,
+            TimeResource::Zone(TimeZoneId::new("America/New_York").unwrap()),
+            vec![("zone_id", "America/New_York".into())],
+        ),
+        (
+            uris::ZONE_TEMPLATE,
+            TimeResource::Zone(TimeZoneId::new("Etc/GMT+5").unwrap()),
+            vec![("zone_id", "Etc/GMT+5".into())],
+        ),
+        (
+            uris::AUTHORITY_RELEASE_TEMPLATE,
+            TimeResource::AuthorityRelease(release.clone()),
+            vec![("release_id", release.to_string())],
+        ),
+        (
+            uris::CALENDAR_TEMPLATE,
+            TimeResource::Calendar {
+                id: calendar.clone(),
+                version: version(),
+            },
+            vec![
+                ("calendar_id", calendar.to_string()),
+                ("version", version().get().to_string()),
+            ],
+        ),
+        (
+            uris::EPOCH_TEMPLATE,
+            TimeResource::Epoch(epoch.clone()),
+            vec![("epoch_id", epoch.to_string())],
+        ),
+        (
+            uris::EVENT_TEMPLATE,
+            TimeResource::Event(event.clone()),
+            vec![("event_id", event.to_string())],
+        ),
+        (
+            uris::CALENDARS_TEMPLATE,
+            TimeResource::Calendars { cursor: None },
+            vec![],
+        ),
+        (
+            uris::EPOCHS_TEMPLATE,
+            TimeResource::Epochs { cursor: None },
+            vec![],
+        ),
+        (
+            uris::EVENTS_TEMPLATE,
+            TimeResource::Events { cursor: None },
+            vec![],
+        ),
+        (
+            uris::CALENDARS_TEMPLATE,
+            TimeResource::Calendars {
+                cursor: Some(calendar_cursor.clone()),
+            },
+            vec![("cursor", calendar_cursor.as_str().to_owned())],
+        ),
+        (
+            uris::EPOCHS_TEMPLATE,
+            TimeResource::Epochs {
+                cursor: Some(epoch_cursor.clone()),
+            },
+            vec![("cursor", epoch_cursor.as_str().to_owned())],
+        ),
+        (
+            uris::EVENTS_TEMPLATE,
+            TimeResource::Events {
+                cursor: Some(event_cursor.clone()),
+            },
+            vec![("cursor", event_cursor.as_str().to_owned())],
+        ),
+    ];
+    for (wire, address, bindings) in cases {
+        let template = ResourceTemplateUri::new(wire).unwrap();
+        let mut context = SimpleContext::new();
+        for (name, value) in bindings {
+            context.insert(name, value);
+        }
+        let uri = template.expand(&context).unwrap();
+        assert_eq!(uri, address.to_uri().unwrap());
+        assert_eq!(TimeResource::parse(uri.as_str()).unwrap(), address);
+    }
+}
+
+#[test]
 fn all_resource_families_preserve_the_published_wire_shape() {
     let examples = [
         (TimeResource::Docs, "time://docs"),

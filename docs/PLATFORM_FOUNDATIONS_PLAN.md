@@ -210,6 +210,18 @@ runtime, database, provider or GPU dependencies. Strict workspace Clippy passes.
 Cleanup removed 6.2 GiB of superseded test executables while preserving compiler
 libraries, incremental data and the contract-only test caches. Wider server adoption
 and installed qualification remain work.
+Checked setup now requires a distinct `ResourceTemplateUri` and a typed template
+descriptor builder. The foundation pins iri-string 0.7.14 for its ASCII RFC 6570
+profile and expansion; admission guards reject invalid prefix lengths and dotted
+variable names that the upstream parser accepts. Time's declarations expand to its
+existing typed addresses, including reserved zone paths and collection cursors.
+Native checks pass 259 cases and 25 Rustdoc examples, including 24 compile-fail cases.
+The separate 72-package consumer passes 19 cases without MCP, database, provider,
+GPU or asynchronous runtime dependencies.
+Strict workspace Clippy passes. Cleanup removed 21.4 GiB of superseded test
+executables while preserving libraries, fingerprints, incremental data and build caches.
+Gateway completion targets, policy matching and persisted audit decoding still need
+the distinct template type; their existing representation is unchanged by this step.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -247,6 +259,7 @@ state after this file is gone.
 | Standard or protocol | Role in this plan |
 |---|---|
 | MCP `2026-07-28` extensions and `_meta` key rules | Identifier forms and the `ai.veoveo/knowledge-source` extension |
+| RFC 6570, iri-string 0.7.14 | Foundational ASCII resource templates, typed MCP descriptors and expansion qualified against domain builders |
 | RFC 9110, RFC 9111, RFC 8246 | Revision, freshness, and immutability semantics for knowledge reads |
 | W3C DCAT 3 | Catalog model in `knowledge-mcp` |
 | SurrealDB 3.3 | Audit records, change feeds, LIVE queries, table views, record references, catalog, `FULLTEXT` BM25, and `HNSW` indexes |
@@ -667,6 +680,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Time consumes checked setup; the independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup across the remaining servers and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
+| Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Migrate completion and audit targets separately from concrete reads; preserve the gateway policy selector's narrower matching semantics until its qualified transition |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |

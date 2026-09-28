@@ -28,6 +28,7 @@ mod names;
 mod provenance;
 mod resource;
 mod resource_components;
+mod resource_template;
 mod scopes;
 mod task;
 
@@ -38,6 +39,7 @@ pub use resource::{ResourceAddress, ResourceUri};
 pub use resource_components::{
     ResourceUriBuilder, ResourceUriError, ResourceUriParts, UriAuthority, UriSegment,
 };
+pub use resource_template::{ResourceTemplateError, ResourceTemplateUri};
 
 pub use identity::{
     AccessSubject, DataLabelId, DelegationId, GroupId, PolicyVersion, PrincipalId, RoleId,

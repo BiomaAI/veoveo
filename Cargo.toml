@@ -95,6 +95,7 @@ geographiclib-rs = "0.2.7"
 geojson = { version = "1.0.0", features = ["geo-types"] }
 getrandom = "0.4.3"
 http = "1.5.0"
+iri-string = { version = "=0.7.14", default-features = false, features = ["std"] }
 hex = "=0.4.3"
 hmac = "=0.13.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png"] }
