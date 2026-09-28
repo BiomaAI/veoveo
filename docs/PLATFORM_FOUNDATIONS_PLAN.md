@@ -336,6 +336,19 @@ CLI validator. Native MCP smoke checks result equality and caller isolation;
 runtime-only and strict workspace Clippy pass. Installed result-profile transition,
 retained-data preflight and rollback remain pending. Fixtures cleaned up their owned
 containers and files; the cluster stays stopped and the host has 206 GiB free.
+TaskRuntime now applies owner policy in SQL for exact public Task reads and
+subscription baselines/delivery. Indexed and envelope identities must agree before
+decoding. Public notifications select the current Task from payload-free outbox hints;
+they cannot replay an older result under historical authority. Native checks cover
+revocation, malformed denied Tasks and an entire denied replay page. Trusted internal
+event replay preserves every transition. Shared owner bindings also serve usage and
+collection reads. Eleven lifecycle/recovery tests now run by default in disposable
+fixtures with 60-second deadlines and separate clients for replica cases. Thirty-eight
+TaskRuntime cases and one compile-fail example pass, including the explicitly run
+query-plan case. Five expanded SQL queries, strict workspace Clippy and native Media
+MCP smoke pass. The installation must replace hosted replicas together to establish
+current-owner delivery; retained-owner preflight and installed qualification are pending.
+The Media producer/consumer handoff remains the next C02 change.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -827,6 +840,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; both generation schemas are preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses and output attribution. SQL reads successful linked Tasks under current owner policy; the private v0/v1 decoder preserves stored data. Native contract, database and MCP checks pass, establishing a reader rollback checkpoint | Switch terminal publication and Task projections to the single canonical result handoff; qualify the coordinated producer/client transition and installed rollback before retiring v0 support |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
+| Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify coordinated hosted replacement and retained-owner preflight; audit domain-specific Task adapters for their additional policy |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
 | Reason, Recording, Stream, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |

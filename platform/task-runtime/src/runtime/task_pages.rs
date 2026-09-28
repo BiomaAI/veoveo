@@ -1,10 +1,10 @@
-use super::{TaskRuntime, owner_record, tenant_record};
+use super::{
+    TaskRuntime,
+    owner_reads::{OwnerScope, VISIBLE_TASK},
+};
 use crate::types::{TaskError, TaskOwner, TaskPage, TaskPageCursor, record_to_snapshot};
+use veoveo_platform_store::TaskRecord;
 use veoveo_platform_store::task_record_id;
-use veoveo_platform_store::{RecordId, TaskRecord};
-
-const PAGE_QUERY: &str = "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type IN $task_types ORDER BY created_at ASC, id ASC LIMIT $limit;";
-const PAGE_AFTER_QUERY: &str = "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type IN $task_types AND (created_at > $after_created_at OR (created_at = $after_created_at AND id > $after_task)) ORDER BY created_at ASC, id ASC LIMIT $limit;";
 
 impl TaskRuntime {
     /// Apply the same authority as `TaskOwner::allows` before the database limit.
@@ -23,20 +23,14 @@ impl TaskRuntime {
         {
             return Err(TaskError::InvalidPageQuery);
         }
-        let mut query = self
-            .store
-            .client()
-            .query(if after.is_some() {
-                PAGE_AFTER_QUERY
-            } else {
-                PAGE_QUERY
-            })
-            .bind(("server", RecordId::new("mcp_server", self.server.clone())))
-            .bind(("tenant", tenant_record(owner)?))
-            .bind(("owner", owner_record(owner)?))
-            .bind(("profile", RecordId::new("profile", owner.profile.clone())))
-            .bind(("tenant_key", owner.tenant_key.clone()))
-            .bind(("data_labels", owner.data_labels.clone()))
+        let position = if after.is_some() {
+            "AND (created_at > $after_created_at OR (created_at = $after_created_at AND id > $after_task))"
+        } else {
+            ""
+        };
+        let mut query = OwnerScope::new(self, owner)?.bind(self.store.client().query(format!(
+            "SELECT * FROM task WHERE {VISIBLE_TASK} AND task_type IN $task_types {position} ORDER BY created_at ASC, id ASC LIMIT $limit;"
+        )))
             .bind((
                 "task_types",
                 task_types

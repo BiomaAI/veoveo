@@ -24,6 +24,8 @@ the owning domain.
 `provider_transaction` composes a domain journal write with the exact shared
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
+`runtime/owner_reads` owns SQL Task-owner selection and bindings;
+`runtime/owner_subscriptions` delivers the selected current state to public listeners.
 
 Consumers import native `TaskId` directly from `veoveo-types`. Store's `task_record_id`
 function performs the database conversion at bindings. TaskRuntime owns Task lifecycle
@@ -114,8 +116,9 @@ It proves preserved recovery state, observation-claim races, lease-fenced cancel
 unchanged existing profiles and additive schema expansion. The shared fixture is
 owned by `testing/fixtures`; its root credentials remain in process/container
 configuration, and runtime clients use a scoped database editor. No environment flag
-silently skips these tests. The older `surreal_integration` suite retains its explicit
-environment gate and must be reported separately when it is not enabled.
+silently skips these tests. `tests/surreal_integration.rs` uses the same disposable
+fixture for lifecycle, recovery, cancellation, idempotency and internal event replay.
+Each case has a 60-second deadline and owns its cleanup.
 
 A current `provider_wait` observer may update a Waiting message without changing its
 status. This preserves visible recovery progress and its lease instead of inventing
@@ -127,6 +130,29 @@ cannot release a renewed or successor lease. This avoids a full lease-expiry del
 between bounded observations handled by different replicas.
 
 ## Filtered Task Observation
+
+`get_for_owner` takes a native `TaskId` and applies tenant, server, principal,
+profile, optional-tenant spelling and label clearance in SQL. Indexed owner and
+profile fields must agree with the stored owner envelope. Only a selected record
+is decoded. Missing and denied Tasks have the same public response. The shared hosted
+helpers use this query for Task get, update and cancellation admission. Trusted internal `get`
+also applies its server predicate in SQL, without adding caller authorization.
+
+`subscribe_for_owner` admits up to 256 typed Task IDs in one SQL baseline and
+reapplies the same current-owner predicates during delivery. The shared hosted
+helper uses this stream. Outbox pages select only event sequence and Task identity;
+the database then selects current visible Tasks. Historical event payloads never
+supply public results or authorization. Pages advance past denied events without
+decoding their payloads. Intermediate states may coalesce because Tasks subscriptions
+observe current state; callers that require every durable transition use the trusted
+internal event APIs. This API does not replace `tasks/get` as the correctness path.
+
+The change preserves Task storage and MCP wire models. Replace hosted replicas
+together to establish the SQL selection guarantee across an installation. Preflight
+retained indexed/envelope owner and profile agreement; rejected records stay intact
+for operator review. Rolling back to a version that checks historical event authority
+does not preserve the current-owner notification guarantee. Installed rollout and
+cross-replica qualification are tracked in the foundations plan.
 
 `runtime/usage` requires an explicit `TaskUsageAccess` policy for usage collections and exact
 Task usage reads. Both the usage row and linked Task must match this runtime's server
@@ -167,11 +193,9 @@ Domains with additional Work Context restrictions own their narrower queries.
 including excluded malformed envelopes, timestamp ties and cursor reuse by another
 caller.
 
-Native Task subscriptions admit at most 256 requested identities and authorize
-each before reading a baseline. The baseline selects those exact record IDs.
-Outbox replay filters those same aggregate identities and the hosted server, in
-pages of 256. Unrelated Tasks and their results are never materialized by this
-path. One projected LIVE source per runtime wakes all listeners; it carries only
+Native Task subscription baselines select only their requested record IDs.
+Outbox replay filters those aggregate identities and the hosted server in
+pages of 256. One projected LIVE source per runtime wakes all listeners; it carries only
 a sequence. Sources close after the last listener leaves. A new source wakes every
 reader after establishment, covering the baseline and reconnection races. Each
 listener retains its own durable cursor. Fifteen-second reconciliation covers a
@@ -181,3 +205,5 @@ retain the complete durable stream APIs.
 `tests/subscriptions.rs` owns a disposable real Store and separate connections. It
 qualifies concurrent listeners, cross-replica completion, reconnection, excluded
 unauthorized IDs and an unrelated malformed envelope that must not be decoded.
+It also qualifies exact owner reads, indexed/envelope disagreement, optional tenants,
+revocation after admission and a full replay page of denied malformed events.

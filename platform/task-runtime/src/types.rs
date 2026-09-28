@@ -576,6 +576,10 @@ pub(crate) fn record_key(record: &RecordId) -> Result<String, TaskError> {
 pub(crate) fn parse_task_id(value: &str) -> Result<TaskId, TaskError> {
     let task_id =
         TaskId::from_str(value).map_err(|error| TaskError::InvalidRecord(error.to_string()))?;
+    validate_task_id(task_id)
+}
+
+pub(crate) fn validate_task_id(task_id: TaskId) -> Result<TaskId, TaskError> {
     task_id_from_uuid(task_id.as_uuid())
 }
 

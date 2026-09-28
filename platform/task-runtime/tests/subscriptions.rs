@@ -10,10 +10,11 @@ use veoveo_mcp_contract::{
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
-    subscribe_durable_tasks,
+    authorized_snapshot, subscribe_durable_tasks,
 };
 use veoveo_types::{
-    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
+    AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
+    WorkContextId,
 };
 fn authority() -> InvocationAuthority {
     let principal = PrincipalId::new("integration-principal").unwrap();
@@ -295,4 +296,195 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
     })
     .await
     .expect("task pagination qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let reader = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
+        let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
+        let mut ids = Vec::new();
+        for mutation in [
+            "request.owner.data_labels = ['restricted']",
+            "request.owner.principal_key = 'inconsistent'",
+            "request.owner.profile = 'inconsistent'",
+            "request.owner.tenant_key = 'inconsistent'",
+            "owner = principal:other",
+            "profile = profile:other",
+            "tenant = tenant:other",
+            "server = mcp_server:other",
+        ] {
+            let task = writer
+                .create(draft("selected", RecoveryClass::Resume))
+                .await
+                .unwrap()
+                .snapshot;
+            db.b.client()
+                .query(format!(
+                    "UPDATE ONLY $task SET {mutation}, request.input = NONE RETURN NONE;"
+                ))
+                .bind(("task", task_record_id(task.task_id)))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                reader
+                    .get_for_owner(&owner(), task.task_id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            let error = authorized_snapshot(&reader, &owner(), &task.task_id.to_string())
+                .await
+                .unwrap_err();
+            assert_eq!(error.message.as_ref(), "unknown task id");
+            if mutation == "server = mcp_server:other" {
+                assert!(
+                    reader
+                        .get(&task.task_id.to_string())
+                        .await
+                        .unwrap()
+                        .is_none()
+                );
+            }
+            ids.push(task.task_id.to_string());
+        }
+        let task = writer
+            .create(draft("selected", RecoveryClass::Resume))
+            .await
+            .unwrap()
+            .snapshot;
+        assert_eq!(
+            reader
+                .get_for_owner(&owner(), task.task_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .task_id,
+            task.task_id
+        );
+        ids.extend([
+            task.task_id.to_string(),
+            task.task_id.to_string(),
+            "bad-id".into(),
+            TaskId::new().to_string(),
+        ]);
+        let page = reader
+            .list_page_for_owner(&owner(), &["selected"], None, 1)
+            .await
+            .unwrap();
+        assert_eq!(page.items.len(), 1);
+        assert_eq!(page.items[0].task_id, task.task_id);
+        assert!(page.next_cursor.is_none());
+        let mut subscription = subscribe_durable_tasks(&reader, owner(), ids)
+            .await
+            .unwrap();
+        assert_eq!(subscription.accepted_task_ids, [task.task_id.to_string()]);
+        assert_eq!(
+            subscription
+                .updates
+                .next()
+                .await
+                .unwrap()
+                .unwrap()
+                .task
+                .task_id,
+            task.task_id.to_string()
+        );
+        assert!(
+            reader
+                .get_for_owner(&owner(), TaskId::new())
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            reader
+                .subscribe_for_owner(owner(), &vec![task.task_id; 257])
+                .await
+                .is_err()
+        );
+        let invalid: TaskId = "0195dabe-7777-4abc-8def-000000000001".parse().unwrap();
+        assert!(reader.get_for_owner(&owner(), invalid).await.is_err());
+        assert!(
+            reader
+                .subscribe_for_owner(owner(), &[invalid])
+                .await
+                .is_err()
+        );
+        let mut implicit = owner();
+        implicit.tenant_key = None;
+        implicit.authority.tenant = TenantId::new("installation").unwrap();
+        let mut explicit = implicit.clone();
+        explicit.tenant_key = Some("installation".into());
+        for (allowed, denied) in [(&implicit, &explicit), (&explicit, &implicit)] {
+            let mut input = draft("optional-tenant", RecoveryClass::Resume);
+            input.owner = allowed.clone();
+            let task = writer.create(input).await.unwrap().snapshot;
+            assert!(
+                reader
+                    .get_for_owner(denied, task.task_id)
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            assert!(
+                reader
+                    .get_for_owner(allowed, task.task_id)
+                    .await
+                    .unwrap()
+                    .is_some()
+            );
+            assert!(
+                reader
+                    .subscribe_for_owner(denied.clone(), &[task.task_id])
+                    .await
+                    .unwrap()
+                    .accepted_task_ids
+                    .is_empty()
+            );
+        }
+    })
+    .await
+    .expect("owner Task read qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn owner_updates_recheck_authority_and_advance_past_denied_event_pages() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let reader = TaskRuntime::new(db.a.clone(), "integration-server", "reader");
+        let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
+        let revoked = writer.create(draft("revoked", RecoveryClass::Resume)).await.unwrap().snapshot;
+        let target = writer.create(draft("target", RecoveryClass::Resume)).await.unwrap().snapshot;
+        let mut stream = subscribe_durable_tasks(&reader, owner(), vec![revoked.task_id.to_string(), target.task_id.to_string()]).await.unwrap().updates;
+        for _ in 0..2 { stream.next().await.unwrap().unwrap(); }
+        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
+            .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();
+        // These payloads deliberately cannot decode as historical Task snapshots.
+        // They fill a replay page but cannot expose the revoked current Task.
+        for _ in 0..257 {
+            db.b.client().query("CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 2, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
+                .bind(("id", revoked.task_id.to_string())).await.unwrap().check().unwrap();
+        }
+        writer.claim(&target.task_id.to_string(), Duration::from_secs(30)).await.unwrap();
+        writer.transition(&target.task_id.to_string(), TaskTransition::Succeeded { message: "finished".into(), result: json!({"value":42}) }).await.unwrap();
+        loop {
+            let update = stream.next().await.unwrap().unwrap();
+            assert_eq!(update.task.task_id, target.task_id.to_string());
+            if let rmcp::model::TaskPayload::Completed { result } = update.payload {
+                assert_eq!(result.get("value"), Some(&json!(42)));
+                break;
+            }
+        }
+        // Re-admission uses current SQL policy; an old denial is not cached authority.
+        db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['internal'], request.input = {value:7} RETURN NONE; CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 2, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
+            .bind(("task", task_record_id(revoked.task_id))).bind(("id", revoked.task_id.to_string())).await.unwrap().check().unwrap();
+        loop {
+            let update = stream.next().await.unwrap().unwrap();
+            if update.task.task_id == revoked.task_id.to_string() { break; }
+        }
+    }).await.expect("owner Task update qualification exceeded 60 seconds");
 }

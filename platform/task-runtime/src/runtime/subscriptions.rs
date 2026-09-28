@@ -17,7 +17,11 @@ struct Hint {
 }
 
 impl SharedWake {
-    async fn subscribe(&self, store: PlatformStore, server: String) -> watch::Receiver<u64> {
+    pub(super) async fn subscribe(
+        &self,
+        store: PlatformStore,
+        server: String,
+    ) -> watch::Receiver<u64> {
         let mut source = self.source.lock().await;
         if let Some(source) = source.as_ref().filter(|source| source.receiver_count() > 0) {
             return source.subscribe();

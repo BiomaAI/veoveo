@@ -159,24 +159,13 @@ pub async fn authorized_snapshot(
     owner: &TaskOwner,
     task_id: &str,
 ) -> Result<TaskSnapshot, McpError> {
-    task_id
-        .parse::<veoveo_types::TaskId>()
+    let task_id = crate::types::parse_task_id(task_id)
         .map_err(|_| McpError::invalid_params("unknown task id", None))?;
-    let snapshot = runtime
-        .get(task_id)
+    runtime
+        .get_for_owner(owner, task_id)
         .await
         .map_err(task_error)?
-        .ok_or_else(|| McpError::invalid_params("unknown task id", None))?;
-    if snapshot.owner.allows(
-        &owner.principal_key,
-        &owner.profile,
-        owner.tenant_key.as_deref(),
-        &owner.data_labels,
-    ) {
-        Ok(snapshot)
-    } else {
-        Err(McpError::invalid_params("unknown task id", None))
-    }
+        .ok_or_else(|| McpError::invalid_params("unknown task id", None))
 }
 
 pub async fn get_durable_task(
@@ -227,46 +216,29 @@ pub async fn subscribe_durable_tasks(
             None,
         ));
     }
-    let mut accepted = Vec::new();
-    for task_id in task_ids {
-        if authorized_snapshot(runtime, &owner, &task_id).await.is_ok() {
-            accepted.push(task_id);
-        }
-    }
-    let accepted_set: BTreeSet<_> = accepted.iter().cloned().collect();
-    let updates = runtime
-        .live_updates_for(&accepted)
+    let ids = task_ids
+        .iter()
+        .filter_map(|id| crate::types::parse_task_id(id).ok())
+        .collect::<Vec<_>>();
+    let subscription = runtime
+        .subscribe_for_owner(owner, &ids)
         .await
         .map_err(task_error)?;
     let runtime = runtime.clone();
-    let stream = updates.filter_map(move |update| {
-        let accepted = accepted_set.clone();
+    let stream = subscription.updates.then(move |update| {
         let runtime = runtime.clone();
-        let owner = owner.clone();
         async move {
-            let snapshot = match update {
-                Ok(update) => update.snapshot,
-                Err(error) => return Some(Err(task_error(error))),
-            };
-            if !accepted.contains(&snapshot.task_id.to_string())
-                || !snapshot.owner.allows(
-                    &owner.principal_key,
-                    &owner.profile,
-                    owner.tenant_key.as_deref(),
-                    &owner.data_labels,
-                )
-            {
-                return None;
-            }
-            Some(
-                project_snapshot(&runtime, snapshot)
-                    .await
-                    .map_err(task_error),
-            )
+            project_snapshot(&runtime, update.map_err(task_error)?.snapshot)
+                .await
+                .map_err(task_error)
         }
     });
     Ok(DurableTaskSubscription {
-        accepted_task_ids: accepted,
+        accepted_task_ids: subscription
+            .accepted_task_ids
+            .into_iter()
+            .map(|id| id.to_string())
+            .collect(),
         updates: Box::pin(stream),
     })
 }

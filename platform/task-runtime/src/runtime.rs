@@ -1,7 +1,10 @@
+mod owner_reads;
+mod owner_subscriptions;
 mod subscriptions;
 mod task_pages;
 mod usage;
 
+pub use owner_subscriptions::OwnerTaskSubscription;
 pub use usage::{TaskUsageAccess, TaskUsagePage};
 
 use std::collections::{BTreeMap, HashMap};
@@ -346,13 +349,17 @@ impl TaskRuntime {
         let mut response = self
             .store
             .client()
-            .query("SELECT * FROM ONLY $task;")
+            .query("SELECT * FROM task WHERE id = $task AND server = $server LIMIT 1;")
             .bind(("task", task_record_id(task_id)))
+            .bind(("server", RecordId::new("mcp_server", self.server.clone())))
             .await?
             .check()?;
-        let record: Option<TaskRecord> = response.take(0)?;
-        let snapshot = record.map(record_to_snapshot).transpose()?;
-        Ok(snapshot.filter(|snapshot| snapshot.server == self.server))
+        let records: Vec<TaskRecord> = response.take(0)?;
+        records
+            .into_iter()
+            .next()
+            .map(record_to_snapshot)
+            .transpose()
     }
 
     pub async fn list(&self) -> Result<Vec<TaskSnapshot>, TaskError> {

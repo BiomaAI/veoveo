@@ -1,10 +1,12 @@
 //! Usage visibility follows the linked Task's current owner and the caller's clearance.
-use super::{TaskRuntime, owner_record, tenant_record};
+use super::{
+    TaskRuntime,
+    owner_reads::{OwnerScope, VISIBLE_TASK},
+};
 use crate::types::{TaskError, TaskOwner, task_id_from_record};
-use std::collections::BTreeSet;
 use surrealdb::{Connection, method::Query};
 use veoveo_platform_store::{
-    DomainUsageRecord, PlatformTable, RecordId, deterministic_work_context_id, task_record_id,
+    DomainUsageRecord, RecordId, deterministic_work_context_id, task_record_id,
 };
 use veoveo_types::TaskId;
 
@@ -59,14 +61,7 @@ impl<'a> TaskUsageAccess<'a> {
 }
 
 struct UsageScope {
-    server: RecordId,
-    tenant: RecordId,
-    owner: RecordId,
-    profile: RecordId,
-    principal_key: String,
-    profile_key: String,
-    tenant_key: Option<String>,
-    labels: BTreeSet<String>,
+    owner: OwnerScope,
     context: Option<ContextScope>,
 }
 
@@ -80,15 +75,7 @@ impl UsageScope {
     fn bind<C: Connection>(self, query: Query<'_, C>) -> Query<'_, C> {
         // Scalar bindings let the planner use the server/task compound index;
         // object-property parameters are not folded into index constraints in 3.2.4.
-        let query = query
-            .bind(("server", self.server))
-            .bind(("tenant", self.tenant))
-            .bind(("owner", self.owner))
-            .bind(("profile", self.profile))
-            .bind(("principal_key", self.principal_key))
-            .bind(("profile_key", self.profile_key))
-            .bind(("tenant_key", self.tenant_key))
-            .bind(("labels", self.labels));
+        let query = self.owner.bind(query);
         match self.context {
             Some(context) => query
                 .bind(("work_context", context.record))
@@ -120,14 +107,7 @@ impl UsageScope {
             }
         };
         Ok(Self {
-            server: RecordId::new(PlatformTable::McpServer.as_str(), runtime.server.clone()),
-            tenant: tenant_record(owner)?,
-            owner: owner_record(owner)?,
-            profile: RecordId::new(PlatformTable::Profile.as_str(), owner.profile.clone()),
-            principal_key: owner.principal_key.clone(),
-            profile_key: owner.profile.clone(),
-            tenant_key: owner.tenant_key.clone(),
-            labels: owner.data_labels.clone(),
+            owner: OwnerScope::new(runtime, owner)?,
             context,
         })
     }
@@ -149,12 +129,7 @@ impl TaskRuntime {
         let context = access.task_predicate();
         let mut response = UsageScope::new(self, access)?
             .bind(self.store.client().query(format!(
-                "SELECT VALUE id FROM task WHERE id = $task AND server = $server
-                AND tenant = $tenant AND owner = $owner AND profile = $profile
-                AND request.owner.principal_key = $principal_key
-                AND request.owner.profile = $profile_key
-                AND (request.owner.tenant_key ?? NONE) = $tenant_key
-                AND request.owner.data_labels ALLINSIDE $labels {context} LIMIT 1;",
+                "SELECT VALUE id FROM task WHERE id = $task AND {VISIBLE_TASK} {context} LIMIT 1;",
             )))
             .bind(("task", task_record_id(task_id)))
             .await?
