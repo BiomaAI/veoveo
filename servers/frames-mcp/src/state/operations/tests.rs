@@ -247,25 +247,46 @@ async fn task_operations_check_current_parent_in_read_and_write_transactions() {
 }
 
 #[tokio::test]
-async fn authority_migration_preserves_legacy_records_without_granting_a_profile() {
+async fn operation_schema_requires_profile_authority() {
     tokio::time::timeout(Duration::from_secs(60), async {
-        let db=TestDb::new().await; let state=FramesState::new(db.a.clone());
-        let caller=scope(Some("tenant-a"),"owner","operator", &[]);let p=provenance();
-        state.record_operation(&caller,None,&p).await.unwrap();
-        let operation=record_id(p.operation.operation_id()).unwrap();
-        db.a.client().query("UPDATE ONLY $operation UNSET authority; REMOVE FIELD authority.version ON coordinate_operation; REMOVE FIELD authority.profile ON coordinate_operation; REMOVE FIELD authority.tenant_key ON coordinate_operation; REMOVE FIELD authority ON coordinate_operation;")
-            .bind(("operation",operation.clone())).await.unwrap().check().unwrap();
-        let mut response=db.a.client().query("SELECT * FROM ONLY $operation;").bind(("operation",operation.clone())).await.unwrap().check().unwrap();
-        let before:Option<surrealdb::types::Value>=response.take(0).unwrap();
-        db.a.client().query(include_str!("../../../../../platform/store/migrations/0095_frames_operation_authority.surql")).await.unwrap().check().unwrap();
-        let mut response=db.b.client().query("SELECT * FROM ONLY $operation;").bind(("operation",operation)).await.unwrap().check().unwrap();
-        let after:Option<surrealdb::types::Value>=response.take(0).unwrap();assert_eq!(before,after);
-        assert!(state.get_operation(&caller,p.operation.operation_uri()).await.unwrap().is_none());
-        assert!(state.record_operation(&caller,None,&p).await.is_err());
-        assert_eq!(events(&db,p.operation.operation_id()).await,1);
-        let fresh=provenance();state.record_operation(&caller,None,&fresh).await.unwrap();
-        assert!(state.get_operation(&caller,fresh.operation.operation_uri()).await.unwrap().is_some());
-    }).await.expect("operation authority migration qualification exceeded 60 seconds");
+        let db = TestDb::new().await;
+        let state = FramesState::new(db.a.clone());
+        let caller = scope(Some("tenant-a"), "owner", "operator", &[]);
+        let provenance = provenance();
+        state
+            .record_operation(&caller, None, &provenance)
+            .await
+            .unwrap();
+        let operation = record_id(provenance.operation.operation_id()).unwrap();
+        for query in [
+            "UPDATE ONLY $operation UNSET authority;",
+            "UPDATE ONLY $operation UNSET authority.profile;",
+        ] {
+            assert!(
+                db.b.client()
+                    .query(query)
+                    .bind(("operation", operation.clone()))
+                    .await
+                    .unwrap()
+                    .check()
+                    .is_err()
+            );
+            assert_eq!(
+                state
+                    .get_operation(&caller, provenance.operation.operation_uri())
+                    .await
+                    .unwrap(),
+                Some(provenance.clone())
+            );
+        }
+        state
+            .record_operation(&caller, None, &provenance)
+            .await
+            .unwrap();
+        assert_eq!(events(&db, provenance.operation.operation_id()).await, 1);
+    })
+    .await
+    .expect("operation authority schema qualification exceeded 60 seconds");
 }
 
 #[test]

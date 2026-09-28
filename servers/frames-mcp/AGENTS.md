@@ -66,9 +66,8 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 Contract revision: 3
 
 Operation resources enforce tenant, owner, profile, labels, and current Task parent
-checks in SQL. Version 0 records without stored authority remain private to administrative
-export; the owning design declares the coordinated upgrade. Installed qualification
-remains in the foundations plan.
+checks in SQL. Rust and Store require every operation's authority object and profile.
+Installed qualification remains in the foundations plan.
 
 - C01: met
 - C02: met

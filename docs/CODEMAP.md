@@ -691,7 +691,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `servers/frames-mcp/src/contract/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
-| `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
+| `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
 | `servers/frames-mcp/src/bin/server/discovery.rs`, `resources.rs`, `completion.rs` | fixed discovery, resource payloads, and MCP completion adapters |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |

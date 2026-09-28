@@ -13,7 +13,7 @@ use veoveo_platform_store::{
 use veoveo_types::{DataLabelId, PrincipalId, TaskId, TenantId};
 
 const VISIBLE: &str = "id = $operation AND operation_key = $operation_key
-    AND tenant = $tenant AND owner = $owner AND authority.version = 1
+    AND tenant = $tenant AND owner = $owner
     AND authority.profile = $profile AND (authority.tenant_key ?? NONE) = $tenant_key
     AND labels ALLINSIDE $clearance
     AND (task = NONE OR (task.server = mcp_server:frames
@@ -79,7 +79,6 @@ impl FrameOperationScope {
 
 #[derive(Clone, Debug, PartialEq, SurrealValue)]
 struct OperationAuthority {
-    version: i64,
     profile: RecordId,
     tenant_key: Option<String>,
 }
@@ -90,7 +89,7 @@ struct OperationContent {
     tenant: RecordId,
     owner: RecordId,
     task: Option<RecordId>,
-    authority: Option<OperationAuthority>,
+    authority: OperationAuthority,
     operation_key: String,
     kind: String,
     provenance: OpenObject,
@@ -125,11 +124,10 @@ impl FramesState {
             tenant: scope.tenant_record()?,
             owner: scope.owner_record()?,
             task: task.map(task_record_id),
-            authority: Some(OperationAuthority {
-                version: 1,
+            authority: OperationAuthority {
                 profile: scope.profile_record(),
                 tenant_key: scope.tenant.as_ref().map(ToString::to_string),
-            }),
+            },
             operation_key: id.to_string(),
             kind,
             provenance: object_from_value(serde_json::to_value(provenance)?)?,

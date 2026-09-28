@@ -161,18 +161,19 @@ Clippy passes. Installed catalog acceptance remains work.
 Frames now owns operation queries, driver records, immutable recording transactions,
 and typed operation scopes. SQL applies principal, tenant, profile, labels, and current
 Task-parent agreement before returning provenance. Recording checks the Task inside the
-same transaction as the operation and outbox event. Four native database cases pass:
-direct isolation and concurrent replay, Task authority changes, additive migration over
-historical records, and rollback/retry after injected event-publication failure. The
-UUIDv7 storage-admission case also passes. The new authority v1 profile leaves retained
-v0 records unchanged and inaccessible through public resource reads; the owning design
-declares the coordinated drain, export and recovery requirements. Operation addresses
+same transaction as the operation and outbox event. Native database cases cover direct
+isolation and concurrent replay, Task authority changes, required authority fields,
+and rollback/retry after injected event-publication failure. The UUIDv7 storage-admission
+case also passes. Rust and Store require current operation authority; the optional
+historical storage profile and its preservation fixture are removed. Operation addresses
 use the foundational builder, and checked provenance construction/decoding enforces
 ID/URI agreement without changing existing schemas. Sixteen independent contract
 consumer cases pass without runtime dependencies, and six compile-fail cases pass. The
 native MCP smoke passes direct and Task-backed operation reads and denial under a
-different principal, tenant or profile. Store regressions and strict workspace Clippy
-pass. Installed operation acceptance is pending.
+different principal, tenant or profile. After removing the historical storage profile,
+the Frames suite passes 60 native cases and eleven compile-fail examples. Nine Store
+schema checks, three SQL validation cases, the Frames MCP smoke, and strict all-target,
+all-feature Clippy for Frames and Store pass. Installed operation acceptance is pending.
 Frames metadata now derives repeated world/revision IDs from typed addresses. Immutable
 revision construction requires a positive publication number and a complete admitted
 tree; decoding verifies root membership and the canonical SHA-256 digest. Summary heads
@@ -1160,7 +1161,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Frames operation references | Operation addresses use typed component builders; checked provenance derives its ID from the URI and rejects conflicting wire identity. Existing schema snapshots and independent contract consumption pass | Qualify installed consumption and current provenance checks |
 | Frames stream references | `FrameStreamUri` applies the shared concrete URI profile; `FrameEntityPath` checks bounded producer selectors. Independent consumption, schema compatibility and native retained-node qualification pass. Frames preserves source spelling and leaves route vocabulary with producers | Qualify installed behavior; complete each producer's typed builders |
 | Frames usage visibility and pages | TaskRuntime applies current Task owner policy and linked-record agreement in SQL before grouping and limiting usage. Frames owns checked pages and typed Task cursors/URIs in its isolated contract feature; native denied-row and cursor cases pass | Qualify installed reads and subscriptions with current catalog consumers |
-| Frames operation visibility | Frames owns SQL-scoped operation reads and transactional authority/immutable replay checks; native caller, parent, migration and event-rollback cases pass. Version 1 stores profile authority; historical version 0 records are preserved without public access | Qualify installed direct/Task operation reads and execute the documented coordinated upgrade |
+| Frames operation visibility | Frames owns SQL-scoped operation reads and transactional authority/immutable replay checks. Rust and Store require the authority object and profile; native caller, parent, schema and event-rollback cases qualify the current format | Qualify installed direct/Task operation reads and current-format recovery |
 | Timeseries usage | The library delegates pages and exact reads to TaskRuntime's SQL owner policy; typed usage URIs, cursors and checked pages belong to its isolated contract feature. Valid version 1 cursor bytes and response fields are preserved. Native denied-row, continuation, label-change and parent-metadata cases pass; the independent 75-package consumer and strict runtime/workspace Clippy pass | Complete other resource builders and checked MCP setup; qualify the coordinated replica replacement and installed reads |
 | DuckDB usage and discovery | The library uses TaskRuntime SQL visibility for 100-entry usage pages and exact reads. Its isolated contract owns usage addresses, collection-bound cursors and checked pages; discovery declares roots/templates without scanning records. The unused unbounded Store usage catalog API is removed. Native reads and Spatial, the independent 74-package contract consumer, and strict runtime/workspace Clippy pass. Workbench cursor construction uses the browser URL API; headless navigation and reserved-character cases pass | Qualify installed page consumers and headed hardware Workbench acceptance |
 | Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent contract consumer preserves eleven solver schemas and excludes service dependencies | Qualify the coordinated control/executor replacement and installed reads |
