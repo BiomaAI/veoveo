@@ -28,6 +28,9 @@ inference service, and no agent framework.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with task-only reasoning, resources and templates, typed structured results, notifications, and usage records. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://reason/analyses.html` application exposes pipelines, models, durable analyses, and results. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Video selection, reasoning request, model and pipeline catalog, event, grounding, provenance, and artifact contracts. |
+| RFC 3986 and RFC 6570 | Concrete resource addresses use the shared URI component parser and builder; discovery templates expand to the same typed routes. Reason accepts one spelling for each address and rejects duplicate or unsupported query parameters. |
+| RFC 9562 UUIDv7 | Analysis identities use lowercase hyphenated UUIDv7 values with the RFC UUID variant, backed by native Task identities. |
+| Reason analyses cursor version 1 | URL-safe, unpadded base64 wraps collection-bound JSON with creation time and analysis identity. The input limit is 1024 bytes. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; every reasoning invocation is a durable, cancellable task whose terminal payload is returned by `tasks/get`. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |
 | H.264/AVC Annex B | The source profile matches Stream: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
@@ -53,7 +56,8 @@ vLLM's own pin.
 
 Clients import `veoveo-reason-mcp` with `default-features = false` and
 `features = ["contract"]`. The public `contract` module owns the domain request,
-response and result models. Video selection and source identity come from the
+response and result models, distinct pipeline, model and analysis identities,
+resource addresses and collection cursors. Video selection and source identity come from the
 [recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
 through its contract feature. Artifact metadata comes from the Artifact contract.
 These imports exclude MCP integration, asynchronous runtimes, database clients,
@@ -64,8 +68,11 @@ response validation and Rerun annotations. The `mcp` feature adds the hosted ser
 HTTP authentication, Tasks and App integration. Defaults enable `mcp`, and the binary
 requires it. Feature selection preserves the JSON fields, schema names and retained
 source-snapshot digest. Runtime source access still requires current authorization.
-The URI helper module belongs to `runtime`; contract-only imports do not expose
-its string-based address constructors.
+The `uris` module is available through `contract`. Its builders require the ID type
+for each route. `ReasonResource` implements the foundational `ResourceAddress` trait
+and parses the supported routes before dispatch. `ReasonScope` implements
+`ScopeDefinition` with an empty vocabulary: Reason declares no additional domain
+scopes. Gateway operation policy and Task ownership supply authorization.
 
 Public contract tests compare every exported schema with the captured wire profile.
 Run those tests through an independent Cargo consumer to check dependency isolation;
@@ -216,7 +223,7 @@ The gateway mounts the server at `/reason/mcp` and exposes:
 - prompts: `reason-analyze-recording`, `reason-answer-question`;
 - completions for pipeline, model, analysis, and artifact identities;
 - final durable tasks, task subscription, cancellation, and result retrieval;
-- resource subscriptions and list-changed/update notifications;
+- analysis and result resource subscriptions and update notifications;
 - typed structured tool content and canonical `reason://` resource links.
 
 Canonical resources include:
@@ -233,15 +240,28 @@ reason://analysis/{task_id}/results
 reason://artifact/{artifact_id}
 ```
 
+Startup assembles `McpServerSetup<ReasonContract>` before accessing the Store or
+recovering Tasks. The setup checks the declared documents, capabilities, resources
+and templates. Catalog descriptors also pass typed address checks. Both gateway
+registrations declare contract revision 3.
+
 `resources/list` publishes collection roots, the embedded documents and the fixed
 pipeline and model catalogs. Analysis and result identities use templates and the
-analysis collection. Reading `reason://analyses` returns an object with `analyses`,
+analysis collection. This discovery list is immutable for the running catalog;
+Task changes do not advertise list-change notifications. Reading `reason://analyses` returns an object with `analyses`,
 `limit: 100` and an optional opaque `next_cursor`. Continue through
 `reason://analyses?cursor={next_cursor}`. The Store filters tenant, principal,
 profile, data labels and task type before applying the limit, then orders by creation
 time and Task ID. Every page uses the current caller's authority. A cursor is not a
 snapshot: retention can remove Tasks and subsequent Tasks can appear on later pages.
 The cursor version and collection identity are validated before use.
+
+Direct analysis and result reads and subscription admission use the Task runtime's
+SQL owner read. Tenant, principal, profile and data-label predicates exclude denied
+rows before request or result decoding. Only analysis and result addresses admit
+resource subscriptions. Their update notifications currently use a process-local
+hub. Cross-replica resource delivery and current-owner checks on delivery require
+implementation; the server declares that gap as C27 in its agent manual.
 
 Analysis and artifact completions apply their search predicate in the Store before
 reading at most 101 candidates per identity field. Artifact identities are deduplicated
@@ -250,6 +270,25 @@ across the three output fields. A response returns at most 100 values and report
 qualify filtered limits, owner isolation and artifact deduplication without inference.
 Install the server and collection consumers together; consumers must read the page
 object and follow its continuation cursor.
+
+### Identity Admission And Rollout
+
+Pipeline and model identifiers accept 1–128 lowercase ASCII letters, digits and
+hyphens, with an alphanumeric first character. The catalog loader and public request
+decoder use the same distinct ID types. Analysis addresses accept the native UUIDv7
+profile. The route parser rejects escaped aliases, extra path segments, fragments,
+unsupported query parameters and noncanonical UUID spellings. Builders delegate
+component encoding to the shared URI implementation.
+
+The serialized fields and 25 captured public schemas keep their published shapes.
+Valid version-1 cursors preserve their admitted wire bytes. Before installation,
+check retained Reason requests and results against the ID and URI profiles, and
+verify client links and cursors. Invalid retained values require an explicit repair
+or recovery decision before replacing the service; startup performs no destructive
+conversion. Drain active requests and replace all Reason replicas together because
+permissive URI admission in an older replica must not depend on routing. Rollback
+builds must preserve the SQL owner predicates and admitted identity profiles. Retain
+the installation backup until hosted resource reads and recovery pass qualification.
 
 Analysis publishes immutable occurrences through the shared artifact plane:
 typed JSON results, a Rerun annotation layer, and optionally the remuxed

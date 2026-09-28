@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use veoveo_reason_mcp::contract::{AnalysisId, ModelId, PipelineId};
 
 use anyhow::{Context, Result};
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
@@ -13,7 +14,6 @@ use veoveo_reason_mcp::{
 };
 use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_types::DataLabelId;
-use veoveo_types::TaskId;
 
 use super::app_state::AppState;
 
@@ -27,7 +27,7 @@ pub(super) struct AnalysisProducts {
 pub(super) async fn publish_analysis(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
-    task_id: &str,
+    task_id: AnalysisId,
     products: AnalysisProducts,
 ) -> Result<CallToolResult> {
     let compliance = compliance(&products.source.classification, &products.source.labels)?;
@@ -43,7 +43,7 @@ pub(super) async fn publish_analysis(
         format!("{task_id}.reason.json"),
         compliance.clone(),
         artifact_metadata(ReasonArtifactProvenance::Results {
-            analysis_id: task_id.to_owned(),
+            analysis_id: task_id,
             recording_id: products.source.recording_id.to_string(),
             pipeline_id: products.results.pipeline_id.clone(),
             model_id: products.results.model_id.clone(),
@@ -63,7 +63,7 @@ pub(super) async fn publish_analysis(
         format!("{task_id}.annotations.rrd"),
         compliance.clone(),
         artifact_metadata(ReasonArtifactProvenance::AnnotationLayer {
-            analysis_id: task_id.to_owned(),
+            analysis_id: task_id,
             recording_id: products.source.recording_id.to_string(),
             results_artifact_uri: results_artifact.artifact_uri.clone(),
             source_snapshot_sha256: source_snapshot_sha256.clone(),
@@ -82,7 +82,7 @@ pub(super) async fn publish_analysis(
                 format!("{task_id}.source.mp4"),
                 compliance,
                 artifact_metadata(ReasonArtifactProvenance::SourceClip {
-                    analysis_id: task_id.to_owned(),
+                    analysis_id: task_id,
                     recording_id: products.source.recording_id.to_string(),
                     entity_path: products.results.entity_path.clone(),
                     timeline: products.results.timeline.clone(),
@@ -153,24 +153,24 @@ struct ReasonArtifactMetadata {
 enum ReasonArtifactProvenance {
     #[serde(rename = "reason_results")]
     Results {
-        analysis_id: String,
+        analysis_id: AnalysisId,
         recording_id: String,
-        pipeline_id: String,
-        model_id: String,
+        pipeline_id: PipelineId,
+        model_id: ModelId,
         prompt_revision: String,
         task_kind: String,
         source_snapshot_sha256: String,
     },
     #[serde(rename = "reason_annotation_layer")]
     AnnotationLayer {
-        analysis_id: String,
+        analysis_id: AnalysisId,
         recording_id: String,
         results_artifact_uri: veoveo_artifact_contract::ArtifactUri,
         source_snapshot_sha256: String,
     },
     #[serde(rename = "reason_source_clip")]
     SourceClip {
-        analysis_id: String,
+        analysis_id: AnalysisId,
         recording_id: String,
         entity_path: String,
         timeline: String,
@@ -187,7 +187,7 @@ fn artifact_metadata(provenance: ReasonArtifactProvenance) -> Result<serde_json:
 async fn put(
     state: &AppState,
     capability: &IssuedArtifactWriteCapability,
-    task_id: &str,
+    task_id: AnalysisId,
     kind: &str,
     bytes: Vec<u8>,
     mime_type: &str,
@@ -237,16 +237,20 @@ fn resource_link(
     )
 }
 
-async fn record_usage(state: &AppState, task_id: &str, results: &ReasoningResults) -> Result<()> {
+async fn record_usage(
+    state: &AppState,
+    task_id: AnalysisId,
+    results: &ReasoningResults,
+) -> Result<()> {
     state
         .tasks
         .platform_store()
         .upsert_domain_usage(DomainUsageDraft {
-            task_id: task_id.parse::<TaskId>()?,
+            task_id: task_id.task_id(),
             server: "reason".to_owned(),
             source_id: Some(results.recording_uri.clone()),
             provider_job_id: None,
-            model_id: results.model_id.clone(),
+            model_id: results.model_id.to_string(),
             kind: DomainUsageKind::Actual,
             quantity: Some(results.observed_frames as f64),
             unit: Some("observed_frame".to_owned()),
@@ -281,17 +285,17 @@ mod tests {
         let digest = "a".repeat(64);
         let variants = [
             artifact_metadata(ReasonArtifactProvenance::Results {
-                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
                 recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
-                pipeline_id: "video-reasoning".to_owned(),
-                model_id: "world-model".to_owned(),
+                pipeline_id: "video-reasoning".parse().unwrap(),
+                model_id: "world-model".parse().unwrap(),
                 prompt_revision: "v1".to_owned(),
                 task_kind: "describe_segment".to_owned(),
                 source_snapshot_sha256: digest.clone(),
             })
             .unwrap(),
             artifact_metadata(ReasonArtifactProvenance::AnnotationLayer {
-                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
                 recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
                 results_artifact_uri: "reason://artifact/019fa7ee-4191-73e1-b084-2341d4900a07"
                     .parse()
@@ -300,7 +304,7 @@ mod tests {
             })
             .unwrap(),
             artifact_metadata(ReasonArtifactProvenance::SourceClip {
-                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".to_owned(),
+                analysis_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
                 recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
                 entity_path: "/uav/camera/primary".to_owned(),
                 timeline: "simulation_time".to_owned(),

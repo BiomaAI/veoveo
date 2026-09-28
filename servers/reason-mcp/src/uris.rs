@@ -1,9 +1,11 @@
-use veoveo_artifact_contract::ArtifactId;
-use veoveo_mcp_contract::ServerResourceUris;
+//! Fixed discovery declarations and typed domain construction.
+use crate::contract::{
+    AnalysisCursor, AnalysisId, AnalysisUri, ModelId, ModelUri, PipelineId, PipelineUri,
+    ReasonDocument, ReasonResource, ResultsUri,
+};
+use veoveo_artifact_contract::{ArtifactId, ArtifactUri};
+use veoveo_types::{ResourceAddress, ResourceUri};
 
-/// Well-known surface roots (contract C18, C19). These literals must match
-/// `veoveo_mcp_contract::ServerResourceUris::new(SCHEME.clone())`; a unit test below
-/// pins that equivalence.
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
         veoveo_types::ResourceScheme::new("reason").expect("declared server resource scheme")
@@ -24,85 +26,28 @@ pub const ANALYSIS_TEMPLATE: &str = "reason://analysis/{analysis_id}";
 pub const RESULTS_TEMPLATE: &str = "reason://analysis/{analysis_id}/results";
 pub const ARTIFACT_TEMPLATE: &str = "reason://artifact/{artifact_id}";
 
-fn server_uris() -> ServerResourceUris {
-    ServerResourceUris::new(SCHEME.clone())
+pub fn doc_uri(id: ReasonDocument) -> ResourceUri {
+    ReasonResource::Document(id)
+        .to_uri()
+        .expect("declared Reason document")
 }
-
-pub fn doc_uri(doc_id: &str) -> String {
-    server_uris().doc_uri(doc_id)
+pub fn pipeline_uri(id: &PipelineId) -> PipelineUri {
+    PipelineUri::new(id.clone())
 }
-
-pub fn parse_doc(uri: &str) -> Option<&str> {
-    veoveo_mcp_contract::parse_server_doc_uri("reason", uri)
+pub fn model_uri(id: &ModelId) -> ModelUri {
+    ModelUri::new(id.clone())
 }
-
-pub fn pipeline_uri(id: &str) -> String {
-    format!("reason://pipeline/{id}")
+pub fn analysis_uri(id: AnalysisId) -> AnalysisUri {
+    AnalysisUri::new(id)
 }
-
-pub fn model_uri(id: &str) -> String {
-    format!("reason://model/{id}")
+pub fn results_uri(id: AnalysisId) -> ResultsUri {
+    ResultsUri::new(id)
 }
-
-pub fn analysis_uri(id: &str) -> String {
-    format!("reason://analysis/{id}")
+pub fn analyses_uri(cursor: Option<AnalysisCursor>) -> ResourceUri {
+    ReasonResource::Analyses(cursor)
+        .to_uri()
+        .expect("admitted Reason collection")
 }
-
-pub fn results_uri(id: &str) -> String {
-    format!("reason://analysis/{id}/results")
-}
-
-pub fn parse_pipeline_uri(uri: &str) -> Option<&str> {
-    parse_single(uri, "reason://pipeline/")
-}
-
-pub fn parse_model_uri(uri: &str) -> Option<&str> {
-    parse_single(uri, "reason://model/")
-}
-
-pub fn parse_analysis_uri(uri: &str) -> Option<&str> {
-    parse_single(uri, "reason://analysis/")
-}
-
-pub fn parse_results_uri(uri: &str) -> Option<&str> {
-    let value = uri.strip_prefix("reason://analysis/")?;
-    let value = value.strip_suffix("/results")?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
-}
-
-pub fn artifact_uri(id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
-    server_uris().artifact_uri(id)
-}
-
-pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
-    server_uris().parse_artifact_uri(uri)
-}
-
-fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
-    let value = uri.strip_prefix(prefix)?;
-    (!value.is_empty() && !value.contains('/')).then_some(value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn well_known_uris_match_the_shared_contract_conventions() {
-        let conventions = server_uris();
-        assert_eq!(DOCS_URI, conventions.docs_root_uri());
-        assert_eq!(CONTRACT_URI, conventions.contract_uri());
-        assert_eq!(DOC_TEMPLATE, conventions.doc_template());
-        assert_eq!(doc_uri("agents"), "reason://docs/agents");
-        assert_eq!(parse_doc("reason://docs/agents"), Some("agents"));
-        assert_eq!(parse_doc("reason://docs"), None);
-        assert_eq!(parse_doc("reason://docs/agents/extra"), None);
-    }
-
-    #[test]
-    fn analysis_uris_are_unambiguous() {
-        assert_eq!(parse_analysis_uri(&analysis_uri("task-1")), Some("task-1"));
-        assert_eq!(parse_results_uri(&results_uri("task-1")), Some("task-1"));
-        assert_eq!(parse_analysis_uri(&results_uri("task-1")), None);
-    }
+pub fn artifact_uri(id: ArtifactId) -> ArtifactUri {
+    ArtifactUri::presented(&SCHEME, id)
 }

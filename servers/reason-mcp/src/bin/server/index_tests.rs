@@ -44,44 +44,6 @@ fn owner() -> TaskOwner {
     }
 }
 
-#[test]
-fn analysis_cursor_round_trips_and_rejects_other_versions_and_collections() {
-    let position = TaskPageCursor {
-        created_at: chrono::Utc::now(),
-        task_id: TaskId::new(),
-    };
-    let encoded = encode_cursor(position.clone()).unwrap();
-    let parsed = parse_collection(&format!("reason://analyses?cursor={encoded}"))
-        .unwrap()
-        .unwrap()
-        .unwrap();
-    assert_eq!(parsed.position, position);
-    assert_eq!(parse_collection(uris::ANALYSES_URI).unwrap(), Some(None));
-    assert_eq!(parse_collection("reason://models").unwrap(), None);
-    for uri in [
-        "reason://analyses?",
-        "reason://analyses?cursor=",
-        "reason://analyses?offset=1",
-        "reason://analyses?cursor=bad",
-        "reason://analyses?cursor=one&cursor=two",
-    ] {
-        assert!(parse_collection(uri).is_err(), "{uri}");
-    }
-    for cursor in [
-        AnalysisCursor {
-            version: 2,
-            ..parsed.clone()
-        },
-        AnalysisCursor {
-            collection: "stream://runs".into(),
-            ..parsed
-        },
-    ] {
-        let encoded = URL_SAFE_NO_PAD.encode(serde_json::to_vec(&cursor).unwrap());
-        assert!(parse_collection(&format!("reason://analyses?cursor={encoded}")).is_err());
-    }
-}
-
 #[tokio::test]
 async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
     tokio::time::timeout(Duration::from_secs(90), async {
@@ -167,4 +129,98 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
     })
     .await
     .expect("Reason completion qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn resource_reads_and_subscription_admission_filter_before_decoding() {
+    use super::super::resources::{analysis_snapshot, subscribable_analysis_id};
+    use veoveo_reason_mcp::{contract::AnalysisId, uris};
+
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = fixture::TestDb::new().await;
+        let reader = TaskRuntime::new(db.a.clone(), "reason", "resource-reader");
+        let writer = TaskRuntime::new(db.b.clone(), "reason", "resource-writer");
+        let draft = || CreateTask {
+            task_id: TaskId::new(),
+            owner: owner(),
+            server: "reason".into(),
+            task_type: "analyze_recording".into(),
+            request: json!({}),
+            recovery_class: RecoveryClass::Resume,
+            idempotency_key: None,
+            ttl_ms: None,
+            poll_interval_ms: None,
+            retention_pins: BTreeSet::new(),
+        };
+        let task = writer.create(draft()).await.unwrap().snapshot;
+        let id = AnalysisId::try_from(task.task_id).unwrap();
+        for uri in [
+            uris::analysis_uri(id).to_string(),
+            uris::results_uri(id).to_string(),
+        ] {
+            let selected = subscribable_analysis_id(&uri).unwrap();
+            assert_eq!(
+                analysis_snapshot(&reader, &owner(), selected)
+                    .await
+                    .unwrap()
+                    .task_id,
+                task.task_id
+            );
+        }
+        for mutation in [
+            "request.owner.data_labels = ['restricted']",
+            "request.owner.principal_key = 'inconsistent'",
+            "request.owner.profile = 'inconsistent'",
+            "request.owner.tenant_key = 'inconsistent'",
+            "owner = principal:other",
+            "profile = profile:other",
+            "tenant = tenant:other",
+        ] {
+            let task = writer.create(draft()).await.unwrap().snapshot;
+            db.b.client()
+                .query(format!(
+                    "UPDATE ONLY $task SET {mutation}, request.input = NONE RETURN NONE;"
+                ))
+                .bind(("task", task_record_id(task.task_id)))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            // The old unrestricted lookup cannot decode this persisted envelope.
+            assert!(reader.get(&task.task_id.to_string()).await.is_err());
+            let id = AnalysisId::try_from(task.task_id).unwrap();
+            for uri in [
+                uris::analysis_uri(id).to_string(),
+                uris::results_uri(id).to_string(),
+            ] {
+                let selected = subscribable_analysis_id(&uri).unwrap();
+                let error = analysis_snapshot(&reader, &owner(), selected)
+                    .await
+                    .unwrap_err();
+                assert_eq!(error.message.as_ref(), "analysis not found", "{mutation}");
+            }
+        }
+        let mut unrelated = draft();
+        unrelated.task_type = "unrelated".into();
+        let other = writer.create(unrelated).await.unwrap().snapshot;
+        assert!(
+            analysis_snapshot(
+                &reader,
+                &owner(),
+                AnalysisId::try_from(other.task_id).unwrap()
+            )
+            .await
+            .is_err()
+        );
+        for uri in [
+            uris::ANALYSES_URI,
+            uris::PIPELINES_URI,
+            "reason://pipeline/traffic",
+            "reason://analysis/task-1",
+        ] {
+            assert!(subscribable_analysis_id(uri).is_err());
+        }
+    })
+    .await
+    .expect("Reason resource qualification exceeded 90 seconds");
 }

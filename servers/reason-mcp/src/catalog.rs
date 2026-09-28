@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{ModelFormat, ModelView, PipelineOperation, PipelineView};
+use crate::contract::{
+    ModelFormat, ModelId, ModelView, PipelineId, PipelineOperation, PipelineView,
+};
 use crate::uris;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -17,7 +19,7 @@ struct CatalogDocument {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ModelConfig {
-    pub id: String,
+    pub id: ModelId,
     pub title: String,
     pub description: String,
     pub format: ModelFormat,
@@ -41,11 +43,11 @@ pub enum EngineConfig {
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PipelineConfig {
-    pub id: String,
+    pub id: PipelineId,
     pub title: String,
     pub description: String,
     pub operation: PipelineOperation,
-    pub model_id: String,
+    pub model_id: ModelId,
     pub prompt_template_path: PathBuf,
     pub prompt_revision: String,
     pub observation: ObservationConfig,
@@ -61,8 +63,8 @@ pub struct ObservationConfig {
 
 #[derive(Clone, Debug)]
 pub struct PipelineCatalog {
-    models: BTreeMap<String, ModelConfig>,
-    pipelines: BTreeMap<String, PipelineConfig>,
+    models: BTreeMap<ModelId, ModelConfig>,
+    pipelines: BTreeMap<PipelineId, PipelineConfig>,
 }
 
 impl PipelineCatalog {
@@ -87,7 +89,6 @@ impl PipelineCatalog {
         );
         let mut model_map = BTreeMap::new();
         for model in models {
-            validate_id("model id", &model.id)?;
             ensure!(!model.title.trim().is_empty(), "model title is required");
             ensure!(
                 model.model_path.is_absolute(),
@@ -127,7 +128,6 @@ impl PipelineCatalog {
         }
         let mut pipeline_map = BTreeMap::new();
         for pipeline in pipelines {
-            validate_id("pipeline id", &pipeline.id)?;
             ensure!(
                 model_map.contains_key(&pipeline.model_id),
                 "pipeline `{}` references unknown model `{}`",
@@ -180,11 +180,11 @@ impl PipelineCatalog {
         })
     }
 
-    pub fn pipeline(&self, id: &str) -> Option<&PipelineConfig> {
+    pub fn pipeline(&self, id: &PipelineId) -> Option<&PipelineConfig> {
         self.pipelines.get(id)
     }
 
-    pub fn model(&self, id: &str) -> Option<&ModelConfig> {
+    pub fn model(&self, id: &ModelId) -> Option<&ModelConfig> {
         self.models.get(id)
     }
 
@@ -196,11 +196,11 @@ impl PipelineCatalog {
         self.models.values().map(model_view).collect()
     }
 
-    pub fn pipeline_ids(&self) -> BTreeSet<String> {
+    pub fn pipeline_ids(&self) -> BTreeSet<PipelineId> {
         self.pipelines.keys().cloned().collect()
     }
 
-    pub fn model_ids(&self) -> BTreeSet<String> {
+    pub fn model_ids(&self) -> BTreeSet<ModelId> {
         self.models.keys().cloned().collect()
     }
 
@@ -250,29 +250,13 @@ pub fn model_view(config: &ModelConfig) -> ModelView {
     }
 }
 
-fn validate_id(name: &str, value: &str) -> Result<()> {
-    ensure!(
-        !value.is_empty()
-            && value.len() <= 128
-            && value.chars().all(|character| character.is_ascii_lowercase()
-                || character.is_ascii_digit()
-                || character == '-')
-            && value
-                .as_bytes()
-                .first()
-                .is_some_and(u8::is_ascii_alphanumeric),
-        "{name} must be a lowercase path-safe identifier"
-    );
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn model() -> ModelConfig {
         ModelConfig {
-            id: "world-model".to_owned(),
+            id: "world-model".parse().unwrap(),
             title: "World model".to_owned(),
             description: String::new(),
             format: ModelFormat::LocalCheckpoint,
@@ -287,11 +271,11 @@ mod tests {
 
     fn pipeline() -> PipelineConfig {
         PipelineConfig {
-            id: "video-reasoning".to_owned(),
+            id: "video-reasoning".parse().unwrap(),
             title: "Video reasoning".to_owned(),
             description: String::new(),
             operation: PipelineOperation::VideoReasoning,
-            model_id: "world-model".to_owned(),
+            model_id: "world-model".parse().unwrap(),
             prompt_template_path: "/etc/veoveo/reason/prompt-template.txt".into(),
             prompt_revision: "v1".to_owned(),
             observation: ObservationConfig {
@@ -305,7 +289,7 @@ mod tests {
     #[test]
     fn catalog_rejects_unknown_models() {
         let mut orphan = pipeline();
-        orphan.model_id = "missing".to_owned();
+        orphan.model_id = "missing".parse().unwrap();
         let error = PipelineCatalog::new(vec![model()], vec![orphan]).unwrap_err();
         assert!(error.to_string().contains("unknown model"));
     }

@@ -17,8 +17,8 @@ use veoveo_mcp_contract::{
 use veoveo_reason_mcp::{
     annotation::write_annotation_rrd,
     contract::{
-        AnalyzeRecordingRequest, GroundingDetections, RecordingVideoSelection, validate_decode,
-        validate_reasoning_task, validate_sampling,
+        AnalysisId, AnalyzeRecordingRequest, GroundingDetections, RecordingVideoSelection,
+        validate_decode, validate_reasoning_task, validate_sampling,
     },
     grounding::extract_grounding,
 };
@@ -175,12 +175,15 @@ pub(super) async fn resume_task(state: Arc<AppState>, snapshot: TaskSnapshot) ->
     let request: DurableReasonRequest = match serde_json::from_value(snapshot.request.clone()) {
         Ok(request) => request,
         Err(error) => {
-            let task_id = snapshot.task_id.to_string();
-            state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+            let task_id = AnalysisId::try_from(snapshot.task_id)?;
+            state
+                .tasks
+                .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+                .await?;
             state
                 .tasks
                 .transition(
-                    &task_id,
+                    &task_id.to_string(),
                     TaskTransition::Failed(TaskFailure::new(
                         "invalid_task_request",
                         error.to_string(),
@@ -204,12 +207,15 @@ async fn schedule_task(
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
 ) -> Result<TaskSnapshot> {
-    let task_id = snapshot.task_id.to_string();
-    let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
+    let task_id = AnalysisId::try_from(snapshot.task_id)?;
+    let claimed = state
+        .tasks
+        .claim(&task_id.to_string(), TASK_LEASE_DURATION)
+        .await?;
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_task(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         authority,
         progress,
@@ -217,14 +223,14 @@ async fn schedule_task(
     ));
     state
         .tasks
-        .register_worker(&task_id, cancellation, join)
+        .register_worker(&task_id.to_string(), cancellation, join)
         .await?;
     Ok(claimed.snapshot)
 }
 
 async fn run_task(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: AnalysisId,
     request: DurableReasonRequest,
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
@@ -232,7 +238,7 @@ async fn run_task(
 ) {
     let work = run_task_inner(
         state.clone(),
-        task_id.clone(),
+        task_id,
         request,
         authority,
         progress,
@@ -246,8 +252,8 @@ async fn run_task(
         tokio::select! {
             () = &mut work => break,
             _ = heartbeat.tick() => {
-                if let Err(error) = state.tasks.renew_lease(&task_id, TASK_LEASE_DURATION).await {
-                    tracing::warn!(task_id, "reason task lease heartbeat failed: {error}");
+                if let Err(error) = state.tasks.renew_lease(&task_id.to_string(), TASK_LEASE_DURATION).await {
+                    tracing::warn!(%task_id, "reason task lease heartbeat failed: {error}");
                     cancellation.cancel();
                     break;
                 }
@@ -258,7 +264,7 @@ async fn run_task(
 
 async fn run_task_inner(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: AnalysisId,
     request: DurableReasonRequest,
     authority: veoveo_recording_reader::RecordingReadAuthority,
     progress: Option<TaskProgress>,
@@ -267,15 +273,15 @@ async fn run_task_inner(
     macro_rules! fail {
         ($message:expr) => {{
             let message: String = $message;
-            tracing::warn!(task_id, "reason task failed: {message}");
-            complete_tool_error(&state, &task_id, message).await;
+            tracing::warn!(%task_id, "reason task failed: {message}");
+            complete_tool_error(&state, task_id, message).await;
             return;
         }};
     }
 
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.02,
         "waiting for local reasoning capacity",
@@ -287,14 +293,14 @@ async fn run_task_inner(
             Err(error) => fail!(format!("reason work queue closed: {error}")),
         },
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
     };
     let _work_slot = work_slot;
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.1,
         "resolving governed recording",
@@ -306,7 +312,7 @@ async fn run_task_inner(
         authority,
         ArtifactReadAuthority::Task {
             capability: &request.artifact_read_capability,
-            task_id: ArtifactTaskId::parse(&task_id).expect("durable task ID is UUIDv7"),
+            task_id: ArtifactTaskId::parse(task_id.to_string()).expect("durable task ID is UUIDv7"),
         },
         input.video.clone(),
         state.source_limits.clone(),
@@ -317,11 +323,11 @@ async fn run_task_inner(
             Err(error) => fail!(format!("video materialization failed: {error:#}")),
         },
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
     };
-    set_progress(&state, &task_id, &progress, 0.3, "video clip materialized").await;
+    set_progress(&state, task_id, &progress, 0.3, "video clip materialized").await;
     let Some(pipeline) = state.catalog.pipeline(&input.pipeline_id).cloned() else {
         fail!(format!("unknown pipeline `{}`", input.pipeline_id));
     };
@@ -344,7 +350,7 @@ async fn run_task_inner(
     }
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.4,
         "running world-model reasoning",
@@ -358,7 +364,7 @@ async fn run_task_inner(
     let execute = state
         .executor
         .analyze(veoveo_reason_mcp::executor::ReasonAnalysisRequest {
-            task_id: &task_id,
+            task_id,
             input_mp4: &input_path,
             decode_start_index: source.clip.decode_start_index,
             input_width: source.clip.width,
@@ -379,22 +385,22 @@ async fn run_task_inner(
             Err(error) => fail!(format!("world-model reasoning failed: {error:#}")),
         },
         () = cancellation.cancelled() => {
-            update_task(&state, &task_id, TaskTransition::Cancelled).await;
+            update_task(&state, task_id, TaskTransition::Cancelled).await;
             return;
         }
     };
     set_progress(
         &state,
-        &task_id,
+        task_id,
         &progress,
         0.8,
         "writing derived annotation layer",
     )
     .await;
-    let annotation_task_id = task_id.clone();
+    let annotation_task_id = task_id;
     let annotation_results = analysis.clone();
     let annotations_rrd = match tokio::task::spawn_blocking(move || {
-        write_annotation_rrd(&annotation_task_id, &annotation_results)
+        write_annotation_rrd(annotation_task_id, &annotation_results)
     })
     .await
     {
@@ -405,7 +411,7 @@ async fn run_task_inner(
     let result = publish_analysis(
         &state,
         &request.artifact_write_capability,
-        &task_id,
+        task_id,
         AnalysisProducts {
             results: analysis,
             annotations_rrd,
@@ -415,7 +421,7 @@ async fn run_task_inner(
     )
     .await;
     if cancellation.is_cancelled() {
-        update_task(&state, &task_id, TaskTransition::Cancelled).await;
+        update_task(&state, task_id, TaskTransition::Cancelled).await;
         return;
     }
     let result = match result {
@@ -429,7 +435,7 @@ async fn run_task_inner(
     };
     update_task(
         &state,
-        &task_id,
+        task_id,
         TaskTransition::Succeeded {
             message: "completed; reason artifacts available".to_owned(),
             result: payload,
@@ -440,7 +446,7 @@ async fn run_task_inner(
 
 async fn set_progress(
     state: &AppState,
-    task_id: &str,
+    task_id: AnalysisId,
     progress: &Option<TaskProgress>,
     value: f64,
     message: &str,
@@ -448,7 +454,7 @@ async fn set_progress(
     if let Err(error) = state
         .tasks
         .transition(
-            task_id,
+            &task_id.to_string(),
             TaskTransition::Running {
                 message: message.to_owned(),
                 progress: value,
@@ -456,7 +462,7 @@ async fn set_progress(
         )
         .await
     {
-        tracing::warn!(task_id, "failed to persist reason progress: {error}");
+        tracing::warn!(%task_id, "failed to persist reason progress: {error}");
     }
     state
         .subscribers
@@ -471,7 +477,7 @@ async fn notify_progress(progress: &Option<TaskProgress>, value: f64, message: &
     }
 }
 
-async fn complete_tool_error(state: &AppState, task_id: &str, message: String) {
+async fn complete_tool_error(state: &AppState, task_id: AnalysisId, message: String) {
     let result = CallToolResult::error(vec![ContentBlock::text(message.clone())]);
     let transition = match serde_json::to_value(result) {
         Ok(result) => TaskTransition::Succeeded { message, result },
@@ -544,11 +550,11 @@ fn grounding_artifact_id(uri: &str) -> Result<ArtifactId> {
 
 pub(super) async fn completed_payload(
     state: &AppState,
-    task_id: &str,
+    task_id: AnalysisId,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     match state
         .tasks
-        .await_payload_state(task_id)
+        .await_payload_state(&task_id.to_string())
         .await
         .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?
     {

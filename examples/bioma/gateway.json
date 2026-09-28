@@ -222,7 +222,7 @@
         "prompts": true,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true,
+        "resources_list_changed": false,
         "apps": true
       },
       "tools": [
@@ -235,7 +235,9 @@
       "required_scopes": [
         "operator:use"
       ],
-      "metadata": {},
+      "metadata": {
+        "contract_revision": 3
+      },
       "resource_projection": "server_owned"
     },
     {

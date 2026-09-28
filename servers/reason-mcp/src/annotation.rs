@@ -6,7 +6,10 @@ use re_sdk::RecordingStreamBuilder;
 use re_sdk_types::archetypes::{TextDocument, TextLog};
 use serde::Serialize;
 
-use crate::contract::{ReasoningAnswer, ReasoningResults, VideoTimelineKind};
+use crate::contract::{
+    AnalysisId, AnalysisUri, ModelId, PipelineId, ReasoningAnswer, ReasoningResults,
+    VideoTimelineKind,
+};
 
 pub const RRD_MIME_TYPE: &str = "application/vnd.rerun.rrd";
 pub const RESULTS_MIME_TYPE: &str = "application/vnd.veoveo.reason-results+json";
@@ -15,10 +18,10 @@ pub const MP4_MIME_TYPE: &str = "video/mp4";
 #[derive(Serialize)]
 struct AnnotationProvenance<'a> {
     schema: &'static str,
-    analysis_uri: String,
+    analysis_uri: AnalysisUri,
     results_schema: &'a str,
-    pipeline_id: &'a str,
-    model_id: &'a str,
+    pipeline_id: &'a PipelineId,
+    model_id: &'a ModelId,
     prompt_revision: &'a str,
     model_digest: Option<&'a str>,
     recording_uri: &'a str,
@@ -31,7 +34,7 @@ struct AnnotationProvenance<'a> {
     confidence_basis: crate::contract::ConfidenceBasis,
 }
 
-pub fn write_annotation_rrd(task_id: &str, results: &ReasoningResults) -> Result<Vec<u8>> {
+pub fn write_annotation_rrd(task_id: AnalysisId, results: &ReasoningResults) -> Result<Vec<u8>> {
     let temp = tempfile::Builder::new()
         .prefix("veoveo-reason-annotations-")
         .suffix(".rrd")
@@ -39,7 +42,7 @@ pub fn write_annotation_rrd(task_id: &str, results: &ReasoningResults) -> Result
         .context("creating annotation RRD")?;
     let path = temp.path().to_path_buf();
     let recording = RecordingStreamBuilder::new("veoveo_reason_analysis")
-        .recording_id(task_id.to_owned())
+        .recording_id(task_id.to_string())
         .recording_name(format!("reason analysis {task_id}"))
         .save(&path)
         .context("opening annotation RRD sink")?;

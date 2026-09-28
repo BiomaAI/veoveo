@@ -13,5 +13,5 @@ pub mod contract;
 pub mod executor;
 #[cfg(feature = "runtime")]
 pub mod grounding;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;

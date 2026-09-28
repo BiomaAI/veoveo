@@ -65,7 +65,7 @@ impl ReasonPrompt {
             timeline: String,
             start: i64,
             end: i64,
-            pipeline_id: String,
+            pipeline_id: veoveo_reason_mcp::contract::PipelineId,
             prompt: Option<String>,
             question: Option<String>,
         }

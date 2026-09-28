@@ -1,3 +1,14 @@
+mod cursor;
+mod ids;
+mod resources;
+mod scopes;
+pub use cursor::AnalysisCursor;
+pub use ids::{AnalysisId, ModelId, PipelineId, ReasonContractError};
+pub use resources::{
+    AnalysisUri, ModelUri, PipelineUri, ReasonDocument, ReasonResource, ResultsUri,
+};
+pub use scopes::ReasonScope;
+
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -15,7 +26,7 @@ pub const MAX_OBSERVATION_FRAMES: u32 = 1_024;
 #[serde(deny_unknown_fields)]
 pub struct AnalyzeRecordingRequest {
     pub video: RecordingVideoSelection,
-    pub pipeline_id: String,
+    pub pipeline_id: PipelineId,
     pub task: ReasoningTask,
     #[serde(default)]
     pub sampling: ObservationSampling,
@@ -162,8 +173,8 @@ pub enum ConfidenceBasis {
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ReasoningResults {
     pub schema: String,
-    pub pipeline_id: String,
-    pub model_id: String,
+    pub pipeline_id: PipelineId,
+    pub model_id: ModelId,
     pub recording_uri: String,
     pub entity_path: String,
     pub timeline: String,
@@ -183,10 +194,10 @@ pub struct ReasoningResults {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct AnalyzeRecordingOutput {
-    pub analysis_uri: String,
-    pub results_uri: String,
-    pub pipeline_uri: String,
-    pub model_uri: String,
+    pub analysis_uri: AnalysisUri,
+    pub results_uri: ResultsUri,
+    pub pipeline_uri: PipelineUri,
+    pub model_uri: ModelUri,
     pub summary: ReasoningSummary,
     pub results_artifact: ArtifactMetadata,
     pub annotations_artifact: ArtifactMetadata,
@@ -204,14 +215,14 @@ pub struct ReasoningSummary {
     pub requested_end_index: i64,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct PipelineView {
-    pub id: String,
-    pub uri: String,
+    pub id: PipelineId,
+    pub uri: PipelineUri,
     pub title: String,
     pub description: String,
     pub operation: PipelineOperation,
-    pub model_uri: String,
+    pub model_uri: ModelUri,
     pub prompt_revision: String,
     pub observation_width: u32,
     pub observation_height: u32,
@@ -223,10 +234,10 @@ pub enum PipelineOperation {
     VideoReasoning,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct ModelView {
-    pub id: String,
-    pub uri: String,
+    pub id: ModelId,
+    pub uri: ModelUri,
     pub title: String,
     pub description: String,
     pub format: ModelFormat,
@@ -243,14 +254,14 @@ pub enum ModelFormat {
     LocalCheckpoint,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalysisView {
-    pub analysis_uri: String,
-    pub results_uri: String,
-    pub task_id: String,
+    pub analysis_uri: AnalysisUri,
+    pub results_uri: ResultsUri,
+    pub task_id: AnalysisId,
     pub status: String,
     pub progress: f64,
-    pub pipeline_id: String,
+    pub pipeline_id: PipelineId,
     pub task_kind: String,
     pub recording_uri: String,
     pub entity_path: String,
@@ -261,6 +272,16 @@ pub struct AnalysisView {
     pub output: Option<AnalyzeRecordingOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+}
+
+/// One authorized page of analyses, in descending creation time and native ID order.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct AnalysisPage {
+    pub analyses: Vec<AnalysisView>,
+    pub limit: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<AnalysisCursor>,
 }
 
 pub fn validate_reasoning_task(task: &ReasoningTask) -> Result<()> {

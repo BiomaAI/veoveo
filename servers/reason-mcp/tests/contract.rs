@@ -1,3 +1,6 @@
+#[path = "contract/resources.rs"]
+mod resources;
+
 use veoveo_reason_mcp::contract::*;
 
 #[test]

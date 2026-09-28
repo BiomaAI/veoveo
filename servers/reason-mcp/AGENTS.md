@@ -1,7 +1,7 @@
 # Reason MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -15,6 +15,10 @@ appear in its public MCP identities.
 
 - Owns the `reason://` scheme: pipelines, models, analyses, results, and
   artifacts.
+- Keep pipeline, model and analysis IDs distinct through internal APIs. Public
+  resource builders and cursors belong to `contract`; hosted declarations use
+  the shared checked setup. Exact analysis reads and subscription admission use
+  the Task runtime's SQL owner read before decoding.
 - Recording authorization matches stream: authorize the canonical
   `recording://recordings/{uuidv7}` identity, re-resolve it inside the
   durable task, and capture one bounded source snapshot. The snapshot may
@@ -57,7 +61,7 @@ appear in its public MCP identities.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -75,7 +79,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — gateway registration does not state the contract revision
+- C17: met — both gateway registrations declare revision 3
 - C18: met
 - C19: met
 - C20: met
@@ -84,8 +88,8 @@ Contract revision: 2
 - C23: met
 - C25: met
 - C26: met
-- C27: met
-- C28: met
+- C27: pending — analysis resource invalidations use a process-local hub; database-backed delivery and current-owner rechecks remain to implement and qualify
+- C28: met — discovery contains immutable catalog entries and roots; task changes do not advertise discovery-list changes
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
 - C24: met

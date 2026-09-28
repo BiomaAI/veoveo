@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_reason_mcp::{
-    artifacts::ArtifactRepository, catalog::PipelineCatalog, executor::ReasonExecutor,
+    artifacts::ArtifactRepository, catalog::PipelineCatalog, contract::AnalysisId,
+    executor::ReasonExecutor,
 };
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
@@ -22,10 +23,10 @@ pub(super) struct AppState {
     pub(super) subscribers: SubscriptionHub,
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+pub(super) async fn update_task(state: &AppState, task_id: AnalysisId, transition: TaskTransition) {
     let transition = if state
         .tasks
-        .is_cancel_requested(task_id)
+        .is_cancel_requested(&task_id.to_string())
         .await
         .unwrap_or(false)
     {
@@ -33,8 +34,12 @@ pub(super) async fn update_task(state: &AppState, task_id: &str, transition: Tas
     } else {
         transition
     };
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "failed to transition durable reason task: {error}");
+    if let Err(error) = state
+        .tasks
+        .transition(&task_id.to_string(), transition)
+        .await
+    {
+        tracing::warn!(%task_id, "failed to transition durable reason task: {error}");
     }
     state
         .subscribers

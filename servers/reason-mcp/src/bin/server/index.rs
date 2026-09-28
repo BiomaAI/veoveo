@@ -1,77 +1,25 @@
 use std::collections::BTreeSet;
 
-use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use rmcp::{ErrorData as McpError, model::CompletionInfo};
-use serde::{Deserialize, Serialize};
 use veoveo_platform_store::{RecordId, deterministic_principal_id, deterministic_tenant_id};
-use veoveo_reason_mcp::{contract::AnalysisView, uris};
+use veoveo_reason_mcp::contract::{AnalysisCursor, AnalysisId, AnalysisPage};
 use veoveo_task_runtime::{TaskOwner, TaskPageCursor, TaskRuntime};
 
-use super::{analysis_view, internal};
+use super::{internal, resources::analysis_view};
 
 const PAGE_SIZE: usize = 100;
-const CURSOR_VERSION: u8 = 1;
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct AnalysisCursor {
-    version: u8,
-    collection: String,
-    position: TaskPageCursor,
-}
-
-#[derive(Serialize)]
-pub(super) struct AnalysisPage {
-    analyses: Vec<AnalysisView>,
-    limit: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    next_cursor: Option<String>,
-}
-
-pub(super) fn parse_collection(uri: &str) -> Result<Option<Option<AnalysisCursor>>, McpError> {
-    if uri == uris::ANALYSES_URI {
-        return Ok(Some(None));
-    }
-    let Some(query) = uri.strip_prefix("reason://analyses?") else {
-        return Ok(None);
-    };
-    let invalid = || McpError::invalid_params("invalid Reason analyses cursor", None);
-    let encoded = query
-        .strip_prefix("cursor=")
-        .filter(|value| {
-            !value.is_empty() && value.len() <= 1024 && !value.contains(['&', '=', '?', '#'])
-        })
-        .ok_or_else(invalid)?;
-    let bytes = URL_SAFE_NO_PAD.decode(encoded).map_err(|_| invalid())?;
-    let cursor: AnalysisCursor = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-    if cursor.version != CURSOR_VERSION || cursor.collection != uris::ANALYSES_URI {
-        return Err(invalid());
-    }
-    Ok(Some(Some(cursor)))
-}
-
-fn encode_cursor(position: TaskPageCursor) -> Result<String, McpError> {
-    serde_json::to_vec(&AnalysisCursor {
-        version: CURSOR_VERSION,
-        collection: uris::ANALYSES_URI.to_owned(),
-        position,
-    })
-    .map(|bytes| URL_SAFE_NO_PAD.encode(bytes))
-    .map_err(internal)
-}
 
 pub(super) async fn analyses_page(
     tasks: &TaskRuntime,
     owner: &TaskOwner,
     after: Option<&AnalysisCursor>,
 ) -> Result<AnalysisPage, McpError> {
+    let after = after.map(|cursor| TaskPageCursor {
+        created_at: cursor.created_at(),
+        task_id: cursor.analysis_id().task_id(),
+    });
     let page = tasks
-        .list_page_for_owner(
-            owner,
-            &["analyze_recording"],
-            after.map(|cursor| &cursor.position),
-            PAGE_SIZE,
-        )
+        .list_page_for_owner(owner, &["analyze_recording"], after.as_ref(), PAGE_SIZE)
         .await
         .map_err(internal)?;
     Ok(AnalysisPage {
@@ -81,7 +29,14 @@ pub(super) async fn analyses_page(
             .map(analysis_view)
             .collect::<Result<_, _>>()?,
         limit: PAGE_SIZE,
-        next_cursor: page.next_cursor.map(encode_cursor).transpose()?,
+        next_cursor: page
+            .next_cursor
+            .map(|position| {
+                AnalysisId::try_from(position.task_id)
+                    .map(|id| AnalysisCursor::new(position.created_at, id))
+            })
+            .transpose()
+            .map_err(internal)?,
     })
 }
 

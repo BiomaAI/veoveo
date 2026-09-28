@@ -1125,13 +1125,16 @@ depend on Recording Hub.
 | Path | Responsibility |
 |---|---|
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
+| `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors and the empty domain scope vocabulary |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
 | `src/grounding.rs` | typed Stream-results grounding subset extraction |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
-| `src/uris.rs` | `reason://` URIs |
+| `src/uris.rs` | contract-only typed resource builders and matching fixed discovery declarations |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
+| `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |
+| `src/bin/server/setup.rs` | checked MCP setup, immutable discovery declarations, templates and catalog descriptor validation |
 | `runner/` | Python world-model runner: typed protocol, GPU frame sampling, vLLM inference, and locked image assets outside Rust compilation |
 | `runner/src/reason_runner/video.py` | exact packet timestamps, NVDEC device surfaces, and owned CUDA observation tensors |
 | `runner/src/reason_runner/gpu_model.py` | single-process Qwen3-VL embedding adapter, decoder memory reservation, and CUDA handoff to vLLM |

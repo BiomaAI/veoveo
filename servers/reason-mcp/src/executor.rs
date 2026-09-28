@@ -8,9 +8,9 @@ use tokio::process::Command;
 
 use crate::catalog::{EngineConfig, ModelConfig, ObservationConfig, PipelineConfig};
 use crate::contract::{
-    ConfidenceBasis, DecodePolicy, GroundingDetections, IndexRange, ObservationSampling,
-    ReasonedEvent, ReasoningAnswer, ReasoningResults, ReasoningTask, RecordingSourceSnapshot,
-    RecordingVideoSelection, VideoTimelineKind,
+    AnalysisId, ConfidenceBasis, DecodePolicy, GroundingDetections, IndexRange, ModelId,
+    ObservationSampling, PipelineId, ReasonedEvent, ReasoningAnswer, ReasoningResults,
+    ReasoningTask, RecordingSourceSnapshot, RecordingVideoSelection, VideoTimelineKind,
 };
 use crate::grounding::grounded_track_ids;
 
@@ -32,7 +32,7 @@ pub struct ReasonExecutor {
 }
 
 pub struct ReasonAnalysisRequest<'a> {
-    pub task_id: &'a str,
+    pub task_id: AnalysisId,
     pub input_mp4: &'a Path,
     pub decode_start_index: i64,
     pub input_width: u16,
@@ -100,7 +100,7 @@ impl ReasonExecutor {
         let response_path = work.path().join("response.json");
         let request = RunnerRequest {
             schema: RUNNER_REQUEST_SCHEMA.to_owned(),
-            task_id: analysis.task_id.to_owned(),
+            task_id: analysis.task_id,
             input_mp4: analysis.input_mp4.to_path_buf(),
             input_width: analysis.input_width,
             input_height: analysis.input_height,
@@ -243,7 +243,7 @@ impl ReasonExecutor {
 #[serde(deny_unknown_fields)]
 struct RunnerRequest {
     schema: String,
-    task_id: String,
+    task_id: AnalysisId,
     input_mp4: PathBuf,
     input_width: u16,
     input_height: u16,
@@ -265,7 +265,7 @@ struct RunnerRequest {
 #[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerPipeline {
-    pipeline_id: String,
+    pipeline_id: PipelineId,
     prompt_template_path: PathBuf,
     prompt_revision: String,
     observation: ObservationConfig,
@@ -274,7 +274,7 @@ struct RunnerPipeline {
 #[derive(Clone, Debug, Serialize)]
 #[serde(deny_unknown_fields)]
 struct RunnerModel {
-    model_id: String,
+    model_id: ModelId,
     model_path: PathBuf,
     format: crate::contract::ModelFormat,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -365,11 +365,11 @@ mod tests {
 
     fn pipeline() -> PipelineConfig {
         PipelineConfig {
-            id: "video-reasoning".to_owned(),
+            id: "video-reasoning".parse().unwrap(),
             title: "Video reasoning".to_owned(),
             description: String::new(),
             operation: crate::contract::PipelineOperation::VideoReasoning,
-            model_id: "world-model".to_owned(),
+            model_id: "world-model".parse().unwrap(),
             prompt_template_path: "/etc/veoveo/reason/prompt-template.txt".into(),
             prompt_revision: "v1".to_owned(),
             observation: ObservationConfig {
@@ -391,7 +391,7 @@ mod tests {
 
     fn model() -> ModelConfig {
         ModelConfig {
-            id: "world-model".to_owned(),
+            id: "world-model".parse().unwrap(),
             title: "World model".to_owned(),
             description: String::new(),
             format: ModelFormat::LocalCheckpoint,
@@ -501,7 +501,7 @@ mod tests {
         let task = ReasoningTask::DescribeSegment { prompt: None };
         let results = executor
             .analyze(ReasonAnalysisRequest {
-                task_id: "01983da0-0000-7000-8000-000000000001",
+                task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
                 input_mp4: &input,
                 decode_start_index: 100,
                 input_width: 1920,

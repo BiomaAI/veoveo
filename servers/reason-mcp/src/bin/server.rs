@@ -10,7 +10,6 @@ use std::net::SocketAddr;
 use std::sync::{Arc, LazyLock};
 
 use axum::{Router, extract::State, http::StatusCode, middleware, routing::get};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use clap::Parser;
 use rmcp::tool;
 use rmcp::{
@@ -21,32 +20,29 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
         GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        ReadResourceRequestParams, Reference, ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
     transport::streamable_http_server::StreamableHttpService,
 };
-use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::ServerDocs,
-    init_server_telemetry, paginate, public_allowed_hosts,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
-use veoveo_platform_store::TaskStatus;
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository,
-    catalog::{PipelineCatalog, model_view, pipeline_view},
-    contract::{AnalysisView, AnalyzeRecordingOutput, AnalyzeRecordingRequest},
+    catalog::PipelineCatalog,
+    contract::{AnalyzeRecordingOutput, AnalyzeRecordingRequest},
     executor::ReasonExecutor,
     uris,
 };
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
-use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapshot};
+use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig};
 
 #[path = "server/admin.rs"]
 mod admin;
@@ -66,6 +62,10 @@ mod outputs;
 mod ownership;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/resources.rs"]
+mod resources;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 #[path = "server/tasks.rs"]
@@ -75,20 +75,17 @@ use app_state::AppState;
 use config::Args;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use ownership::{internal_caller, internal_identity, require_task_owner, runtime_owner};
+use ownership::{internal_caller, internal_identity, runtime_owner};
 use prompts::ReasonPrompt;
 use task_extension::ReasonTaskService;
 use tasks::{
     ReasonTaskInput, SERVER_SLUG, TaskProgress, completed_payload, resume_task, start_reason_task,
 };
+use veoveo_reason_mcp::contract::AnalysisId;
 
 const LIST_PAGE_SIZE: usize = 100;
 
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `reason://docs`, `reason://docs/{doc_id}`, `reason://contract`,
-/// and the administrative `admin/docs` routes (contract C18-C21).
-pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("reason"));
+use setup::SERVER_DOCS;
 
 #[derive(Clone)]
 struct ReasonMcp {
@@ -101,6 +98,8 @@ struct ReasonMcp {
 #[tool_router]
 impl ReasonMcp {
     fn new(state: Arc<AppState>) -> Self {
+        LazyLock::force(&setup::SERVER_SETUP);
+        setup::catalog_resources(&state.catalog).expect("validated Reason catalog descriptors");
         Self {
             task_service: ReasonTaskService::new(state.clone()),
             state,
@@ -137,9 +136,8 @@ impl ReasonMcp {
         )
         .await
         .map_err(internal)?;
-        let task_id = snapshot.task_id.to_string();
-        self.state.subscribers.notify_resource_list_changed().await;
-        completed_payload(&self.state, &task_id).await
+        let task_id = AnalysisId::try_from(snapshot.task_id).map_err(internal)?;
+        completed_payload(&self.state, task_id).await
     }
 }
 
@@ -152,27 +150,7 @@ impl ServerHandler for ReasonMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Reasoning over Rerun recordings. Find models and pipelines at reason://models and reason://pipelines. Call `analyze_recording` as an MCP Task with recording:// references, a timeline range, and one reasoning task. To have events cite track IDs, also pass a completed Stream results artifact. Each analysis publishes a reason://analysis resource and artifacts. Results are the model's own reasoning, not calibrated detector output."
-                .to_owned(),
-        );
-        info
+        setup::SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -264,57 +242,12 @@ impl ServerHandler for ReasonMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         internal_identity(&context)?;
-        let mut resources = vec![
-            veoveo_mcp_apps_extension::app_resource(uris::ANALYSES_APP_URI, "analyses")
-                .with_title("Analyses")
-                .with_description("Governed video reasoning pipelines, models, runs, and results."),
-            Resource::new(uris::DOCS_URI, "reason docs")
-                .with_title("Server documents")
-                .with_description("Index of the crate documents embedded at build time.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::CONTRACT_URI, "reason contract")
-                .with_title("Contract declaration")
-                .with_description(
-                    "Machine-readable contract revision, compliance, and capability inventory.",
-                )
-                .with_mime_type("application/json"),
-            Resource::new(uris::PIPELINES_URI, "reason pipelines")
-                .with_title("Reason pipelines")
-                .with_description("Immutable reasoning pipeline catalog.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::MODELS_URI, "reason models")
-                .with_title("Reason models")
-                .with_description("Immutable model catalog without private filesystem details.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::ANALYSES_URI, "reason analyses")
-                .with_title("Reason analyses")
-                .with_description("Authorized durable analysis index.")
-                .with_mime_type("application/json"),
-        ];
-        for doc in SERVER_DOCS.iter() {
-            resources.push(
-                Resource::new(uris::doc_uri(doc.id), doc.title)
-                    .with_title(doc.title)
-                    .with_description("Crate document embedded at build time.")
-                    .with_mime_type("text/markdown"),
-            );
-        }
-        for pipeline in self.state.catalog.pipeline_views() {
-            resources.push(
-                Resource::new(pipeline.uri, format!("pipeline {}", pipeline.id))
-                    .with_title(pipeline.title)
-                    .with_description(pipeline.description)
-                    .with_mime_type("application/json"),
-            );
-        }
-        for model in self.state.catalog.model_views() {
-            resources.push(
-                Resource::new(model.uri, format!("model {}", model.id))
-                    .with_title(model.title)
-                    .with_description(model.description)
-                    .with_mime_type("application/json"),
-            );
-        }
+        let mut resources = setup::SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor().clone())
+            .collect::<Vec<_>>();
+        resources.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -332,29 +265,11 @@ impl ServerHandler for ReasonMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
-                .with_title("Server document")
-                .with_description("Embedded crate document body (contract C18).")
-                .with_mime_type("text/markdown"),
-            ResourceTemplate::new(uris::PIPELINE_TEMPLATE, "pipeline")
-                .with_title("Reason pipeline")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-                .with_title("Reason model")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::ANALYSES_PAGE_TEMPLATE, "analyses page")
-                .with_title("Reason analyses page")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::ANALYSIS_TEMPLATE, "analysis")
-                .with_title("Reason analysis")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::RESULTS_TEMPLATE, "analysis results")
-                .with_title("Reason analysis results")
-                .with_mime_type("application/vnd.veoveo.reason-results+json"),
-            ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-                .with_title("Reason artifact"),
-        ];
+        let templates = setup::SERVER_SETUP
+            .resource_templates()
+            .iter()
+            .map(|template| template.descriptor().clone())
+            .collect();
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
@@ -372,125 +287,9 @@ impl ServerHandler for ReasonMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let uri = request.uri.as_str();
-            // Well-known surface (contract C18, C19): readable by any identity
-            // that can list resources.
-            if uri == uris::DOCS_URI {
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc(uri) {
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found("server document not found", None)
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                return json_resource(uri, SERVER_DOCS.contract_declaration());
-            }
-            if uri == uris::ANALYSES_APP_URI {
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id: "reason-analyses",
-                        title: "Analyses",
-                        subtitle: "Ask questions about recording ranges and review the model's answers",
-                        empty_message: "No reasoning analyses are visible to this identity.",
-                        resources: &[
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Analyses",
-                                uri: uris::ANALYSES_URI,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Pipelines",
-                                uri: uris::PIPELINES_URI,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Models",
-                                uri: uris::MODELS_URI,
-                            },
-                        ],
-                        tools: &[veoveo_mcp_apps_extension::WorkbenchTool {
-                            label: "Analyze recording",
-                            name: "analyze_recording",
-                            arguments_json: "{}",
-                        }],
-                        stream_result: None,
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            if uri == uris::PIPELINES_URI {
-                return json_resource(uri, &self.state.catalog.pipeline_views());
-            }
-            if uri == uris::MODELS_URI {
-                return json_resource(uri, &self.state.catalog.model_views());
-            }
-            if let Some(id) = uris::parse_pipeline_uri(uri) {
-                let pipeline = self
-                    .state
-                    .catalog
-                    .pipeline(id)
-                    .map(pipeline_view)
-                    .ok_or_else(|| McpError::resource_not_found(format!("Pipeline `{id}` was not found."), None))?;
-                return json_resource(uri, &pipeline);
-            }
-            if let Some(id) = uris::parse_model_uri(uri) {
-                let model = self
-                    .state
-                    .catalog
-                    .model(id)
-                    .map(model_view)
-                    .ok_or_else(|| McpError::resource_not_found(format!("Model `{id}` was not found."), None))?;
-                return json_resource(uri, &model);
-            }
-            let identity = internal_identity(&context)?;
-            if let Some(cursor) = index::parse_collection(uri)? {
-                let page = index::analyses_page(&self.state.tasks, &runtime_owner(&identity), cursor.as_ref()).await?;
-                return json_resource(uri, &page);
-            }
-            if let Some(task_id) = uris::parse_analysis_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let snapshot = analysis_snapshot(&self.state, task_id).await?;
-                return json_resource(uri, &analysis_view(&snapshot)?);
-            }
-            if let Some(task_id) = uris::parse_results_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let snapshot = analysis_snapshot(&self.state, task_id).await?;
-                let output = analysis_output(&snapshot).ok_or_else(|| {
-                    McpError::resource_not_found("analysis results are not available", None)
-                })?;
-                let caller = internal_caller(&context)?;
-                let artifact =
-                    inline_artifact(&self.state, &caller, &output.results_artifact.artifact_id())
-                        .await?;
-                let text = String::from_utf8(artifact.bytes)
-                    .map_err(|_| McpError::internal_error("results artifact is not UTF-8", None))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(text, uri)
-                        .with_mime_type("application/vnd.veoveo.reason-results+json"),
-                ]));
-            }
-            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-                let caller = internal_caller(&context)?;
-                let artifact = inline_artifact(&self.state, &caller, &artifact_id).await?;
-                let mut content =
-                    ResourceContents::blob(BASE64_STANDARD.encode(artifact.bytes), uri);
-                if let Some(mime_type) = artifact.metadata.mime_type {
-                    content = content.with_mime_type(mime_type);
-                }
-                return Ok(ReadResourceResult::new(vec![content]));
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown reason resource `{uri}`"),
-                None,
-            ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        resources::read(&self.state, &request.uri, &context)
+            .await
+            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -531,14 +330,16 @@ impl ServerHandler for ReasonMcp {
         &self,
         requested: &SubscriptionFilter,
     ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
+        resources::accepted_subscription_filter(requested)
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
         let request_context = context.request_context().clone();
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let task_id = subscribable_analysis_id(uri)?;
-            require_task_owner(&self.state, &request_context, task_id).await?;
+            let task_id = resources::subscribable_analysis_id(uri)?;
+            let identity = internal_identity(&request_context)?;
+            resources::analysis_snapshot(&self.state.tasks, &runtime_owner(&identity), task_id)
+                .await?;
         }
         veoveo_task_runtime::listen_durable_subscriptions(
             &self.task_service,
@@ -558,8 +359,20 @@ impl ServerHandler for ReasonMcp {
             return Ok(CompleteResult::default());
         };
         let values = match (reference.uri.as_str(), request.argument.name.as_str()) {
-            (uris::PIPELINE_TEMPLATE, "pipeline_id") => self.state.catalog.pipeline_ids(),
-            (uris::MODEL_TEMPLATE, "model_id") => self.state.catalog.model_ids(),
+            (uris::PIPELINE_TEMPLATE, "pipeline_id") => self
+                .state
+                .catalog
+                .pipeline_ids()
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>(),
+            (uris::MODEL_TEMPLATE, "model_id") => self
+                .state
+                .catalog
+                .model_ids()
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>(),
             (uris::ANALYSIS_TEMPLATE | uris::RESULTS_TEMPLATE, "analysis_id") => {
                 let identity = internal_identity(&context)?;
                 return index::complete(
@@ -603,81 +416,11 @@ impl ServerHandler for ReasonMcp {
     }
 }
 
-async fn analysis_snapshot(state: &AppState, task_id: &str) -> Result<TaskSnapshot, McpError> {
-    let snapshot = state
-        .tasks
-        .get(task_id)
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| {
-            McpError::resource_not_found(format!("Analysis `{task_id}` was not found."), None)
-        })?;
-    if snapshot.task_type != "analyze_recording" {
-        return Err(McpError::resource_not_found(
-            format!("Analysis `{task_id}` was not found."),
-            None,
-        ));
-    }
-    Ok(snapshot)
-}
-
-fn analysis_view(snapshot: &TaskSnapshot) -> Result<AnalysisView, McpError> {
-    let request: tasks::DurableReasonRequest =
-        serde_json::from_value(snapshot.request.clone()).map_err(internal)?;
-    let ReasonTaskInput::Analyze(input) = request.input;
-    Ok(AnalysisView {
-        analysis_uri: uris::analysis_uri(&snapshot.task_id.to_string()),
-        results_uri: uris::results_uri(&snapshot.task_id.to_string()),
-        task_id: snapshot.task_id.to_string(),
-        status: task_status(snapshot.status).to_owned(),
-        progress: snapshot.progress,
-        pipeline_id: input.pipeline_id,
-        task_kind: input.task.kind().to_owned(),
-        recording_uri: input.video.recording_uri,
-        entity_path: input.video.entity_path,
-        timeline: input.video.timeline,
-        created_at: snapshot.created_at.to_rfc3339(),
-        updated_at: snapshot.updated_at.to_rfc3339(),
-        output: analysis_output(snapshot),
-        error: snapshot.error.as_ref().map(|error| error.message.clone()),
-    })
-}
-
-fn analysis_output(snapshot: &TaskSnapshot) -> Option<AnalyzeRecordingOutput> {
-    let result = serde_json::from_value::<CallToolResult>(snapshot.result.clone()?).ok()?;
-    serde_json::from_value(result.structured_content?).ok()
-}
-
-fn task_status(status: TaskStatus) -> &'static str {
-    match status {
-        TaskStatus::Queued => "queued",
-        TaskStatus::Running => "running",
-        TaskStatus::Waiting => "waiting",
-        TaskStatus::Succeeded => "succeeded",
-        TaskStatus::Failed => "failed",
-        TaskStatus::CancelRequested => "cancel_requested",
-        TaskStatus::Cancelled => "cancelled",
-    }
-}
-
-fn subscribable_analysis_id(uri: &str) -> Result<&str, McpError> {
-    uris::parse_analysis_uri(uri)
-        .or_else(|| uris::parse_results_uri(uri))
-        .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
-}
-
 fn mcp_page<T>(
     items: Vec<T>,
     request: Option<&PaginatedRequestParams>,
 ) -> Result<Page<T>, McpError> {
     paginate(items, request, LIST_PAGE_SIZE).map_err(invalid_params)
-}
-
-fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, McpError> {
-    Ok(ReadResourceResult::new(vec![
-        ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
-            .with_mime_type("application/json"),
-    ]))
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
@@ -686,47 +429,6 @@ fn invalid_params(error: impl std::fmt::Display) -> McpError {
 
 fn internal(error: impl std::fmt::Display) -> McpError {
     McpError::internal_error(error.to_string(), None)
-}
-
-async fn inline_artifact(
-    state: &AppState,
-    caller: &veoveo_mcp_contract::PlaneCaller,
-    artifact_id: &veoveo_artifact_contract::ArtifactId,
-) -> Result<veoveo_artifact_contract::ArtifactObject, McpError> {
-    let metadata = state
-        .artifacts
-        .head(caller, artifact_id)
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| {
-            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
-        })?;
-    if metadata.byte_len > state.max_inline_resource_bytes {
-        return Err(McpError::invalid_request(
-            format!(
-                "Artifact `{artifact_id}` is {} bytes, over the {}-byte limit for inline MCP resources. Download it through the artifact download route instead.",
-                metadata.byte_len, state.max_inline_resource_bytes
-            ),
-            None,
-        ));
-    }
-    let artifact = state
-        .artifacts
-        .get(caller, artifact_id)
-        .await
-        .map_err(internal)?
-        .ok_or_else(|| {
-            McpError::resource_not_found(format!("Artifact `{artifact_id}` was not found."), None)
-        })?;
-    if artifact.bytes.len() as u64 != metadata.byte_len
-        || artifact.bytes.len() as u64 > state.max_inline_resource_bytes
-    {
-        return Err(McpError::internal_error(
-            "artifact byte length changed while reading inline resource",
-            None,
-        ));
-    }
-    Ok(artifact)
 }
 
 async fn ready(State(state): State<Arc<AppState>>) -> StatusCode {
@@ -751,6 +453,7 @@ fn install_rustls_provider() {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    LazyLock::force(&setup::SERVER_SETUP);
     install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
