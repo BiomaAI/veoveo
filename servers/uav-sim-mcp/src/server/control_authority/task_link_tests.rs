@@ -8,6 +8,37 @@ use crate::server::{
 use std::time::Duration as Timeout;
 use veoveo_task_runtime::{TaskFailure, TaskStatus, TaskTransition};
 
+async fn assert_mission_hidden(
+    store: &PlatformStore,
+    pilot: &GatewayInternalIdentity,
+    mission: &crate::contract::MissionId,
+) {
+    assert!(
+        task_index::mission(store, pilot, mission)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        task_index::missions_page(store, pilot, None)
+            .await
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    assert!(
+        task_index::complete(
+            store,
+            pilot,
+            task_index::CompletionDomain::Missions,
+            mission.as_str()
+        )
+        .await
+        .unwrap()
+        .is_empty()
+    );
+}
+
 #[tokio::test]
 async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_identity() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -32,6 +63,8 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .await
             .unwrap();
         let (tasks, admitted) = execution_test_support::task(&authority, &pilot, &plan).await;
+        // A queued request supplies no proof of physical admission.
+        assert_mission_hidden(&db.b, &pilot, &plan.mission_id).await;
         let (_, guard) = authority
             .admit_execution(first, &tasks, &admitted)
             .await
@@ -76,12 +109,7 @@ async fn native_mission_read_uses_the_admitted_task_and_retains_unresolved_ident
             .unwrap()
             .check()
             .unwrap();
-        assert!(
-            task_index::mission(&db.b, &pilot, &plan.mission_id)
-                .await
-                .unwrap()
-                .is_none()
-        );
+        assert_mission_hidden(&db.b, &pilot, &plan.mission_id).await;
         db.b.client()
             .query("UPDATE ONLY $link SET task = $right;")
             .bind(("link", task_link::record(admitted.task_id)))
@@ -215,57 +243,6 @@ async fn native_cancelled_task_and_link_failure_cannot_partially_admit_a_mission
         assert_eq!(guard.task_id(), task.task_id);
         authority.abort_execution(&guard).await.unwrap();
     }).await.expect("Task admission rollback qualification exceeded 90 seconds");
-}
-
-#[tokio::test]
-async fn native_legacy_prepared_plan_promotes_to_an_exact_task_link() {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let db = TestDb::new().await;
-    tokio::time::timeout(Timeout::from_secs(60), async {
-        let authority = VehicleControlAuthority::new(db.a.clone());
-        let pilot = identity("legacy", "operations", "pilot", &[]);
-        authority
-            .grant(&pilot, grant(&pilot, "grant"))
-            .await
-            .unwrap();
-        let plan = authority
-            .prepare_plan(&pilot, mission_request("legacy-plan"))
-            .await
-            .unwrap();
-        let record = scoped_record_id("uav_vehicle_mission_plan", &pilot, plan.plan_id.as_str());
-        // Reconstruct the previous stored format in this isolated database, then apply the real migration.
-        db.b.client().query("REMOVE TABLE uav_mission_execution; REMOVE FIELD execution_profile ON TABLE uav_vehicle_mission_plan; UPDATE uav_vehicle_mission_plan UNSET execution_profile;")
-            .await.unwrap().check().unwrap();
-        db.b.client().query(include_str!("../../../../../platform/store/migrations/0098_uav_execution_tasks.surql"))
-            .await.unwrap().check().unwrap();
-        assert_eq!(authority.plan_record(&record).await.unwrap().execution_profile, ExecutionProfile::LegacyV1);
-        assert_eq!(authority.visible_plan(&pilot, false, &plan.plan_id).await.unwrap().unwrap(), plan);
-        let (_, guard) = execution_test_support::begin(&authority, &pilot, &plan.plan_id, 0)
-            .await
-            .unwrap();
-        // Recovery reapplication must preserve a promoted profile and its immutable link.
-        db.b.client().query(include_str!("../../../../../platform/store/migrations/0098_uav_execution_tasks.surql"))
-            .await.unwrap().check().unwrap();
-        assert_eq!(
-            authority
-                .plan_record(&record)
-                .await
-                .unwrap()
-                .execution_profile,
-            ExecutionProfile::TaskLinkedV1
-        );
-        assert_eq!(
-            task_index::mission(&db.b, &pilot, &plan.mission_id)
-                .await
-                .unwrap()
-                .unwrap()
-                .task_id,
-            guard.task_id()
-        );
-        authority.abort_execution(&guard).await.unwrap();
-    })
-    .await
-    .expect("retained profile admission exceeded 60 seconds");
 }
 
 #[tokio::test]

@@ -19,10 +19,9 @@ use crate::contract::{
 
 mod execution;
 pub(super) use execution::{DispatchedMission, MissionExecutionGuard};
-pub(super) mod task_link;
-use task_link::ExecutionProfile;
 mod map_handoff;
 mod reads;
+pub(super) mod task_link;
 use map_handoff::{RouteRequirement, validate_map_handoff};
 #[cfg(test)]
 mod execution_test_support;
@@ -130,7 +129,6 @@ struct PlanRecord {
     map_route_digest_sha256: String,
     map_mobility_profile_uri: String,
     state: String,
-    execution_profile: ExecutionProfile,
     canonical_json: String,
     expires_at: DateTime<Utc>,
     revision: i64,
@@ -151,7 +149,6 @@ struct PlanContent {
     map_route_digest_sha256: String,
     map_mobility_profile_uri: String,
     state: String,
-    execution_profile: ExecutionProfile,
     canonical_json: String,
     expires_at: DateTime<Utc>,
     revision: i64,
@@ -286,7 +283,6 @@ impl VehicleControlAuthority {
             map_route_digest_sha256: plan.map_route.route_digest_sha256.clone(),
             map_mobility_profile_uri: plan.map_route.mobility_profile_uri.as_str().to_owned(),
             state: "prepared".to_owned(),
-            execution_profile: ExecutionProfile::TaskLinkedV1,
             canonical_json: serde_json::to_string(&plan)?,
             expires_at: plan.expires_at,
             revision: 0,

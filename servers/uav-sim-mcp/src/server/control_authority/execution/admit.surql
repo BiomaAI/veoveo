@@ -74,7 +74,6 @@ OR $observed.expires_at <= $now {
 UPDATE ONLY $record SET
   state = 'executing',
   canonical_json = $canonical,
-  execution_profile = 'task_linked_v1',
   updated_at = $now,
   revision += 1
 RETURN NONE;

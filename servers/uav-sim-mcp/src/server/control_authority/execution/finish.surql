@@ -33,8 +33,7 @@ BEGIN TRANSACTION;
     SELECT *
     FROM ONLY $record
   );
-  IF $observed != $expected_plan
-  OR $observed.execution_profile != 'task_linked_v1' {
+  IF $observed != $expected_plan {
     THROW 'uav_execution_conflict';
   };
   IF $observed.state = 'executing' {

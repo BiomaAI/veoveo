@@ -1,6 +1,6 @@
 //! Native catalog qualification: disposable SurrealDB, no simulator or GPU workload.
 use super::{
-    control_authority::{ControlCollection, VehicleControlAuthority},
+    control_authority::{ControlCollection, VehicleControlAuthority, task_link},
     ownership::runtime_owner,
     task_index,
     test_support::identity,
@@ -107,12 +107,6 @@ async fn task(
     identity: &GatewayInternalIdentity,
     plan: &VehicleMissionPlan,
 ) -> veoveo_task_runtime::TaskSnapshot {
-    // These catalog fixtures qualify the declared retained legacy profile.
-    tasks.platform_store().client().query("UPDATE uav_vehicle_mission_plan SET execution_profile = 'legacy_v1' WHERE tenant = $tenant AND work_context = $context AND principal_key = $principal AND plan_id = $plan;")
-        .bind(("tenant", veoveo_platform_store::deterministic_tenant_id(identity.authority.tenant.as_str()).unwrap().record_id()))
-        .bind(("context", veoveo_platform_store::deterministic_work_context_id(identity.authority.tenant.as_str(), identity.authority.work_context.as_str()).unwrap().record_id()))
-        .bind(("principal", identity.actor.id.to_string())).bind(("plan", plan.plan_id.to_string()))
-        .await.unwrap().check().unwrap();
     tasks
         .create(CreateTask {
             task_id: TaskId::new(),
@@ -128,11 +122,32 @@ async fn task(
             idempotency_key: None,
             ttl_ms: None,
             poll_interval_ms: None,
-            retention_pins: BTreeSet::new(),
+            retention_pins: BTreeSet::from([task_link::retention_pin()]),
         })
         .await
         .unwrap()
         .snapshot
+}
+
+async fn admitted_task(
+    tasks: &TaskRuntime,
+    identity: &GatewayInternalIdentity,
+    plan: &VehicleMissionPlan,
+) -> veoveo_task_runtime::TaskSnapshot {
+    let authority = VehicleControlAuthority::new(tasks.platform_store().clone());
+    let draft = authority
+        .prepare_execution(identity, &plan.plan_id, plan.revision)
+        .await
+        .unwrap();
+    let task = task(tasks, identity, plan).await;
+    let (_, guard) = authority
+        .admit_execution(draft, tasks, &task)
+        .await
+        .unwrap();
+    // The catalog fixture never dispatches physical work. Settle admission before
+    // creating another mission for the same vehicle.
+    authority.abort_execution(&guard).await.unwrap();
+    task
 }
 
 #[tokio::test]
@@ -317,7 +332,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .prepare_plan(&pilot, mission_request(&format!("mission-{i:04}")))
                 .await
                 .unwrap();
-            snapshots.push(task(&tasks, &pilot, &plan).await);
+            snapshots.push(admitted_task(&tasks, &pilot, &plan).await);
             plans.push(plan);
         }
         let not_executed = writer
@@ -329,7 +344,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .prepare_plan(other, mission_request("hidden-mission"))
                 .await
                 .unwrap();
-            task(&tasks, other, &plan).await;
+            admitted_task(&tasks, other, &plan).await;
             assert!(
                 reader
                     .visible_plan(&pilot, false, &plan.plan_id)
@@ -347,7 +362,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             .prepare_plan(&pilot, mission_request("classified-mission"))
             .await
             .unwrap();
-        let hidden_task = task(&tasks, &labeled, &hidden).await;
+        let hidden_task = admitted_task(&tasks, &labeled, &hidden).await;
         let mut different_profile = pilot.clone();
         different_profile.profile =
             veoveo_mcp_contract::GatewayProfileId::new("other-profile").unwrap();
@@ -422,14 +437,15 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
                 .len(),
             3
         );
-        let latest = task(&tasks, &pilot, &plans[0]).await;
+        // A later unadmitted attempt must not replace the mission's linked Task.
+        let _rejected = task(&tasks, &pilot, &plans[0]).await;
         assert_eq!(
             task_index::mission(&db.b, &pilot, &plans[0].mission_id)
                 .await
                 .unwrap()
                 .unwrap()
                 .task_id,
-            latest.task_id
+            snapshots[0].task_id
         );
         assert_eq!(
             task_index::complete(

@@ -1,10 +1,4 @@
--- Existing plans keep an explicit read profile; every new admission creates its Task link.
-DEFINE FIELD IF NOT EXISTS execution_profile ON TABLE uav_vehicle_mission_plan TYPE 'legacy_v1' | 'task_linked_v1'
-  DEFAULT 'legacy_v1';
-UPDATE uav_vehicle_mission_plan SET
-  execution_profile = 'legacy_v1'
-WHERE execution_profile = NONE;
-
+-- Mission admission creates one exact Task link in the plan/lease transaction.
 DEFINE TABLE IF NOT EXISTS uav_mission_execution SCHEMAFULL TYPE NORMAL
   CHANGEFEED 30d INCLUDE ORIGINAL
   PERMISSIONS NONE;

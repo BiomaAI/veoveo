@@ -535,18 +535,18 @@ plan transition and vehicle lease. Mission reads select that link in SQL, so a l
 rejected attempt cannot hide the admitted Task. Unknown outcomes retain the Task past
 normal expiry. Startup selects settled or never-admitted Tasks in SQL before pagination
 to repair missed pin acknowledgements; it preserves other consumers' pins and never
-replays simulator work. Native checks cover cancellation, atomic rollback, retained-profile
-promotion and reapplication, mismatched Task input/link retention, and more than a page of
-ineligible Tasks before eligible cleanup records. The full UAV suite passes 63 checks,
-shared-runtime admission, provider and lifecycle suites pass 25, and Store migration checks
-pass nine. Expanded admission, settlement, correlation and retention SQL validate with
-the pinned SurrealDB 3.2.4 CLI, and strict workspace Clippy passes.
-Store migration 0098 adds explicit execution read profiles and immutable links. The owning
-design declares the legacy read adapter's retirement conditions and a coordinated writer
-drain. Rollback requires a profile-aware UAV build and the current Store catalog, or a
-pre-upgrade database restore with every writer drained. Complete observations retained
-across process loss, installed recovery, operator reconciliation and reverse/forward
-replacement still need implementation or qualification before deployment.
+replays simulator work. Native checks cover cancellation, atomic rollback, mismatched
+Task input/link retention, and more than a page of ineligible Tasks before eligible
+cleanup records. Admission, settlement, correlation and retention SQL use the pinned
+SurrealDB 3.2.4 profile. The current Store schema requires exact execution links;
+historical execution profiles and their conversion fixtures are removed. Mission reads,
+pages and completions require the same exact Task link and current authority in SQL
+before selection limits. Catalog fixtures use real admission and settlement; rejected
+attempts cannot publish or replace a mission. The UAV suite passes 87 native checks
+and six compile-fail examples, nine Store migration checks pass, and ten complete SQL
+statements validate. Strict all-target, all-feature Clippy passes for UAV and Store.
+Complete observations retained across process loss, installed recovery and operator
+reconciliation still need implementation or qualification before deployment.
 UAV now exposes contract, runtime and MCP features with optional dependencies.
 Its public library owns the live-view v4 types; MCP core has no live-view exports or
 dependency on UAV. Gateway output-policy conversion stays in UAV's authenticated
@@ -1172,7 +1172,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Map source catalog | Map owns typed addresses, collection-bound cursors and checked public summaries. Exact reads, pages and completion select the tenant in SQL before limits; selected documents must agree with indexed metadata. Native isolation, continuation, redaction and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer walks the page envelope and the unbounded Store list is removed | Qualify current source-ID and document admission and installed page traversal |
 | Map mobility catalogs | Map owns checked profile versions, exact and collection addresses, composite cursors and complete-profile pages. SQL selects tenant, parent, ID and numeric version before limits. Native isolation, ordering, completion and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer traverses pages and the unbounded Store read is removed | Qualify installed traversal with current consumers; UAV grants/handoff and the flight harness consume Map-owned addresses |
 | UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify current adapter/Task restart recovery and installed grant/mission behavior |
-| UAV execution exclusion | Admission guards a retained queued Task and writes its exact link, vehicle lease and plan in one transaction. Mission reads follow that link; unresolved outcomes retain their Task pin. Native correlation, profile migration, cancellation/rollback and SQL cleanup-page tests pass alongside the prior contention and HTTP interruption checks | Retain complete observations across process loss; qualify current-format installed recovery and operator reconciliation. Remove compatibility-only profile conversion and historical schema-upgrade fixtures |
+| UAV execution exclusion | Admission guards a retained queued Task and writes its exact link, vehicle lease and plan in one transaction. Mission reads follow that link; unresolved outcomes retain their Task pin. Native correlation, cancellation/rollback and SQL cleanup-page tests cover the current admission model alongside contention and HTTP interruption | Retain complete observations across process loss; qualify current-format installed recovery and operator reconciliation |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Qualify current catalog consumers and installed subscription recovery |
 | Media generation result | The isolated contract owns checked current generation results, typed addresses and output attribution. SQL selects successful linked Tasks under current owner policy. The old decoder, result conversion and rollback-only smoke option are removed. CLI downloads use the current result and verify resource equality | Qualify current-format installed delivery, caller isolation and restart behavior |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

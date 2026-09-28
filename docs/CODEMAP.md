@@ -1001,7 +1001,7 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
 | `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional Task-link/lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
-| `servers/uav-sim-mcp/src/server/control_authority/task_link.rs`, `task_link_tests.rs`, `execution_test_support.rs` | explicit retained execution profiles, native Task correlation, SQL retention selection and isolated admission fixtures; Store migration `0098` adds their profile and link records |
+| `servers/uav-sim-mcp/src/server/control_authority/task_link.rs`, `task_link_tests.rs`, `execution_test_support.rs` | exact native Task correlation, SQL retention selection and isolated current-format admission fixtures; Store owns the execution-link schema |
 | `servers/uav-sim-mcp/src/adapter/completion.rs` | operation-correlated simulator receipts and independent recording-result resolution |
 | `servers/uav-sim-mcp/src/server/task_worker.rs`, `task_worker/native_tests.rs` | pinned Task creation before admission, dispatch guard consumption, interrupted Task handling, recovery without replay, settled-pin repair and native HTTP/Store failure qualification |
 | `platform/store/migrations/0097_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |

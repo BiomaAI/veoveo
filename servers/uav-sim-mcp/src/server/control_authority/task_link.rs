@@ -1,20 +1,7 @@
-//! Retained execution profiles and native Task identity at the database boundary.
-use serde::{Deserialize, Serialize};
-use surrealdb::types as surrealdb_types;
-use surrealdb::types::{RecordId, SurrealValue};
+//! Native Task identity and retention through mission settlement.
+use surrealdb::types::RecordId;
 use veoveo_task_runtime::TaskRetentionPin;
 use veoveo_types::TaskId;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, SurrealValue)]
-#[surreal(untagged)]
-pub(super) enum ExecutionProfile {
-    #[serde(rename = "legacy_v1")]
-    #[surreal(value = "legacy_v1")]
-    LegacyV1,
-    #[serde(rename = "task_linked_v1")]
-    #[surreal(value = "task_linked_v1")]
-    TaskLinkedV1,
-}
 
 pub(in crate::server) fn retention_pin() -> TaskRetentionPin {
     TaskRetentionPin::new("uav-sim:mission-execution").expect("static mission retention pin")
@@ -114,9 +101,6 @@ impl super::VehicleControlAuthority {
             Some(false) => return Err(ControlAuthorityError::Conflict),
             None => false,
         };
-        if linked && row.execution_profile != ExecutionProfile::TaskLinkedV1 {
-            return Err(ControlAuthorityError::Conflict);
-        }
         match plan.state {
             MissionPlanLifecycle::Executing => Ok(false),
             MissionPlanLifecycle::Prepared => Ok(!linked),

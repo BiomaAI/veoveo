@@ -24,6 +24,19 @@ const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner 
 const PLAN_VISIBLE: &str =
     "tenant = $tenant AND work_context = $context AND principal_key = $principal_key";
 const MISSION_TASK: &str = "work_context = $context AND task_type = 'execute_vehicle_mission_plan'";
+const EXECUTION_LINK: &str = "tenant = $tenant AND work_context = $context
+    AND principal_key = $principal_key
+    AND plan.tenant = tenant AND plan.work_context = work_context
+    AND plan.principal_key = principal_key AND plan.state != 'prepared'
+    AND task.request.input.plan_id = plan.plan_id
+    AND record::id(id) = record::id(task)";
+
+fn admitted_plans_sql() -> String {
+    format!(
+        "SELECT VALUE plan FROM uav_mission_execution WHERE {EXECUTION_LINK}
+         AND task IN (SELECT VALUE id FROM task WHERE {VISIBLE} AND {MISSION_TASK})"
+    )
+}
 
 // Bind fields as individual parameters so the database can plan indexed equality reads.
 #[derive(SurrealValue)]
@@ -148,14 +161,8 @@ fn mission_sql() -> String {
         "LET $matching_plans = ({});
          SELECT * FROM task WITH INDEX task_uav_plan WHERE {VISIBLE} AND {MISSION_TASK}
          AND request.input.plan_id IN $matching_plans.plan_id
-         AND (request.input.plan_id IN $matching_plans[WHERE execution_profile = 'legacy_v1'].plan_id
-           OR id IN (SELECT VALUE task FROM uav_mission_execution
-             WHERE plan IN $matching_plans.id AND tenant = $tenant AND work_context = $context
-             AND principal_key = $principal_key AND plan.execution_profile = 'task_linked_v1'
-             AND plan.tenant = tenant AND plan.work_context = work_context
-             AND plan.principal_key = principal_key AND plan.state != 'prepared'
-             AND task.request.input.plan_id = plan.plan_id
-             AND record::id(id) = record::id(task)))
+         AND id IN (SELECT VALUE task FROM uav_mission_execution
+             WHERE plan IN $matching_plans.id AND {EXECUTION_LINK})
          ORDER BY created_at DESC, id DESC LIMIT 1",
         mission_plan_sql()
     )
@@ -163,7 +170,7 @@ fn mission_sql() -> String {
 
 fn mission_plan_sql() -> String {
     format!(
-        "SELECT id, plan_id, execution_profile FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE} AND mission_id = $mission"
+        "SELECT id, plan_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE} AND mission_id = $mission"
     )
 }
 
@@ -196,12 +203,20 @@ pub(super) async fn missions_page(
     identity: &GatewayInternalIdentity,
     after: Option<&MissionId>,
 ) -> Result<CollectionPage<String>> {
-    let mut response = store.client().query(format!(
-        "SELECT mission_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE}
-         AND plan_id IN (SELECT VALUE request.input.plan_id FROM task WHERE {VISIBLE} AND {MISSION_TASK})
+    let mut response = store
+        .client()
+        .query(format!(
+            "SELECT mission_id FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE}
+         AND id IN ({})
          AND ($after = NONE OR mission_id > $after)
-         GROUP BY mission_id ORDER BY mission_id ASC LIMIT $limit;"
-    )).bind(scope(identity)?).bind(("after", after.map(ToString::to_string))).bind(("limit", index::PAGE_SIZE + 1)).await?.check()?;
+         GROUP BY mission_id ORDER BY mission_id ASC LIMIT $limit;",
+            admitted_plans_sql()
+        ))
+        .bind(scope(identity)?)
+        .bind(("after", after.map(ToString::to_string)))
+        .bind(("limit", index::PAGE_SIZE + 1))
+        .await?
+        .check()?;
     let rows: Vec<Mission> = response.take(0)?;
     index::page(
         rows,
@@ -239,8 +254,8 @@ pub(super) async fn complete(
         ),
         CompletionDomain::Missions => format!(
             "SELECT mission_id AS value FROM uav_vehicle_mission_plan WHERE {PLAN_VISIBLE}
-             AND plan_id IN (SELECT VALUE request.input.plan_id FROM task WHERE {VISIBLE} AND {MISSION_TASK})
-             AND string::contains(string::lowercase(mission_id), $needle) GROUP BY value ORDER BY value ASC LIMIT $limit;"
+             AND id IN ({})
+             AND string::contains(string::lowercase(mission_id), $needle) GROUP BY value ORDER BY value ASC LIMIT $limit;", admitted_plans_sql()
         ),
     };
     #[derive(SurrealValue)]

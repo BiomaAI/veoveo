@@ -18,7 +18,7 @@ for visualization.
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
-| UAV execution read profiles | Internal `legacy_v1` retained-plan adapter and `task_linked_v1` exact Task correlation; public plan JSON is unchanged. |
+| UAV mission admission | Repository-owned Store relationship linking each admitted plan to one native Task and its vehicle command lease. Public plan JSON exposes domain state. |
 | RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
@@ -237,9 +237,9 @@ in the current Work Context. SQL follows the plan's exact execution link and ver
 its Task identity, tenant, context and principal before ordering and selecting a row.
 A later rejected attempt cannot hide the admitted Task. A tenant/context/principal/mission
 index selects matching plans before the Task query uses its server/plan index. Native
-`EXPLAIN FULL` qualification checks both access paths. A missing or damaged link on a
-`task_linked_v1` plan supplies no result. Retained `legacy_v1` plans use the declared
-read adapter below until their original Tasks expire or operators repair their records.
+`EXPLAIN FULL` qualification checks both access paths. A missing or damaged link supplies no result. Mission pages and completions require
+the same link, current parent ownership and Task visibility in SQL before grouping
+or applying their limits. A queued request alone does not publish a mission.
 Usage resources preserve the shared Task read profile:
 server, actor, tenant, gateway profile, and data-label clearance. Their reads can span
 the same actor's Work Contexts. Native Store invalidations for grants, plans, and Tasks
@@ -437,36 +437,20 @@ lost acknowledgements without querying the simulator or replaying a command.
 An existing execution link that disagrees with Task input or ownership keeps its pin
 and reports the mismatch for repair.
 
-### Retained Execution Profiles And Deployment
+### Execution Storage And Recovery
 
-The UAV server owns the `legacy_v1` read adapter for retained plans that predate exact
-Task linking. It uses their original owner-scoped plan-ID correlation. New plans use
-`task_linked_v1`; admitting a prepared legacy plan promotes it and writes its link
-atomically. Reapplying the additive schema preserves promoted profiles and links.
-The adapter never weakens the current authorization predicates or dispatch policy.
-Retire it only after a retained-data preflight proves that every remaining legacy
-plan's Task has expired under normal retention or an operator has repaired and qualified
-its exact correlation, and the installation rollback window has closed. No read infers
-an execution link for a newer profile.
+Every admitted plan has one Task link, created in the same transaction as its vehicle
+command lease and executing state. Reads require that link and validate its Task,
+plan and caller identities. A terminal Task with an executing plan keeps its retention
+pin and the vehicle fence until the physical outcome is settled. A later request for
+the same plan cannot replace its admitted Task.
 
-This profile requires a coordinated Map/UAV/client upgrade with UAV command admission
-drained and executing missions settled. Drain every UAV replica and worker before
-applying the execution-profile schema or replacing workers; overlapping writers are
-unsupported. Retained uncertain executions must be reconciled before the drain finishes.
-The database adds an execution profile and link records; public plan and grant JSON
-keep their wire shape. Preflight ownership agreement, active plan/lease correlation
-and available revision capacity; preserve malformed or unresolved
-records for repair. Preflight retained grants and plans for canonical Map mobility-profile IDs,
-positive versions within the signed integer range, valid Map validation IDs, declared
-position fields, and document/index agreement. Preserve rejected records for operator
-repair; readers do not rewrite them. Back up retained records before any repair.
-Rollback uses the same drain and a build that understands the execution profile and
-links and retains the current Store catalog. A pre-profile UAV binary is incompatible
-even with an updated catalog because its whole-record admission comparison omits the
-new field. Returning to that binary requires restoring the pre-upgrade database snapshot
-with every database writer drained and accepting that snapshot's recovery point.
-Installed grant reads, mission admission and reverse/forward replacement require
-qualification before this transition is accepted.
+Native control-plane qualification covers exact mission selection across Store
+connections, unadmitted and damaged-link exclusion from reads, pages and completions,
+current-format interruption recovery, retained Task pins, and atomic admission failure.
+The catalog fixture admits and settles current plans through the domain API before
+qualifying pagination and query plans. Installed command recovery and physical simulator
+behavior require their separate acceptance runs.
 
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot
