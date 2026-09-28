@@ -4,6 +4,8 @@ use veoveo_stream_mcp::contract::*;
 mod replay;
 #[path = "contract/resources.rs"]
 mod resources;
+#[path = "contract/responses.rs"]
+mod responses;
 
 #[test]
 fn replay_requests_share_the_video_owner_and_preserve_defaults() {

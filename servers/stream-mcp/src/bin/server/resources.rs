@@ -151,3 +151,31 @@ pub(super) async fn run_snapshot(
     }
     Ok(snapshot)
 }
+
+/// Static catalogs never accept list changes; only owned mutable resource families subscribe.
+pub(super) fn accepted_subscription_filter(
+    requested: &rmcp::model::SubscriptionFilter,
+) -> Option<rmcp::model::SubscriptionFilter> {
+    let mut accepted = rmcp::model::SubscriptionFilter::builder().build();
+    accepted.task_ids = requested.task_ids.clone().filter(|ids| !ids.is_empty());
+    accepted.resource_subscriptions = requested
+        .resource_subscriptions
+        .as_ref()
+        .map(|uris| {
+            uris.iter()
+                .filter(|uri| {
+                    StreamResource::parse(uri).is_ok_and(|resource| {
+                        resource.subscription_run().is_some()
+                            || resource.subscription_session().is_some()
+                    })
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .filter(|uris| !uris.is_empty());
+    if accepted.task_ids.is_none() && accepted.resource_subscriptions.is_none() {
+        None
+    } else {
+        Some(accepted)
+    }
+}

@@ -20,20 +20,6 @@ pub struct StopLiveSessionRequest {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct StartLiveSessionOutput {
-    pub session_id: SessionId,
-    pub session_uri: SessionUri,
-    pub results_uri: SessionResultsUri,
-    pub pipeline_uri: PipelineUri,
-    pub ingress: LiveIngressView,
-    pub video: LiveVideoView,
-    pub preview_uri: SessionPreviewUri,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub recording_output: Option<LiveRecordingOutputView>,
-    pub started_at: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct StopLiveSessionOutput {
     pub session_uri: SessionUri,
     pub lifecycle: LiveSessionLifecycle,
@@ -101,30 +87,6 @@ pub struct LiveRecordingOutputView {
     pub error: Option<String>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct LiveSessionView {
-    pub session_id: SessionId,
-    pub session_uri: SessionUri,
-    pub results_uri: SessionResultsUri,
-    pub pipeline_id: PipelineId,
-    pub pipeline_uri: PipelineUri,
-    pub ingress: LiveIngressView,
-    pub video: LiveVideoView,
-    pub preview_uri: SessionPreviewUri,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub recording_output: Option<LiveRecordingOutputView>,
-    pub lifecycle: LiveSessionLifecycle,
-    pub started_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stopped_at: Option<String>,
-    pub received_video_frames: u64,
-    pub processed_frames: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub newest_result_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
 /// One authorized page of process-local live sessions, newest IDs first.
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -134,3 +96,9 @@ pub struct LiveSessionsPage {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<SessionCursor>,
 }
+
+mod start;
+pub use start::{LiveStartDetails, StartLiveSessionOutput};
+
+mod view;
+pub use view::{LiveSessionDetails, LiveSessionView};

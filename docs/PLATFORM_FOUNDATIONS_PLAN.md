@@ -687,6 +687,22 @@ clock. Four compile-fail examples and strict all-target, all-feature Clippy pass
 Fixture cleanup returns Docker to its 13 retained volumes with no running containers.
 DTO relationship validation, checked MCP setup and installed/GPU acceptance remain open.
 
+Stream response builders now derive repeated addresses from one identity. Wire
+admission checks catalog ID/address agreement, perception/model presence, live-session
+addresses and run products against their parent Task and pipeline. Checked MCP setup
+owns the documents, capabilities, static descriptors and templates before Store access.
+The empty server scope vocabulary keeps gateway operation policy with its owner. All
+11 templates expand to their owning builders, and subscription admission accepts only
+requested Tasks and mutable run/session addresses. Both gateway registrations now declare
+revision 3 and disable static catalog list-change notifications. The final Stream suite
+passes 40 native checks; flight and Reason suites pass 96, with Reason's three setup
+checks repeated after the registration correction. Six compile-fail examples and 16
+independent-consumer tests pass, preserving all 37 schema snapshots. Strict all-target,
+all-feature Clippy passes for Stream, Reason, flight and smoke. The review identified C02
+terminal-result naming and C27 shared run-resource notifications as the next Stream work;
+the owning compliance declarations and Deferred Work list record both gaps. Installed
+and GPU qualification remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1196,7 +1212,7 @@ default owner; the inventory must not become a central domain-type registry.
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify current scope enforcement on every installed UAV replica |
 | Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
-| Stream | Its isolated contract owns distinct catalog and execution IDs, typed addresses and collection cursors, Stream Artifact URIs, the replay schema and portable result checks consumed by Reason. The server and flight client use those types; run reads and subscriptions select caller-owned Tasks in SQL. All 37 schema snapshots and independent contract checks pass without runtime dependencies | Complete DTO relationship validation and checked MCP setup; qualify installed and GPU behavior |
+| Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Complete C02 terminal-result naming and C27 shared run-resource notifications; strengthen remaining result/recording references; qualify installed and GPU behavior |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
 | Recording and View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
@@ -1616,3 +1632,5 @@ not complete while a row remains.
 |---|---|---|---|
 | Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
+| Phase 3 Stream C02 | `servers/stream-mcp/src/contract.rs` | Give all three tools one canonical top-level `result_uri`; qualify current Task completion, reads and installed consumers with a coordinated hard cut | Response identity validation is implemented; terminal-product naming needs its own current-format delivery qualification |
+| Phase 3 Stream C27 | `servers/stream-mcp/src/bin/server.rs` | Drive run-resource invalidations from the shared authorized Task watch while retaining live-session notifications from their process owner | Checked discovery exposes the current gap; the mixed resource listener needs native multi-instance and reconnect qualification |

@@ -10,7 +10,6 @@ use crate::contract::{
     LiveIngressView, LiveTransport, LiveVideoView, ModelFormat, ModelView, PerceptionOperation,
     PipelineProfile, PipelineView,
 };
-use crate::uris;
 
 const MAX_LAUNCH_BYTES: usize = 64 * 1024;
 
@@ -398,26 +397,34 @@ fn validate_recording_output(
 }
 
 pub fn pipeline_view(config: &PipelineConfig) -> PipelineView {
-    PipelineView {
-        id: config.id.clone(),
-        uri: uris::pipeline_uri(&config.id),
+    let details = crate::contract::PipelineDetails {
         title: config.title.clone(),
         description: config.description.clone(),
-        profile: config.profile.public_profile(),
-        model_uri: config.profile.model_id().map(uris::model_uri),
         supports_recording_replay: config.recording_replay.is_some(),
         supports_live_input: config.live.is_some(),
+    };
+    match config.profile.public_profile() {
+        PipelineProfile::PassThrough => PipelineView::pass_through(config.id.clone(), details),
+        PipelineProfile::Perception {
+            operation,
+            tracking,
+        } => PipelineView::perception(
+            config.id.clone(),
+            config.profile.model_id().expect("perception model").clone(),
+            operation,
+            tracking,
+            details,
+        ),
     }
 }
 
 pub fn model_view(config: &ModelConfig) -> ModelView {
-    ModelView {
-        id: config.id.clone(),
-        uri: uris::model_uri(&config.id),
-        title: config.title.clone(),
-        description: config.description.clone(),
-        format: config.format,
-    }
+    ModelView::new(
+        config.id.clone(),
+        config.title.clone(),
+        config.description.clone(),
+        config.format,
+    )
 }
 
 fn validate_profile(
@@ -691,8 +698,8 @@ mod tests {
         let pipeline = catalog.pipeline_views().pop().unwrap();
         assert!(pipeline.supports_live_input);
         assert!(!pipeline.supports_recording_replay);
-        assert_eq!(pipeline.profile, PipelineProfile::PassThrough);
-        assert!(pipeline.model_uri.is_none());
+        assert_eq!(pipeline.profile(), &PipelineProfile::PassThrough);
+        assert!(pipeline.model_uri().is_none());
     }
 
     #[test]

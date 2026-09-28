@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::process::{ExitStatus, Stdio};
 use std::sync::Arc;
 use std::time::Duration;
-use veoveo_stream_mcp::contract::{ModelId, PipelineId, PipelineUri, SessionId};
+use veoveo_stream_mcp::contract::{ModelId, PipelineId, SessionId};
 
 use anyhow::{Context, Result, bail, ensure};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -48,7 +48,6 @@ pub(super) struct LiveSessionManager {
 struct LiveSession {
     session_id: SessionId,
     pipeline_id: PipelineId,
-    pipeline_uri: PipelineUri,
     ingress: veoveo_stream_mcp::contract::LiveIngressView,
     video: LiveVideoView,
     input_width: u16,
@@ -340,7 +339,6 @@ impl LiveSessionManager {
         let session = Arc::new(LiveSession {
             session_id,
             pipeline_id: pipeline_id.to_owned(),
-            pipeline_uri: uris::pipeline_uri(pipeline_id),
             ingress: live.ingress.view(),
             video: live.video_view(),
             input_width: live.input_width,
@@ -373,20 +371,19 @@ impl LiveSessionManager {
                 .consume_events(session.clone(), stream, stderr_path),
         );
 
-        Ok(StartLiveSessionOutput {
+        Ok(StartLiveSessionOutput::new(
             session_id,
-            session_uri: uris::session_uri(session_id),
-            results_uri: uris::session_results_uri(session_id),
-            pipeline_uri: uris::pipeline_uri(pipeline_id),
-            ingress: live.ingress.view(),
-            video: live.video_view(),
-            preview_uri: uris::session_preview_uri(session_id),
-            recording_output: session
-                .recording_output
-                .as_ref()
-                .map(LiveRecordingOutput::view),
-            started_at: started_at.to_rfc3339(),
-        })
+            pipeline_id.clone(),
+            veoveo_stream_mcp::contract::LiveStartDetails {
+                ingress: live.ingress.view(),
+                video: live.video_view(),
+                recording_output: session
+                    .recording_output
+                    .as_ref()
+                    .map(LiveRecordingOutput::view),
+                started_at: started_at.to_rfc3339(),
+            },
+        ))
     }
 
     async fn consume_events(
@@ -761,27 +758,25 @@ fn owner_allows(owner: &TaskOwner, caller: &TaskOwner) -> bool {
 }
 
 fn session_view(session: &LiveSession, state: &LiveSessionState) -> LiveSessionView {
-    LiveSessionView {
-        session_id: session.session_id,
-        session_uri: uris::session_uri(session.session_id),
-        results_uri: uris::session_results_uri(session.session_id),
-        pipeline_id: session.pipeline_id.clone(),
-        pipeline_uri: session.pipeline_uri.clone(),
-        ingress: session.ingress.clone(),
-        video: session.video.clone(),
-        preview_uri: uris::session_preview_uri(session.session_id),
-        recording_output: session
-            .recording_output
-            .as_ref()
-            .map(LiveRecordingOutput::view),
-        lifecycle: state.lifecycle,
-        started_at: state.started_at.to_rfc3339(),
-        stopped_at: state.stopped_at.map(|value| value.to_rfc3339()),
-        processed_frames: state.processed_frames,
-        received_video_frames: state.received_video_frames,
-        newest_result_at: state.newest_result_at.map(|value| value.to_rfc3339()),
-        error: state.error.clone(),
-    }
+    LiveSessionView::new(
+        session.session_id,
+        session.pipeline_id.clone(),
+        veoveo_stream_mcp::contract::LiveSessionDetails {
+            ingress: session.ingress.clone(),
+            video: session.video.clone(),
+            recording_output: session
+                .recording_output
+                .as_ref()
+                .map(LiveRecordingOutput::view),
+            lifecycle: state.lifecycle,
+            started_at: state.started_at.to_rfc3339(),
+            stopped_at: state.stopped_at.map(|value| value.to_rfc3339()),
+            processed_frames: state.processed_frames,
+            received_video_frames: state.received_video_frames,
+            newest_result_at: state.newest_result_at.map(|value| value.to_rfc3339()),
+            error: state.error.clone(),
+        },
+    )
 }
 
 fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessionOutput {
@@ -902,7 +897,6 @@ mod tests {
         Arc::new(LiveSession {
             session_id: indexed_session_id(id),
             pipeline_id: "preview".parse().unwrap(),
-            pipeline_uri: uris::pipeline_uri(&"preview".parse().unwrap()),
             ingress: veoveo_stream_mcp::contract::LiveIngressView {
                 transport: veoveo_stream_mcp::contract::LiveTransport::RtpH264Udp,
                 host: "fixture".into(),
@@ -984,7 +978,7 @@ mod tests {
             let first = manager.page(&caller, None, 100).await;
             assert_eq!(first.sessions.len(), 100);
             assert_eq!(
-                first.sessions.first().unwrap().session_id,
+                first.sessions.first().unwrap().session_id(),
                 indexed_session_id(107)
             );
             assert_eq!(first.next_before, Some(indexed_session_id(8)));
@@ -1007,7 +1001,7 @@ mod tests {
                 .sessions
                 .iter()
                 .chain(&tail.sessions)
-                .map(|s| &s.session_id)
+                .map(|s| s.session_id())
                 .collect::<BTreeSet<_>>();
             assert_eq!(ids.len(), 107);
             let mut other_context = caller.clone();

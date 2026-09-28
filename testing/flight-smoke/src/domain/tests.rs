@@ -172,7 +172,7 @@ fn stream_preflight_reuses_one_visible_session_without_claiming_ownership() {
         .unwrap()
         .unwrap();
     assert_eq!(
-        selected.session_id.to_string(),
+        selected.session_id().to_string(),
         "01983da0-0000-7000-8000-000000000002"
     );
 }

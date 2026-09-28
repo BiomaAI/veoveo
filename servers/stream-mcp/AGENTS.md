@@ -1,7 +1,7 @@
 # Stream MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -13,6 +13,11 @@ provider-neutral.
 ## Invariants
 
 - Own `stream://` and `ui://stream/live.html`.
+- Build hosted declarations through `McpServerContract` and `McpServerSetup` before
+  Store access. Catalogs are static; accepted subscriptions contain only requested
+  Tasks and mutable run/session resource families.
+- Construct response identities once, derive their addresses, and reject disagreement
+  in submitted wire fields. Run products must match the parent Task and pipeline.
 - Keep IDs, resource addresses and collection cursors in the contract-only library.
   Use Stream constructors and the shared URI builder; serialize strings at protocol
   boundaries. Run reads and subscriptions use SQL owner selection.
@@ -61,10 +66,10 @@ compiled for the deployment GPU.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
-- C02: met
+- C02: pending — tools need the canonical top-level result_uri; current responses use domain-specific address fields
 - C03: met
 - C04: met — run and session collections use authorized cursor pages of 100; discovery does not enumerate these records
 - C05: met
@@ -79,7 +84,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: met
+- C17: met — both gateway registrations declare revision 3
 - C18: met
 - C19: met
 - C20: met
@@ -89,8 +94,9 @@ Contract revision: 2
 - C24: met
 - C25: met
 - C26: met
-- C27: met
+- C27: pending — run-resource invalidations still use the local hub; adopt the shared Task-backed resource watch
 - C28: met — static resource discovery declares no list-change capability; session and task changes update contents
 - C29: met
 - C30: met
 - C31: pending — installed Discover and list readiness qualification is pending
+- C32: pending — knowledge-source publication belongs to Phase 7

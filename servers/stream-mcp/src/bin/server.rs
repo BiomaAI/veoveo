@@ -19,9 +19,8 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents,
+        ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -30,13 +29,11 @@ use rmcp::{
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
-use veoveo_mcp_apps_extension::{
-    UiVisibility, app_resource, extend_capabilities, link_tool_to_app,
-};
+use veoveo_mcp_apps_extension::{UiVisibility, link_tool_to_app};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, docs::ServerDocs,
-    init_server_telemetry, paginate, public_allowed_hosts,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
+    public_allowed_hosts,
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_recording_reader::RecordingReader;
@@ -79,6 +76,8 @@ mod prompts;
 mod recording_output;
 #[path = "server/resources.rs"]
 mod resources;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/task_extension.rs"]
 mod task_extension;
 #[path = "server/tasks.rs"]
@@ -98,11 +97,7 @@ use tasks::{
 
 const LIST_PAGE_SIZE: usize = 100;
 
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `stream://docs`, `stream://docs/{doc_id}`, `stream://contract`,
-/// and the administrative `admin/docs` routes (contract C18-C21).
-pub(crate) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("stream"));
+use setup::SERVER_DOCS;
 
 #[derive(Clone)]
 struct StreamMcp {
@@ -115,6 +110,8 @@ struct StreamMcp {
 #[tool_router]
 impl StreamMcp {
     fn new(state: Arc<AppState>) -> Self {
+        LazyLock::force(&setup::SERVER_SETUP);
+        setup::catalog_resources(&state.catalog).expect("validated Stream catalog descriptors");
         Self {
             task_service: StreamTaskService::new(state.clone()),
             state,
@@ -173,7 +170,7 @@ impl StreamMcp {
             .start(&request.pipeline_id, owner)
             .await
             .map_err(invalid_params)?;
-        structured_result(format!("started {}", output.session_uri), &output)
+        structured_result(format!("started {}", output.session_uri()), &output)
     }
 
     #[tool(
@@ -208,26 +205,7 @@ impl ServerHandler for StreamMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_completions()
-            .build();
-        extend_capabilities(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Run configured GStreamer pipelines on live video or recordings. Find pipelines and models at stream://pipelines and stream://models. Use `run_recording` to process a recording. Live sessions publish stream://session resources as results arrive, without waiting for Recording Hub."
-                .to_owned(),
-        );
-        info
+        setup::SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -324,69 +302,12 @@ impl ServerHandler for StreamMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         internal_identity(&context)?;
-        let mut resources = vec![
-            app_resource(uris::LIVE_APP_URI, "stream-live-app")
-                .with_title("Live Monitor")
-                .with_description("Live encoded video and typed Stream pipeline overlays."),
-            Resource::new(uris::DOCS_URI, "stream docs")
-                .with_title("Server documents")
-                .with_description("Index of the crate documents embedded at build time.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::CONTRACT_URI, "stream contract")
-                .with_title("Contract declaration")
-                .with_description(
-                    "Machine-readable contract revision, compliance, and capability inventory.",
-                )
-                .with_mime_type("application/json"),
-            Resource::new(uris::PIPELINES_URI, "stream pipelines")
-                .with_title("Stream pipelines")
-                .with_description("Operator-admitted GStreamer pipeline catalog.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::MODELS_URI, "stream models")
-                .with_title("Stream models")
-                .with_description("Immutable model catalog without private filesystem details.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::RUNS_URI, "stream recording runs")
-                .with_title("Stream recording runs")
-                .with_description("Authorized durable recording-run index.")
-                .with_mime_type("application/json"),
-            Resource::new(uris::SESSIONS_URI, "stream live sessions")
-                .with_title("Stream live sessions")
-                .with_description(
-                    "Work-Context-readable live pipeline sessions with owner-scoped control.",
-                )
-                .with_mime_type("application/json"),
-        ];
-        for doc in SERVER_DOCS.iter() {
-            resources.push(
-                Resource::new(
-                    uris::doc_uri(
-                        veoveo_stream_mcp::contract::StreamDocument::parse(doc.id)
-                            .expect("declared server document"),
-                    ),
-                    doc.title,
-                )
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
-            );
-        }
-        for pipeline in self.state.catalog.pipeline_views() {
-            resources.push(
-                Resource::new(pipeline.uri, format!("pipeline {}", pipeline.id))
-                    .with_title(pipeline.title)
-                    .with_description(pipeline.description)
-                    .with_mime_type("application/json"),
-            );
-        }
-        for model in self.state.catalog.model_views() {
-            resources.push(
-                Resource::new(model.uri, format!("model {}", model.id))
-                    .with_title(model.title)
-                    .with_description(model.description)
-                    .with_mime_type("application/json"),
-            );
-        }
+        let mut resources = setup::SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor().clone())
+            .collect::<Vec<_>>();
+        resources.extend(setup::catalog_resources(&self.state.catalog).map_err(internal)?);
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -404,41 +325,11 @@ impl ServerHandler for StreamMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let templates = vec![
-            ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
-                .with_title("Server document")
-                .with_description("Embedded crate document body (contract C18).")
-                .with_mime_type("text/markdown"),
-            ResourceTemplate::new(uris::PIPELINE_TEMPLATE, "pipeline")
-                .with_title("Stream pipeline")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-                .with_title("Stream model")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::RUNS_PAGE_TEMPLATE, "recording run page")
-                .with_title("Stream recording runs")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::SESSIONS_PAGE_TEMPLATE, "live session page")
-                .with_title("Stream live sessions")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::RUN_TEMPLATE, "run")
-                .with_title("Stream recording run")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::RUN_RESULTS_TEMPLATE, "run results")
-                .with_title("Stream recording-run results")
-                .with_mime_type("application/vnd.veoveo.stream-results+json"),
-            ResourceTemplate::new(uris::SESSION_TEMPLATE, "live session")
-                .with_title("Stream live session")
-                .with_mime_type("application/json"),
-            ResourceTemplate::new(uris::SESSION_RESULTS_TEMPLATE, "live session results")
-                .with_title("Stream live session results")
-                .with_mime_type("application/vnd.veoveo.stream-live-results+json"),
-            ResourceTemplate::new(uris::SESSION_PREVIEW_TEMPLATE, "live session preview")
-                .with_title("Stream live encoded preview")
-                .with_mime_type("application/vnd.veoveo.stream-live-preview+json"),
-            ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-                .with_title("Stream artifact"),
-        ];
+        let templates = setup::SERVER_SETUP
+            .resource_templates()
+            .iter()
+            .map(|template| template.descriptor().clone())
+            .collect();
         let page = mcp_page(templates, request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
@@ -499,7 +390,7 @@ impl ServerHandler for StreamMcp {
         &self,
         requested: &SubscriptionFilter,
     ) -> Option<SubscriptionFilter> {
-        veoveo_mcp_contract::accepted_subscription_filter(requested)
+        resources::accepted_subscription_filter(requested)
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
@@ -520,6 +411,8 @@ impl ServerHandler for StreamMcp {
                     .await?;
             }
         }
+        // TODO(foundations): C27 needs shared Task-backed run-resource updates alongside
+        // the process-owned live-session notification hub.
         veoveo_task_runtime::listen_durable_subscriptions(
             &self.task_service,
             context,
@@ -596,21 +489,22 @@ fn run_view(snapshot: &TaskSnapshot) -> Result<RunView, McpError> {
         serde_json::from_value(snapshot.request.clone()).map_err(internal)?;
     let StreamTaskInput::RunRecording(input) = request.input;
     let id = RunId::try_from(snapshot.task_id).map_err(internal)?;
-    Ok(RunView {
-        run_uri: uris::run_uri(id),
-        results_uri: uris::results_uri(id),
-        task_id: id,
-        status: task_status(snapshot.status).to_owned(),
-        progress: snapshot.progress,
-        pipeline_id: input.pipeline_id,
-        recording_uri: input.video.recording_uri,
-        entity_path: input.video.entity_path,
-        timeline: input.video.timeline,
-        created_at: snapshot.created_at.to_rfc3339(),
-        updated_at: snapshot.updated_at.to_rfc3339(),
-        output: run_output(snapshot),
-        error: snapshot.error.as_ref().map(|error| error.message.clone()),
-    })
+    RunView::new(
+        id,
+        input.pipeline_id,
+        veoveo_stream_mcp::contract::RunDetails {
+            status: task_status(snapshot.status).to_owned(),
+            progress: snapshot.progress,
+            recording_uri: input.video.recording_uri,
+            entity_path: input.video.entity_path,
+            timeline: input.video.timeline,
+            created_at: snapshot.created_at.to_rfc3339(),
+            updated_at: snapshot.updated_at.to_rfc3339(),
+        },
+    )
+    .with_error(snapshot.error.as_ref().map(|error| error.message.clone()))
+    .with_output(run_output(snapshot))
+    .map_err(internal)
 }
 
 fn run_output(snapshot: &TaskSnapshot) -> Option<RunRecordingOutput> {
@@ -739,6 +633,7 @@ async fn main() -> anyhow::Result<()> {
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-stream-mcp", "info,veoveo_stream_mcp=debug")?;
     let args = Args::parse();
+    LazyLock::force(&setup::SERVER_SETUP);
     let live_app = veoveo_mcp_apps_extension::AppHtml::load(&args.live_app)?;
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;

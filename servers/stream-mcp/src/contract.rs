@@ -1,6 +1,6 @@
+// TODO(foundations): C02 requires one top-level result_uri in each of the three tool outputs.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_artifact_contract::ArtifactMetadata;
 
 mod cursor;
 mod ids;
@@ -93,19 +93,6 @@ pub struct AnalysisResults {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct RunRecordingOutput {
-    pub run_uri: RunUri,
-    pub results_uri: RunResultsUri,
-    pub pipeline_uri: PipelineUri,
-    pub model_uri: ModelUri,
-    pub summary: AnalysisSummary,
-    pub results_artifact: ArtifactMetadata,
-    pub annotations_artifact: ArtifactMetadata,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_clip_artifact: Option<ArtifactMetadata>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct AnalysisSummary {
     pub processed_frames: u64,
     pub detection_count: u64,
@@ -113,19 +100,6 @@ pub struct AnalysisSummary {
     pub decode_start_index: i64,
     pub requested_start_index: i64,
     pub requested_end_index: i64,
-}
-
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct PipelineView {
-    pub id: PipelineId,
-    pub uri: PipelineUri,
-    pub title: String,
-    pub description: String,
-    pub profile: PipelineProfile,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub model_uri: Option<ModelUri>,
-    pub supports_recording_replay: bool,
-    pub supports_live_input: bool,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
@@ -147,38 +121,10 @@ pub enum PerceptionOperation {
     PoseEstimation,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
-pub struct ModelView {
-    pub id: ModelId,
-    pub uri: ModelUri,
-    pub title: String,
-    pub description: String,
-    pub format: ModelFormat,
-}
-
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum ModelFormat {
     TensorRtEngine,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct RunView {
-    pub run_uri: RunUri,
-    pub results_uri: RunResultsUri,
-    pub task_id: RunId,
-    pub status: String,
-    pub progress: f64,
-    pub pipeline_id: PipelineId,
-    pub recording_uri: String,
-    pub entity_path: String,
-    pub timeline: String,
-    pub created_at: String,
-    pub updated_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<RunRecordingOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
 }
 
 /// One authorized page of durable recording runs, ordered by creation time and ID.
@@ -233,3 +179,13 @@ pub struct LivePreviewView {
     pub dropped_chunks: u64,
     pub received_video_frames: u64,
 }
+
+mod catalog_views;
+mod output;
+mod run_view;
+pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
+pub use output::RunRecordingOutput;
+pub use run_view::{RunDetails, RunView};
+
+mod scopes;
+pub use scopes::StreamScope;

@@ -52,13 +52,37 @@ validate their collection, version and position before a reader queries state.
 The resource handler parses one `StreamResource` and dispatches its typed address.
 Run reads and subscription admission select caller-owned Tasks in SQL. Private
 live-session reads apply the session manager's ownership rules before materializing
-the in-memory view. Each DTO exposes typed identities and addresses; validation of
-all relationships between repeated fields is still pending.
+the in-memory view. Catalog, run and live-session responses store each identity once
+and derive their addresses. Their decoders reject disagreement among wire IDs and addresses. Run
+builders reject a product from another Task or pipeline. Pipeline builders require a
+model for perception profiles and exclude models from pass-through profiles.
 
 Public contract tests compare every exported schema with the captured wire profile.
 Run those tests through an independent Cargo consumer to check dependency isolation;
 a workspace build can unify runtime features. Native runner fixtures exercise process
 and validation behavior. GPU and installed acceptance use the owning workload checks.
+
+## MCP Setup And Compliance
+
+The MCP feature implements `McpServerContract` with Stream-owned resource types and
+an empty `StreamScope` vocabulary. Gateway operation policy and current owner, context
+and label checks authorize access. Startup builds `McpServerSetup` before Store access
+or recovery. Discovery serves its checked descriptors and validates catalog addresses.
+Template expansion tests compare every declaration with the owning builder. Both gateway
+registrations and the embedded manual declare contract revision 3.
+
+The server accepts requested Task updates and mutable run/session resource addresses.
+Static catalogs accept no list-change subscriptions. Live sessions have a process-local
+GPU owner; their notifications use its local hub.
+
+### Contract Compliance
+
+C02 is pending: the three tools expose domain-specific addresses and need the required
+top-level `result_uri`. C27 is pending for run-resource updates: their local notifications
+must move to the shared Task-backed resource watch. Installed Discover/list readiness
+(C31) and knowledge-source publication (C32) require the work recorded in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
+API and declaration consistency; it does not establish these runtime guarantees.
 
 ## Ownership Boundary
 

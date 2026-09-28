@@ -11,7 +11,6 @@ use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_stream_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
     contract::{AnalysisResults, AnalysisSummary, RunRecordingOutput},
-    uris,
 };
 use veoveo_types::DataLabelId;
 
@@ -100,12 +99,11 @@ pub(super) async fn publish_analysis(
         .iter()
         .map(|frame| frame.detections.len() as u64)
         .sum();
-    let output = RunRecordingOutput {
-        run_uri: uris::run_uri(task_id),
-        results_uri: uris::results_uri(task_id),
-        pipeline_uri: uris::pipeline_uri(&products.results.pipeline_id),
-        model_uri: uris::model_uri(&products.results.model_id),
-        summary: AnalysisSummary {
+    let output = RunRecordingOutput::new(
+        task_id,
+        products.results.pipeline_id.clone(),
+        products.results.model_id.clone(),
+        AnalysisSummary {
             processed_frames: products.results.processed_frames,
             detection_count,
             elapsed_ms: products.results.elapsed_ms,
@@ -113,10 +111,10 @@ pub(super) async fn publish_analysis(
             requested_start_index: products.source.clip.requested_start_index,
             requested_end_index: products.source.clip.requested_end_index,
         },
-        results_artifact: results_artifact.clone(),
-        annotations_artifact: annotations_artifact.clone(),
-        source_clip_artifact: source_clip_artifact.clone(),
-    };
+        results_artifact.clone(),
+        annotations_artifact.clone(),
+    )
+    .with_source_clip(source_clip_artifact.clone());
     let mut blocks = vec![ContentBlock::text(format!(
         "stream recording run completed: {} frame(s), {detection_count} detection(s)",
         products.results.processed_frames

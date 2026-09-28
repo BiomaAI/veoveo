@@ -41,13 +41,13 @@ pub(super) async fn prepare_live_stream_pipeline(
                     LiveSessionLifecycle::Running => "running",
                     LiveSessionLifecycle::Failed | LiveSessionLifecycle::Stopped => unreachable!(),
                 },
-                session.session_id,
+                session.session_id(),
                 pipeline_id
             );
             return acceptance_live_session(
-                &session.session_id,
-                &session.results_uri,
-                &session.preview_uri,
+                &session.session_id(),
+                &session.results_uri(),
+                &session.preview_uri(),
                 false,
             );
         }
@@ -76,9 +76,9 @@ pub(super) async fn prepare_live_stream_pipeline(
     )
     .context("decoding the typed live Stream session")?;
     acceptance_live_session(
-        &started.session_id,
-        &started.results_uri,
-        &started.preview_uri,
+        &started.session_id(),
+        &started.results_uri(),
+        &started.preview_uri(),
         true,
     )
 }
@@ -90,7 +90,7 @@ pub(super) fn reusable_live_stream_session<'a>(
     let active = sessions
         .iter()
         .filter(|session| {
-            &session.pipeline_id == pipeline_id
+            session.pipeline_id() == pipeline_id
                 && matches!(
                     session.lifecycle,
                     LiveSessionLifecycle::Starting | LiveSessionLifecycle::Running

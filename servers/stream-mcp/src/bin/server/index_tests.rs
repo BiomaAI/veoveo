@@ -161,7 +161,7 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
             page.runs
                 .into_iter()
                 .chain(tail.runs)
-                .map(|r| r.task_id.to_string())
+                .map(|r| r.task_id().to_string())
                 .collect::<Vec<_>>(),
             expected_tasks
         );

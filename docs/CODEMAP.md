@@ -1102,6 +1102,8 @@ and Artifact publication.
 |---|---|
 | `src/contract.rs`, `src/contract/live.rs` | replay, video, result, sampling, detection, timeline, and output types; the pure live-session module is also compiled by the focused flight client |
 | `src/contract/ids.rs`, `cursor.rs`, `resources.rs`, `src/uris.rs` | Stream-owned catalog and execution IDs, typed collection continuations, and resource parsing/building available to contract-only consumers |
+| `src/contract/catalog_views.rs`, `run_view.rs`, `output.rs`, `live/start.rs`, `live/view.rs` | Stream response builders and wire admission for repeated identities, related addresses and parent-bound run products |
+| `src/bin/server/setup.rs` and `setup_tests.rs` | checked Stream MCP declarations, typed catalog descriptors and registration validation |
 | `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |

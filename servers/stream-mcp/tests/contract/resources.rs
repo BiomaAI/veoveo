@@ -130,3 +130,108 @@ fn cursors_validate_version_collection_position_and_unknown_fields() {
     assert!(RunCursor::parse("x".repeat(1025)).is_err());
     assert!(SessionCursor::parse("x".repeat(1025)).is_err());
 }
+
+#[test]
+fn declared_templates_expand_to_the_owning_builders() {
+    use veoveo_types::ResourceTemplateUri;
+    let run = RunId::parse(ID).unwrap();
+    let session = SessionId::parse(ID).unwrap();
+    let runs = RunCursor::new("2026-09-28T12:00:00Z".parse().unwrap(), run);
+    let sessions = SessionCursor::new(session);
+    for (template, parameter, value, expected) in [
+        (
+            uris::DOC_TEMPLATE,
+            "doc_id",
+            "design".to_owned(),
+            uris::doc_uri(StreamDocument::Design).to_string(),
+        ),
+        (
+            uris::PIPELINE_TEMPLATE,
+            "pipeline_id",
+            "camera".into(),
+            uris::pipeline_uri(&"camera".parse().unwrap()).to_string(),
+        ),
+        (
+            uris::MODEL_TEMPLATE,
+            "model_id",
+            "detector".into(),
+            uris::model_uri(&"detector".parse().unwrap()).to_string(),
+        ),
+        (
+            uris::RUN_TEMPLATE,
+            "run_id",
+            ID.into(),
+            uris::run_uri(run).to_string(),
+        ),
+        (
+            uris::RUN_RESULTS_TEMPLATE,
+            "run_id",
+            ID.into(),
+            uris::results_uri(run).to_string(),
+        ),
+        (
+            uris::SESSION_TEMPLATE,
+            "session_id",
+            ID.into(),
+            uris::session_uri(session).to_string(),
+        ),
+        (
+            uris::SESSION_RESULTS_TEMPLATE,
+            "session_id",
+            ID.into(),
+            uris::session_results_uri(session).to_string(),
+        ),
+        (
+            uris::SESSION_PREVIEW_TEMPLATE,
+            "session_id",
+            ID.into(),
+            uris::session_preview_uri(session).to_string(),
+        ),
+        (
+            uris::ARTIFACT_TEMPLATE,
+            "artifact_id",
+            ID.into(),
+            uris::artifact_uri(ID.parse().unwrap()).to_string(),
+        ),
+        (
+            uris::RUNS_PAGE_TEMPLATE,
+            "cursor",
+            runs.as_str().into(),
+            uris::runs_uri(Some(runs.clone())).to_string(),
+        ),
+        (
+            uris::SESSIONS_PAGE_TEMPLATE,
+            "cursor",
+            sessions.as_str().into(),
+            uris::sessions_uri(Some(sessions.clone())).to_string(),
+        ),
+    ] {
+        let expanded = ResourceTemplateUri::new(template)
+            .unwrap()
+            .expand_scalars(&[(parameter.to_owned(), value)].into())
+            .unwrap();
+        assert_eq!(expanded.as_str(), expected);
+        StreamResource::parse(expanded.as_str()).unwrap();
+    }
+    for (template, root) in [
+        (uris::RUNS_PAGE_TEMPLATE, uris::RUNS_URI),
+        (uris::SESSIONS_PAGE_TEMPLATE, uris::SESSIONS_URI),
+    ] {
+        assert_eq!(
+            ResourceTemplateUri::new(template)
+                .unwrap()
+                .expand_scalars(&Default::default())
+                .unwrap()
+                .as_str(),
+            root
+        );
+    }
+}
+
+#[test]
+fn stream_declares_no_additional_domain_scopes() {
+    use veoveo_types::ScopeName;
+    for name in ["operator:use", "stream:read", "future:server:read"] {
+        assert!(StreamScope::try_from(&ScopeName::new(name).unwrap()).is_err());
+    }
+}
