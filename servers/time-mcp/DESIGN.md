@@ -241,6 +241,39 @@ Authority release records retain source id, source URL, SHA-256 digest, retrieva
 time, validation time, version label, artifact path, lifecycle state, and optimistic
 record version.
 
+`catalog/activation.rs` prepares a private draft containing the staged candidate
+and the complete admitted pointer/release snapshot. The registry loads the prospective
+pair from that draft under its 30-second deadline, then consumes the draft to publish.
+The public runtime activation method always performs file preflight.
+The commit compares both families and the candidate with their observed metadata;
+an absent pointer is part of that comparison. Changed metadata rejects publication
+even when an external repair did not advance the version. SQL compares optional
+pointer history by value because a missing stored field and a driver `NONE` have
+different object representations.
+
+Every activation writes a fresh UUID to the tenant's `time_authority_activation_fence`
+record in the same transaction. This common write makes concurrent changes to different
+families conflict under SurrealDB 3.2.4 snapshot isolation. The record contains no
+release selection. A failure rolls back its write with the candidate and pointers;
+there is no process lock, background lease renewal or automatic mutation retry.
+Clients retry a rejected activation only after loading the current pair again.
+Store's shared transaction-error selector preserves the causal database error instead
+of reporting an earlier cancelled statement as the cause.
+
+The Time owner requires a coordinated drain of older writers before adopting this
+activation profile. Store creates the additive fence table without rewriting retained
+authority records or backfilling fence rows; the first activation creates its tenant's
+row. Keep the prior image and database snapshot, and restore both for rollback under
+the Store migration contract. Native qualification covers fresh and retained pairs,
+different-family contention on RocksDB, stale metadata, tenant mismatch, failed file
+loads and rollback. Installed upgrade and rollback qualification are still pending.
+
+The database's [locked-read clause](https://surrealdb.com/docs/reference/query-language/statements/select#the-for-update-clause)
+starts in 3.3. The current profile uses the qualified 3.2.4 pin. During the planned
+upgrade, qualify locked reads of both pointer IDs, including absent IDs, and their
+release records. Retire the fence only when those checks replace its cross-family
+conflict guarantee and the coordinated transition passes qualification.
+
 ### Tenant Authority Contexts
 
 Every engine request reads the active tenant pair through the joined catalog query
@@ -651,8 +684,8 @@ previous-release history. Catalog decoding then checks the selected release body
 These checks leave retained records unchanged. Preflight must include both pointers
 and their referenced releases under the same upgrade and rollback procedure.
 
-Broader public DTO construction and fencing the preflighted pair across replicas have
-work in the foundations inventory.
+Broader public DTO construction and installed activation qualification have work in
+the foundations inventory.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
@@ -725,7 +758,8 @@ Examples of agent requests include:
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission and SQL visibility |
 | `src/persistence/active.rs`, `src/persistence/activation.rs` | joined pointer/release admission and transactional activation relationship checks |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |
-| `src/registry.rs` | request-validated tenant contexts, isolated engine state and activation preflight |
+| `src/registry.rs` | request-validated tenant contexts, isolated engine state and preflight-bound activation |
+| `src/catalog/activation.rs` | private observed activation drafts and their publication |
 | `src/acquisition/` | bounded download, validation, compilation, staging, cancellation |
 | `src/admin/` | typed administrative routes and errors |
 | `src/mcp.rs` | MCP tools, resources, templates, completions, subscriptions |

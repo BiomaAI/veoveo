@@ -124,7 +124,6 @@ pub async fn run() -> Result<()> {
         clock,
         acquisitions,
         subscriptions: Arc::new(SubscriptionHub::new()),
-        activation: Arc::new(tokio::sync::Mutex::new(())),
         event_watchers: Arc::new(tokio::sync::Mutex::new(BTreeMap::new())),
     });
     recover_tasks(state.clone(), recovery.resumable).await?;

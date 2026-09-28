@@ -751,7 +751,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Time scalar admission | Clock policies have a checked builder and matching schema/decoder bounds; retained reads check identity, signed scalars and positive versions. Requests and persistence use positive versions or explicit absent-row guards. Native exhaustion checks preserve rows and atomically roll back activation when retirement cannot advance | Qualify installed numeric admission and the documented preflight/drain/rollback; strengthen remaining DTO construction |
 | Time active-pointer admission | One SQL statement resolves each visible pointer to an active release with matching tenant, family and key. Pointer identity, history and versions are checked; activation rechecks parent and lifecycle relationships in the transaction. Native corruption, SQL payload exclusion and ten interleaved-mutation rollback cases pass | Qualify installed parent admission, retained-data preflight and rollback |
 | Time authority contexts | Each engine request validates the joined active selection and provenance before reusing loaded files. Cache keys use the Store tenant type, engine epoch maps are independent, Store signals evict contexts and failures remove cached values. Native restart, isolation, disconnected-observation, provenance and file-recovery cases pass | Qualify installed restart/replica behavior and the declared coordinated upgrade |
-| Time activation preflight | The registry loads the prospective pair under a 30-second deadline, but returns no version snapshot for the other authority family | Bind activation to the preflighted pair and qualify concurrent changes across families without write skew |
+| Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. A shared tenant write fences different-family decisions on 3.2.4; the transaction compares the observed metadata and rolls back every mutation on conflict. Native cases cover RocksDB contention, retained schema upgrades, stale inputs and failed file loads | Complete installed coordinated-upgrade/rollback acceptance; qualify 3.3 locked reads before retiring the fence |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |
@@ -871,6 +871,12 @@ Work:
    `UPSERT` now evaluating `WHERE` before their data clauses. Qualify with the store and
    gateway test suites, all migrations on a fresh store, and the installed smoke
    scenarios.
+   Time currently uses a tenant fence because the qualified server is 3.2.4.
+   Qualify `FOR UPDATE` on both exact pointer IDs, including absent records, and
+   their releases before replacing that fence; preserve the preflight snapshot checks.
+   The 2026-09-27 release check returned `v3.3.0` from the upstream download endpoint,
+   while GitHub's latest-release API returned `v3.2.4` and the `v3.3.0` release page
+   returned 404. Resolve the release artifact and SDK provenance before changing pins.
 2. Add request timing before changing audit. Each request reports policy evaluation,
    audit commit, and upstream time in its trace, and the gateway exports them as
    histograms. Record a baseline for catalog lists, resource reads, and tool calls on the

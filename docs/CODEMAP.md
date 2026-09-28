@@ -516,6 +516,9 @@ Migrations `0001` through the current version live under `migrations/`. Runtime 
 never apply them; installation bootstrap does.
 
 Shared real-store integration setup lives in [`testing/fixtures/DESIGN.md`](../testing/fixtures/DESIGN.md).
+Its optional RocksDB profile owns its database inside the disposable container.
+`platform/store/src/store.rs` also exposes the shared transaction-error selector for
+domain-owned queries that need the causal error after a rolled-back transaction.
 Computers admission and Task recovery reuse its isolated pinned database lifecycle.
 `platform/store/tests/resource_changes.rs` qualifies native LIVE delivery and changefeed
 recovery through an interrupted test connection. It accepts an explicit database
@@ -897,8 +900,10 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/contract/clock_policy.rs`, `servers/time-mcp/src/contract/version.rs` | checked policy construction and schemas, positive versions and optional-row write guards |
 | `servers/time-mcp/src/catalog/clock.rs` | stored clock-policy identity, scalar and version admission |
 | `servers/time-mcp/src/catalog/records.rs` | checked retained identity, version and indexed metadata decoding; lifecycle-column authority and redacted body diagnostics |
-| `servers/time-mcp/src/registry.rs`, `servers/time-mcp/src/registry/tests.rs` | request-validated tenant authority contexts, cache eviction, isolated epoch maps and replica/file-load qualification |
-| `servers/time-mcp/src/persistence/active.rs`, `servers/time-mcp/src/persistence/activation.rs` | joined active-pointer/release admission and transactional lifecycle/parent checks |
+| `servers/time-mcp/src/registry.rs`, `servers/time-mcp/src/registry/tests.rs` | request-validated tenant authority contexts, cache eviction, isolated epoch maps and replica/file-load qualification; `registry/tests/activation.rs` qualifies preflight conflicts and RocksDB contention |
+| `servers/time-mcp/src/catalog/activation.rs` | private observed activation drafts, catalog admission and publication after registry file preflight |
+| `servers/time-mcp/src/persistence/active.rs`, `servers/time-mcp/src/persistence/activation.rs` | joined active-pointer/release admission, whole-pair snapshot checks and a tenant fence written with activation |
+| `platform/store/migrations/0096_time_activation_fence.surql` | additive Time tenant fence table, with no authority selection or retained-data conversion |
 | `servers/time-mcp/src/persistence/` | private temporal driver records, typed IDs/versions/cursors through query and mutation admission, SQL visibility and atomic authority activation; shared Store owns the connection and migrations |
 
 [`servers/time-mcp/DESIGN.md`](../servers/time-mcp/DESIGN.md) covers the

@@ -11,7 +11,9 @@ use crate::{StoreAuthLevel, StoreConfig, StoreCredentials, StoreError};
 
 pub type PlatformClient = Client;
 
-pub(crate) fn primary_transaction_error(
+/// Return the transaction's causal error, skipping preceding cancelled statements.
+/// Domain owners use the structured error to distinguish conflicts from other failures.
+pub fn primary_transaction_error(
     errors: std::collections::HashMap<usize, surrealdb::Error>,
 ) -> Option<surrealdb::Error> {
     primary_transaction_failure(errors).map(|(_, error)| error)

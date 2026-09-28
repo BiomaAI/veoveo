@@ -15,10 +15,37 @@ WHERE tenant = $tenant AND ($kind = NONE OR dataset_kind = $kind)
 ORDER BY dataset_kind ASC;
 "#;
 
-#[derive(Debug, Deserialize, SurrealValue)]
-struct ActiveAuthorityRow {
+#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
+pub(super) struct ActiveAuthorityRow {
+    dataset_kind: TimeDatasetKind,
     pointer: TimeActiveAuthorityRecord,
     release: Option<TimeAuthorityReleaseRecord>,
+}
+
+/// The complete, admitted SQL result observed before loading authority files.
+pub(crate) struct ActiveAuthoritySnapshot {
+    pub(super) tenant: TenantId,
+    pub(super) rows: Vec<ActiveAuthorityRow>,
+}
+
+impl ActiveAuthoritySnapshot {
+    pub(crate) fn releases(&self) -> impl Iterator<Item = TimeAuthorityReleaseRecord> + '_ {
+        self.rows
+            .iter()
+            .map(|row| row.release.clone().expect("admitted release"))
+    }
+
+    pub(super) fn pointer(
+        &self,
+        kind: TimeDatasetKind,
+    ) -> Result<Option<ActiveAuthority>, PersistenceError> {
+        self.rows
+            .iter()
+            .find(|row| row.dataset_kind == kind)
+            .cloned()
+            .map(|row| admit(self.tenant, row))
+            .transpose()
+    }
 }
 
 /// Admitted pointer metadata; the catalog separately admits the release's JSON body.
@@ -31,6 +58,18 @@ pub(crate) struct ActiveAuthority {
 }
 
 impl TimePersistence {
+    pub(crate) async fn active_authority_snapshot(
+        &self,
+        tenant: TenantId,
+    ) -> Result<ActiveAuthoritySnapshot, PersistenceError> {
+        let rows = self.active_rows(tenant, None).await?;
+        for row in &rows {
+            admit(tenant, row.clone())?;
+        }
+        Ok(ActiveAuthoritySnapshot { tenant, rows })
+    }
+
+    #[cfg(test)]
     pub(crate) async fn active_time_authority(
         &self,
         tenant: TenantId,
@@ -51,6 +90,18 @@ impl TimePersistence {
         tenant: TenantId,
         kind: Option<TimeDatasetKind>,
     ) -> Result<Vec<ActiveAuthority>, PersistenceError> {
+        self.active_rows(tenant, kind)
+            .await?
+            .into_iter()
+            .map(|row| admit(tenant, row))
+            .collect()
+    }
+
+    async fn active_rows(
+        &self,
+        tenant: TenantId,
+        kind: Option<TimeDatasetKind>,
+    ) -> Result<Vec<ActiveAuthorityRow>, PersistenceError> {
         let mut response = self
             .client()
             .query(ACTIVE_AUTHORITIES)
@@ -58,8 +109,7 @@ impl TimePersistence {
             .bind(("kind", kind))
             .await?
             .check()?;
-        let rows: Vec<ActiveAuthorityRow> = response.take(0)?;
-        rows.into_iter().map(|row| admit(tenant, row)).collect()
+        Ok(response.take(0)?)
     }
 }
 
@@ -73,6 +123,7 @@ fn admit(tenant: TenantId, row: ActiveAuthorityRow) -> Result<ActiveAuthority, P
     let key = format!("{tenant}:{}", dataset_kind_key(pointer.dataset_kind));
     if pointer.id != time_record("time_active_authority", key)
         || pointer.tenant != tenant.record_id()
+        || pointer.dataset_kind != row.dataset_kind
     {
         return Err(invalid(
             "active_authority.identity",

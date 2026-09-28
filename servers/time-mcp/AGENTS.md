@@ -50,7 +50,8 @@ leap second assumptions.
   checks runtime composition independently from the MCP feature.
 - Time owns its private `src/persistence/` queries, driver records and mutation
   validation. Store owns migrations `0019_time_domain.surql` and
-  `0043_time_acquisition_release_index.surql`. Runtime library tests use the shared
+  `0043_time_acquisition_release_index.surql` and `0096_time_activation_fence.surql`.
+  Runtime library tests use the shared
   isolated SurrealDB fixture; schema changes also require Store migration checks.
 - `node --test tests/workbench-pagination.test.mjs` in `apps/console/web` checks
   page navigation behavior headlessly; it provides no visual or GPU acceptance.
@@ -81,6 +82,11 @@ leap second assumptions.
   and provenance before cache reuse. Each returned engine owns its epoch map. Cache
   eviction follows every Store invalidation; delivery never substitutes for a read.
   Authority loading and preflight each have a 30-second deadline.
+- `src/registry/tests/activation.rs` qualifies cross-family conflicts on disposable
+  RocksDB, retained authority preservation, stale preflight metadata and fence rollback.
+  Production activation goes through the registry and consumes its observed draft.
+  Both families participate in commit checks; every activation writes the common
+  tenant fence. Keep the coordinated drain and fence-retirement conditions in DESIGN.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -94,7 +100,7 @@ The MCP feature associates those types through `McpServerContract`; hosted start
 discovery and scope membership consume its checked setup.
 The runtime owns typed persistence inputs, the stored UUID key profile and checked
 catalog body decoding, clock-policy admission and checked version updates. Broader
-DTO typing, preflight-pair fencing and installed qualification remain work in the
+DTO typing and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

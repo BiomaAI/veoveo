@@ -6,10 +6,10 @@ use veoveo_platform_store::TenantId;
 
 use crate::{
     authority::{AuthorityContext, LeapSecondTable},
-    catalog::{TimeAccessContext, TimeCatalog},
+    catalog::{ActivationDraft, TimeAccessContext, TimeCatalog},
     contract::{
         AuthorityDatasetKind, AuthorityRelease, AuthorityReleaseId, EffectiveTimeAuthority,
-        TimeAuthorityReference,
+        TimeAuthorityReference, TimeVersion, TimeWriteGuard,
     },
     engine::TemporalEngine,
 };
@@ -197,21 +197,43 @@ impl AuthorityRegistry {
         })
     }
 
-    pub async fn preflight_activation(
+    /// Publication consumes the snapshot whose prospective pair passed file loading.
+    pub async fn activate_release(
         &self,
         catalog: &TimeCatalog,
         scope: &TimeAccessContext,
-        candidate: &AuthorityRelease,
-    ) -> Result<()> {
+        id: &AuthorityReleaseId,
+        expected_release: TimeVersion,
+        expected_pointer: TimeWriteGuard,
+    ) -> Result<AuthorityRelease> {
+        let draft = self
+            .preflight_activation(catalog, scope, id, expected_release, expected_pointer)
+            .await?;
+        let release = catalog.commit_activation(scope, draft).await?;
+        self.invalidate_tenant(scope.identity.tenant_id).await;
+        Ok(release)
+    }
+
+    async fn preflight_activation(
+        &self,
+        catalog: &TimeCatalog,
+        scope: &TimeAccessContext,
+        id: &AuthorityReleaseId,
+        expected_release: TimeVersion,
+        expected_pointer: TimeWriteGuard,
+    ) -> Result<ActivationDraft> {
         tokio::time::timeout(AUTHORITY_LOAD_TIMEOUT, async {
-            let mut pair = AuthorityPair::from_releases(catalog.active_releases(scope).await?)?;
-            pair.replace(candidate.clone());
+            let draft = catalog
+                .prepare_activation(scope, id, expected_release, expected_pointer)
+                .await?;
+            let mut pair = AuthorityPair::from_releases(draft.active_releases()?)?;
+            pair.replace(draft.release.clone());
             self.selection(catalog, scope, pair)
                 .await?
                 .load()
                 .await
                 .context("preflighting temporal authority activation")?;
-            Ok(())
+            Ok(draft)
         })
         .await
         .map_err(|_| anyhow::anyhow!("temporal authority preflight exceeded 30 seconds"))?

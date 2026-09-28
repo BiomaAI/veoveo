@@ -4,6 +4,15 @@ use uuid::Uuid;
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
 const IMAGE: &str =
     "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843";
+
+#[allow(
+    dead_code,
+    reason = "Each fixture consumer selects its storage qualification"
+)]
+pub enum StoreBackend {
+    Memory,
+    RocksDb,
+}
 fn fixture_password() -> String {
     format!("{}{}", Uuid::now_v7().simple(), Uuid::now_v7().simple())
 }
@@ -31,6 +40,14 @@ impl Drop for TestDb {
 
 impl TestDb {
     pub async fn new() -> Self {
+        Self::with_backend(StoreBackend::Memory).await
+    }
+
+    pub async fn with_backend(backend: StoreBackend) -> Self {
+        let storage = match backend {
+            StoreBackend::Memory => "memory",
+            StoreBackend::RocksDb => "rocksdb:/tmp/veoveo-test.db",
+        };
         let name = format!("veoveo-native-store-test-{}", Uuid::now_v7().simple());
         let password = fixture_password();
         let output = Command::new("docker")
@@ -56,11 +73,17 @@ impl TestDb {
                 "SURREAL_USER",
                 "--env",
                 "SURREAL_PASS",
+                "--env",
+                "SURREAL_ROCKSDB_BLOCK_CACHE_SIZE=67108864",
+                "--env",
+                "SURREAL_ROCKSDB_WRITE_BUFFER_SIZE=16777216",
+                "--env",
+                "SURREAL_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=2",
                 IMAGE,
                 "start",
                 "--log",
                 "error",
-                "memory",
+                storage,
             ])
             .env("SURREAL_USER", "fixture_admin")
             .env("SURREAL_PASS", &password)

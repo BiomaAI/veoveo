@@ -1,3 +1,5 @@
+mod activation;
+pub(crate) use activation::ActivationDraft;
 mod clock;
 mod pages;
 mod records;
@@ -197,36 +199,6 @@ impl TimeCatalog {
             .into_iter()
             .map(release_from_record)
             .collect()
-    }
-
-    pub async fn activate_release(
-        &self,
-        scope: &TimeAccessContext,
-        id: &crate::contract::AuthorityReleaseId,
-        expected_release: crate::TimeVersion,
-        expected_pointer: crate::TimeWriteGuard,
-    ) -> Result<AuthorityRelease> {
-        let mut release = self
-            .release(scope, id)
-            .await?
-            .context("unknown authority release")?;
-        if release.state != AuthorityReleaseState::Staged {
-            anyhow::bail!("only a staged authority release can be activated");
-        }
-        release.state = AuthorityReleaseState::Active;
-        release.record_version = expected_release.checked_next()?.get();
-        let canonical_json = serde_json::to_string(&release)?;
-        let record = self
-            .persistence
-            .activate_time_authority_release(
-                &scope.identity,
-                id,
-                expected_release,
-                expected_pointer,
-                canonical_json,
-            )
-            .await?;
-        release_from_record(record)
     }
 
     pub async fn active_releases(

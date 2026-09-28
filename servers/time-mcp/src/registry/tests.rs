@@ -1,3 +1,4 @@
+mod activation;
 use super::*;
 use crate::{contract::*, test_store::TestDb};
 use chrono::Utc;
@@ -184,11 +185,13 @@ async fn activate(
     expected: TimeWriteGuard,
 ) {
     registry
-        .preflight_activation(catalog, scope, release)
-        .await
-        .unwrap();
-    catalog
-        .activate_release(scope, &release.release_id, TimeVersion::FIRST, expected)
+        .activate_release(
+            catalog,
+            scope,
+            &release.release_id,
+            TimeVersion::FIRST,
+            expected,
+        )
         .await
         .unwrap();
 }
@@ -520,7 +523,6 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
             ),
             acquisitions: Arc::new(acquisitions),
             subscriptions: Arc::new(veoveo_mcp_contract::SubscriptionHub::new()),
-            activation: Arc::default(),
             event_watchers: Arc::default(),
         });
         let mut events = Vec::new();

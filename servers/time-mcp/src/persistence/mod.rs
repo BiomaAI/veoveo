@@ -23,6 +23,8 @@ mod events;
 mod records;
 mod validation;
 
+pub(crate) use activation::AuthorityActivation;
+pub(crate) use active::ActiveAuthoritySnapshot;
 pub(crate) use drafts::*;
 pub(crate) use records::*;
 pub(crate) use validation::validate_key;

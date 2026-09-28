@@ -113,7 +113,7 @@ pub use recordings::{
     RecordingCursor, RecordingDraft, RecordingLayerCounts, RecordingReadScope, RecordingSeal,
 };
 pub use resource_changes::{ResourceChangeTable, ResourceInvalidation};
-pub use store::{PlatformClient, PlatformStore};
+pub use store::{PlatformClient, PlatformStore, primary_transaction_error};
 pub use surrealdb::types::{RecordId, RecordIdKey, Value};
 pub use table::PlatformTable;
 pub use task_ids::task_record_id;

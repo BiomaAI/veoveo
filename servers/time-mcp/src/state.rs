@@ -33,7 +33,6 @@ pub struct TimeApplication {
     pub clock: ClockMonitor,
     pub acquisitions: Arc<AcquisitionService>,
     pub subscriptions: Arc<SubscriptionHub>,
-    pub activation: Arc<tokio::sync::Mutex<()>>,
     pub event_watchers: Arc<tokio::sync::Mutex<EventWatchers>>,
 }
 
