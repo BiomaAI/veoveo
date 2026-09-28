@@ -1,0 +1,27 @@
+{
+  "family": "human",
+  "profile": {
+    "metadata": {
+      "profile_id": "mobility-00000001-0000-7000-8000-000000000000",
+      "name": "Pedestrian",
+      "version": 1,
+      "valid_from": "2026-01-01T00:00:00Z"
+    },
+    "planning": {
+      "minimum_speed": 0.1,
+      "vertical_clearance": 0.2,
+      "lateral_clearance": 0.2,
+      "maximum_route_points": 1000,
+      "maximum_segment_length": 1000.0
+    },
+    "mode": "walk",
+    "preferred_speed": 1.4,
+    "maximum_speed": 2.0,
+    "carried_load": 5.0,
+    "maximum_slope": 0.1,
+    "maximum_step": 0.2,
+    "maximum_continuous_duration": 3600.0,
+    "stairs_allowed": true,
+    "unpaved_allowed": true
+  }
+}

@@ -238,7 +238,7 @@ pub struct RouteDataPolicy {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RouteRequest {
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub origin: RouteEndpoint,
     pub destination: RouteEndpoint,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -316,7 +316,7 @@ pub struct RoutePlan {
     pub route_uri: String,
     pub status: RouteStatus,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub departure_time: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub arrival_time: Option<DateTime<Utc>>,
@@ -338,7 +338,7 @@ pub struct RoutePlan {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct RouteMatrixRequest {
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub origins: Vec<RouteEndpoint>,
     pub destinations: Vec<RouteEndpoint>,
     pub departure_time: DateTime<Utc>,
@@ -374,7 +374,7 @@ pub enum ReachableBudget {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ReachableAreaRequest {
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub origin: RouteEndpoint,
     pub departure_time: DateTime<Utc>,
     pub budget: ReachableBudget,
@@ -389,7 +389,7 @@ pub struct ReachableArea {
     pub reachable_area_id: super::ReachableAreaId,
     pub reachable_area_uri: String,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub origin: Wgs84Position,
     pub departure_time: DateTime<Utc>,
     pub budget: ReachableBudget,

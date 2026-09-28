@@ -5,8 +5,6 @@ use crate::{PlatformIdentity, PlatformStore, StoreError};
 pub enum MapCatalogCompletion {
     Dataset,
     Release { dataset: Option<String> },
-    MobilityProfile,
-    MobilityProfileVersion { profile: Option<String> },
     Route,
     Matrix,
 }
@@ -26,15 +24,6 @@ impl PlatformStore {
                 "release_key",
                 "($parent = NONE OR dataset_key = $parent)",
                 dataset,
-            ),
-            MapCatalogCompletion::MobilityProfile => {
-                ("map_mobility_profile", "profile_key", "true", None)
-            }
-            MapCatalogCompletion::MobilityProfileVersion { profile } => (
-                "map_mobility_profile",
-                "type::string(profile_version)",
-                "($parent = NONE OR profile_key = $parent)",
-                profile,
             ),
             MapCatalogCompletion::Route => ("map_route", "route_key", "owner = $owner", None),
             MapCatalogCompletion::Matrix => (

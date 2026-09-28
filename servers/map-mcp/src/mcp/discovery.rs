@@ -113,6 +113,12 @@ pub(super) fn discoverable_resources(
 /// cannot diverge.
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
+        ResourceTemplate::new(
+            crate::contract::MapMobilityProfilesUri::TEMPLATE,
+            "Mobility profile page",
+        )
+        .with_description("A page of 100 tenant profiles in ID and numeric version order.")
+        .with_mime_type("application/json"),
         ResourceTemplate::new(crate::contract::MapSourcesUri::TEMPLATE, "Source page")
             .with_description("A page of 100 tenant source summaries in source ID order.")
             .with_mime_type("application/json"),

@@ -97,7 +97,7 @@ pub struct RouteSummary {
     pub resource_uri: String,
     pub status: RouteStatus,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub departure_time: DateTime<Utc>,
     pub arrival_time: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -108,7 +108,7 @@ pub struct MatrixSummary {
     pub matrix_id: RouteMatrixId,
     pub resource_uri: String,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub created_at: DateTime<Utc>,
 }
 

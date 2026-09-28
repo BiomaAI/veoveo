@@ -324,17 +324,6 @@ impl MapMcp {
                             .map_err(internal)?,
                     );
                 }
-                uris::MOBILITY_PROFILES_URI => {
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .catalog
-                            .list_mobility_profiles(&scope)
-                            .await
-                            .map_err(internal)?,
-                    );
-                }
                 uris::RASTERS_URI => {
                     return json_resource(
                         uri,
@@ -346,6 +335,15 @@ impl MapMcp {
                     );
                 }
                 _ => {}
+            }
+            if let Ok(address) = crate::contract::MapMobilityProfilesUri::parse(uri) {
+                let page = self
+                    .state
+                    .catalog
+                    .mobility_profiles_page(&scope, &address)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &page);
             }
             if let Ok(address) = crate::contract::MapSourcesUri::parse(uri) {
                 let page = self
@@ -452,14 +450,13 @@ impl MapMcp {
                         .ok_or_else(|| not_found("raster product"))?,
                 );
             }
-            if let Some((value, version)) = uris::parse_profile(uri) {
-                let id = MobilityProfileId::parse(value).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapMobilityProfileUri::parse(uri) {
                 return json_resource(
                     uri,
                     &self
                         .state
                         .catalog
-                        .mobility_profile(&scope, &id, version)
+                        .mobility_profile(&scope, address.id(), address.version())
                         .await
                         .map_err(internal)?
                         .ok_or_else(|| not_found("mobility profile"))?,

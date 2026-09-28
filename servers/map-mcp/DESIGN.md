@@ -57,6 +57,7 @@ the `map://` scheme.
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
 | Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 1 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
+| Map mobility-profile resource profile | Map-owned component builders and canonical RFC-variant UUIDv5/v7 IDs. Profile versions are integers in 1..=9223372036854775807. Collections use 100-item pages and version 1 hex-encoded JSON cursors bound to `map://mobility-profiles` and an ID/version position. Exact and collection templates follow RFC 6570. |
 | Map source resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 source IDs, checked public summaries, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://sources`. Exact and collection templates follow RFC 6570. |
 | Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
@@ -229,6 +230,44 @@ vertical clearance, optional ceiling and range, route-point and segment limits,
 allowed terrain classes, and allowed restriction kinds. A family-specific
 physical range or aircraft service ceiling remains authoritative when it is
 more restrictive than the common envelope.
+
+### Mobility Catalog Reads
+
+Map owns profile reads in `catalog/mobility.rs`. Exact reads bind both profile ID and
+version. SQL applies tenant selection before limits; catalog pages order by profile ID
+and numeric version. Creator identity and metadata labels are attribution, not additional
+read restrictions. Catalogs include historical versions outside their validity interval;
+planning operations check validity at the requested departure time.
+
+`MobilityProfileVersion` admits a positive value within the Store's signed integer range.
+Map uses it in profile metadata, route and matrix requests, spatial derivations, travel-model
+requests and provenance. Database-driver bindings and wire serialization perform the
+numeric conversion. `MapMobilityProfileUri` requires both typed ID and version, and
+Map's route handoff carries that address. Public numeric fields and valid URI spellings
+are unchanged.
+
+`MapMobilityProfilesUri` carries an optional `MapMobilityProfileCursor`. Its decoded
+fields are `version: 1`, `collection: "map://mobility-profiles"`, `after_id` and
+`after_version`. A page returns complete validated profiles in `items`, `limit: 100`
+and nullable `next_cursor`. Continuations apply current tenant selection and do not hold
+a snapshot across requests. The decoder requires sorted unique ID/version pairs and a
+continuation matching the last item of a full page. Map Explorer follows all pages
+before replacing its view and preserves the previous view when a continuation fails.
+
+The reader validates each selected profile's domain rules and its agreement with physical
+record identity, indexed ID, version, family, name and validity. Completion matches in SQL
+before grouping and its 101-result lookahead limit; version completion binds an optional
+typed parent and orders numerically. These queries have a five-second database deadline.
+
+Upgrade Map and its catalog clients together after acquisition, routing and spatial Tasks
+settle. Clients replace array decoding with page traversal. Preflight retained profile IDs
+and versions, including references in routes, matrices, spatial derivations, travel models,
+route handoffs and installation bootstrap. Require lowercase hyphenated RFC-variant
+UUIDv5/v7 IDs, admitted numeric versions and agreement between documents and indexed fields.
+Preserve rejected records and immutable artifacts for operator repair; readers do not
+rewrite them. Rollback restores the prior server/client pair against the same records and
+discards new cursors. Operators must accept the prior reader's weaker admission checks.
+Installed paging and reverse/forward replacement are required qualification.
 
 ## Coordinate Contract
 
@@ -1180,6 +1219,7 @@ map://spatial-derivation/{derivation_id}
 map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}
+map://mobility-profiles{?cursor}
 map://restriction/{restriction_id}
 map://restrictions{?cursor}
 map://routes{?cursor}

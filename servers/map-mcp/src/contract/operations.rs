@@ -211,7 +211,7 @@ pub struct MapRouteHandoff {
     pub route_uri: String,
     pub route_digest_sha256: String,
     pub route_status: RouteStatus,
-    pub mobility_profile_uri: String,
+    pub mobility_profile_uri: crate::contract::MapMobilityProfileUri,
     #[schemars(length(min = 2, max = 10_000))]
     pub path: Vec<Wgs84Position>,
     pub validation_id: ValidationId,

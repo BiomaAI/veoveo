@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, anyhow, bail};
+pub mod mobility;
 pub mod owned;
 pub mod releases;
 pub mod restrictions;
@@ -214,42 +215,13 @@ impl MapCatalog {
                 profile_key: metadata.profile_id.to_string(),
                 family: wire(&profile.family())?,
                 name: metadata.name.clone(),
-                profile_version: integer_version(metadata.version)?,
+                profile_version: integer_version(metadata.version.get())?,
                 valid_from: metadata.valid_from,
                 valid_until: metadata.valid_until,
                 canonical_json: encode(&profile)?,
             })
             .await?;
         Ok(profile)
-    }
-
-    pub async fn mobility_profile(
-        &self,
-        scope: &MapAccessContext,
-        profile_id: &crate::contract::MobilityProfileId,
-        version: u64,
-    ) -> Result<Option<MobilityProfile>> {
-        self.store
-            .map_mobility_profile(
-                scope.identity.tenant_id,
-                profile_id.as_str(),
-                integer_version(version)?,
-            )
-            .await?
-            .map(|record| decode(&record.canonical_json, "mobility profile"))
-            .transpose()
-    }
-
-    pub async fn list_mobility_profiles(
-        &self,
-        scope: &MapAccessContext,
-    ) -> Result<Vec<MobilityProfile>> {
-        self.store
-            .list_map_mobility_profiles(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .map(|record| decode(&record.canonical_json, "mobility profile"))
-            .collect()
     }
 
     pub async fn create_restriction(
@@ -342,7 +314,7 @@ impl MapCatalog {
                 route_key: route.route_id.to_string(),
                 status: route_state_to_store(route.status),
                 mobility_profile_key: route.mobility_profile_id.to_string(),
-                mobility_profile_version: integer_version(route.mobility_profile_version)?,
+                mobility_profile_version: integer_version(route.mobility_profile_version.get())?,
                 operational_snapshot_key: route.provenance.operational_snapshot_id.to_string(),
                 departure_time: route.departure_time,
                 arrival_time: route.arrival_time,
@@ -402,15 +374,15 @@ impl MapCatalog {
         &self,
         scope: &MapAccessContext,
         matrix: &RouteMatrix,
-        mobility_profile_key: &str,
-        mobility_profile_version: u64,
+        mobility_profile_id: &crate::contract::MobilityProfileId,
+        mobility_profile_version: crate::contract::MobilityProfileVersion,
     ) -> Result<()> {
         self.store
             .create_map_route_matrix(MapRouteMatrixDraft {
                 identity: scope.identity.clone(),
                 matrix_key: matrix.matrix_id.to_string(),
-                mobility_profile_key: mobility_profile_key.to_owned(),
-                mobility_profile_version: integer_version(mobility_profile_version)?,
+                mobility_profile_key: mobility_profile_id.to_string(),
+                mobility_profile_version: integer_version(mobility_profile_version.get())?,
                 operational_snapshot_key: matrix.provenance.operational_snapshot_id.to_string(),
                 artifact_uri: None,
                 canonical_json: Some(encode(matrix)?),

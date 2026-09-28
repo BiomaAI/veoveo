@@ -32,7 +32,7 @@ fn plan(n: usize, release: usize) -> RoutePlan {
         route_uri: uris::route_uri(&key("route", n)),
         status: RouteStatus::Unavailable,
         mobility_profile_id: key("mobility", 1).parse().unwrap(),
-        mobility_profile_version: 1,
+        mobility_profile_version: crate::contract::MobilityProfileVersion::FIRST,
         departure_time: now,
         arrival_time: None,
         legs: vec![],
@@ -100,8 +100,8 @@ async fn records(catalog: &MapCatalog, scope: &MapAccessContext, n: usize) {
                 provenance: plan.provenance,
                 created_at: plan.created_at,
             },
-            &key("mobility", 1),
-            1,
+            &key("mobility", 1).parse().unwrap(),
+            MobilityProfileVersion::FIRST,
         )
         .await
         .unwrap();

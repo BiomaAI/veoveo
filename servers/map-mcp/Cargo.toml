@@ -31,6 +31,10 @@ required-features = ["contract"]
 name = "source_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "mobility_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

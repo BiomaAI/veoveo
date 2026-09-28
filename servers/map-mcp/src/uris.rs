@@ -15,7 +15,7 @@ pub const ACQUISITIONS_URI: &str = "map://acquisitions";
 pub const ACTIVE_RELEASES_URI: &str = "map://active-releases";
 pub const LOCATIONS_URI: &str = "map://locations";
 pub const FACILITIES_URI: &str = "map://facilities";
-pub const MOBILITY_PROFILES_URI: &str = "map://mobility-profiles";
+pub const MOBILITY_PROFILES_URI: &str = crate::contract::MapMobilityProfilesUri::ROOT;
 pub const RESTRICTIONS_URI: &str = crate::contract::MapRestrictionsUri::ROOT;
 pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
@@ -43,7 +43,7 @@ pub const RASTER_DERIVATION_TEMPLATE: &str = "map://raster-derivation/{raster_de
 pub const SPATIAL_DERIVATION_TEMPLATE: &str = "map://spatial-derivation/{spatial_derivation_id}";
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
 pub const FACILITY_TEMPLATE: &str = "map://facility/{facility_id}";
-pub const MOBILITY_PROFILE_TEMPLATE: &str = "map://mobility-profile/{profile_id}/{profile_version}";
+pub const MOBILITY_PROFILE_TEMPLATE: &str = crate::contract::MapMobilityProfileUri::TEMPLATE;
 pub const RESTRICTION_TEMPLATE: &str = crate::contract::MapRestrictionUri::TEMPLATE;
 pub const ROUTES_PAGE_TEMPLATE: &str = "map://routes{?cursor}";
 pub const MATRICES_PAGE_TEMPLATE: &str = "map://matrices{?cursor}";
@@ -115,10 +115,6 @@ pub fn location_uri(id: &str) -> String {
 
 pub fn facility_uri(id: &str) -> String {
     format!("map://facility/{id}")
-}
-
-pub fn mobility_profile_uri(id: &str, version: u64) -> String {
-    format!("map://mobility-profile/{id}/{version}")
 }
 
 pub fn route_uri(id: &str) -> String {
@@ -203,12 +199,6 @@ pub fn parse_release(uri: &str) -> Option<(&str, &str)> {
     let (dataset, release) = suffix.split_once("/release/")?;
     (!dataset.is_empty() && !release.is_empty() && !dataset.contains('/') && !release.contains('/'))
         .then_some((dataset, release))
-}
-
-pub fn parse_profile(uri: &str) -> Option<(&str, u64)> {
-    let suffix = uri.strip_prefix("map://mobility-profile/")?;
-    let (id, version) = suffix.split_once('/')?;
-    Some((id, version.parse().ok()?))
 }
 
 pub fn parse_source_feature(uri: &str) -> Option<(&str, &str)> {

@@ -20,12 +20,6 @@ impl MapMcp {
             (uris::RELEASE_TEMPLATE, "release_id") => Some(Catalog::Release {
                 dataset: parent(request, "dataset_id")?,
             }),
-            (uris::MOBILITY_PROFILE_TEMPLATE, "profile_id") => Some(Catalog::MobilityProfile),
-            (uris::MOBILITY_PROFILE_TEMPLATE, "profile_version") => {
-                Some(Catalog::MobilityProfileVersion {
-                    profile: parent(request, "profile_id")?,
-                })
-            }
             (uris::ROUTE_TEMPLATE, "route_id") => Some(Catalog::Route),
             (uris::MATRIX_TEMPLATE, "matrix_id") => Some(Catalog::Matrix),
             _ => None,
@@ -97,6 +91,33 @@ impl MapMcp {
             );
         }
         let values = match (template, argument) {
+            (uris::MOBILITY_PROFILE_TEMPLATE, "profile_id") => self
+                .state
+                .catalog
+                .complete_mobility_profiles(scope, needle)
+                .await
+                .map_err(internal)?
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
+            (uris::MOBILITY_PROFILE_TEMPLATE, "profile_version") => {
+                let parent = request
+                    .context
+                    .as_ref()
+                    .and_then(|context| context.get_argument("profile_id"))
+                    .map(|value| MobilityProfileId::parse(value.clone()))
+                    .transpose()
+                    .map_err(invalid_params)?;
+                self.state
+                    .catalog
+                    .complete_mobility_versions(scope, parent.as_ref(), needle)
+                    .await
+                    .map_err(internal)?
+                    .into_iter()
+                    .map(|version| version.to_string())
+                    .collect()
+            }
+
             (uris::LOCATION_TEMPLATE, "location_id") => self
                 .state
                 .analytics
@@ -161,7 +182,6 @@ fn parent(request: &CompleteRequestParams, name: &str) -> Result<Option<String>,
     };
     let value = match name {
         "dataset_id" => MapDatasetId::parse(value.clone()).map(|id| id.to_string()),
-        "profile_id" => MobilityProfileId::parse(value.clone()).map(|id| id.to_string()),
         "layer_id" => {
             crate::contract::FeatureLayerId::parse(value.clone()).map(|id| id.to_string())
         }

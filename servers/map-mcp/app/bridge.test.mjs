@@ -58,7 +58,7 @@ test('snapshot reads respect permissions, bound concurrency and fail instead of 
     await new Promise(resolve => setImmediate(resolve));
     --active;
     if (uri === 'map://feature-layers') throw Error('service unavailable');
-    return ["map://sources", "map://datasets", "map://acquisitions", "map://publications", "map://compositions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
+    return ["map://mobility-profiles", "map://sources", "map://datasets", "map://acquisitions", "map://publications", "map://compositions"].includes(uri) ? {items: [], limit: 100, next_cursor: null} : [];
   };
   await assert.rejects(readMapSnapshot(access, read), /feature-layers: service unavailable/);
   assert.equal(max, 4);
@@ -163,4 +163,22 @@ test('source refresh walks all pages and rejects a failed continuation', async (
     if (uri !== 'map://sources') throw Error('source continuation failed');
     return read(uri);
   }, new Set(['map://sources'])), /source continuation failed/);
+});
+
+
+test('mobility profiles traverse every page before publishing a refresh', async () => {
+  const calls = [];
+  const read = async uri => {
+    calls.push(uri);
+    return uri === 'map://mobility-profiles'
+      ? {items:[{family:'human',profile:{metadata:{version:1}}}],limit:100,next_cursor:'aabb'}
+      : {items:[{family:'human',profile:{metadata:{version:101}}}],limit:100,next_cursor:null};
+  };
+  const snapshot = await readMapSnapshot({dataset_read:true}, read, new Set(['map://mobility-profiles']));
+  assert.deepEqual(calls, ['map://mobility-profiles', 'map://mobility-profiles?cursor=aabb']);
+  assert.deepEqual(snapshot.profiles.map(item => item.profile.metadata.version), [1,101]);
+  await assert.rejects(readMapSnapshot({dataset_read:true}, async uri => {
+    if (uri !== 'map://mobility-profiles') throw Error('profile continuation failed');
+    return read(uri);
+  }, new Set(['map://mobility-profiles'])), /profile continuation failed/);
 });

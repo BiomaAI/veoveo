@@ -797,6 +797,10 @@ and spatial operations. Store owns restriction writes and the retained table sch
 addresses, public metadata and collection pages. `src/catalog/sources.rs` owns exact,
 page and completion SQL with typed keys and selected document/index checks. Store owns
 source mutations and the retained schema.
+`src/contract/mobility_version.rs`, `mobility_uri.rs` and `mobility_pages.rs` own
+profile versions, addresses and composite ID/version pages. `src/catalog/mobility.rs`
+owns exact, page and completion SQL plus selected metadata checks. Store owns profile
+mutations and the retained schema.
 `src/catalog/routing_authority.rs` selects the active pointer, release and enabled source
 relationships in one SQL statement for routing, matrices, travel models and reachable
 areas. It checks tenant/dataset agreement, release validity, map-family compatibility and

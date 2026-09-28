@@ -666,7 +666,7 @@ mod tests {
         let position = Wgs84Position::new(-89.21, 13.69, None).unwrap();
         RouteRequest {
             mobility_profile_id: MobilityProfileId::new(),
-            mobility_profile_version: 1,
+            mobility_profile_version: crate::contract::MobilityProfileVersion::FIRST,
             origin: RouteEndpoint::Position {
                 position: position.clone(),
             },
@@ -699,7 +699,7 @@ mod tests {
             metadata: MobilityProfileMetadata {
                 profile_id: MobilityProfileId::new(),
                 name: format!("{class:?}"),
-                version: 1,
+                version: crate::contract::MobilityProfileVersion::FIRST,
                 valid_from: Utc::now(),
                 valid_until: None,
                 labels: BTreeSet::new(),

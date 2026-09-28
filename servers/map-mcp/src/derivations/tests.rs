@@ -84,7 +84,7 @@ fn spatial() -> SpatialDerivation {
         valid: true,
         findings: vec![],
         mobility_profile_id: MobilityProfileId::new(),
-        mobility_profile_version: 1,
+        mobility_profile_version: crate::contract::MobilityProfileVersion::FIRST,
         source_release_ids: Default::default(),
         intersected_restriction_ids: Default::default(),
         terrain_classes: Default::default(),

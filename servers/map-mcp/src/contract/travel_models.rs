@@ -99,7 +99,7 @@ pub struct TravelModelLocation {
 pub struct TravelModelVehicleType {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -197,7 +197,7 @@ pub struct TravelModelArtifact {
 pub struct TravelModelProfileProvenance {
     pub vehicle_type_id: TravelVehicleTypeId,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub base_release_ids: BTreeSet<DatasetReleaseId>,
     pub operational_snapshot_id: OperationalSnapshotId,
     pub planner_version: String,

@@ -820,12 +820,16 @@ mod tests {
     #[test]
     fn map_route_handoff_wire_shape_is_consumable_without_translation() {
         let now = Utc::now();
+        let profile_uri = veoveo_map_mcp::contract::MapMobilityProfileUri::new(
+            veoveo_map_mcp::contract::MobilityProfileId::new(),
+            veoveo_map_mcp::contract::MobilityProfileVersion::FIRST,
+        );
         let produced = veoveo_map_mcp::MapRouteHandoff {
             schema_profile: veoveo_map_mcp::MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
             route_uri: format!("map://route/{}", veoveo_map_mcp::RouteId::new()),
             route_digest_sha256: "a".repeat(64),
             route_status: veoveo_map_mcp::RouteStatus::Validated,
-            mobility_profile_uri: "map://mobility-profile/uas-demo/1".to_owned(),
+            mobility_profile_uri: profile_uri.clone(),
             path: vec![
                 veoveo_map_mcp::contract::Wgs84Position::new(-74.006, 40.7128, Some(100.0))
                     .unwrap(),
@@ -842,6 +846,7 @@ mod tests {
 
         let consumed: MapRouteHandoff =
             serde_json::from_value(serde_json::to_value(produced).unwrap()).unwrap();
+        assert_eq!(consumed.mobility_profile_uri, profile_uri.as_str());
         assert_eq!(consumed.schema_profile, MAP_ROUTE_HANDOFF_SCHEMA);
         assert_eq!(consumed.route_status, MapRouteHandoffStatus::Validated);
         assert_eq!(consumed.path.len(), 2);

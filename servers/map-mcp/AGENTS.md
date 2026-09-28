@@ -45,6 +45,9 @@ Map Explorer App.
 - Source addresses, summaries and pages use the contract types. Tenant selection runs
   in SQL before limits; selected documents must agree with indexed metadata. Public
   summaries omit acquisition endpoints, credentials and publisher key references.
+- Mobility profiles use typed versions and resource addresses. Catalog SQL selects the
+  tenant before its ID/numeric-version keyset and limit. Selected documents must agree
+  with indexed identity, family, version and validity; completion binds typed parents.
 - Routing authority uses the domain SQL reader across active pointers, releases and
   enabled sources. Preserve tenant/dataset agreement, active state, departure validity
   and map-family selection; selected retained documents must agree with indexed fields.
@@ -102,12 +105,12 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, source, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, source, mobility-profile, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met
 - C08: met
-- C09: pending — metadata, travel-model, restriction and source references use typed addresses; other URI families and DTO relationship admission remain
+- C09: pending — metadata, travel-model, restriction, source and mobility-profile references use typed addresses; other URI families and DTO relationship admission remain
 - C10: met
 - C11: met
 - C12: met

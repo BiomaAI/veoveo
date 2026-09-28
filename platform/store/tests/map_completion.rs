@@ -161,52 +161,6 @@ async fn qualify() {
             .unwrap(),
         datasets
     );
-    let profile = key("mobility");
-    let other_profile = key("mobility");
-    for (profile, version) in [(&profile, 1), (&profile, 2), (&other_profile, 1)] {
-        db.a.create_map_mobility_profile(MapMobilityProfileDraft {
-            identity: identity.clone(),
-            profile_key: profile.clone(),
-            family: "land".into(),
-            name: "Fixture".into(),
-            profile_version: version,
-            valid_from: Utc::now(),
-            valid_until: None,
-            canonical_json: "{}".into(),
-        })
-        .await
-        .unwrap();
-    }
-    let mut profiles = vec![profile.clone(), other_profile.clone()];
-    profiles.sort();
-    assert_eq!(
-        db.b.complete_map_catalog(&identity, MapCatalogCompletion::MobilityProfile, "")
-            .await
-            .unwrap(),
-        profiles
-    );
-    assert_eq!(
-        db.b.complete_map_catalog(
-            &identity,
-            MapCatalogCompletion::MobilityProfileVersion { profile: None },
-            ""
-        )
-        .await
-        .unwrap(),
-        vec!["1", "2"]
-    );
-    assert_eq!(
-        db.b.complete_map_catalog(
-            &identity,
-            MapCatalogCompletion::MobilityProfileVersion {
-                profile: Some(other_profile)
-            },
-            ""
-        )
-        .await
-        .unwrap(),
-        vec!["1"]
-    );
     let (route, matrix) = route_and_matrix(&db.a, &identity).await;
     route_and_matrix(&db.a, &peer).await;
     route_and_matrix(&db.a, &foreign).await;

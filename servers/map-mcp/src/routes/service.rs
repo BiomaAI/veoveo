@@ -245,7 +245,7 @@ impl RouteService {
             .persist_matrix(
                 scope,
                 &matrix,
-                request.mobility_profile_id.as_str(),
+                &request.mobility_profile_id,
                 request.mobility_profile_version,
             )
             .await?;
@@ -614,8 +614,8 @@ impl RouteService {
             route_uri: route.route_uri.clone(),
             route_digest_sha256,
             route_status: route.status,
-            mobility_profile_uri: crate::uris::mobility_profile_uri(
-                route.mobility_profile_id.as_str(),
+            mobility_profile_uri: crate::contract::MapMobilityProfileUri::new(
+                route.mobility_profile_id.clone(),
                 route.mobility_profile_version,
             ),
             path,
@@ -716,9 +716,6 @@ fn polygon_coverage(polygons: &[crate::contract::Wgs84Polygon]) -> Result<Wgs84B
 }
 
 fn validate_request(request: &RouteRequest) -> Result<()> {
-    if request.mobility_profile_version == 0 {
-        bail!("mobility_profile_version must be positive");
-    }
     if request.waypoints.len() > 32 {
         bail!("route accepts at most 32 waypoints");
     }

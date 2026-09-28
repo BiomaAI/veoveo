@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     Degrees, Kilograms, Kilopascals, KilowattHours, Liters, Meters, MetersPerSecond,
-    MobilityProfileId, QuantityError, Ratio, RestrictionKind, Seconds,
+    MobilityProfileId, MobilityProfileVersion, QuantityError, Ratio, RestrictionKind, Seconds,
 };
 
 #[derive(
@@ -43,7 +43,7 @@ pub enum MobilityFamily {
 pub struct MobilityProfileMetadata {
     pub profile_id: MobilityProfileId,
     pub name: String,
-    pub version: u64,
+    pub version: MobilityProfileVersion,
     pub valid_from: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valid_until: Option<DateTime<Utc>>,
@@ -56,9 +56,6 @@ impl MobilityProfileMetadata {
         if self.name.is_empty() || self.name.len() > 256 || self.name.chars().any(char::is_control)
         {
             return Err(MobilityProfileError::InvalidName);
-        }
-        if self.version == 0 {
-            return Err(MobilityProfileError::InvalidVersion);
         }
         if self
             .valid_until
@@ -713,7 +710,7 @@ fn validate_optional_text(
 pub enum MobilityProfileError {
     #[error("mobility profile name must be non-empty, bounded, and contain no control characters")]
     InvalidName,
-    #[error("mobility profile version must be greater than zero")]
+    #[error("mobility profile version must be in 1..=9223372036854775807")]
     InvalidVersion,
     #[error("mobility profile valid_until must be later than valid_from")]
     InvalidValidity,
@@ -747,7 +744,7 @@ mod tests {
         MobilityProfileMetadata {
             profile_id: MobilityProfileId::new(),
             name: "pedestrian".to_owned(),
-            version: 1,
+            version: MobilityProfileVersion::FIRST,
             valid_from: "2026-01-01T00:00:00Z".parse().unwrap(),
             valid_until: None,
             labels: BTreeSet::new(),

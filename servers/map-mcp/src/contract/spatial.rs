@@ -294,7 +294,7 @@ impl SpatialDerivationOperation {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DeriveSpatialGeometryRequest {
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub source_release_ids: BTreeSet<DatasetReleaseId>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
@@ -306,8 +306,7 @@ pub struct DeriveSpatialGeometryRequest {
 
 impl DeriveSpatialGeometryRequest {
     pub fn validate(&self) -> Result<(), SpatialContractError> {
-        if self.mobility_profile_version == 0
-            || self.algorithm_revision != SPATIAL_DERIVATION_ALGORITHM_REVISION
+        if self.algorithm_revision != SPATIAL_DERIVATION_ALGORITHM_REVISION
             || self.operation.input_coordinate_count() > MAX_SPATIAL_INPUT_COORDINATES
         {
             return Err(SpatialContractError::UnsupportedRequest);
@@ -401,7 +400,7 @@ pub struct SpatialDerivation {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub findings: Vec<SpatialFinding>,
     pub mobility_profile_id: MobilityProfileId,
-    pub mobility_profile_version: u64,
+    pub mobility_profile_version: crate::contract::MobilityProfileVersion,
     pub source_release_ids: BTreeSet<DatasetReleaseId>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub intersected_restriction_ids: BTreeSet<RestrictionId>,

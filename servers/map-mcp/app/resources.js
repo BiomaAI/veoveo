@@ -5,7 +5,7 @@ const resources = [
   ["map://sources", "sources", "dataset_read", false, true],
   ["map://datasets", "datasets", "dataset_read", true, true],
   ["map://active-releases", "activeReleases", "dataset_read"],
-  ["map://mobility-profiles", "profiles", "dataset_read"],
+  ["map://mobility-profiles", "profiles", "dataset_read", true, true],
   ["map://acquisitions", "acquisitions", "administration", false, true],
 ];
 

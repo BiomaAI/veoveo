@@ -496,7 +496,7 @@ mod tests {
             metadata: MobilityProfileMetadata {
                 profile_id: MobilityProfileId::new(),
                 name: "bounded walker".to_owned(),
-                version: 1,
+                version: crate::contract::MobilityProfileVersion::FIRST,
                 valid_from: Utc::now() - TimeDelta::minutes(1),
                 valid_until: None,
                 labels: BTreeSet::new(),

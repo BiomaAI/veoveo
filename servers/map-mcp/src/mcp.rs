@@ -1249,7 +1249,7 @@ fn is_subscribable(uri: &str) -> bool {
             | uris::TRAVEL_MODELS_URI
             | uris::RASTER_DERIVATIONS_URI
             | uris::SPATIAL_DERIVATIONS_URI
-    ) || uris::parse_profile(uri).is_some()
+    ) || crate::contract::MapMobilityProfileUri::parse(uri).is_ok()
         || uris::parse_single(uri, "map://restriction/").is_some()
         || uris::parse_single(uri, "map://route/").is_some()
         || uris::parse_single(uri, "map://dataset/").is_some()

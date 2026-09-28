@@ -91,11 +91,11 @@ pub(super) async fn apply(path: &Path, catalog: &MapCatalog) -> Result<()> {
             .await?
             .is_some()
         {
-            tracing::info!(profile = %profile_id, version, "Map bootstrap mobility profile already registered");
+            tracing::info!(profile = %profile_id, version = %version, "Map bootstrap mobility profile already registered");
             continue;
         }
         catalog.create_mobility_profile(&scope, profile).await?;
-        tracing::info!(profile = %profile_id, version, "Map bootstrap mobility profile registered");
+        tracing::info!(profile = %profile_id, version = %version, "Map bootstrap mobility profile registered");
     }
     Ok(())
 }

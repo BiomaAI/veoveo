@@ -587,7 +587,7 @@ impl PlatformStore {
         })
     }
 
-    pub async fn map_mobility_profile(
+    async fn map_mobility_profile(
         &self,
         tenant_id: TenantId,
         profile_key: &str,
@@ -597,13 +597,6 @@ impl PlatformStore {
         validate_positive("profile_version", version)?;
         let key = format!("{profile_key}:{version}");
         select_one(self, map_record("map_mobility_profile", &key), tenant_id).await
-    }
-
-    pub async fn list_map_mobility_profiles(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapMobilityProfileRecord>, StoreError> {
-        select_tenant_list(self, "SELECT * FROM map_mobility_profile WHERE tenant = $tenant ORDER BY name ASC, profile_version DESC;", tenant_id).await
     }
 
     pub async fn create_map_restriction(
