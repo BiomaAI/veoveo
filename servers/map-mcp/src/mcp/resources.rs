@@ -347,17 +347,6 @@ impl MapMcp {
                             .map_err(internal)?,
                     );
                 }
-                uris::RESTRICTIONS_URI => {
-                    return json_resource(
-                        uri,
-                        &self
-                            .state
-                            .catalog
-                            .list_restrictions(&scope)
-                            .await
-                            .map_err(internal)?,
-                    );
-                }
                 uris::RASTERS_URI => {
                     return json_resource(
                         uri,
@@ -369,6 +358,15 @@ impl MapMcp {
                     );
                 }
                 _ => {}
+            }
+            if let Ok(address) = crate::contract::MapRestrictionsUri::parse(uri) {
+                let page = self
+                    .state
+                    .catalog
+                    .restrictions_page(&scope, &address)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &page);
             }
             if let Ok(address) = crate::contract::MapTravelModelsUri::parse(uri) {
                 let page = crate::travel_models::TravelModelReads::new(self.state.catalog.store())
@@ -468,14 +466,13 @@ impl MapMcp {
                         .ok_or_else(|| not_found("mobility profile"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://restriction/") {
-                let id = RestrictionId::parse(value).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapRestrictionUri::parse(uri) {
                 return json_resource(
                     uri,
                     &self
                         .state
                         .catalog
-                        .restriction(&scope, &id)
+                        .restriction(&scope, address.id())
                         .await
                         .map_err(internal)?
                         .ok_or_else(|| not_found("restriction"))?,

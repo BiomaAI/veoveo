@@ -674,7 +674,7 @@ impl PlatformStore {
             })
     }
 
-    pub async fn map_restriction(
+    async fn map_restriction(
         &self,
         tenant_id: TenantId,
         restriction_key: &str,
@@ -683,18 +683,6 @@ impl PlatformStore {
         select_one(
             self,
             map_record("map_restriction", restriction_key),
-            tenant_id,
-        )
-        .await
-    }
-
-    pub async fn list_map_restrictions(
-        &self,
-        tenant_id: TenantId,
-    ) -> Result<Vec<MapRestrictionRecord>, StoreError> {
-        select_tenant_list(
-            self,
-            "SELECT * FROM map_restriction WHERE tenant = $tenant ORDER BY valid_from DESC;",
             tenant_id,
         )
         .await

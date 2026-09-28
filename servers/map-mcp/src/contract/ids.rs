@@ -135,7 +135,7 @@ map_id!(LocationId, "location-");
 map_id!(MapBoundaryId, "boundary-");
 map_id!(FacilityId, "facility-");
 map_id!(MobilityProfileId, "mobility-");
-map_id!(RestrictionId, "restriction-");
+map_id!(RestrictionId, "restriction-", true);
 map_id!(MapGeofenceId, "geofence-");
 map_id!(RouteId, "route-");
 map_id!(RouteMatrixId, "matrix-");

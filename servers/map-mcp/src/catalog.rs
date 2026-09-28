@@ -1,6 +1,7 @@
 use anyhow::{Context, Result, anyhow, bail};
 pub mod owned;
 pub mod releases;
+pub mod restrictions;
 use chrono::Utc;
 use veoveo_platform_store::{
     MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,
@@ -294,27 +295,6 @@ impl MapCatalog {
             })
             .await?;
         Ok(restriction)
-    }
-
-    pub async fn restriction(
-        &self,
-        scope: &MapAccessContext,
-        restriction_id: &crate::contract::RestrictionId,
-    ) -> Result<Option<Restriction>> {
-        self.store
-            .map_restriction(scope.identity.tenant_id, restriction_id.as_str())
-            .await?
-            .map(|record| decode(&record.canonical_json, "restriction"))
-            .transpose()
-    }
-
-    pub async fn list_restrictions(&self, scope: &MapAccessContext) -> Result<Vec<Restriction>> {
-        self.store
-            .list_map_restrictions(scope.identity.tenant_id)
-            .await?
-            .into_iter()
-            .map(|record| decode(&record.canonical_json, "restriction"))
-            .collect()
     }
 
     pub async fn withdraw_restriction(

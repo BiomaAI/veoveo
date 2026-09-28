@@ -23,6 +23,10 @@ required-features = ["contract"]
 name = "coordinate_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "restriction_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -130,5 +134,6 @@ veoveo-platform-store = { path = "../../platform/store", optional = true }
 veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
+iri-string = { workspace = true }
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }

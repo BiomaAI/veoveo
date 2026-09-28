@@ -87,13 +87,8 @@ impl RouteService {
         let coverage = coverage(&positions)?;
         let restrictions = self
             .catalog
-            .list_restrictions(scope)
-            .await?
-            .into_iter()
-            .filter(|restriction| {
-                restriction_applies(restriction, &profile, request.departure_time)
-            })
-            .collect::<Vec<_>>();
+            .effective_restrictions(scope, request.departure_time, Some(profile.family()))
+            .await?;
         for restriction in &restrictions {
             if restriction.effect.kind == RestrictionEffectKind::Prohibit {
                 request
@@ -304,13 +299,8 @@ impl RouteService {
             }
             let restrictions = self
                 .catalog
-                .list_restrictions(scope)
-                .await?
-                .into_iter()
-                .filter(|restriction| {
-                    restriction_applies(restriction, &profile, request.departure_time)
-                })
-                .collect::<Vec<_>>();
+                .effective_restrictions(scope, request.departure_time, Some(profile.family()))
+                .await?;
             let mut constraints = request.constraints.clone();
             constraints.avoided_areas.extend(
                 restrictions
@@ -462,13 +452,8 @@ impl RouteService {
         }
         let restrictions = self
             .catalog
-            .list_restrictions(scope)
-            .await?
-            .into_iter()
-            .filter(|restriction| {
-                restriction_applies(restriction, &profile, request.departure_time)
-            })
-            .collect::<Vec<_>>();
+            .effective_restrictions(scope, request.departure_time, Some(profile.family()))
+            .await?;
         let mut engine_request = request.clone();
         for restriction in &restrictions {
             if restriction.effect.kind == RestrictionEffectKind::Prohibit {
@@ -553,13 +538,8 @@ impl RouteService {
             .context("route mobility profile version is unavailable")?;
         let restrictions = self
             .catalog
-            .list_restrictions(scope)
-            .await?
-            .into_iter()
-            .filter(|restriction| {
-                restriction_applies(restriction, &profile, request.route.departure_time)
-            })
-            .collect::<Vec<_>>();
+            .effective_restrictions(scope, request.route.departure_time, Some(profile.family()))
+            .await?;
         let route_lines = request
             .route
             .legs
@@ -782,21 +762,6 @@ fn validate_request(request: &RouteRequest) -> Result<()> {
         bail!("weighted objective requires weights");
     }
     Ok(())
-}
-
-fn restriction_applies(
-    restriction: &Restriction,
-    profile: &MobilityProfile,
-    departure_time: chrono::DateTime<Utc>,
-) -> bool {
-    restriction.cancelled_by.is_none()
-        && restriction.valid_from <= departure_time
-        && restriction
-            .valid_until
-            .is_none_or(|until| departure_time < until)
-        && restriction
-            .affected_mobility_families
-            .contains(&profile.family())
 }
 
 fn apply_restrictions(output: &mut PlannerOutput, restrictions: &[Restriction]) -> Result<bool> {

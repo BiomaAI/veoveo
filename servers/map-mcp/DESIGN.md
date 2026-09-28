@@ -57,6 +57,7 @@ the `map://` scheme.
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
 | Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 1 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
+| Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
@@ -876,6 +877,37 @@ areas. The caller opts into planning-advisory output through its data policy.
 
 ### Restrictions And Validation
 
+Map owns restriction selection in `catalog/restrictions.rs`. SQL applies the tenant
+before exact lookup, completion and page limits. Restrictions are shared within the
+tenant; their creator does not narrow read access. Routing, travel-model construction,
+reachable-area calculation, route validation and spatial derivation select their
+mobility family at the operation time. Corridor inspection selects all families.
+The database excludes withdrawn records and uses the half-open interval
+`valid_from <= operation_time < valid_until`, with an absent end treated as unbounded.
+Queries have a five-second database deadline. An operation that selects more than
+10,000 effective restrictions fails before applying any constraints. It never plans
+with a truncated restriction set. Geometry intersection and dimensional validation
+belong to the spatial and routing algorithms after this temporal/family selection.
+
+Selected documents must agree with their record ID and indexed identity, kind, effect,
+mobility families, validity, withdrawal reference and record version. A disagreement
+fails the read. Exact resource addresses use `MapRestrictionUri` with `RestrictionId`;
+collection addresses use `MapRestrictionsUri` and its typed cursor. The collection
+returns `items`, `limit: 100` and nullable `next_cursor` in restriction ID order. Items
+contain compact metadata and a typed resource address; exact reads provide geometry.
+The summary decoder checks ID/URI agreement, validity and record version. Each
+continuation repeats tenant selection. The cursor carries position and grants no access.
+Its decoded fields are version 1, collection `map://restrictions` and `after`.
+
+Upgrade Map and restriction collection consumers together after active routing and
+spatial Tasks settle. Clients replace the array response with page traversal. Preflight
+retained restriction IDs, cancellation references and document/index agreement; preserve
+rejected records for operator repair before reopening traffic. This change does not
+rewrite stored rows. Rollback restores the prior Map/consumer pair against the same data
+and discards new cursors. Operators must accept the prior reader's weaker retained-data
+checks before restoring traffic. Installed retained-data recovery and reverse/forward
+replacement are required for acceptance.
+
 Effective restrictions target mobility families and carry typed effects,
 geometry, authority, and validity. Prohibitions become avoided areas during
 planning. Route validation checks every leg against the planning envelope and
@@ -1093,6 +1125,7 @@ map://location/{location_id}
 map://facility/{facility_id}
 map://mobility-profile/{profile_id}/{profile_version}
 map://restriction/{restriction_id}
+map://restrictions{?cursor}
 map://routes{?cursor}
 map://matrices{?cursor}
 map://acquisitions{?cursor}

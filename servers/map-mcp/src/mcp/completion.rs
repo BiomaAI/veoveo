@@ -27,7 +27,6 @@ impl MapMcp {
                     profile: parent(request, "profile_id")?,
                 })
             }
-            (uris::RESTRICTION_TEMPLATE, "restriction_id") => Some(Catalog::Restriction),
             (uris::ROUTE_TEMPLATE, "route_id") => Some(Catalog::Route),
             (uris::MATRIX_TEMPLATE, "matrix_id") => Some(Catalog::Matrix),
             _ => None,
@@ -109,6 +108,15 @@ impl MapMcp {
                 .analytics
                 .complete_geography(&scope.tenant_key(), GeographyCompletion::Facility, needle)
                 .map_err(internal)?,
+            (uris::RESTRICTION_TEMPLATE, "restriction_id") => self
+                .state
+                .catalog
+                .complete_restrictions(scope, needle)
+                .await
+                .map_err(internal)?
+                .into_iter()
+                .map(|id| id.to_string())
+                .collect(),
             (uris::TRAVEL_MODEL_TEMPLATE, "travel_model_id") => {
                 crate::travel_models::TravelModelReads::new(self.state.catalog.store())
                     .complete(&crate::server::tasks::runtime_owner(identity), needle)

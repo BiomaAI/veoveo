@@ -114,6 +114,12 @@ pub(super) fn discoverable_resources(
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
         ResourceTemplate::new(
+            crate::contract::MapRestrictionsUri::TEMPLATE,
+            "Restriction page",
+        )
+        .with_description("A page of 100 tenant restrictions in restriction ID order.")
+        .with_mime_type("application/json"),
+        ResourceTemplate::new(
             crate::contract::MapTravelModelsUri::TEMPLATE,
             "Travel-model page",
         )

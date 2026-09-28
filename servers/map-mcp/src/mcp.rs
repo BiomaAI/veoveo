@@ -36,7 +36,7 @@ use crate::{
         MobilityProfileId, PrepareRouteHandoffRequest, PublishRestrictionRequest,
         QuerySourceFeaturesOutput, QuerySourceFeaturesRequest, RasterDerivation,
         RasterDerivationId, RasterProductId, ReachableArea, ReachableAreaRequest, RegisteredSource,
-        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest, RestrictionId,
+        ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest,
         RestrictionMutationOutput, RouteId, RouteMatrix, RouteMatrixId, RouteMatrixRequest,
         RoutePlan, RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
         SourceFeatureId, SpatialDerivation, SpatialDerivationId, TransformCrsOutput,

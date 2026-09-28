@@ -788,6 +788,11 @@ page envelopes, and parent-bound cursors through the shared URI builder.
 through `MapAccessContext`. `src/authoring/pages.rs` executes metadata queries and
 `src/mcp/metadata.rs` dispatches those resources. `src/mcp/resources.rs` owns resource
 read dispatch; `src/mcp/discovery.rs` owns descriptors and templates.
+`src/contract/restriction_uri.rs`, `restriction_summary.rs` and `restriction_pages.rs`
+own restriction addresses, compact metadata, collection cursors and page admission.
+`src/catalog/restrictions.rs` owns tenant-scoped
+exact reads, pages and completion, plus SQL time/family/withdrawal selection for routing
+and spatial operations. Store owns restriction writes and the retained table schema.
 `src/authoring/service.rs` applies Work Context policy
 and optimistic concurrency. `platform/store/src/map_authoring/reads.rs` applies
 tenant, context, and label predicates in SQL to layer and composition reads;

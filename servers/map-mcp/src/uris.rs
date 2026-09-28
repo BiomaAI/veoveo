@@ -16,7 +16,7 @@ pub const ACTIVE_RELEASES_URI: &str = "map://active-releases";
 pub const LOCATIONS_URI: &str = "map://locations";
 pub const FACILITIES_URI: &str = "map://facilities";
 pub const MOBILITY_PROFILES_URI: &str = "map://mobility-profiles";
-pub const RESTRICTIONS_URI: &str = "map://restrictions";
+pub const RESTRICTIONS_URI: &str = crate::contract::MapRestrictionsUri::ROOT;
 pub const ROUTES_URI: &str = "map://routes";
 pub const MATRICES_URI: &str = "map://matrices";
 pub const TRAVEL_MODELS_URI: &str = "map://travel-models";
@@ -44,7 +44,7 @@ pub const SPATIAL_DERIVATION_TEMPLATE: &str = "map://spatial-derivation/{spatial
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
 pub const FACILITY_TEMPLATE: &str = "map://facility/{facility_id}";
 pub const MOBILITY_PROFILE_TEMPLATE: &str = "map://mobility-profile/{profile_id}/{profile_version}";
-pub const RESTRICTION_TEMPLATE: &str = "map://restriction/{restriction_id}";
+pub const RESTRICTION_TEMPLATE: &str = crate::contract::MapRestrictionUri::TEMPLATE;
 pub const ROUTES_PAGE_TEMPLATE: &str = "map://routes{?cursor}";
 pub const MATRICES_PAGE_TEMPLATE: &str = "map://matrices{?cursor}";
 pub const ACQUISITIONS_PAGE_TEMPLATE: &str = "map://acquisitions{?cursor}";
@@ -123,10 +123,6 @@ pub fn facility_uri(id: &str) -> String {
 
 pub fn mobility_profile_uri(id: &str, version: u64) -> String {
     format!("map://mobility-profile/{id}/{version}")
-}
-
-pub fn restriction_uri(id: &str) -> String {
-    format!("map://restriction/{id}")
 }
 
 pub fn route_uri(id: &str) -> String {

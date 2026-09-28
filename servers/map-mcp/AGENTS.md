@@ -39,6 +39,9 @@ Map Explorer App.
 - Travel-model references use Map's `MapTravelModelUri` in producers and consumers.
   Exact reads, collection pages and completion use `TravelModelReads`; owner, stored
   identity, Work Context and successful-result predicates run in SQL before limits.
+- Restriction addresses and pages use the contract's typed builders. The domain reader
+  applies tenant and operational time/family/withdrawal predicates in SQL. It rejects
+  selected document/index disagreement and operations above 10,000 effective restrictions.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic
   CQL2-JSON from OGC CQL2 1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1,
@@ -93,12 +96,12 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, restriction, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met
 - C08: met
-- C09: pending — metadata and travel-model references use typed addresses; other URI families and DTO relationship admission remain
+- C09: pending — metadata, travel-model and restriction references use typed addresses; other URI families and DTO relationship admission remain
 - C10: met
 - C11: met
 - C12: met

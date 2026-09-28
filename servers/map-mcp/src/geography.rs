@@ -117,16 +117,9 @@ impl GeographyService {
         let line = request.corridor.to_geo()?;
         let restrictions = self
             .catalog
-            .list_restrictions(scope)
+            .effective_restrictions(scope, request.departure_time, None)
             .await?
             .into_iter()
-            .filter(|restriction| {
-                restriction.cancelled_by.is_none()
-                    && restriction.valid_from <= request.departure_time
-                    && restriction
-                        .valid_until
-                        .is_none_or(|until| request.departure_time < until)
-            })
             .filter(|restriction| {
                 restriction.geometry.to_geo().is_ok_and(|polygon| {
                     polygon.intersects(&line)

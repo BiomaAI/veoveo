@@ -242,26 +242,6 @@ async fn qualify() {
         .unwrap(),
         vec!["1"]
     );
-    let restriction = key("restriction");
-    db.a.create_map_restriction(MapRestrictionDraft {
-        identity: identity.clone(),
-        restriction_key: restriction.clone(),
-        kind: "zone".into(),
-        effect_kind: "closed".into(),
-        affected_mobility_families: vec!["land".into()],
-        valid_from: Utc::now(),
-        valid_until: None,
-        cancelled_by: None,
-        canonical_json: "{}".into(),
-    })
-    .await
-    .unwrap();
-    assert_eq!(
-        db.b.complete_map_catalog(&identity, MapCatalogCompletion::Restriction, "")
-            .await
-            .unwrap(),
-        vec![restriction]
-    );
     let (route, matrix) = route_and_matrix(&db.a, &identity).await;
     route_and_matrix(&db.a, &peer).await;
     route_and_matrix(&db.a, &foreign).await;

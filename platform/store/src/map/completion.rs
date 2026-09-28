@@ -8,7 +8,6 @@ pub enum MapCatalogCompletion {
     Release { dataset: Option<String> },
     MobilityProfile,
     MobilityProfileVersion { profile: Option<String> },
-    Restriction,
     Route,
     Matrix,
 }
@@ -39,9 +38,6 @@ impl PlatformStore {
                 "($parent = NONE OR profile_key = $parent)",
                 profile,
             ),
-            MapCatalogCompletion::Restriction => {
-                ("map_restriction", "restriction_key", "true", None)
-            }
             MapCatalogCompletion::Route => ("map_route", "route_key", "owner = $owner", None),
             MapCatalogCompletion::Matrix => (
                 "map_route_matrix",

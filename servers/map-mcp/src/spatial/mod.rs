@@ -209,16 +209,8 @@ impl SpatialService {
         }
         let restrictions = self
             .catalog
-            .list_restrictions(scope)
-            .await?
-            .into_iter()
-            .filter(|restriction| {
-                restriction.valid_from <= request.effective_at
-                    && restriction
-                        .valid_until
-                        .is_none_or(|until| request.effective_at < until)
-            })
-            .collect::<Vec<_>>();
+            .effective_restrictions(scope, request.effective_at, Some(profile.family()))
+            .await?;
         let projection = LocalProjection::for_operation(&request.operation)?;
         let derived = derive::derive(&request.operation, &projection)?;
         let output_coordinate_count = derived

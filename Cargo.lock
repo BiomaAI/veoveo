@@ -16835,6 +16835,7 @@ dependencies = [
  "geographiclib-rs",
  "geojson",
  "hex",
+ "iri-string",
  "jsonschema",
  "nix",
  "petgraph",

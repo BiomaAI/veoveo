@@ -424,6 +424,29 @@ and HTTP dependencies. Both runtime-only libraries and strict workspace Clippy p
 Installed recovery, traversal and reverse/forward replacement remain pending. Other
 Map URI families and DTO relationship admission remain work. Disposable fixtures have
 stopped; the cluster stays stopped with 156 GiB free and build caches preserved.
+Map now owns restriction exact reads, completion and 100-item catalog pages. Typed
+addresses and collection-bound version 1 cursors keep restriction IDs through driver
+binding. Pages carry checked compact summaries and exact resource links; full geometry
+comes from the exact read. Canonical UUIDv5/v7 spelling is enforced for restriction and
+cancellation IDs. Selected documents must agree with indexed identity, kind, effect,
+families, validity, withdrawal and version fields.
+Routing, travel-model construction, reachable-area calculation, validation and spatial
+derivation apply tenant, time, cancellation and mobility-family predicates in SQL.
+Corridor inspection selects all families at its departure time. The old unbounded Store
+restriction list and duplicate completion branch are removed. Queries have a five-second
+database deadline; operations above 10,000 effective restrictions fail before applying
+constraints. The existing tenant-wide read policy is preserved.
+Map passes 137 native/contract cases and nine compile-fail examples. Four native database
+cases cover pages behind denied records, changed tenant visibility, half-open validity,
+withdrawal, nine retained-field corruptions and selection beyond 10,001 irrelevant rows.
+The over-limit case proves constraints are never silently truncated. Fixture insertion
+uses batches of 250 after a single large write hit the driver's WebSocket buffer limit;
+diagnostics suppress encoded request dumps. Five query forms pass SurrealDB 3.2.4 CLI
+validation. The isolated 140-package consumer passes eighteen checks without service
+dependencies, and the remaining Store completion case passes. Runtime-only and strict
+workspace Clippy pass.
+The owning design declares the coordinated array-to-summary-page transition, retained-data
+preflight and rollback. Installed acceptance and other Map catalog roots remain pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -914,6 +937,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Optimization catalogs | Domain-owned readers match indexed and retained owner/context fields in SQL before pagination, exact lookup and completion. Optional tenants remain distinct; selected malformed records fail explicitly. Typed collection builders preserve version 1 cursor bytes. Native database checks, independent contract consumption and strict Clippy pass | Qualify retained-record preflight, changed permissions and coordinated reverse/forward replacement in the installation |
 | Optimization resource admission | Typed domain builders, canonical output IDs and exhaustive resource dispatch replace string construction and prefix parsing for every hosted family. Checked MCP setup preserves discovery metadata and public schemas. The server declares no domain scopes and preserves gateway operation policy. Native template, setup and isolated-consumer checks pass; Map travel-model references use Map's contract feature | Qualify the retained-identity preflight, coordinated replacement and installed readiness; finish DTO relationship admission |
 | Map travel-model reads and shared references | Map owns typed model addresses and version 1 native Task cursors. Optimization imports the owner library's contract feature. SQL selects caller-owned successful results before limits and grouping, checking stored owner/request/result agreement. Native paging, clearance, malformed-row and isolated-consumer checks pass | Qualify retained-data preflight, installed collection traversal and coordinated array-to-page replacement with rollback; complete DTO relationship admission |
+| Map restriction reads | Map owns typed addresses, collection-bound cursors and checked compact pages. SQL applies tenant visibility before limits and operational time/family/withdrawal selection. Exact reads and pages reject indexed/document disagreement. Native page, validity, corruption, overflow and independent consumer checks pass; the unbounded Store list is removed | Qualify retained-data preflight and the coordinated array-to-summary-page installation transition with rollback; finish broader restriction DTO admission |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
