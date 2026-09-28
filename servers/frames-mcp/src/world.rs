@@ -166,8 +166,10 @@ mod tests {
                     basis: FrameBasis::Frd,
                     parent_frame_id: Some(FrameId::new("isaac-world").unwrap()),
                     parent_transform: Some(FrameParentTransform::DynamicStream {
-                        stream_uri: "uav-sim://session/showcase/vehicle/uav-1/pose".to_owned(),
-                        entity_path: "world/uav/body".to_owned(),
+                        stream_uri: "uav-sim://session/showcase/vehicle/uav-1/pose"
+                            .parse()
+                            .unwrap(),
+                        entity_path: "world/uav/body".parse().unwrap(),
                     }),
                     description: None,
                 },

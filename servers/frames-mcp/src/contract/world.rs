@@ -1,4 +1,4 @@
-use super::FrameId;
+use super::{FrameEntityPath, FrameId, FrameStreamUri};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -141,8 +141,10 @@ pub enum FrameParentTransform {
         rotation_xyzw: [f64; 4],
     },
     DynamicStream {
-        stream_uri: String,
-        entity_path: String,
+        #[schemars(with = "String")]
+        stream_uri: FrameStreamUri,
+        #[schemars(with = "String")]
+        entity_path: FrameEntityPath,
     },
 }
 

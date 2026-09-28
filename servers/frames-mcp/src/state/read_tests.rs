@@ -320,3 +320,51 @@ async fn native_revision_admission_rejects_stored_root_digest_and_tree_mismatch(
         }
     }).await.expect("stored revision integrity qualification exceeded 90 seconds");
 }
+
+#[tokio::test]
+async fn native_dynamic_references_round_trip_and_reject_malformed_retained_nodes() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::new().await;
+        let writer = FramesState::new(db.a.clone());
+        let reader = FramesState::new(db.b.clone());
+        let owner = scope(&db.a, "frames-a", "owner", &["private"]).await;
+        let denied = scope(&db.b, "frames-a", "reader", &[]).await;
+        let world_id = create(&writer, &owner, "dynamic").await;
+        let mut tree = tree();
+        tree.frames[1].parent_transform = Some(FrameParentTransform::DynamicStream {
+            stream_uri: "uav-sim://session/showcase".parse().unwrap(),
+            entity_path: "/world/vehicle/body".parse().unwrap(),
+        });
+        let revision = writer.publish_world(&owner, PublishWorldRequest {
+            world_id: world_id.clone(), expected_head_revision_id: None, tree,
+        }).await.unwrap().revision;
+        assert_eq!(reader.get_revision(&owner, revision.revision_uri()).await.unwrap(), Some(revision.clone()));
+        let node = revision.tree().frames.iter().find(|frame| frame.frame_id.as_str() == "vehicle").unwrap();
+        let node_uri = WorldFrameUri::new(revision.revision_uri(), &node.frame_id);
+        assert_eq!(reader.get_frame(&owner, &node_uri).await.unwrap(), Some(node.clone()));
+        let baseline = serde_json::to_value(revision.tree()).unwrap();
+        let index = revision.tree().frames.iter().position(|frame| frame.frame_id == node.frame_id).unwrap();
+        for (field, value) in [("stream_uri", "uav-sim://session/{session_id}"), ("entity_path", "body\nposition")] {
+            let mut definition = baseline.clone();
+            definition["frames"][index]["parent_transform"][field] = value.into();
+            db.a.client().query("UPDATE frame_world_revision SET definition = $definition WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;")
+                .bind(("definition", object_from_value(definition.clone()).unwrap()))
+                .bind(("tenant", owner.identity.tenant_id.record_id()))
+                .bind(("revision_key", revision.revision_id().to_string()))
+                .await.unwrap().check().unwrap();
+            // Denied callers never reach decoding, while admitted reads reject the value.
+            assert!(reader.get_revision(&denied, revision.revision_uri()).await.unwrap().is_none());
+            assert!(reader.get_frame(&denied, &node_uri).await.unwrap().is_none());
+            assert!(reader.get_revision(&owner, revision.revision_uri()).await.is_err());
+            assert!(reader.get_head_revision(&owner, &world_id).await.is_err());
+            assert!(reader.get_frame(&owner, &node_uri).await.is_err());
+            assert!(reader.get_frame(&owner, &revision.root_frame_uri()).await.unwrap().is_some());
+            let retained: Vec<FrameWorldRevisionRecord> = db.b.client()
+                .query("SELECT * FROM frame_world_revision WHERE tenant = $tenant AND revision_key = $revision_key;")
+                .bind(("tenant", owner.identity.tenant_id.record_id()))
+                .bind(("revision_key", revision.revision_id().to_string()))
+                .await.unwrap().check().unwrap().take(0).unwrap();
+            assert_eq!(serde_json::to_value(&retained[0].definition).unwrap(), definition);
+        }
+    }).await.expect("dynamic reference qualification exceeded 90 seconds");
+}

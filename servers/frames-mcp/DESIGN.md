@@ -25,7 +25,7 @@ server-owned `ui://frames/workspace.html` Frame Editor application.
 Published revision integrity uses SHA-256 with the repository-owned canonical
 `sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
 operation resources are Veoveo extensions rather than external protocols.
-World, operation and usage addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
+World, operation, usage and dynamic stream addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
 URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
 Resource templates use RFC 6570 path variables and the optional `cursor` query
@@ -74,8 +74,10 @@ The Frames owner requires a coordinated drain for the stricter identity admissio
 Before upgrading an installation with retained data, decode its world records, complete
 revision trees, operation provenance, and consumer references using the new contract.
 The preflight checks ID/URI agreement, empty or published head consistency, complete-tree
-admission, root membership, and the canonical tree digest. Include pending UAV
-configuration requests and retained conversion source references.
+admission, root membership, and the canonical tree digest. Dynamic stream references
+must pass concrete URI admission, and their entity paths must satisfy the byte and
+control-character limits below. Include pending UAV configuration requests and retained
+conversion source references.
 An invalid retained identity stops the upgrade. Preserve the original data and resolve
 its references under the owning domain's recovery procedure before retrying; do not
 normalize or rewrite IDs during reads. The reference installation is rebuilt empty.
@@ -101,6 +103,22 @@ and one transform:
 | `geodetic_tangent` | Anchors an ENU or NED child to an ECEF parent with WGS84 latitude, longitude, and ellipsoidal height. |
 | `static_rigid` | Carries a finite translation in metres and a normalized XYZW quaternion. |
 | `dynamic_stream` | Names a canonical stream URI and an entity path whose timestamped data resolves the transform. |
+
+`FrameStreamUri` validates the concrete URI components and preserves the supplied
+spelling. A producer builds its address with its own typed resource builder, then
+converts that resource reference into `FrameStreamUri`. Frames accepts independent
+producer schemes without a server registry or a dependency on their runtime. The
+producer owns route meaning, query vocabulary and resource authorization. Shared URI
+admission rejects credentials, ports, fragments, templates, duplicate query names,
+malformed encoding and spellings that require normalization.
+
+`FrameEntityPath` carries the producer's entity selector unchanged. It requires a
+nonblank value of at most 2048 UTF-8 bytes without control characters. A selector is
+not interpreted as a filesystem path. Both types validate JSON input before a dynamic
+transform can be constructed. Existing JSON field names and string schemas are
+preserved; the schemas describe the wire shape, while admission enforces these limits.
+Retained values outside this profile stop the coordinated upgrade described above.
+Reads do not normalize stored references because doing so would change revision hashes.
 
 Frame bases include ECEF WGS84, ENU, NED, forward-right-down, optical
 right-down-forward, and an explicit Cartesian axis mapping. Validation rejects
@@ -411,6 +429,7 @@ servers/frames-mcp/src/
   contract/usage.rs       checked Task usage addresses, cursors and pages
   engine.rs               coordinate conversion
   contract/tree.rs        complete-tree admission, canonical ordering and hashing
+  contract/streams.rs     concrete producer references and entity selector admission
   contract/metadata.rs    checked world summaries, revisions and source references
   world.rs                transform resolution
   state.rs                typed world scope and revision adapters

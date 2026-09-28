@@ -194,32 +194,7 @@ fn validate_parent_transform(
                 );
             }
         }
-        FrameParentTransform::DynamicStream {
-            stream_uri,
-            entity_path,
-        } => {
-            let Some((scheme, identity)) = stream_uri.split_once("://") else {
-                invalid!(
-                    "frame `{}` dynamic transform requires a canonical stream URI",
-                    frame.frame_id
-                );
-            };
-            if scheme.is_empty()
-                || identity.is_empty()
-                || stream_uri.chars().any(char::is_whitespace)
-            {
-                invalid!(
-                    "frame `{}` dynamic transform requires a canonical stream URI",
-                    frame.frame_id
-                );
-            }
-            if entity_path.trim().is_empty() || entity_path.len() > 2_048 {
-                invalid!(
-                    "frame `{}` dynamic transform entity_path must be 1 to 2048 characters",
-                    frame.frame_id
-                );
-            }
-        }
+        FrameParentTransform::DynamicStream { .. } => {}
     }
     Ok(())
 }

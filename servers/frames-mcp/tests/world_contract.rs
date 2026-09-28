@@ -1,7 +1,7 @@
 use veoveo_frames_mcp::contract::{
-    FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameSourceReference, FrameWorldId,
-    FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldSummary,
-    FrameWorldTree, ValidatedWorldTree,
+    FrameBasis, FrameEntityPath, FrameId, FrameNode, FrameParentTransform, FrameSourceReference,
+    FrameStreamUri, FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri,
+    FrameWorldSummary, FrameWorldTree, ValidatedWorldTree,
 };
 
 fn root() -> FrameNode {
@@ -267,4 +267,139 @@ fn canonical_digest_preserves_the_published_root_tree_encoding() {
         tree.spec_digest().hex(),
         "3e36f3d4c9f0adc10416c017af7b567ab3b9e7fe654ffe8f51b1f697536206bc"
     );
+}
+
+#[test]
+fn dynamic_references_accept_independent_producers_and_preserve_components() {
+    use veoveo_types::{ResourceUri, ResourceUriBuilder, UriSegment};
+    let resource = ResourceUriBuilder::new("independent-producer://session")
+        .unwrap()
+        .segment(UriSegment::new("flight/a ?#%é").unwrap())
+        .query_pair("timeline", "sensor + clock")
+        .unwrap()
+        .build()
+        .unwrap();
+    let uri = FrameStreamUri::try_from(resource.clone()).unwrap();
+    assert_eq!(uri.as_resource_uri(), &resource);
+    assert_eq!(ResourceUri::from(uri.clone()), resource);
+    let parts = resource.components().unwrap();
+    assert_eq!(parts.path_segments().next().unwrap(), "flight/a ?#%é");
+    assert_eq!(parts.query_parameters()["timeline"], "sensor + clock");
+    assert_eq!(FrameStreamUri::from(parts), uri);
+    let entity = FrameEntityPath::new("/world/vehicle camera/é%2F").unwrap();
+    let transform = FrameParentTransform::DynamicStream {
+        stream_uri: uri.clone(),
+        entity_path: entity.clone(),
+    };
+    let wire = serde_json::to_value(&transform).unwrap();
+    assert_eq!(
+        wire,
+        serde_json::json!({
+            "kind": "dynamic_stream", "stream_uri": uri.as_str(), "entity_path": entity.as_str()
+        })
+    );
+    assert_eq!(
+        serde_json::from_value::<FrameParentTransform>(wire).unwrap(),
+        transform
+    );
+    for value in [
+        "uav-sim://session/uav-showcase",
+        "recording://recording/019ffdb2-0598-7476-96d3-f3d7b0769f9e",
+        "independent-producer://session/flight?future_parameter=value",
+    ] {
+        let uri = FrameStreamUri::parse(value).unwrap();
+        assert_eq!(uri.as_str(), value);
+    }
+}
+
+#[test]
+fn dynamic_reference_decoding_rejects_templates_credentials_and_normalization() {
+    for value in [
+        "",
+        "relative/path",
+        "producer:///missing-authority",
+        "Producer://session/run",
+        "producer://session/a/../run",
+        "producer://session/{run}",
+        "producer://session/run#fragment",
+        "producer://user:private-token@session/run",
+        "producer://session:8080/run",
+        "producer://session/run name",
+        "producer://session/é",
+        "producer://session/run%",
+        "producer://session/run%GG",
+        "producer://session/%FF",
+        "producer://session/%00",
+        "producer://session/run?at=1&at=2",
+        "producer://session/run?at=1&%61t=2",
+        "producer://session/run?=value",
+        "producer://session/run?at=%00",
+    ] {
+        assert!(FrameStreamUri::parse(value).is_err(), "{value}");
+        assert!(
+            serde_json::from_value::<FrameParentTransform>(serde_json::json!({
+                "kind": "dynamic_stream", "stream_uri": value, "entity_path": "vehicle/body"
+            }))
+            .is_err(),
+            "{value}"
+        );
+    }
+    let error = FrameStreamUri::parse("producer://user:private-token@session/run")
+        .unwrap_err()
+        .to_string();
+    assert!(!error.contains("private-token"));
+}
+
+#[test]
+fn entity_paths_have_byte_bounds_and_preserve_the_producer_selector() {
+    for value in [
+        "/world/uav/body",
+        "vehicle with spaces",
+        " leading space",
+        "é",
+        &"é".repeat(1024),
+    ] {
+        let path = FrameEntityPath::new(value).unwrap();
+        assert_eq!(path.as_str(), value);
+        assert_eq!(serde_json::to_value(path).unwrap(), value);
+    }
+    for value in ["", " ", "\t", "body\nposition", "body\0", &"é".repeat(1025)] {
+        assert!(FrameEntityPath::new(value).is_err());
+        assert!(serde_json::from_value::<FrameParentTransform>(serde_json::json!({
+            "kind": "dynamic_stream", "stream_uri": "producer://session/run", "entity_path": value
+        })).is_err());
+    }
+}
+
+#[test]
+fn existing_uav_dynamic_world_keeps_its_wire_tree() {
+    let scenario: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../showcase/uav-sim/scenarios/new-york-aerial.json"
+    ))
+    .unwrap();
+    let wire = scenario["world"]["tree"].clone();
+    let tree: FrameWorldTree = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&tree).unwrap(), wire);
+    let admitted = ValidatedWorldTree::new(tree).unwrap();
+    let dynamic = admitted
+        .tree()
+        .frames
+        .iter()
+        .filter_map(|frame| match &frame.parent_transform {
+            Some(FrameParentTransform::DynamicStream {
+                stream_uri,
+                entity_path,
+            }) => Some((stream_uri, entity_path)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(dynamic.len(), 4);
+    for (uri, entity) in dynamic {
+        assert_eq!(uri.as_str(), "uav-sim://session/uav-showcase");
+        assert!(
+            entity
+                .as_str()
+                .starts_with("/world/uav-sim/uav-showcase/vehicle/")
+        );
+    }
 }

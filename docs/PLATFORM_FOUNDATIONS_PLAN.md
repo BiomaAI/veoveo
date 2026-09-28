@@ -190,6 +190,15 @@ superseded test executables while preserving build caches; the host has 282 GiB 
 after qualification, with no Docker containers running. Frames declares no domain scope vocabulary today; gateway policy
 admits actions and Frames enforces its stored world/operation/Task policies. Installed
 publication and the coordinated writer upgrade remain work.
+Frames dynamic transforms now carry checked concrete producer references and bounded
+entity selectors. URI parsing preserves valid source spelling without importing producer
+domains. Twenty-six independent contract-consumer cases preserve schemas and the existing
+UAV scenario; 132 native Frames/UAV/View cases and eleven compile-fail checks pass.
+Native database qualification rejects malformed retained references after SQL visibility
+checks and verifies that reads leave stored values unchanged. Strict workspace Clippy
+and the Frames MCP smoke pass. Cleanup removed another 3.3 GiB of superseded test
+executables while preserving libraries and build caches. Installed dynamic-reference
+acceptance and retained-data preflight remain work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -665,7 +674,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Frames mutation inputs | Frames owns typed mutations, private driver records and world-event vocabulary. World publication checks owner, current labels and head agreement in the transaction; repeated writes settle from authorized matching state. Store has no world draft API | Qualify installed publication, concurrent replay and the coordinated writer upgrade |
 | Frames world metadata construction | Checked summaries, immutable revisions, and source references derive their repeated identities from typed URIs. The contract owns complete-tree validation and hashing; Store reads and UAV use it. Native corruption/visibility and independent schema/consumer checks pass | Qualify installed consumers and the stricter retained-metadata preflight |
 | Frames operation references | Operation addresses use typed component builders; checked provenance derives its ID from the URI and rejects conflicting wire identity. Existing schema snapshots and independent contract consumption pass | Qualify installed consumption and the documented retained-provenance preflight |
-| Frames stream references | Dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
+| Frames stream references | `FrameStreamUri` applies the shared concrete URI profile; `FrameEntityPath` checks bounded producer selectors. Independent consumption, schema compatibility and native retained-node qualification pass. Frames preserves source spelling and leaves route vocabulary with producers | Qualify installed behavior and retained-data preflight; complete each producer's own typed builders in its migration |
 | Frames usage visibility and pages | TaskRuntime applies current Task owner policy and linked-record agreement in SQL before grouping and limiting usage. Frames owns checked pages and typed Task cursors/URIs in its isolated contract feature; native denied-row and cursor cases pass | Qualify installed reads and subscriptions; enforce the documented coordinated catalog upgrade and retained-reference preflight |
 | Frames operation visibility | Frames owns SQL-scoped operation reads and transactional authority/immutable replay checks; native caller, parent, migration and event-rollback cases pass. Version 1 stores profile authority; historical version 0 records are preserved without public access | Qualify installed direct/Task operation reads and execute the documented coordinated upgrade |
 | Other usage query owners | Timeseries, Optimization, and DuckDB retain separate usage selection paths. Optimization's policy additionally compares Work Context identity | Migrate each owning policy into SQL; adopt shared Task owner queries only where they preserve that domain's full policy, and add context-aware selection where required |
