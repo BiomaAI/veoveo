@@ -16764,6 +16764,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
+ "veoveo-uav-sim-mcp",
 ]
 
 [[package]]

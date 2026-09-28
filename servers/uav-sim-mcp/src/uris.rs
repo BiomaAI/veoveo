@@ -1,7 +1,6 @@
 use crate::contract::{ControlGrantId, MissionId, MissionPlanId, SessionId, VehicleId};
-use veoveo_mcp_contract::{
-    LiveCameraId, LiveSessionId, LiveStreamProductId, LiveViewId, ServerResourceUris,
-};
+use crate::contract::{LiveCameraId, LiveSessionId, LiveStreamProductId, LiveViewId};
+use veoveo_mcp_contract::ServerResourceUris;
 
 pub const SCHEME: &str = "uav-sim";
 /// Well-known surface roots (contract C18, C19). These literals must match

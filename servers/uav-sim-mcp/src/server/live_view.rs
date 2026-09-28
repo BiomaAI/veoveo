@@ -6,7 +6,8 @@ use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use tokio::sync::{Mutex, watch};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
+
+use crate::contract::{
     LIVE_VIEW_SCHEMA, LiveCameraId, LiveCameraRig, LiveCameraStreamPolicy, LiveColorMatrix,
     LiveColorMetadata, LiveColorPrimaries, LiveColorRange, LiveColorTransfer, LiveMediaEndpoint,
     LiveMediaTransport, LiveSessionId, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
@@ -160,7 +161,7 @@ impl LiveViewService {
             .region(&camera.camera_id)
             .cloned()
             .ok_or(LiveViewError::CameraUnavailable)?;
-        if product.lifecycle == veoveo_mcp_contract::LiveStreamProductLifecycle::Failed {
+        if product.lifecycle == crate::contract::LiveStreamProductLifecycle::Failed {
             return Err(LiveViewError::CameraUnavailable);
         }
 
@@ -455,7 +456,7 @@ fn authorize_owner(
     session: &ViewerSession,
     owner: &LiveViewOwner,
     viewer_actor: &PrincipalId,
-    viewer_instance_id: &veoveo_mcp_contract::LiveViewerInstanceId,
+    viewer_instance_id: &crate::contract::LiveViewerInstanceId,
 ) -> Result<(), LiveViewError> {
     if session.state.owner != *owner
         || session.state.viewer_actor != *viewer_actor
@@ -486,12 +487,12 @@ fn selected_entity(rig: &LiveCameraRig) -> Option<String> {
     }
 }
 
-fn product_lifecycle(product: &veoveo_mcp_contract::LiveStreamProductState) -> LiveViewLifecycle {
+fn product_lifecycle(product: &crate::contract::LiveStreamProductState) -> LiveViewLifecycle {
     match product.lifecycle {
-        veoveo_mcp_contract::LiveStreamProductLifecycle::Inactive
-        | veoveo_mcp_contract::LiveStreamProductLifecycle::Starting => LiveViewLifecycle::Starting,
-        veoveo_mcp_contract::LiveStreamProductLifecycle::Ready => LiveViewLifecycle::Ready,
-        veoveo_mcp_contract::LiveStreamProductLifecycle::Failed => LiveViewLifecycle::Failed,
+        crate::contract::LiveStreamProductLifecycle::Inactive
+        | crate::contract::LiveStreamProductLifecycle::Starting => LiveViewLifecycle::Starting,
+        crate::contract::LiveStreamProductLifecycle::Ready => LiveViewLifecycle::Ready,
+        crate::contract::LiveStreamProductLifecycle::Failed => LiveViewLifecycle::Failed,
     }
 }
 
@@ -602,9 +603,9 @@ impl LiveViewError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::LiveViewerInstanceId;
     use crate::{adapter::FakeAdapter, server::service::fake_state};
     use tokio::sync::Mutex as TokioMutex;
-    use veoveo_mcp_contract::LiveViewerInstanceId;
     use veoveo_types::{
         AccessSubject, DataLabelId, GroupId, PolicyVersion, TenantId, WorkContextId,
     };

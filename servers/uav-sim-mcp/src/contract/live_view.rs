@@ -5,7 +5,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
-use crate::GatewayInternalIdentity;
 use veoveo_types::{AccessSubject, DataLabelId, PolicyVersion, TenantId, WorkContextId};
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
@@ -195,20 +194,6 @@ pub struct LiveViewOwner {
     pub policy_revision: PolicyVersion,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub data_labels: BTreeSet<DataLabelId>,
-}
-
-impl LiveViewOwner {
-    pub fn from_identity(identity: &GatewayInternalIdentity) -> Self {
-        let mut data_labels = identity.authority.output_policy.data_labels.clone();
-        data_labels.extend(identity.authority.output_policy.classification.clone());
-        Self {
-            subject: identity.authority.output_policy.owner.clone(),
-            tenant: identity.authority.tenant.clone(),
-            work_context: identity.authority.work_context.clone(),
-            policy_revision: identity.authority.policy_revision.clone(),
-            data_labels,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

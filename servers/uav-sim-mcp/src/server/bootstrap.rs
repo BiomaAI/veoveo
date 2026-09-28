@@ -1,5 +1,6 @@
 //! Service construction, HTTP wiring, and owned observer shutdown.
 use super::{SERVER_SLUG, UavSimMcp, fake_state, resources};
+use crate::contract::LiveSessionId;
 use crate::server::{
     auth::{InternalMcpAuthState, authenticate_internal_mcp},
     config::{AdapterKind, Args},
@@ -23,7 +24,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    LiveSessionId, ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry,
     public_allowed_hosts,
 };
 use veoveo_task_runtime::{TaskRuntime, TaskRuntimeConfig};

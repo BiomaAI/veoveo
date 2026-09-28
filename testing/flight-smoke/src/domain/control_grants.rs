@@ -1,50 +1,15 @@
 //! Client wire validation for the UAV control-grant collection.
 use super::*;
-use serde::Serialize;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct GrantPage {
-    items: Vec<ControlGrant>,
-    limit: usize,
-    next_cursor: Option<String>,
-}
-
-#[derive(Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-pub(super) struct ControlGrant {
-    grant_id: String,
-    session_id: String,
-    vehicle_id: String,
-    principal_key: String,
-    permissions: BTreeSet<Permission>,
-    pub(super) map_mobility_profile_uri: MapMobilityProfileUri,
-    allow_planning_advisory: bool,
-    valid_from: DateTime<Utc>,
-    valid_until: Option<DateTime<Utc>>,
-    created_by: String,
-    revoked_at: Option<DateTime<Utc>>,
-    revoked_by: Option<String>,
-    revision: u64,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord)]
-#[serde(rename_all = "snake_case")]
-enum Permission {
-    Inspect,
-    Plan,
-    Execute,
-    Abort,
-}
+use veoveo_uav_sim_mcp::contract::{
+    CollectionPage, ControlGrantId, VehicleControlGrant, VehicleControlPermission,
+};
 
 pub(super) async fn find(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-    grant_id: &str,
+    grant_id: &ControlGrantId,
     principal_key: &str,
-) -> Result<ControlGrant> {
+) -> Result<VehicleControlGrant> {
     tokio::time::timeout(Duration::from_secs(60), async {
         let mut cursor: Option<String> = None;
         let mut seen = BTreeSet::new();
@@ -55,23 +20,23 @@ pub(super) async fn find(
                     serde_json::json!({ "session_id": scenario.session_id, "cursor": cursor }),
                 )
                 .await?;
-            let page: GrantPage = serde_json::from_value(visible)?;
+            let page: CollectionPage<VehicleControlGrant> = serde_json::from_value(visible)?;
             ensure!(
                 page.limit == 100 && page.items.len() <= page.limit,
                 "active grant response violates its 100-item page contract"
             );
             if let Some(grant) = page.items.into_iter().find(|grant| {
-                grant.grant_id == grant_id
+                &grant.grant_id == grant_id
                     && grant.principal_key == principal_key
                     && grant.vehicle_id == scenario.vehicle_id
                     && grant.session_id == scenario.session_id
             }) {
                 ensure!(
                     [
-                        Permission::Inspect,
-                        Permission::Plan,
-                        Permission::Execute,
-                        Permission::Abort
+                        VehicleControlPermission::Inspect,
+                        VehicleControlPermission::Plan,
+                        VehicleControlPermission::Execute,
+                        VehicleControlPermission::Abort
                     ]
                     .iter()
                     .all(|required| grant.permissions.contains(required))

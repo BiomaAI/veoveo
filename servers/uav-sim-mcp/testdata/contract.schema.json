@@ -1,0 +1,7462 @@
+{
+  "ActiveVehicleGrantsRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cursor": {
+        "default": null,
+        "description": "Opaque next_cursor from the previous page for this session.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "title": "ActiveVehicleGrantsRequest",
+    "type": "object"
+  },
+  "CameraCodec": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "h264"
+    ],
+    "title": "CameraCodec",
+    "type": "string"
+  },
+  "CameraEncoder": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "nvidia_nvenc"
+    ],
+    "title": "CameraEncoder",
+    "type": "string"
+  },
+  "CameraLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "warming",
+      "ready",
+      "degraded",
+      "failed"
+    ],
+    "title": "CameraLifecycle",
+    "type": "string"
+  },
+  "CameraRenderPoseState": {
+    "$defs": {
+      "EnuDirection": {
+        "additionalProperties": false,
+        "properties": {
+          "east": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "north": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "up": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "east",
+          "north",
+          "up"
+        ],
+        "type": "object"
+      },
+      "EnuVector": {
+        "additionalProperties": false,
+        "properties": {
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "up_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "east_m",
+          "north_m",
+          "up_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "forward_error_degrees": {
+        "format": "double",
+        "maximum": 180.0,
+        "minimum": 0.0,
+        "type": "number"
+      },
+      "position_error_m": {
+        "format": "double",
+        "minimum": 0.0,
+        "type": "number"
+      },
+      "rendered_forward_enu": {
+        "$ref": "#/$defs/EnuDirection"
+      },
+      "rendered_position_enu_m": {
+        "$ref": "#/$defs/EnuVector"
+      }
+    },
+    "required": [
+      "position_error_m",
+      "forward_error_degrees",
+      "rendered_position_enu_m",
+      "rendered_forward_enu"
+    ],
+    "title": "CameraRenderPoseState",
+    "type": "object"
+  },
+  "CameraState": {
+    "$defs": {
+      "CameraCodec": {
+        "enum": [
+          "h264"
+        ],
+        "type": "string"
+      },
+      "CameraEncoder": {
+        "enum": [
+          "nvidia_nvenc"
+        ],
+        "type": "string"
+      },
+      "CameraLifecycle": {
+        "enum": [
+          "warming",
+          "ready",
+          "degraded",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "CameraRenderPoseState": {
+        "additionalProperties": false,
+        "properties": {
+          "forward_error_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "position_error_m": {
+            "format": "double",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "rendered_forward_enu": {
+            "$ref": "#/$defs/EnuDirection"
+          },
+          "rendered_position_enu_m": {
+            "$ref": "#/$defs/EnuVector"
+          }
+        },
+        "required": [
+          "position_error_m",
+          "forward_error_degrees",
+          "rendered_position_enu_m",
+          "rendered_forward_enu"
+        ],
+        "type": "object"
+      },
+      "CameraTransport": {
+        "enum": [
+          "rtsp_rtp"
+        ],
+        "type": "string"
+      },
+      "EnuDirection": {
+        "additionalProperties": false,
+        "properties": {
+          "east": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "north": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "up": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "east",
+          "north",
+          "up"
+        ],
+        "type": "object"
+      },
+      "EnuVector": {
+        "additionalProperties": false,
+        "properties": {
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "up_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "east_m",
+          "north_m",
+          "up_m"
+        ],
+        "type": "object"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "codec": {
+        "$ref": "#/$defs/CameraCodec"
+      },
+      "diagnostic": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "encoder": {
+        "$ref": "#/$defs/CameraEncoder"
+      },
+      "entity_path": {
+        "type": "string"
+      },
+      "frame_rate_hz": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "frames_observed": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "height": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "last_access_unit_bytes": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "last_frame_keyframe": {
+        "type": "boolean"
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/CameraLifecycle"
+      },
+      "render_pose": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/CameraRenderPoseState"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "transport": {
+        "$ref": "#/$defs/CameraTransport"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      },
+      "width": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "vehicle_id",
+      "entity_path",
+      "lifecycle",
+      "width",
+      "height",
+      "frame_rate_hz",
+      "codec",
+      "encoder",
+      "transport",
+      "frames_observed",
+      "last_access_unit_bytes",
+      "last_frame_keyframe"
+    ],
+    "title": "CameraState",
+    "type": "object"
+  },
+  "CameraTransport": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "rtsp_rtp"
+    ],
+    "title": "CameraTransport",
+    "type": "string"
+  },
+  "CaptureDatasetRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "duration_seconds": {
+        "format": "double",
+        "maximum": 86400.0,
+        "minimum": 0.1,
+        "type": "number"
+      },
+      "sensors": {
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 128,
+        "minItems": 1,
+        "type": "array"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id",
+      "duration_seconds",
+      "sensors"
+    ],
+    "title": "CaptureDatasetRequest",
+    "type": "object"
+  },
+  "CaptureDatasetResult": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "elapsed_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "recording_uris": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id",
+      "elapsed_seconds",
+      "recording_uris"
+    ],
+    "title": "CaptureDatasetResult",
+    "type": "object"
+  },
+  "CloseLiveViewRequest": {
+    "$defs": {
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveViewId": {
+        "type": "string"
+      },
+      "LiveViewerInstanceId": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "liveViewId": {
+        "$ref": "#/$defs/LiveViewId"
+      },
+      "sessionId": {
+        "$ref": "#/$defs/LiveSessionId"
+      },
+      "viewerInstanceId": {
+        "$ref": "#/$defs/LiveViewerInstanceId"
+      }
+    },
+    "required": [
+      "sessionId",
+      "liveViewId",
+      "viewerInstanceId"
+    ],
+    "title": "CloseLiveViewRequest",
+    "type": "object"
+  },
+  "CloseLiveViewResult": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "closed": {
+        "type": "boolean"
+      },
+      "resourceUri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "resourceUri",
+      "closed"
+    ],
+    "title": "CloseLiveViewResult",
+    "type": "object"
+  },
+  "CollectionPage<VehicleMissionPlan>": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "MapRouteHandoff": {
+        "additionalProperties": false,
+        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "properties": {
+          "base_release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mobility_profile_uri": {
+            "type": "string"
+          },
+          "operational_snapshot_id": {
+            "type": "string"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/$defs/Wgs84Position"
+            },
+            "maxItems": 10000,
+            "minItems": 2,
+            "type": "array"
+          },
+          "prepared_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "restriction_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "route_digest_sha256": {
+            "type": "string"
+          },
+          "route_status": {
+            "$ref": "#/$defs/RouteStatus"
+          },
+          "route_uri": {
+            "type": "string"
+          },
+          "schema_profile": {
+            "type": "string"
+          },
+          "validated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validation_id": {
+            "$ref": "#/$defs/ValidationId"
+          }
+        },
+        "required": [
+          "schema_profile",
+          "route_uri",
+          "route_digest_sha256",
+          "route_status",
+          "mobility_profile_uri",
+          "path",
+          "validation_id",
+          "validated_at",
+          "operational_snapshot_id",
+          "base_release_ids",
+          "restriction_ids",
+          "prepared_at"
+        ],
+        "type": "object"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionPlanId": {
+        "description": "Stable identity of one admitted single-vehicle mission plan.",
+        "type": "string"
+      },
+      "MissionPlanLifecycle": {
+        "enum": [
+          "prepared",
+          "executing",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "RouteStatus": {
+        "enum": [
+          "planning_advisory",
+          "validated",
+          "stale",
+          "invalidated",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "ValidationId": {
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "VehicleMissionPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expected_world_revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hold_seconds_at_destination": {
+            "format": "double",
+            "type": "number"
+          },
+          "map_route": {
+            "$ref": "#/$defs/MapRouteHandoff"
+          },
+          "mission_id": {
+            "$ref": "#/$defs/MissionId"
+          },
+          "plan_id": {
+            "$ref": "#/$defs/MissionPlanId"
+          },
+          "principal_key": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "speed_mps": {
+            "format": "double",
+            "type": "number"
+          },
+          "state": {
+            "$ref": "#/$defs/MissionPlanLifecycle"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          }
+        },
+        "required": [
+          "plan_id",
+          "mission_id",
+          "principal_key",
+          "session_id",
+          "vehicle_id",
+          "expected_world_revision_uri",
+          "map_route",
+          "speed_mps",
+          "hold_seconds_at_destination",
+          "state",
+          "expires_at",
+          "revision",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoidal_height_m": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latitude_deg": {
+            "format": "double",
+            "type": "number"
+          },
+          "longitude_deg": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude_deg",
+          "latitude_deg"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "One live collection page. Reuse the cursor only with the same collection/filter.",
+    "properties": {
+      "items": {
+        "items": {
+          "$ref": "#/$defs/VehicleMissionPlan"
+        },
+        "type": "array"
+      },
+      "limit": {
+        "format": "uint",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "next_cursor": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "items",
+      "limit"
+    ],
+    "title": "CollectionPage",
+    "type": "object"
+  },
+  "CommandAcknowledgement": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "accepted": {
+        "type": "boolean"
+      },
+      "detail": {
+        "type": "string"
+      },
+      "resource_uri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "accepted",
+      "detail",
+      "resource_uri"
+    ],
+    "title": "CommandAcknowledgement",
+    "type": "object"
+  },
+  "ConfigureWorldOutput": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "SimulationWorldBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "georeference_origin": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "simulation_frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "spec_sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision_uri",
+          "spec_sha256",
+          "simulation_frame_uri",
+          "georeference_origin"
+        ],
+        "type": "object"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "accepted": {
+        "type": "boolean"
+      },
+      "resource_uri": {
+        "type": "string"
+      },
+      "world": {
+        "$ref": "#/$defs/SimulationWorldBinding"
+      }
+    },
+    "required": [
+      "accepted",
+      "world",
+      "resource_uri"
+    ],
+    "title": "ConfigureWorldOutput",
+    "type": "object"
+  },
+  "ConfigureWorldRequest": {
+    "$defs": {
+      "FrameAxes": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "y": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          },
+          "z": {
+            "$ref": "#/$defs/FrameAxisDirection"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "object"
+      },
+      "FrameAxisDirection": {
+        "enum": [
+          "right",
+          "left",
+          "up",
+          "down",
+          "forward",
+          "back"
+        ],
+        "type": "string"
+      },
+      "FrameBasis": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "ecef_wgs84",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "enu",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "ned",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "frd",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "optical_rdf",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "axes": {
+                "$ref": "#/$defs/FrameAxes"
+              },
+              "kind": {
+                "const": "cartesian",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "axes"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FrameId": {
+        "description": "Coordinate operation frame id for solver inputs, resources, and provenance. RRD transform frame ids live in veoveo-rrd.",
+        "type": "string"
+      },
+      "FrameNode": {
+        "additionalProperties": false,
+        "properties": {
+          "basis": {
+            "$ref": "#/$defs/FrameBasis"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frame_id": {
+            "$ref": "#/$defs/FrameId"
+          },
+          "parent_frame_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_transform": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/FrameParentTransform"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "frame_id",
+          "basis"
+        ],
+        "type": "object"
+      },
+      "FrameParentTransform": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "geodetic_tangent",
+                "type": "string"
+              },
+              "origin": {
+                "$ref": "#/$defs/Wgs84Position"
+              }
+            },
+            "required": [
+              "kind",
+              "origin"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "static_rigid",
+                "type": "string"
+              },
+              "rotation_xyzw": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 4,
+                "minItems": 4,
+                "type": "array"
+              },
+              "translation_m": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 3,
+                "minItems": 3,
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "translation_m",
+              "rotation_xyzw"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "entity_path": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "dynamic_stream",
+                "type": "string"
+              },
+              "stream_uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "stream_uri",
+              "entity_path"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "FrameWorldId": {
+        "description": "Stable identity of one authored coordinate-frame world.",
+        "type": "string"
+      },
+      "FrameWorldRevision": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "revision_id": {
+            "$ref": "#/$defs/FrameWorldRevisionId"
+          },
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "root_frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "spec_digest": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "tree": {
+            "$ref": "#/$defs/FrameWorldTree"
+          },
+          "world_id": {
+            "$ref": "#/$defs/FrameWorldId"
+          },
+          "world_uri": {
+            "$ref": "#/$defs/FrameWorldUri"
+          }
+        },
+        "required": [
+          "world_id",
+          "world_uri",
+          "revision_id",
+          "revision_uri",
+          "revision",
+          "spec_digest",
+          "root_frame_uri",
+          "tree",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "FrameWorldRevisionId": {
+        "description": "Immutable identity of one complete coordinate-frame world revision.",
+        "type": "string"
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "FrameWorldTree": {
+        "additionalProperties": false,
+        "properties": {
+          "frames": {
+            "items": {
+              "$ref": "#/$defs/FrameNode"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "frames"
+        ],
+        "type": "object"
+      },
+      "FrameWorldUri": {
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "simulation_frame_uri": {
+        "$ref": "#/$defs/WorldFrameUri"
+      },
+      "world_revision": {
+        "$ref": "#/$defs/FrameWorldRevision"
+      }
+    },
+    "required": [
+      "session_id",
+      "world_revision",
+      "simulation_frame_uri"
+    ],
+    "title": "ConfigureWorldRequest",
+    "type": "object"
+  },
+  "ControlGrantId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one principal-to-vehicle control grant.",
+    "title": "ControlGrantId",
+    "type": "string"
+  },
+  "DurableOperation": {
+    "$defs": {
+      "CaptureDatasetRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "format": "double",
+            "maximum": 86400.0,
+            "minimum": 0.1,
+            "type": "number"
+          },
+          "sensors": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 128,
+            "minItems": 1,
+            "type": "array"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "session_id",
+          "duration_seconds",
+          "sensors"
+        ],
+        "type": "object"
+      },
+      "ExecuteMissionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_world_revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "mission_id": {
+            "$ref": "#/$defs/MissionId"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/$defs/VehicleMission"
+            },
+            "maxItems": 256,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "session_id",
+          "mission_id",
+          "expected_world_revision_uri",
+          "vehicles"
+        ],
+        "type": "object"
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionWaypoint": {
+        "additionalProperties": false,
+        "properties": {
+          "hold_seconds": {
+            "format": "double",
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "position": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "speed_mps": {
+            "format": "double",
+            "maximum": 100.0,
+            "minimum": 0.1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "position",
+          "speed_mps",
+          "hold_seconds"
+        ],
+        "type": "object"
+      },
+      "RunScenarioRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_seconds": {
+            "format": "double",
+            "maximum": 86400.0,
+            "minimum": 0.1,
+            "type": "number"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "type": "object"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "session_id",
+          "duration_seconds"
+        ],
+        "type": "object"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "VehicleMission": {
+        "additionalProperties": false,
+        "properties": {
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          },
+          "waypoints": {
+            "items": {
+              "$ref": "#/$defs/MissionWaypoint"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "waypoints"
+        ],
+        "type": "object"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "properties": {
+          "input": {
+            "$ref": "#/$defs/RunScenarioRequest"
+          },
+          "operation": {
+            "const": "run_scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "input"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "input": {
+            "$ref": "#/$defs/ExecuteMissionRequest"
+          },
+          "operation": {
+            "const": "execute_mission",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "input"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "input": {
+            "$ref": "#/$defs/CaptureDatasetRequest"
+          },
+          "operation": {
+            "const": "capture_dataset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "input"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DurableOperation"
+  },
+  "DurableOperationResult": {
+    "$defs": {
+      "CaptureDatasetResult": {
+        "additionalProperties": false,
+        "properties": {
+          "elapsed_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "recording_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "session_id",
+          "elapsed_seconds",
+          "recording_uris"
+        ],
+        "type": "object"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionLifecycle": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "cancelled",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "MissionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "completed_waypoints": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/MissionLifecycle"
+          },
+          "mission_id": {
+            "$ref": "#/$defs/MissionId"
+          },
+          "recording_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mission_id",
+          "lifecycle",
+          "started_at",
+          "finished_at",
+          "completed_waypoints",
+          "recording_uris"
+        ],
+        "type": "object"
+      },
+      "ScenarioResult": {
+        "additionalProperties": false,
+        "properties": {
+          "collision_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "elapsed_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "final_simulation_time_s": {
+            "format": "double",
+            "type": "number"
+          },
+          "recording_uris": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "session_id",
+          "elapsed_seconds",
+          "final_simulation_time_s",
+          "collision_count",
+          "recording_uris"
+        ],
+        "type": "object"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "properties": {
+          "output": {
+            "$ref": "#/$defs/ScenarioResult"
+          },
+          "result": {
+            "const": "run_scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "output"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "output": {
+            "$ref": "#/$defs/MissionResult"
+          },
+          "result": {
+            "const": "execute_mission",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "output"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "output": {
+            "$ref": "#/$defs/CaptureDatasetResult"
+          },
+          "result": {
+            "const": "capture_dataset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "output"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DurableOperationResult"
+  },
+  "EnuDirection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "east": {
+        "format": "double",
+        "maximum": 1.0,
+        "minimum": -1.0,
+        "type": "number"
+      },
+      "north": {
+        "format": "double",
+        "maximum": 1.0,
+        "minimum": -1.0,
+        "type": "number"
+      },
+      "up": {
+        "format": "double",
+        "maximum": 1.0,
+        "minimum": -1.0,
+        "type": "number"
+      }
+    },
+    "required": [
+      "east",
+      "north",
+      "up"
+    ],
+    "title": "EnuDirection",
+    "type": "object"
+  },
+  "EnuVector": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "east_m": {
+        "format": "double",
+        "type": "number"
+      },
+      "north_m": {
+        "format": "double",
+        "type": "number"
+      },
+      "up_m": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "east_m",
+      "north_m",
+      "up_m"
+    ],
+    "title": "EnuVector",
+    "type": "object"
+  },
+  "ExecuteMissionRequest": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionWaypoint": {
+        "additionalProperties": false,
+        "properties": {
+          "hold_seconds": {
+            "format": "double",
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "position": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "speed_mps": {
+            "format": "double",
+            "maximum": 100.0,
+            "minimum": 0.1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "position",
+          "speed_mps",
+          "hold_seconds"
+        ],
+        "type": "object"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "VehicleMission": {
+        "additionalProperties": false,
+        "properties": {
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          },
+          "waypoints": {
+            "items": {
+              "$ref": "#/$defs/MissionWaypoint"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "waypoints"
+        ],
+        "type": "object"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "expected_world_revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "mission_id": {
+        "$ref": "#/$defs/MissionId"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "vehicles": {
+        "items": {
+          "$ref": "#/$defs/VehicleMission"
+        },
+        "maxItems": 256,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "session_id",
+      "mission_id",
+      "expected_world_revision_uri",
+      "vehicles"
+    ],
+    "title": "ExecuteMissionRequest",
+    "type": "object"
+  },
+  "ExecuteVehicleMissionPlanRequest": {
+    "$defs": {
+      "MissionPlanId": {
+        "description": "Stable identity of one admitted single-vehicle mission plan.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "expected_revision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "plan_id": {
+        "$ref": "#/$defs/MissionPlanId"
+      }
+    },
+    "required": [
+      "plan_id",
+      "expected_revision"
+    ],
+    "title": "ExecuteVehicleMissionPlanRequest",
+    "type": "object"
+  },
+  "GrantVehicleControlRequest": {
+    "$defs": {
+      "ControlGrantId": {
+        "description": "Stable identity of one principal-to-vehicle control grant.",
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleControlPermission": {
+        "enum": [
+          "inspect",
+          "plan",
+          "execute",
+          "abort"
+        ],
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "allow_planning_advisory": {
+        "default": false,
+        "type": "boolean"
+      },
+      "grant_id": {
+        "$ref": "#/$defs/ControlGrantId"
+      },
+      "map_mobility_profile_uri": {
+        "type": "string"
+      },
+      "permissions": {
+        "items": {
+          "$ref": "#/$defs/VehicleControlPermission"
+        },
+        "type": "array",
+        "uniqueItems": true
+      },
+      "principal_key": {
+        "type": "string"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "valid_from": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "valid_until": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "grant_id",
+      "session_id",
+      "vehicle_id",
+      "principal_key",
+      "permissions",
+      "map_mobility_profile_uri",
+      "valid_from"
+    ],
+    "title": "GrantVehicleControlRequest",
+    "type": "object"
+  },
+  "LiveCameraDescriptor": {
+    "$defs": {
+      "LiveCameraHealth": {
+        "enum": [
+          "warming",
+          "healthy",
+          "stale",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveCameraRig": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "fixed",
+                "type": "string"
+              },
+              "pose": {
+                "$ref": "#/$defs/LivePose"
+              }
+            },
+            "required": [
+              "kind",
+              "pose"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "eyeM": {
+                "$ref": "#/$defs/LiveVector3"
+              },
+              "kind": {
+                "const": "look_at",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetM": {
+                "$ref": "#/$defs/LiveVector3"
+              }
+            },
+            "required": [
+              "kind",
+              "eyeM",
+              "targetM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "azimuthDegrees": {
+                "format": "double",
+                "type": "number"
+              },
+              "elevationDegrees": {
+                "format": "double",
+                "type": "number"
+              },
+              "kind": {
+                "const": "orbit",
+                "type": "string"
+              },
+              "radiusM": {
+                "format": "double",
+                "type": "number"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "radiusM",
+              "azimuthDegrees",
+              "elevationDegrees",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "eyeOffsetFluM": {
+                "$ref": "#/$defs/LiveVector3"
+              },
+              "kind": {
+                "const": "follow_entity",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              },
+              "targetOffsetFluM": {
+                "$ref": "#/$defs/LiveVector3"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "eyeOffsetFluM",
+              "targetOffsetFluM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "distanceM": {
+                "format": "double",
+                "type": "number"
+              },
+              "heightM": {
+                "format": "double",
+                "type": "number"
+              },
+              "kind": {
+                "const": "chase_entity",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "distanceM",
+              "heightM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "stabilized_mounted_entity",
+                "type": "string"
+              },
+              "mount": {
+                "$ref": "#/$defs/LivePose"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "mount",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "formation_overview",
+                "type": "string"
+              },
+              "paddingM": {
+                "format": "double",
+                "type": "number"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityIds": {
+                "items": {
+                  "$ref": "#/$defs/LiveEntityId"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityIds",
+              "paddingM",
+              "smoothing"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LiveCameraSmoothing": {
+        "additionalProperties": false,
+        "properties": {
+          "resetAfterGapMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rotationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teleportDistanceMillimetres": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "translationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "translationHalfLifeMs",
+          "rotationHalfLifeMs",
+          "teleportDistanceMillimetres",
+          "resetAfterGapMs"
+        ],
+        "type": "object"
+      },
+      "LiveCameraStreamPolicy": {
+        "enum": [
+          "disabled",
+          "continuous"
+        ],
+        "type": "string"
+      },
+      "LiveEntityId": {
+        "type": "string"
+      },
+      "LivePose": {
+        "additionalProperties": false,
+        "properties": {
+          "orientationXyzw": {
+            "$ref": "#/$defs/LiveQuaternionXyzw"
+          },
+          "positionM": {
+            "$ref": "#/$defs/LiveVector3"
+          }
+        },
+        "required": [
+          "positionM",
+          "orientationXyzw"
+        ],
+        "type": "object"
+      },
+      "LiveQuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveVector3": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cameraId": {
+        "$ref": "#/$defs/LiveCameraId"
+      },
+      "farClipM": {
+        "format": "double",
+        "type": "number"
+      },
+      "frameRateMillihertz": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "health": {
+        "$ref": "#/$defs/LiveCameraHealth"
+      },
+      "heightPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "lastFrameAt": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "nearClipM": {
+        "format": "double",
+        "type": "number"
+      },
+      "revision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "rig": {
+        "$ref": "#/$defs/LiveCameraRig"
+      },
+      "sessionId": {
+        "$ref": "#/$defs/LiveSessionId"
+      },
+      "streamPolicy": {
+        "$ref": "#/$defs/LiveCameraStreamPolicy"
+      },
+      "verticalFovDegrees": {
+        "format": "double",
+        "type": "number"
+      },
+      "widthPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "cameraId",
+      "sessionId",
+      "revision",
+      "rig",
+      "widthPx",
+      "heightPx",
+      "frameRateMillihertz",
+      "verticalFovDegrees",
+      "nearClipM",
+      "farClipM",
+      "streamPolicy",
+      "health"
+    ],
+    "title": "LiveCameraDescriptor",
+    "type": "object"
+  },
+  "LiveCameraHealth": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "warming",
+      "healthy",
+      "stale",
+      "failed"
+    ],
+    "title": "LiveCameraHealth",
+    "type": "string"
+  },
+  "LiveCameraId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveCameraId",
+    "type": "string"
+  },
+  "LiveCameraRegion": {
+    "$defs": {
+      "LiveCameraId": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cameraId": {
+        "$ref": "#/$defs/LiveCameraId"
+      },
+      "heightPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "widthPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "xPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "yPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "cameraId",
+      "xPx",
+      "yPx",
+      "widthPx",
+      "heightPx"
+    ],
+    "title": "LiveCameraRegion",
+    "type": "object"
+  },
+  "LiveCameraRig": {
+    "$defs": {
+      "LiveCameraSmoothing": {
+        "additionalProperties": false,
+        "properties": {
+          "resetAfterGapMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rotationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teleportDistanceMillimetres": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "translationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "translationHalfLifeMs",
+          "rotationHalfLifeMs",
+          "teleportDistanceMillimetres",
+          "resetAfterGapMs"
+        ],
+        "type": "object"
+      },
+      "LiveEntityId": {
+        "type": "string"
+      },
+      "LivePose": {
+        "additionalProperties": false,
+        "properties": {
+          "orientationXyzw": {
+            "$ref": "#/$defs/LiveQuaternionXyzw"
+          },
+          "positionM": {
+            "$ref": "#/$defs/LiveVector3"
+          }
+        },
+        "required": [
+          "positionM",
+          "orientationXyzw"
+        ],
+        "type": "object"
+      },
+      "LiveQuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "LiveVector3": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "properties": {
+          "kind": {
+            "const": "fixed",
+            "type": "string"
+          },
+          "pose": {
+            "$ref": "#/$defs/LivePose"
+          }
+        },
+        "required": [
+          "kind",
+          "pose"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "eyeM": {
+            "$ref": "#/$defs/LiveVector3"
+          },
+          "kind": {
+            "const": "look_at",
+            "type": "string"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetM": {
+            "$ref": "#/$defs/LiveVector3"
+          }
+        },
+        "required": [
+          "kind",
+          "eyeM",
+          "targetM",
+          "smoothing"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "azimuthDegrees": {
+            "format": "double",
+            "type": "number"
+          },
+          "elevationDegrees": {
+            "format": "double",
+            "type": "number"
+          },
+          "kind": {
+            "const": "orbit",
+            "type": "string"
+          },
+          "radiusM": {
+            "format": "double",
+            "type": "number"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetEntityId": {
+            "$ref": "#/$defs/LiveEntityId"
+          }
+        },
+        "required": [
+          "kind",
+          "targetEntityId",
+          "radiusM",
+          "azimuthDegrees",
+          "elevationDegrees",
+          "smoothing"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "eyeOffsetFluM": {
+            "$ref": "#/$defs/LiveVector3"
+          },
+          "kind": {
+            "const": "follow_entity",
+            "type": "string"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetEntityId": {
+            "$ref": "#/$defs/LiveEntityId"
+          },
+          "targetOffsetFluM": {
+            "$ref": "#/$defs/LiveVector3"
+          }
+        },
+        "required": [
+          "kind",
+          "targetEntityId",
+          "eyeOffsetFluM",
+          "targetOffsetFluM",
+          "smoothing"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "distanceM": {
+            "format": "double",
+            "type": "number"
+          },
+          "heightM": {
+            "format": "double",
+            "type": "number"
+          },
+          "kind": {
+            "const": "chase_entity",
+            "type": "string"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetEntityId": {
+            "$ref": "#/$defs/LiveEntityId"
+          }
+        },
+        "required": [
+          "kind",
+          "targetEntityId",
+          "distanceM",
+          "heightM",
+          "smoothing"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "kind": {
+            "const": "stabilized_mounted_entity",
+            "type": "string"
+          },
+          "mount": {
+            "$ref": "#/$defs/LivePose"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetEntityId": {
+            "$ref": "#/$defs/LiveEntityId"
+          }
+        },
+        "required": [
+          "kind",
+          "targetEntityId",
+          "mount",
+          "smoothing"
+        ],
+        "type": "object"
+      },
+      {
+        "properties": {
+          "kind": {
+            "const": "formation_overview",
+            "type": "string"
+          },
+          "paddingM": {
+            "format": "double",
+            "type": "number"
+          },
+          "smoothing": {
+            "$ref": "#/$defs/LiveCameraSmoothing"
+          },
+          "targetEntityIds": {
+            "items": {
+              "$ref": "#/$defs/LiveEntityId"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "targetEntityIds",
+          "paddingM",
+          "smoothing"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "LiveCameraRig"
+  },
+  "LiveCameraSmoothing": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "resetAfterGapMs": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "rotationHalfLifeMs": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "teleportDistanceMillimetres": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "translationHalfLifeMs": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "translationHalfLifeMs",
+      "rotationHalfLifeMs",
+      "teleportDistanceMillimetres",
+      "resetAfterGapMs"
+    ],
+    "title": "LiveCameraSmoothing",
+    "type": "object"
+  },
+  "LiveCameraSource": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "fixed",
+      "look_at",
+      "orbit",
+      "follow_entity",
+      "chase_entity",
+      "stabilized_mounted_entity",
+      "formation_overview"
+    ],
+    "title": "LiveCameraSource",
+    "type": "string"
+  },
+  "LiveCameraStreamPolicy": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "disabled",
+      "continuous"
+    ],
+    "title": "LiveCameraStreamPolicy",
+    "type": "string"
+  },
+  "LiveColorMatrix": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "bt709"
+    ],
+    "title": "LiveColorMatrix",
+    "type": "string"
+  },
+  "LiveColorMetadata": {
+    "$defs": {
+      "LiveColorMatrix": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorPrimaries": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorRange": {
+        "enum": [
+          "limited",
+          "full"
+        ],
+        "type": "string"
+      },
+      "LiveColorTransfer": {
+        "enum": [
+          "bt709",
+          "srgb"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "matrix": {
+        "$ref": "#/$defs/LiveColorMatrix"
+      },
+      "primaries": {
+        "$ref": "#/$defs/LiveColorPrimaries"
+      },
+      "range": {
+        "$ref": "#/$defs/LiveColorRange"
+      },
+      "transfer": {
+        "$ref": "#/$defs/LiveColorTransfer"
+      }
+    },
+    "required": [
+      "primaries",
+      "transfer",
+      "matrix",
+      "range"
+    ],
+    "title": "LiveColorMetadata",
+    "type": "object"
+  },
+  "LiveColorPrimaries": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "bt709"
+    ],
+    "title": "LiveColorPrimaries",
+    "type": "string"
+  },
+  "LiveColorRange": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "limited",
+      "full"
+    ],
+    "title": "LiveColorRange",
+    "type": "string"
+  },
+  "LiveColorTransfer": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "bt709",
+      "srgb"
+    ],
+    "title": "LiveColorTransfer",
+    "type": "string"
+  },
+  "LiveEntityId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveEntityId",
+    "type": "string"
+  },
+  "LiveMediaEndpoint": {
+    "$defs": {
+      "LiveMediaTransport": {
+        "enum": [
+          "web_socket_h264"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "streamUrl": {
+        "type": "string"
+      },
+      "transport": {
+        "$ref": "#/$defs/LiveMediaTransport"
+      }
+    },
+    "required": [
+      "transport",
+      "streamUrl"
+    ],
+    "title": "LiveMediaEndpoint",
+    "type": "object"
+  },
+  "LiveMediaTransport": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "web_socket_h264"
+    ],
+    "title": "LiveMediaTransport",
+    "type": "string"
+  },
+  "LivePose": {
+    "$defs": {
+      "LiveQuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "LiveVector3": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "orientationXyzw": {
+        "$ref": "#/$defs/LiveQuaternionXyzw"
+      },
+      "positionM": {
+        "$ref": "#/$defs/LiveVector3"
+      }
+    },
+    "required": [
+      "positionM",
+      "orientationXyzw"
+    ],
+    "title": "LivePose",
+    "type": "object"
+  },
+  "LiveQuaternionXyzw": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "w": {
+        "format": "double",
+        "type": "number"
+      },
+      "x": {
+        "format": "double",
+        "type": "number"
+      },
+      "y": {
+        "format": "double",
+        "type": "number"
+      },
+      "z": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "x",
+      "y",
+      "z",
+      "w"
+    ],
+    "title": "LiveQuaternionXyzw",
+    "type": "object"
+  },
+  "LiveSessionId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveSessionId",
+    "type": "string"
+  },
+  "LiveStreamProductId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveStreamProductId",
+    "type": "string"
+  },
+  "LiveStreamProductLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "inactive",
+      "starting",
+      "ready",
+      "failed"
+    ],
+    "title": "LiveStreamProductLifecycle",
+    "type": "string"
+  },
+  "LiveStreamProductState": {
+    "$defs": {
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveCameraRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "xPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "yPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cameraId",
+          "xPx",
+          "yPx",
+          "widthPx",
+          "heightPx"
+        ],
+        "type": "object"
+      },
+      "LiveStreamProductId": {
+        "type": "string"
+      },
+      "LiveStreamProductLifecycle": {
+        "enum": [
+          "inactive",
+          "starting",
+          "ready",
+          "failed"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "activeViewers": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "cameraRegions": {
+        "items": {
+          "$ref": "#/$defs/LiveCameraRegion"
+        },
+        "type": "array"
+      },
+      "codedHeightPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "codedWidthPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "connectedViewers": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "diagnostic": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "encodedFrames": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "lastFrameAt": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/LiveStreamProductLifecycle"
+      },
+      "nvencSessions": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "sourceToRenderP95Microseconds": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "sourceToRenderSamples": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "streamProductId": {
+        "$ref": "#/$defs/LiveStreamProductId"
+      },
+      "visible": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "streamProductId",
+      "cameraRegions",
+      "codedWidthPx",
+      "codedHeightPx",
+      "lifecycle",
+      "activeViewers",
+      "connectedViewers",
+      "nvencSessions",
+      "encodedFrames",
+      "sourceToRenderSamples"
+    ],
+    "title": "LiveStreamProductState",
+    "type": "object"
+  },
+  "LiveVector3": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "x": {
+        "format": "double",
+        "type": "number"
+      },
+      "y": {
+        "format": "double",
+        "type": "number"
+      },
+      "z": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "x",
+      "y",
+      "z"
+    ],
+    "title": "LiveVector3",
+    "type": "object"
+  },
+  "LiveViewAccessToken": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveViewAccessToken",
+    "type": "string"
+  },
+  "LiveViewCodec": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "h264"
+    ],
+    "title": "LiveViewCodec",
+    "type": "string"
+  },
+  "LiveViewConnection": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "LiveCameraHealth": {
+        "enum": [
+          "warming",
+          "healthy",
+          "stale",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveCameraRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "xPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "yPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cameraId",
+          "xPx",
+          "yPx",
+          "widthPx",
+          "heightPx"
+        ],
+        "type": "object"
+      },
+      "LiveCameraSource": {
+        "enum": [
+          "fixed",
+          "look_at",
+          "orbit",
+          "follow_entity",
+          "chase_entity",
+          "stabilized_mounted_entity",
+          "formation_overview"
+        ],
+        "type": "string"
+      },
+      "LiveColorMatrix": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "matrix": {
+            "$ref": "#/$defs/LiveColorMatrix"
+          },
+          "primaries": {
+            "$ref": "#/$defs/LiveColorPrimaries"
+          },
+          "range": {
+            "$ref": "#/$defs/LiveColorRange"
+          },
+          "transfer": {
+            "$ref": "#/$defs/LiveColorTransfer"
+          }
+        },
+        "required": [
+          "primaries",
+          "transfer",
+          "matrix",
+          "range"
+        ],
+        "type": "object"
+      },
+      "LiveColorPrimaries": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorRange": {
+        "enum": [
+          "limited",
+          "full"
+        ],
+        "type": "string"
+      },
+      "LiveColorTransfer": {
+        "enum": [
+          "bt709",
+          "srgb"
+        ],
+        "type": "string"
+      },
+      "LiveMediaEndpoint": {
+        "additionalProperties": false,
+        "properties": {
+          "streamUrl": {
+            "type": "string"
+          },
+          "transport": {
+            "$ref": "#/$defs/LiveMediaTransport"
+          }
+        },
+        "required": [
+          "transport",
+          "streamUrl"
+        ],
+        "type": "object"
+      },
+      "LiveMediaTransport": {
+        "enum": [
+          "web_socket_h264"
+        ],
+        "type": "string"
+      },
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveStreamProductId": {
+        "type": "string"
+      },
+      "LiveViewAccessToken": {
+        "type": "string"
+      },
+      "LiveViewCodec": {
+        "enum": [
+          "h264"
+        ],
+        "type": "string"
+      },
+      "LiveViewHardwareEncoder": {
+        "enum": [
+          "nvidia_nvenc"
+        ],
+        "type": "string"
+      },
+      "LiveViewId": {
+        "type": "string"
+      },
+      "LiveViewLifecycle": {
+        "enum": [
+          "starting",
+          "ready",
+          "live",
+          "closed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveViewOwner": {
+        "additionalProperties": false,
+        "properties": {
+          "dataLabels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "policyRevision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "subject": {
+            "$ref": "#/$defs/AccessSubject"
+          },
+          "tenant": {
+            "$ref": "#/$defs/TenantId"
+          },
+          "workContext": {
+            "$ref": "#/$defs/WorkContextId"
+          }
+        },
+        "required": [
+          "subject",
+          "tenant",
+          "workContext",
+          "policyRevision"
+        ],
+        "type": "object"
+      },
+      "LiveViewState": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraHealth": {
+            "$ref": "#/$defs/LiveCameraHealth"
+          },
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "cameraRevision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "codec": {
+            "$ref": "#/$defs/LiveViewCodec"
+          },
+          "codedHeightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "codedWidthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "color": {
+            "$ref": "#/$defs/LiveColorMetadata"
+          },
+          "connectedViewers": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endpoint": {
+            "$ref": "#/$defs/LiveMediaEndpoint"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "frameRateMillihertz": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hardwareEncoder": {
+            "$ref": "#/$defs/LiveViewHardwareEncoder"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastFrameAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveViewLifecycle"
+          },
+          "liveViewId": {
+            "$ref": "#/$defs/LiveViewId"
+          },
+          "maximumFrameAgeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "owner": {
+            "$ref": "#/$defs/LiveViewOwner"
+          },
+          "resourceUri": {
+            "$ref": "#/$defs/LiveViewUri"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "selectedEntityId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "semanticSource": {
+            "$ref": "#/$defs/LiveCameraSource"
+          },
+          "sessionId": {
+            "$ref": "#/$defs/LiveSessionId"
+          },
+          "sourceRegion": {
+            "$ref": "#/$defs/LiveCameraRegion"
+          },
+          "sourceToRenderP95Microseconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sourceToRenderSamples": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "streamProductId": {
+            "$ref": "#/$defs/LiveStreamProductId"
+          },
+          "viewerActor": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "viewerInstanceId": {
+            "$ref": "#/$defs/LiveViewerInstanceId"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "liveViewId",
+          "streamProductId",
+          "resourceUri",
+          "owner",
+          "viewerActor",
+          "viewerInstanceId",
+          "sessionId",
+          "cameraId",
+          "lifecycle",
+          "semanticSource",
+          "cameraRevision",
+          "codec",
+          "hardwareEncoder",
+          "color",
+          "widthPx",
+          "heightPx",
+          "codedWidthPx",
+          "codedHeightPx",
+          "sourceRegion",
+          "frameRateMillihertz",
+          "connectedViewers",
+          "cameraHealth",
+          "sourceToRenderSamples",
+          "maximumFrameAgeMs",
+          "endpoint",
+          "createdAt",
+          "expiresAt"
+        ],
+        "type": "object"
+      },
+      "LiveViewUri": {
+        "type": "string"
+      },
+      "LiveViewerInstanceId": {
+        "type": "string"
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "accessToken": {
+        "$ref": "#/$defs/LiveViewAccessToken"
+      },
+      "stream": {
+        "$ref": "#/$defs/LiveViewState"
+      }
+    },
+    "required": [
+      "stream",
+      "accessToken"
+    ],
+    "title": "LiveViewConnection",
+    "type": "object"
+  },
+  "LiveViewHardwareEncoder": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "nvidia_nvenc"
+    ],
+    "title": "LiveViewHardwareEncoder",
+    "type": "string"
+  },
+  "LiveViewId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveViewId",
+    "type": "string"
+  },
+  "LiveViewLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "starting",
+      "ready",
+      "live",
+      "closed",
+      "failed"
+    ],
+    "title": "LiveViewLifecycle",
+    "type": "string"
+  },
+  "LiveViewOwner": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "dataLabels": {
+        "items": {
+          "$ref": "#/$defs/DataLabelId"
+        },
+        "type": "array",
+        "uniqueItems": true
+      },
+      "policyRevision": {
+        "$ref": "#/$defs/PolicyVersion"
+      },
+      "subject": {
+        "$ref": "#/$defs/AccessSubject"
+      },
+      "tenant": {
+        "$ref": "#/$defs/TenantId"
+      },
+      "workContext": {
+        "$ref": "#/$defs/WorkContextId"
+      }
+    },
+    "required": [
+      "subject",
+      "tenant",
+      "workContext",
+      "policyRevision"
+    ],
+    "title": "LiveViewOwner",
+    "type": "object"
+  },
+  "LiveViewState": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "LiveCameraHealth": {
+        "enum": [
+          "warming",
+          "healthy",
+          "stale",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveCameraRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "xPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "yPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cameraId",
+          "xPx",
+          "yPx",
+          "widthPx",
+          "heightPx"
+        ],
+        "type": "object"
+      },
+      "LiveCameraSource": {
+        "enum": [
+          "fixed",
+          "look_at",
+          "orbit",
+          "follow_entity",
+          "chase_entity",
+          "stabilized_mounted_entity",
+          "formation_overview"
+        ],
+        "type": "string"
+      },
+      "LiveColorMatrix": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "matrix": {
+            "$ref": "#/$defs/LiveColorMatrix"
+          },
+          "primaries": {
+            "$ref": "#/$defs/LiveColorPrimaries"
+          },
+          "range": {
+            "$ref": "#/$defs/LiveColorRange"
+          },
+          "transfer": {
+            "$ref": "#/$defs/LiveColorTransfer"
+          }
+        },
+        "required": [
+          "primaries",
+          "transfer",
+          "matrix",
+          "range"
+        ],
+        "type": "object"
+      },
+      "LiveColorPrimaries": {
+        "enum": [
+          "bt709"
+        ],
+        "type": "string"
+      },
+      "LiveColorRange": {
+        "enum": [
+          "limited",
+          "full"
+        ],
+        "type": "string"
+      },
+      "LiveColorTransfer": {
+        "enum": [
+          "bt709",
+          "srgb"
+        ],
+        "type": "string"
+      },
+      "LiveMediaEndpoint": {
+        "additionalProperties": false,
+        "properties": {
+          "streamUrl": {
+            "type": "string"
+          },
+          "transport": {
+            "$ref": "#/$defs/LiveMediaTransport"
+          }
+        },
+        "required": [
+          "transport",
+          "streamUrl"
+        ],
+        "type": "object"
+      },
+      "LiveMediaTransport": {
+        "enum": [
+          "web_socket_h264"
+        ],
+        "type": "string"
+      },
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveStreamProductId": {
+        "type": "string"
+      },
+      "LiveViewCodec": {
+        "enum": [
+          "h264"
+        ],
+        "type": "string"
+      },
+      "LiveViewHardwareEncoder": {
+        "enum": [
+          "nvidia_nvenc"
+        ],
+        "type": "string"
+      },
+      "LiveViewId": {
+        "type": "string"
+      },
+      "LiveViewLifecycle": {
+        "enum": [
+          "starting",
+          "ready",
+          "live",
+          "closed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveViewOwner": {
+        "additionalProperties": false,
+        "properties": {
+          "dataLabels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "policyRevision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "subject": {
+            "$ref": "#/$defs/AccessSubject"
+          },
+          "tenant": {
+            "$ref": "#/$defs/TenantId"
+          },
+          "workContext": {
+            "$ref": "#/$defs/WorkContextId"
+          }
+        },
+        "required": [
+          "subject",
+          "tenant",
+          "workContext",
+          "policyRevision"
+        ],
+        "type": "object"
+      },
+      "LiveViewUri": {
+        "type": "string"
+      },
+      "LiveViewerInstanceId": {
+        "type": "string"
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cameraHealth": {
+        "$ref": "#/$defs/LiveCameraHealth"
+      },
+      "cameraId": {
+        "$ref": "#/$defs/LiveCameraId"
+      },
+      "cameraRevision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "codec": {
+        "$ref": "#/$defs/LiveViewCodec"
+      },
+      "codedHeightPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "codedWidthPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "color": {
+        "$ref": "#/$defs/LiveColorMetadata"
+      },
+      "connectedViewers": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "createdAt": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "endpoint": {
+        "$ref": "#/$defs/LiveMediaEndpoint"
+      },
+      "expiresAt": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "frameRateMillihertz": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "hardwareEncoder": {
+        "$ref": "#/$defs/LiveViewHardwareEncoder"
+      },
+      "heightPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "lastFrameAt": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/LiveViewLifecycle"
+      },
+      "liveViewId": {
+        "$ref": "#/$defs/LiveViewId"
+      },
+      "maximumFrameAgeMs": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "owner": {
+        "$ref": "#/$defs/LiveViewOwner"
+      },
+      "resourceUri": {
+        "$ref": "#/$defs/LiveViewUri"
+      },
+      "schemaVersion": {
+        "type": "string"
+      },
+      "selectedEntityId": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "semanticSource": {
+        "$ref": "#/$defs/LiveCameraSource"
+      },
+      "sessionId": {
+        "$ref": "#/$defs/LiveSessionId"
+      },
+      "sourceRegion": {
+        "$ref": "#/$defs/LiveCameraRegion"
+      },
+      "sourceToRenderP95Microseconds": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "sourceToRenderSamples": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "streamProductId": {
+        "$ref": "#/$defs/LiveStreamProductId"
+      },
+      "viewerActor": {
+        "$ref": "#/$defs/PrincipalId"
+      },
+      "viewerInstanceId": {
+        "$ref": "#/$defs/LiveViewerInstanceId"
+      },
+      "widthPx": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "schemaVersion",
+      "liveViewId",
+      "streamProductId",
+      "resourceUri",
+      "owner",
+      "viewerActor",
+      "viewerInstanceId",
+      "sessionId",
+      "cameraId",
+      "lifecycle",
+      "semanticSource",
+      "cameraRevision",
+      "codec",
+      "hardwareEncoder",
+      "color",
+      "widthPx",
+      "heightPx",
+      "codedWidthPx",
+      "codedHeightPx",
+      "sourceRegion",
+      "frameRateMillihertz",
+      "connectedViewers",
+      "cameraHealth",
+      "sourceToRenderSamples",
+      "maximumFrameAgeMs",
+      "endpoint",
+      "createdAt",
+      "expiresAt"
+    ],
+    "title": "LiveViewState",
+    "type": "object"
+  },
+  "LiveViewUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveViewUri",
+    "type": "string"
+  },
+  "LiveViewerInstanceId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "LiveViewerInstanceId",
+    "type": "string"
+  },
+  "MissionId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one submitted mission.",
+    "title": "MissionId",
+    "type": "string"
+  },
+  "MissionLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "pending",
+      "running",
+      "completed",
+      "cancelled",
+      "failed"
+    ],
+    "title": "MissionLifecycle",
+    "type": "string"
+  },
+  "MissionPlanId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one admitted single-vehicle mission plan.",
+    "title": "MissionPlanId",
+    "type": "string"
+  },
+  "MissionPlanLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "prepared",
+      "executing",
+      "completed",
+      "failed",
+      "cancelled"
+    ],
+    "title": "MissionPlanLifecycle",
+    "type": "string"
+  },
+  "MissionResult": {
+    "$defs": {
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionLifecycle": {
+        "enum": [
+          "pending",
+          "running",
+          "completed",
+          "cancelled",
+          "failed"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "completed_waypoints": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "finished_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/MissionLifecycle"
+      },
+      "mission_id": {
+        "$ref": "#/$defs/MissionId"
+      },
+      "recording_uris": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "started_at": {
+        "format": "date-time",
+        "type": "string"
+      }
+    },
+    "required": [
+      "mission_id",
+      "lifecycle",
+      "started_at",
+      "finished_at",
+      "completed_waypoints",
+      "recording_uris"
+    ],
+    "title": "MissionResult",
+    "type": "object"
+  },
+  "MissionWaypoint": {
+    "$defs": {
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "hold_seconds": {
+        "format": "double",
+        "maximum": 3600.0,
+        "minimum": 0.0,
+        "type": "number"
+      },
+      "position": {
+        "$ref": "#/$defs/Wgs84Position"
+      },
+      "speed_mps": {
+        "format": "double",
+        "maximum": 100.0,
+        "minimum": 0.1,
+        "type": "number"
+      }
+    },
+    "required": [
+      "position",
+      "speed_mps",
+      "hold_seconds"
+    ],
+    "title": "MissionWaypoint",
+    "type": "object"
+  },
+  "NedVector": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "down_m": {
+        "format": "double",
+        "type": "number"
+      },
+      "east_m": {
+        "format": "double",
+        "type": "number"
+      },
+      "north_m": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "north_m",
+      "east_m",
+      "down_m"
+    ],
+    "title": "NedVector",
+    "type": "object"
+  },
+  "OpenLiveViewRequest": {
+    "$defs": {
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveViewerInstanceId": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cameraId": {
+        "$ref": "#/$defs/LiveCameraId"
+      },
+      "sessionId": {
+        "$ref": "#/$defs/LiveSessionId"
+      },
+      "viewerInstanceId": {
+        "$ref": "#/$defs/LiveViewerInstanceId"
+      }
+    },
+    "required": [
+      "sessionId",
+      "cameraId",
+      "viewerInstanceId"
+    ],
+    "title": "OpenLiveViewRequest",
+    "type": "object"
+  },
+  "PrepareVehicleMissionRequest": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "MapRouteHandoff": {
+        "additionalProperties": false,
+        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "properties": {
+          "base_release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mobility_profile_uri": {
+            "type": "string"
+          },
+          "operational_snapshot_id": {
+            "type": "string"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/$defs/Wgs84Position"
+            },
+            "maxItems": 10000,
+            "minItems": 2,
+            "type": "array"
+          },
+          "prepared_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "restriction_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "route_digest_sha256": {
+            "type": "string"
+          },
+          "route_status": {
+            "$ref": "#/$defs/RouteStatus"
+          },
+          "route_uri": {
+            "type": "string"
+          },
+          "schema_profile": {
+            "type": "string"
+          },
+          "validated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validation_id": {
+            "$ref": "#/$defs/ValidationId"
+          }
+        },
+        "required": [
+          "schema_profile",
+          "route_uri",
+          "route_digest_sha256",
+          "route_status",
+          "mobility_profile_uri",
+          "path",
+          "validation_id",
+          "validated_at",
+          "operational_snapshot_id",
+          "base_release_ids",
+          "restriction_ids",
+          "prepared_at"
+        ],
+        "type": "object"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "RouteStatus": {
+        "enum": [
+          "planning_advisory",
+          "validated",
+          "stale",
+          "invalidated",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "ValidationId": {
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoidal_height_m": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latitude_deg": {
+            "format": "double",
+            "type": "number"
+          },
+          "longitude_deg": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude_deg",
+          "latitude_deg"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "expected_world_revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "hold_seconds_at_destination": {
+        "format": "double",
+        "maximum": 3600.0,
+        "minimum": 0.0,
+        "type": "number"
+      },
+      "map_route": {
+        "$ref": "#/$defs/MapRouteHandoff"
+      },
+      "mission_id": {
+        "$ref": "#/$defs/MissionId"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "speed_mps": {
+        "format": "double",
+        "maximum": 100.0,
+        "minimum": 0.1,
+        "type": "number"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "session_id",
+      "mission_id",
+      "vehicle_id",
+      "expected_world_revision_uri",
+      "map_route",
+      "speed_mps",
+      "hold_seconds_at_destination"
+    ],
+    "title": "PrepareVehicleMissionRequest",
+    "type": "object"
+  },
+  "QuaternionXyzw": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "w": {
+        "format": "double",
+        "type": "number"
+      },
+      "x": {
+        "format": "double",
+        "type": "number"
+      },
+      "y": {
+        "format": "double",
+        "type": "number"
+      },
+      "z": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "x",
+      "y",
+      "z",
+      "w"
+    ],
+    "title": "QuaternionXyzw",
+    "type": "object"
+  },
+  "RecordingCatalogLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "pending",
+      "ready",
+      "unavailable",
+      "invalid"
+    ],
+    "title": "RecordingCatalogLifecycle",
+    "type": "string"
+  },
+  "RecordingId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one governed recording.",
+    "title": "RecordingId",
+    "type": "string"
+  },
+  "RecordingKey": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Producer identity of one recording stream.",
+    "title": "RecordingKey",
+    "type": "string"
+  },
+  "RecordingPublisherLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "connecting",
+      "ready",
+      "degraded",
+      "stopped"
+    ],
+    "title": "RecordingPublisherLifecycle",
+    "type": "string"
+  },
+  "RecordingState": {
+    "$defs": {
+      "RecordingCatalogLifecycle": {
+        "enum": [
+          "pending",
+          "ready",
+          "unavailable",
+          "invalid"
+        ],
+        "type": "string"
+      },
+      "RecordingId": {
+        "description": "Stable identity of one governed recording.",
+        "type": "string"
+      },
+      "RecordingKey": {
+        "description": "Producer identity of one recording stream.",
+        "type": "string"
+      },
+      "RecordingPublisherLifecycle": {
+        "enum": [
+          "connecting",
+          "ready",
+          "degraded",
+          "stopped"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "active": {
+        "type": "boolean"
+      },
+      "camera_streams": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "catalog_diagnostic": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "catalog_lifecycle": {
+        "$ref": "#/$defs/RecordingCatalogLifecycle"
+      },
+      "dropped_events": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "publisher_diagnostic": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "publisher_lifecycle": {
+        "$ref": "#/$defs/RecordingPublisherLifecycle"
+      },
+      "queue_capacity": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "queued_events": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "recording_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RecordingId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "recording_key": {
+        "$ref": "#/$defs/RecordingKey"
+      },
+      "recording_uri": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "started_at": {
+        "format": "date-time",
+        "type": "string"
+      }
+    },
+    "required": [
+      "recording_key",
+      "catalog_lifecycle",
+      "active",
+      "publisher_lifecycle",
+      "queue_capacity",
+      "queued_events",
+      "dropped_events",
+      "camera_streams",
+      "started_at"
+    ],
+    "title": "RecordingState",
+    "type": "object"
+  },
+  "RenewLiveViewRequest": {
+    "$defs": {
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveViewId": {
+        "type": "string"
+      },
+      "LiveViewerInstanceId": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "liveViewId": {
+        "$ref": "#/$defs/LiveViewId"
+      },
+      "sessionId": {
+        "$ref": "#/$defs/LiveSessionId"
+      },
+      "viewerInstanceId": {
+        "$ref": "#/$defs/LiveViewerInstanceId"
+      }
+    },
+    "required": [
+      "sessionId",
+      "liveViewId",
+      "viewerInstanceId"
+    ],
+    "title": "RenewLiveViewRequest",
+    "type": "object"
+  },
+  "RevokeVehicleControlRequest": {
+    "$defs": {
+      "ControlGrantId": {
+        "description": "Stable identity of one principal-to-vehicle control grant.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "expected_revision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "grant_id": {
+        "$ref": "#/$defs/ControlGrantId"
+      }
+    },
+    "required": [
+      "grant_id",
+      "expected_revision"
+    ],
+    "title": "RevokeVehicleControlRequest",
+    "type": "object"
+  },
+  "RunScenarioRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "duration_seconds": {
+        "format": "double",
+        "maximum": 86400.0,
+        "minimum": 0.1,
+        "type": "number"
+      },
+      "parameters": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "default": {},
+        "type": "object"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id",
+      "duration_seconds"
+    ],
+    "title": "RunScenarioRequest",
+    "type": "object"
+  },
+  "RuntimeTimingState": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "after_step_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "backend_state_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "dynamics_update_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "flush_forces_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "maximum_native_update_ms": {
+        "format": "double",
+        "type": "number"
+      },
+      "maximum_physics_step_ms": {
+        "format": "double",
+        "type": "number"
+      },
+      "maximum_render_cycle_ms": {
+        "format": "double",
+        "type": "number"
+      },
+      "native_rendering_hz": {
+        "format": "uint32",
+        "maximum": 120,
+        "minimum": 1,
+        "type": "integer"
+      },
+      "native_update_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "physics_hz": {
+        "format": "uint32",
+        "maximum": 1000,
+        "minimum": 30,
+        "type": "integer"
+      },
+      "physics_steps": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "refresh_states_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "render_cycle_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "render_cycles": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "sensor_update_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "state_update_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "vehicle_update_wall_seconds": {
+        "format": "double",
+        "type": "number"
+      }
+    },
+    "required": [
+      "physics_hz",
+      "native_rendering_hz",
+      "render_cycles",
+      "physics_steps",
+      "refresh_states_wall_seconds",
+      "vehicle_update_wall_seconds",
+      "state_update_wall_seconds",
+      "dynamics_update_wall_seconds",
+      "sensor_update_wall_seconds",
+      "backend_state_wall_seconds",
+      "flush_forces_wall_seconds",
+      "after_step_wall_seconds",
+      "native_update_wall_seconds",
+      "render_cycle_wall_seconds",
+      "maximum_physics_step_ms",
+      "maximum_native_update_ms",
+      "maximum_render_cycle_ms"
+    ],
+    "title": "RuntimeTimingState",
+    "type": "object"
+  },
+  "ScenarioResult": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "collision_count": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "elapsed_seconds": {
+        "format": "double",
+        "type": "number"
+      },
+      "final_simulation_time_s": {
+        "format": "double",
+        "type": "number"
+      },
+      "recording_uris": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id",
+      "elapsed_seconds",
+      "final_simulation_time_s",
+      "collision_count",
+      "recording_uris"
+    ],
+    "title": "ScenarioResult",
+    "type": "object"
+  },
+  "SessionId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one isolated simulation world.",
+    "title": "SessionId",
+    "type": "string"
+  },
+  "SessionRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "title": "SessionRequest",
+    "type": "object"
+  },
+  "SimulationCommand": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "pause",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "resume",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "reset",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "step",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "steps": {
+            "format": "uint32",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "command",
+          "session_id",
+          "steps"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "arm",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id",
+          "vehicle_id"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "takeoff",
+            "type": "string"
+          },
+          "relative_altitude_m": {
+            "format": "double",
+            "maximum": 500.0,
+            "minimum": 0.5,
+            "type": "number"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id",
+          "vehicle_id",
+          "relative_altitude_m"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "const": "land",
+            "type": "string"
+          },
+          "session_id": {
+            "$ref": "#/$defs/SessionId"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          }
+        },
+        "required": [
+          "command",
+          "session_id",
+          "vehicle_id"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "SimulationCommand"
+  },
+  "SimulationLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "unconfigured",
+      "starting",
+      "ready",
+      "running",
+      "paused",
+      "stopping",
+      "stopped",
+      "failed"
+    ],
+    "title": "SimulationLifecycle",
+    "type": "string"
+  },
+  "SimulationState": {
+    "$defs": {
+      "CameraCodec": {
+        "enum": [
+          "h264"
+        ],
+        "type": "string"
+      },
+      "CameraEncoder": {
+        "enum": [
+          "nvidia_nvenc"
+        ],
+        "type": "string"
+      },
+      "CameraLifecycle": {
+        "enum": [
+          "warming",
+          "ready",
+          "degraded",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "CameraRenderPoseState": {
+        "additionalProperties": false,
+        "properties": {
+          "forward_error_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "position_error_m": {
+            "format": "double",
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "rendered_forward_enu": {
+            "$ref": "#/$defs/EnuDirection"
+          },
+          "rendered_position_enu_m": {
+            "$ref": "#/$defs/EnuVector"
+          }
+        },
+        "required": [
+          "position_error_m",
+          "forward_error_degrees",
+          "rendered_position_enu_m",
+          "rendered_forward_enu"
+        ],
+        "type": "object"
+      },
+      "CameraState": {
+        "additionalProperties": false,
+        "properties": {
+          "codec": {
+            "$ref": "#/$defs/CameraCodec"
+          },
+          "diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "encoder": {
+            "$ref": "#/$defs/CameraEncoder"
+          },
+          "entity_path": {
+            "type": "string"
+          },
+          "frame_rate_hz": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "frames_observed": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "height": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_access_unit_bytes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_frame_keyframe": {
+            "type": "boolean"
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/CameraLifecycle"
+          },
+          "render_pose": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CameraRenderPoseState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "transport": {
+            "$ref": "#/$defs/CameraTransport"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          },
+          "width": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "entity_path",
+          "lifecycle",
+          "width",
+          "height",
+          "frame_rate_hz",
+          "codec",
+          "encoder",
+          "transport",
+          "frames_observed",
+          "last_access_unit_bytes",
+          "last_frame_keyframe"
+        ],
+        "type": "object"
+      },
+      "CameraTransport": {
+        "enum": [
+          "rtsp_rtp"
+        ],
+        "type": "string"
+      },
+      "EnuDirection": {
+        "additionalProperties": false,
+        "properties": {
+          "east": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "north": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          },
+          "up": {
+            "format": "double",
+            "maximum": 1.0,
+            "minimum": -1.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "east",
+          "north",
+          "up"
+        ],
+        "type": "object"
+      },
+      "EnuVector": {
+        "additionalProperties": false,
+        "properties": {
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "up_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "east_m",
+          "north_m",
+          "up_m"
+        ],
+        "type": "object"
+      },
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "LiveCameraDescriptor": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "farClipM": {
+            "format": "double",
+            "type": "number"
+          },
+          "frameRateMillihertz": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "health": {
+            "$ref": "#/$defs/LiveCameraHealth"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastFrameAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nearClipM": {
+            "format": "double",
+            "type": "number"
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rig": {
+            "$ref": "#/$defs/LiveCameraRig"
+          },
+          "sessionId": {
+            "$ref": "#/$defs/LiveSessionId"
+          },
+          "streamPolicy": {
+            "$ref": "#/$defs/LiveCameraStreamPolicy"
+          },
+          "verticalFovDegrees": {
+            "format": "double",
+            "type": "number"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cameraId",
+          "sessionId",
+          "revision",
+          "rig",
+          "widthPx",
+          "heightPx",
+          "frameRateMillihertz",
+          "verticalFovDegrees",
+          "nearClipM",
+          "farClipM",
+          "streamPolicy",
+          "health"
+        ],
+        "type": "object"
+      },
+      "LiveCameraHealth": {
+        "enum": [
+          "warming",
+          "healthy",
+          "stale",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveCameraId": {
+        "type": "string"
+      },
+      "LiveCameraRegion": {
+        "additionalProperties": false,
+        "properties": {
+          "cameraId": {
+            "$ref": "#/$defs/LiveCameraId"
+          },
+          "heightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "widthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "xPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "yPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cameraId",
+          "xPx",
+          "yPx",
+          "widthPx",
+          "heightPx"
+        ],
+        "type": "object"
+      },
+      "LiveCameraRig": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "fixed",
+                "type": "string"
+              },
+              "pose": {
+                "$ref": "#/$defs/LivePose"
+              }
+            },
+            "required": [
+              "kind",
+              "pose"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "eyeM": {
+                "$ref": "#/$defs/LiveVector3"
+              },
+              "kind": {
+                "const": "look_at",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetM": {
+                "$ref": "#/$defs/LiveVector3"
+              }
+            },
+            "required": [
+              "kind",
+              "eyeM",
+              "targetM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "azimuthDegrees": {
+                "format": "double",
+                "type": "number"
+              },
+              "elevationDegrees": {
+                "format": "double",
+                "type": "number"
+              },
+              "kind": {
+                "const": "orbit",
+                "type": "string"
+              },
+              "radiusM": {
+                "format": "double",
+                "type": "number"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "radiusM",
+              "azimuthDegrees",
+              "elevationDegrees",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "eyeOffsetFluM": {
+                "$ref": "#/$defs/LiveVector3"
+              },
+              "kind": {
+                "const": "follow_entity",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              },
+              "targetOffsetFluM": {
+                "$ref": "#/$defs/LiveVector3"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "eyeOffsetFluM",
+              "targetOffsetFluM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "distanceM": {
+                "format": "double",
+                "type": "number"
+              },
+              "heightM": {
+                "format": "double",
+                "type": "number"
+              },
+              "kind": {
+                "const": "chase_entity",
+                "type": "string"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "distanceM",
+              "heightM",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "stabilized_mounted_entity",
+                "type": "string"
+              },
+              "mount": {
+                "$ref": "#/$defs/LivePose"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityId": {
+                "$ref": "#/$defs/LiveEntityId"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityId",
+              "mount",
+              "smoothing"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "const": "formation_overview",
+                "type": "string"
+              },
+              "paddingM": {
+                "format": "double",
+                "type": "number"
+              },
+              "smoothing": {
+                "$ref": "#/$defs/LiveCameraSmoothing"
+              },
+              "targetEntityIds": {
+                "items": {
+                  "$ref": "#/$defs/LiveEntityId"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "targetEntityIds",
+              "paddingM",
+              "smoothing"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LiveCameraSmoothing": {
+        "additionalProperties": false,
+        "properties": {
+          "resetAfterGapMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rotationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "teleportDistanceMillimetres": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "translationHalfLifeMs": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "translationHalfLifeMs",
+          "rotationHalfLifeMs",
+          "teleportDistanceMillimetres",
+          "resetAfterGapMs"
+        ],
+        "type": "object"
+      },
+      "LiveCameraStreamPolicy": {
+        "enum": [
+          "disabled",
+          "continuous"
+        ],
+        "type": "string"
+      },
+      "LiveEntityId": {
+        "type": "string"
+      },
+      "LivePose": {
+        "additionalProperties": false,
+        "properties": {
+          "orientationXyzw": {
+            "$ref": "#/$defs/LiveQuaternionXyzw"
+          },
+          "positionM": {
+            "$ref": "#/$defs/LiveVector3"
+          }
+        },
+        "required": [
+          "positionM",
+          "orientationXyzw"
+        ],
+        "type": "object"
+      },
+      "LiveQuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "LiveSessionId": {
+        "type": "string"
+      },
+      "LiveStreamProductId": {
+        "type": "string"
+      },
+      "LiveStreamProductLifecycle": {
+        "enum": [
+          "inactive",
+          "starting",
+          "ready",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "LiveStreamProductState": {
+        "additionalProperties": false,
+        "properties": {
+          "activeViewers": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "cameraRegions": {
+            "items": {
+              "$ref": "#/$defs/LiveCameraRegion"
+            },
+            "type": "array"
+          },
+          "codedHeightPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "codedWidthPx": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "connectedViewers": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "encodedFrames": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lastFrameAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/LiveStreamProductLifecycle"
+          },
+          "nvencSessions": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceToRenderP95Microseconds": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sourceToRenderSamples": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "streamProductId": {
+            "$ref": "#/$defs/LiveStreamProductId"
+          },
+          "visible": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "streamProductId",
+          "cameraRegions",
+          "codedWidthPx",
+          "codedHeightPx",
+          "lifecycle",
+          "activeViewers",
+          "connectedViewers",
+          "nvencSessions",
+          "encodedFrames",
+          "sourceToRenderSamples"
+        ],
+        "type": "object"
+      },
+      "LiveVector3": {
+        "additionalProperties": false,
+        "properties": {
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z"
+        ],
+        "type": "object"
+      },
+      "NedVector": {
+        "additionalProperties": false,
+        "properties": {
+          "down_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "north_m",
+          "east_m",
+          "down_m"
+        ],
+        "type": "object"
+      },
+      "QuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "RecordingCatalogLifecycle": {
+        "enum": [
+          "pending",
+          "ready",
+          "unavailable",
+          "invalid"
+        ],
+        "type": "string"
+      },
+      "RecordingId": {
+        "description": "Stable identity of one governed recording.",
+        "type": "string"
+      },
+      "RecordingKey": {
+        "description": "Producer identity of one recording stream.",
+        "type": "string"
+      },
+      "RecordingPublisherLifecycle": {
+        "enum": [
+          "connecting",
+          "ready",
+          "degraded",
+          "stopped"
+        ],
+        "type": "string"
+      },
+      "RecordingState": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "camera_streams": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "catalog_diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "catalog_lifecycle": {
+            "$ref": "#/$defs/RecordingCatalogLifecycle"
+          },
+          "dropped_events": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "publisher_diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publisher_lifecycle": {
+            "$ref": "#/$defs/RecordingPublisherLifecycle"
+          },
+          "queue_capacity": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "queued_events": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "recording_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/RecordingId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recording_key": {
+            "$ref": "#/$defs/RecordingKey"
+          },
+          "recording_uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recording_key",
+          "catalog_lifecycle",
+          "active",
+          "publisher_lifecycle",
+          "queue_capacity",
+          "queued_events",
+          "dropped_events",
+          "camera_streams",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "RuntimeTimingState": {
+        "additionalProperties": false,
+        "properties": {
+          "after_step_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "backend_state_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "dynamics_update_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "flush_forces_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "maximum_native_update_ms": {
+            "format": "double",
+            "type": "number"
+          },
+          "maximum_physics_step_ms": {
+            "format": "double",
+            "type": "number"
+          },
+          "maximum_render_cycle_ms": {
+            "format": "double",
+            "type": "number"
+          },
+          "native_rendering_hz": {
+            "format": "uint32",
+            "maximum": 120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "native_update_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "physics_hz": {
+            "format": "uint32",
+            "maximum": 1000,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "physics_steps": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh_states_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "render_cycle_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "render_cycles": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sensor_update_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "state_update_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "vehicle_update_wall_seconds": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "physics_hz",
+          "native_rendering_hz",
+          "render_cycles",
+          "physics_steps",
+          "refresh_states_wall_seconds",
+          "vehicle_update_wall_seconds",
+          "state_update_wall_seconds",
+          "dynamics_update_wall_seconds",
+          "sensor_update_wall_seconds",
+          "backend_state_wall_seconds",
+          "flush_forces_wall_seconds",
+          "after_step_wall_seconds",
+          "native_update_wall_seconds",
+          "render_cycle_wall_seconds",
+          "maximum_physics_step_ms",
+          "maximum_native_update_ms",
+          "maximum_render_cycle_ms"
+        ],
+        "type": "object"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "SimulationLifecycle": {
+        "enum": [
+          "unconfigured",
+          "starting",
+          "ready",
+          "running",
+          "paused",
+          "stopping",
+          "stopped",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "SimulationWorldBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "georeference_origin": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "revision_uri": {
+            "$ref": "#/$defs/FrameWorldRevisionUri"
+          },
+          "simulation_frame_uri": {
+            "$ref": "#/$defs/WorldFrameUri"
+          },
+          "spec_sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision_uri",
+          "spec_sha256",
+          "simulation_frame_uri",
+          "georeference_origin"
+        ],
+        "type": "object"
+      },
+      "TileFailureCode": {
+        "enum": [
+          "provider_session_rejected",
+          "credentials_rejected",
+          "asset_unavailable",
+          "quota_exceeded",
+          "provider_unavailable",
+          "transport_failed",
+          "request_failed"
+        ],
+        "type": "string"
+      },
+      "TileFailureState": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/TileFailureCode"
+          },
+          "generation": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "http_status": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "load_type": {
+            "$ref": "#/$defs/TileLoadType"
+          }
+        },
+        "required": [
+          "code",
+          "load_type",
+          "http_status",
+          "generation"
+        ],
+        "type": "object"
+      },
+      "TileLifecycle": {
+        "enum": [
+          "connecting",
+          "streaming",
+          "ready",
+          "refreshing",
+          "degraded"
+        ],
+        "type": "string"
+      },
+      "TileLoadType": {
+        "enum": [
+          "ion_endpoint",
+          "tileset_json",
+          "tile_content",
+          "unknown"
+        ],
+        "type": "string"
+      },
+      "TileState": {
+        "additionalProperties": false,
+        "properties": {
+          "diagnostic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_sequence": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "geometries_loaded": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "geometries_rendered": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ion_asset_id": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_failure": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TileFailureState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lifecycle": {
+            "$ref": "#/$defs/TileLifecycle"
+          },
+          "loading_tiles": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "materials_loaded": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "provider_generation": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "refresh_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resident_tiles": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "visible_tiles": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lifecycle",
+          "source",
+          "ion_asset_id",
+          "resident_tiles",
+          "visible_tiles",
+          "loading_tiles",
+          "geometries_loaded",
+          "geometries_rendered",
+          "materials_loaded",
+          "provider_generation",
+          "event_sequence",
+          "refresh_count"
+        ],
+        "type": "object"
+      },
+      "VehicleFlightState": {
+        "enum": [
+          "initializing",
+          "standby",
+          "armed",
+          "taking_off",
+          "flying",
+          "landing",
+          "landed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "VehicleState": {
+        "additionalProperties": false,
+        "properties": {
+          "attitude_xyzw": {
+            "$ref": "#/$defs/QuaternionXyzw"
+          },
+          "battery_percent": {
+            "format": "float",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "collision_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "enu": {
+            "$ref": "#/$defs/EnuVector"
+          },
+          "flight_state": {
+            "$ref": "#/$defs/VehicleFlightState"
+          },
+          "linear_velocity_enu_mps": {
+            "$ref": "#/$defs/EnuVector"
+          },
+          "ned": {
+            "$ref": "#/$defs/NedVector"
+          },
+          "px4_connected": {
+            "type": "boolean"
+          },
+          "vehicle_id": {
+            "$ref": "#/$defs/VehicleId"
+          },
+          "wgs84": {
+            "$ref": "#/$defs/Wgs84Position"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "flight_state",
+          "wgs84",
+          "enu",
+          "ned",
+          "attitude_xyzw",
+          "linear_velocity_enu_mps",
+          "battery_percent",
+          "collision_count",
+          "px4_connected"
+        ],
+        "type": "object"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "cameras": {
+        "items": {
+          "$ref": "#/$defs/CameraState"
+        },
+        "type": "array"
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/SimulationLifecycle"
+      },
+      "live_cameras": {
+        "items": {
+          "$ref": "#/$defs/LiveCameraDescriptor"
+        },
+        "type": "array"
+      },
+      "physics_step": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "recordings": {
+        "items": {
+          "$ref": "#/$defs/RecordingState"
+        },
+        "type": "array"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "simulation_time_s": {
+        "format": "double",
+        "type": "number"
+      },
+      "stream_products": {
+        "items": {
+          "$ref": "#/$defs/LiveStreamProductState"
+        },
+        "type": "array"
+      },
+      "tiles": {
+        "$ref": "#/$defs/TileState"
+      },
+      "timing": {
+        "$ref": "#/$defs/RuntimeTimingState"
+      },
+      "updated_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "vehicles": {
+        "items": {
+          "$ref": "#/$defs/VehicleState"
+        },
+        "type": "array"
+      },
+      "world": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/SimulationWorldBinding"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "session_id",
+      "lifecycle",
+      "simulation_time_s",
+      "physics_step",
+      "timing",
+      "tiles",
+      "cameras",
+      "live_cameras",
+      "stream_products",
+      "vehicles",
+      "recordings",
+      "updated_at"
+    ],
+    "title": "SimulationState",
+    "type": "object"
+  },
+  "SimulationWorldBinding": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      },
+      "WorldFrameUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "georeference_origin": {
+        "$ref": "#/$defs/Wgs84Position"
+      },
+      "revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "simulation_frame_uri": {
+        "$ref": "#/$defs/WorldFrameUri"
+      },
+      "spec_sha256": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "revision_uri",
+      "spec_sha256",
+      "simulation_frame_uri",
+      "georeference_origin"
+    ],
+    "title": "SimulationWorldBinding",
+    "type": "object"
+  },
+  "StepSimulationRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "steps": {
+        "format": "uint32",
+        "maximum": 10000,
+        "minimum": 1,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "session_id",
+      "steps"
+    ],
+    "title": "StepSimulationRequest",
+    "type": "object"
+  },
+  "TakeoffRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "relative_altitude_m": {
+        "format": "double",
+        "maximum": 500.0,
+        "minimum": 0.5,
+        "type": "number"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "session_id",
+      "vehicle_id",
+      "relative_altitude_m"
+    ],
+    "title": "TakeoffRequest",
+    "type": "object"
+  },
+  "TileFailureCode": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "provider_session_rejected",
+      "credentials_rejected",
+      "asset_unavailable",
+      "quota_exceeded",
+      "provider_unavailable",
+      "transport_failed",
+      "request_failed"
+    ],
+    "title": "TileFailureCode",
+    "type": "string"
+  },
+  "TileFailureState": {
+    "$defs": {
+      "TileFailureCode": {
+        "enum": [
+          "provider_session_rejected",
+          "credentials_rejected",
+          "asset_unavailable",
+          "quota_exceeded",
+          "provider_unavailable",
+          "transport_failed",
+          "request_failed"
+        ],
+        "type": "string"
+      },
+      "TileLoadType": {
+        "enum": [
+          "ion_endpoint",
+          "tileset_json",
+          "tile_content",
+          "unknown"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "code": {
+        "$ref": "#/$defs/TileFailureCode"
+      },
+      "generation": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "http_status": {
+        "format": "uint16",
+        "maximum": 65535,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "load_type": {
+        "$ref": "#/$defs/TileLoadType"
+      }
+    },
+    "required": [
+      "code",
+      "load_type",
+      "http_status",
+      "generation"
+    ],
+    "title": "TileFailureState",
+    "type": "object"
+  },
+  "TileLifecycle": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "connecting",
+      "streaming",
+      "ready",
+      "refreshing",
+      "degraded"
+    ],
+    "title": "TileLifecycle",
+    "type": "string"
+  },
+  "TileLoadType": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "ion_endpoint",
+      "tileset_json",
+      "tile_content",
+      "unknown"
+    ],
+    "title": "TileLoadType",
+    "type": "string"
+  },
+  "TileState": {
+    "$defs": {
+      "TileFailureCode": {
+        "enum": [
+          "provider_session_rejected",
+          "credentials_rejected",
+          "asset_unavailable",
+          "quota_exceeded",
+          "provider_unavailable",
+          "transport_failed",
+          "request_failed"
+        ],
+        "type": "string"
+      },
+      "TileFailureState": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/TileFailureCode"
+          },
+          "generation": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "http_status": {
+            "format": "uint16",
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "load_type": {
+            "$ref": "#/$defs/TileLoadType"
+          }
+        },
+        "required": [
+          "code",
+          "load_type",
+          "http_status",
+          "generation"
+        ],
+        "type": "object"
+      },
+      "TileLifecycle": {
+        "enum": [
+          "connecting",
+          "streaming",
+          "ready",
+          "refreshing",
+          "degraded"
+        ],
+        "type": "string"
+      },
+      "TileLoadType": {
+        "enum": [
+          "ion_endpoint",
+          "tileset_json",
+          "tile_content",
+          "unknown"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "diagnostic": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "event_sequence": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "geometries_loaded": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "geometries_rendered": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "ion_asset_id": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "last_failure": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/TileFailureState"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "lifecycle": {
+        "$ref": "#/$defs/TileLifecycle"
+      },
+      "loading_tiles": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "materials_loaded": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "provider_generation": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "refresh_count": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "resident_tiles": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "source": {
+        "type": "string"
+      },
+      "visible_tiles": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      }
+    },
+    "required": [
+      "lifecycle",
+      "source",
+      "ion_asset_id",
+      "resident_tiles",
+      "visible_tiles",
+      "loading_tiles",
+      "geometries_loaded",
+      "geometries_rendered",
+      "materials_loaded",
+      "provider_generation",
+      "event_sequence",
+      "refresh_count"
+    ],
+    "title": "TileState",
+    "type": "object"
+  },
+  "VehicleControlGrant": {
+    "$defs": {
+      "ControlGrantId": {
+        "description": "Stable identity of one principal-to-vehicle control grant.",
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleControlPermission": {
+        "enum": [
+          "inspect",
+          "plan",
+          "execute",
+          "abort"
+        ],
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "allow_planning_advisory": {
+        "type": "boolean"
+      },
+      "created_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "created_by": {
+        "type": "string"
+      },
+      "grant_id": {
+        "$ref": "#/$defs/ControlGrantId"
+      },
+      "map_mobility_profile_uri": {
+        "type": "string"
+      },
+      "permissions": {
+        "items": {
+          "$ref": "#/$defs/VehicleControlPermission"
+        },
+        "type": "array",
+        "uniqueItems": true
+      },
+      "principal_key": {
+        "type": "string"
+      },
+      "revision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "revoked_at": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "revoked_by": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "updated_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "valid_from": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "valid_until": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "grant_id",
+      "session_id",
+      "vehicle_id",
+      "principal_key",
+      "permissions",
+      "map_mobility_profile_uri",
+      "allow_planning_advisory",
+      "valid_from",
+      "created_by",
+      "revision",
+      "created_at",
+      "updated_at"
+    ],
+    "title": "VehicleControlGrant",
+    "type": "object"
+  },
+  "VehicleControlPermission": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "inspect",
+      "plan",
+      "execute",
+      "abort"
+    ],
+    "title": "VehicleControlPermission",
+    "type": "string"
+  },
+  "VehicleFlightState": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "initializing",
+      "standby",
+      "armed",
+      "taking_off",
+      "flying",
+      "landing",
+      "landed",
+      "failed"
+    ],
+    "title": "VehicleFlightState",
+    "type": "string"
+  },
+  "VehicleId": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Stable identity of one vehicle inside a session.",
+    "title": "VehicleId",
+    "type": "string"
+  },
+  "VehicleMission": {
+    "$defs": {
+      "MissionWaypoint": {
+        "additionalProperties": false,
+        "properties": {
+          "hold_seconds": {
+            "format": "double",
+            "maximum": 3600.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "position": {
+            "$ref": "#/$defs/Wgs84Position"
+          },
+          "speed_mps": {
+            "format": "double",
+            "maximum": 100.0,
+            "minimum": 0.1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "position",
+          "speed_mps",
+          "hold_seconds"
+        ],
+        "type": "object"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      },
+      "waypoints": {
+        "items": {
+          "$ref": "#/$defs/MissionWaypoint"
+        },
+        "maxItems": 10000,
+        "minItems": 1,
+        "type": "array"
+      }
+    },
+    "required": [
+      "vehicle_id",
+      "waypoints"
+    ],
+    "title": "VehicleMission",
+    "type": "object"
+  },
+  "VehicleMissionPlan": {
+    "$defs": {
+      "FrameWorldRevisionUri": {
+        "type": "string"
+      },
+      "MapRouteHandoff": {
+        "additionalProperties": false,
+        "description": "Execution-neutral, Map-owned route projection for a consuming domain.",
+        "properties": {
+          "base_release_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mobility_profile_uri": {
+            "type": "string"
+          },
+          "operational_snapshot_id": {
+            "type": "string"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/$defs/Wgs84Position"
+            },
+            "maxItems": 10000,
+            "minItems": 2,
+            "type": "array"
+          },
+          "prepared_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "restriction_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "route_digest_sha256": {
+            "type": "string"
+          },
+          "route_status": {
+            "$ref": "#/$defs/RouteStatus"
+          },
+          "route_uri": {
+            "type": "string"
+          },
+          "schema_profile": {
+            "type": "string"
+          },
+          "validated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validation_id": {
+            "$ref": "#/$defs/ValidationId"
+          }
+        },
+        "required": [
+          "schema_profile",
+          "route_uri",
+          "route_digest_sha256",
+          "route_status",
+          "mobility_profile_uri",
+          "path",
+          "validation_id",
+          "validated_at",
+          "operational_snapshot_id",
+          "base_release_ids",
+          "restriction_ids",
+          "prepared_at"
+        ],
+        "type": "object"
+      },
+      "MissionId": {
+        "description": "Stable identity of one submitted mission.",
+        "type": "string"
+      },
+      "MissionPlanId": {
+        "description": "Stable identity of one admitted single-vehicle mission plan.",
+        "type": "string"
+      },
+      "MissionPlanLifecycle": {
+        "enum": [
+          "prepared",
+          "executing",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "RouteStatus": {
+        "enum": [
+          "planning_advisory",
+          "validated",
+          "stale",
+          "invalidated",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "ValidationId": {
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoidal_height_m": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "latitude_deg": {
+            "format": "double",
+            "type": "number"
+          },
+          "longitude_deg": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude_deg",
+          "latitude_deg"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "created_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "expected_world_revision_uri": {
+        "$ref": "#/$defs/FrameWorldRevisionUri"
+      },
+      "expires_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "hold_seconds_at_destination": {
+        "format": "double",
+        "type": "number"
+      },
+      "map_route": {
+        "$ref": "#/$defs/MapRouteHandoff"
+      },
+      "mission_id": {
+        "$ref": "#/$defs/MissionId"
+      },
+      "plan_id": {
+        "$ref": "#/$defs/MissionPlanId"
+      },
+      "principal_key": {
+        "type": "string"
+      },
+      "revision": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "speed_mps": {
+        "format": "double",
+        "type": "number"
+      },
+      "state": {
+        "$ref": "#/$defs/MissionPlanLifecycle"
+      },
+      "updated_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "plan_id",
+      "mission_id",
+      "principal_key",
+      "session_id",
+      "vehicle_id",
+      "expected_world_revision_uri",
+      "map_route",
+      "speed_mps",
+      "hold_seconds_at_destination",
+      "state",
+      "expires_at",
+      "revision",
+      "created_at",
+      "updated_at"
+    ],
+    "title": "VehicleMissionPlan",
+    "type": "object"
+  },
+  "VehicleRequest": {
+    "$defs": {
+      "SessionId": {
+        "description": "Stable identity of one isolated simulation world.",
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "session_id": {
+        "$ref": "#/$defs/SessionId"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      }
+    },
+    "required": [
+      "session_id",
+      "vehicle_id"
+    ],
+    "title": "VehicleRequest",
+    "type": "object"
+  },
+  "VehicleState": {
+    "$defs": {
+      "EnuVector": {
+        "additionalProperties": false,
+        "properties": {
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "up_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "east_m",
+          "north_m",
+          "up_m"
+        ],
+        "type": "object"
+      },
+      "NedVector": {
+        "additionalProperties": false,
+        "properties": {
+          "down_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "east_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "north_m": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "north_m",
+          "east_m",
+          "down_m"
+        ],
+        "type": "object"
+      },
+      "QuaternionXyzw": {
+        "additionalProperties": false,
+        "properties": {
+          "w": {
+            "format": "double",
+            "type": "number"
+          },
+          "x": {
+            "format": "double",
+            "type": "number"
+          },
+          "y": {
+            "format": "double",
+            "type": "number"
+          },
+          "z": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "x",
+          "y",
+          "z",
+          "w"
+        ],
+        "type": "object"
+      },
+      "VehicleFlightState": {
+        "enum": [
+          "initializing",
+          "standby",
+          "armed",
+          "taking_off",
+          "flying",
+          "landing",
+          "landed",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "VehicleId": {
+        "description": "Stable identity of one vehicle inside a session.",
+        "type": "string"
+      },
+      "Wgs84Position": {
+        "additionalProperties": false,
+        "properties": {
+          "ellipsoid_height_m": {
+            "format": "double",
+            "type": "number"
+          },
+          "latitude_degrees": {
+            "format": "double",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "type": "number"
+          },
+          "longitude_degrees": {
+            "format": "double",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude_degrees",
+          "longitude_degrees",
+          "ellipsoid_height_m"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "attitude_xyzw": {
+        "$ref": "#/$defs/QuaternionXyzw"
+      },
+      "battery_percent": {
+        "format": "float",
+        "maximum": 100.0,
+        "minimum": 0.0,
+        "type": "number"
+      },
+      "collision_count": {
+        "format": "uint64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "enu": {
+        "$ref": "#/$defs/EnuVector"
+      },
+      "flight_state": {
+        "$ref": "#/$defs/VehicleFlightState"
+      },
+      "linear_velocity_enu_mps": {
+        "$ref": "#/$defs/EnuVector"
+      },
+      "ned": {
+        "$ref": "#/$defs/NedVector"
+      },
+      "px4_connected": {
+        "type": "boolean"
+      },
+      "vehicle_id": {
+        "$ref": "#/$defs/VehicleId"
+      },
+      "wgs84": {
+        "$ref": "#/$defs/Wgs84Position"
+      }
+    },
+    "required": [
+      "vehicle_id",
+      "flight_state",
+      "wgs84",
+      "enu",
+      "ned",
+      "attitude_xyzw",
+      "linear_velocity_enu_mps",
+      "battery_percent",
+      "collision_count",
+      "px4_connected"
+    ],
+    "title": "VehicleState",
+    "type": "object"
+  }
+}

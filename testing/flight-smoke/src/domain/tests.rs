@@ -46,7 +46,7 @@ fn canonical_mission_is_runtime_loaded_and_validated() {
         scenario.map_mobility_profile_uri.as_str(),
         "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1"
     );
-    assert_eq!(scenario.session_id, "uav-showcase");
+    assert_eq!(scenario.session_id.as_str(), "uav-showcase");
     assert_eq!(scenario.world.world_id.as_str(), "uav-showcase-new-york");
     assert_eq!(scenario.world.tree.frames.len(), 15);
     for vehicle in 1..=4 {
@@ -254,4 +254,21 @@ fn live_preview_orders_reordered_h264_by_decode_sequence() {
         }),
     ];
     validate_live_preview(&chunks).expect("AVC presentation reordering is valid");
+}
+
+#[test]
+fn scenario_ids_use_uav_admission_before_work_starts() {
+    let good: Value = serde_json::from_slice(&fs::read(canonical_scenario()).unwrap()).unwrap();
+    for field in ["session_id", "vehicle_id"] {
+        for invalid in [
+            String::new(),
+            "unexpected/path".into(),
+            "é".into(),
+            "x".repeat(129),
+        ] {
+            let mut wire = good.clone();
+            wire[field] = invalid.into();
+            assert!(serde_json::from_value::<UavAcceptanceScenario>(wire).is_err());
+        }
+    }
 }

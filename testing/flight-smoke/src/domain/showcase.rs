@@ -38,7 +38,7 @@ struct ShowcaseEvidence {
     source_revision: String,
     run_id: String,
     scenario_path: String,
-    session_id: String,
+    session_id: veoveo_uav_sim_mcp::contract::SessionId,
     camera_id: String,
     camera_rig: &'static str,
     recording_id: String,

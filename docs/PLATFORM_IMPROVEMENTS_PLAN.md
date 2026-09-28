@@ -182,7 +182,7 @@ and deployment ownership remain gates for their own phases.
 | `deploy/contract/DESIGN.md` | atomic component ownership and qualified memory admission |
 | `docs/GPU_PLACEMENT.md` | capacity sources, qualification identity, formula, drift evidence, and fail-closed operation |
 | `agents/kernel/DESIGN.md` and owning model-provider design | three-state reasoning configuration, capability validation, and effective-state diagnostics |
-| `mcp/contract/src/live_view.rs` owning design section or a focused adjacent design | published live-view v4 server, simulator-adapter, browser-client, and conformance boundary |
+| `servers/uav-sim-mcp/src/contract/live_view.rs` owning design section or a focused adjacent design | published live-view v4 server, simulator-adapter, browser-client, and conformance boundary |
 
 `docs/CODEMAP.md` changes in the same implementation commits when a new SDK package, catalog
 module, or conformance component is placed.
@@ -419,7 +419,7 @@ plane. Redaction tests inspect exported span data, not only log text.
 `LIVEVIEW-020` is a developer-experience and productization request. It is not an operator UX
 rewrite. Current main already owns:
 
-- provider-neutral live-view v4 Rust types in `mcp/contract/src/live_view.rs`;
+- provider-neutral live-view v4 Rust types in `servers/uav-sim-mcp/src/contract/live_view.rs`;
 - one shared tiled RTX/NVENC H.264 product with camera regions;
 - independent viewer authorization, renewal, closure, and audit;
 - browser WebCodecs decode and crop in the UAV App;
@@ -434,7 +434,7 @@ five-user harness is parameterized around UAV routes, camera names, and DOM evid
 
 | Artifact | Owner | Required content |
 |---|---|---|
-| generated live-view v4 JSON Schema | `mcp/contract` release output | exact camera, region, product, endpoint, authorization, health, open, renew, and close shapes |
+| generated live-view v4 JSON Schema | UAV contract feature, live-view model export | exact camera, region, product, endpoint, authorization, health, open, renew, and close shapes |
 | Python server models and helpers | `sdk/python` | typed v4 models, validation, redacted token handling, authorization lifecycle helpers, and simulator-adapter interfaces without renderer code |
 | browser client package | a focused package under `sdk/` selected after CODEMAP update | WebCodecs capability check, hardware/software decode label, Annex B keyframe handling, shared-product socket ownership, region crop, renewal, reconnect, teardown, cancellation, and typed evidence callbacks |
 | simulator adapter contract | Python SDK plus schema | logical camera inventory, source region, one stable stream-product identity, product health, and private stream endpoint binding |

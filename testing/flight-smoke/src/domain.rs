@@ -19,7 +19,8 @@ use veoveo_frames_mcp::contract::{
     FrameWorldTree, Wgs84Position,
 };
 use veoveo_map_mcp::contract::MapMobilityProfileUri;
-use veoveo_mcp_contract::{
+
+use veoveo_uav_sim_mcp::contract::{
     LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState,
 };
 

@@ -7,7 +7,7 @@
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
 | Flight scenario | Runtime-loaded `veoveo.uav-sim-acceptance/v11` JSON with bounded typed mission, world, video and observation parameters |
 | Stream live sessions | Server-owned `servers/stream-mcp/src/contract/live.rs` wire types, compiled directly without the Stream service |
-| UAV control grants | Client-owned typed decoding of the 100-item grant page, with a 60-second and 100-page traversal limit; Map profile references use `MapMobilityProfileUri` from Map's contract-only library |
+| UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | Evidence | Existing `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures |
@@ -27,8 +27,8 @@ platform database, task runtime, recording service, or unrelated MCP server.
 
 Scenario and grant decoders admit Map profile references through the same owning type.
 The route request serializes its typed profile ID and version without reparsing text.
-The broader UAV client DTO can move into UAV's contract feature when that feature
-is isolated from service dependencies.
+The client imports UAV's public grant and camera-product types. Scenario session and
+vehicle IDs decode through UAV's owning types before any external work.
 
 Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.

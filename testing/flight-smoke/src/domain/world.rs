@@ -481,7 +481,7 @@ pub(super) async fn wait_for_native_camera_stream(
 pub(super) async fn ensure_operator_control_grant(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-) -> Result<control_grants::ControlGrant> {
+) -> Result<veoveo_uav_sim_mcp::contract::VehicleControlGrant> {
     let principal_key = format!("{}/oauth#operator-service", operator.base);
     let admin_token = gateway_token_for_context(
         operator.conformance,
@@ -492,16 +492,26 @@ pub(super) async fn ensure_operator_control_grant(
         "operations",
     )
     .await?;
-    let arguments = serde_json::to_string(&serde_json::json!({
-        "grant_id": format!("acceptance-operator-{}", scenario.vehicle_id),
-        "session_id": scenario.session_id,
-        "vehicle_id": scenario.vehicle_id,
-        "principal_key": principal_key,
-        "permissions": ["inspect", "plan", "execute", "abort"],
-        "map_mobility_profile_uri": scenario.map_mobility_profile_uri,
-        "allow_planning_advisory": true,
-        "valid_from": "2026-08-13T00:00:00Z"
-    }))?;
+    use veoveo_uav_sim_mcp::contract::{
+        ControlGrantId, GrantVehicleControlRequest, VehicleControlGrant, VehicleControlPermission,
+    };
+    let request = GrantVehicleControlRequest {
+        grant_id: ControlGrantId::new(format!("acceptance-operator-{}", scenario.vehicle_id))?,
+        session_id: scenario.session_id.clone(),
+        vehicle_id: scenario.vehicle_id.clone(),
+        principal_key: principal_key.clone(),
+        permissions: BTreeSet::from([
+            VehicleControlPermission::Inspect,
+            VehicleControlPermission::Plan,
+            VehicleControlPermission::Execute,
+            VehicleControlPermission::Abort,
+        ]),
+        map_mobility_profile_uri: scenario.map_mobility_profile_uri.clone(),
+        allow_planning_advisory: true,
+        valid_from: "2026-08-13T00:00:00Z".parse()?,
+        valid_until: None,
+    };
+    let arguments = serde_json::to_string(&request)?;
     let granted = gateway_conformance(
         operator.conformance,
         operator.base,
@@ -517,19 +527,14 @@ pub(super) async fn ensure_operator_control_grant(
         Duration::from_secs(120),
     )
     .await?;
-    let granted =
-        structured_output(&granted).context("admin control grant returned invalid output")?;
-
-    super::control_grants::find(
-        operator,
-        scenario,
-        granted
-            .get("grant_id")
-            .and_then(Value::as_str)
-            .context("admin grant omitted its ID")?,
-        &principal_key,
-    )
-    .await
+    let granted: VehicleControlGrant = serde_json::from_value(
+        structured_output(&granted).context("admin control grant returned invalid output")?,
+    )?;
+    ensure!(
+        granted.grant_id == request.grant_id,
+        "admin returned a different control grant"
+    );
+    super::control_grants::find(operator, scenario, &granted.grant_id, &principal_key).await
 }
 
 pub(super) fn map_position(position: &Wgs84Position) -> Value {

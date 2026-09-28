@@ -8,6 +8,7 @@ name = "flight-smoke"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
 veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-frames-mcp = { path = "../../servers/frames-mcp", default-features = false, features = ["contract"] }
 anyhow.workspace = true

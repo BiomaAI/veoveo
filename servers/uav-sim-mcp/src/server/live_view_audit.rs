@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, sync::Arc};
 
+use crate::contract::{LiveViewId, LiveViewState};
 use chrono::Utc;
 use serde_json::Value;
-use veoveo_mcp_contract::{GatewayInternalIdentity, LiveViewId, LiveViewState};
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
     AuditEventId, AuditEventRecord, AuditOutcome, OpenObject, PlatformStore,
     deterministic_principal_id, deterministic_tenant_id,

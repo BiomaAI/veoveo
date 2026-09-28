@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
+use crate::contract::LiveSessionId;
 use chrono::Utc;
 use rmcp::tool;
 use rmcp::{
@@ -22,8 +23,8 @@ use serde::Serialize;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, LiveSessionId, LiveViewOwner, Page, SubscriptionHub, UsageKind,
-    UsageRecord, UsageReport, docs::ServerDocs, paginate,
+    GatewayInternalIdentity, Page, SubscriptionHub, UsageKind, UsageRecord, UsageReport,
+    docs::ServerDocs, paginate,
 };
 use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot, TaskStatus};
 
@@ -428,7 +429,7 @@ impl UavSimMcp {
     #[tool(
         title = "List authoritative UAV live cameras",
         description = "List the operator cameras the simulator renders. Each camera is rendered and encoded once and shared by every authorized viewer.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<veoveo_mcp_contract::LiveCameraDescriptor>>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<Vec<crate::contract::LiveCameraDescriptor>>(),
         annotations(read_only_hint = true, destructive_hint = false, idempotent_hint = true, open_world_hint = false)
     )]
     async fn list_live_cameras(
@@ -447,7 +448,7 @@ impl UavSimMcp {
     #[tool(
         title = "Open authoritative UAV live view",
         description = "Authorize this browser to watch an existing simulator camera. This does not start another render or encode.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::LiveViewConnection>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
     async fn open_live_view(
@@ -456,7 +457,7 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "uav-sim:stream")?;
-        let owner = LiveViewOwner::from_identity(&identity);
+        let owner = crate::server::ownership::live_view_owner(&identity);
         let details = live_view_details(&request.session_id, Some(request.camera_id.as_str()));
         let result = self
             .state
@@ -510,7 +511,7 @@ impl UavSimMcp {
     #[tool(
         title = "Renew authoritative UAV live view",
         description = "Renew this browser's camera authorization and rotate its stream token.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_mcp_contract::LiveViewConnection>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<crate::contract::LiveViewConnection>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = true)
     )]
     async fn renew_live_view(
@@ -519,7 +520,7 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "uav-sim:stream")?;
-        let owner = LiveViewOwner::from_identity(&identity);
+        let owner = crate::server::ownership::live_view_owner(&identity);
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
         let result = self
@@ -597,7 +598,7 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, "uav-sim:stream")?;
-        let owner = LiveViewOwner::from_identity(&identity);
+        let owner = crate::server::ownership::live_view_owner(&identity);
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
         let result = self
@@ -1124,23 +1125,23 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             render_pose: None,
             diagnostic: None,
         }],
-        live_cameras: vec![veoveo_mcp_contract::LiveCameraDescriptor {
-            camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+        live_cameras: vec![crate::contract::LiveCameraDescriptor {
+            camera_id: crate::contract::LiveCameraId::new("follow")?,
             session_id: LiveSessionId::new("session-alpha")?,
             revision: 1,
-            rig: veoveo_mcp_contract::LiveCameraRig::FollowEntity {
-                target_entity_id: veoveo_mcp_contract::LiveEntityId::new("uav-1")?,
-                eye_offset_flu_m: veoveo_mcp_contract::LiveVector3 {
+            rig: crate::contract::LiveCameraRig::FollowEntity {
+                target_entity_id: crate::contract::LiveEntityId::new("uav-1")?,
+                eye_offset_flu_m: crate::contract::LiveVector3 {
                     x: -8.0,
                     y: 0.0,
                     z: 3.0,
                 },
-                target_offset_flu_m: veoveo_mcp_contract::LiveVector3 {
+                target_offset_flu_m: crate::contract::LiveVector3 {
                     x: 0.0,
                     y: 0.0,
                     z: 0.2,
                 },
-                smoothing: veoveo_mcp_contract::LiveCameraSmoothing {
+                smoothing: crate::contract::LiveCameraSmoothing {
                     translation_half_life_ms: 150,
                     rotation_half_life_ms: 120,
                     teleport_distance_millimetres: 100_000,
@@ -1153,14 +1154,14 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             vertical_fov_degrees: 60.0,
             near_clip_m: 0.1,
             far_clip_m: 100_000.0,
-            stream_policy: veoveo_mcp_contract::LiveCameraStreamPolicy::Continuous,
-            health: veoveo_mcp_contract::LiveCameraHealth::Healthy,
+            stream_policy: crate::contract::LiveCameraStreamPolicy::Continuous,
+            health: crate::contract::LiveCameraHealth::Healthy,
             last_frame_at: Some(Utc::now()),
         }],
-        stream_products: vec![veoveo_mcp_contract::LiveStreamProductState {
-            stream_product_id: veoveo_mcp_contract::LiveStreamProductId::new("camera-atlas")?,
-            camera_regions: vec![veoveo_mcp_contract::LiveCameraRegion {
-                camera_id: veoveo_mcp_contract::LiveCameraId::new("follow")?,
+        stream_products: vec![crate::contract::LiveStreamProductState {
+            stream_product_id: crate::contract::LiveStreamProductId::new("camera-atlas")?,
+            camera_regions: vec![crate::contract::LiveCameraRegion {
+                camera_id: crate::contract::LiveCameraId::new("follow")?,
                 x_px: 0,
                 y_px: 0,
                 width_px: 1_280,
@@ -1168,7 +1169,7 @@ pub(crate) fn fake_state() -> anyhow::Result<SimulationState> {
             }],
             coded_width_px: 1_280,
             coded_height_px: 720,
-            lifecycle: veoveo_mcp_contract::LiveStreamProductLifecycle::Ready,
+            lifecycle: crate::contract::LiveStreamProductLifecycle::Ready,
             active_viewers: 0,
             connected_viewers: 0,
             nvenc_sessions: 1,
@@ -1331,7 +1332,7 @@ fn live_view_details(
 async fn audit_live_view(
     state: &AppState,
     identity: &GatewayInternalIdentity,
-    live_view_id: Option<&veoveo_mcp_contract::LiveViewId>,
+    live_view_id: Option<&crate::contract::LiveViewId>,
     action: &'static str,
     outcome: veoveo_platform_store::AuditOutcome,
     details: BTreeMap<String, serde_json::Value>,

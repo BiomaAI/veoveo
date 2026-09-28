@@ -988,8 +988,10 @@ Simulation live-view ownership:
 
 | Path | Responsibility |
 |---|---|
-| `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
-| `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant and mission-plan schemas consuming Map and Frames contracts; shared live-view types |
+| `servers/uav-sim-mcp/src/contract/live_view.rs` | UAV-owned provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
+| `servers/uav-sim-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | isolated public UAV and live-view contract feature; runtime adapter and hosted MCP gates; Map and Frames contracts remain owner imports |
+| `servers/uav-sim-mcp/tests/contract.rs`, `testdata/contract.schema.json` | 97 pre-extraction public schemas and independent-consumer wire qualification |
+| `servers/uav-sim-mcp/src/server/ownership.rs` | authenticated gateway-to-Task and live-view ownership conversion; output-policy label and classification handling |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
 | `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
 | `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional Task-link/lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |

@@ -14,6 +14,11 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Invariants
 
+- Public UAV and live-view v4 types belong in this library's `contract` module.
+  Keep the `contract` feature free of MCP, async, database, adapter and GPU dependencies.
+  Other crates import it with default features disabled. Gateway-to-domain ownership
+  conversion belongs in the authenticated server adapter; MCP core exports no live-view types.
+
 - Owns the `uav-sim://` URI scheme. Identity: slug `uav-sim`, endpoint
   `/uav-sim/mcp`, port 8802. Provider names (Isaac, Cesium, Newton, Warp, PX4)
   never enter canonical tool or resource identities.
@@ -72,6 +77,10 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 ## Build And Test
 
 - `cargo check -p veoveo-uav-sim-mcp`
+- `cargo test -p veoveo-uav-sim-mcp --no-default-features --features contract --lib --test contract`
+- Qualify contract dependencies with a separate consumer workspace; workspace feature
+  unification cannot prove isolation. `tests/contract.rs` compares all public schema
+  snapshots and can run from that consumer.
 - `cargo test -p veoveo-uav-sim-mcp` (deterministic fake adapter, credential
   free)
 - The following command runs the Python runtime tests:

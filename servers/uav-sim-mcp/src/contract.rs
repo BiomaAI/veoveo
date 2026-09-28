@@ -1,3 +1,17 @@
+//! Public UAV types, available without service or MCP integration.
+//!
+//! Camera and session identities cannot be interchanged:
+//! ```compile_fail
+//! use veoveo_uav_sim_mcp::contract::{LiveCameraId, LiveViewerInstanceId, OpenLiveViewRequest};
+//! let request = OpenLiveViewRequest {
+//!     session_id: LiveCameraId::new("session").unwrap(),
+//!     camera_id: LiveCameraId::new("camera").unwrap(),
+//!     viewer_instance_id: LiveViewerInstanceId::new("browser").unwrap(),
+//! };
+//! ```
+mod live_view;
+pub use live_view::*;
+
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
 use chrono::{DateTime, Utc};
@@ -6,7 +20,6 @@ use serde::{Deserialize, Serialize};
 pub use veoveo_frames_mcp::contract::Wgs84Position;
 use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
 use veoveo_map_mcp::contract::{MapMobilityProfileUri, MapRouteHandoff};
-use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
     if value.is_empty() || value.len() > 128 {
@@ -553,25 +566,25 @@ pub struct SessionRequest {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OpenLiveViewRequest {
-    pub session_id: veoveo_mcp_contract::LiveSessionId,
-    pub camera_id: veoveo_mcp_contract::LiveCameraId,
-    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+    pub session_id: crate::contract::LiveSessionId,
+    pub camera_id: crate::contract::LiveCameraId,
+    pub viewer_instance_id: crate::contract::LiveViewerInstanceId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RenewLiveViewRequest {
-    pub session_id: veoveo_mcp_contract::LiveSessionId,
-    pub live_view_id: veoveo_mcp_contract::LiveViewId,
-    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+    pub session_id: crate::contract::LiveSessionId,
+    pub live_view_id: crate::contract::LiveViewId,
+    pub viewer_instance_id: crate::contract::LiveViewerInstanceId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CloseLiveViewRequest {
-    pub session_id: veoveo_mcp_contract::LiveSessionId,
-    pub live_view_id: veoveo_mcp_contract::LiveViewId,
-    pub viewer_instance_id: veoveo_mcp_contract::LiveViewerInstanceId,
+    pub session_id: crate::contract::LiveSessionId,
+    pub live_view_id: crate::contract::LiveViewId,
+    pub viewer_instance_id: crate::contract::LiveViewerInstanceId,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -784,7 +797,7 @@ mod tests {
 
     #[test]
     fn map_route_handoff_wire_shape_is_consumable_without_translation() {
-        let now = Utc::now();
+        let now: DateTime<Utc> = "2026-09-28T00:00:00Z".parse().unwrap();
         let profile_uri = veoveo_map_mcp::contract::MapMobilityProfileUri::new(
             veoveo_map_mcp::contract::MobilityProfileId::new(),
             veoveo_map_mcp::contract::MobilityProfileVersion::FIRST,

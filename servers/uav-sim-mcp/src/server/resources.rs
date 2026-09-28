@@ -183,9 +183,9 @@ impl UavSimMcp {
             if let Some(session_id) = uris::parse_live_views(collection_root) {
                 let identity = require_scope(&context, "uav-sim:stream")?;
                 require_session(&state, session_id.as_str())?;
-                let owner = LiveViewOwner::from_identity(&identity);
-                let after = index::parse::<veoveo_mcp_contract::LiveViewId>(uri, collection_root)?
-                    .flatten();
+                let owner = crate::server::ownership::live_view_owner(&identity);
+                let after =
+                    index::parse::<crate::contract::LiveViewId>(uri, collection_root)?.flatten();
                 let views = self
                     .state
                     .live_views
@@ -200,7 +200,7 @@ impl UavSimMcp {
             if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
                 let identity = require_scope(&context, "uav-sim:stream")?;
                 require_session(&state, session_id.as_str())?;
-                let owner = LiveViewOwner::from_identity(&identity);
+                let owner = crate::server::ownership::live_view_owner(&identity);
                 let view = self
                     .state
                     .live_views
@@ -441,7 +441,7 @@ impl UavSimMcp {
             }
             if let Some((_, live_view_id)) = uris::parse_live_view(uri) {
                 let identity = internal_identity(context)?;
-                let owner = LiveViewOwner::from_identity(&identity);
+                let owner = crate::server::ownership::live_view_owner(&identity);
                 self.state
                     .live_views
                     .get(&owner, &identity.actor.id, &live_view_id)

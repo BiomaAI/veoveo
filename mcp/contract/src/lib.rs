@@ -21,7 +21,6 @@ pub mod docs;
 pub mod gateway;
 pub mod host;
 pub mod internal_auth;
-pub mod live_view;
 pub mod pagination;
 pub mod protocol;
 pub mod provider;
@@ -131,16 +130,6 @@ pub use internal_auth::{
     GatewayInternalTokenVerifier, GatewayInternalTrustBundle, GatewayRequestContext,
     InternalTokenError, IssuedGatewayInternalResourceToken, IssuedGatewayInternalToken,
     VerifiedArtifactUploadIdentity,
-};
-pub use live_view::{
-    LIVE_VIEW_SCHEMA, LiveCameraContractError, LiveCameraDescriptor, LiveCameraHealth,
-    LiveCameraId, LiveCameraRegion, LiveCameraRig, LiveCameraSmoothing, LiveCameraSource,
-    LiveCameraStreamPolicy, LiveColorMatrix, LiveColorMetadata, LiveColorPrimaries, LiveColorRange,
-    LiveColorTransfer, LiveEntityId, LiveMediaEndpoint, LiveMediaTransport, LivePose,
-    LiveQuaternionXyzw, LiveSessionId, LiveStreamProductId, LiveStreamProductLifecycle,
-    LiveStreamProductState, LiveVector3, LiveViewAccessToken, LiveViewCodec, LiveViewConnection,
-    LiveViewHardwareEncoder, LiveViewId, LiveViewLifecycle, LiveViewOwner, LiveViewState,
-    LiveViewUri, LiveViewerInstanceId, is_valid_live_stream_url,
 };
 pub use pagination::{Page, PaginationError, paginate};
 pub use protocol::{

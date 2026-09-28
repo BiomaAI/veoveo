@@ -90,7 +90,7 @@ impl AdapterDurableOperationResult {
 /// Constructed only after a response agrees with its dispatched operation.
 /// Catalog resolution and Task delivery can fail after this observation.
 #[derive(Debug)]
-pub(crate) struct CompletedOperation {
+pub struct CompletedOperation {
     operation: DurableOperation,
     result: DurableOperationResult,
     recording_keys: Vec<String>,
@@ -141,7 +141,7 @@ impl CompletedOperation {
         })
     }
 
-    pub(crate) fn confirms_mission(
+    pub fn confirms_mission(
         &self,
         session: &SessionId,
         vehicle: &VehicleId,

@@ -34,6 +34,42 @@ for visualization.
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
 
+## Library Features
+
+`veoveo-uav-sim-mcp` exposes `contract`, `runtime` and `mcp` features. The default is
+`mcp`, and the server binary requires it. Consumers of public types use
+`default-features = false, features = ["contract"]`. This feature includes IDs, tool
+requests and results, Map/Frames handoffs, and the live-view v4 model. Its dependencies
+provide value types, validation, serialization and URI parsing. It excludes the server,
+MCP integration, database, async runtime, simulator adapter and GPU libraries. Chrono's
+clock support belongs to the runtime feature.
+
+`runtime` adds world binding and the private simulator HTTP adapter. Its completion
+receipt has private construction and validates the response against its dispatched
+operation before result resolution. This low-level adapter requires installation
+credentials; vehicle authorization and mission admission belong to the hosted domain
+service. The `mcp` feature adds that service, gateway identity conversion, Tasks,
+subscriptions, live streaming and process setup.
+
+`contract/live_view.rs` owns the provider-neutral live-view v4 Rust model. Camera rigs,
+optics, health, regions, NVIDIA NVENC metadata, endpoints and connection tokens keep
+their published wire shapes. The authenticated adapter derives viewer ownership from
+the gateway's resolved output policy, including classification and data labels. The
+public model depends on foundational identity types and takes no gateway identity.
+MCP core has no dependency on this library. Schema publication can select the live-view
+models independently of the vehicle tool schemas.
+
+The flight acceptance client imports this contract for camera products, grants and
+100-item collection pages. Scenario session and vehicle IDs use the owning types;
+invalid values fail decoding before the client starts work. It retains its existing
+60-second, 100-page traversal budget.
+
+The feature combinations share live-view v4, private adapter JSON and persisted formats.
+Internal Rust imports use one owner without compatibility exports. This library boundary
+requires no data conversion or deployment drain. Contract schema snapshots and
+an independently resolved consumer qualify the library surface; installation behavior
+and hardware execution require their separate acceptance runs.
+
 ## Authority Boundary
 
 The simulation runtime is authoritative for physics, entity transforms, the OpenUSD

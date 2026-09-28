@@ -30,7 +30,6 @@ complies with in its crate documents and in its contract resource.
 | Veoveo access-token `session_family` | Signed UUIDv7 refresh-family binding for browser tokens; current family revocation is enforced by the gateway, and absence supplies no renewable session authority |
 | Veoveo internal `request_context` | Signed source principal and verified access-token metadata, including OAuth client and optional session family; contains no bearer value and grants no independent renewal permission |
 | Veoveo `computer_attach` policy action | Interactive access to an exact `computer://computers/{id}` resource; a platform action evaluated alongside current resource-read permission, without an MCP method |
-| `veoveo.ai/live-view/v4` | provider-neutral authoritative camera descriptions, typed camera regions in shared encoded products, actor-and-browser authorizations, hardware encode identity, WebSocket H.264 endpoints, and redacted connection tokens |
 | `ai.veoveo/app-resource-dependencies` | deterministic gateway projection of exact cross-server App resource-read requirements admitted under active profile and actor authority |
 | `ai.veoveo/knowledge-source` | Veoveo extension that declares resource collections as knowledge, with typed read observations and conditional reads; specified in [the knowledge source extension](../knowledge-extension/DESIGN.md) |
 
@@ -40,23 +39,13 @@ successful response means the process can serve traffic. The gateway never
 uses an MCP request, an authentication failure, or a method rejection as a
 health signal.
 
-## Live View Extension
+## Domain Contract Ownership
 
-The live-view extension describes cameras rendered by the authoritative domain
-runtime. A simulation server owns its logical camera rigs and persistent stream
-products whose typed regions map one or more cameras into encoded frames. A live-view
-authorization identifies the gateway
-actor and browser instance, but it never allocates rendering or encoding state. Any
-number of authorized viewers may consume the same encoded product within the host's
-ordinary network and process limits.
-
-The shared types define camera poses, optics, smoothing, health, stream policy,
-typed product regions, NVIDIA NVENC metadata, and WebSocket H.264 endpoints. Product state reports a bounded
-authoritative-source-to-render sample count and p95 in integer microseconds; the
-implementation defines the exact source and render events that bracket that measurement.
-Domain-owned resource URIs use the
-canonical shape `{scheme}://session/{session_id}/live-view/{live_view_id}`. The
-contract does not prescribe Isaac, USD paths, a scene mirror, or a common renderer.
+UAV's library owns the `veoveo.ai/live-view/v4` models for logical cameras, encoded
+products and viewer authorizations. Consumers import its `contract` feature with
+default features disabled. The [UAV design](../../servers/uav-sim-mcp/DESIGN.md#library-features)
+defines that profile and its dependency boundary. Shared MCP mechanics do not depend
+on the UAV library or enumerate its camera and resource vocabulary.
 
 ## Scope And Discovery
 

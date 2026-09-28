@@ -7,7 +7,8 @@ use secrecy::{ExposeSecret as _, SecretString};
 use serde::Deserialize;
 use thiserror::Error;
 use tokio::sync::Mutex;
-use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
+
+use crate::contract::{LiveCameraDescriptor, LiveStreamProductState};
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
@@ -27,7 +28,7 @@ use crate::{
 
 mod completion;
 use completion::AdapterDurableOperationResult;
-pub(crate) use completion::CompletedOperation;
+pub use completion::CompletedOperation;
 
 const RECORDING_APPLICATION_ID: &str = "veoveo-uav-sim";
 const RECORDING_CATALOG_ATTEMPTS: usize = 100;
@@ -234,7 +235,7 @@ impl HttpAdapter {
         self.post("v1/commands", command).await
     }
 
-    pub(crate) async fn execute(
+    pub async fn execute(
         &self,
         operation: &DurableOperation,
     ) -> Result<CompletedOperation, AdapterError> {
@@ -373,7 +374,7 @@ impl HttpAdapter {
         self.base_url.join(path).map_err(AdapterError::InvalidUrl)
     }
 
-    pub(crate) async fn runtime_events(&self) -> Result<reqwest::Response, AdapterError> {
+    pub async fn runtime_events(&self) -> Result<reqwest::Response, AdapterError> {
         let response = self
             .event_client
             .get(self.endpoint("v1/events")?)
@@ -675,7 +676,7 @@ impl Adapter {
         }
     }
 
-    pub(crate) async fn execute(
+    pub async fn execute(
         &self,
         operation: &DurableOperation,
     ) -> Result<CompletedOperation, AdapterError> {
@@ -687,7 +688,7 @@ impl Adapter {
         }
     }
 
-    pub(crate) async fn resolve_result(
+    pub async fn resolve_result(
         &self,
         completed: CompletedOperation,
     ) -> Result<DurableOperationResult, AdapterError> {

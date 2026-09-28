@@ -10,41 +10,95 @@ path = "src/lib.rs"
 [[bin]]
 name = "uav-sim-mcp"
 path = "src/bin/server.rs"
+required-features = ["mcp"]
+
+[[test]]
+name = "contract"
+required-features = ["contract"]
+
+[[test]]
+name = "control_plane_registration"
+required-features = ["mcp"]
+
+[features]
+default = ["mcp"]
+contract = [
+    "dep:chrono",
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:url",
+    "dep:veoveo-types",
+    "dep:veoveo-map-mcp",
+    "dep:veoveo-frames-mcp",
+]
+runtime = [
+    "contract",
+    "chrono/clock",
+    "dep:anyhow",
+    "dep:reqwest",
+    "dep:secrecy",
+    "dep:thiserror",
+    "dep:tokio",
+    "dep:tracing",
+    "dep:uuid",
+    "dep:veoveo-platform-store",
+    "dep:veoveo-mcp-contract",
+]
+mcp = [
+    "runtime",
+    "dep:axum",
+    "dep:base64",
+    "dep:clap",
+    "dep:dotenvy",
+    "dep:futures",
+    "dep:getrandom",
+    "dep:hex",
+    "dep:rmcp",
+    "dep:rustls",
+    "dep:sha2",
+    "dep:subtle",
+    "dep:surrealdb",
+    "dep:tokio-util",
+    "dep:tower-http",
+    "dep:veoveo-mcp-apps-extension",
+    "dep:veoveo-task-runtime",
+]
 
 [dependencies]
-veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"] }
-veoveo-frames-mcp = { path = "../frames-mcp", default-features = false, features = ["contract"] }
-veoveo-types.workspace = true
-anyhow.workspace = true
-axum = { workspace = true, features = ["ws"] }
-base64.workspace = true
-chrono.workspace = true
-clap.workspace = true
-dotenvy.workspace = true
-futures.workspace = true
-getrandom.workspace = true
-hex.workspace = true
-reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"] }
-rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"] }
-rustls.workspace = true
-schemars.workspace = true
-secrecy.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-surrealdb = { version = "=3.2.4", default-features = false }
-subtle.workspace = true
-thiserror.workspace = true
-tokio = { workspace = true, features = ["full"] }
-tokio-util.workspace = true
-tower-http.workspace = true
-tracing.workspace = true
-url.workspace = true
-uuid.workspace = true
-veoveo-mcp-contract.workspace = true
-veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
-veoveo-platform-store = { path = "../../platform/store" }
-veoveo-task-runtime = { path = "../../platform/task-runtime" }
+veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
+veoveo-frames-mcp = { path = "../frames-mcp", default-features = false, features = ["contract"], optional = true }
+veoveo-types = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+axum = { workspace = true, features = ["ws"], optional = true }
+base64 = { workspace = true, optional = true }
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
+clap = { workspace = true, optional = true }
+dotenvy = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+getrandom = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+reqwest = { workspace = true, features = ["json", "rustls-no-provider", "stream"], optional = true }
+rmcp = { workspace = true, features = ["server", "macros", "transport-streamable-http-server"], optional = true }
+rustls = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+surrealdb = { version = "=3.2.4", default-features = false, optional = true }
+subtle = { workspace = true, optional = true }
+thiserror = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["full"], optional = true }
+tokio-util = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+url = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
+veoveo-platform-store = { path = "../../platform/store", optional = true }
+veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 
 [dev-dependencies]
 tower = { workspace = true, features = ["util"] }

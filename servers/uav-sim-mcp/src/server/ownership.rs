@@ -76,3 +76,56 @@ pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_r
         authority: identity.authority.clone(),
     }
 }
+
+/// Convert authenticated gateway authority into the domain's protocol-independent owner.
+pub(super) fn live_view_owner(
+    identity: &GatewayInternalIdentity,
+) -> crate::contract::LiveViewOwner {
+    let authority = &identity.authority;
+    let mut data_labels = authority.output_policy.data_labels.clone();
+    data_labels.extend(authority.output_policy.classification.clone());
+    crate::contract::LiveViewOwner {
+        subject: authority.output_policy.owner.clone(),
+        tenant: authority.tenant.clone(),
+        work_context: authority.work_context.clone(),
+        policy_revision: authority.policy_revision.clone(),
+        data_labels,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeSet;
+    use veoveo_types::{AccessSubject, DataLabelId, GroupId};
+
+    #[test]
+    fn live_owner_uses_resolved_output_policy_and_combines_classification_labels() {
+        let mut identity = crate::server::test_support::identity(
+            "tenant",
+            "operations",
+            "viewer",
+            &["actor-only"],
+        );
+        identity.authority.output_policy.owner =
+            AccessSubject::Group(GroupId::new("operators").unwrap());
+        identity.authority.output_policy.data_labels =
+            BTreeSet::from([DataLabelId::new("sensor").unwrap()]);
+        identity.authority.output_policy.classification =
+            Some(DataLabelId::new("restricted").unwrap());
+        let owner = live_view_owner(&identity);
+        assert_eq!(owner.subject, identity.authority.output_policy.owner);
+        assert_eq!(owner.tenant, identity.authority.tenant);
+        assert_eq!(owner.work_context, identity.authority.work_context);
+        assert_eq!(owner.policy_revision, identity.authority.policy_revision);
+        assert_eq!(
+            owner.data_labels,
+            BTreeSet::from([
+                DataLabelId::new("sensor").unwrap(),
+                DataLabelId::new("restricted").unwrap(),
+            ])
+        );
+        identity.authority.output_policy.classification = Some(DataLabelId::new("sensor").unwrap());
+        assert_eq!(live_view_owner(&identity).data_labels.len(), 1);
+    }
+}

@@ -1,5 +1,6 @@
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 
+use crate::contract::LiveViewId;
 use secrecy::{ExposeSecret, SecretString};
 use tokio::{
     io::{AsyncReadExt, AsyncWrite, AsyncWriteExt},
@@ -7,7 +8,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use url::Url;
-use veoveo_mcp_contract::{LiveViewId, SubscriptionHub};
+use veoveo_mcp_contract::SubscriptionHub;
 
 use super::live_view::{LiveViewError, LiveViewService, ViewerSignal};
 use crate::uris;
@@ -33,7 +34,7 @@ pub(super) struct LiveStreamGate {
 }
 
 struct Admission {
-    session_id: veoveo_mcp_contract::LiveSessionId,
+    session_id: crate::contract::LiveSessionId,
     live_view_id: LiveViewId,
     upstream_target: String,
     events: tokio::sync::watch::Receiver<ViewerSignal>,
@@ -291,11 +292,7 @@ impl LiveStreamGate {
         Ok(())
     }
 
-    async fn notify(
-        &self,
-        session_id: &veoveo_mcp_contract::LiveSessionId,
-        live_view_id: &LiveViewId,
-    ) {
+    async fn notify(&self, session_id: &crate::contract::LiveSessionId, live_view_id: &LiveViewId) {
         self.subscriptions
             .notify_resource_updated(uris::live_view(session_id, live_view_id))
             .await;

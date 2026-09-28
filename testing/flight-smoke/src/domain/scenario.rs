@@ -1,13 +1,14 @@
 use super::*;
+use veoveo_uav_sim_mcp::contract::{SessionId, VehicleId};
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct UavAcceptanceScenario {
     pub(super) schema: String,
-    pub(super) session_id: String,
+    pub(super) session_id: SessionId,
     pub(super) geospatial_layer_id: String,
     pub(super) world: FrameWorldScenario,
-    pub(super) vehicle_id: String,
+    pub(super) vehicle_id: VehicleId,
     pub(super) world_ready_timeout_seconds: u64,
     pub(super) takeoff: TakeoffScenario,
     pub(super) camera: CameraAcceptance,
@@ -144,9 +145,7 @@ impl UavAcceptanceScenario {
             "unsupported UAV acceptance scenario schema {:?}",
             self.schema
         );
-        validate_identity("session_id", &self.session_id)?;
         validate_identity("geospatial_layer_id", &self.geospatial_layer_id)?;
-        validate_identity("vehicle_id", &self.vehicle_id)?;
         ensure!(
             !self.world.display_name.trim().is_empty(),
             "world display name must not be blank"

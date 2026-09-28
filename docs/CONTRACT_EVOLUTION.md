@@ -349,6 +349,12 @@ Media owns its prediction summaries and generation result DTOs. Protocol utiliti
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.
 
+UAV owns its simulator and live-view v4 model in the server library's isolated
+contract feature. Flight clients consume those types directly. Gateway identity
+conversion stays in UAV's authenticated adapter; the public model takes foundational
+identities. Schema publication selects the live-view models without adding a UAV
+dependency to MCP core or including vehicle schemas in those published artifacts.
+
 The domain runtime owns SQL that implements its authorization and persistence rules.
 It uses Store's connection, record primitives and transaction facilities; the shared
 schema catalog stays in Store. Domain driver records and queries belong behind the

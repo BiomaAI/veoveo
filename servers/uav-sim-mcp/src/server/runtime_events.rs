@@ -1,9 +1,10 @@
 use std::{path::PathBuf, sync::Arc, time::Duration};
 
+use crate::contract::LiveSessionId;
 use anyhow::{Context as _, ensure};
 use serde::Deserialize;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{LiveSessionId, SubscriptionHub};
+use veoveo_mcp_contract::SubscriptionHub;
 
 use crate::{adapter::Adapter, uris};
 
