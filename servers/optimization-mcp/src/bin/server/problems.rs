@@ -1,4 +1,5 @@
 use std::collections::BTreeSet;
+use veoveo_map_mcp::contract::MapTravelModelUri;
 
 use chrono::Utc;
 use sha2::{Digest, Sha256};
@@ -9,13 +10,13 @@ use veoveo_optimization_mcp::{
         compile_routing_problem,
     },
     contract::{
-        ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MapTravelModelUri, MilpProblem,
-        MilpProblemSource, OptimizationAuthority, OptimizationProblemDefinition,
-        OptimizationProblemRecord, OptimizationProblemResource, OptimizationProblemUri,
-        OptimizationSolution, OptimizationSolutionUri, OptimizeRouteScenariosRequest,
-        OptimizeRoutesRequest, ProblemDimensions, ProblemFamily, ProblemId, RouteScenario,
-        RoutingProblem, RoutingProblemSource, SolveConvexRequest, SolveMilpRequest,
-        TRAVEL_MODEL_ARTIFACT_VERSION, TravelModelArtifact, TravelModelSource,
+        ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MilpProblem, MilpProblemSource,
+        OptimizationAuthority, OptimizationProblemDefinition, OptimizationProblemRecord,
+        OptimizationProblemResource, OptimizationProblemUri, OptimizationSolution,
+        OptimizationSolutionUri, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
+        ProblemDimensions, ProblemFamily, ProblemId, RouteScenario, RoutingProblem,
+        RoutingProblemSource, SolveConvexRequest, SolveMilpRequest, TRAVEL_MODEL_ARTIFACT_VERSION,
+        TravelModelArtifact, TravelModelSource,
     },
     problem_store::{PreparedProblem, PreparedRouteCase},
     solution_builder::verify_solution_digest,

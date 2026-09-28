@@ -261,7 +261,7 @@ impl RouteService {
         &self,
         scope: &MapAccessContext,
         request: BuildTravelModelRequest,
-        resource_uri: String,
+        resource_uri: crate::contract::MapTravelModelUri,
     ) -> Result<(TravelModelArtifact, Vec<TravelModelProfileProvenance>)> {
         request.validate()?;
         let tenant_key = scope.tenant_key();

@@ -40,9 +40,14 @@ required-features = ["contract"]
 name = "resources"
 required-features = ["contract"]
 
+[[test]]
+name = "map_travel_model"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-map-mcp",
     "dep:base64",
     "dep:chrono",
     "dep:schemars",
@@ -82,6 +87,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 # Matches the qualified Store driver; upstream stable verified at https://github.com/surrealdb/surrealdb/releases/tag/v3.2.4.
 surrealdb = { version = "=3.2.4", default-features = false, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }

@@ -158,65 +158,6 @@ output_id!(RunId, "run-", "run id");
 output_id!(SolutionId, "solution-", "solution id");
 output_id!(VerificationId, "verification-", "verification id");
 
-macro_rules! uri_type {
-    ($name:ident, $label:literal, $validator:expr) => {
-        #[derive(
-            Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-        )]
-        #[serde(try_from = "String", into = "String")]
-        #[schemars(with = "String")]
-        pub struct $name(String);
-
-        impl $name {
-            pub fn parse(value: impl Into<String>) -> Result<Self, OptimizationContractError> {
-                let value = value.into();
-                if ($validator)(&value) {
-                    Ok(Self(value))
-                } else {
-                    Err(OptimizationContractError::InvalidUri($label))
-                }
-            }
-
-            pub fn as_str(&self) -> &str {
-                &self.0
-            }
-        }
-
-        impl fmt::Display for $name {
-            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str(&self.0)
-            }
-        }
-
-        impl TryFrom<String> for $name {
-            type Error = OptimizationContractError;
-
-            fn try_from(value: String) -> Result<Self, Self::Error> {
-                Self::parse(value)
-            }
-        }
-
-        impl From<$name> for String {
-            fn from(value: $name) -> String {
-                value.0
-            }
-        }
-    };
-}
-
-fn valid_uri_segment(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 256
-        && !value.contains(['/', '?', '#'])
-        && !value.chars().any(char::is_control)
-}
-
-uri_type!(MapTravelModelUri, "Map travel-model", |value: &str| {
-    value
-        .strip_prefix("map://travel-model/")
-        .is_some_and(valid_uri_segment)
-});
-
 macro_rules! finite_number {
     ($name:ident, $label:literal, $requirement:literal, $predicate:expr) => {
         #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Serialize, Deserialize, JsonSchema)]
@@ -370,11 +311,5 @@ mod tests {
     fn output_ids_are_uuid_v7() {
         let id = ProblemId::new();
         assert_eq!(ProblemId::parse(id.to_string()).unwrap(), id);
-    }
-
-    #[test]
-    fn resource_uris_are_family_specific() {
-        assert!(MapTravelModelUri::parse("map://travel-model/travel-1").is_ok());
-        assert!(MapTravelModelUri::parse("map://matrix/matrix-1").is_err());
     }
 }

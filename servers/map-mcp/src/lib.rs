@@ -45,6 +45,8 @@ mod server;
 pub mod spatial;
 #[cfg(feature = "runtime")]
 pub mod state;
+#[cfg(feature = "runtime")]
+pub mod travel_models;
 #[cfg(feature = "contract")]
 pub mod uris;
 

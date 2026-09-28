@@ -89,7 +89,7 @@ Contract revision: 3
 - C06: met — one canonical surface; no compatibility projection
 - C07: met
 - C08: met
-- C09: pending — Map reference ownership and DTO relationship admission remain
+- C09: pending — DTO relationship admission remains
 - C10: met
 - C11: met
 - C12: met

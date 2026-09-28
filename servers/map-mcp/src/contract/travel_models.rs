@@ -7,8 +7,8 @@ use veoveo_artifact_contract::ArtifactMetadata;
 use veoveo_types::{PrincipalId, WorkContextId};
 
 use super::{
-    DatasetReleaseId, MobilityProfileId, OperationalSnapshotId, RouteConstraints, RouteDataPolicy,
-    RouteEndpoint, TravelModelId,
+    DatasetReleaseId, MapTravelModelUri, MobilityProfileId, OperationalSnapshotId,
+    RouteConstraints, RouteDataPolicy, RouteEndpoint, TravelModelId,
 };
 
 pub const TRAVEL_MODEL_ARTIFACT_VERSION: &str = "veoveo.ai/travel-model-artifact/v1";
@@ -189,7 +189,7 @@ pub struct OptimizationTravelModel {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TravelModelArtifact {
     pub version: String,
-    pub map_resource_uri: Option<String>,
+    pub map_resource_uri: Option<MapTravelModelUri>,
     pub model: OptimizationTravelModel,
 }
 
@@ -208,7 +208,7 @@ pub struct TravelModelProfileProvenance {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct TravelModelRecord {
     pub travel_model_id: TravelModelId,
-    pub travel_model_uri: String,
+    pub travel_model_uri: MapTravelModelUri,
     pub manifest_uri: veoveo_artifact_contract::ArtifactUri,
     pub artifact: ArtifactMetadata,
     pub cost_metric: TravelCostMetric,
@@ -222,8 +222,25 @@ pub struct TravelModelRecord {
     pub created_at: DateTime<Utc>,
 }
 
+impl TravelModelRecord {
+    pub fn validate_identity(&self) -> Result<(), TravelModelContractError> {
+        if self.travel_model_uri.id() != &self.travel_model_id
+            || !matches!(
+                self.manifest_uri.address(),
+                veoveo_artifact_contract::ArtifactAddress::Plane(_)
+            )
+            || self.manifest_uri.artifact_id() != self.artifact.artifact_id()
+        {
+            return Err(TravelModelContractError::InvalidIdentity);
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, thiserror::Error, Clone, PartialEq, Eq)]
 pub enum TravelModelContractError {
+    #[error("travel-model record identities or manifest parent disagree")]
+    InvalidIdentity,
     #[error("invalid {0}")]
     InvalidKey(&'static str),
     #[error("{0}")]

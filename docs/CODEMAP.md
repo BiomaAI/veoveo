@@ -874,6 +874,9 @@ admission and recovery synchronize the local worker inventory in
 | Path | Responsibility |
 |---|---|
 | `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
+| `servers/map-mcp/src/contract/travel_model_uri.rs` and `travel_model_page.rs` | Map-owned travel-model addresses, canonical UUIDv5/v7 identities, native Task cursors and typed collection pages shared with Optimization through the contract feature |
+| `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
+| `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |
 | `servers/map-mcp/src/server/tasks.rs` | travel-model publication task, owner visibility, neutral artifact manifest identity, and resource notifications |
 | `servers/optimization-mcp/src/contract/` | isolated contract feature: public solver models, checked usage and collection positions, domain ID admission, typed addresses, exhaustive resource variants, empty domain scope vocabulary and fixed URI declarations |

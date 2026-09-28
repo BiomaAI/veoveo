@@ -36,6 +36,9 @@ Map Explorer App.
   mobility-profile version, records unavailable cells, and publishes
   `veoveo.ai/travel-model-artifact/v1`. Never reconstruct these matrices in
   Optimization.
+- Travel-model references use Map's `MapTravelModelUri` in producers and consumers.
+  Exact reads, collection pages and completion use `TravelModelReads`; owner, stored
+  identity, Work Context and successful-result predicates run in SQL before limits.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic
   CQL2-JSON from OGC CQL2 1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1,
@@ -56,7 +59,8 @@ Map Explorer App.
 - `npm --prefix servers/map-mcp/app test` qualifies page walking and refresh failure
   behavior. These Node tests provide behavioral evidence only.
 - The Map-to-Optimization compatibility test must prove that serialized travel
-  model artifacts deserialize directly into the Optimization contract.
+  model artifacts deserialize directly into the Optimization contract. The consumer
+  owns this check at `servers/optimization-mcp/tests/map_travel_model.rs`.
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
   files, and PROJ build dependencies (root README, Develop And Verify). The
   DuckDB C library links through the pinned 1.5.5 `duckdb-rs` fork, which
@@ -89,12 +93,12 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
+- C04: pending — discovery is static; derivation, dataset-release, route, matrix, acquisition, travel-model, and authoring metadata indexes use SQL-scoped cursor pages; persisted completions match and deduplicate in SQL; other catalog roots still need SQL filtering and paging
 - C05: met
 - C06: met
 - C07: met
 - C08: met
-- C09: met
+- C09: pending — metadata and travel-model references use typed addresses; other URI families and DTO relationship admission remain
 - C10: met
 - C11: met
 - C12: met

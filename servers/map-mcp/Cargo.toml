@@ -20,10 +20,6 @@ name = "metadata_contract"
 required-features = ["contract"]
 
 [[test]]
-name = "travel_model_compatibility"
-required-features = ["contract"]
-
-[[test]]
 name = "coordinate_contract"
 required-features = ["contract"]
 
@@ -136,4 +132,3 @@ veoveo-task-runtime = { path = "../../platform/task-runtime", optional = true }
 [dev-dependencies]
 tempfile = "3"
 tower = { workspace = true, features = ["util"] }
-veoveo-optimization-mcp = { path = "../optimization-mcp", default-features = false, features = ["contract"] }

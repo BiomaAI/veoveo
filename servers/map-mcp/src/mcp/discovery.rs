@@ -113,6 +113,12 @@ pub(super) fn discoverable_resources(
 /// cannot diverge.
 pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
     vec![
+        ResourceTemplate::new(
+            crate::contract::MapTravelModelsUri::TEMPLATE,
+            "Travel-model page",
+        )
+        .with_description("A page of 100 caller-owned completed travel models.")
+        .with_mime_type("application/json"),
         ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
             .with_title("Server document")
             .with_description("Embedded crate document body (contract C18).")

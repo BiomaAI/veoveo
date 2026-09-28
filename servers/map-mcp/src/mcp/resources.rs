@@ -358,17 +358,6 @@ impl MapMcp {
                             .map_err(internal)?,
                     );
                 }
-                uris::TRAVEL_MODELS_URI => {
-                    return json_resource(
-                        uri,
-                        &crate::server::tasks::visible_travel_models(
-                            self.state.as_ref(),
-                            &identity,
-                        )
-                        .await
-                        .map_err(internal)?,
-                    );
-                }
                 uris::RASTERS_URI => {
                     return json_resource(
                         uri,
@@ -380,6 +369,13 @@ impl MapMcp {
                     );
                 }
                 _ => {}
+            }
+            if let Ok(address) = crate::contract::MapTravelModelsUri::parse(uri) {
+                let page = crate::travel_models::TravelModelReads::new(self.state.catalog.store())
+                    .page(&crate::server::tasks::runtime_owner(&identity), &address)
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &page);
             }
             if let Some(value) = uris::parse_single(uri, "map://source/") {
                 let id = MapSourceId::parse(value).map_err(invalid_params)?;
@@ -511,15 +507,15 @@ impl MapMcp {
                         .ok_or_else(|| not_found("matrix"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://travel-model/") {
-                let id = TravelModelId::parse(value).map_err(invalid_params)?;
-                let model =
-                    crate::server::tasks::visible_travel_models(self.state.as_ref(), &identity)
-                        .await
-                        .map_err(internal)?
-                        .into_iter()
-                        .find(|model| model.travel_model_id == id)
-                        .ok_or_else(|| not_found("travel model"))?;
+            if let Ok(address) = crate::contract::MapTravelModelUri::parse(uri) {
+                let model = crate::travel_models::TravelModelReads::new(self.state.catalog.store())
+                    .get(
+                        &crate::server::tasks::runtime_owner(&identity),
+                        address.id(),
+                    )
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| not_found("travel model"))?;
                 return json_resource(uri, &model);
             }
             Err(McpError::resource_not_found(

@@ -137,10 +137,6 @@ pub fn matrix_uri(id: &str) -> String {
     format!("map://matrix/{id}")
 }
 
-pub fn travel_model_uri(id: &str) -> String {
-    format!("map://travel-model/{id}")
-}
-
 pub fn feature_layer_uri(id: &str) -> String {
     format!("map://feature-layer/{id}")
 }

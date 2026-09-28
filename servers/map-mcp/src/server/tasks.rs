@@ -37,8 +37,6 @@ use crate::{
 };
 
 mod feature_transfers;
-mod travel_models;
-pub(crate) use travel_models::complete_travel_models;
 
 const SERVER_SLUG: &str = "map";
 const ROUTE_TASK: &str = "route";
@@ -400,39 +398,6 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
         )
         .await
     }
-}
-
-pub(crate) async fn visible_travel_models(
-    state: &MapApplication,
-    identity: &GatewayInternalIdentity,
-) -> anyhow::Result<Vec<TravelModelRecord>> {
-    let caller_owner = runtime_owner(identity);
-    let mut records: Vec<TravelModelRecord> = Vec::new();
-    for snapshot in state.tasks.list().await? {
-        if snapshot.task_type != BUILD_TRAVEL_MODEL_TASK
-            || !snapshot.owner.allows(
-                &caller_owner.principal_key,
-                &caller_owner.profile,
-                caller_owner.tenant_key.as_deref(),
-                &caller_owner.data_labels,
-            )
-            || snapshot.owner.authority.work_context != caller_owner.authority.work_context
-        {
-            continue;
-        }
-        let Some(structured) = snapshot.result.as_ref().and_then(|result| {
-            result
-                .get("structuredContent")
-                .or_else(|| result.get("structured_content"))
-        }) else {
-            continue;
-        };
-        if let Ok(record) = serde_json::from_value(structured.clone()) {
-            records.push(record);
-        }
-    }
-    records.sort_by_key(|record| record.created_at);
-    Ok(records)
 }
 
 pub(super) async fn recover_tasks(
@@ -1052,7 +1017,7 @@ async fn run_travel_model_task(
     request: DurableTravelModelRequest,
 ) -> anyhow::Result<CallToolResult> {
     let scope = state.scope(&request.identity).await?;
-    let travel_model_uri = crate::uris::travel_model_uri(request.travel_model_id.as_str());
+    let travel_model_uri = crate::contract::MapTravelModelUri::new(request.travel_model_id.clone());
     let cost_metric = request.input.cost_metric;
     let time_model = request.input.time_model;
     let (package, profiles) = state
@@ -1113,6 +1078,7 @@ async fn run_travel_model_task(
         work_context: request.identity.authority.work_context.clone(),
         created_at: request.created_at,
     };
+    record.validate_identity()?;
     tool_result_with_links(
         format!(
             "built travel model {} with {} locations and {} vehicle types",
@@ -1120,7 +1086,7 @@ async fn run_travel_model_task(
         ),
         &record,
         [
-            (travel_model_uri, "cuOpt travel model"),
+            (travel_model_uri.to_string(), "cuOpt travel model"),
             (artifact.artifact_uri.to_string(), "travel-model artifact"),
         ],
     )

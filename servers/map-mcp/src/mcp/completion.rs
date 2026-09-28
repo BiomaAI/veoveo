@@ -110,13 +110,13 @@ impl MapMcp {
                 .complete_geography(&scope.tenant_key(), GeographyCompletion::Facility, needle)
                 .map_err(internal)?,
             (uris::TRAVEL_MODEL_TEMPLATE, "travel_model_id") => {
-                crate::server::tasks::complete_travel_models(
-                    self.state.catalog.store(),
-                    &crate::server::tasks::runtime_owner(identity),
-                    needle,
-                )
-                .await
-                .map_err(internal)?
+                crate::travel_models::TravelModelReads::new(self.state.catalog.store())
+                    .complete(&crate::server::tasks::runtime_owner(identity), needle)
+                    .await
+                    .map_err(internal)?
+                    .into_iter()
+                    .map(|id| id.to_string())
+                    .collect()
             }
             // Document IDs are a fixed, packaged inventory with no database rows.
             (uris::DOC_TEMPLATE, "doc_id") => {

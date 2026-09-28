@@ -128,8 +128,8 @@ domain IDs, and parsing rejects aliases, wrong parents, fragments and unsupporte
 parameters. `OptimizationResource` provides the exhaustive dispatch vocabulary.
 `OptimizationScope` is empty because this server declares no additional domain OAuth
 scopes. Gateway operation policy and current owner, Work Context and label checks
-authorize requests. The public Map travel-model reference still needs admission through
-its owning Map contract; that cross-server dependency work is tracked in the foundations plan.
+authorize requests. The public Map travel-model reference comes from Map's library with
+its isolated `contract` feature. MCP core has no Map or Optimization dependency.
 
 ## Public MCP Contract
 
@@ -628,7 +628,7 @@ or mocked CUDA result cannot satisfy this test.
 
 Contract revision: 3.
 
-C09 has remaining cross-server Map reference and DTO relationship admission work.
+C09 has remaining DTO relationship admission work.
 Checked MCP setup is implemented; installed readiness qualification for C31 is pending. The knowledge-source extension
 (C32) is planned. C06 is satisfied by the single canonical surface. The gateway
 registration states revision 3 and the cuOpt 26.08 engine. Documentation and

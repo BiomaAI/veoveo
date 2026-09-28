@@ -56,6 +56,7 @@ the `map://` scheme.
 | [Veoveo resource components](../../platform/types/DESIGN.md#concrete-resource-components) and URI Template RFC 6570 | Authoring metadata pages use the shared URL parser and builder with typed IDs and cursors. Discovery declares form-style parent and cursor query parameters. Other resource families are tracked for migration in the foundations plan. |
 | WGS 84 and EPSG identifiers | Longitude, latitude, and ellipsoidal height are the geographic exchange. PROJ handles bounded projected-CRS conversion; EPSG:4978 and vertical transformations are outside that 2D operation. |
 | SurrealDB 3.2.4 | Internal catalog queries, transactions, LIVE/change-feed delivery, and [JSON decoding](https://surrealdb.com/docs/reference/query-language/functions/database-functions/encoding#encodingjsondecode) for selection against complete route documents. |
+| Map travel-model resource profile | Map-owned component builders, RFC-variant UUIDv5/v7 IDs in lowercase hyphenated spelling, 100-item SQL pages and version 1 hex-encoded JSON cursors over native UUIDv7 Task positions. Exact and collection templates follow RFC 6570. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
@@ -932,6 +933,36 @@ algorithm provenance. The Map record retains its neutral `artifact://`
 manifest URI. Optimization requires both identities and rejects a manifest
 that does not attest the requested Map resource.
 
+Map's contract feature owns `MapTravelModelUri`; Optimization imports that type without
+Map's runtime or MCP integration. Travel-model producers retain the type through routing,
+Artifact publication and Task results. A record's URI must contain its declared model ID,
+and its neutral manifest must identify the Artifact in its metadata.
+
+`TravelModelReads` selects exact results, collection pages and completion candidates in
+SurrealDB. Indexed owner, tenant, profile and Work Context must agree with the Task owner
+envelope and retained request identity. Result ownership and context must also match.
+The Task must have succeeded without an error result, and its request and result must
+name the same model. These predicates run before grouping, ordering and limits. Exact
+reads reject duplicate identities. A malformed selected record fails the read.
+
+`map://travel-models` returns `items`, `limit` and an optional `next_cursor`. The page
+contains at most 100 records; `map://travel-models{?cursor}` continues in native Task ID
+order. Every continuation repeats current-authority checks. The cursor contains version
+1 and a native Task UUIDv7, encoded as lowercase hex JSON. Discovery stays fixed, and
+completion returns up to 100 typed model IDs with one SQL lookahead row.
+
+Upgrade Map and its collection consumers together after active travel-model Tasks settle.
+Clients must replace the collection's array reader with page traversal. Preflight retained
+Task request/result ownership, identity spellings and Artifact parents before reopening
+traffic. The supported retained result field is `structuredContent`; preserve rejected
+records, including any `structured_content`-only rows, for operator review. This reader
+does not rewrite stored Tasks or immutable Artifacts. Rollback restores the prior Map and
+consumer pair against the same data, discards new collection cursors and restores the
+earlier read policy. Operator approval of that policy difference precedes traffic.
+Native checks cover contract consumption and separate Store connections. Installed
+retained-data recovery, collection traversal and reverse/forward replacement remain
+required for installation acceptance.
+
 Reachable areas are Valhalla isochrones for human and road profiles. All four
 operations renew leases while running and resume after a server restart.
 
@@ -1069,6 +1100,7 @@ map://acquisition/{acquisition_id}
 map://route/{route_id}
 map://matrix/{matrix_id}
 map://travel-model/{travel_model_id}
+map://travel-models{?cursor}
 map://artifact/{artifact_id}
 map://feature-layers{?cursor}
 map://publications{?layer_id,cursor}

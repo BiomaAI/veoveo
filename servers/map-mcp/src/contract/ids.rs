@@ -26,6 +26,9 @@ impl std::error::Error for MapIdError {}
 
 macro_rules! map_id {
     ($name:ident, $prefix:literal) => {
+        map_id!($name, $prefix, false);
+    };
+    ($name:ident, $prefix:literal, $canonical:literal) => {
         #[derive(
             Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
         )]
@@ -59,7 +62,11 @@ macro_rules! map_id {
                     value: value.clone(),
                     expected_prefix: Self::PREFIX,
                 })?;
-                if !matches!(uuid.get_version_num(), 5 | 7) {
+                if !matches!(uuid.get_version_num(), 5 | 7)
+                    || ($canonical
+                        && (uuid.get_variant() != uuid::Variant::RFC4122
+                            || raw != uuid.to_string()))
+                {
                     return Err(MapIdError {
                         value,
                         expected_prefix: Self::PREFIX,
@@ -132,7 +139,7 @@ map_id!(RestrictionId, "restriction-");
 map_id!(MapGeofenceId, "geofence-");
 map_id!(RouteId, "route-");
 map_id!(RouteMatrixId, "matrix-");
-map_id!(TravelModelId, "travel-model-");
+map_id!(TravelModelId, "travel-model-", true);
 map_id!(ReachableAreaId, "reachable-area-");
 map_id!(ValidationId, "validation-");
 map_id!(MapOperationId, "map-operation-");
