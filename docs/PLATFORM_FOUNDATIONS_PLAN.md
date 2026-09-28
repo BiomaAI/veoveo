@@ -318,27 +318,18 @@ Runtime-only and strict workspace Clippy pass. Native Media MCP smoke qualifies
 generation, signed-webhook completion, resource notifications, Artifact access, billing
 after cancellation and typed catalog isolation. The CLI now drains its SDK subscription
 handle, and the harness checks notification diagnostics on stderr. Installed acceptance requires
-the documented coordinated catalog upgrade and retained-record preflight. Model paging,
-remaining request/URI types, scopes, checked MCP setup, the canonical generation result
-handoff and provider recovery budgets remain work.
+current catalog consumers on the rebuilt reference installation. Model paging,
+remaining request/URI types, scopes, checked MCP setup and provider recovery budgets
+remain work.
 Cleanup removed 42 superseded executables (19.8 GiB) and both failed-smoke fixtures.
 Current binaries, compiler libraries, incremental data, images and build caches are
 preserved. The host has 208 GiB free and no running Docker containers.
-Media's completed generation resource now uses the typed
+Media's completed generation resource uses the typed
 `media://prediction/{id}/result` address and checked
 `veoveo.ai/media-generation/v1` contract. SQL selects the linked successful Task
-under current owner and provider-parent predicates before its limit. The private
-reader accepts retained v0 and v1 results without rewriting Tasks; unknown profiles,
-inconsistent Task identity and invalid output attribution fail. The producer uses
-typed output attribution while retaining its v0 completion shape. This reader is the
-rollback checkpoint for the next C02 publication change; C02 remains pending.
-The Media package passes 48 cases and six compile-fail examples, including three new
-native result cases. The independent 88-package consumer passes twelve checks without
-service dependencies. Thirty-one complete result/fixture statements pass the pinned
-CLI validator. Native MCP smoke checks result equality and caller isolation;
-runtime-only and strict workspace Clippy pass. Installed result-profile transition,
-retained-data preflight and rollback remain pending. Fixtures cleaned up their owned
-containers and files; the cluster stays stopped and the host has 206 GiB free.
+under current owner and provider-parent predicates before its limit. The reader
+requires the current complete result and checks its native Task parent and output
+attribution. The historical decoder and result-conversion path are removed.
 TaskRuntime now applies owner policy in SQL for exact public Task reads and
 subscription baselines/delivery. Indexed and envelope identities must agree before
 decoding. Public notifications select the current Task from payload-free outbox hints;
@@ -351,28 +342,16 @@ TaskRuntime cases and one compile-fail example pass, including the explicitly ru
 query-plan case. Five expanded SQL queries, strict workspace Clippy and native Media
 MCP smoke pass. The installation must replace hosted replicas together to establish
 current-owner delivery; retained-owner preflight and installed qualification are pending.
-Media now publishes the checked v1 generation result with one top-level `result_uri`,
-one canonical result link and identity-free terminal text. Its library projects retained
-v0/v1 Task reads and subscriptions through the same SQL-scoped result reader without
-rewriting stored Tasks. The CLI consumes the server-owned contract, verifies completion
-against the result resource, and keeps opaque gateway Task handles separate from native
-Task IDs. Native reverse and forward binary replacement passes against reader floor
-`430b1ddd`, including retained v1 reads and v0 Artifact downloads with the current CLI.
-Gateway smoke qualifies normal Tasks, the tools-only completion adapter, billing,
-Artifact access and the fixture's specific denied Studio discovery record. It derives
-readiness counts from the declared seed and exercises tools-only clients without Task
-capabilities. Frames smoke also passes with the shared Artifact contract consumer.
-Fifty Media cases and six compile-fail examples pass, including exact Task result
-selection under denied and corrupted parent records. The independent 88-package
-consumer passes thirteen cases without MCP, runtime, database or HTTP dependencies;
-the conformance CLI passes six cases. Schema-export smoke, runtime-only Clippy and
-strict workspace Clippy pass.
-C02's local handoff is qualified; the coordinated installation transition, retained-data
-preflight and installed rollback remain pending. Completed fixtures and the temporary
-rollback executable were removed. Twelve superseded Media/CLI/smoke executables from
-before the reader checkpoint were also removed, reclaiming 13 GiB while preserving
-current binaries, compiler libraries, incremental data and build caches. The cluster
-is stopped and the host has 186 GiB free.
+Media publishes the checked current generation result with one top-level `result_uri`,
+one result link and identity-free terminal text. Task reads and subscriptions validate
+the linked generation before returning the stored payload. The CLI consumes the
+server-owned contract and verifies completion against its result resource, keeping
+opaque gateway Task handles separate from native Task IDs. The old-binary rollback
+smoke option is removed; the native harness restarts the current server and verifies
+the same stored generation. The Media suite passes 50 native tests and six compile-fail
+examples. Direct Media MCP and Gateway Task smokes pass, including CLI downloads,
+current-format restart and opaque gateway Task handles. Installed current-format
+acceptance remains pending.
 Optimization now owns problem, run, solution and completion selection in its runtime
 library. SQL matches indexed ownership and Work Context against retained owner and
 authority fields before limits or grouping, preserving absent versus explicit
@@ -1195,7 +1174,7 @@ default owner; the inventory must not become a central domain-type registry.
 | UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify current adapter/Task restart recovery and installed grant/mission behavior |
 | UAV execution exclusion | Admission guards a retained queued Task and writes its exact link, vehicle lease and plan in one transaction. Mission reads follow that link; unresolved outcomes retain their Task pin. Native correlation, profile migration, cancellation/rollback and SQL cleanup-page tests pass alongside the prior contention and HTTP interruption checks | Retain complete observations across process loss; qualify current-format installed recovery and operator reconciliation. Remove compatibility-only profile conversion and historical schema-upgrade fixtures |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Qualify current catalog consumers and installed subscription recovery |
-| Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Remove the retained v0 decoder, compatibility-only result conversion and mixed-version tests; qualify current-format results through installed consumers |
+| Media generation result | The isolated contract owns checked current generation results, typed addresses and output attribution. SQL selects successful linked Tasks under current owner policy. The old decoder, result conversion and rollback-only smoke option are removed. CLI downloads use the current result and verify resource equality | Qualify current-format installed delivery, caller isolation and restart behavior |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify current-format installed delivery; audit domain-specific Task adapters for their additional policy |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |

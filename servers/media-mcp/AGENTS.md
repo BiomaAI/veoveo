@@ -18,9 +18,9 @@ state, task usage records, and generated artifacts under the `media://` scheme.
   caller policy and linked-record agreement in SQL before ordering and limits.
   Discovery declares roots/templates; instance catalogs supply paged links.
 - Generation results use `MediaGenerationResult` and `MediaGenerationUri`. Read them
-  from the linked successful Task through `MediaReads`. `RetainedMediaGeneration`
-  owns the explicit v0/v1 compatibility profile; `task_results` owns the MCP handoff.
-  The producer transition and rollback requirements are declared in `DESIGN.md`.
+  from the linked successful Task through `MediaReads`. Require the current result
+  shape and matching native Task identity; `task_results` owns the MCP handoff.
+  Change contracts by hard cut and update consumers together.
 - Durable task and prediction state lives in the installation SurrealDB
   through `veoveo_platform_store` (`src/state.rs`). The server keeps no
   private database.
@@ -43,8 +43,7 @@ state, task usage records, and generated artifacts under the `media://` scheme.
   --test usage_contract --test prediction_contract --test generation_contract`
   checks the public types; also resolve a separate consumer to check dependency isolation.
 - `cargo xtask smoke media-task-run` qualifies the native MCP/provider/Artifact path.
-  Supply `--rollback-media-bin` with the compatible v0 producer from the design's
-  rollback floor to qualify retained v1 reads, v0 CLI downloads and forward replacement.
+  It also restarts the current server and checks the stored generation resource.
 - The Console Workbench pagination test is headless behavioral coverage.
 
 ## Contract Compliance
@@ -52,7 +51,7 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 Contract revision: 3
 
 - C01: met
-- C02: met — terminal publication and retained Task projections return the checked v1 result, one canonical result_uri/link and identity-free status
+- C02: met — terminal publication and authorized Task delivery return the checked current result, one canonical result_uri/link and identity-free status
 - C03: met
 - C04: met
 - C05: met

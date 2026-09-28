@@ -1,4 +1,4 @@
-//! Media's MCP completion handoff, including retained Task result projection.
+//! Current Media completion construction and authorized Task delivery.
 use crate::{contract::MediaGenerationResult, reads::MediaReads};
 use futures::StreamExt;
 use rmcp::{
@@ -34,7 +34,7 @@ pub async fn get_task(
 ) -> Result<GetTaskResult, McpError> {
     MediaReads::new(runtime).map_err(internal)?;
     let task = veoveo_task_runtime::get_durable_task(runtime, owner, request).await?;
-    project_completed(runtime, owner, task.task)
+    validate_completed(runtime, owner, task.task)
         .await
         .map(GetTaskResult::new)
 }
@@ -51,7 +51,7 @@ pub async fn subscribe_tasks(
     let updates = subscription.updates.then(move |task| {
         let runtime = runtime.clone();
         let owner = owner.clone();
-        async move { project_completed(&runtime, &owner, task?).await }
+        async move { validate_completed(&runtime, &owner, task?).await }
     });
     Ok(DurableTaskSubscription {
         accepted_task_ids: subscription.accepted_task_ids,
@@ -59,10 +59,10 @@ pub async fn subscribe_tasks(
     })
 }
 
-async fn project_completed(
+async fn validate_completed(
     runtime: &TaskRuntime,
     owner: &TaskOwner,
-    mut task: DetailedTask,
+    task: DetailedTask,
 ) -> Result<DetailedTask, McpError> {
     if !matches!(task.payload, TaskPayload::Completed { .. }) {
         return Ok(task);
@@ -72,21 +72,12 @@ async fn project_completed(
         .task_id
         .parse()
         .map_err(|_| McpError::internal_error("Media Task lacks native identity", None))?;
-    let generation = MediaReads::new(runtime)
+    MediaReads::new(runtime)
         .map_err(internal)?
         .generation_for_task(owner, task_id)
         .await
         .map_err(internal)?
         .ok_or_else(|| McpError::invalid_params("unknown generation result", None))?;
-    let result = serde_json::to_value(generation_tool_result(generation).map_err(internal)?)
-        .map_err(internal)?;
-    task.task.status_message = Some(GENERATION_COMPLETED.into());
-    task.payload = TaskPayload::Completed {
-        result: result
-            .as_object()
-            .expect("tool result is an object")
-            .clone(),
-    };
     Ok(task)
 }
 

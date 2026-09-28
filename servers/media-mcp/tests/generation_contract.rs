@@ -3,8 +3,7 @@ mod fixture;
 
 use serde_json::json;
 use veoveo_media_mcp::contract::{
-    GenerationPredictionSummary, MediaGenerationProfile, MediaGenerationResult, MediaGenerationUri,
-    MediaPredictionId, RetainedMediaGeneration,
+    GenerationPredictionSummary, MediaGenerationResult, MediaGenerationUri, MediaPredictionId,
 };
 use veoveo_types::{ResourceAddress, TaskId};
 #[test]
@@ -150,29 +149,18 @@ fn canonical_result_rejects_unknown_profile_fields() {
 }
 
 #[test]
-fn retained_profiles_normalize_to_one_checked_result_and_reject_unknown_versions() {
-    let task = TaskId::new();
-    let result = fixture::generation(task, MediaPredictionId::new("job").unwrap());
-    let legacy = json!({"prediction": result.prediction(), "artifacts":result.artifacts()});
-    for (profile, value) in [
-        (MediaGenerationProfile::UnversionedV0, legacy.clone()),
-        (
-            MediaGenerationProfile::V1,
-            serde_json::to_value(&result).unwrap(),
-        ),
-    ] {
-        let decoded = RetainedMediaGeneration::decode(task, value.clone()).unwrap();
-        assert_eq!(decoded.profile(), profile);
-        assert_eq!(decoded.generation(), &result);
-        assert_eq!(decoded.into_generation(), result);
-        assert!(RetainedMediaGeneration::decode(TaskId::new(), value).is_err());
-    }
+fn generation_result_requires_the_current_complete_profile() {
+    let result = fixture::generation(TaskId::new(), MediaPredictionId::new("job").unwrap());
+    let current = serde_json::to_value(&result).unwrap();
+    assert_eq!(
+        serde_json::from_value::<MediaGenerationResult>(current.clone()).unwrap(),
+        result
+    );
+    let unversioned = json!({"prediction": result.prediction(), "artifacts":result.artifacts()});
+    assert!(serde_json::from_value::<MediaGenerationResult>(unversioned).is_err());
     for schema in ["veoveo.ai/media-generation/v2", "unexpected"] {
-        let mut bad = legacy.clone();
+        let mut bad = current.clone();
         bad["schema"] = json!(schema);
-        assert!(RetainedMediaGeneration::decode(task, bad).is_err());
+        assert!(serde_json::from_value::<MediaGenerationResult>(bad).is_err());
     }
-    let mut incomplete = legacy;
-    incomplete["schema"] = json!(MediaGenerationResult::SCHEMA);
-    assert!(RetainedMediaGeneration::decode(task, incomplete).is_err());
 }

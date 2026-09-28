@@ -146,7 +146,7 @@ pub(crate) async fn gateway_suite(control_plane: &Path, smoke_control_plane: &Pa
     media_mcp_auth(conformance, media, artifact_service).await?;
 
     suite_step("direct media task run");
-    media_task_run(conformance, media, artifact_service, None).await?;
+    media_task_run(conformance, media, artifact_service).await?;
 
     suite_step("authenticated gateway forwarding and policy");
     gateway_authenticated(

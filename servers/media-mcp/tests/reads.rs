@@ -485,7 +485,7 @@ async fn store_result(tasks: &TaskRuntime, task: TaskId, result: serde_json::Val
 }
 
 #[tokio::test]
-async fn retained_generation_profiles_read_without_rewriting_task_results() {
+async fn current_generation_results_survive_cross_replica_reads_and_reconnects() {
     tokio::time::timeout(Duration::from_secs(60), async {
         let db = store::TestDb::new().await;
         let writer = TaskRuntime::new(db.a.clone(), "media", "writer");
@@ -494,70 +494,64 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
         let caller = owner(Some("tenant-a"), "owner", "operator", &[]);
         let (task, job) = create(&writer, &caller, 1, "provider/id?with-reserved").await;
         let expected = generation_fixture::generation(task.task_id, job.external_job_id);
-        let legacy =
-            json!({"prediction": expected.prediction(), "artifacts": expected.artifacts()});
-        let profiles = [legacy, serde_json::to_value(&expected).unwrap()];
-        for profile in profiles {
-            let stored = json!({"content":[], "structuredContent": profile, "isError":false});
-            store_result(&writer, task.task_id, stored.clone()).await;
-            db.a.client()
-                .query("UPDATE ONLY $task SET status = 'queued' RETURN NONE;")
-                .bind(("task", task_record_id(task.task_id)))
+        let stored =
+            serde_json::to_value(task_results::generation_tool_result(expected.clone()).unwrap())
+                .unwrap();
+        assert!(
+            reads
+                .generation_result(&caller, expected.result_uri())
                 .await
                 .unwrap()
-                .check()
-                .unwrap();
-            assert!(
-                reads
-                    .generation_result(&caller, expected.result_uri())
-                    .await
-                    .unwrap()
-                    .is_none()
-            );
-            let working = task_results::get_task(
-                &reader,
-                &caller,
-                rmcp::model::GetTaskParams::new(task.task_id.to_string()),
+                .is_none()
+        );
+        let working = task_results::get_task(
+            &reader,
+            &caller,
+            rmcp::model::GetTaskParams::new(task.task_id.to_string()),
+        )
+        .await
+        .unwrap();
+        assert!(matches!(
+            working.task.payload,
+            rmcp::model::TaskPayload::Working
+        ));
+        writer
+            .claim(&task.task_id.to_string(), Duration::from_secs(30))
+            .await
+            .unwrap();
+        writer
+            .transition(
+                &task.task_id.to_string(),
+                veoveo_task_runtime::TaskTransition::Succeeded {
+                    message: task_results::GENERATION_COMPLETED.into(),
+                    result: stored.clone(),
+                },
             )
             .await
             .unwrap();
-            assert!(matches!(
-                working.task.payload,
-                rmcp::model::TaskPayload::Working
-            ));
-            db.a.client()
-                .query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
-                .bind(("task", task_record_id(task.task_id)))
+        assert_eq!(
+            reads
+                .generation_result(&caller, expected.result_uri())
                 .await
-                .unwrap()
-                .check()
-                .unwrap();
-            assert_eq!(
-                reads
-                    .generation_result(&caller, expected.result_uri())
-                    .await
-                    .unwrap(),
-                Some(expected.clone())
-            );
-            let projected = task_results::get_task(
-                &reader,
-                &caller,
-                rmcp::model::GetTaskParams::new(task.task_id.to_string()),
-            )
-            .await
-            .unwrap();
-            assert_eq!(
-                projected.task.task.status_message.as_deref(),
-                Some(task_results::GENERATION_COMPLETED)
-            );
-            let expected_result = serde_json::to_value(
-                task_results::generation_tool_result(expected.clone()).unwrap(),
-            )
-            .unwrap();
-            let rmcp::model::TaskPayload::Completed { result } = &projected.task.payload else {
-                panic!("completed Media Task expected");
-            };
-            assert_eq!(*result, expected_result.as_object().unwrap().clone());
+                .unwrap(),
+            Some(expected.clone())
+        );
+        let delivered = task_results::get_task(
+            &reader,
+            &caller,
+            rmcp::model::GetTaskParams::new(task.task_id.to_string()),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            delivered.task.task.status_message.as_deref(),
+            Some(task_results::GENERATION_COMPLETED)
+        );
+        let rmcp::model::TaskPayload::Completed { result } = &delivered.task.payload else {
+            panic!("completed Media Task expected");
+        };
+        assert_eq!(*result, stored.as_object().unwrap().clone());
+        for _ in 0..2 {
             let mut subscription = task_results::subscribe_tasks(
                 &reader,
                 caller.clone(),
@@ -568,18 +562,18 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
             assert_eq!(subscription.accepted_task_ids, [task.task_id.to_string()]);
             assert_eq!(
                 subscription.updates.next().await.unwrap().unwrap(),
-                projected.task
-            );
-            assert_eq!(
-                reader
-                    .get(&task.task_id.to_string())
-                    .await
-                    .unwrap()
-                    .unwrap()
-                    .result,
-                Some(stored)
+                delivered.task
             );
         }
+        assert_eq!(
+            reader
+                .get(&task.task_id.to_string())
+                .await
+                .unwrap()
+                .unwrap()
+                .result,
+            Some(stored)
+        );
         // The immutable result is an exact read; no subscription is advertised.
         let filter = rmcp::model::SubscriptionFilter::builder()
             .resource_subscriptions([expected.result_uri().as_str()])
@@ -591,7 +585,7 @@ async fn retained_generation_profiles_read_without_rewriting_task_results() {
         );
     })
     .await
-    .expect("Media retained result qualification exceeded 60 seconds");
+    .expect("Media current result qualification exceeded 60 seconds");
 }
 
 #[test]
@@ -713,6 +707,7 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
         assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err());
         assert!(reads.generation_for_task(&caller, task.task_id).await.is_err());
         for profile in [
+            json!({"prediction": expected.prediction(), "artifacts": expected.artifacts()}),
             json!({"schema":"veoveo.ai/media-generation/v2", "prediction":expected.prediction(), "artifacts": expected.artifacts()}),
             json!({"prediction": expected.prediction(), "artifacts": [], "unknown": true}),
         ] {

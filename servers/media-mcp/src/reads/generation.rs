@@ -1,6 +1,6 @@
-//! Retained generation profiles. Authorization precedes selection and decoding.
+//! Current generation results. Authorization precedes selection and decoding.
 use super::{MediaReads, VISIBLE_TASK, bind_owner, predictions::VISIBLE_PREDICTION};
-use crate::contract::{MediaGenerationResult, MediaGenerationUri, RetainedMediaGeneration};
+use crate::contract::{MediaGenerationResult, MediaGenerationUri};
 use surrealdb::types::SurrealValue;
 use veoveo_platform_store::{OpenObject, RecordId, RecordIdKey, task_record_id};
 use veoveo_task_runtime::TaskOwner;
@@ -27,7 +27,7 @@ impl MediaReads<'_> {
             .await
     }
 
-    /// The Task projection uses the same visibility and retained-profile decoder
+    /// Task delivery uses the same visibility and current result decoder
     /// as the result resource, including the current provider-job parent.
     pub async fn generation_for_task(
         &self,
@@ -89,7 +89,12 @@ fn decode(row: ResultRow) -> anyhow::Result<MediaGenerationResult> {
     };
     let task_id = TaskId::from_uuid(*id);
     let value = serde_json::Value::Object(row.result.into_map().into_iter().collect());
-    RetainedMediaGeneration::decode(task_id, value)
-        .map(RetainedMediaGeneration::into_generation)
-        .map_err(|_| anyhow::anyhow!("unsupported or inconsistent stored Media generation result; expected retained v0 or veoveo.ai/media-generation/v1"))
+    let generation: MediaGenerationResult = serde_json::from_value(value).map_err(|_| {
+        anyhow::anyhow!("stored Media generation result does not satisfy the current contract")
+    })?;
+    anyhow::ensure!(
+        generation.task_id() == task_id,
+        "stored Media generation result disagrees with its selected Task"
+    );
+    Ok(generation)
 }

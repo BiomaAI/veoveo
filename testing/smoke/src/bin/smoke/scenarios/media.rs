@@ -1,8 +1,7 @@
 use super::*;
 use veoveo_media_mcp::contract::{
-    MediaGenerationProfile, MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri,
-    MediaPredictionPage, MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
-    RetainedMediaGeneration,
+    MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri, MediaPredictionPage,
+    MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
 };
 
 pub(crate) async fn media_mcp_auth(
@@ -104,14 +103,10 @@ pub(crate) async fn media_task_run(
     conformance: &Path,
     media: &Path,
     artifact_service: &Path,
-    rollback_media: Option<&Path>,
 ) -> Result<()> {
     assert_executable(conformance)?;
     assert_executable(media)?;
     assert_executable(artifact_service)?;
-    if let Some(rollback_media) = rollback_media {
-        assert_executable(rollback_media)?;
-    }
 
     let tmpdir = smoke_tmpdir()?;
     let mut cleanup = TmpDirGuard::new(tmpdir.clone());
@@ -500,74 +495,21 @@ pub(crate) async fn media_task_run(
     not_contains(&post_run_resources, artifact_uri.as_str())?;
 
     media_child.stop();
-    if let Some(rollback_media) = rollback_media {
-        let mut rollback = spawn_media_memory_smoke(
-            rollback_media,
-            media_port,
-            &media_base,
-            &plane.platform,
-            &provider_base,
-            &plane.url,
-            &tmpdir.join("media-rollback.log"),
-        )?;
-        wait_for_http(&format!("{media_base}/media/healthz")).await?;
-        let retained: MediaGenerationResult =
-            serde_json::from_str(&read_index(result_uri.as_str())?)?;
-        if retained != generation {
-            bail!("rollback reader changed the retained v1 generation");
-        }
-        let rollback_outputs = tmpdir.join("rollback-outputs");
-        let legacy_run = run_direct_mcp(
-            conformance,
-            &mcp_url,
-            [
-                "run".into(),
-                "fake/image".into(),
-                "--input".into(),
-                r#"{"prompt":"rollback-profile"}"#.into(),
-                "--output-dir".into(),
-                rollback_outputs.as_os_str().to_os_string(),
-            ],
-            [(
-                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
-                INTERNAL_SIGNING_KEY_DER_B64.into(),
-            )],
-        )?;
-        assert_output_file(&rollback_outputs, "png")?;
-        let legacy = RetainedMediaGeneration::decode(
-            task_id_from_output(&legacy_run)?.parse()?,
-            structured_from_output(&legacy_run)?,
-        )?;
-        if legacy.profile() != MediaGenerationProfile::UnversionedV0 {
-            bail!("rollback acceptance requires a qualified v0 producer");
-        }
-        let legacy = legacy.into_generation();
-        let retained: MediaGenerationResult =
-            serde_json::from_str(&read_index(legacy.result_uri().as_str())?)?;
-        if retained != legacy {
-            bail!("rollback reader disagreed with its v0 Task output");
-        }
-        rollback.stop();
-        let mut restored = spawn_media_memory_smoke(
-            media,
-            media_port,
-            &media_base,
-            &plane.platform,
-            &provider_base,
-            &plane.url,
-            &tmpdir.join("media-restored.log"),
-        )?;
-        wait_for_http(&format!("{media_base}/media/healthz")).await?;
-        for expected in [&generation, &legacy] {
-            let retained: MediaGenerationResult =
-                serde_json::from_str(&read_index(expected.result_uri().as_str())?)?;
-            if &retained != expected {
-                bail!("forward replacement changed a retained generation profile");
-            }
-        }
-        restored.stop();
-        println!("media result rollback and forward replacement smoke ok");
+    let mut restarted = spawn_media_memory_smoke(
+        media,
+        media_port,
+        &media_base,
+        &plane.platform,
+        &provider_base,
+        &plane.url,
+        &tmpdir.join("media-restarted.log"),
+    )?;
+    wait_for_http(&format!("{media_base}/media/healthz")).await?;
+    let restored: MediaGenerationResult = serde_json::from_str(&read_index(result_uri.as_str())?)?;
+    if restored != generation {
+        bail!("Media restart changed the stored generation result");
     }
+    restarted.stop();
     provider.stop();
     cleanup.remove_on_drop();
     println!("media task run smoke ok");

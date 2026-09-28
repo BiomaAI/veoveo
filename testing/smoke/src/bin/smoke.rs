@@ -156,9 +156,6 @@ enum Cmd {
         /// Built artifact-service binary path.
         #[arg(long, default_value = "target/debug/artifact-service")]
         artifact_service_bin: PathBuf,
-        /// Qualified pre-v1 producer that already reads retained v1 result resources.
-        #[arg(long)]
-        rollback_media_bin: Option<PathBuf>,
     },
     /// Smoke-test direct hosted frame tools, tasks, artifacts, and usage.
     FramesMcp {
@@ -643,16 +640,7 @@ async fn main() -> Result<()> {
             conformance_bin,
             media_bin,
             artifact_service_bin,
-            rollback_media_bin,
-        } => {
-            media_task_run(
-                &conformance_bin,
-                &media_bin,
-                &artifact_service_bin,
-                rollback_media_bin.as_deref(),
-            )
-            .await
-        }
+        } => media_task_run(&conformance_bin, &media_bin, &artifact_service_bin).await,
         Cmd::FramesMcp {
             conformance_bin,
             frames_bin,
