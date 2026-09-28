@@ -1,4 +1,4 @@
-// Behavioral acceptance of session navigation; no rendering or GPU acceptance.
+// Behavioral acceptance of session navigation and tool results; no rendering or GPU acceptance.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -7,6 +7,7 @@ import {chromium} from 'playwright';
 const html = await readFile(new URL('../../../../servers/stream-mcp/assets/live.html', import.meta.url), 'utf8');
 const session = (number) => ({
   session_id: `00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
+  session_uri: `stream://session/00000000-0000-7000-8000-${String(number).padStart(12, '0')}`,
   pipeline_id: 'fixture', lifecycle: 'stopped',
   ingress: {host: 'fixture', port: 9001},
   video: {codec: 'avc1.42e01f', width: 640, height: 480, frame_rate: 30, expected_bitrate_bps: 1000000},
@@ -18,14 +19,20 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     const page = await browser.newPage();
     page.setDefaultTimeout(10000);
     const reads = [];
-    let started = false, holdOlder = false, releaseOlder, olderArrived;
+    let started = false, stopped = false, holdOlder = false, releaseOlder, olderArrived;
+    const current = number => ({...session(number), lifecycle: number === 108 && !stopped ? 'running' : 'stopped'});
     const olderPending = new Promise(resolve => {olderArrived = resolve;});
     await page.exposeFunction('streamFixture', async (request) => {
       if (request.method === 'ui/initialize') return {hostContext: {theme: 'dark'}};
       if (request.method === 'tools/call') {
-        assert.equal(request.params.name, 'start_live_session');
-        started = true;
-        return {structuredContent: session(108)};
+        if (request.params.name === 'start_live_session') {
+          started = true;
+          return {structuredContent: {session_id: session(108).session_id, result_uri: session(108).session_uri}};
+        }
+        assert.equal(request.params.name, 'stop_live_session');
+        assert.equal(request.params.arguments.session_id, session(108).session_id);
+        stopped = true;
+        return {structuredContent: {result_uri: session(108).session_uri, lifecycle: 'stopped'}};
       }
       assert.equal(request.method, 'resources/read');
       const uri = request.params.uri;
@@ -34,14 +41,15 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
       if (uri === 'stream://pipelines') value = [{id: 'fixture', title: 'Fixture', supports_live_input: true}];
       else if (uri === 'stream://sessions') {
         const first = started ? 108 : 107;
-        value = {sessions: Array.from({length: 100}, (_, i) => session(first - i)), limit: 100, next_cursor: 'older-page'};
+        value = {sessions: Array.from({length: 100}, (_, i) => current(first - i)), limit: 100, next_cursor: 'older-page'};
       } else if (uri === 'stream://sessions?cursor=older-page') {
         if (holdOlder) {
           holdOlder = false;
           await new Promise(resolve => {releaseOlder = resolve; olderArrived();});
         }
         value = {sessions: Array.from({length: 7}, (_, i) => session(7 - i)), limit: 100};
-      } else if (uri.endsWith('/results')) value = {frames: []};
+      } else if (uri === session(108).session_uri) value = current(108);
+      else if (uri.endsWith('/results')) value = {frames: []};
       else if (uri.endsWith('/preview')) value = {session_id: uri.split('/')[3], video: session(1).video, chunks: []};
       else throw new Error(`Unexpected read: ${uri}`);
       return {contents: [{uri, mimeType: 'application/json', text: JSON.stringify(value)}]};
@@ -91,6 +99,11 @@ test('Live Monitor navigates one bounded page and returns to the first page afte
     assert.equal(await page.locator('#page-newer').isDisabled(), true);
     assert.equal(await page.locator('#error').isVisible(), false);
     assert.equal(reads.slice(readBoundary).some(uri => uri.startsWith(`stream://session/${session(7).session_id}/`)), false, 'a stale page response must not select or read its old session');
+    assert.equal(reads.filter(uri => uri === session(108).session_uri).length, 1, 'starting must read the returned result URI');
+    await page.getByRole('button', {name: 'Stop', exact: true}).click();
+    await page.waitForFunction(() => document.querySelector('#stop').disabled && document.querySelector('#session').textContent.includes('stopped'));
+    assert.equal(reads.filter(uri => uri === session(108).session_uri).length, 2, 'stopping must read the returned result URI');
+    assert.equal(await page.locator('#error').isVisible(), false);
     await page.evaluate(() => window.postMessage({jsonrpc: '2.0', id: 'teardown', method: 'ui/resource-teardown'}, '*'));
   } finally {
     await browser.close();

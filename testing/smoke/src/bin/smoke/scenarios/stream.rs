@@ -228,6 +228,19 @@ pub(crate) async fn stream_gpu(
     };
     let output: veoveo_stream_mcp::contract::RunRecordingOutput = serde_json::from_value(task)
         .context("Stream recording run did not return its typed contract")?;
+    let results: veoveo_stream_mcp::contract::AnalysisResults = task_client
+        .read_resource(&output.result_uri().to_uri())
+        .await
+        .context("reading Stream's canonical result resource")?;
+    results
+        .validate()
+        .context("validating Stream result resource")?;
+    ensure!(
+        &results.pipeline_id == output.pipeline_uri.id()
+            && &results.model_id == output.model_uri.id()
+            && results.processed_frames == output.summary.processed_frames,
+        "Stream result resource does not match its completion product"
+    );
     let processed_frames = output.summary.processed_frames;
     ensure!(
         processed_frames > 0,

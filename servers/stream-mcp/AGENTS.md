@@ -43,6 +43,9 @@ provider-neutral.
 - A missing GPU, NVIDIA decoder, inference plugin, engine, catalog, or runner
   is a readiness or execution failure. There is no CPU inference fallback.
 - Derived replay artifacts inherit source classification and labels.
+- Every successful product has one canonical `result_uri` and one content link.
+  Current stored Task products must match their Task, pipeline and content link;
+  authorize before decoding them and return a redacted diagnostic for corruption.
 
 ## Build And Test
 
@@ -69,7 +72,7 @@ compiled for the deployment GPU.
 Contract revision: 3
 
 - C01: met
-- C02: pending — tools need the canonical top-level result_uri; current responses use domain-specific address fields
+- C02: met — each tool returns a typed canonical result_uri and one matching resource link; current Task products are validated after SQL authorization
 - C03: met
 - C04: met — run and session collections use authorized cursor pages of 100; discovery does not enumerate these records
 - C05: met

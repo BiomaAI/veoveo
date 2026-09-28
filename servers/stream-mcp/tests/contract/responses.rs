@@ -108,7 +108,7 @@ fn output_addresses_cannot_disagree() {
     );
     for (field, address) in [
         ("run_uri", format!("stream://run/{OTHER}")),
-        ("results_uri", format!("stream://run/{OTHER}/results")),
+        ("result_uri", format!("stream://run/{OTHER}/results")),
     ] {
         let mut invalid = wire.clone();
         invalid[field] = address.into();
@@ -197,9 +197,26 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
             error: None,
         },
     );
-    assert_eq!(start.session_uri(), view.session_uri());
+    assert_eq!(start.result_uri(), view.session_uri());
     assert_eq!(start.results_uri(), view.results_uri());
     assert_eq!(start.preview_uri(), view.preview_uri());
+    let stop = StopLiveSessionOutput {
+        result_uri: start.result_uri(),
+        lifecycle: LiveSessionLifecycle::Stopped,
+        received_video_frames: 10,
+        processed_frames: 10,
+        recording_output: None,
+        stopped_at: "2026-09-28T00:01:00Z".into(),
+    };
+    let stop_wire = serde_json::to_value(stop).unwrap();
+    assert_eq!(
+        stop_wire["result_uri"],
+        serde_json::to_value(start.result_uri()).unwrap()
+    );
+    assert!(serde_json::from_value::<StopLiveSessionOutput>(stop_wire.clone()).is_ok());
+    let mut missing = stop_wire;
+    missing.as_object_mut().unwrap().remove("result_uri");
+    assert!(serde_json::from_value::<StopLiveSessionOutput>(missing).is_err());
     let start_wire = serde_json::to_value(start).unwrap();
     let view_wire = serde_json::to_value(view).unwrap();
     assert_eq!(
@@ -221,7 +238,11 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
         ("preview_uri", format!("stream://session/{OTHER}/preview")),
     ] {
         let mut invalid = start_wire.clone();
-        invalid[field] = Value::String(value.clone());
+        invalid[if field == "session_uri" {
+            "result_uri"
+        } else {
+            field
+        }] = Value::String(value.clone());
         assert!(
             serde_json::from_value::<StartLiveSessionOutput>(invalid).is_err(),
             "{field}"
@@ -241,4 +262,12 @@ fn live_builders_share_one_identity_and_decoders_reject_foreign_addresses() {
         invalid[field] = value.into();
         assert!(serde_json::from_value::<LiveSessionView>(invalid).is_err());
     }
+}
+
+#[test]
+fn recording_output_requires_its_canonical_result_uri() {
+    let mut value = serde_json::to_value(output(ID, "traffic")).unwrap();
+    assert_eq!(value["result_uri"], format!("stream://run/{ID}/results"));
+    value.as_object_mut().unwrap().remove("result_uri");
+    assert!(serde_json::from_value::<RunRecordingOutput>(value).is_err());
 }

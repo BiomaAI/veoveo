@@ -44,14 +44,14 @@ impl RunRecordingOutput {
     pub fn run_id(&self) -> RunId {
         *self.run_uri.id()
     }
-    pub fn results_uri(&self) -> RunResultsUri {
+    pub fn result_uri(&self) -> RunResultsUri {
         RunResultsUri::new(self.run_id())
     }
 }
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 struct RunRecordingOutputWire {
     run_uri: RunUri,
-    results_uri: RunResultsUri,
+    result_uri: RunResultsUri,
     pipeline_uri: PipelineUri,
     model_uri: ModelUri,
     summary: AnalysisSummary,
@@ -63,7 +63,7 @@ struct RunRecordingOutputWire {
 impl TryFrom<RunRecordingOutputWire> for RunRecordingOutput {
     type Error = StreamContractError;
     fn try_from(wire: RunRecordingOutputWire) -> Result<Self, Self::Error> {
-        if wire.run_uri.id() != wire.results_uri.id() {
+        if wire.run_uri.id() != wire.result_uri.id() {
             return Err(StreamContractError::InvalidRelationship(
                 "run and results URIs",
             ));
@@ -82,7 +82,7 @@ impl TryFrom<RunRecordingOutputWire> for RunRecordingOutput {
 impl From<RunRecordingOutput> for RunRecordingOutputWire {
     fn from(view: RunRecordingOutput) -> Self {
         Self {
-            results_uri: view.results_uri(),
+            result_uri: view.result_uri(),
             run_uri: view.run_uri,
             pipeline_uri: view.pipeline_uri,
             model_uri: view.model_uri,

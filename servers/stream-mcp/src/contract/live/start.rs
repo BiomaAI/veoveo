@@ -36,7 +36,7 @@ impl StartLiveSessionOutput {
     pub fn session_id(&self) -> SessionId {
         self.session
     }
-    pub fn session_uri(&self) -> SessionUri {
+    pub fn result_uri(&self) -> SessionUri {
         SessionUri::new(self.session)
     }
     pub fn results_uri(&self) -> SessionResultsUri {
@@ -52,7 +52,7 @@ impl StartLiveSessionOutput {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 struct StartLiveSessionOutputWire {
     session_id: SessionId,
-    session_uri: SessionUri,
+    result_uri: SessionUri,
     results_uri: SessionResultsUri,
     pipeline_uri: PipelineUri,
     ingress: LiveIngressView,
@@ -65,7 +65,7 @@ struct StartLiveSessionOutputWire {
 impl TryFrom<StartLiveSessionOutputWire> for StartLiveSessionOutput {
     type Error = super::super::StreamContractError;
     fn try_from(wire: StartLiveSessionOutputWire) -> Result<Self, Self::Error> {
-        if wire.session_uri.id() != &wire.session_id
+        if wire.result_uri.id() != &wire.session_id
             || wire.results_uri.id() != &wire.session_id
             || wire.preview_uri.id() != &wire.session_id
         {
@@ -87,7 +87,7 @@ impl From<StartLiveSessionOutput> for StartLiveSessionOutputWire {
     fn from(view: StartLiveSessionOutput) -> Self {
         Self {
             session_id: view.session_id(),
-            session_uri: view.session_uri(),
+            result_uri: view.result_uri(),
             results_uri: view.results_uri(),
             preview_uri: view.preview_uri(),
             pipeline_uri: view.pipeline_uri,

@@ -1105,6 +1105,7 @@ and Artifact publication.
 | `src/contract/catalog_views.rs`, `run_view.rs`, `output.rs`, `live/start.rs`, `live/view.rs` | Stream response builders and wire admission for repeated identities, related addresses and parent-bound run products |
 | `src/bin/server/setup.rs` and `setup_tests.rs` | checked Stream MCP declarations, typed catalog descriptors and registration validation |
 | `src/bin/server/resources.rs` | typed Stream resource dispatch; run reads select the authorized Task in SQL |
+| `src/bin/server/task_results.rs`, `task_results_tests.rs` | typed tool-product handoffs and current Task result validation after SQL authorization; native cross-instance delivery and reconnect qualification |
 | `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |

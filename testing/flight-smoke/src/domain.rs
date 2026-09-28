@@ -399,6 +399,25 @@ async fn uav_sim_verify_with_visual_hold(
             "Stream replay processed no Isaac camera frames: {stream_replay}"
         );
         assert_requested_range(&stream_replay, range_start, range_end, "Stream replay")?;
+        let stream_output: veoveo_stream_mcp::contract::RunRecordingOutput =
+            serde_json::from_value(stream_replay.clone())
+                .context("decoding Stream replay completion")?;
+        let canonical_results = operator
+            .resource(
+                &stream_output.result_uri().to_string(),
+                Duration::from_secs(60),
+            )
+            .await?;
+        let typed_results: veoveo_stream_mcp::contract::AnalysisResults =
+            serde_json::from_value(canonical_results.clone())
+                .context("decoding Stream's canonical result resource")?;
+        typed_results.validate()?;
+        ensure!(
+            &typed_results.pipeline_id == stream_output.pipeline_uri.id()
+                && &typed_results.model_id == stream_output.model_uri.id()
+                && typed_results.processed_frames == stream_output.summary.processed_frames,
+            "Stream result resource does not match its completion"
+        );
         let governed_artifact_id =
             json_string(&stream_replay, "/results_artifact/artifact_id")?.to_owned();
         ensure!(
@@ -408,6 +427,10 @@ async fn uav_sim_verify_with_visual_hold(
         let stream_results =
             download_governed_json_artifact(conformance, public_base_url, &governed_artifact_id)
                 .await?;
+        ensure!(
+            stream_results == canonical_results,
+            "Stream result URI and published artifact disagree"
+        );
         assert_live_recording_snapshot(&stream_results, "Stream replay")?;
         let grounding_uri =
             json_string(&stream_replay, "/results_artifact/artifact_uri")?.to_owned();

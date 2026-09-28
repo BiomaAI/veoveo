@@ -77,8 +77,9 @@ GPU owner; their notifications use its local hub.
 
 ### Contract Compliance
 
-C02 is pending: the three tools expose domain-specific addresses and need the required
-top-level `result_uri`. C27 is pending for run-resource updates: their local notifications
+C02 tool schemas and result delivery use a canonical top-level `result_uri`.
+Installed product reads and GPU completion await reference qualification.
+C27 is pending for run-resource updates: their local notifications
 must move to the shared Task-backed resource watch. Installed Discover/list readiness
 (C31) and knowledge-source publication (C32) require the work recorded in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md). Checked setup verifies
@@ -365,6 +366,19 @@ Tools:
 - `start_live_session`
 - `stop_live_session`
 - `run_recording`
+
+Each successful tool returns one typed `result_uri` and one matching resource link
+beside a short status. Replay links to `stream://run/{run_id}/results`. Starting and
+stopping a live session link to `stream://session/{session_id}`; live results and preview
+addresses remain additional structured fields. Artifact metadata stays in structured
+content. Tool errors return no product.
+
+Task reads, completion subscriptions and synchronous replay completion authorize the
+current caller in SQL before decoding stored output. The decoder requires the current
+product shape and checks the run identity, admitted pipeline and canonical content link.
+Run resources use the same checks. Invalid stored products fail with a diagnostic that
+omits the stored payload. The tool output fields use one current format; installation
+updates coordinate the server and its consumers.
 
 Prompts:
 

@@ -21,7 +21,7 @@ pub struct StopLiveSessionRequest {
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct StopLiveSessionOutput {
-    pub session_uri: SessionUri,
+    pub result_uri: SessionUri,
     pub lifecycle: LiveSessionLifecycle,
     pub received_video_frames: u64,
     pub processed_frames: u64,

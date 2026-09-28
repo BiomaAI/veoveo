@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use veoveo_stream_mcp::contract::{ModelId, PipelineId, RunId};
 
 use anyhow::{Context, Result};
-use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use rmcp::model::CallToolResult;
 use serde::Serialize;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
@@ -111,34 +111,11 @@ pub(super) async fn publish_analysis(
             requested_start_index: products.source.clip.requested_start_index,
             requested_end_index: products.source.clip.requested_end_index,
         },
-        results_artifact.clone(),
-        annotations_artifact.clone(),
+        results_artifact,
+        annotations_artifact,
     )
-    .with_source_clip(source_clip_artifact.clone());
-    let mut blocks = vec![ContentBlock::text(format!(
-        "stream recording run completed: {} frame(s), {detection_count} detection(s)",
-        products.results.processed_frames
-    ))];
-    blocks.push(resource_link(
-        &results_artifact.artifact_uri,
-        "Stream results",
-        RESULTS_MIME_TYPE,
-    ));
-    blocks.push(resource_link(
-        &annotations_artifact.artifact_uri,
-        "Rerun annotation layer",
-        RRD_MIME_TYPE,
-    ));
-    if let Some(artifact) = &source_clip_artifact {
-        blocks.push(resource_link(
-            &artifact.artifact_uri,
-            "Stream source clip",
-            MP4_MIME_TYPE,
-        ));
-    }
-    let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(output)?);
-    Ok(result)
+    .with_source_clip(source_clip_artifact);
+    super::task_results::recording_result(output)
 }
 
 #[derive(Debug, Serialize)]
@@ -220,18 +197,6 @@ fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetad
             .collect::<Result<BTreeSet<_>, _>>()?,
         ..Default::default()
     })
-}
-
-fn resource_link(
-    uri: &veoveo_artifact_contract::ArtifactUri,
-    title: &str,
-    mime_type: &str,
-) -> ContentBlock {
-    ContentBlock::ResourceLink(
-        Resource::new(uri.to_string(), title.to_owned())
-            .with_title(title.to_owned())
-            .with_mime_type(mime_type),
-    )
 }
 
 async fn record_usage(state: &AppState, task_id: RunId, results: &AnalysisResults) -> Result<()> {

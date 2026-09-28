@@ -11,8 +11,7 @@ use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
 
-#[path = "../../../../../testing/fixtures/store.rs"]
-mod fixture;
+use crate::store_fixture as fixture;
 
 use super::*;
 
@@ -105,16 +104,34 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .snapshot;
             let artifact = uuid::Uuid::now_v7().to_string();
+            let mut output: serde_json::Value =
+                serde_json::from_str(include_str!("../../../testdata/run-output.json")).unwrap();
+            let run = veoveo_stream_mcp::contract::RunId::try_from(task.task_id).unwrap();
+            output["run_uri"] =
+                serde_json::to_value(veoveo_stream_mcp::contract::RunUri::new(run)).unwrap();
+            output["result_uri"] =
+                serde_json::to_value(veoveo_stream_mcp::contract::RunResultsUri::new(run)).unwrap();
+            output["pipeline_uri"] = "stream://pipeline/fixture".into();
+            for field in ["results_artifact", "annotations_artifact"] {
+                output[field]["artifact_id"] = artifact.clone().into();
+                output[field]["artifact_uri"] = serde_json::to_value(
+                    veoveo_stream_mcp::uris::artifact_uri(artifact.parse().unwrap()),
+                )
+                .unwrap();
+            }
+            output["source_clip_artifact"] = output["results_artifact"].clone();
+            let result = super::super::task_results::recording_result(
+                serde_json::from_value(output).unwrap(),
+            )
+            .unwrap();
             let result = veoveo_platform_store::OpenObject::new(
-                [(
-                    "structuredContent".into(),
-                    json!({
-                        "results_artifact": {"artifact_id": artifact},
-                        "annotations_artifact": {"artifact_id": artifact},
-                        "source_clip_artifact": {"artifact_id": artifact},
-                    }),
-                )]
-                .into(),
+                serde_json::to_value(result)
+                    .unwrap()
+                    .as_object()
+                    .unwrap()
+                    .clone()
+                    .into_iter()
+                    .collect(),
             );
             db.b.client()
                 .query("UPDATE ONLY $id SET result = $result;")

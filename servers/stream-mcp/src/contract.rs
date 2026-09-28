@@ -1,4 +1,3 @@
-// TODO(foundations): C02 requires one top-level result_uri in each of the three tool outputs.
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

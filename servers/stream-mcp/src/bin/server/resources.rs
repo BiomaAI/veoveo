@@ -13,7 +13,7 @@ use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
 
 use super::{
     SERVER_DOCS, app_state::AppState, index, inline_artifact, internal, internal_caller,
-    internal_identity, invalid_params, json_resource, run_output, run_view, runtime_owner,
+    internal_identity, invalid_params, json_resource, run_view, runtime_owner,
 };
 
 pub(super) async fn read(
@@ -100,7 +100,8 @@ pub(super) async fn read(
                 }
                 StreamResource::RunResults(address) => {
                     let snapshot = run_snapshot(&state.tasks, &owner, *address.id()).await?;
-                    let output = run_output(&snapshot).ok_or_else(|| {
+                    let run = run_view(&snapshot)?;
+                    let output = run.output().ok_or_else(|| {
                         McpError::resource_not_found("run results are not available", None)
                     })?;
                     let caller = internal_caller(context)?;

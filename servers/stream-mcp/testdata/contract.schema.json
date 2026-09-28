@@ -658,7 +658,7 @@
       "run_uri": {
         "type": "string"
       },
-      "results_uri": {
+      "result_uri": {
         "type": "string"
       },
       "pipeline_uri": {
@@ -689,7 +689,7 @@
     },
     "required": [
       "run_uri",
-      "results_uri",
+      "result_uri",
       "pipeline_uri",
       "model_uri",
       "summary",
@@ -1369,7 +1369,7 @@
           "run_uri": {
             "type": "string"
           },
-          "results_uri": {
+          "result_uri": {
             "type": "string"
           },
           "pipeline_uri": {
@@ -1400,7 +1400,7 @@
         },
         "required": [
           "run_uri",
-          "results_uri",
+          "result_uri",
           "pipeline_uri",
           "model_uri",
           "summary",
@@ -1871,7 +1871,7 @@
           "run_uri": {
             "type": "string"
           },
-          "results_uri": {
+          "result_uri": {
             "type": "string"
           },
           "pipeline_uri": {
@@ -1902,7 +1902,7 @@
         },
         "required": [
           "run_uri",
-          "results_uri",
+          "result_uri",
           "pipeline_uri",
           "model_uri",
           "summary",
@@ -2913,7 +2913,7 @@
       "session_id": {
         "type": "string"
       },
-      "session_uri": {
+      "result_uri": {
         "type": "string"
       },
       "results_uri": {
@@ -2947,7 +2947,7 @@
     },
     "required": [
       "session_id",
-      "session_uri",
+      "result_uri",
       "results_uri",
       "pipeline_uri",
       "ingress",
@@ -3096,7 +3096,7 @@
     "title": "StopLiveSessionOutput",
     "type": "object",
     "properties": {
-      "session_uri": {
+      "result_uri": {
         "type": "string"
       },
       "lifecycle": {
@@ -3127,7 +3127,7 @@
       }
     },
     "required": [
-      "session_uri",
+      "result_uri",
       "lifecycle",
       "received_video_frames",
       "processed_frames",

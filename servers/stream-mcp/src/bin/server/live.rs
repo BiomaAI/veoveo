@@ -781,7 +781,7 @@ fn session_view(session: &LiveSession, state: &LiveSessionState) -> LiveSessionV
 
 fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessionOutput {
     StopLiveSessionOutput {
-        session_uri: uris::session_uri(session.session_id),
+        result_uri: uris::session_uri(session.session_id),
         lifecycle: state.lifecycle,
         received_video_frames: state.received_video_frames,
         processed_frames: state.processed_frames,

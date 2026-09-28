@@ -20,8 +20,8 @@ use veoveo_stream_mcp::{
     contract::{RecordingVideoSelection, RunId, RunRecordingRequest, SamplingPolicy},
 };
 use veoveo_task_runtime::{
-    CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
-    TaskRetentionPin, TaskSnapshot, TaskTransition,
+    CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskRetentionPin, TaskSnapshot,
+    TaskTransition,
 };
 use veoveo_types::TaskId;
 
@@ -427,7 +427,7 @@ async fn run_task_inner(
         &state,
         task_id,
         TaskTransition::Succeeded {
-            message: "completed; stream artifacts available".to_owned(),
+            message: super::task_results::RUN_COMPLETED.to_owned(),
             result: payload,
         },
     )
@@ -504,39 +504,4 @@ fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
         }
     }
     Ok(())
-}
-
-pub(super) async fn completed_payload(
-    state: &AppState,
-    task_id: RunId,
-) -> Result<CallToolResult, rmcp::ErrorData> {
-    match state
-        .tasks
-        .await_payload_state(&task_id.to_string())
-        .await
-        .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?
-    {
-        TaskPayloadState::Completed(payload) => serde_json::from_value(payload).map_err(|error| {
-            rmcp::ErrorData::internal_error(
-                format!("invalid persisted stream result: {error}"),
-                None,
-            )
-        }),
-        TaskPayloadState::Failed(error) => Err(rmcp::ErrorData::internal_error(
-            error.message,
-            error.details,
-        )),
-        TaskPayloadState::Cancelled => Err(rmcp::ErrorData::invalid_request(
-            "stream task was cancelled",
-            None,
-        )),
-        TaskPayloadState::Running => Err(rmcp::ErrorData::internal_error(
-            "stream task wait ended while still running",
-            None,
-        )),
-        TaskPayloadState::Unknown => Err(rmcp::ErrorData::internal_error(
-            "stream task disappeared before completion",
-            None,
-        )),
-    }
 }

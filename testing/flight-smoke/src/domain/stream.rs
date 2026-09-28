@@ -75,6 +75,17 @@ pub(super) async fn prepare_live_stream_pipeline(
             .context("starting the recording-independent live Stream session")?,
     )
     .context("decoding the typed live Stream session")?;
+    let session: LiveSessionView = serde_json::from_value(
+        operator
+            .resource(&started.result_uri().to_string(), Duration::from_secs(60))
+            .await?,
+    )
+    .context("reading the started Stream session result")?;
+    ensure!(
+        session.session_id() == started.session_id()
+            && session.pipeline_id() == started.pipeline_id(),
+        "Stream start result resource does not match its tool output"
+    );
     acceptance_live_session(
         &started.session_id(),
         &started.results_uri(),
@@ -136,6 +147,20 @@ pub(super) async fn stop_live_stream_session(
             .with_context(|| format!("{phase}: stopping live Stream session {session_id}"))?,
     )
     .with_context(|| format!("{phase}: decoding stopped live Stream session {session_id}"))?;
+    ensure!(
+        output.result_uri.id() == session_id,
+        "Stream stop returned another session"
+    );
+    let session: LiveSessionView = serde_json::from_value(
+        operator
+            .resource(&output.result_uri.to_string(), Duration::from_secs(60))
+            .await?,
+    )
+    .context("reading the stopped Stream session result")?;
+    ensure!(
+        session.session_id() == *session_id && session.lifecycle == LiveSessionLifecycle::Stopped,
+        "Stream stop result resource does not describe the stopped session"
+    );
     ensure!(
         output.lifecycle == LiveSessionLifecycle::Stopped,
         "{phase}: live Stream session {session_id} did not stop cleanly: {output:?}"

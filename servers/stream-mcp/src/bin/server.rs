@@ -16,11 +16,11 @@ use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams,
-        CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
-        GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
-        ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents,
-        ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
+        GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
+        ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents, ServerConfig,
+        SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -35,19 +35,16 @@ use veoveo_mcp_contract::{
     ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
     public_allowed_hosts,
 };
-use veoveo_platform_store::TaskStatus;
 use veoveo_recording_reader::RecordingReader;
 use veoveo_recording_video::runtime::VideoSourceLimits;
 use veoveo_stream_mcp::{
     artifacts::ArtifactRepository,
     catalog::PipelineCatalog,
-    contract::{
-        RunId, RunRecordingOutput, RunRecordingRequest, RunView, SessionId, StreamResource,
-    },
+    contract::{RunId, RunRecordingOutput, RunRecordingRequest, SessionId, StreamResource},
     executor::StreamExecutor,
     uris,
 };
-use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig, TaskSnapshot};
+use veoveo_task_runtime::{TaskError, TaskRuntime, TaskRuntimeConfig};
 
 #[path = "server/admin.rs"]
 mod admin;
@@ -78,8 +75,13 @@ mod recording_output;
 mod resources;
 #[path = "server/setup.rs"]
 mod setup;
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod store_fixture;
 #[path = "server/task_extension.rs"]
 mod task_extension;
+#[path = "server/task_results.rs"]
+mod task_results;
 #[path = "server/tasks.rs"]
 mod tasks;
 
@@ -91,9 +93,8 @@ use live::LiveSessionManager;
 use ownership::{internal_caller, internal_identity, runtime_owner};
 use prompts::StreamPrompt;
 use task_extension::StreamTaskService;
-use tasks::{
-    SERVER_SLUG, StreamTaskInput, TaskProgress, completed_payload, resume_task, start_stream_task,
-};
+use task_results::run_view;
+use tasks::{SERVER_SLUG, StreamTaskInput, TaskProgress, resume_task, start_stream_task};
 
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -135,9 +136,11 @@ impl StreamMcp {
         Parameters(request): Parameters<RunRecordingRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
+        let identity = internal_identity(&context)?;
+        let owner = runtime_owner(&identity);
         let snapshot = start_stream_task(
             self.state.clone(),
-            internal_identity(&context)?,
+            identity,
             internal_caller(&context)?,
             StreamTaskInput::RunRecording(request),
             Some(TaskProgress {
@@ -149,7 +152,7 @@ impl StreamMcp {
         .await
         .map_err(internal)?;
         let task_id = RunId::try_from(snapshot.task_id).map_err(internal)?;
-        completed_payload(&self.state, task_id).await
+        task_results::completed_payload(&self.state.tasks, &owner, task_id).await
     }
 
     #[tool(
@@ -170,7 +173,7 @@ impl StreamMcp {
             .start(&request.pipeline_id, owner)
             .await
             .map_err(invalid_params)?;
-        structured_result(format!("started {}", output.session_uri()), &output)
+        task_results::live_started_result(output).map_err(internal)
     }
 
     #[tool(
@@ -192,7 +195,7 @@ impl StreamMcp {
             .await
             .map_err(internal)?
             .ok_or_else(|| McpError::resource_not_found("Stream session not found", None))?;
-        structured_result(format!("stopped {}", output.session_uri), &output)
+        task_results::live_stopped_result(output).map_err(internal)
     }
 }
 
@@ -484,46 +487,6 @@ impl ServerHandler for StreamMcp {
     }
 }
 
-fn run_view(snapshot: &TaskSnapshot) -> Result<RunView, McpError> {
-    let request: tasks::DurableStreamRequest =
-        serde_json::from_value(snapshot.request.clone()).map_err(internal)?;
-    let StreamTaskInput::RunRecording(input) = request.input;
-    let id = RunId::try_from(snapshot.task_id).map_err(internal)?;
-    RunView::new(
-        id,
-        input.pipeline_id,
-        veoveo_stream_mcp::contract::RunDetails {
-            status: task_status(snapshot.status).to_owned(),
-            progress: snapshot.progress,
-            recording_uri: input.video.recording_uri,
-            entity_path: input.video.entity_path,
-            timeline: input.video.timeline,
-            created_at: snapshot.created_at.to_rfc3339(),
-            updated_at: snapshot.updated_at.to_rfc3339(),
-        },
-    )
-    .with_error(snapshot.error.as_ref().map(|error| error.message.clone()))
-    .with_output(run_output(snapshot))
-    .map_err(internal)
-}
-
-fn run_output(snapshot: &TaskSnapshot) -> Option<RunRecordingOutput> {
-    let result = serde_json::from_value::<CallToolResult>(snapshot.result.clone()?).ok()?;
-    serde_json::from_value(result.structured_content?).ok()
-}
-
-fn task_status(status: TaskStatus) -> &'static str {
-    match status {
-        TaskStatus::Queued => "queued",
-        TaskStatus::Running => "running",
-        TaskStatus::Waiting => "waiting",
-        TaskStatus::Succeeded => "succeeded",
-        TaskStatus::Failed => "failed",
-        TaskStatus::CancelRequested => "cancel_requested",
-        TaskStatus::Cancelled => "cancelled",
-    }
-}
-
 fn subscribable_run_id(uri: &str) -> Result<RunId, McpError> {
     StreamResource::parse(uri)
         .ok()
@@ -549,12 +512,6 @@ fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResul
         ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
             .with_mime_type("application/json"),
     ]))
-}
-
-fn structured_result<T: Serialize>(text: String, value: &T) -> Result<CallToolResult, McpError> {
-    let mut result = CallToolResult::success(vec![ContentBlock::text(text)]);
-    result.structured_content = Some(serde_json::to_value(value).map_err(internal)?);
-    Ok(result)
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
