@@ -145,7 +145,8 @@ async fn authored_map_changes_commit_atomically_and_replay_idempotently() {
         .unwrap();
     assert!(committed.changeset.commit_sequence > 0);
     assert_eq!(committed.revisions.len(), 1);
-    map_projection::upgrade_populated_catalog(&store, committed.changeset.commit_sequence).await;
+    map_projection::current_catalog_replays_commits(&store, committed.changeset.commit_sequence)
+        .await;
     assert_eq!(
         store
             .count_map_feature_heads("tenant-map-authoring", "operations", &layer_key)
