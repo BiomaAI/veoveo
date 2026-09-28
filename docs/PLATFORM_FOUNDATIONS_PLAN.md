@@ -262,6 +262,19 @@ when the previous release cannot advance. All 53 native Time cases and eleven co
 examples pass. The separately resolved 73-package consumer passes 23 checks without
 runtime dependencies. Four expanded activation transactions pass the pinned CLI validator.
 Runtime-only and workspace Clippy pass. Installed numeric admission and rollback qualification remain pending.
+Time active-pointer reads now resolve releases in one SQL statement with tenant,
+family, key and active-state predicates. Checked pointer history and identity reject
+inconsistent visible records instead of omitting them during reload. Activation
+rechecks candidate state, pointer identity/history and previous-release relationships
+inside its transaction. Native cases cover damaged and missing links, denied release
+payloads, both authority families, and ten transactional relationship changes with
+complete rollback and a successful retry. The native Time suite passes 55 cases and
+eleven compile-fail examples. The joined read, activation and fixture statements pass
+the pinned CLI validator. Runtime-only and workspace Clippy pass. Installed parent
+admission and rollback remain pending.
+Inspection also found that cache misses choose bootstrap without reading persisted
+pointers, Store notifications do not refresh tenant engines, and activation does not
+fence the other family's preflighted pointer. These are tracked in the inventory.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -729,7 +742,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Complete broader DTO field types; qualify installed hosted behavior, retained-metadata preflight/rollback and the zone-template upgrade drain |
 | Time identity admission | Time owns both profiles: public IDs accept bounded prefixed names, including bootstrap authority references, while stored catalog keys require UUIDv7 suffixes. Persistence validates the stored profile without narrowing public provenance; Store has no Time query or draft API and owns the shared connection and migrations | Qualify installed and retained-data behavior; use the declared profiles when strengthening public metadata construction |
 | Time scalar admission | Clock policies have a checked builder and matching schema/decoder bounds; retained reads check identity, signed scalars and positive versions. Requests and persistence use positive versions or explicit absent-row guards. Native exhaustion checks preserve rows and atomically roll back activation when retirement cannot advance | Qualify installed numeric admission and the documented preflight/drain/rollback; strengthen remaining DTO construction |
-| Time remaining parent admission | Catalog body decoding checks identity and indexed metadata; lifecycle columns supply current state and versions. Active-authority reads still resolve pointers separately and can omit a missing release | Qualify pointer/release kind, tenant and lifecycle agreement in reads and activation transactions; fail on inconsistent pointers |
+| Time active-pointer admission | One SQL statement resolves each visible pointer to an active release with matching tenant, family and key. Pointer identity, history and versions are checked; activation rechecks parent and lifecycle relationships in the transaction. Native corruption, SQL payload exclusion and ten interleaved-mutation rollback cases pass | Qualify installed parent admission, retained-data preflight and rollback |
+| Time authority runtime coherence | Registry cache misses choose bootstrap without reading persisted pointers. Store notifications reach subscribers without refreshing tenant engines. Activation preflight returns no version snapshot for the other authority family | Load the persisted pair before serving an engine; refresh/invalidate engines on Store changes and gaps, reject invalid active authority, and fence both preflighted family versions during activation |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |

@@ -11,6 +11,8 @@ use surrealdb::types::{RecordId, SurrealValue};
 use veoveo_platform_store::{PlatformIdentity, PlatformStore, TenantId};
 
 mod acquisitions;
+mod activation;
+mod active;
 mod authority;
 mod calendars;
 mod clock;

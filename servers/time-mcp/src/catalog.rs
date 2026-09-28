@@ -233,25 +233,12 @@ impl TimeCatalog {
         &self,
         scope: &TimeAccessContext,
     ) -> Result<Vec<AuthorityRelease>> {
-        let pointers = self
-            .persistence
+        self.persistence
             .list_active_time_authorities(scope.identity.tenant_id)
-            .await?;
-        let mut releases = Vec::new();
-        for pointer in pointers {
-            if let Some(record) = self
-                .persistence
-                .time_authority_release(
-                    scope.identity.tenant_id,
-                    &crate::AuthorityReleaseId::new(pointer.release_key)
-                        .map_err(anyhow::Error::msg)?,
-                )
-                .await?
-            {
-                releases.push(release_from_record(record)?);
-            }
-        }
-        Ok(releases)
+            .await?
+            .into_iter()
+            .map(|active| release_from_record(active.release))
+            .collect()
     }
 
     pub async fn authority_reference(

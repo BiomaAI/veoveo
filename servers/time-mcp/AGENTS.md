@@ -72,6 +72,10 @@ leap second assumptions.
 - `src/catalog/tests/numeric.rs` qualifies clock scalar rejection, optimistic clock
   writes and exhausted versions without row mutation. Authority qualification verifies
   that retirement exhaustion rolls back both the candidate and pointer.
+- `src/persistence/active_tests.rs` qualifies joined pointer/release selection,
+  inconsistent retained records and relationship changes inside activation. Keep
+  relationship predicates in SQL and reject a visible dangling pointer. Bootstrap
+  selection during reload requires an absent pointer.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -85,7 +89,7 @@ The MCP feature associates those types through `McpServerContract`; hosted start
 discovery and scope membership consume its checked setup.
 The runtime owns typed persistence inputs, the stored UUID key profile and checked
 catalog body decoding, clock-policy admission and checked version updates. Broader
-DTO typing, pointer/parent consistency and installed qualification remain work in the
+DTO typing, authority cache coherence, preflight-pair fencing and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

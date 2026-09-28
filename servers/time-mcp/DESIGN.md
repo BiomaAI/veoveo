@@ -228,8 +228,13 @@ Activation uses two checks before publication:
 - optimistic versions for the staged release and active family pointer;
 - a full load of the prospective TZDB and leap-second pair.
 
-The SurrealDB transaction marks the candidate active, advances the family pointer,
-and retires the superseded release. The process then replaces the tenant engine and
+The SurrealDB transaction requires the candidate's stored key, tenant, family,
+staged state and expected version. Pointer replacement rechecks its tenant, family,
+current release, previous-release history and version. Retirement requires the
+selected previous release's key, tenant, family, active state and observed version.
+A failed check rolls back the candidate, pointer and retirement together. The
+transaction marks the candidate active, advances the family pointer and retires
+the superseded release. The process then replaces the tenant engine and
 notifies subscribers of `time://authorities/current`.
 
 Authority release records retain source id, source URL, SHA-256 digest, retrieval
@@ -608,8 +613,17 @@ and rollback restores that snapshot with the prior image. The disposable referen
 installation uses the foundations plan's authorized reset. Installed preflight and
 rollback qualification remain pending.
 
-Active-authority pointer/parent consistency and broader public DTO construction have
-separate work in the foundations inventory.
+`persistence/active.rs` selects tenant pointers and resolves their releases within
+one SQL statement. The release subquery applies tenant, family, key and active-state
+predicates. A visible pointer without a matching release fails the read; only an
+absent pointer permits bootstrap selection during reload. Pointer admission checks
+its physical tenant/family key, positive version, stored release-ID syntax and
+previous-release history. Catalog decoding then checks the selected release body.
+These checks leave retained records unchanged. Preflight must include both pointers
+and their referenced releases under the same upgrade and rollback procedure.
+
+Broader public DTO construction, authority cache initialization/refresh and fencing
+the preflighted pair across replicas have work in the foundations inventory.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
@@ -679,7 +693,8 @@ Examples of agent requests include:
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
-| `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission, SQL visibility and atomic activation |
+| `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission and SQL visibility |
+| `src/persistence/active.rs`, `src/persistence/activation.rs` | joined pointer/release admission and transactional activation relationship checks |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |
 | `src/registry.rs` | tenant authority caches and activation preflight |
 | `src/acquisition/` | bounded download, validation, compilation, staging, cancellation |
@@ -704,7 +719,11 @@ qualify retirement, competing pointer updates and exhaustion rollback followed b
 Numeric contract cases compare schema bounds with JSON admission, and compile-fail
 examples reject unchecked construction. Native scalar cases reject negative, zero,
 truncated and exhausted values without changing rows; competing clock replacements
-admit one writer. Store tests own schema migrations.
+admit one writer. Active-pointer cases corrupt family, identity, version, history and
+release links; raw query checks prove SQL excludes denied release payloads. Fixture
+events change pointer and previous-release fields after the candidate update, proving
+that the production transaction rechecks them and rolls back all changes. Store tests
+own schema migrations.
 Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.

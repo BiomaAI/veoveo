@@ -94,12 +94,15 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(pointer.release_key, second_key.as_str());
+        assert_eq!(pointer.release_key.as_str(), second_key.as_str());
         assert_eq!(
-            pointer.previous_release_key.as_deref(),
+            pointer
+                .previous_release_key
+                .as_ref()
+                .map(AuthorityReleaseId::as_str),
             Some(first_key.as_str())
         );
-        assert_eq!(pointer.record_version, 2);
+        assert_eq!(pointer.record_version.get(), 2);
         let left_key = AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
         let right_key =
             AuthorityReleaseId::new(format!("time-release-{}", Uuid::now_v7())).unwrap();
@@ -141,8 +144,8 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(pointer.release_key, winner.as_str());
-        assert_eq!(pointer.record_version, 3);
+        assert_eq!(pointer.release_key.as_str(), winner.as_str());
+        assert_eq!(pointer.record_version.get(), 3);
         let loser = other
             .time_authority_release(identity.tenant_id, loser)
             .await
@@ -201,8 +204,8 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(unchanged.release_key, winner.as_str());
-        assert_eq!(unchanged.record_version, 3);
+        assert_eq!(unchanged.release_key.as_str(), winner.as_str());
+        assert_eq!(unchanged.record_version.get(), 3);
         let unchanged = store
             .time_authority_release(identity.tenant_id, winner)
             .await
@@ -234,8 +237,8 @@ async fn time_authority_activation_retires_the_previous_release_atomically() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(pointer.release_key, candidate.as_str());
-        assert_eq!(pointer.record_version, 4);
+        assert_eq!(pointer.release_key.as_str(), candidate.as_str());
+        assert_eq!(pointer.record_version.get(), 4);
         let retired = store
             .time_authority_release(identity.tenant_id, winner)
             .await
