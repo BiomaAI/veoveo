@@ -106,6 +106,14 @@ checking authenticated grants. Administrative configuration accepts a validated
 `ScopeName`, allowing installation-defined names, and defaults to `TimeScope::Admin`.
 Unrelated scope names in a caller's grant set remain valid.
 
+`mcp/setup.rs` implements `McpServerContract` with `TimeScope` and `TimeResource`.
+The HTTP process validates its `McpServerSetup` before serving. MCP initialization,
+resource discovery, and domain scope membership consume that setup. Resource
+descriptors are built from typed addresses, including the Timeline App and embedded
+documents. The setup preserves App metadata and Time's reserved-expansion and query
+templates; the owning resource tests qualify their routes. Installation-defined
+administrative scopes continue through their configured `ScopeName` policy.
+
 `TimeResource` owns every resource route and implements `ResourceAddress`. Its variants
 carry the corresponding ID, version, zone key, or collection cursor. The parser uses
 the shared URI components and the builder emits one spelling for each address. Reads

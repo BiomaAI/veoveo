@@ -71,6 +71,8 @@ Contract revision: 3
 
 The library exposes the contract feature and owns its typed scopes, resource variants,
 and collection cursors. Every resource route uses the shared URI builder and parser.
+The MCP feature associates those types through `McpServerContract`; hosted startup,
+discovery and scope membership consume its checked setup.
 Store query-key typing and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 

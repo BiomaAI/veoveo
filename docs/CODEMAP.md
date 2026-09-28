@@ -417,6 +417,7 @@ even when that server is first-party.
 | `internal_auth/upload.rs` | dedicated signed upload assertions bound to the checked control-plane and Work Context |
 | `duckdb.rs` | shared DuckDB source types and safe read-function SQL fragments |
 | `docs.rs` | build-embedded server documents, once-built revision/compliance declarations, compliance parsing, and llms.txt rendering; observed capabilities come from Discover and list methods |
+| `server_contract.rs` | open MCP associations for server-owned scopes and resources; checked descriptor, document and discovery setup consumed by hosted handlers |
 | `uri.rs` | hosted-server resource URI construction and shared one-segment document URI parsing |
 | `gateway.rs` | gateway control-plane aggregate and public re-exports |
 | `gateway/ids.rs` | gateway, OAuth, and configuration newtypes, including principal display metadata, which authorization never reads; platform identity comes from `platform/types` |
@@ -883,6 +884,7 @@ admission and recovery synchronize the local worker inventory in
 |---|---|
 | `servers/time-mcp` | authority-bound time resolution and conversion, calendar expansion, timeline validation, interval algebra, clock assessment, mission epochs, and temporal events |
 | `servers/time-mcp/src/contract/`, `Cargo.toml` | public temporal types and `TimeScope`; `resource.rs` owns all resource variants and shared URI construction, while `resource/` owns typed cursors, address components, and release-only provenance; isolated `contract` feature, with `runtime` and `mcp` features for implementation |
+| `servers/time-mcp/src/mcp/setup.rs` | Time's MCP associations, typed static resource descriptors and checked setup for startup, discovery and scope membership |
 | `servers/time-mcp/src/mcp/resources.rs` | resource reads through the server's typed address contract; static documentation and App reads precede state access |
 | `servers/time-mcp/src/acquisition/` | bounded IANA TZDB and leap-second acquisition, validation, compilation, and staging |
 | `platform/store/src/time.rs`, `platform/store/src/time/collections.rs` | tenant temporal catalog, optimistic release activation, acquisition-to-release provenance lookup, SQL-scoped owner events, bounded pages and completion, requested latest epochs, and clock policy |
@@ -1215,6 +1217,7 @@ dispatch preflights and budgeted execution.
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
+| [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |
 | `testing/smoke/src/bin/smoke/scenarios/` | Rust process/deployment scenarios |

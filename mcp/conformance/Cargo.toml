@@ -44,3 +44,6 @@ url.workspace = true
 uuid.workspace = true
 veoveo-mcp-apps-extension = { path = "../apps-extension" }
 veoveo-mcp-contract.workspace = true
+
+[dev-dependencies]
+veoveo-modular-fixture-mcp = { path = "../../testing/fixtures/modular-mcp" }

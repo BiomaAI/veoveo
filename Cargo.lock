@@ -16900,6 +16900,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-modular-fixture-mcp",
  "veoveo-types",
 ]
 
@@ -17056,6 +17057,19 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-task-runtime",
+ "veoveo-types",
+]
+
+[[package]]
+name = "veoveo-modular-fixture-mcp"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "rmcp",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "veoveo-mcp-contract",
  "veoveo-types",
 ]
 

@@ -28,6 +28,7 @@ pub mod pagination;
 pub mod protocol;
 pub mod provider;
 pub mod recording_catalog;
+pub mod server_contract;
 pub mod subscriptions;
 pub mod tasks;
 pub mod telemetry;

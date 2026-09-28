@@ -20,9 +20,17 @@ This crate certifies a running MCP server through public HTTP and MCP surfaces. 
 library accepts a typed profile and credentials supplied out of band, then returns a
 typed report. The CLI reads and writes the same JSON contracts.
 
-The crate depends on shared MCP protocol and Veoveo contract infrastructure. It does
-not depend on a domain server, showcase, example, extension implementation, or client
-repository. Domain lifecycle smoke remains with the component that owns the domain.
+The hosted runner uses shared MCP protocol and Veoveo contract infrastructure without
+a compiled registry of domains. Other protocol utilities can consume server-owned
+contract features. Domain lifecycle smoke belongs to the component that owns the domain.
+
+The `modular_server` integration test hosts the independent
+[`modular-mcp` fixture](../../testing/fixtures/modular-mcp/DESIGN.md), which is a
+development dependency. The fixture owns its scopes and resource family in a library
+with an isolated contract feature. Its MCP feature implements the public setup trait.
+The test supplies a profile to this same hosted runner, then checks typed reading
+access and scope denial separately. A 60-second deadline and owned loopback listener
+bound the test. It uses synthetic credentials and requires no cluster or GPU.
 
 Repository checks discover hosted servers under `servers/*-mcp` and include the
 Python server template. Each manual declares C01–C31; a pending item states its
@@ -76,9 +84,9 @@ requirement produces a report and a non-zero CLI exit.
 Certification reads the live contract declaration and binds it to the selection and
 observation. The selected revision must equal the conformance client's supported
 revision. The declaration's numeric revision must be the numeric member of that
-revision, its server must match both the expected slug and initialized implementation,
-and its stable capability inventory must match the MCP lists according to the normative
-contract. The client follows the relative document links published in `llms.txt`;
+revision, and its server must match both the expected slug and discovered implementation.
+The declaration must mark C18–C21 met. Discover and the MCP lists supply the observed
+capabilities. The client follows the relative document links published in `llms.txt`;
 it does not synthesize document URLs from parsed identifiers.
 
 ## CLI Output

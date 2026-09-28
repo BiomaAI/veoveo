@@ -157,6 +157,7 @@ pub async fn run() -> Result<()> {
     let auth_state = InternalAuthState {
         verifier: verifier.clone(),
     };
+    std::sync::LazyLock::force(&crate::mcp::SERVER_SETUP);
     let mcp_service = StreamableHttpService::new(
         {
             let state = state.clone();

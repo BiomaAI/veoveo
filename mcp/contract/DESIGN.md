@@ -130,12 +130,24 @@ or dependency on those libraries.
 Its `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete
 addresses; gateway policy and stored audit references still accept completion templates.
-URI builder adoption, MCP-specific associations, and server
-feature isolation are implementation work in the
+Wider URI builder adoption and server feature isolation are implementation work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
-MCP-specific traits associate those types with descriptors, discovery, and hosted-server
-setup. The traits are open to external implementations. A trait implementation establishes
-API structure; hosted conformance and domain tests establish the relevant behavior.
+`server_contract::McpServerContract` associates each server's scope and resource types
+with its MCP configuration, documents, descriptors, and templates. A server implements
+this open trait in its MCP feature; its public contract feature needs only the foundational
+traits. `McpResource` builds descriptors from typed addresses, checks their parse round
+trip, and rejects metadata that changes the address.
+
+`McpServerSetup` checks implementation and document identity, required document coverage,
+resource capability, and duplicate declarations before handlers serve discovery. It
+provides sorted resources and templates and compares typed permissions against an
+authenticated grant set. An empty scope vocabulary is valid. Undeclared permissions
+fail the membership check, and unrelated grants do not invalidate the caller's set.
+Template checks establish lexical validity and uniqueness; owners qualify RFC 6570
+expansion against their resource parser. The gateway's simple policy selector is not
+used as a template parser. This setup establishes API and declaration consistency;
+hosted conformance and domain tests establish the relevant behavior. Authentication,
+resource visibility, and operation policy stay with their existing owners.
 Server contracts may use the foundation's `scope_enum!` declaration helper to generate
 their scope conversions and schemas from one set of wire spellings.
 

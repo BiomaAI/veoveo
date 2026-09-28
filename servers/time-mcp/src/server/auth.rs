@@ -5,7 +5,7 @@ use axum::{
     response::IntoResponse,
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier};
-use veoveo_types::{ScopeDefinition, ScopeName};
+use veoveo_types::ScopeName;
 
 use crate::contract::TimeScope;
 
@@ -62,8 +62,8 @@ pub(crate) fn require_scope(
     grants: &std::collections::BTreeSet<ScopeName>,
     required: TimeScope,
 ) -> Result<(), rmcp::ErrorData> {
-    grants
-        .contains(required.name())
+    crate::mcp::SERVER_SETUP
+        .has_scope(grants, required)
         .then_some(())
         .ok_or_else(|| {
             rmcp::ErrorData::invalid_request(
@@ -87,6 +87,7 @@ fn bearer_token(header: &str) -> Option<&str> {
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+    use veoveo_types::ScopeDefinition;
 
     #[test]
     fn typed_scope_admission_preserves_independent_grants_and_denials() {

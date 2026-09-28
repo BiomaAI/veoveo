@@ -55,6 +55,7 @@ members = [
     "testing/deployment-smoke",
     "testing/browser-smoke",
     "testing/flight-smoke",
+    "testing/fixtures/modular-mcp",
     "testing/smoke",
     "tools/image-build/control",
     "tools/xtask",

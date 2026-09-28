@@ -199,6 +199,17 @@ checks and verifies that reads leave stored values unchanged. Strict workspace C
 and the Frames MCP smoke pass. Cleanup removed another 3.3 GiB of superseded test
 executables while preserving libraries and build caches. Installed dynamic-reference
 acceptance and retained-data preflight remain work.
+MCP core now exposes open server associations and checked setup without a domain
+registry. Time uses the setup for startup, discovery, and typed scope membership.
+An independent fixture owns its scope and resource family in a separate library and
+passes hosted conformance plus protocol-specific access and denial checks. The native
+contract, conformance, fixture and Time suites pass 226 cases, including SQL isolation
+and App descriptor preservation; ten compile-fail examples pass. A separately resolved
+consumer passes 13 fixture and Time cases across 71 packages with no MCP, asynchronous
+runtime, database, provider or GPU dependencies. Strict workspace Clippy passes.
+Cleanup removed 6.2 GiB of superseded test executables while preserving compiler
+libraries, incremental data and the contract-only test caches. Wider server adoption
+and installed qualification remain work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -653,7 +664,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
-| Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; independent consumer implementations and compile-fail cases pass | Consume them in MCP-specific setup and qualify an independent hosted fixture |
+| Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Time consumes checked setup; the independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup across the remaining servers and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
@@ -661,7 +672,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed behavior; enforce the documented retained-data preflight and coordinated drain for relative frame-ID rejection |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
-| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them | Resolve Store query-key typing and broader DTO field types; qualify hosted behavior and the zone-template upgrade drain |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types; reads, subscriptions, catalog paging, admin queries, and recovery consume them. The MCP feature uses checked server setup for startup, discovery and scope membership | Resolve Store query-key typing and broader DTO field types; qualify installed hosted behavior and the zone-template upgrade drain |
 | Time Store identity admission | Public Time IDs accept bounded prefixed names, while persisted Store records require UUIDv7 suffixes; named bootstrap authority references also exist | Declare the named/bootstrap and stored-ID profiles, then align their types without silently rejecting valid provenance; resolve the Time-runtime-to-Store dependency cycle before exposing owned IDs in Store APIs |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
@@ -681,7 +692,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | DuckDB, Reason, Recording, Stream, Timeseries, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
-| SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely | Complete owner-local adoption and the external hosted fixture |
+| SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 
 The initial extraction preserves `ResourceUri`'s current opaque lexical profile and
 wire strings. Concrete validation is a separate step through `ResourceUriParts`, also
@@ -696,8 +707,8 @@ Foundation tests cover wire strings, schema descriptions, lexical rejection, ind
 trait implementations, and compile-fail examples. A separately resolved consumer builds
 without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,
 policy, and gateway library suites pass, as does strict workspace Clippy across all
-targets and features. These checks qualify the extraction. Remaining server contract-only features,
-MCP-specific traits, and repository-wide builder adoption are pending.
+targets and features. These checks qualify the extraction. Remaining server contract-only
+features, broader checked-setup adoption, and repository-wide builders are pending.
 Time's independent consumer passes its public-contract tests with only the Time
 library, foundational types and URI libraries, serialization/schema support, and Chrono's
 date/time types. The resolved graph excludes the clock feature as well as server, database,

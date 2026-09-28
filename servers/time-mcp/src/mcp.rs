@@ -9,9 +9,8 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, ContentBlock,
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
-        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents,
+        ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -36,6 +35,8 @@ use crate::{
 };
 
 mod resources;
+mod setup;
+pub(crate) use setup::SERVER_SETUP;
 
 const LIST_PAGE_SIZE: usize = 100;
 
@@ -299,7 +300,7 @@ impl ServerHandler for TimeMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        server_info()
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -391,15 +392,11 @@ impl ServerHandler for TimeMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         require_scope(&context, TimeScope::Read)?;
-        let mut resources = root_resources();
-        resources.push(
-            veoveo_mcp_apps_extension::app_resource(uris::TIMELINE_APP_URI, "timeline")
-                .with_title("Timeline")
-                .with_description(
-                    "Authoritative time, operational calendars, epochs, and temporal events.",
-                ),
-        );
-        resources.sort_by(|left, right| left.uri.cmp(&right.uri));
+        let resources = SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor().clone())
+            .collect();
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
@@ -416,7 +413,7 @@ impl ServerHandler for TimeMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(SERVER_SETUP.resource_templates().to_vec(), request.as_ref())?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -612,26 +609,6 @@ impl ServerHandler for TimeMcp {
     }
 }
 
-fn server_info() -> ServerConfig {
-    let mut capabilities = ServerCapabilities::builder()
-        .enable_tools()
-        .enable_prompts()
-        .enable_resources()
-        .enable_resources_subscribe()
-        .enable_completions()
-        .build();
-    veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-    capabilities.extensions.get_or_insert_default().insert(
-        rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-        rmcp::model::JsonObject::new(),
-    );
-    let mut info = ServerConfig::default();
-    info.capabilities = capabilities;
-    info.server_info = rmcp::model::Implementation::new("time", env!("CARGO_PKG_VERSION"));
-    info.instructions = Some("Time interpretation and scheduling for agents. Resolve civil, military, GNSS, Unix, TAI, and mission-relative times against versioned TZDB and leap-second releases. Call `expand_schedule` and `validate_timeline` as MCP Tasks. When you pass a time to Map or Optimization, pass the resolved TimeInstant with its uncertainty, not a plain string.".to_owned());
-    info
-}
-
 fn internal_identity(
     context: &RequestContext<RoleServer>,
 ) -> Result<GatewayInternalIdentity, McpError> {
@@ -677,122 +654,6 @@ fn internal(error: impl std::fmt::Display) -> McpError {
 }
 fn not_found(kind: &str) -> McpError {
     McpError::resource_not_found(format!("unknown {kind}"), None)
-}
-fn descriptor(uri: String, title: String, description: &str) -> Resource {
-    Resource::new(uri, title.clone())
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
-}
-fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
-    ResourceTemplate::new(uri, title)
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
-}
-fn root_resources() -> Vec<Resource> {
-    let mut resources = well_known_resources();
-    resources.extend(
-        [
-            (uris::CLOCK_CURRENT_URI, "Current authoritative time"),
-            (uris::CLOCK_QUALITY_URI, "Clock quality"),
-            (uris::AUTHORITIES_CURRENT_URI, "Active time authorities"),
-            (uris::CALENDARS_URI, "Operational calendars"),
-            (uris::EPOCHS_URI, "Mission epochs"),
-            (uris::EVENTS_URI, "Temporal events"),
-        ]
-        .into_iter()
-        .map(|(uri, title)| {
-            descriptor(
-                uri.to_owned(),
-                title.to_owned(),
-                "Authorized Time domain resource.",
-            )
-        }),
-    );
-    resources
-}
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authorized identity and `stable_resource_uris` declares
-/// them in the `time://contract` capability inventory, so the two cannot
-/// diverge.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![descriptor(
-        uris::DOCS_URI.to_owned(),
-        "Server documents".to_owned(),
-        "Index of the crate documents embedded at build time.",
-    )];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(
-                crate::contract::TimeResource::Document(
-                    crate::contract::TimeDocument::parse(doc.id).expect("declared Time document"),
-                )
-                .to_string(),
-                doc.title,
-            )
-            .with_title(doc.title)
-            .with_description("Crate document embedded at build time.")
-            .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(descriptor(
-        uris::CONTRACT_URI.to_owned(),
-        "Contract declaration".to_owned(),
-        "Machine-readable contract revision, compliance, and capability inventory.",
-    ));
-    resources
-}
-/// Every advertised resource template. `list_resource_templates` serves this
-/// list and the `time://contract` capability inventory declares it, so the
-/// two cannot diverge.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        template(
-            uris::CALENDARS_TEMPLATE,
-            "Calendar page",
-            "A page of 100 calendar versions.",
-        ),
-        template(
-            uris::EPOCHS_TEMPLATE,
-            "Epoch page",
-            "A page of 100 mission epoch versions.",
-        ),
-        template(
-            uris::EVENTS_TEMPLATE,
-            "Event page",
-            "A page of 100 owner-scoped events.",
-        ),
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        template(
-            uris::ZONE_TEMPLATE,
-            "IANA time zone",
-            "Zone interpretation under active TZDB.",
-        ),
-        template(
-            uris::AUTHORITY_RELEASE_TEMPLATE,
-            "Time authority release",
-            "Immutable compiler-ready authority provenance.",
-        ),
-        template(
-            uris::CALENDAR_TEMPLATE,
-            "Operational calendar",
-            "Versioned operational calendar.",
-        ),
-        template(
-            uris::EPOCH_TEMPLATE,
-            "Mission epoch",
-            "Versioned mission epoch.",
-        ),
-        template(
-            uris::EVENT_TEMPLATE,
-            "Temporal event",
-            "Owner-scoped temporal event.",
-        ),
-    ]
 }
 // Public Time completion-template v1 adapter. Its support window and retirement
 // gate are declared in Time's DESIGN.md; both spellings reach the same handler.
@@ -840,7 +701,11 @@ mod tests {
     fn advertised_resources_and_simple_templates_agree_with_typed_addresses() {
         use crate::contract::TimeResource;
         use veoveo_types::{ResourceAddress, ResourceUri};
-        for resource in root_resources() {
+        for resource in SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor())
+        {
             let address = TimeResource::parse(&resource.uri).unwrap();
             assert_eq!(address.to_uri().unwrap().as_str(), resource.uri);
         }
@@ -877,13 +742,22 @@ mod tests {
 
     #[test]
     fn discovery_uses_static_roots_and_templates_without_list_change_notifications() {
-        let capabilities = server_info().capabilities.resources.unwrap();
+        let capabilities = SERVER_SETUP
+            .server_config()
+            .capabilities
+            .resources
+            .as_ref()
+            .unwrap();
         assert!(!capabilities.list_changed.unwrap_or(false));
-        let roots = root_resources();
+        let roots: Vec<_> = SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|resource| resource.descriptor())
+            .collect();
         for root in [uris::CALENDARS_URI, uris::EPOCHS_URI, uris::EVENTS_URI] {
             assert!(roots.iter().any(|resource| resource.uri == root));
         }
-        let templates = resource_templates();
+        let templates = SERVER_SETUP.resource_templates();
         for template in [
             uris::CALENDARS_TEMPLATE,
             uris::EPOCHS_TEMPLATE,
@@ -900,6 +774,29 @@ mod tests {
     #[test]
     fn tool_input_schemas_use_the_canonical_profile() {
         assert!(!TimeMcp::tool_router().list_all().is_empty());
+    }
+
+    #[test]
+    fn checked_setup_preserves_timeline_app_discovery_metadata() {
+        let resource = SERVER_SETUP
+            .resources()
+            .iter()
+            .find(|resource| resource.address() == &crate::contract::TimeResource::TimelineApp)
+            .expect("Timeline App is advertised")
+            .descriptor();
+        assert_eq!(resource.uri, uris::TIMELINE_APP_URI);
+        assert_eq!(resource.name, "timeline");
+        assert_eq!(resource.title.as_deref(), Some("Timeline"));
+        assert_eq!(
+            resource.mime_type.as_deref(),
+            Some(veoveo_mcp_apps_extension::APP_MIME_TYPE)
+        );
+        assert!(
+            resource
+                .meta
+                .as_ref()
+                .is_some_and(|meta| meta.0.contains_key(veoveo_mcp_apps_extension::UI_META_KEY))
+        );
     }
 }
 
