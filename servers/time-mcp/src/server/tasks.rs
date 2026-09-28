@@ -295,7 +295,7 @@ async fn run_time_task_inner(
         match request {
             TimeTaskRequest::ExpandSchedule(request) => tool_result(
                 "expanded operational schedule",
-                &state.engine(&scope).await.expand_schedule(&request)?,
+                &state.engine(&scope).await?.expand_schedule(&request)?,
             ),
             TimeTaskRequest::ValidateTimeline(request) => tool_result(
                 "validated mission timeline",

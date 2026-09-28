@@ -141,21 +141,17 @@ impl TimeMcp {
                     .events_page(&scope, after.as_ref(), None)
                     .await
                     .map_err(crate::index::query_error)?;
-                for event in &page.items {
-                    self.state
-                        .schedule_event(scope.clone(), event.clone())
-                        .await
-                        .map_err(internal)?;
-                }
+                self.state
+                    .schedule_events(scope.clone(), page.items.clone())
+                    .await
+                    .map_err(internal)?;
                 json_resource(uri, &page)
             }
             TimeResource::AuthorityRelease(release_id) => {
-                let engine = self.state.authorities.authority_engine(&scope).await;
-                let effective = &engine.authority().effective;
-                let reference = if &effective.tzdb.release_id == release_id {
-                    effective.tzdb.clone()
-                } else if &effective.leap_seconds.release_id == release_id {
-                    effective.leap_seconds.clone()
+                let reference = if let Some(reference) =
+                    self.state.authorities.bootstrap_reference(release_id)
+                {
+                    reference
                 } else {
                     let release = self
                         .state
@@ -173,7 +169,7 @@ impl TimeMcp {
                 json_resource(uri, &reference)
             }
             TimeResource::Zone(zone_id) => {
-                let engine = self.state.authorities.authority_engine(&scope).await;
+                let engine = self.state.engine(&scope).await.map_err(internal)?;
                 let now = engine
                     .resolve(&ResolveTimeRequest {
                         expression: crate::contract::TimeExpression::Rfc3339 {
@@ -232,7 +228,7 @@ impl TimeMcp {
                 json_resource(uri, &self.state.clock.quality().await.map_err(internal)?)
             }
             TimeResource::ClockCurrent => {
-                let engine = self.state.authorities.authority_engine(&scope).await;
+                let engine = self.state.engine(&scope).await.map_err(internal)?;
                 let quality = self.state.clock.quality().await.map_err(internal)?;
                 let policy = self
                     .state
@@ -256,7 +252,7 @@ impl TimeMcp {
                 )
             }
             TimeResource::AuthoritiesCurrent => {
-                let engine = self.state.authorities.authority_engine(&scope).await;
+                let engine = self.state.engine(&scope).await.map_err(internal)?;
                 json_resource(uri, &engine.authority().effective)
             }
             TimeResource::Docs

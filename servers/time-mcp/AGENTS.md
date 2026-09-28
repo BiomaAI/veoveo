@@ -76,6 +76,11 @@ leap second assumptions.
   inconsistent retained records and relationship changes inside activation. Keep
   relationship predicates in SQL and reject a visible dangling pointer. Bootstrap
   selection during reload requires an absent pointer.
+- `src/registry/tests.rs` uses Linux `/usr/share/zoneinfo/UTC`, owned temporary files
+  and the shared isolated database fixture. Engine requests validate the active pair
+  and provenance before cache reuse. Each returned engine owns its epoch map. Cache
+  eviction follows every Store invalidation; delivery never substitutes for a read.
+  Authority loading and preflight each have a 30-second deadline.
 - The optional ntpd-rs observation socket is a deployment concern; unit tests
   use bounded fake observations.
 
@@ -89,7 +94,7 @@ The MCP feature associates those types through `McpServerContract`; hosted start
 discovery and scope membership consume its checked setup.
 The runtime owns typed persistence inputs, the stored UUID key profile and checked
 catalog body decoding, clock-policy admission and checked version updates. Broader
-DTO typing, authority cache coherence, preflight-pair fencing and installed qualification remain work in the
+DTO typing, preflight-pair fencing and installed qualification remain work in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met

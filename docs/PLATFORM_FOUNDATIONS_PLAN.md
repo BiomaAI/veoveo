@@ -272,9 +272,16 @@ complete rollback and a successful retry. The native Time suite passes 55 cases 
 eleven compile-fail examples. The joined read, activation and fixture statements pass
 the pinned CLI validator. Runtime-only and workspace Clippy pass. Installed parent
 admission and rollback remain pending.
-Inspection also found that cache misses choose bootstrap without reading persisted
-pointers, Store notifications do not refresh tenant engines, and activation does not
-fence the other family's preflighted pointer. These are tracked in the inventory.
+Time tenant engines now read the stored pair and producing provenance before cache
+reuse. Cache keys carry the typed Store tenant; each request receives a separate epoch
+map. Store signals evict contexts, and requests refresh even when notification delivery
+is disconnected. Native cases cover a fresh replica, both families, tenant isolation,
+cache reuse, damaged metadata/provenance, file-load failure and recovery, and native
+LIVE/reconciliation. Exact release metadata reads remain available independently of
+engine loading. Event-page recovery shares one validated engine across new watchers;
+existing and terminal events skip authority loading. Watcher keys retain typed tenant
+and event IDs. All 58 native Time cases and eleven compile-fail examples pass.
+Runtime-only and workspace Clippy pass. Installed restart/replica qualification and cross-family preflight fencing remain work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -743,7 +750,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Time identity admission | Time owns both profiles: public IDs accept bounded prefixed names, including bootstrap authority references, while stored catalog keys require UUIDv7 suffixes. Persistence validates the stored profile without narrowing public provenance; Store has no Time query or draft API and owns the shared connection and migrations | Qualify installed and retained-data behavior; use the declared profiles when strengthening public metadata construction |
 | Time scalar admission | Clock policies have a checked builder and matching schema/decoder bounds; retained reads check identity, signed scalars and positive versions. Requests and persistence use positive versions or explicit absent-row guards. Native exhaustion checks preserve rows and atomically roll back activation when retirement cannot advance | Qualify installed numeric admission and the documented preflight/drain/rollback; strengthen remaining DTO construction |
 | Time active-pointer admission | One SQL statement resolves each visible pointer to an active release with matching tenant, family and key. Pointer identity, history and versions are checked; activation rechecks parent and lifecycle relationships in the transaction. Native corruption, SQL payload exclusion and ten interleaved-mutation rollback cases pass | Qualify installed parent admission, retained-data preflight and rollback |
-| Time authority runtime coherence | Registry cache misses choose bootstrap without reading persisted pointers. Store notifications reach subscribers without refreshing tenant engines. Activation preflight returns no version snapshot for the other authority family | Load the persisted pair before serving an engine; refresh/invalidate engines on Store changes and gaps, reject invalid active authority, and fence both preflighted family versions during activation |
+| Time authority contexts | Each engine request validates the joined active selection and provenance before reusing loaded files. Cache keys use the Store tenant type, engine epoch maps are independent, Store signals evict contexts and failures remove cached values. Native restart, isolation, disconnected-observation, provenance and file-recovery cases pass | Qualify installed restart/replica behavior and the declared coordinated upgrade |
+| Time activation preflight | The registry loads the prospective pair under a 30-second deadline, but returns no version snapshot for the other authority family | Bind activation to the preflighted pair and qualify concurrent changes across families without write skew |
 | Digest wire profiles | Shared provenance uses the foundational `sha256:` form; View's existing public contract uses bare hexadecimal text | Qualify published representations before consolidating validation or introducing explicit domain wire adapters |
 | Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |

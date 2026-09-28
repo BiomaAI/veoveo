@@ -106,6 +106,7 @@ impl TimeMcp {
             .state
             .engine(&scope)
             .await
+            .map_err(internal)?
             .convert(&request)
             .map_err(invalid_params)?;
         structured_result("converted authority-bound time".to_owned(), &output)
@@ -128,6 +129,7 @@ impl TimeMcp {
             .state
             .engine(&scope)
             .await
+            .map_err(internal)?
             .evaluate_windows(&request)
             .map_err(invalid_params)?;
         structured_result(
@@ -211,7 +213,7 @@ impl TimeMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_scope(&context, TimeScope::EventWrite)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let engine = self.state.engine(&scope).await;
+        let engine = self.state.engine(&scope).await.map_err(internal)?;
         engine
             .convert(&ConvertTimeRequest {
                 instant: request.due.clone(),
@@ -534,9 +536,9 @@ impl ServerHandler for TimeMcp {
             }
             (uris::ZONE_TEMPLATE, "zone_id") => self
                 .state
-                .authorities
-                .authority_engine(&scope)
+                .engine(&scope)
                 .await
+                .map_err(internal)?
                 .authority()
                 .tzdb
                 .available()

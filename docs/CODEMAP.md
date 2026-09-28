@@ -897,6 +897,7 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/contract/clock_policy.rs`, `servers/time-mcp/src/contract/version.rs` | checked policy construction and schemas, positive versions and optional-row write guards |
 | `servers/time-mcp/src/catalog/clock.rs` | stored clock-policy identity, scalar and version admission |
 | `servers/time-mcp/src/catalog/records.rs` | checked retained identity, version and indexed metadata decoding; lifecycle-column authority and redacted body diagnostics |
+| `servers/time-mcp/src/registry.rs`, `servers/time-mcp/src/registry/tests.rs` | request-validated tenant authority contexts, cache eviction, isolated epoch maps and replica/file-load qualification |
 | `servers/time-mcp/src/persistence/active.rs`, `servers/time-mcp/src/persistence/activation.rs` | joined active-pointer/release admission and transactional lifecycle/parent checks |
 | `servers/time-mcp/src/persistence/` | private temporal driver records, typed IDs/versions/cursors through query and mutation admission, SQL visibility and atomic authority activation; shared Store owns the connection and migrations |
 

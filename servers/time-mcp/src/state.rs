@@ -17,6 +17,14 @@ use crate::{
     registry::AuthorityRegistry,
 };
 
+type EventWatchers = BTreeMap<
+    (
+        veoveo_platform_store::TenantId,
+        crate::contract::TemporalEventId,
+    ),
+    tokio_util::sync::CancellationToken,
+>;
+
 #[derive(Clone)]
 pub struct TimeApplication {
     pub tasks: TaskRuntime,
@@ -26,8 +34,7 @@ pub struct TimeApplication {
     pub acquisitions: Arc<AcquisitionService>,
     pub subscriptions: Arc<SubscriptionHub>,
     pub activation: Arc<tokio::sync::Mutex<()>>,
-    pub event_watchers:
-        Arc<tokio::sync::Mutex<BTreeMap<String, tokio_util::sync::CancellationToken>>>,
+    pub event_watchers: Arc<tokio::sync::Mutex<EventWatchers>>,
 }
 
 impl TimeApplication {
@@ -75,8 +82,10 @@ impl TimeApplication {
         Ok(TimeAccessContext { identity })
     }
 
-    pub async fn engine(&self, scope: &TimeAccessContext) -> TemporalEngine {
-        self.authorities.authority_engine(scope).await
+    pub async fn engine(&self, scope: &TimeAccessContext) -> Result<TemporalEngine> {
+        self.authorities
+            .authority_engine(&self.catalog, scope)
+            .await
     }
 
     pub async fn engine_for_expressions<'a>(
@@ -95,7 +104,7 @@ impl TimeApplication {
             }
         }
         let keys: Vec<_> = keys.into_iter().collect();
-        let engine = self.engine(scope).await.fork();
+        let engine = self.engine(scope).await?;
         let epochs = tokio::time::timeout(
             Duration::from_secs(30),
             self.catalog.epochs_for_keys(scope, &keys),
@@ -117,9 +126,7 @@ impl TimeApplication {
                         Some(crate::contract::TemporalEventState::Scheduled),
                     )
                     .await?;
-                for event in page.items {
-                    self.schedule_event(scope.clone(), event).await?;
-                }
+                self.schedule_events(scope.clone(), page.items).await?;
                 after = page.next_cursor;
                 if after.is_none() {
                     return Ok::<(), anyhow::Error>(());
@@ -135,10 +142,42 @@ impl TimeApplication {
         scope: TimeAccessContext,
         event: crate::contract::TemporalEvent,
     ) -> Result<()> {
-        if event.state != crate::contract::TemporalEventState::Scheduled {
+        self.schedule_events(scope, [event]).await
+    }
+
+    /// A page of events shares one request-validated authority context.
+    pub async fn schedule_events(
+        self: &Arc<Self>,
+        scope: TimeAccessContext,
+        events: impl IntoIterator<Item = crate::contract::TemporalEvent>,
+    ) -> Result<()> {
+        let mut pending: Vec<_> = events
+            .into_iter()
+            .filter(|event| event.state == crate::contract::TemporalEventState::Scheduled)
+            .collect();
+        {
+            let watchers = self.event_watchers.lock().await;
+            pending.retain(|event| {
+                !watchers.contains_key(&(scope.identity.tenant_id, event.event_id.clone()))
+            });
+        }
+        if pending.is_empty() {
             return Ok(());
         }
-        let engine = self.authorities.authority_engine(&scope).await;
+        let engine = self.engine(&scope).await?;
+        for event in pending {
+            self.schedule_with_engine(scope.clone(), event, &engine)
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn schedule_with_engine(
+        self: &Arc<Self>,
+        scope: TimeAccessContext,
+        event: crate::contract::TemporalEvent,
+        engine: &TemporalEngine,
+    ) -> Result<()> {
         let now = engine
             .resolve(&crate::contract::ResolveTimeRequest {
                 expression: crate::contract::TimeExpression::Rfc3339 {
@@ -153,7 +192,7 @@ impl TimeApplication {
         } else {
             Duration::from_nanos(u64::try_from(delta.min(i128::from(u64::MAX))).unwrap_or(u64::MAX))
         };
-        let watcher_key = format!("{}:{}", scope.tenant_key(), event.event_id);
+        let watcher_key = (scope.identity.tenant_id, event.event_id.clone());
         let cancellation = tokio_util::sync::CancellationToken::new();
         {
             let mut watchers = self.event_watchers.lock().await;
@@ -197,7 +236,7 @@ impl TimeApplication {
         scope: &TimeAccessContext,
         event_id: &crate::contract::TemporalEventId,
     ) {
-        let key = format!("{}:{event_id}", scope.tenant_key());
+        let key = (scope.identity.tenant_id, event_id.clone());
         if let Some(cancellation) = self.event_watchers.lock().await.remove(&key) {
             cancellation.cancel();
         }

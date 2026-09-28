@@ -148,6 +148,7 @@ pub async fn run() -> Result<()> {
             TimeClockPolicy,
         ]);
         while changes.next().await.is_some() {
+            resource_state.authorities.invalidate().await;
             resource_state
                 .subscriptions
                 .notify_resource_contents_changed()

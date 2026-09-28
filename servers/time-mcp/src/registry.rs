@@ -1,21 +1,87 @@
-use std::{collections::BTreeMap, path::PathBuf, sync::Arc};
+use std::{collections::BTreeMap, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use tokio::sync::RwLock;
+use veoveo_platform_store::TenantId;
 
 use crate::{
     authority::{AuthorityContext, LeapSecondTable},
     catalog::{TimeAccessContext, TimeCatalog},
-    contract::{AuthorityDatasetKind, AuthorityReleaseId, EffectiveTimeAuthority},
+    contract::{
+        AuthorityDatasetKind, AuthorityRelease, AuthorityReleaseId, EffectiveTimeAuthority,
+        TimeAuthorityReference,
+    },
     engine::TemporalEngine,
 };
+
+#[cfg(test)]
+mod tests;
+
+const AUTHORITY_LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone)]
 pub struct AuthorityRegistry {
     bootstrap: AuthorityContext,
     bootstrap_tzdb: PathBuf,
     bootstrap_leaps: PathBuf,
-    tenants: Arc<RwLock<BTreeMap<String, TemporalEngine>>>,
+    cache: Arc<RwLock<AuthorityCache>>,
+}
+
+#[derive(Default)]
+struct AuthorityCache {
+    // An invalidation replaces the token. A loader started before it may finish
+    // its request, but cannot repopulate the invalidated cache.
+    generation: Arc<()>,
+    tenants: BTreeMap<TenantId, CachedAuthority>,
+}
+
+struct CachedAuthority {
+    selection: AuthoritySelection,
+    authority: AuthorityContext,
+}
+
+#[derive(Default)]
+struct AuthorityPair {
+    tzdb: Option<AuthorityRelease>,
+    leap_seconds: Option<AuthorityRelease>,
+}
+
+impl AuthorityPair {
+    fn from_releases(releases: Vec<AuthorityRelease>) -> Result<Self> {
+        let mut pair = Self::default();
+        for release in releases {
+            if pair.replace(release).is_some() {
+                bail!("active authority contains more than one release for a family");
+            }
+        }
+        Ok(pair)
+    }
+
+    fn replace(&mut self, release: AuthorityRelease) -> Option<AuthorityRelease> {
+        match release.dataset_kind {
+            AuthorityDatasetKind::Tzdb => self.tzdb.replace(release),
+            AuthorityDatasetKind::LeapSeconds => self.leap_seconds.replace(release),
+        }
+    }
+}
+
+/// All inputs that affect the loaded context, including acquisition provenance.
+#[derive(Clone, PartialEq, Eq)]
+struct AuthoritySelection {
+    effective: EffectiveTimeAuthority,
+    tzdb_path: PathBuf,
+    leap_path: PathBuf,
+}
+
+impl AuthoritySelection {
+    async fn load(&self) -> Result<AuthorityContext> {
+        let leaps = LeapSecondTable::from_path(&self.leap_path).await?;
+        let effective = self.effective.clone();
+        let tzdb = self.tzdb_path.clone();
+        tokio::task::spawn_blocking(move || AuthorityContext::from_paths(effective, tzdb, leaps))
+            .await
+            .context("loading temporal authority files")?
+    }
 }
 
 impl AuthorityRegistry {
@@ -28,23 +94,70 @@ impl AuthorityRegistry {
             bootstrap,
             bootstrap_tzdb,
             bootstrap_leaps,
-            tenants: Arc::new(RwLock::new(BTreeMap::new())),
+            cache: Arc::default(),
         }
     }
 
-    /// Authority-only operations do not materialize the mission epoch catalog.
-    pub async fn authority_engine(&self, scope: &TimeAccessContext) -> TemporalEngine {
-        let key = scope.tenant_key();
-        if let Some(engine) = self.tenants.read().await.get(&key).cloned() {
-            engine
-        } else {
-            let engine = TemporalEngine::new(self.bootstrap.clone());
-            self.tenants
-                .write()
+    /// Each request validates the current catalog selection before cache reuse.
+    /// Returned engines have separate mission-epoch state.
+    pub async fn authority_engine(
+        &self,
+        catalog: &TimeCatalog,
+        scope: &TimeAccessContext,
+    ) -> Result<TemporalEngine> {
+        let result =
+            tokio::time::timeout(AUTHORITY_LOAD_TIMEOUT, self.engine_inner(catalog, scope))
                 .await
-                .insert(key.clone(), engine.clone());
-            engine
+                .map_err(|_| anyhow::anyhow!("loading temporal authority exceeded 30 seconds"))
+                .and_then(|result| result);
+        if result.is_err() {
+            self.invalidate_tenant(scope.identity.tenant_id).await;
         }
+        result
+    }
+
+    async fn engine_inner(
+        &self,
+        catalog: &TimeCatalog,
+        scope: &TimeAccessContext,
+    ) -> Result<TemporalEngine> {
+        let generation = self.cache.read().await.generation.clone();
+        let pair = AuthorityPair::from_releases(catalog.active_releases(scope).await?)?;
+        let selection = self.selection(catalog, scope, pair).await?;
+        let tenant = scope.identity.tenant_id;
+        if let Some(cached) = self.cache.read().await.tenants.get(&tenant)
+            && cached.selection == selection
+        {
+            return Ok(TemporalEngine::new(cached.authority.clone()));
+        }
+        let authority = selection
+            .load()
+            .await
+            .context("loading activated temporal authority")?;
+        let engine = TemporalEngine::new(authority.clone());
+        let mut cache = self.cache.write().await;
+        if Arc::ptr_eq(&generation, &cache.generation) {
+            cache.tenants.insert(
+                tenant,
+                CachedAuthority {
+                    selection,
+                    authority,
+                },
+            );
+        }
+        Ok(engine)
+    }
+
+    /// Shared LIVE/reconciliation signals carry no tenant identity; evict the
+    /// process cache. Requests still validate catalog state while delivery lags.
+    pub async fn invalidate(&self) {
+        *self.cache.write().await = AuthorityCache::default();
+    }
+
+    async fn invalidate_tenant(&self, tenant: TenantId) {
+        let mut cache = self.cache.write().await;
+        cache.tenants.remove(&tenant);
+        cache.generation = Arc::default();
     }
 
     pub async fn reload(
@@ -52,110 +165,66 @@ impl AuthorityRegistry {
         catalog: &TimeCatalog,
         scope: &TimeAccessContext,
     ) -> Result<TemporalEngine> {
-        let active = catalog.active_releases(scope).await?;
-        let tzdb_release = active
-            .iter()
-            .find(|release| release.dataset_kind == AuthorityDatasetKind::Tzdb);
-        let leap_release = active
-            .iter()
-            .find(|release| release.dataset_kind == AuthorityDatasetKind::LeapSeconds);
-        let tzdb_path = tzdb_release.map_or(self.bootstrap_tzdb.as_path(), |release| {
-            std::path::Path::new(&release.artifact_path)
-        });
-        let leap_path = leap_release.map_or(self.bootstrap_leaps.as_path(), |release| {
-            std::path::Path::new(&release.artifact_path)
-        });
-        let leaps = LeapSecondTable::from_path(leap_path).await?;
-        let authority = AuthorityContext::from_paths(
-            EffectiveTimeAuthority {
-                tzdb: match tzdb_release {
-                    Some(release) => catalog.authority_reference(scope, release).await?,
+        self.invalidate_tenant(scope.identity.tenant_id).await;
+        self.authority_engine(catalog, scope).await
+    }
+
+    async fn selection(
+        &self,
+        catalog: &TimeCatalog,
+        scope: &TimeAccessContext,
+        pair: AuthorityPair,
+    ) -> Result<AuthoritySelection> {
+        Ok(AuthoritySelection {
+            tzdb_path: pair.tzdb.as_ref().map_or_else(
+                || self.bootstrap_tzdb.clone(),
+                |release| release.artifact_path.clone().into(),
+            ),
+            leap_path: pair.leap_seconds.as_ref().map_or_else(
+                || self.bootstrap_leaps.clone(),
+                |release| release.artifact_path.clone().into(),
+            ),
+            effective: EffectiveTimeAuthority {
+                tzdb: match pair.tzdb {
+                    Some(release) => catalog.authority_reference(scope, &release).await?,
                     None => self.bootstrap.effective.tzdb.clone(),
                 },
-                leap_seconds: match leap_release {
-                    Some(release) => catalog.authority_reference(scope, release).await?,
+                leap_seconds: match pair.leap_seconds {
+                    Some(release) => catalog.authority_reference(scope, &release).await?,
                     None => self.bootstrap.effective.leap_seconds.clone(),
                 },
             },
-            tzdb_path,
-            leaps,
-        )
-        .context("loading activated temporal authority")?;
-        let engine = TemporalEngine::new(authority);
-        self.tenants
-            .write()
-            .await
-            .insert(scope.tenant_key(), engine.clone());
-        Ok(engine)
+        })
     }
 
     pub async fn preflight_activation(
         &self,
         catalog: &TimeCatalog,
         scope: &TimeAccessContext,
-        candidate: &crate::contract::AuthorityRelease,
+        candidate: &AuthorityRelease,
     ) -> Result<()> {
-        let active = catalog.active_releases(scope).await?;
-        let active_tzdb = active
-            .iter()
-            .find(|release| release.dataset_kind == AuthorityDatasetKind::Tzdb);
-        let active_leaps = active
-            .iter()
-            .find(|release| release.dataset_kind == AuthorityDatasetKind::LeapSeconds);
-        let tzdb = if candidate.dataset_kind == AuthorityDatasetKind::Tzdb {
-            candidate
-        } else {
-            active_tzdb.unwrap_or(candidate)
-        };
-        let leaps = if candidate.dataset_kind == AuthorityDatasetKind::LeapSeconds {
-            candidate
-        } else {
-            active_leaps.unwrap_or(candidate)
-        };
-        let tzdb_path =
-            if candidate.dataset_kind == AuthorityDatasetKind::Tzdb || active_tzdb.is_some() {
-                std::path::Path::new(&tzdb.artifact_path)
-            } else {
-                self.bootstrap_tzdb.as_path()
-            };
-        let leap_path = if candidate.dataset_kind == AuthorityDatasetKind::LeapSeconds
-            || active_leaps.is_some()
-        {
-            std::path::Path::new(&leaps.artifact_path)
-        } else {
-            self.bootstrap_leaps.as_path()
-        };
-        let leap_table = LeapSecondTable::from_path(leap_path).await?;
-        AuthorityContext::from_paths(
-            EffectiveTimeAuthority {
-                tzdb: if candidate.dataset_kind == AuthorityDatasetKind::Tzdb {
-                    catalog.authority_reference(scope, candidate).await?
-                } else {
-                    match active_tzdb {
-                        Some(release) => catalog.authority_reference(scope, release).await?,
-                        None => self.bootstrap.effective.tzdb.clone(),
-                    }
-                },
-                leap_seconds: if candidate.dataset_kind == AuthorityDatasetKind::LeapSeconds {
-                    catalog.authority_reference(scope, candidate).await?
-                } else {
-                    match active_leaps {
-                        Some(release) => catalog.authority_reference(scope, release).await?,
-                        None => self.bootstrap.effective.leap_seconds.clone(),
-                    }
-                },
-            },
-            tzdb_path,
-            leap_table,
-        )
-        .context("preflighting temporal authority activation")?;
-        Ok(())
+        tokio::time::timeout(AUTHORITY_LOAD_TIMEOUT, async {
+            let mut pair = AuthorityPair::from_releases(catalog.active_releases(scope).await?)?;
+            pair.replace(candidate.clone());
+            self.selection(catalog, scope, pair)
+                .await?
+                .load()
+                .await
+                .context("preflighting temporal authority activation")?;
+            Ok(())
+        })
+        .await
+        .map_err(|_| anyhow::anyhow!("temporal authority preflight exceeded 30 seconds"))?
     }
 
-    pub fn bootstrap_release_ids(&self) -> (AuthorityReleaseId, AuthorityReleaseId) {
-        (
-            self.bootstrap.binding.tzdb_release_id.clone(),
-            self.bootstrap.binding.leap_seconds_release_id.clone(),
-        )
+    /// Immutable packaged metadata does not require loading the tenant engine.
+    pub fn bootstrap_reference(&self, id: &AuthorityReleaseId) -> Option<TimeAuthorityReference> {
+        [
+            &self.bootstrap.effective.tzdb,
+            &self.bootstrap.effective.leap_seconds,
+        ]
+        .into_iter()
+        .find(|reference| &reference.release_id == id)
+        .cloned()
     }
 }

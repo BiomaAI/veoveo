@@ -241,6 +241,35 @@ Authority release records retain source id, source URL, SHA-256 digest, retrieva
 time, validation time, version label, artifact path, lifecycle state, and optimistic
 record version.
 
+### Tenant Authority Contexts
+
+Every engine request reads the active tenant pair through the joined catalog query
+and resolves each selected release's acquisition provenance. This requires one
+selection query and at most two provenance reads; authority-only requests do not
+load mission epochs. Event-page recovery shares one validated context across the
+page and skips events with existing watchers. A family without a stored pointer uses its packaged bootstrap
+reference. Invalid visible metadata and database errors fail the request.
+
+The registry caches loaded contexts under the Store's typed tenant identity. A hit
+requires the current effective references, provenance and artifact paths to match
+the cached inputs. An engine gets its own mission-epoch map while sharing the loaded
+authority data. LIVE and reconciliation signals evict process contexts before resource
+notifications; a generation token prevents an earlier loader from repopulating an
+evicted cache. Request-time catalog checks also cover delayed or disconnected
+notification delivery.
+
+Selection and file loading share a 30-second deadline. TZDB loading runs on a blocking
+worker, and async leap-file reads preserve the runtime's responsiveness. A failed load
+or explicit reload removes the tenant's cached context. Exact authority-release
+metadata reads use the packaged reference or the tenant-scoped release catalog and
+can support diagnosis when the current engine cannot load.
+
+The coordinated Time upgrade drains older replicas before admitting requests to the
+new image. This prevents replicas that only initialize bootstrap authority from serving
+alongside replicas that read the persisted pair. Retained-data preflight and snapshot
+rollback follow the procedure below. Installed restart and replica qualification remain
+pending in the foundations plan.
+
 ## Accepted Time Expressions
 
 `resolve_time` accepts a tagged `TimeExpression`.
@@ -622,8 +651,8 @@ previous-release history. Catalog decoding then checks the selected release body
 These checks leave retained records unchanged. Preflight must include both pointers
 and their referenced releases under the same upgrade and rollback procedure.
 
-Broader public DTO construction, authority cache initialization/refresh and fencing
-the preflighted pair across replicas have work in the foundations inventory.
+Broader public DTO construction and fencing the preflighted pair across replicas have
+work in the foundations inventory.
 
 Compiled authority products live under `/var/lib/veoveo/time/releases`. Acquisition
 scratch data lives under `/var/lib/veoveo/time/acquisitions` and is removed at terminal
@@ -696,7 +725,7 @@ Examples of agent requests include:
 | `src/persistence/` | private typed query/mutation interfaces, SurrealDB driver records, admission and SQL visibility |
 | `src/persistence/active.rs`, `src/persistence/activation.rs` | joined pointer/release admission and transactional activation relationship checks |
 | `src/index.rs` | collection-bound opaque cursors and page envelopes |
-| `src/registry.rs` | tenant authority caches and activation preflight |
+| `src/registry.rs` | request-validated tenant contexts, isolated engine state and activation preflight |
 | `src/acquisition/` | bounded download, validation, compilation, staging, cancellation |
 | `src/admin/` | typed administrative routes and errors |
 | `src/mcp.rs` | MCP tools, resources, templates, completions, subscriptions |
@@ -723,7 +752,11 @@ admit one writer. Active-pointer cases corrupt family, identity, version, histor
 release links; raw query checks prove SQL excludes denied release payloads. Fixture
 events change pointer and previous-release fields after the candidate update, proving
 that the production transaction rechecks them and rolls back all changes. Store tests
-own schema migrations.
+own schema migrations. Registry cases use copied Linux UTC tzdata and temporary leap
+files. They qualify persisted selection on a fresh replica, request-time refresh without
+notifications, independent epoch maps, cache reuse, failed-load eviction and recovery,
+native LIVE/reconciliation eviction through separate database connections, and batched
+watcher admission that skips existing and terminal events.
 Gateway validation,
 Helm rendering and linting, the container build, and the shared SurrealDB integration
 harness exercise the deployment boundary.
