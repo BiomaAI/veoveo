@@ -1,12 +1,13 @@
 //! Frames owns its read policy and typed query inputs. Store owns the connection
 //! and driver records; it does not import the Frames runtime or domain contract.
+use super::records::{FrameWorldRecord, FrameWorldRevisionRecord};
 use super::{FrameScope, FramesState, value_from_object, world_revision, world_summary};
 use crate::contract::{
     FRAME_WORLD_PAGE_SIZE, FrameNode, FrameWorldCursor, FrameWorldId, FrameWorldPage,
     FrameWorldRevision, FrameWorldRevisionUri, FrameWorldSummary, WorldFrameUri,
 };
 use anyhow::{Context, Result, bail};
-use veoveo_platform_store::{FrameWorldRecord, FrameWorldRevisionRecord, OpenObject};
+use veoveo_platform_store::OpenObject;
 
 // Checking the linked parent in the same query prevents deleted, cross-tenant,
 // or mismatched world records from authorizing a revision through its copied key.
@@ -27,7 +28,7 @@ impl FramesState {
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("after", after.map(|cursor| cursor.after().to_string())))
             .bind(("limit", FRAME_WORLD_PAGE_SIZE + 1))
-            .bind(("clearance", scope.data_labels.iter().cloned().collect::<Vec<_>>()))
+            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
             .await?
             .check()?;
         let mut worlds: Vec<FrameWorldRecord> = response.take(0)?;
@@ -58,7 +59,7 @@ impl FramesState {
             .query("SELECT * FROM frame_world WHERE tenant = $tenant AND world_key = $world_key AND $clearance CONTAINSALL labels LIMIT 1;")
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", world_id.to_string()))
-            .bind(("clearance", scope.data_labels.iter().cloned().collect::<Vec<_>>()))
+            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
             .await?
             .check()?;
         let worlds: Vec<FrameWorldRecord> = response.take(0)?;
@@ -77,7 +78,7 @@ impl FramesState {
             .bind(("tenant", scope.identity.tenant_id.record_id()))
             .bind(("world_key", revision_uri.world_id().to_string()))
             .bind(("revision_key", revision_uri.revision_id().to_string()))
-            .bind(("clearance", scope.data_labels.iter().cloned().collect::<Vec<_>>()))
+            .bind(("clearance", scope.data_labels.iter().map(ToString::to_string).collect::<Vec<_>>()))
             .await?
             .check()?;
         let revisions: Vec<FrameWorldRevisionRecord> = response.take(0)?;
@@ -101,7 +102,11 @@ impl FramesState {
             .bind(("world_key", world_id.to_string()))
             .bind((
                 "clearance",
-                scope.data_labels.iter().cloned().collect::<Vec<_>>(),
+                scope
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
             ))
             .await?
             .check()?;
@@ -131,7 +136,11 @@ impl FramesState {
             .bind(("frame_key", frame_uri.frame_id().to_string()))
             .bind((
                 "clearance",
-                scope.data_labels.iter().cloned().collect::<Vec<_>>(),
+                scope
+                    .data_labels
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
             ))
             .await?
             .check()?;

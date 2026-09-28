@@ -2,7 +2,10 @@
 //! against the shared fixture's isolated, pinned SurrealDB process.
 use super::*;
 use crate::{
-    contract::{FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldTree},
+    contract::{
+        CreateWorldRequest, FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldTree,
+        PublishWorldRequest,
+    },
     test_store::TestDb,
 };
 use std::time::Duration;
@@ -25,7 +28,10 @@ pub(super) async fn scope(
             )
             .await
             .unwrap(),
-        data_labels: labels.iter().map(|value| (*value).to_owned()).collect(),
+        data_labels: labels
+            .iter()
+            .map(|value| DataLabelId::new(*value).unwrap())
+            .collect(),
     }
 }
 
@@ -168,7 +174,7 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
         assert!(reader.get_world(&owner, &world_id).await.unwrap().is_none());
         assert_eq!(reader.worlds_page(&owner, None).await.unwrap().items.len(), 1);
         let mut newly_cleared = owner.clone();
-        newly_cleared.data_labels.insert("restricted".to_owned());
+        newly_cleared.data_labels.insert(DataLabelId::new("restricted").unwrap());
         assert_revision_visible(&reader, &newly_cleared, &revision, true).await;
     }).await.expect("world visibility qualification exceeded 90 seconds");
 }

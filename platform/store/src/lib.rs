@@ -13,7 +13,6 @@ mod artifacts;
 mod changefeed;
 mod config;
 mod error;
-mod frame_worlds;
 mod gateway_control;
 mod gateway_retention;
 mod gateway_runtime;
@@ -60,7 +59,6 @@ pub use changefeed::{
 };
 pub use config::{StoreAuthLevel, StoreConfig, StoreConfigBuilder, StoreCredentials};
 pub use error::{MigrationError, RecordingIngestQuota, StoreConfigError, StoreError};
-pub use frame_worlds::{FrameWorldDraft, FrameWorldPublication, FrameWorldRevisionDraft};
 pub use gateway_retention::GATEWAY_AUDIT_BATCH_LIMIT;
 pub use gateway_runtime::{
     GatewayAuditKind, GatewayRefreshRedelivery, GatewayRefreshRetentionSummary,

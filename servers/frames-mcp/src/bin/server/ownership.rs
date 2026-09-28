@@ -84,7 +84,26 @@ pub(super) async fn frame_scope_from_identity(
     state: &AppState,
     identity: &GatewayInternalIdentity,
 ) -> Result<FrameScope, McpError> {
-    frame_scope_from_runtime(state, &runtime_owner(identity)).await
+    let actor = &identity.actor;
+    let resolved = state
+        .tasks
+        .platform_store()
+        .ensure_identity(
+            actor
+                .tenant
+                .as_ref()
+                .map_or("installation", |tenant| tenant.as_str()),
+            actor.id.as_str(),
+            actor.issuer.as_str(),
+            actor.subject.as_str(),
+            match actor.kind {
+                PrincipalKind::User => StorePrincipalKind::User,
+                PrincipalKind::Service => StorePrincipalKind::Service,
+            },
+        )
+        .await
+        .map_err(|error| McpError::internal_error(error.to_string(), None))?;
+    Ok(FrameScope::new(resolved, actor.data_labels.clone()))
 }
 
 pub(super) async fn frame_scope_from_runtime(
@@ -106,10 +125,16 @@ pub(super) async fn frame_scope_from_runtime(
         )
         .await
         .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-    Ok(FrameScope {
+    Ok(FrameScope::new(
         identity,
-        data_labels: owner.data_labels.clone(),
-    })
+        owner
+            .data_labels
+            .iter()
+            .cloned()
+            .map(veoveo_types::DataLabelId::new)
+            .collect::<Result<_, _>>()
+            .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+    ))
 }
 
 pub(super) fn operation_scope_from_identity(

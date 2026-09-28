@@ -169,15 +169,6 @@ pub enum StoreError {
         field: &'static str,
         reason: &'static str,
     },
-    #[error("invalid coordinate field {field}: {reason}")]
-    InvalidCoordinateField {
-        field: &'static str,
-        reason: &'static str,
-    },
-    #[error("frame world `{0}` conflicts with its current durable state")]
-    FrameWorldConflict(String),
-    #[error("frame world `{0}` was not found")]
-    FrameWorldNotFound(String),
     #[error("invalid map field {field}: {reason}")]
     InvalidMapField {
         field: &'static str,

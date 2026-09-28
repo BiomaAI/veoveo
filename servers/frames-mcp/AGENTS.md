@@ -31,9 +31,10 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - Revision-scoped `frames://world/{world_id}/revision/{revision_id}/frame/{frame_id}`
   identities are the only local-frame identities. Sessions pin one immutable
   revision and never follow a mutable world head implicitly.
-- Keep Frames read queries in the owning runtime with typed IDs through database
+- Keep Frames queries and mutations in the owning runtime with typed IDs through database
   bindings. SQL applies tenant, current labels, and linked-parent checks. World reads
-  are shared within the tenant under label clearance; publication requires ownership.
+  are shared within the tenant under label clearance; publication requires ownership and current label clearance inside its transaction.
+  World mutation driver records are private to Frames; Store owns connections and schemas.
 - Approximation permission is explicit per request, and every result carries
   a `CoordinateOperationProvenance` record. Results also carry canonical
   revision references and typed SHA-256 digests for only the frame-world

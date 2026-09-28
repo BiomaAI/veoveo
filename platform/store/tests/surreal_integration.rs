@@ -9,19 +9,18 @@ use veoveo_platform_store::{
     ArtifactGrantSubjectKind, ArtifactId, ArtifactOccurrenceDraft, ArtifactReleaseState,
     ArtifactShareLinkDraft, ArtifactWriteCapabilityDraft, ArtifactWriteCapabilityId,
     ArtifactWriteCapabilityRecord, ArtifactWriteRedemptionId, ChangefeedCursor, ChangefeedEntry,
-    FrameWorldDraft, FrameWorldRevisionDraft, GatewayReplayKind, GatewayReplayRecord,
-    GrantPermission, InvocationAuthorityRecord, InvocationMode, MapCompositionDraft,
-    MapCompositionRevisionDraft, MapCompositionUpdateDraft, MapFeatureCommitDraft,
-    MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft, MapLayerProductDraft,
-    MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject, OutboxDraft,
-    PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey, RecordingDatasetDraft,
-    RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId, RecordingLayerKind,
-    RecordingLayerState, RecordingProjectionReceiptDraft, RecordingProjectionState,
-    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal, RecordingState, ShareLinkId,
-    StoreConfig, StoreCredentials, StoreError, TimeAuthorityReleaseDraft,
-    TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft, WorkContextInitialGrantRecord,
-    WorkContextMembershipLevel, decode_changefeed_entry, deterministic_work_context_id,
-    gateway_replay_record_id, migrations,
+    GatewayReplayKind, GatewayReplayRecord, GrantPermission, InvocationAuthorityRecord,
+    InvocationMode, MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
+    MapFeatureCommitDraft, MapFeatureLayerDraft, MapFeatureRevisionDraft, MapFeatureSchemaDraft,
+    MapLayerProductDraft, MapLayerPublicationDraft, MapReleaseDraft, MapReleaseState, OpenObject,
+    OutboxDraft, PlatformIdentity, PlatformStore, PrincipalKind, RecordIdKey,
+    RecordingDatasetDraft, RecordingDraft, RecordingId, RecordingLayerDraft, RecordingLayerId,
+    RecordingLayerKind, RecordingLayerState, RecordingProjectionReceiptDraft,
+    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantDraft, RecordingSeal,
+    RecordingState, ShareLinkId, StoreConfig, StoreCredentials, StoreError,
+    TimeAuthorityReleaseDraft, TimeAuthorityReleaseState, TimeDatasetKind, TimeSourceDraft,
+    WorkContextInitialGrantRecord, WorkContextMembershipLevel, decode_changefeed_entry,
+    deterministic_work_context_id, gateway_replay_record_id, migrations,
 };
 use veoveo_types::TaskId;
 
@@ -505,82 +504,6 @@ async fn map_release_activation_is_atomic_and_version_guarded() {
         .unwrap();
     assert_eq!(pointer.release_key, first_key);
     assert_eq!(pointer.record_version, 1);
-}
-
-#[tokio::test]
-async fn frame_world_revisions_are_durable_and_idempotent() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            format!("coordinates_test_{}", Uuid::now_v7().simple()),
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
-    )
-    .await
-    .unwrap();
-    let identity = store
-        .ensure_identity(
-            "tenant-coordinates",
-            "coordinate-user",
-            "https://idp.example.com",
-            "coordinate-subject",
-            PrincipalKind::User,
-        )
-        .await
-        .unwrap();
-    let world = store
-        .create_frame_world(FrameWorldDraft {
-            identity: identity.clone(),
-            world_key: "integration-world".to_owned(),
-            display_name: "Integration frame world".to_owned(),
-            description: Some("A complete revisioned frame tree.".to_owned()),
-            classification: "gateway_labels".to_owned(),
-            labels: vec!["cui".to_owned()],
-        })
-        .await
-        .unwrap();
-    assert_eq!(world.world_key, "integration-world");
-    assert_eq!(world.revision, 0);
-    assert!(world.head_revision.is_none());
-    assert!(world.head_revision_key.is_none());
-    let revision_key = format!("revision-{}", Uuid::now_v7());
-    let revision_draft = FrameWorldRevisionDraft {
-        identity: identity.clone(),
-        world_key: world.world_key.clone(),
-        expected_head_revision_key: None,
-        revision_key: revision_key.clone(),
-        spec_sha256: "a".repeat(64),
-        root_frame_key: "earth-ecef".to_owned(),
-        definition: OpenObject::new(BTreeMap::from([(
-            "frames".to_owned(),
-            serde_json::json!([{"frame_id": "earth-ecef"}]),
-        )])),
-    };
-    let publication = store
-        .publish_frame_world_revision(revision_draft.clone())
-        .await
-        .unwrap();
-    assert!(publication.created);
-    assert_eq!(publication.world.revision, 1);
-    assert_eq!(publication.revision.revision_key, revision_key);
-    let replay = store
-        .publish_frame_world_revision(revision_draft)
-        .await
-        .unwrap();
-    assert!(!replay.created);
-    assert_eq!(replay.revision.id, publication.revision.id);
 }
 
 /// Run explicitly with:

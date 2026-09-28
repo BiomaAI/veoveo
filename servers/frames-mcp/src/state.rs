@@ -4,19 +4,17 @@ use crate::contract::{
     FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
 };
 use anyhow::{Context, Result, anyhow, bail};
-use veoveo_platform_store::{
-    FrameWorldDraft, FrameWorldRecord, FrameWorldRevisionDraft, FrameWorldRevisionRecord,
-    OpenObject, PlatformIdentity, PlatformStore,
-};
+use veoveo_platform_store::{OpenObject, PlatformIdentity, PlatformStore};
 
-use crate::{
-    contract::ValidatedWorldTree,
-    contract::{CreateWorldRequest, FrameWorldSummary, PublishWorldOutput, PublishWorldRequest},
-};
+use crate::contract::FrameWorldSummary;
+use records::{FrameWorldRecord, FrameWorldRevisionRecord};
+use veoveo_types::DataLabelId;
 
 mod completion;
 mod operations;
 mod reads;
+mod records;
+mod worlds;
 pub use operations::FrameOperationScope;
 
 #[cfg(test)]
@@ -26,8 +24,25 @@ mod read_tests;
 
 #[derive(Clone, Debug)]
 pub struct FrameScope {
-    pub identity: PlatformIdentity,
-    pub data_labels: BTreeSet<String>,
+    identity: PlatformIdentity,
+    data_labels: BTreeSet<DataLabelId>,
+}
+
+impl FrameScope {
+    /// World policy consumes validated labels and resolved database identities.
+    /// ```compile_fail
+    /// use veoveo_frames_mcp::state::FrameScope;
+    /// use veoveo_platform_store::PlatformIdentity;
+    /// fn raw_labels(identity: PlatformIdentity) {
+    ///     FrameScope::new(identity, std::collections::BTreeSet::from(["cui".to_owned()]));
+    /// }
+    /// ```
+    pub fn new(identity: PlatformIdentity, data_labels: BTreeSet<DataLabelId>) -> Self {
+        Self {
+            identity,
+            data_labels,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -38,65 +53,6 @@ pub struct FramesState {
 impl FramesState {
     pub fn new(store: PlatformStore) -> Self {
         Self { store }
-    }
-
-    pub async fn create_world(
-        &self,
-        scope: &FrameScope,
-        request: CreateWorldRequest,
-    ) -> Result<FrameWorldSummary> {
-        if request.display_name.trim().is_empty() {
-            bail!("display_name must not be blank");
-        }
-        if let Some(existing) = self.get_world(scope, &request.world_id).await? {
-            if existing.display_name == request.display_name
-                && existing.description == request.description
-            {
-                return Ok(existing);
-            }
-            bail!(
-                "frame world `{}` already exists with different metadata",
-                request.world_id
-            );
-        }
-        let world = self
-            .store
-            .create_frame_world(FrameWorldDraft {
-                identity: scope.identity.clone(),
-                world_key: request.world_id.to_string(),
-                display_name: request.display_name,
-                description: request.description,
-                classification: "gateway_labels".to_owned(),
-                labels: scope.data_labels.iter().cloned().collect(),
-            })
-            .await?;
-        world_summary(world)
-    }
-
-    pub async fn publish_world(
-        &self,
-        scope: &FrameScope,
-        request: PublishWorldRequest,
-    ) -> Result<PublishWorldOutput> {
-        let validated = ValidatedWorldTree::new(request.tree)?;
-        let revision_id = FrameWorldRevisionId::new(format!("revision-{}", uuid::Uuid::now_v7()))?;
-        let publication = self
-            .store
-            .publish_frame_world_revision(FrameWorldRevisionDraft {
-                identity: scope.identity.clone(),
-                world_key: request.world_id.to_string(),
-                expected_head_revision_key: request.expected_head_revision_id.map(String::from),
-                revision_key: revision_id.to_string(),
-                spec_sha256: validated.spec_digest().hex().to_owned(),
-                root_frame_key: validated.root_frame_id().to_string(),
-                definition: object_from_value(serde_json::to_value(validated.into_tree())?)?,
-            })
-            .await?;
-        Ok(PublishWorldOutput {
-            world: world_summary(publication.world)?,
-            revision: world_revision(publication.revision)?,
-            created: publication.created,
-        })
     }
 
     pub async fn require_revision(

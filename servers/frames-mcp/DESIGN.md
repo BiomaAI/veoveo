@@ -336,8 +336,9 @@ conversion returns an empty source list.
 
 ## Persistence
 
-Frames owns world read queries in `state/reads.rs` and reuses `PlatformStore`'s
-connection and driver records. The query API accepts Frames IDs and resource addresses;
+Frames owns world read queries in `state/reads.rs`, mutations in `state/worlds.rs`,
+and private driver records in `state/records.rs`. Store supplies the connection and
+schema catalog. The query API accepts Frames IDs and resource addresses;
 conversion to database values happens at bindings. This dependency direction lets
 cross-server consumers use the existing contract feature without introducing a Store
 dependency on the Frames library or a second identity crate.
@@ -349,6 +350,32 @@ labels in the same query. Missing or inconsistent parents cannot authorize a rev
 Head reads additionally require the linked record, revision key, and revision number
 to agree. Direct frame resources select only their requested node in SQL; coordinate
 conversion loads the visible complete revision to resolve the transform chain.
+
+World creation validates bounded metadata and the caller's typed data labels. A visible
+world with identical metadata satisfies a repeated create within the tenant's sharing
+policy. Other existing worlds prevent creation through the unique tenant/world key.
+Creation writes the world and its event in one transaction.
+
+Publication applies tenant, owner and current label clearance in SQL before selecting
+the world. It checks the head's linked world, owner, tenant, revision key and number
+inside the same transaction. An identical validated tree returns the current head;
+a changed tree requires the expected head. The transaction publishes the revision,
+updates the head and writes both events together. The result carries the world and
+revision from that transaction's snapshot. Concurrent attempts cannot produce a result
+assembled from different head versions. After a transaction error, Frames only returns
+a currently authorized, matching committed head; it does not dispatch another write.
+Driver errors preserve diagnostic causes internally while public messages omit hidden
+record identities.
+
+World scope carries typed `DataLabelId` values and resolved Store identities. The existing
+installation tenant mapping and tenant-wide read sharing apply; world policy does not
+add a profile or Work Context partition. The internal Store draft API is absent, so
+callers cannot publish an opaque tree or supply its root and hash separately. Stored
+record keys, schemas, event version 1 and wire payloads keep their existing forms.
+The coordinated Frames upgrade requires current publication checks on every writer;
+rolling overlap with writers that bypass current labels is unsupported. Retained-data
+preflight follows the metadata admission section. This change rewrites no stored rows.
+Rollback keeps publication disabled until the required owner and label policy is restored.
 
 SurrealDB stores:
 
@@ -365,7 +392,9 @@ defines the world and revision tables. This is a hard cut. No alias or legacy
 
 The hosted endpoint requires a gateway-signed internal identity and the
 forwarded bearer authority. The assertion fixes the server slug, profile,
-principal, tenant, labels, scopes, and expiry.
+principal, tenant, labels, scopes, and expiry. Gateway policy admits actions and resource
+access. Frames declares no additional domain scope vocabulary; its runtime enforces
+the world, operation and Task ownership policies after authenticated admission.
 
 Unknown and unauthorized worlds, revisions, frames, operations, tasks, usage,
 and artifacts are indistinguishable at their resource boundary.
@@ -384,7 +413,10 @@ servers/frames-mcp/src/
   contract/tree.rs        complete-tree admission, canonical ordering and hashing
   contract/metadata.rs    checked world summaries, revisions and source references
   world.rs                transform resolution
-  state.rs                world mutation and revision adapters
+  state.rs                typed world scope and revision adapters
+  state/records.rs        private world/revision driver records
+  state/worlds.rs         typed world creation and publication
+  state/worlds/           transactional mutation SQL and native qualification
   state/operations.rs     typed operation authority and driver records
   state/operations/       transactional recording SQL and native qualification
   state/reads.rs          typed world queries with SQL visibility and parent checks

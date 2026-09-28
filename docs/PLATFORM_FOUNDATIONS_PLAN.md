@@ -178,6 +178,18 @@ Twenty-two independent contract cases preserve the published schemas and exclude
 dependencies; eight compile-fail cases pass. The affected native library and adapter
 tests, Frames MCP smoke, and strict workspace Clippy pass. Installed consumers and
 retained-metadata preflight remain qualification work.
+Frames world creation and publication now belong to the domain runtime. The old Store
+draft APIs, domain record IDs and public driver records are removed. Mutations consume
+typed requests and scope labels; publication applies owner, tenant, labels and head
+agreement inside the transaction. Five native cases cover concurrent creation/replay,
+competing publications, current caller authority, damaged parents and atomic event
+failure rollback. The broader affected library regression passes 486 cases with three
+existing ignored cases. All 11 Frames adapter cases, nine compile-fail checks, strict
+workspace Clippy, and the native Frames MCP smoke pass. Cleanup removed 5.7 GiB of
+superseded test executables while preserving build caches; the host has 282 GiB free
+after qualification, with no Docker containers running. Frames declares no domain scope vocabulary today; gateway policy
+admits actions and Frames enforces its stored world/operation/Task policies. Installed
+publication and the coordinated writer upgrade remain work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -649,8 +661,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
-| Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static and Store's unscoped world readbacks are private to mutations | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
-| Frames mutation inputs | Store mutation drafts still accept raw world/revision keys and complete definition objects | Keep the public mutation contract in Frames and move domain admission to its repository adapter without making Store depend on a server runtime |
+| Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static; private driver records and mutations also belong to Frames | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
+| Frames mutation inputs | Frames owns typed mutations, private driver records and world-event vocabulary. World publication checks owner, current labels and head agreement in the transaction; repeated writes settle from authorized matching state. Store has no world draft API | Qualify installed publication, concurrent replay and the coordinated writer upgrade |
 | Frames world metadata construction | Checked summaries, immutable revisions, and source references derive their repeated identities from typed URIs. The contract owns complete-tree validation and hashing; Store reads and UAV use it. Native corruption/visibility and independent schema/consumer checks pass | Qualify installed consumers and the stricter retained-metadata preflight |
 | Frames operation references | Operation addresses use typed component builders; checked provenance derives its ID from the URI and rejects conflicting wire identity. Existing schema snapshots and independent contract consumption pass | Qualify installed consumption and the documented retained-provenance preflight |
 | Frames stream references | Dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
@@ -857,7 +869,8 @@ Work:
    writers, and confirm how much of that cost the shared sequence causes.
 2. Inventory every outbox writer and consumer with `git grep -n "outbox"`. Writers
    include `agents/runtime/src/runtime.rs`, `platform/store/src/artifact_access_requests.rs`,
-   `frame_worlds.rs`, `map_authoring.rs`, `map_presentations.rs`, and
+   `map_authoring.rs`, `map_presentations.rs`,
+   `servers/frames-mcp/src/state/worlds/`, and
    `servers/frames-mcp/src/state/operations/record.surql`.
    Consumers include the agent manager, the agent runtime, gateway agent events,
    `platform/task-runtime/src/runtime/subscriptions.rs`,
