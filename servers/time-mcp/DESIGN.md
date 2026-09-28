@@ -118,6 +118,9 @@ splits negative coordinates with Euclidean division and rejects a seconds value 
 `i64`. Epoch-relative resolution uses that constructor. Fractional numeric conversion
 checks the floating-point upper endpoint and rounding carry before adding its epoch.
 Protocol-library calls and database driver records receive raw integers at their adapters.
+Leap-table NTP conversion checks epoch subtraction. TAI-to-UTC conversion selects the
+offset directly from the ordered TAI transition intervals and checks the final subtraction;
+it preserves representable early coordinates without guessing an offset from the newest entry.
 
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
 names once through `scope_enum!`. MCP handlers and Task admission use the enum when

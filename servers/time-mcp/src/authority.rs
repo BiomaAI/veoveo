@@ -57,7 +57,9 @@ impl LeapSecondTable {
                 bail!("TAI-UTC offset is outside the supported range");
             }
             entries.push(LeapSecond {
-                effective_unix_seconds: ntp_seconds - NTP_UNIX_EPOCH_DELTA_SECONDS,
+                effective_unix_seconds: ntp_seconds
+                    .checked_sub(NTP_UNIX_EPOCH_DELTA_SECONDS)
+                    .context("leap-second NTP instant exceeds the supported range")?,
                 tai_minus_utc_seconds: offset,
             });
         }
@@ -92,6 +94,11 @@ impl LeapSecondTable {
     }
 
     pub fn utc_from_tai(&self, tai_seconds_since_1970: i64) -> Result<UtcCoordinate> {
+        let mut offset = self
+            .entries
+            .first()
+            .context("leap-second authority is empty")?
+            .tai_minus_utc_seconds;
         for pair in self.entries.windows(2) {
             let previous = &pair[0];
             let next = &pair[1];
@@ -103,31 +110,23 @@ impl LeapSecondTable {
                 .effective_unix_seconds
                 .checked_add(next.tai_minus_utc_seconds)
                 .context("leap-second authority exceeds the supported range")?;
-            if next.tai_minus_utc_seconds > previous.tai_minus_utc_seconds
-                && (leap_start..next_ordinary).contains(&tai_seconds_since_1970)
-            {
+            if tai_seconds_since_1970 < leap_start {
+                break;
+            }
+            if tai_seconds_since_1970 < next_ordinary {
                 return Ok(UtcCoordinate {
-                    unix_seconds: next.effective_unix_seconds - 1,
+                    unix_seconds: next
+                        .effective_unix_seconds
+                        .checked_sub(1)
+                        .context("leap-second UTC instant exceeds the supported range")?,
                     is_leap_second: true,
                 });
             }
+            offset = next.tai_minus_utc_seconds;
         }
-        let mut utc = tai_seconds_since_1970
-            - self
-                .entries
-                .last()
-                .context("leap-second authority is empty")?
-                .tai_minus_utc_seconds;
-        for _ in 0..4 {
-            let candidate = tai_seconds_since_1970 - self.offset_for_utc(utc)?;
-            if candidate == utc {
-                return Ok(UtcCoordinate {
-                    unix_seconds: utc,
-                    is_leap_second: false,
-                });
-            }
-            utc = candidate;
-        }
+        let utc = tai_seconds_since_1970
+            .checked_sub(offset)
+            .context("TAI instant exceeds the UTC seconds range")?;
         Ok(UtcCoordinate {
             unix_seconds: utc,
             is_leap_second: false,
@@ -218,5 +217,68 @@ mod tests {
     #[test]
     fn rejects_non_monotonic_authority() {
         assert!(LeapSecondTable::from_iana_content("2272060800 11\n2287785600 10\n").is_err());
+    }
+
+    #[test]
+    fn epoch_offsets_reject_overflow_and_preserve_representable_endpoints() {
+        let too_early = format!("{} 10\n", i64::MIN);
+        assert!(
+            LeapSecondTable::from_iana_content(&too_early)
+                .unwrap_err()
+                .to_string()
+                .contains("NTP instant exceeds")
+        );
+        let first_ntp = i64::MIN + NTP_UNIX_EPOCH_DELTA_SECONDS;
+        let table = LeapSecondTable::from_iana_content(&format!(
+            "{first_ntp} 10\n{} 11\n",
+            first_ntp + 1000
+        ))
+        .unwrap();
+        assert_eq!(table.entries()[0].effective_unix_seconds, i64::MIN);
+        assert!(
+            table
+                .utc_from_tai(i64::MIN)
+                .unwrap_err()
+                .to_string()
+                .contains("UTC seconds range")
+        );
+        assert_eq!(
+            table.utc_from_tai(i64::MIN + 10).unwrap().unix_seconds,
+            i64::MIN
+        );
+        assert_eq!(
+            table.utc_from_tai(i64::MAX).unwrap().unix_seconds,
+            i64::MAX - 11
+        );
+    }
+
+    #[test]
+    fn inverse_conversion_resolves_each_transition_and_ordinary_neighbor() {
+        let table = LeapSecondTable::from_iana_content(LEAPS).unwrap();
+        for entry in table.entries() {
+            for delta in -3..=3 {
+                let utc = entry.effective_unix_seconds + delta;
+                let tai = utc + table.offset_for_utc(utc).unwrap();
+                assert_eq!(
+                    table.utc_from_tai(tai).unwrap(),
+                    UtcCoordinate {
+                        unix_seconds: utc,
+                        is_leap_second: false,
+                    }
+                );
+            }
+        }
+        for pair in table.entries().windows(2) {
+            let next = pair[1].effective_unix_seconds;
+            for offset in pair[0].tai_minus_utc_seconds..pair[1].tai_minus_utc_seconds {
+                assert_eq!(
+                    table.utc_from_tai(next + offset).unwrap(),
+                    UtcCoordinate {
+                        unix_seconds: next - 1,
+                        is_leap_second: true,
+                    }
+                );
+            }
+        }
     }
 }
