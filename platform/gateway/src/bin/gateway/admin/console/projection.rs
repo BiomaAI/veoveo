@@ -132,7 +132,7 @@ async fn load_referenced_blobs(
 #[serde(rename_all = "camelCase")]
 pub(crate) struct TaskSummary {
     pub(crate) id: String,
-    pub(crate) r#type: String,
+    pub(crate) r#type: veoveo_types::TaskTypeName,
     pub(crate) server: String,
     pub(crate) owner: String,
     pub(crate) state: veoveo_platform_store::TaskStatus,

@@ -80,7 +80,7 @@ pub(super) async fn create(runtime: &TaskRuntime, owner: TaskOwner, id: TaskId) 
             task_id: id,
             owner,
             server: "stream".into(),
-            task_type: "run_recording".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("run_recording") },
             request,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

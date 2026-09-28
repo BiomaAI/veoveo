@@ -48,6 +48,17 @@ sequence index in reverse order. The available-time index would scan and sort
 historical events before applying the limit. A native query-plan regression checks
 the reverse scan and exclusion of future events against the pinned database.
 
+## Task Operation Identity
+
+`CreateTask`, `TaskSnapshot` and Store's `TaskRecord` carry `TaskTypeName` from admission
+through durable reads and outbox delivery. Server contract libraries own the closed
+enums that implement `TaskTypeDefinition`. Shared lifecycle code accepts their names
+without importing those libraries. The Console summary preserves the same typed value.
+SurrealDB field adapters use the type's Serde validation; stored fields and JSON events
+contain a plain string. SQL selectors bind the owning declaration's name and filter
+before decoding. A malformed selected name fails decoding. Creating a domain enum or
+valid name establishes neither a registered operation nor permission to execute it.
+
 ## Queued Task Admission
 
 `commit_admission` accepts a retained Task snapshot, trusted repository SQL and bound

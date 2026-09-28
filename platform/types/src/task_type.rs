@@ -42,8 +42,81 @@ impl TaskTypeName {
 }
 
 /// Implement on a domain-owned closed enum. Shared code owns no operation variants.
-pub trait TaskTypeDefinition: Copy + Eq {
+pub trait TaskTypeDefinition: Copy + Eq + 'static {
+    /// Every supported operation, with one distinct wire spelling per variant.
+    const ALL: &'static [Self];
+
     fn name(self) -> TaskTypeName;
+
+    fn from_name(name: &TaskTypeName) -> Option<Self> {
+        Self::ALL.iter().copied().find(|kind| kind.name() == *name)
+    }
+
+    /// Admit a protocol operation name into the domain's closed vocabulary.
+    fn from_wire_name(name: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|kind| kind.name().as_str() == name)
+    }
+}
+
+/// Declare a domain-owned Task vocabulary from one checked mapping.
+///
+/// Invalid names and duplicate wire spellings are compilation errors:
+/// ```compile_fail
+/// veoveo_types::declare_task_types! {
+///     pub enum InvalidKind { Invalid => "not a task name" }
+/// }
+/// ```
+/// ```compile_fail
+/// veoveo_types::declare_task_types! {
+///     pub enum AliasedKind { First => "same", Second => "same" }
+/// }
+/// ```
+#[macro_export]
+macro_rules! declare_task_types {
+    ($(#[$meta:meta])* $visibility:vis enum $name:ident {
+        $($variant:ident => $wire:literal),+ $(,)?
+    }) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        $visibility enum $name { $($variant),+ }
+
+        const _: () = $crate::__assert_task_type_names(&[$($wire),+]);
+
+        impl $crate::TaskTypeDefinition for $name {
+            const ALL: &'static [Self] = &[$(Self::$variant),+];
+
+            fn name(self) -> $crate::TaskTypeName {
+                match self {
+                    $(Self::$variant => const { $crate::TaskTypeName::from_static($wire) }),+
+                }
+            }
+        }
+    };
+}
+
+#[doc(hidden)]
+pub const fn assert_task_type_names(names: &[&str]) {
+    let mut index = 0;
+    while index < names.len() {
+        assert!(valid(names[index]), "invalid Task operation name");
+        let mut other = 0;
+        while other < index {
+            let left = names[index].as_bytes();
+            let right = names[other].as_bytes();
+            let mut equal = left.len() == right.len();
+            let mut byte = 0;
+            while equal && byte < left.len() {
+                equal = left[byte] == right[byte];
+                byte += 1;
+            }
+            assert!(!equal, "Task operation names must be distinct");
+            other += 1;
+        }
+        index += 1;
+    }
 }
 
 const fn valid(value: &str) -> bool {
@@ -100,6 +173,27 @@ impl From<TaskTypeName> for String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    crate::declare_task_types! {
+        enum ExampleKind {
+            First => "example.first",
+            Second => "example_second",
+        }
+    }
+
+    #[test]
+    fn declarations_admit_only_their_complete_vocabulary() {
+        assert_eq!(ExampleKind::ALL, &[ExampleKind::First, ExampleKind::Second]);
+        for kind in ExampleKind::ALL {
+            let name = kind.name();
+            assert_eq!(ExampleKind::from_name(&name), Some(*kind));
+            assert_eq!(ExampleKind::from_wire_name(name.as_str()), Some(*kind));
+        }
+        let unknown = TaskTypeName::new("unregistered").unwrap();
+        assert_eq!(ExampleKind::from_name(&unknown), None);
+        assert_eq!(ExampleKind::from_wire_name("Example.First"), None);
+        assert_eq!(ExampleKind::from_wire_name("not a task name"), None);
+    }
 
     #[test]
     fn declarations_and_dynamic_names_share_the_wire_profile() {

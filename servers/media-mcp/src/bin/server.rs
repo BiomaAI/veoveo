@@ -22,6 +22,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use axum::{
     Router,
@@ -598,7 +599,7 @@ async fn start_media_task(
             task_id,
             owner,
             server: SERVER_SLUG.to_owned(),
-            task_type: "run".to_owned(),
+            task_type: veoveo_media_mcp::contract::MediaTaskKind::Run.name(),
             request: serde_json::to_value(&args).map_err(|error| error.to_string())?,
             recovery_class: RecoveryClass::WebhookWait,
             idempotency_key: None,

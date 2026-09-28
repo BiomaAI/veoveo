@@ -31,7 +31,7 @@ async fn create(tasks: &TaskRuntime, owner: &TaskOwner, number: u64) -> TaskId {
             task_id,
             owner: owner.clone(),
             server: tasks.server().to_owned(),
-            task_type: "route-plan".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("route-plan") },
             request: serde_json::json!({}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

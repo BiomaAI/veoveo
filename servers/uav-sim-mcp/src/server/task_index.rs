@@ -1,4 +1,5 @@
 //! Authorized task and mission indexes; SQL performs every persisted-row selection.
+use crate::contract::UavTaskKind;
 use anyhow::Result;
 use surrealdb::types::SurrealValue;
 use veoveo_mcp_contract::GatewayInternalIdentity;
@@ -7,7 +8,7 @@ use veoveo_platform_store::{
     deterministic_work_context_id,
 };
 use veoveo_task_runtime::{TaskPageCursor, TaskRuntime, TaskSnapshot};
-use veoveo_types::TaskId;
+use veoveo_types::{TaskId, TaskTypeDefinition};
 
 use super::{index, ownership::runtime_owner};
 use crate::{
@@ -15,15 +16,10 @@ use crate::{
     uris,
 };
 
-const TASK_TYPES: &[&str] = &[
-    "run_scenario",
-    "capture_dataset",
-    "execute_vehicle_mission_plan",
-];
 const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels";
 const PLAN_VISIBLE: &str =
     "tenant = $tenant AND work_context = $context AND principal_key = $principal_key";
-const MISSION_TASK: &str = "work_context = $context AND task_type = 'execute_vehicle_mission_plan'";
+const MISSION_TASK: &str = "work_context = $context AND task_type = $mission_task_type";
 const EXECUTION_LINK: &str = "tenant = $tenant AND work_context = $context
     AND principal_key = $principal_key
     AND plan.tenant = tenant AND plan.work_context = work_context
@@ -49,6 +45,7 @@ struct Scope {
     tenant_key: Option<String>,
     principal_key: String,
     data_labels: Vec<String>,
+    mission_task_type: String,
 }
 
 fn scope(identity: &GatewayInternalIdentity) -> Result<Scope> {
@@ -66,6 +63,7 @@ fn scope(identity: &GatewayInternalIdentity) -> Result<Scope> {
         tenant_key: owner.tenant_key,
         principal_key: owner.principal_key,
         data_labels: owner.data_labels.into_iter().collect(),
+        mission_task_type: UavTaskKind::ExecuteMission.name().to_string(),
     })
 }
 
@@ -86,12 +84,7 @@ pub(super) async fn usage_page(
     });
     let page = tasks
         .for_owner(&runtime_owner(identity))
-        .of_types(
-            TASK_TYPES
-                .iter()
-                .copied()
-                .map(veoveo_types::TaskTypeName::from_static),
-        )?
+        .of_types(UavTaskKind::ALL.iter().map(|kind| kind.name()))?
         .page(after.as_ref(), index::PAGE_SIZE)
         .await?;
     Ok(CollectionPage {
@@ -126,7 +119,13 @@ pub(super) async fn task(
         ))
         .bind(("task", veoveo_platform_store::task_record_id(id)))
         .bind(scope(identity)?)
-        .bind(("types", TASK_TYPES.to_vec()))
+        .bind((
+            "types",
+            UavTaskKind::ALL
+                .iter()
+                .map(|kind| kind.name().to_string())
+                .collect::<Vec<_>>(),
+        ))
         .await?
         .check()?;
     response
@@ -268,7 +267,13 @@ pub(super) async fn complete(
         .client()
         .query(sql)
         .bind(scope(identity)?)
-        .bind(("types", TASK_TYPES.to_vec()))
+        .bind((
+            "types",
+            UavTaskKind::ALL
+                .iter()
+                .map(|kind| kind.name().to_string())
+                .collect::<Vec<_>>(),
+        ))
         .bind(("needle", needle.to_lowercase()))
         .bind(("limit", index::PAGE_SIZE + 1))
         .await?

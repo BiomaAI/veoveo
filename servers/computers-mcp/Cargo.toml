@@ -35,9 +35,9 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 veoveo-platform-store = { path = "../../platform/store" }
 veoveo-mcp-contract.workspace = true
 veoveo-artifact-client = { path = "../../platform/artifacts/client" }
+veoveo-types.workspace = true
 
 [dev-dependencies]
-veoveo-types.workspace = true
 veoveo-artifact-service = { path = "../../platform/artifacts/service" }
 tokio-tungstenite.workspace = true
 veoveo-mcp-conformance = { path = "../../mcp/conformance" }

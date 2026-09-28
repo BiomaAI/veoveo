@@ -1,15 +1,6 @@
-use veoveo_types::{TaskTypeDefinition, TaskTypeName};
-
-/// Durable operations owned by the Stream server.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum StreamTaskKind {
-    RunRecording,
-}
-
-impl TaskTypeDefinition for StreamTaskKind {
-    fn name(self) -> TaskTypeName {
-        match self {
-            Self::RunRecording => const { TaskTypeName::from_static("run_recording") },
-        }
+//! Code-owned Task operations, independent of the database and MCP runtime.
+veoveo_types::declare_task_types! {
+    pub enum StreamTaskKind {
+        RunRecording => "run_recording",
     }
 }

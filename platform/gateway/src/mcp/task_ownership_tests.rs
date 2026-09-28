@@ -265,7 +265,7 @@ async fn version_zero_shared_task_recovers_without_rewriting_or_rebinding_extern
             task_id,
             owner,
             server: "media".into(),
-            task_type: "fixture".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("fixture") },
             request: serde_json::json!({}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

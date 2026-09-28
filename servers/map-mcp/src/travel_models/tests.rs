@@ -164,7 +164,7 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
                 task_id: id,
                 owner: owner.clone(),
                 server: "map".into(),
-                task_type: "build_travel_model".into(),
+                task_type: const { veoveo_types::TaskTypeName::from_static("build_travel_model") },
                 // Only retained fields consumed by this reader; this fixture never runs a worker.
                 request: serde_json::json!({"kind":"build_travel_model", "request": {
                     "travel_model_id":key,

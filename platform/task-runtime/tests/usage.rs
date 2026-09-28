@@ -28,7 +28,7 @@ async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64, rows: usi
             task_id: id,
             owner: owner.clone(),
             server: runtime.server().to_owned(),
-            task_type: "usage-fixture".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("usage-fixture") },
             request: serde_json::json!({}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

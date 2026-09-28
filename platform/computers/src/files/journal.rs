@@ -7,6 +7,7 @@ use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 pub(super) struct ClockedFile {
     pub operation: FileOperation,
@@ -27,7 +28,7 @@ impl ComputersStore {
     }
     pub(super) async fn worker_file(&self, claim: &ClaimedTask) -> Result<ClockedFile> {
         if claim.snapshot.server != "computers"
-            || claim.snapshot.task_type != "computer.file_transfer"
+            || claim.snapshot.task_type != crate::api::ComputerTaskKind::FileTransfer.name()
         {
             return Err(ComputerError::InvalidInput);
         }

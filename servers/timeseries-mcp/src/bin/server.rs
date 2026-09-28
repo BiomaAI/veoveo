@@ -12,6 +12,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -570,7 +571,7 @@ async fn start_forecast_task(
             task_id,
             owner: runtime_owner(&identity),
             server: SERVER_SLUG.to_owned(),
-            task_type: "forecast".to_owned(),
+            task_type: veoveo_timeseries_mcp::contract::TimeseriesTaskKind::Forecast.name(),
             request: serde_json::to_value(&request).map_err(|err| err.to_string())?,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

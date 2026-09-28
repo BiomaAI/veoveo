@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::TimeTaskKind;
 mod admin;
 mod authority;
 mod calendar;

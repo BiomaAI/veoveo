@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+veoveo-types.workspace = true
 chrono.workspace = true
 schemars = { workspace = true, features = ["uuid1", "chrono04"] }
 serde.workspace = true

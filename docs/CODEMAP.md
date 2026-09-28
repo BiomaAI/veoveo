@@ -366,8 +366,12 @@ and server library features.
 prefixed SHA-256 representation shared by provenance contracts.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
-`src/task_type.rs` owns validated operation names and the open `TaskTypeDefinition` trait;
-server contract libraries own its enum implementations.
+`src/task_type.rs` owns validated operation names, the open `TaskTypeDefinition` trait
+and the `declare_task_types!` checked vocabulary declaration. Server contract libraries
+own their enums in `contract/task_kind.rs`; Speech uses its separate contract crate,
+and Computers uses `platform/computers/contract/src/task_kind.rs`. SUMO owns its enum in
+`showcase/sumo/sumo-mcp/src/contract/task_kind.rs`. Task admission, Store records,
+snapshots and Console summaries preserve `TaskTypeName` until string serialization.
 `src/task.rs` owns native Task UUID identity; `platform/store/src/task_ids.rs` binds it
 to database record keys. TaskRuntime owns lifecycle and its external v7 admission profile.
 `src/identifier_syntax.rs` shares lexical validation with other owners' newtypes.

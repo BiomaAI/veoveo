@@ -9,26 +9,29 @@ pub(super) async fn task(
     plan: &VehicleMissionPlan,
 ) -> (TaskRuntime, TaskSnapshot) {
     let tasks = TaskRuntime::new(authority.store.clone(), "uav-sim", "native-admission");
-    let task = tasks
-        .create(CreateTask {
-            task_id: TaskId::new(),
-            owner: super::super::ownership::runtime_owner(identity),
-            server: "uav-sim".into(),
-            task_type: "execute_vehicle_mission_plan".into(),
-            request: serde_json::to_value(crate::contract::ExecuteVehicleMissionPlanRequest {
-                plan_id: plan.plan_id.clone(),
-                expected_revision: plan.revision,
+    let task =
+        tasks
+            .create(CreateTask {
+                task_id: TaskId::new(),
+                owner: super::super::ownership::runtime_owner(identity),
+                server: "uav-sim".into(),
+                task_type: const {
+                    veoveo_types::TaskTypeName::from_static("execute_vehicle_mission_plan")
+                },
+                request: serde_json::to_value(crate::contract::ExecuteVehicleMissionPlanRequest {
+                    plan_id: plan.plan_id.clone(),
+                    expected_revision: plan.revision,
+                })
+                .unwrap(),
+                recovery_class: RecoveryClass::InterruptedIndeterminate,
+                idempotency_key: None,
+                ttl_ms: None,
+                poll_interval_ms: None,
+                retention_pins: BTreeSet::from([task_link::retention_pin()]),
             })
-            .unwrap(),
-            recovery_class: RecoveryClass::InterruptedIndeterminate,
-            idempotency_key: None,
-            ttl_ms: None,
-            poll_interval_ms: None,
-            retention_pins: BTreeSet::from([task_link::retention_pin()]),
-        })
-        .await
-        .unwrap()
-        .snapshot;
+            .await
+            .unwrap()
+            .snapshot;
     (tasks, task)
 }
 

@@ -2,6 +2,7 @@
 use super::*;
 use crate::contract::MissionId;
 use veoveo_task_runtime::{RecoveryClass, TaskOwner, TaskRuntime, TaskSnapshot, TaskStatus};
+use veoveo_types::TaskTypeDefinition;
 use veoveo_types::{PrincipalId, TaskId, TenantId, WorkContextId};
 
 const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
@@ -144,7 +145,7 @@ impl VehicleControlAuthority {
             expected_revision: plan.revision,
         };
         if task.server != "uav-sim"
-            || task.task_type != "execute_vehicle_mission_plan"
+            || task.task_type != crate::contract::UavTaskKind::ExecuteMission.name()
             || task.owner != owner
             || task.request != serde_json::to_value(request)?
             || task.status != TaskStatus::Queued

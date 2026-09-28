@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::FramesTaskKind;
 mod catalog;
 mod ids;
 mod metadata;

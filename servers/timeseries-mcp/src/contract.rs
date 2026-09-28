@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::TimeseriesTaskKind;
 mod usage;
 pub use usage::*;
 

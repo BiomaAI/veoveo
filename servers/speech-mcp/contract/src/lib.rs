@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::SpeechTaskKind;
 pub mod dictation;
 pub mod transcript;
 use anyhow::{Result, ensure};

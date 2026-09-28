@@ -1,4 +1,5 @@
 //! Optimization-owned retained Task requests. Runtime-only; never part of the public wire contract.
+use crate::contract::OptimizationTaskKind;
 use crate::{
     contract::{
         OptimizationProfileUri, OptimizationSolution, OptimizeRouteScenariosRequest,
@@ -10,20 +11,7 @@ use crate::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::IssuedArtifactWriteCapability;
-
-pub const OPTIMIZE_ROUTES_TASK: &str = "optimize_routes";
-pub const OPTIMIZE_ROUTE_SCENARIOS_TASK: &str = "optimize_route_scenarios";
-pub const SOLVE_CONVEX_TASK: &str = "solve_convex";
-pub const SOLVE_MILP_TASK: &str = "solve_milp";
-pub const VERIFY_SOLUTION_TASK: &str = "verify_solution";
-
-pub const TASK_TOOLS: &[&str] = &[
-    OPTIMIZE_ROUTES_TASK,
-    OPTIMIZE_ROUTE_SCENARIOS_TASK,
-    SOLVE_CONVEX_TASK,
-    SOLVE_MILP_TASK,
-    VERIFY_SOLUTION_TASK,
-];
+use veoveo_types::TaskTypeDefinition;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SolveTaskCommon {
@@ -70,13 +58,15 @@ pub enum OptimizationTaskRequest {
 }
 
 impl OptimizationTaskRequest {
-    pub fn task_type(&self) -> &'static str {
+    pub fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::OptimizeRoutes { .. } => OPTIMIZE_ROUTES_TASK,
-            Self::OptimizeRouteScenarios { .. } => OPTIMIZE_ROUTE_SCENARIOS_TASK,
-            Self::SolveConvex { .. } => SOLVE_CONVEX_TASK,
-            Self::SolveMilp { .. } => SOLVE_MILP_TASK,
-            Self::VerifySolution { .. } => VERIFY_SOLUTION_TASK,
+            Self::OptimizeRoutes { .. } => OptimizationTaskKind::OptimizeRoutes.name(),
+            Self::OptimizeRouteScenarios { .. } => {
+                OptimizationTaskKind::OptimizeRouteScenarios.name()
+            }
+            Self::SolveConvex { .. } => OptimizationTaskKind::SolveConvex.name(),
+            Self::SolveMilp { .. } => OptimizationTaskKind::SolveMilp.name(),
+            Self::VerifySolution { .. } => OptimizationTaskKind::VerifySolution.name(),
         }
     }
 

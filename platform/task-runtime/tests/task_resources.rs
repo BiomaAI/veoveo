@@ -65,7 +65,7 @@ fn draft() -> CreateTask {
         task_id: TaskId::new(),
         owner: owner(),
         server: "resource-fixture".into(),
-        task_type: "produce".into(),
+        task_type: const { veoveo_types::TaskTypeName::from_static("produce") },
         request: json!({"value": 1}),
         recovery_class: RecoveryClass::Resume,
         idempotency_key: None,

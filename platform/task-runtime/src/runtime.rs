@@ -58,7 +58,8 @@ struct TaskContent {
     authority: InvocationAuthorityRecord,
     profile: RecordId,
     server: RecordId,
-    task_type: String,
+    #[surreal(wrap)]
+    task_type: veoveo_types::TaskTypeName,
     status: StoreTaskStatus,
     recovery_class: StoreRecoveryClass,
     request: OpenObject,

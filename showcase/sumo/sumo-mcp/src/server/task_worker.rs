@@ -1,9 +1,11 @@
+use crate::contract::SumoTaskKind;
 use std::collections::BTreeSet;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_types::TaskTypeDefinition;
 
 use anyhow::{Context, Result, ensure};
 use chrono::{TimeDelta, Utc};
@@ -51,7 +53,7 @@ pub(super) async fn start_operation(
         | DurableOperation::ComputeRoutes(_)
         | DurableOperation::OptimizeSignals(_) => RecoveryClass::Resume,
     };
-    let task_type = operation_name(&operation).to_owned();
+    let task_type = operation_name(&operation);
     let artifact_write_capability = if matches!(&operation, DurableOperation::RunBatch(_)) {
         None
     } else {
@@ -515,12 +517,12 @@ fn require_capability(
     capability.ok_or_else(|| anyhow::anyhow!("task did not reserve artifact write capability"))
 }
 
-fn operation_name(operation: &DurableOperation) -> &'static str {
+fn operation_name(operation: &DurableOperation) -> veoveo_types::TaskTypeName {
     match operation {
-        DurableOperation::RunBatch(_) => "run_batch",
-        DurableOperation::GenerateNetwork(_) => "generate_network",
-        DurableOperation::ComputeRoutes(_) => "compute_routes",
-        DurableOperation::OptimizeSignals(_) => "optimize_signals",
+        DurableOperation::RunBatch(_) => SumoTaskKind::RunBatch.name(),
+        DurableOperation::GenerateNetwork(_) => SumoTaskKind::GenerateNetwork.name(),
+        DurableOperation::ComputeRoutes(_) => SumoTaskKind::ComputeRoutes.name(),
+        DurableOperation::OptimizeSignals(_) => SumoTaskKind::OptimizeSignals.name(),
     }
 }
 
@@ -572,11 +574,11 @@ mod tests {
             operation_name(&DurableOperation::RunBatch(
                 crate::contract::RunBatchRequest { steps: 1 }
             )),
-            "run_batch"
+            SumoTaskKind::RunBatch.name()
         );
         assert_eq!(
             OfflineOperation::GenerateNetwork.task_type(),
-            "generate_network"
+            SumoTaskKind::GenerateNetwork.name()
         );
     }
 

@@ -4,6 +4,7 @@ use serde::Serialize;
 use std::sync::LazyLock;
 use uuid::Uuid;
 use veoveo_mcp_contract::docs::ServerDocs;
+use veoveo_types::TaskTypeDefinition;
 
 pub const COLLECTION: &str = veoveo_computers::api::COMPUTERS_URI;
 pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
@@ -228,7 +229,8 @@ impl ComputersMcp {
                     )
                     .await?;
                     if task.status != veoveo_task_runtime::TaskStatus::Succeeded
-                        || task.task_type != "computer.execution"
+                        || task.task_type
+                            != veoveo_computers::api::ComputerTaskKind::Execution.name()
                     {
                         return Err(ErrorData::invalid_params(
                             "command result is not available",

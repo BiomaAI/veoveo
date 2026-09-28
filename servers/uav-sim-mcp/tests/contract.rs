@@ -165,7 +165,7 @@ fn public_ids_and_commands_admit_the_existing_wire_profile() {
     let operation: DurableOperation = serde_json::from_value(serde_json::json!({
         "operation":"capture_dataset", "input":{"session_id":"alpha", "duration_seconds":2.0, "sensors":["down-camera"]}
     })).unwrap();
-    assert_eq!(operation.task_type(), "capture_dataset");
+    assert_eq!(operation.task_type().as_str(), "capture_dataset");
 }
 
 #[test]

@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_platform_store::task_record_id;
+use veoveo_types::TaskTypeDefinition;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
@@ -61,11 +62,10 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                     owner,
                     server: "reason".into(),
                     task_type: if index == 1 {
-                        "unrelated"
+                        const { veoveo_types::TaskTypeName::from_static("unrelated") }
                     } else {
-                        "analyze_recording"
-                    }
-                    .into(),
+                        veoveo_reason_mcp::contract::ReasonTaskKind::AnalyzeRecording.name()
+                    },
                     request: json!({}),
                     recovery_class: RecoveryClass::Resume,
                     idempotency_key: None,
@@ -139,7 +139,7 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
             task_id: TaskId::new(),
             owner: owner(),
             server: "reason".into(),
-            task_type: "analyze_recording".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("analyze_recording") },
             request: json!({}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,
@@ -196,7 +196,7 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
             }
         }
         let mut unrelated = draft();
-        unrelated.task_type = "unrelated".into();
+        unrelated.task_type = const { veoveo_types::TaskTypeName::from_static("unrelated") };
         let other = writer.create(unrelated).await.unwrap().snapshot;
         assert!(
             analysis_snapshot(

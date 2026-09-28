@@ -58,7 +58,7 @@ async fn task(db: &TestDb, s: &FrameOperationScope, server: &str) -> TaskId {
             task_id: id,
             owner,
             server: server.to_owned(),
-            task_type: "batch_transform".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("batch_transform") },
             request: serde_json::json!({}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

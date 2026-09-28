@@ -217,7 +217,7 @@ impl MissionCase {
         let created = create_task(
             &state,
             &caller,
-            "execute_vehicle_mission_plan",
+            crate::contract::UavTaskKind::ExecuteMission.name(),
             serde_json::to_value(ExecuteVehicleMissionPlanRequest {
                 plan_id: plan.plan_id.clone(),
                 expected_revision: 0,
@@ -606,7 +606,7 @@ async fn native_queued_mission_recovery_does_not_decode_or_replay_a_simulator_co
         let created = create_task(
             &state,
             &caller,
-            "execute_vehicle_mission_plan",
+            crate::contract::UavTaskKind::ExecuteMission.name(),
             serde_json::to_value(ExecuteVehicleMissionPlanRequest {
                 plan_id: plan.plan_id.clone(),
                 expected_revision: 0,
@@ -678,7 +678,7 @@ async fn admit(
     let created = create_task(
         state,
         &caller,
-        "execute_vehicle_mission_plan",
+        crate::contract::UavTaskKind::ExecuteMission.name(),
         serde_json::to_value(ExecuteVehicleMissionPlanRequest {
             plan_id: plan.plan_id.clone(),
             expected_revision: plan.revision,
@@ -733,7 +733,7 @@ async fn native_restart_releases_only_the_domain_pin_for_a_never_admitted_task()
         let task = create_task(
             &state,
             &caller,
-            "execute_vehicle_mission_plan",
+            crate::contract::UavTaskKind::ExecuteMission.name(),
             serde_json::to_value(ExecuteVehicleMissionPlanRequest {
                 plan_id: plan.plan_id.clone(),
                 expected_revision: 0,

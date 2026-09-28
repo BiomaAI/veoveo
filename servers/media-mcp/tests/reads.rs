@@ -40,7 +40,7 @@ async fn create(
             task_id,
             owner: owner.clone(),
             server: tasks.server().into(),
-            task_type: "run".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("run") },
             request: json!({}),
             recovery_class: RecoveryClass::WebhookWait,
             idempotency_key: None,

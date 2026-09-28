@@ -7,6 +7,7 @@ use veoveo_computers::{
     files::{FileTaskAccess, FileTaskAction},
 };
 use veoveo_task_runtime::{TaskSnapshot, TaskStatus};
+use veoveo_types::TaskTypeDefinition;
 
 impl Application {
     pub async fn file_transfer(
@@ -103,7 +104,9 @@ impl Application {
         .await
         .map_err(|_| ComputerError::Forbidden)?
         .map_err(|_| ApplicationError::Unavailable)?;
-        if task.task_type != "computer.file_transfer" || Instant::now() >= access.valid_until() {
+        if task.task_type != veoveo_computers::api::ComputerTaskKind::FileTransfer.name()
+            || Instant::now() >= access.valid_until()
+        {
             return Err(ApplicationError::Unavailable);
         }
         access.owner()?;

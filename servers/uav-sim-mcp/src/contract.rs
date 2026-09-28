@@ -9,6 +9,8 @@
 //!     viewer_instance_id: LiveViewerInstanceId::new("browser").unwrap(),
 //! };
 //! ```
+mod task_kind;
+pub use task_kind::UavTaskKind;
 mod live_view;
 pub use live_view::*;
 mod scopes;
@@ -17,6 +19,7 @@ mod resources;
 pub use resources::*;
 
 use std::{collections::BTreeMap, fmt, str::FromStr};
+use veoveo_types::TaskTypeDefinition;
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -705,11 +708,11 @@ pub enum DurableOperation {
 }
 
 impl DurableOperation {
-    pub const fn task_type(&self) -> &'static str {
+    pub fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::RunScenario(_) => "run_scenario",
-            Self::ExecuteMission(_) => "execute_vehicle_mission_plan",
-            Self::CaptureDataset(_) => "capture_dataset",
+            Self::RunScenario(_) => UavTaskKind::RunScenario.name(),
+            Self::ExecuteMission(_) => UavTaskKind::ExecuteMission.name(),
+            Self::CaptureDataset(_) => UavTaskKind::CaptureDataset.name(),
         }
     }
 }
@@ -802,7 +805,7 @@ mod tests {
             duration_seconds: 10.0,
             sensors: vec!["down-camera".to_owned()],
         });
-        assert_eq!(operation.task_type(), "capture_dataset");
+        assert_eq!(operation.task_type(), UavTaskKind::CaptureDataset.name());
     }
 
     #[test]

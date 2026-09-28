@@ -1,5 +1,6 @@
 use std::{collections::BTreeSet, time::Duration};
 use veoveo_platform_store::task_record_id;
+use veoveo_types::TaskTypeDefinition;
 
 use serde_json::json;
 use veoveo_mcp_contract::{
@@ -84,11 +85,10 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                     owner: task_owner,
                     server: "stream".into(),
                     task_type: if index == 1 {
-                        "unrelated"
+                        const { veoveo_types::TaskTypeName::from_static("unrelated") }
                     } else {
-                        "run_recording"
-                    }
-                    .into(),
+                        veoveo_stream_mcp::contract::StreamTaskKind::RunRecording.name()
+                    },
                     request: if index < 2 {
                         json!({"malformed": true})
                     } else {

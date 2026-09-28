@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use surrealdb::types::SurrealValue;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 impl ComputersStore {
     /// Trusted worker discovery; public projections use current principal authority.
@@ -66,7 +67,7 @@ impl ComputersStore {
                 task_id: file.task_id(),
                 owner: file.actor(),
                 server: "computers".into(),
-                task_type: "computer.file_transfer".into(),
+                task_type: crate::api::ComputerTaskKind::FileTransfer.name(),
                 request: reference.clone(),
                 recovery_class: RecoveryClass::ProviderWait,
                 idempotency_key: Some(format!("computer-file-transfer/{id}")),
@@ -80,7 +81,7 @@ impl ComputersStore {
         if task.task_id != file.task_id()
             || task.owner != file.actor()
             || task.request != reference
-            || task.task_type != "computer.file_transfer"
+            || task.task_type != crate::api::ComputerTaskKind::FileTransfer.name()
             || task.recovery_class != RecoveryClass::ProviderWait
             || !task.retention_pins.contains(&pin)
         {

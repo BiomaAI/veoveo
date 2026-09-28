@@ -164,3 +164,7 @@ of `activeTaskId`, which retains the lifecycle/maintenance operation. Busy inclu
 both fences. `canTransferFiles` reflects current direct-owner eligibility, the Ready
 phase, available capacity and an installation-qualified template. A held execution
 slot disables Start after Stop; it does not remove the owner's Stop action while Ready.
+
+`task_kind.rs` owns `ComputerTaskKind` and its checked Task operation declarations.
+Lifecycle, execution, file transfer and maintenance consumers share these names through
+`veoveo-types::TaskTypeDefinition`; shared Task infrastructure imports no Computers types.

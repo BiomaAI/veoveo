@@ -1,4 +1,6 @@
 //! Public Media contracts without transport, Store or provider-client dependencies.
+mod task_kind;
+pub use task_kind::MediaTaskKind;
 mod generation;
 mod generation_result;
 mod generation_uri;

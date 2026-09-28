@@ -1,10 +1,12 @@
 //! Current owner and Work Context selection before limits, grouping or decoding.
+use crate::contract::OptimizationTaskKind;
 use surrealdb::{Connection, method::Query};
 use veoveo_platform_store::{
     RecordId, TaskRecord, TaskStatus, deterministic_principal_id, deterministic_tenant_id,
     deterministic_work_context_id, task_record_id,
 };
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_types::TaskTypeDefinition;
 
 use crate::{
     contract::{
@@ -12,10 +14,7 @@ use crate::{
         OptimizationIndexCursor, OptimizationSolutionUri, OptimizationToolOutput, ProblemFamily,
         ProblemId, RunId, SolutionId,
     },
-    task_records::{
-        OPTIMIZE_ROUTE_SCENARIOS_TASK, OPTIMIZE_ROUTES_TASK, OptimizationTaskRequest,
-        SOLVE_CONVEX_TASK, SOLVE_MILP_TASK,
-    },
+    task_records::OptimizationTaskRequest,
 };
 
 const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
@@ -30,11 +29,11 @@ const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
 const SOLVE: &str = "task_type IN $task_types AND request.input.kind = task_type";
 const COMPLETED: &str = "status = 'succeeded' AND (result.payload.isError ?? false) = false
     AND result.payload.structuredContent.result_uri != NONE";
-const SOLVE_TASK_TYPES: [&str; 4] = [
-    OPTIMIZE_ROUTES_TASK,
-    OPTIMIZE_ROUTE_SCENARIOS_TASK,
-    SOLVE_CONVEX_TASK,
-    SOLVE_MILP_TASK,
+const SOLVE_TASK_TYPES: [OptimizationTaskKind; 4] = [
+    OptimizationTaskKind::OptimizeRoutes,
+    OptimizationTaskKind::OptimizeRouteScenarios,
+    OptimizationTaskKind::SolveConvex,
+    OptimizationTaskKind::SolveMilp,
 ];
 
 pub struct OptimizationReads<'a> {
@@ -302,7 +301,12 @@ fn bind_owner<'q, C: Connection>(
         .bind(("labels", owner.data_labels.clone()))
         .bind(("work_context_key", owner.authority.work_context.to_string()))
         .bind(("authority_tenant", owner.authority.tenant.to_string()))
-        .bind(("task_types", SOLVE_TASK_TYPES.map(str::to_owned).to_vec())))
+        .bind((
+            "task_types",
+            SOLVE_TASK_TYPES
+                .map(|kind| kind.name().to_string())
+                .to_vec(),
+        )))
 }
 
 fn decode(record: TaskRecord) -> anyhow::Result<VisibleOptimizationTask> {

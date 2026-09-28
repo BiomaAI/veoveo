@@ -616,7 +616,8 @@ pub struct TaskRecord {
     pub authority: InvocationAuthorityRecord,
     pub profile: RecordId,
     pub server: RecordId,
-    pub task_type: String,
+    #[surreal(wrap)]
+    pub task_type: veoveo_types::TaskTypeName,
     pub status: TaskStatus,
     pub recovery_class: RecoveryClass,
     pub request: OpenObject,

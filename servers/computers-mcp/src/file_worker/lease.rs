@@ -1,5 +1,6 @@
 use super::*;
 use veoveo_task_runtime::TaskStatus;
+use veoveo_types::TaskTypeDefinition;
 
 impl FileWorker {
     async fn current_claim(&self, claim: &ClaimedTask) -> Result<ClaimedTask> {
@@ -17,7 +18,7 @@ impl FileWorker {
             || expires <= chrono::Utc::now()
             || snapshot.owner != claim.snapshot.owner
             || snapshot.request != claim.snapshot.request
-            || snapshot.task_type != "computer.file_transfer"
+            || snapshot.task_type != veoveo_computers::api::ComputerTaskKind::FileTransfer.name()
             || snapshot.is_terminal()
         {
             return Err(FileWorkerError::LeaseLost);

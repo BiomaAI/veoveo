@@ -46,6 +46,16 @@ validation. Neither trait requires a central registry or confers authority. The
 policy owner compares requested names with current authenticated grants and performs
 the other authorization checks.
 
+`TaskTypeDefinition` gives a domain-owned enum its complete operation list and maps
+validated names or incoming wire strings into that enum. `declare_task_types!` generates
+the enum, list and names from one declaration. Invalid names and duplicate spellings
+fail constant evaluation. Handlers match the parsed enum exhaustively; adding a variant
+requires implementing its dispatch. Shared crates store `TaskTypeName` without knowing
+the domain variants. Constructors and Serde validate names, and JSON preserves their
+string spelling. TaskRuntime and Store carry this type through admission and snapshots;
+the database adapter wraps its Serde representation without adding a database dependency
+here. Name validation does not register a handler or authorize execution.
+
 `TaskResourceAddress` extends a domain resource address with its backing `TaskId`.
 Owners implement it only for routes whose contents follow one native Task. The
 Task runtime uses that relationship to share an authorized observation source across

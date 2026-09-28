@@ -13,6 +13,7 @@ use veoveo_mcp_contract::{
 use veoveo_speech_contract::{MAX_SOURCE_BYTES, TranscribeRequest, validate_source};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskSnapshot};
 use veoveo_types::TaskId;
+use veoveo_types::TaskTypeDefinition;
 
 pub fn owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
@@ -84,7 +85,7 @@ impl SpeechService {
                 task_id,
                 owner: owner(&caller.identity),
                 server: "speech".into(),
-                task_type: "transcribe".into(),
+                task_type: veoveo_speech_contract::SpeechTaskKind::Transcribe.name(),
                 request: serde_json::to_value(&request)?,
                 recovery_class: RecoveryClass::Resume,
                 idempotency_key: None,

@@ -19,7 +19,7 @@ fn draft() -> CreateTask {
         task_id: TaskId::new(),
         owner,
         server: "admission-test".into(),
-        task_type: "native".into(),
+        task_type: const { veoveo_types::TaskTypeName::from_static("native") },
         request: serde_json::json!({"revision": 0}),
         recovery_class: RecoveryClass::InterruptedIndeterminate,
         idempotency_key: None,

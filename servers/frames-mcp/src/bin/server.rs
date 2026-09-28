@@ -12,6 +12,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use axum::{Router, middleware, routing::get};
 use chrono::{DateTime, TimeDelta, Utc};
@@ -583,7 +584,7 @@ async fn start_batch_task(
             task_id,
             owner: runtime_owner(&identity),
             server: SERVER_SLUG.to_owned(),
-            task_type: "batch_transform".to_owned(),
+            task_type: veoveo_frames_mcp::contract::FramesTaskKind::BatchTransform.name(),
             request: serde_json::to_value(&request).map_err(|error| error.to_string())?,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

@@ -16,3 +16,7 @@ without linking the inference runtime or acquiring its image inputs.
 Artifact identities and metadata come from the domain-owned
 [`veoveo-artifact-contract`](../../../platform/artifacts/contract/DESIGN.md).
 This crate has no MCP transport, database, or asynchronous runtime dependency.
+
+`task_kind.rs` owns `SpeechTaskKind`, the checked transcription Task operation. Service
+admission obtains its name through `veoveo-types::TaskTypeDefinition`. Shared Task
+infrastructure imports no Speech types.

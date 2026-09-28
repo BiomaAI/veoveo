@@ -57,7 +57,7 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
             task_id: task,
             owner: owner.clone(),
             server: runtime.server().to_owned(),
-            task_type: request.task_type().into(),
+            task_type: request.task_type(),
             request: serde_json::to_value(request).unwrap(),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

@@ -737,12 +737,9 @@ Real-store qualification adds malformed owner-visible rows of another operation 
 multiple selected types, limits, operation changes and recovery after event removal.
 The 80 shared-runtime/foundational checks and 102 Stream/Reason native checks pass.
 All 25 documentation examples, 35 isolated contract checks and ten generated SQL
-variants pass, as does strict all-target, all-feature workspace Clippy. Remaining type
-work includes carrying
-`TaskTypeName` through Task admission and snapshots, replacing the current String
-fields and moving other servers' operation declarations into their owning contracts.
-Other domain-specific post-read operation checks still require review. Installed
-qualification remains pending while reference workloads are stopped.
+variants pass, as does strict all-target, all-feature workspace Clippy. Domain-specific
+post-read operation checks still require review. Installed qualification remains pending
+while reference workloads are stopped.
 
 Task results now use Store's typed `TaskResultRecord` with one required `payload`
 field. This preserves scalars, JSON null and objects such as `{"value":42}` without
@@ -758,6 +755,23 @@ enabled. That qualification also fixed quota checkpoint timestamps when appends 
 a shared producer counter out of acceptance-time order. Map and Computers tests now
 verify current-format replay and result agreement without reconstructing old formats.
 Strict all-target, all-feature workspace Clippy passes.
+
+Task operation names now stay typed through admission, Store records, snapshots,
+outbox delivery and Console summaries. Fourteen domain libraries own checked operation
+enums. `declare_task_types!` generates their vocabulary and conversions; malformed and
+duplicate declarations fail compilation. Map, Time and Optimization dispatch parsed
+enums exhaustively. SQL operation selectors bind names from owning declarations, and
+native tests prove that unrelated malformed operations are excluded before decoding.
+The current string wire format needs no conversion or compatibility reader.
+
+Qualification passes 314 Rust checks, including the explicitly invoked TaskRuntime
+Store test, compile-fail examples and thirteen independent-consumer checks. That
+consumer imports twelve domain contracts plus a new local vocabulary; its 128-package
+Linux graph contains no MCP runtime, async runtime, Store or GPU implementation.
+View and SUMO expose their operation enums in their existing libraries; their library
+feature isolation is still open. The pinned SurrealDB 3.2.4 CLI validates fifteen
+expanded current-source SQL forms. Strict all-target, all-feature workspace Clippy
+passes. Installed acceptance remains pending with reference workloads stopped.
 Installed result-format acceptance remains pending while reference workloads are stopped.
 
 This plan tells an implementing agent how to deliver six changes. The first moves

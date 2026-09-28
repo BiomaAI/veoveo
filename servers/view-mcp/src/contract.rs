@@ -1,4 +1,6 @@
+mod task_kind;
 use std::{fmt, str::FromStr};
+pub use task_kind::ViewTaskKind;
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;

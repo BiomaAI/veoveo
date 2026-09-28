@@ -162,12 +162,19 @@ impl TaskOwner {
     }
 }
 
+/// Task admission preserves the operation's validated identity.
+/// ```compile_fail
+/// use veoveo_task_runtime::CreateTask;
+/// fn unchecked(mut draft: CreateTask) {
+///     draft.task_type = "unchecked-operation".to_owned();
+/// }
+/// ```
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CreateTask {
     pub task_id: TaskId,
     pub owner: TaskOwner,
     pub server: String,
-    pub task_type: String,
+    pub task_type: veoveo_types::TaskTypeName,
     pub request: Value,
     pub recovery_class: RecoveryClass,
     pub idempotency_key: Option<String>,
@@ -187,7 +194,7 @@ pub struct TaskSnapshot {
     pub task_id: TaskId,
     pub owner: TaskOwner,
     pub server: String,
-    pub task_type: String,
+    pub task_type: veoveo_types::TaskTypeName,
     pub request: Value,
     pub recovery_class: RecoveryClass,
     pub status: StoreTaskStatus,

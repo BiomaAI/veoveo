@@ -7,6 +7,7 @@ use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 pub(super) struct ClockedCommand {
     pub operation: CommandOperation,
@@ -26,7 +27,8 @@ impl ComputersStore {
         Ok(self.worker_command(claim).await?.operation)
     }
     pub(super) async fn worker_command(&self, claim: &ClaimedTask) -> Result<ClockedCommand> {
-        if claim.snapshot.server != "computers" || claim.snapshot.task_type != "computer.execution"
+        if claim.snapshot.server != "computers"
+            || claim.snapshot.task_type != crate::api::ComputerTaskKind::Execution.name()
         {
             return Err(ComputerError::InvalidInput);
         }

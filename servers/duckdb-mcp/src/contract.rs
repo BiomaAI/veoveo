@@ -1,4 +1,6 @@
+mod task_kind;
 use std::fmt;
+pub use task_kind::DuckDbTaskKind;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

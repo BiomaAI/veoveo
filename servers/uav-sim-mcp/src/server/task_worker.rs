@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_types::TaskTypeDefinition;
 
 use rmcp::model::{CallToolResult, ContentBlock};
 use serde::Serialize;
@@ -68,7 +69,7 @@ pub(super) async fn start_vehicle_mission_plan(
     let created = create_task(
         &state,
         &caller,
-        "execute_vehicle_mission_plan",
+        crate::contract::UavTaskKind::ExecuteMission.name(),
         serde_json::to_value(&request).map_err(|error| error.to_string())?,
         RecoveryClass::InterruptedIndeterminate,
         retention_pins,
@@ -106,7 +107,7 @@ pub(super) async fn start_vehicle_mission_plan(
 async fn create_task(
     state: &AppState,
     caller: &PlaneCaller,
-    task_type: &str,
+    task_type: veoveo_types::TaskTypeName,
     request: serde_json::Value,
     recovery_class: RecoveryClass,
     retention_pins: BTreeSet<TaskRetentionPin>,
@@ -117,7 +118,7 @@ async fn create_task(
             task_id: TaskId::new(),
             owner: runtime_owner(&caller.identity),
             server: "uav-sim".to_owned(),
-            task_type: task_type.to_owned(),
+            task_type,
             request,
             recovery_class,
             idempotency_key: None,
@@ -133,7 +134,7 @@ pub(super) async fn resume_queued_operation(
     state: Arc<AppState>,
     snapshot: TaskSnapshot,
 ) -> Result<(), String> {
-    if snapshot.task_type == "execute_vehicle_mission_plan" {
+    if snapshot.task_type == crate::contract::UavTaskKind::ExecuteMission.name() {
         // The public request contains a plan address, never a replayable simulator command.
         // Recovery has no live dispatch guard. Preserve any retained vehicle fence.
         let id = snapshot.task_id.to_string();
@@ -559,7 +560,7 @@ mod tests {
             duration_seconds: 1.0,
             sensors: vec!["down-camera".to_owned()],
         });
-        assert_eq!(operation.task_type(), "capture_dataset");
+        assert_eq!(operation.task_type().as_str(), "capture_dataset");
         assert_eq!(
             recovery_class(&operation),
             RecoveryClass::InterruptedIndeterminate

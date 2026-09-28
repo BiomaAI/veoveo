@@ -2,6 +2,8 @@
 mod fixture;
 #[path = "support/result_shape_cases.rs"]
 mod result_shape_cases;
+#[path = "support/task_type_cases.rs"]
+mod task_type_cases;
 use std::collections::BTreeSet;
 use std::time::Duration;
 use veoveo_platform_store::task_record_id;
@@ -58,7 +60,7 @@ fn draft(task_type: &str, recovery_class: RecoveryClass) -> CreateTask {
         task_id: veoveo_types::TaskId::new(),
         owner: owner(),
         server: "integration-server".to_owned(),
-        task_type: task_type.to_owned(),
+        task_type: veoveo_types::TaskTypeName::new(task_type).unwrap(),
         request: json!({"value": 7}),
         recovery_class,
         idempotency_key: None,

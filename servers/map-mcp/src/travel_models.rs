@@ -1,4 +1,5 @@
 //! Current owner and Work Context selection for completed travel-model Tasks.
+use crate::contract::MapTaskKind;
 use crate::contract::{
     MapTravelModelCursor, MapTravelModelPage, MapTravelModelsUri, TRAVEL_MODEL_PAGE_SIZE,
     TravelModelId, TravelModelRecord,
@@ -10,6 +11,7 @@ use veoveo_platform_store::{
     deterministic_work_context_id,
 };
 use veoveo_task_runtime::TaskOwner;
+use veoveo_types::TaskTypeDefinition;
 
 const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
     AND profile = $profile AND work_context = $context
@@ -25,8 +27,8 @@ const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
     AND request.input.request.identity.actor.data_labels ALLINSIDE $labels
     AND request.input.request.identity.authority.work_context = $context_key
     AND request.input.request.identity.authority.tenant = $authority_tenant";
-const COMPLETED: &str = "task_type = 'build_travel_model'
-    AND request.input.kind = 'build_travel_model'
+const COMPLETED: &str = "task_type = $task_type
+    AND request.input.kind = $task_type
     AND status = 'succeeded' AND (result.payload.isError ?? false) = false
     AND result.payload.structuredContent.created_by = $principal_key
     AND result.payload.structuredContent.work_context = $context_key
@@ -125,6 +127,10 @@ impl<'a> TravelModelReads<'a> {
             .store
             .client()
             .query(statement)
+            .bind((
+                "task_type",
+                MapTaskKind::BuildTravelModel.name().to_string(),
+            ))
             .bind(("server", RecordId::new("mcp_server", "map")))
             .bind((
                 "tenant",

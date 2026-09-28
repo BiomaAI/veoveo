@@ -1,4 +1,6 @@
+use crate::contract::ViewTaskKind;
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use veoveo_types::TaskTypeDefinition;
 
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
@@ -17,8 +19,6 @@ use crate::{
     state::{ResourceOwner, ViewCaptureSnapshot},
     uris,
 };
-
-const CAPTURE_FRAME_TASK: &str = "capture_frame";
 
 const TASK_TTL_MS: u64 = 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
@@ -84,7 +84,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         caller: &Self::Caller,
         request: rmcp::model::CallToolRequestParams,
     ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
-        if request.name.as_ref() != CAPTURE_FRAME_TASK {
+        if ViewTaskKind::from_wire_name(request.name.as_ref()).is_none() {
             return Ok(None);
         }
         require_scope(&caller.identity, "view:capture")
@@ -173,7 +173,7 @@ pub(super) async fn recover_tasks(
     resumable: Vec<TaskSnapshot>,
 ) -> anyhow::Result<()> {
     for snapshot in resumable {
-        if snapshot.task_type != CAPTURE_FRAME_TASK {
+        if snapshot.task_type != ViewTaskKind::CaptureFrame.name() {
             anyhow::bail!("unknown resumable View task type `{}`", snapshot.task_type);
         }
         let request: ViewCaptureTaskRequest = serde_json::from_value(snapshot.request.clone())?;
@@ -201,7 +201,7 @@ async fn start_capture_task(
             task_id: TaskId::new(),
             owner: runtime_owner(&identity),
             server: SERVER_SLUG.to_owned(),
-            task_type: CAPTURE_FRAME_TASK.to_owned(),
+            task_type: ViewTaskKind::CaptureFrame.name(),
             request: serde_json::to_value(&request)?,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

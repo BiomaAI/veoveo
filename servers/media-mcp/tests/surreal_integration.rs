@@ -95,7 +95,7 @@ async fn create_waiting_task(
             task_id,
             owner: owner(),
             server: "media".into(),
-            task_type: "run".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("run") },
             request: json!({"model": "fake/image", "input": {"prompt": "test"}}),
             recovery_class: RecoveryClass::WebhookWait,
             idempotency_key: None,

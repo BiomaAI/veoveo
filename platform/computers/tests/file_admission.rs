@@ -83,7 +83,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
         .unwrap()
         .unwrap();
     assert_eq!(task.owner, *owner.owner());
-    assert_eq!(task.task_type, "computer.file_transfer");
+    assert_eq!(task.task_type.as_str(), "computer.file_transfer");
     assert_eq!(task.recovery_class, RecoveryClass::ProviderWait);
     assert_eq!(
         task.request,

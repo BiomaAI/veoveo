@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use surrealdb::types::SurrealValue;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRetentionPin, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 impl ComputersStore {
     /// Trusted worker discovery; public projections use current principal authority.
@@ -72,7 +73,7 @@ impl ComputersStore {
                 task_id: command.task_id(),
                 owner: command.actor(),
                 server: "computers".into(),
-                task_type: "computer.execution".into(),
+                task_type: crate::api::ComputerTaskKind::Execution.name(),
                 request: reference.clone(),
                 recovery_class: RecoveryClass::ProviderWait,
                 idempotency_key: Some(format!("computer-execution/{id}")),
@@ -86,7 +87,7 @@ impl ComputersStore {
         if task.task_id != command.task_id()
             || task.owner != command.actor()
             || task.request != reference
-            || task.task_type != "computer.execution"
+            || task.task_type != crate::api::ComputerTaskKind::Execution.name()
             || task.recovery_class != RecoveryClass::ProviderWait
             || !task.retention_pins.contains(&pin)
         {

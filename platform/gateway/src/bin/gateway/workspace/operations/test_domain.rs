@@ -157,7 +157,7 @@ impl ServerHandler for Domain {
                 task_id: TaskId::new(),
                 owner: self.owner.clone(),
                 server: "workspace-fixture".into(),
-                task_type: "workspace-acceptance".into(),
+                task_type: const { veoveo_types::TaskTypeName::from_static("workspace-acceptance") },
                 request: json!({}),
                 recovery_class: RecoveryClass::InterruptedIndeterminate,
                 idempotency_key: None,

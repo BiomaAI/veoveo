@@ -55,7 +55,7 @@ fn draft(task_type: &str, recovery_class: RecoveryClass) -> CreateTask {
         task_id: veoveo_types::TaskId::new(),
         owner: owner(),
         server: "integration-server".to_owned(),
-        task_type: task_type.to_owned(),
+        task_type: veoveo_types::TaskTypeName::new(task_type).unwrap(),
         request: json!({"value": 7}),
         recovery_class,
         idempotency_key: None,
@@ -201,7 +201,8 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
                     input.owner.authority.tenant = TenantId::new("another-tenant").unwrap();
                 }
                 "type" => {
-                    input.task_type = "unrelated".into();
+                    input.task_type =
+                        const { veoveo_types::TaskTypeName::from_static("unrelated") };
                 }
                 _ => unreachable!(),
             }

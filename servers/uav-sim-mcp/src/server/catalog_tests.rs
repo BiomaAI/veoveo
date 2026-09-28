@@ -112,7 +112,7 @@ async fn task(
             task_id: TaskId::new(),
             owner: runtime_owner(identity),
             server: "uav-sim".into(),
-            task_type: "execute_vehicle_mission_plan".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("execute_vehicle_mission_plan") },
             request: serde_json::to_value(ExecuteVehicleMissionPlanRequest {
                 plan_id: plan.plan_id.clone(),
                 expected_revision: plan.revision,

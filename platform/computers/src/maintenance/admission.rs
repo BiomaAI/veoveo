@@ -19,6 +19,7 @@ use veoveo_platform_store::{
     gateway_refresh_family_record_id,
 };
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -424,7 +425,7 @@ impl ComputersStore {
                 task_id: operation.task_id(),
                 owner: operation.actor.clone(),
                 server: "computers".into(),
-                task_type: "computer.maintenance".into(),
+                task_type: crate::api::ComputerTaskKind::Maintenance.name(),
                 request: reference.clone(),
                 recovery_class: RecoveryClass::ProviderWait,
                 idempotency_key: Some(format!("computer-maintenance/{id}")),

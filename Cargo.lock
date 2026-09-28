@@ -16496,6 +16496,7 @@ dependencies = [
  "serde",
  "serde_json",
  "uuid",
+ "veoveo-types",
 ]
 
 [[package]]

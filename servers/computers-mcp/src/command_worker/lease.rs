@@ -1,5 +1,6 @@
 use super::*;
 use veoveo_task_runtime::TaskStatus;
+use veoveo_types::TaskTypeDefinition;
 
 impl CommandWorker {
     async fn current_claim(&self, claim: &ClaimedTask) -> Result<ClaimedTask> {
@@ -17,7 +18,7 @@ impl CommandWorker {
             || expires <= chrono::Utc::now()
             || snapshot.owner != claim.snapshot.owner
             || snapshot.request != claim.snapshot.request
-            || snapshot.task_type != "computer.execution"
+            || snapshot.task_type != veoveo_computers::api::ComputerTaskKind::Execution.name()
             || snapshot.is_terminal()
         {
             return Err(CommandWorkerError::LeaseLost);

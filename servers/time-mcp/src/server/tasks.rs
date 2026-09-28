@@ -1,4 +1,6 @@
+use crate::contract::TimeTaskKind;
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use veoveo_types::TaskTypeDefinition;
 
 use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
@@ -17,8 +19,6 @@ use crate::{
 };
 
 const SERVER_SLUG: &str = "time";
-const EXPAND_SCHEDULE_TASK: &str = "expand_schedule";
-const VALIDATE_TIMELINE_TASK: &str = "validate_timeline";
 
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 1_000;
@@ -86,8 +86,8 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         request: rmcp::model::CallToolRequestParams,
     ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
         let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
-        let task = match request.name.as_ref() {
-            EXPAND_SCHEDULE_TASK => {
+        let task = match TimeTaskKind::from_wire_name(request.name.as_ref()) {
+            Some(TimeTaskKind::ExpandSchedule) => {
                 require_scope(&caller.identity.actor.scopes, TimeScope::Schedule)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ExpandSchedule(Box::new(
@@ -96,7 +96,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
                     })?,
                 ))
             }
-            VALIDATE_TIMELINE_TASK => {
+            Some(TimeTaskKind::ValidateTimeline) => {
                 require_scope(&caller.identity.actor.scopes, TimeScope::Timeline)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
                 TimeTaskRequest::ValidateTimeline(
@@ -105,7 +105,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
                     })?,
                 )
             }
-            _ => return Ok(None),
+            None => return Ok(None),
         };
         let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let snapshot = start_time_task(
@@ -178,10 +178,7 @@ pub(super) async fn recover_tasks(
     resumable: Vec<TaskSnapshot>,
 ) -> anyhow::Result<()> {
     for snapshot in resumable {
-        if !matches!(
-            snapshot.task_type.as_str(),
-            EXPAND_SCHEDULE_TASK | VALIDATE_TIMELINE_TASK
-        ) {
+        if TimeTaskKind::from_name(&snapshot.task_type).is_none() {
             anyhow::bail!("unknown resumable Time task type `{}`", snapshot.task_type);
         }
         let request: TimeTaskRequest = serde_json::from_value(snapshot.request.clone())?;
@@ -212,7 +209,7 @@ async fn start_time_task(
             task_id: TaskId::new(),
             owner: runtime_owner(&identity),
             server: SERVER_SLUG.to_owned(),
-            task_type: request.task_type().to_owned(),
+            task_type: request.task_type(),
             request: serde_json::to_value(&request)?,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,
@@ -330,10 +327,10 @@ async fn run_time_task_inner(
 }
 
 impl TimeTaskRequest {
-    fn task_type(&self) -> &'static str {
+    fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::ExpandSchedule(_) => EXPAND_SCHEDULE_TASK,
-            Self::ValidateTimeline(_) => VALIDATE_TIMELINE_TASK,
+            Self::ExpandSchedule(_) => TimeTaskKind::ExpandSchedule.name(),
+            Self::ValidateTimeline(_) => TimeTaskKind::ValidateTimeline.name(),
         }
     }
     fn description(&self) -> &'static str {

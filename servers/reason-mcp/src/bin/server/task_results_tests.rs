@@ -81,7 +81,7 @@ async fn create(runtime: &TaskRuntime, owner: TaskOwner, id: TaskId) {
             task_id: id,
             owner,
             server: "reason".into(),
-            task_type: "analyze_recording".into(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("analyze_recording") },
             request,
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

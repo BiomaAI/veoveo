@@ -68,12 +68,16 @@ pub(super) async fn complete(
     let mut values = BTreeSet::new();
     for field in fields {
         let statement = format!(
-            "SELECT VALUE candidate FROM (SELECT {field} AS candidate FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type = 'analyze_recording' AND {field} CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);"
+            "SELECT VALUE candidate FROM (SELECT {field} AS candidate FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile AND (request.owner.tenant_key ?? NONE) = $tenant_key AND request.owner.data_labels ALLINSIDE $data_labels AND task_type = $task_type AND {field} CONTAINS $needle GROUP BY candidate ORDER BY candidate ASC LIMIT $limit);"
         );
         let mut response = tasks
             .platform_store()
             .client()
             .query(statement)
+            .bind((
+                "task_type",
+                ReasonTaskKind::AnalyzeRecording.name().to_string(),
+            ))
             .bind(("server", RecordId::new("mcp_server", "reason")))
             .bind((
                 "tenant",

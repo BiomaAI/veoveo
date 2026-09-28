@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::MapTaskKind;
 mod geodetic_ids;
 pub use geodetic_ids::*;
 mod admin;

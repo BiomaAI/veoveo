@@ -97,7 +97,11 @@ accept that enum. A generic policy engine accepts validated `ScopeName` values b
 installations and external providers can define additional scopes. `ScopeName` validates
 syntax; it does not establish membership in a domain's supported scope vocabulary.
 
-Server libraries own their domain scope enums, IDs, and resource address variants.
+Server libraries own their domain scope enums, IDs, resource address variants and
+Task operation enums. Operations implement `veoveo_types::TaskTypeDefinition`; the
+`declare_task_types!` helper checks complete, distinct names at compilation. Shared
+Task admission and snapshots carry `TaskTypeName`. MCP adapters can parse incoming
+operation names into their own enums for exhaustive Task dispatch.
 Shared infrastructure cannot require a vocabulary change when a server adds a scope
 or resource family. The gateway consumes validated names and registration data without
 a compiled registry of domain enums. Rust cross-server consumers import the owning

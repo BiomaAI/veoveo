@@ -1,4 +1,6 @@
 //! Canonical public JSON contract. Generate every client model from schema_bundle().
+mod task_kind;
+pub use task_kind::ComputerTaskKind;
 mod access;
 pub use access::*;
 mod automation;

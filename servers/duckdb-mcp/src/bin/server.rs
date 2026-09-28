@@ -9,6 +9,7 @@
 //!   template `duckdb://db/{db_id}` — schema summary for one database
 //!   template `duckdb://artifact/{artifact_id}` — immutable export artifact bytes
 //!   template `duckdb://usage/task/{task_id}` — task usage rows
+use veoveo_duckdb_mcp::contract::DuckDbTaskKind;
 
 use std::{
     collections::BTreeSet,
@@ -17,6 +18,7 @@ use std::{
     sync::{Arc, LazyLock},
     time::Duration,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use axum::{Router, middleware, routing::get};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -788,7 +790,7 @@ async fn start_duckdb_task(
             task_id,
             owner: runtime_owner(&identity),
             server: SERVER_SLUG.to_owned(),
-            task_type: request.args.operation_name().to_owned(),
+            task_type: request.args.task_type(),
             request: serde_json::to_value(&request).map_err(|error| error.to_string())?,
             recovery_class,
             idempotency_key: None,
@@ -804,12 +806,12 @@ async fn start_duckdb_task(
 }
 
 impl TaskArgs {
-    fn operation_name(&self) -> &'static str {
+    fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::Query(_) => "query",
-            Self::Execute(_) => "execute",
-            Self::Ingest(_) => "ingest",
-            Self::Export(_) => "export",
+            Self::Query(_) => DuckDbTaskKind::Query.name(),
+            Self::Execute(_) => DuckDbTaskKind::Execute.name(),
+            Self::Ingest(_) => DuckDbTaskKind::Ingest.name(),
+            Self::Export(_) => DuckDbTaskKind::Export.name(),
         }
     }
 }

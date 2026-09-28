@@ -8,6 +8,7 @@ use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
 use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 pub(super) struct ClockedMaintenance {
     pub operation: MaintenanceOperation,
@@ -38,7 +39,7 @@ impl ComputersStore {
         claim: &ClaimedTask,
     ) -> Result<ClockedMaintenance> {
         if claim.snapshot.server != "computers"
-            || claim.snapshot.task_type != "computer.maintenance"
+            || claim.snapshot.task_type != crate::api::ComputerTaskKind::Maintenance.name()
         {
             return Err(ComputerError::InvalidInput);
         }

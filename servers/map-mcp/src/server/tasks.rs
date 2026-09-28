@@ -1,9 +1,11 @@
+use crate::contract::MapTaskKind;
 use std::{
     collections::BTreeSet,
     num::{NonZeroU32, NonZeroU64},
     sync::Arc,
     time::Duration,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use anyhow::{Context, bail};
 use chrono::{TimeDelta, Utc};
@@ -39,15 +41,6 @@ use crate::{
 mod feature_transfers;
 
 const SERVER_SLUG: &str = "map";
-const ROUTE_TASK: &str = "route";
-const ROUTE_MATRIX_TASK: &str = "route_matrix";
-const BUILD_TRAVEL_MODEL_TASK: &str = "build_travel_model";
-const REACHABLE_AREA_TASK: &str = "reachable_area";
-const IMPORT_FEATURE_LAYER_TASK: &str = "import_feature_layer";
-const INSPECT_GEOPACKAGE_TASK: &str = "inspect_geopackage";
-const EXPORT_FEATURE_LAYER_TASK: &str = "export_feature_layer";
-const BUILD_VECTOR_TILES_TASK: &str = "build_vector_tiles";
-const DERIVE_RASTER_TASK: &str = "derive_raster";
 
 const TASK_TTL_MS: u64 = 7 * 24 * 60 * 60 * 1_000;
 const TASK_POLL_INTERVAL_MS: u64 = 3_000;
@@ -182,8 +175,8 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
     ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
         let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         let task_id = TaskId::new();
-        let args = match request.name.as_ref() {
-            ROUTE_TASK => {
+        let args = match MapTaskKind::from_wire_name(request.name.as_ref()) {
+            Some(MapTaskKind::Route) => {
                 require_scope(&caller.identity, MapScope::Route)?;
                 MapTaskRequest::Route(
                     serde_json::from_value(arguments).map_err(|error| {
@@ -191,7 +184,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     })?,
                 )
             }
-            ROUTE_MATRIX_TASK => {
+            Some(MapTaskKind::RouteMatrix) => {
                 require_scope(&caller.identity, MapScope::RouteMatrix)?;
                 MapTaskRequest::RouteMatrix(
                     serde_json::from_value(arguments).map_err(|error| {
@@ -199,7 +192,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     })?,
                 )
             }
-            BUILD_TRAVEL_MODEL_TASK => {
+            Some(MapTaskKind::BuildTravelModel) => {
                 require_scope(&caller.identity, MapScope::RouteMatrix)?;
                 let input: BuildTravelModelRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -220,7 +213,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
-            REACHABLE_AREA_TASK => {
+            Some(MapTaskKind::ReachableArea) => {
                 require_scope(&caller.identity, MapScope::Route)?;
                 MapTaskRequest::ReachableArea(
                     serde_json::from_value(arguments).map_err(|error| {
@@ -228,7 +221,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     })?,
                 )
             }
-            INSPECT_GEOPACKAGE_TASK => {
+            Some(MapTaskKind::InspectGeoPackage) => {
                 require_scope(&caller.identity, MapScope::FeatureRead)?;
                 let input: InspectGeoPackageRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -243,7 +236,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?,
                 )
             }
-            IMPORT_FEATURE_LAYER_TASK => {
+            Some(MapTaskKind::ImportFeatureLayer) => {
                 require_scope(&caller.identity, MapScope::FeatureWrite)?;
                 let input: ImportFeatureLayerRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -255,7 +248,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                         })?,
                 )
             }
-            EXPORT_FEATURE_LAYER_TASK => {
+            Some(MapTaskKind::ExportFeatureLayer) => {
                 require_scope(&caller.identity, MapScope::FeaturePublish)?;
                 let input: ExportFeatureLayerRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -276,7 +269,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
-            BUILD_VECTOR_TILES_TASK => {
+            Some(MapTaskKind::BuildVectorTiles) => {
                 require_scope(&caller.identity, MapScope::FeaturePublish)?;
                 let input: BuildVectorTilesRequest = serde_json::from_value(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -307,7 +300,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                     .map_err(|error| rmcp::ErrorData::internal_error(error.to_string(), None))?,
                 })
             }
-            DERIVE_RASTER_TASK => {
+            Some(MapTaskKind::DeriveRaster) => {
                 require_scope(&caller.identity, MapScope::DatasetRead)?;
                 require_scope(&caller.identity, MapScope::RasterDerive)?;
                 let input: DeriveRasterRequest = serde_json::from_value(arguments)
@@ -320,7 +313,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
                         })?,
                 )
             }
-            _ => return Ok(None),
+            None => return Ok(None),
         };
         let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let uses_task_directory = args.uses_task_directory();
@@ -404,18 +397,7 @@ pub(super) async fn recover_tasks(
     resumable: Vec<TaskSnapshot>,
 ) -> anyhow::Result<()> {
     for snapshot in resumable {
-        if !matches!(
-            snapshot.task_type.as_str(),
-            ROUTE_TASK
-                | ROUTE_MATRIX_TASK
-                | BUILD_TRAVEL_MODEL_TASK
-                | REACHABLE_AREA_TASK
-                | INSPECT_GEOPACKAGE_TASK
-                | IMPORT_FEATURE_LAYER_TASK
-                | EXPORT_FEATURE_LAYER_TASK
-                | BUILD_VECTOR_TILES_TASK
-                | DERIVE_RASTER_TASK
-        ) {
+        if MapTaskKind::from_name(&snapshot.task_type).is_none() {
             anyhow::bail!("unknown resumable Map task type `{}`", snapshot.task_type);
         }
         let request: MapTaskRequest = serde_json::from_value(snapshot.request.clone())?;
@@ -441,7 +423,7 @@ async fn start_map_task(
     request: MapTaskRequest,
     retention_pins: BTreeSet<TaskRetentionPin>,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_type = request.task_type().to_owned();
+    let task_type = request.task_type();
     let created = state
         .tasks
         .create(CreateTask {
@@ -634,17 +616,17 @@ async fn run_map_task_inner(
 }
 
 impl MapTaskRequest {
-    fn task_type(&self) -> &'static str {
+    fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::Route(_) => ROUTE_TASK,
-            Self::RouteMatrix(_) => ROUTE_MATRIX_TASK,
-            Self::BuildTravelModel(_) => BUILD_TRAVEL_MODEL_TASK,
-            Self::ReachableArea(_) => REACHABLE_AREA_TASK,
-            Self::InspectGeoPackage(_) => INSPECT_GEOPACKAGE_TASK,
-            Self::ImportFeatureLayer(_) => IMPORT_FEATURE_LAYER_TASK,
-            Self::ExportFeatureLayer(_) => EXPORT_FEATURE_LAYER_TASK,
-            Self::BuildVectorTiles(_) => BUILD_VECTOR_TILES_TASK,
-            Self::DeriveRaster(_) => DERIVE_RASTER_TASK,
+            Self::Route(_) => MapTaskKind::Route.name(),
+            Self::RouteMatrix(_) => MapTaskKind::RouteMatrix.name(),
+            Self::BuildTravelModel(_) => MapTaskKind::BuildTravelModel.name(),
+            Self::ReachableArea(_) => MapTaskKind::ReachableArea.name(),
+            Self::InspectGeoPackage(_) => MapTaskKind::InspectGeoPackage.name(),
+            Self::ImportFeatureLayer(_) => MapTaskKind::ImportFeatureLayer.name(),
+            Self::ExportFeatureLayer(_) => MapTaskKind::ExportFeatureLayer.name(),
+            Self::BuildVectorTiles(_) => MapTaskKind::BuildVectorTiles.name(),
+            Self::DeriveRaster(_) => MapTaskKind::DeriveRaster.name(),
         }
     }
 

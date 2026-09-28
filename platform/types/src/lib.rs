@@ -48,4 +48,6 @@ pub use identity::{
 };
 pub use provenance::{InvocationMode, InvocationProvenance};
 pub use task::TaskId;
+#[doc(hidden)]
+pub use task_type::assert_task_type_names as __assert_task_type_names;
 pub use task_type::{TaskTypeDefinition, TaskTypeName};

@@ -13,6 +13,7 @@ use uuid::Uuid;
 use veoveo_platform_store::task_record_id;
 use veoveo_platform_store::{OpenObject, OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRetentionPin, TaskRuntime};
+use veoveo_types::TaskTypeDefinition;
 
 #[derive(Serialize, SurrealValue)]
 struct Content {
@@ -268,7 +269,7 @@ impl ComputersStore {
                 task_id: operation.task_id(),
                 owner: operation.actor.clone(),
                 server: "computers".into(),
-                task_type: "computer.lifecycle".into(),
+                task_type: crate::api::ComputerTaskKind::Lifecycle.name(),
                 request: reference.clone(),
                 recovery_class: RecoveryClass::ProviderWait,
                 idempotency_key: Some(format!("computer-operation/{id}")),

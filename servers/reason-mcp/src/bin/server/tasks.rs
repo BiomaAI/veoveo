@@ -141,7 +141,7 @@ pub(super) async fn start_reason_task(
         .await
         .map_err(|error| error.to_string())?;
     let recovery_class = input.recovery_class();
-    let task_type = input.task_type().to_string();
+    let task_type = input.task_type();
     let request = DurableReasonRequest {
         input,
         grounding: grounding.map(grounding_input::GroundingInput::into_detections),

@@ -126,7 +126,7 @@ pub(super) async fn start_stream_task(
         .await
         .map_err(|error| error.to_string())?;
     let recovery_class = input.recovery_class();
-    let task_type = input.task_type().to_string();
+    let task_type = input.task_type();
     let request = DurableStreamRequest {
         input,
         artifact_write_capability: capability,

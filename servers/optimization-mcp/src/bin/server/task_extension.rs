@@ -4,13 +4,15 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use veoveo_optimization_mcp::contract::OptimizationTaskKind;
+use veoveo_types::TaskTypeDefinition;
 
 use chrono::{TimeDelta, Utc};
 use veoveo_mcp_contract::{
     GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, PlaneCaller,
 };
 use veoveo_optimization_mcp::task_records::{
-    OptimizationTaskRequest, PreparedVerifyTask, SolveTaskCommon, TASK_TOOLS, VERIFY_SOLUTION_TASK,
+    OptimizationTaskRequest, PreparedVerifyTask, SolveTaskCommon,
 };
 use veoveo_optimization_mcp::{
     contract::{
@@ -121,14 +123,14 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
         caller: &Self::Caller,
         request: rmcp::model::CallToolRequestParams,
     ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
-        if !TASK_TOOLS.contains(&request.name.as_ref()) {
+        if OptimizationTaskKind::from_wire_name(request.name.as_ref()).is_none() {
             return Ok(None);
         }
         let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         let task_id = TaskId::new();
         let submitted_at = Utc::now();
-        let durable = match request.name.as_ref() {
-            "optimize_routes" => {
+        let durable = match OptimizationTaskKind::from_wire_name(request.name.as_ref()) {
+            Some(OptimizationTaskKind::OptimizeRoutes) => {
                 let input: OptimizeRoutesRequest = decode(arguments)?;
                 executor_profile(&input.policy, ProblemFamily::Routing, false).map_err(invalid)?;
                 let prepared =
@@ -161,7 +163,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     input,
                 }
             }
-            "optimize_route_scenarios" => {
+            Some(OptimizationTaskKind::OptimizeRouteScenarios) => {
                 let input: OptimizeRouteScenariosRequest = decode(arguments)?;
                 executor_profile(&input.policy, ProblemFamily::RouteScenarios, false)
                     .map_err(invalid)?;
@@ -199,7 +201,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     input,
                 }
             }
-            "solve_convex" => {
+            Some(OptimizationTaskKind::SolveConvex) => {
                 let input: SolveConvexRequest = decode(arguments)?;
                 executor_profile(&input.policy, ProblemFamily::Convex, false).map_err(invalid)?;
                 let prepared =
@@ -233,7 +235,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     input,
                 }
             }
-            "solve_milp" => {
+            Some(OptimizationTaskKind::SolveMilp) => {
                 let input: SolveMilpRequest = decode(arguments)?;
                 executor_profile(
                     &input.policy,
@@ -274,7 +276,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     input,
                 }
             }
-            VERIFY_SOLUTION_TASK => {
+            Some(OptimizationTaskKind::VerifySolution) => {
                 let input: VerifySolutionRequest = decode(arguments)?;
                 let solution = load_solution(
                     self.state.as_ref(),
@@ -315,7 +317,7 @@ impl veoveo_task_runtime::DurableTaskService for OptimizationTaskExtension {
                     }),
                 }
             }
-            _ => return Ok(None),
+            None => return Ok(None),
         };
         let retention_pins = veoveo_task_runtime::retention_pins(request.meta.as_ref())?;
         let snapshot = start_task(
@@ -389,7 +391,7 @@ pub(super) async fn recover_tasks(
     resumable: Vec<TaskSnapshot>,
 ) -> anyhow::Result<()> {
     for snapshot in resumable {
-        if !TASK_TOOLS.contains(&snapshot.task_type.as_str()) {
+        if OptimizationTaskKind::from_name(&snapshot.task_type).is_none() {
             anyhow::bail!(
                 "unknown resumable Optimization task type `{}`",
                 snapshot.task_type
@@ -421,7 +423,7 @@ async fn start_task(
     request: OptimizationTaskRequest,
     retention_pins: BTreeSet<TaskRetentionPin>,
 ) -> anyhow::Result<TaskSnapshot> {
-    let task_type = request.task_type().to_owned();
+    let task_type = request.task_type();
     let created = state
         .tasks
         .create(CreateTask {

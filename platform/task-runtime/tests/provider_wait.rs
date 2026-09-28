@@ -24,7 +24,7 @@ fn draft(class: RecoveryClass) -> CreateTask {
         task_id: TaskId::new(),
         owner,
         server: "computers-test".into(),
-        task_type: "lifecycle".into(),
+        task_type: const { veoveo_types::TaskTypeName::from_static("lifecycle") },
         request: serde_json::json!({"operationId": Uuid::now_v7(), "providerInstanceId": Uuid::now_v7(), "previousProcessId": "run-1"}),
         recovery_class: class,
         idempotency_key: None,

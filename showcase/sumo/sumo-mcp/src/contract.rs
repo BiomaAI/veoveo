@@ -1,5 +1,8 @@
+mod task_kind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use task_kind::SumoTaskKind;
+use veoveo_types::TaskTypeDefinition;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -117,11 +120,11 @@ pub enum OfflineOperation {
 }
 
 impl OfflineOperation {
-    pub const fn task_type(self) -> &'static str {
+    pub fn task_type(self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::GenerateNetwork => "generate_network",
-            Self::ComputeRoutes => "compute_routes",
-            Self::OptimizeSignals => "optimize_signals",
+            Self::GenerateNetwork => SumoTaskKind::GenerateNetwork.name(),
+            Self::ComputeRoutes => SumoTaskKind::ComputeRoutes.name(),
+            Self::OptimizeSignals => SumoTaskKind::OptimizeSignals.name(),
         }
     }
 }

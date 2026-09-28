@@ -3,6 +3,8 @@
 //! The modules in this namespace define routing, convex optimization, and
 //! MILP as separate problem families with independent resource identities.
 
+mod task_kind;
+pub use task_kind::OptimizationTaskKind;
 mod addresses;
 mod resources;
 mod scopes;

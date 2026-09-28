@@ -2,6 +2,7 @@ use super::*;
 use veoveo_computers::maintenance::{
     MaintenanceOperation, MaintenanceRecovery, MaintenanceStage, MaintenanceTarget,
 };
+use veoveo_types::TaskTypeDefinition;
 
 impl Application {
     pub fn with_maintenance(mut self, profiles: crate::MaintenanceProfiles) -> Result<Self> {
@@ -139,7 +140,7 @@ impl Application {
         {
             if task.owner != operation.actor
                 || task.recovery_class != veoveo_task_runtime::RecoveryClass::ProviderWait
-                || task.task_type != "computer.maintenance"
+                || task.task_type != veoveo_computers::api::ComputerTaskKind::Maintenance.name()
                 || task.server != "computers"
                 || task.request
                     != serde_json::json!({"computerId":operation.computer_id,"maintenanceId":operation.operation_id})

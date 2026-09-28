@@ -586,7 +586,7 @@ async fn task_settlement_survives_restart_and_is_consumed_once() {
             task_id: veoveo_types::TaskId::new(),
             owner,
             server: "integration-server".to_owned(),
-            task_type: "durability".to_owned(),
+            task_type: const { veoveo_types::TaskTypeName::from_static("durability") },
             request: json!({"work": true}),
             recovery_class: RecoveryClass::Resume,
             idempotency_key: None,

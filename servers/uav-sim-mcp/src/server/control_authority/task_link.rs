@@ -2,6 +2,7 @@
 use surrealdb::types::RecordId;
 use veoveo_task_runtime::TaskRetentionPin;
 use veoveo_types::TaskId;
+use veoveo_types::TaskTypeDefinition;
 
 pub(in crate::server) fn retention_pin() -> TaskRetentionPin {
     TaskRetentionPin::new("uav-sim:mission-execution").expect("static mission retention pin")
@@ -27,7 +28,7 @@ impl super::VehicleControlAuthority {
             .client()
             .query(
                 "SELECT VALUE id FROM task
-             WHERE server = $server AND task_type = 'execute_vehicle_mission_plan'
+             WHERE server = $server AND task_type = $task_type
              AND recovery_class = 'interrupted_indeterminate'
              AND retention_pins CONTAINS $pin AND status IN ['succeeded', 'failed', 'cancelled']
              AND created_at <= $before AND ($after = NONE OR id > $after)
@@ -39,6 +40,12 @@ impl super::VehicleControlAuthority {
              ORDER BY id ASC LIMIT 100;",
             )
             .bind(("server", RecordId::new("mcp_server", "uav-sim")))
+            .bind((
+                "task_type",
+                crate::contract::UavTaskKind::ExecuteMission
+                    .name()
+                    .to_string(),
+            ))
             .bind(("pin", retention_pin().to_string()))
             .bind(("before", before))
             .bind(("after", after.map(veoveo_platform_store::task_record_id)))
@@ -66,7 +73,7 @@ impl super::VehicleControlAuthority {
         use super::*;
         use crate::contract::ExecuteVehicleMissionPlanRequest;
         if task.server != "uav-sim"
-            || task.task_type != "execute_vehicle_mission_plan"
+            || task.task_type != crate::contract::UavTaskKind::ExecuteMission.name()
             || task.recovery_class != veoveo_task_runtime::RecoveryClass::InterruptedIndeterminate
             || !task.is_terminal()
         {
