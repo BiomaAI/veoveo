@@ -2,12 +2,14 @@ mod cursor;
 mod ids;
 mod resources;
 mod scopes;
+mod subscriptions;
 pub use cursor::AnalysisCursor;
 pub use ids::{AnalysisId, ModelId, PipelineId, ReasonContractError};
 pub use resources::{
     AnalysisUri, ModelUri, PipelineUri, ReasonDocument, ReasonResource, ResultsUri,
 };
 pub use scopes::ReasonScope;
+pub use subscriptions::AnalysisResource;
 
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;

@@ -27,6 +27,8 @@ observation-lease receipt in the same database transaction.
 `admission` composes a domain admission with the exact queued, unclaimed Task.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
 `runtime/owner_subscriptions` delivers the selected current state to public listeners.
+`resource_subscriptions` maps that authorized Task stream to requested Task status
+and resource invalidations using domain-owned `TaskResourceAddress` implementations.
 
 Consumers import native `TaskId` directly from `veoveo-types`. Store's `task_record_id`
 function performs the database conversion at bindings. TaskRuntime owns Task lifecycle
@@ -167,12 +169,48 @@ decoding their payloads. Intermediate states may coalesce because Tasks subscrip
 observe current state; callers that require every durable transition use the trusted
 internal event APIs. This API does not replace `tasks/get` as the correctness path.
 
+The shared wake source tracks connection generations separately from write activity.
+On a new LIVE connection, each public listener rereads its admitted Task identities
+under current SQL owner predicates and advances to the current event tail without
+rewinding its cursor. This restores current state even when event history expired
+during the gap. Denied rows remain outside decoding. The 15-second recovery timer
+checks retained activity but does not emit unchanged state on an idle connection.
+
 The change preserves Task storage and MCP wire models. Replace hosted replicas
 together to establish the SQL selection guarantee across an installation. Preflight
 retained indexed/envelope owner and profile agreement; rejected records stay intact
 for operator review. Rolling back to a version that checks historical event authority
 does not preserve the current-owner notification guarantee. Installed rollout and
 cross-replica qualification are tracked in the foundations plan.
+
+## Task-Backed Resource Observation
+
+`TaskResourceSubscriptions` checks one request's typed resource addresses and native
+Task handles. It admits at most 256 Task handles, 256 resource addresses and 256 distinct
+backing Tasks. Duplicate addresses coalesce. A domain address supplies its backing Task
+through the foundational `TaskResourceAddress` trait; this library owns no URI routes.
+Domains apply additional resource admission before starting the listener.
+
+The listener authenticates through `DurableTaskService` and subscribes once to the
+union of explicit Tasks and resource backing Tasks. A resource with a missing or
+denied Task rejects the subscription. Unknown explicit Task handles follow the
+ordinary Tasks admission policy. Task status notifications require an explicit Task
+subscription; a resource-only request receives only resource invalidations. Both
+signals use the current-owner SQL watch and the filter-enforcing RMCP sink.
+
+The existing outbox sequence, LIVE wake, 15-second reconciliation and reconnect
+baseline supply recovery. No domain-local broadcaster participates. Reconnection
+invalidates each admitted resource from current Task state, including a completed
+Task. Intermediate transitions can coalesce. Cancellation or a query error drops
+the request's watch; the shared LIVE source stops after its last listener leaves.
+This source covers Task-backed resources only. Other domain change sources keep their
+declared observation contracts. Phase 5 owns the outbox-to-change-feed migration.
+
+`tests/task_resources.rs` qualifies independent Store clients, mixed and resource-only
+filters, reconnect baselines, a broken TCP connection with deleted event history,
+SQL exclusion of malformed revoked rows, and official
+RMCP notification and cancellation behavior. The RMCP fixture uses an in-memory
+transport and establishes no installed HTTP or GPU qualification.
 
 `runtime/usage` requires an explicit `TaskUsageAccess` policy for usage collections and exact
 Task usage reads. Both the usage row and linked Task must match this runtime's server

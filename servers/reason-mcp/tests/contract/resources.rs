@@ -1,7 +1,32 @@
 use veoveo_reason_mcp::{contract::*, uris};
-use veoveo_types::{ResourceAddress, ResourceTemplateUri};
+use veoveo_types::{ResourceAddress, ResourceTemplateUri, TaskResourceAddress};
 
 const ID: &str = "01983da0-0000-7000-8000-000000000001";
+
+#[test]
+fn task_resource_contract_owns_only_analysis_and_result_relationships() {
+    let id = AnalysisId::parse(ID).unwrap();
+    for resource in [
+        AnalysisResource::analysis(id),
+        AnalysisResource::results(id),
+    ] {
+        assert_eq!(resource.task_id(), id.task_id());
+        let uri = resource.to_uri().unwrap();
+        assert_eq!(AnalysisResource::parse(&uri).unwrap(), resource);
+        assert_eq!(
+            serde_json::from_value::<AnalysisResource>(uri.as_str().into()).unwrap(),
+            resource
+        );
+    }
+    for uri in [
+        uris::ANALYSES_URI,
+        uris::MODELS_URI,
+        "reason://pipeline/a",
+        "reason://analysis/task-1",
+    ] {
+        assert!(AnalysisResource::parse(uri).is_err());
+    }
+}
 
 #[test]
 fn domain_identifiers_preserve_the_catalog_and_native_task_profiles() {

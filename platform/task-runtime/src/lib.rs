@@ -11,12 +11,16 @@ mod mcp;
 mod provider_resume;
 mod provider_transaction;
 mod recovery;
+mod resource_subscriptions;
 mod runtime;
 mod service;
 mod types;
 
 pub use mcp::{project_snapshot, task_seed};
 pub use provider_transaction::ProviderCommit;
+pub use resource_subscriptions::{
+    TaskResourceSubscriptions, TaskResourceUpdate, TaskResourceUpdateStream,
+};
 pub use runtime::{
     OwnerTaskSubscription, TaskRuntime, TaskUpdateStream, TaskUsageAccess, TaskUsagePage,
 };

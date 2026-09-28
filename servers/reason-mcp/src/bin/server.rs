@@ -30,8 +30,7 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    ServerSlug, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository,
@@ -334,20 +333,19 @@ impl ServerHandler for ReasonMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let task_id = resources::subscribable_analysis_id(uri)?;
-            let identity = internal_identity(&request_context)?;
-            resources::analysis_snapshot(&self.state.tasks, &runtime_owner(&identity), task_id)
-                .await?;
+        let subscriptions = veoveo_task_runtime::TaskResourceSubscriptions::from_filter::<
+            veoveo_reason_mcp::contract::AnalysisResource,
+        >(context.accepted())?;
+        let identity = internal_identity(context.request_context())?;
+        for task_id in subscriptions.resource_task_ids() {
+            resources::analysis_snapshot(
+                &self.state.tasks,
+                &runtime_owner(&identity),
+                AnalysisId::try_from(task_id).map_err(invalid_params)?,
+            )
+            .await?;
         }
-        veoveo_task_runtime::listen_durable_subscriptions(
-            &self.task_service,
-            context,
-            Some(&self.state.subscribers),
-            None,
-        )
-        .await
+        subscriptions.listen(&self.task_service, context).await
     }
 
     async fn complete(
@@ -539,7 +537,6 @@ async fn main() -> anyhow::Result<()> {
         max_inline_resource_bytes: args.max_inline_resource_bytes,
         max_grounding_bytes: args.max_grounding_bytes,
         work_slots: Arc::new(tokio::sync::Semaphore::new(args.max_concurrent_jobs)),
-        subscribers: SubscriptionHub::new(),
     });
     for snapshot in recovery.resumable {
         if let Err(error) = resume_task(state.clone(), snapshot).await {

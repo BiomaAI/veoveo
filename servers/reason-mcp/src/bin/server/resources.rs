@@ -9,7 +9,9 @@ use serde::Serialize;
 use veoveo_platform_store::TaskStatus;
 use veoveo_reason_mcp::{
     catalog::{model_view, pipeline_view},
-    contract::{AnalysisId, AnalysisView, AnalyzeRecordingOutput, ReasonResource},
+    contract::{
+        AnalysisId, AnalysisResource, AnalysisView, AnalyzeRecordingOutput, ReasonResource,
+    },
     uris,
 };
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
@@ -144,10 +146,9 @@ pub(super) async fn analysis_snapshot(
 }
 
 pub(super) fn subscribable_analysis_id(uri: &str) -> Result<AnalysisId, McpError> {
-    ReasonResource::parse(uri)
-        .map_err(invalid_params)?
-        .subscription_analysis()
-        .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
+    AnalysisResource::parse(uri)
+        .map(|resource| resource.analysis_id())
+        .map_err(invalid_params)
 }
 
 pub(super) fn analysis_view(snapshot: &TaskSnapshot) -> Result<AnalysisView, McpError> {

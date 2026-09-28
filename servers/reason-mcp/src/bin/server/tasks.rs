@@ -464,10 +464,6 @@ async fn set_progress(
     {
         tracing::warn!(%task_id, "failed to persist reason progress: {error}");
     }
-    state
-        .subscribers
-        .notify_resource_updated(veoveo_reason_mcp::uris::analysis_uri(task_id))
-        .await;
     notify_progress(progress, value, message).await;
 }
 

@@ -18,6 +18,7 @@ fn fixture_password() -> String {
 }
 pub struct TestDb {
     container: String,
+    runtime_credentials: StoreCredentials,
     pub a: PlatformStore,
     pub b: PlatformStore,
 }
@@ -141,11 +142,12 @@ impl TestDb {
             .replace_database_editor("fixture_runtime", &runtime_password.clone().into())
             .await
             .unwrap();
+        let runtime_credentials = StoreCredentials::database("fixture_runtime", runtime_password);
         let config = StoreConfig::builder(
             &endpoint,
             "veoveo_fixture",
             database,
-            StoreCredentials::database("fixture_runtime", runtime_password),
+            runtime_credentials.clone(),
         )
         .build()
         .unwrap();
@@ -155,8 +157,25 @@ impl TestDb {
         std::mem::forget(pending);
         Self {
             container: name,
+            runtime_credentials,
             a,
             b,
         }
+    }
+
+    #[allow(
+        dead_code,
+        reason = "Only network-recovery fixtures select a fault-injection endpoint"
+    )]
+    pub async fn connect_via(&self, endpoint: &str) -> PlatformStore {
+        let config = StoreConfig::builder(
+            endpoint,
+            self.a.config().namespace(),
+            self.a.config().database(),
+            self.runtime_credentials.clone(),
+        )
+        .build()
+        .unwrap();
+        PlatformStore::connect(config).await.unwrap()
     }
 }

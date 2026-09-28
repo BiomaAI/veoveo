@@ -4,80 +4,13 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use secrecy::SecretString;
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::{mpsc, oneshot},
-    task::{JoinHandle, JoinSet},
-};
 use veoveo_platform_store::{
     PlatformStore, PlatformTable, ResourceInvalidation, StoreConfig, StoreCredentials,
 };
 
-struct ConnectionSwitch {
-    endpoint: String,
-    commands: mpsc::Sender<(bool, oneshot::Sender<()>)>,
-    task: JoinHandle<()>,
-}
-
-impl ConnectionSwitch {
-    async fn start(endpoint: &str) -> Self {
-        let remote = url::Url::parse(endpoint).unwrap();
-        assert_eq!(
-            remote.scheme(),
-            "ws",
-            "qualification requires a local ws endpoint"
-        );
-        let host = remote.host_str().unwrap().to_owned();
-        let port = remote.port_or_known_default().unwrap();
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let endpoint = format!("ws://{}", listener.local_addr().unwrap());
-        let (commands, mut receive) = mpsc::channel::<(bool, oneshot::Sender<()>)>(1);
-        let task = tokio::spawn(async move {
-            let mut enabled = true;
-            let mut connections = JoinSet::new();
-            loop {
-                tokio::select! {
-                    command = receive.recv() => {
-                        let Some((next, acknowledged)) = command else { break; };
-                        enabled = next;
-                        if !enabled {
-                            connections.abort_all();
-                            while connections.join_next().await.is_some() {}
-                        }
-                        let _ = acknowledged.send(());
-                    }
-                    accepted = listener.accept() => {
-                        let (mut client, _) = accepted.unwrap();
-                        if !enabled { continue; }
-                        let host = host.clone();
-                        connections.spawn(async move {
-                            let mut upstream = TcpStream::connect((host.as_str(), port)).await.unwrap();
-                            let _ = tokio::io::copy_bidirectional(&mut client, &mut upstream).await;
-                        });
-                    }
-                    _ = connections.join_next(), if !connections.is_empty() => {}
-                }
-            }
-        });
-        Self {
-            endpoint,
-            commands,
-            task,
-        }
-    }
-
-    async fn set_enabled(&self, enabled: bool) {
-        let (acknowledged, receiver) = oneshot::channel();
-        self.commands.send((enabled, acknowledged)).await.unwrap();
-        receiver.await.unwrap();
-    }
-}
-
-impl Drop for ConnectionSwitch {
-    fn drop(&mut self) {
-        self.task.abort();
-    }
-}
+#[path = "../../../testing/fixtures/connection_switch.rs"]
+mod connection_switch;
+use connection_switch::ConnectionSwitch;
 
 fn config(endpoint: String, database: &str) -> StoreConfig {
     StoreConfig::builder(
@@ -128,7 +61,17 @@ async fn replica_changes_and_reconnect_invalidate_without_outbox_or_idle_polling
             .unwrap()
             .check()
             .unwrap();
-        let switch = ConnectionSwitch::start(&endpoint).await;
+        let remote = url::Url::parse(&endpoint).unwrap();
+        assert_eq!(
+            remote.scheme(),
+            "ws",
+            "qualification requires a ws endpoint"
+        );
+        let switch = ConnectionSwitch::start(
+            remote.host_str().unwrap().to_owned(),
+            remote.port_or_known_default().unwrap(),
+        )
+        .await;
         let reader = PlatformStore::connect(config(switch.endpoint.clone(), &database))
             .await
             .unwrap();

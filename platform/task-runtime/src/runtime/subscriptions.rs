@@ -9,7 +9,13 @@ pub(super) const AVAILABLE_OUTBOX_TAIL: &str = "SELECT VALUE sequence FROM outbo
 
 #[derive(Default)]
 pub(super) struct SharedWake {
-    source: Mutex<Option<watch::Sender<u64>>>,
+    source: Mutex<Option<watch::Sender<WakeGeneration>>>,
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct WakeGeneration {
+    activity: u64,
+    pub(super) connections: u64,
 }
 #[derive(SurrealValue)]
 struct Hint {
@@ -21,12 +27,12 @@ impl SharedWake {
         &self,
         store: PlatformStore,
         server: String,
-    ) -> watch::Receiver<u64> {
+    ) -> watch::Receiver<WakeGeneration> {
         let mut source = self.source.lock().await;
         if let Some(source) = source.as_ref().filter(|source| source.receiver_count() > 0) {
             return source.subscribe();
         }
-        let (sender, receiver) = watch::channel(0u64);
+        let (sender, receiver) = watch::channel(WakeGeneration::default());
         *source = Some(sender.clone());
         tokio::spawn(async move {
             loop {
@@ -44,12 +50,15 @@ impl SharedWake {
                 };
                 // Recover changes between the baseline and first LIVE establishment,
                 // and across every lost source. The durable cursor supplies content.
-                sender.send_modify(|generation| *generation = generation.wrapping_add(1));
+                sender.send_modify(|generation| {
+                    generation.activity = generation.activity.wrapping_add(1);
+                    generation.connections = generation.connections.wrapping_add(1);
+                });
                 loop {
                     tokio::select! {
                         _ = sender.closed() => return,
                         event = stream.next() => match event {
-                            Some(Ok(event)) => { let _ = event.data.sequence; sender.send_modify(|generation| *generation = generation.wrapping_add(1)); }
+                            Some(Ok(event)) => { let _ = event.data.sequence; sender.send_modify(|generation| generation.activity = generation.activity.wrapping_add(1)); }
                             _ => break,
                         }
                     }

@@ -130,6 +130,12 @@ this open trait in its MCP feature; its public contract feature needs only the f
 traits. `McpResource` builds descriptors from typed addresses, checks their parse round
 trip, and rejects metadata that changes the address.
 
+Task-backed resource addresses may implement the foundational `TaskResourceAddress`
+trait. The [Task runtime](../../platform/task-runtime/DESIGN.md#task-backed-resource-observation)
+can then deliver requested Task status and resource invalidations from one authorized
+watch. Domain libraries own the backing identity and resource admission; MCP core
+contains no resource-to-Task registry.
+
 `McpServerSetup` checks implementation and document identity, required document coverage,
 resource capability, and duplicate declarations before handlers serve discovery. It
 provides sorted resources and templates and compares typed permissions against an
@@ -555,3 +561,8 @@ Store LIVE sources across their local listeners. Source reconnection invalidates
 accepted identities after a delivery gap. Idle sources do not emit timer-generated
 resource changes: declared resource subscriptions can wake an agent. Client-side
 catalog reconciliation reads authoritative state without invoking a model.
+
+Task-backed resource subscriptions share the Task runtime's current-owner watch.
+On a new database LIVE connection, the runtime rereads admitted identities under SQL
+visibility predicates. That baseline restores resource invalidations after expired
+event history without forwarding denied Task payloads or emitting idle timer changes.

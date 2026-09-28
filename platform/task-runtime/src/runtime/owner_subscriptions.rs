@@ -52,14 +52,10 @@ impl TaskRuntime {
             .subscription_wake
             .subscribe(self.store.clone(), self.server.clone())
             .await;
-        let mut response = OwnerScope::new(self, &owner)?.bind(self.store.client().query(format!(
-            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK}) }};"
-        )))
-            .bind(("records", ids.into_iter().map(task_record_id).collect::<Vec<_>>()))
-            .bind(("now", Utc::now())).await?.check()?;
-        let baseline: TaskUpdateBaseline = response
-            .take::<Option<TaskUpdateBaseline>>(0)?
-            .ok_or_else(|| TaskError::InvalidRecord("missing authorized Task baseline".into()))?;
+        let mut connections = wake.borrow().connections;
+        let baseline = self
+            .owner_baseline(&owner, &ids.into_iter().collect::<Vec<_>>())
+            .await?;
         let initial = baseline
             .tasks
             .into_iter()
@@ -88,6 +84,26 @@ impl TaskRuntime {
                     changed = wake.changed() => if changed.is_err() { break; },
                     _ = reconcile.tick() => {},
                 }
+                let current_connections = wake.borrow_and_update().connections;
+                if current_connections != connections {
+                    connections = current_connections;
+                    // A new LIVE source may follow a gap longer than retained events.
+                    // Reconcile admitted identities from current SQL-authorized state.
+                    let baseline = match runtime.owner_baseline(&owner, &ids).await {
+                        Ok(baseline) => baseline,
+                        Err(error) => { yield Err(error); return; }
+                    };
+                    let Some(tail) = TaskUpdateCursor::from_sequence(baseline.cursor.unwrap_or(0)) else {
+                        yield Err(TaskError::InvalidRecord("invalid Task recovery cursor".into())); return;
+                    };
+                    if tail.sequence() > cursor.sequence() { cursor = tail; }
+                    for record in baseline.tasks {
+                        match record_to_snapshot(record) {
+                            Ok(snapshot) => yield Ok(TaskUpdate { cursor, snapshot }),
+                            Err(error) => { yield Err(error); return; }
+                        }
+                    }
+                }
                 loop {
                     let page = match runtime.owner_update_page(&owner, &ids, cursor).await {
                         Ok(page) => page,
@@ -113,6 +129,21 @@ impl TaskRuntime {
             accepted_task_ids,
             updates,
         })
+    }
+
+    async fn owner_baseline(
+        &self,
+        owner: &TaskOwner,
+        ids: &[TaskId],
+    ) -> Result<TaskUpdateBaseline, TaskError> {
+        let mut response = OwnerScope::new(self, owner)?.bind(self.store.client().query(format!(
+            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK}) }};"
+        )))
+            .bind(("records", ids.iter().copied().map(task_record_id).collect::<Vec<_>>()))
+            .bind(("now", Utc::now())).await?.check()?;
+        response
+            .take::<Option<TaskUpdateBaseline>>(0)?
+            .ok_or_else(|| TaskError::InvalidRecord("missing authorized Task baseline".into()))
     }
 
     async fn owner_update_page(

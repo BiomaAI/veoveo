@@ -355,8 +355,8 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
 errors, `Sha256Digest`, platform identity, access subjects, and invocation provenance.
-Its public `ScopeDefinition` and `ResourceAddress` traits let
-independent libraries supply domain vocabularies. Dependencies provide serialization,
+Its public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits let
+independent libraries supply domain vocabularies and Task-backed resource relationships. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
 [design](../platform/types/DESIGN.md) defines the opaque reference and concrete component profiles;
 [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
@@ -552,6 +552,7 @@ observation lease and cancellation epoch in one transaction.
 | `recovery.rs` | restart profiles; uncertain provider outcomes and cancellations stay pending |
 | `mcp.rs` | conversion from stored state into official RMCP Task and DetailedTask types |
 | `service.rs` | protocol-neutral service that RMCP handlers call |
+| `resource_subscriptions.rs` | one authorized Task watch for typed Task-backed resource invalidations and explicitly requested Task status; domains own address-to-Task relationships |
 | `lib.rs` | focused public API |
 
 Task state lives in this runtime. RMCP defines the Tasks wire types.
@@ -1125,7 +1126,7 @@ depend on Recording Hub.
 | Path | Responsibility |
 |---|---|
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
-| `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors and the empty domain scope vocabulary |
+| `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs`, `subscriptions.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors, the empty domain scope vocabulary and Task-backed analysis resource relationships |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
 | `src/grounding.rs` | typed Stream-results grounding subset extraction |
@@ -1292,6 +1293,7 @@ dispatch preflights and budgeted execution.
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
+| `testing/fixtures/store.rs`, `connection_switch.rs` | owned disposable database lifecycle and acknowledged TCP connection loss for native recovery tests; test owners supply assertions and deadlines |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

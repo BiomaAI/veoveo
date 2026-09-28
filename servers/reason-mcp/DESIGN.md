@@ -259,9 +259,20 @@ The cursor version and collection identity are validated before use.
 Direct analysis and result reads and subscription admission use the Task runtime's
 SQL owner read. Tenant, principal, profile and data-label predicates exclude denied
 rows before request or result decoding. Only analysis and result addresses admit
-resource subscriptions. Their update notifications currently use a process-local
-hub. Cross-replica resource delivery and current-owner checks on delivery require
-implementation; the server declares that gap as C27 in its agent manual.
+resource subscriptions. `AnalysisResource` implements `TaskResourceAddress` in the
+isolated contract and derives the backing native Task from its typed analysis ID.
+The shared `TaskResourceSubscriptions` listener combines those IDs with explicitly
+requested Tasks in one SQL-authorized watch. Resource-only requests receive no Task
+status payloads. Current-owner predicates apply on updates from every replica.
+The Task runtime's LIVE wake and retained sequence recover gaps, with activity checks
+every 15 seconds. A new database connection reconciles current authorized state even
+after event history expires; an idle connection emits no timer-driven invalidations. Discovery remains
+static. Requests admit at most 256 resource addresses and 256 distinct backing Tasks.
+
+Deploy every Reason replica together to establish database-backed resource delivery.
+Clients reconnect and reread their subscribed resources after replacement. Retained
+Task and cursor formats require no conversion. A rollback must preserve the shared
+SQL watch; a process-local notification build does not satisfy this delivery profile.
 
 Analysis and artifact completions apply their search predicate in the Store before
 reading at most 101 candidates per identity field. Artifact identities are deduplicated

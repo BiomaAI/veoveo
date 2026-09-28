@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_reason_mcp::{
     artifacts::ArtifactRepository, catalog::PipelineCatalog, contract::AnalysisId,
     executor::ReasonExecutor,
@@ -20,7 +19,6 @@ pub(super) struct AppState {
     pub(super) max_inline_resource_bytes: u64,
     pub(super) max_grounding_bytes: u64,
     pub(super) work_slots: Arc<tokio::sync::Semaphore>,
-    pub(super) subscribers: SubscriptionHub,
 }
 
 pub(super) async fn update_task(state: &AppState, task_id: AnalysisId, transition: TaskTransition) {
@@ -41,12 +39,4 @@ pub(super) async fn update_task(state: &AppState, task_id: AnalysisId, transitio
     {
         tracing::warn!(%task_id, "failed to transition durable reason task: {error}");
     }
-    state
-        .subscribers
-        .notify_resource_updated(veoveo_reason_mcp::uris::analysis_uri(task_id))
-        .await;
-    state
-        .subscribers
-        .notify_resource_updated(veoveo_reason_mcp::uris::results_uri(task_id))
-        .await;
 }

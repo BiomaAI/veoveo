@@ -60,6 +60,8 @@ pub trait DurableTaskService: Send + Sync + 'static {
         task_id: String,
     ) -> impl Future<Output = Result<(), McpError>> + Send;
 
+    /// Authorize admission and current state on delivery. Native Task adapters use
+    /// `subscribe_durable_tasks`, which selects owner-visible rows in SQL.
     fn subscribe_tasks(
         &self,
         caller: &Self::Caller,

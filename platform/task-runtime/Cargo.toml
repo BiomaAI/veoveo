@@ -25,3 +25,6 @@ tokio-util.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
+
+[dev-dependencies]
+rmcp = { workspace = true, features = ["client"] }

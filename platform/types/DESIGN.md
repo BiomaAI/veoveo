@@ -11,7 +11,7 @@
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
-| Rust extension interfaces | Public `ScopeDefinition` and `ResourceAddress` traits permit implementations in independent libraries |
+| Rust extension interfaces | Public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
 
@@ -44,6 +44,12 @@ implementation parses and serializes its domain address, including route and ID
 validation. Neither trait requires a central registry or confers authority. The
 policy owner compares requested names with current authenticated grants and performs
 the other authorization checks.
+
+`TaskResourceAddress` extends a domain resource address with its backing `TaskId`.
+Owners implement it only for routes whose contents follow one native Task. The
+Task runtime uses that relationship to share an authorized observation source across
+Task status and resource notifications. This trait supplies identity, not permission;
+domain admission and current SQL owner checks still apply.
 
 `mcp/contract` consumes these types for protocol descriptors, identity, policy, and
 discovery. Consumers import the foundational types directly from this crate. It

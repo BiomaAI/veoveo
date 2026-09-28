@@ -88,3 +88,11 @@ pub trait ResourceAddress: Sized {
     fn parse(uri: &ResourceUri) -> Result<Self, Self::Error>;
     fn to_uri(&self) -> Result<ResourceUri, Self::Error>;
 }
+
+/// A resource whose contents change with one native Task.
+///
+/// The domain owns this relationship and implements it only for Task-backed routes.
+/// The returned identity establishes neither existence nor permission to observe it.
+pub trait TaskResourceAddress: ResourceAddress {
+    fn task_id(&self) -> crate::TaskId;
+}
