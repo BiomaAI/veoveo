@@ -238,6 +238,18 @@ async fn batches_commit_once_across_minute_and_day_boundaries() {
         (2, instant("2026-01-02T00:00:00Z")),
         (3, instant("2026-01-02T00:01:00Z")),
     ] {
+        if sequence == 2 {
+            // Another stream can prepare this producer's window from a later
+            // acceptance time before this append reaches the shared counter.
+            store
+                .recording_ingest_quota_checkpoint(
+                    identity.tenant_id,
+                    "sensor",
+                    accepted_at + TimeDelta::seconds(10),
+                )
+                .await
+                .unwrap();
+        }
         let quota = store
             .recording_ingest_quota_checkpoint(identity.tenant_id, "sensor", accepted_at)
             .await
@@ -253,6 +265,10 @@ async fn batches_commit_once_across_minute_and_day_boundaries() {
             .unwrap();
         assert!(!outcome.duplicate);
         assert_eq!(outcome.batch.created_at, accepted_at);
+        store
+            .recording_ingest_quota_checkpoint(identity.tenant_id, "sensor", accepted_at)
+            .await
+            .unwrap();
         stream = outcome.stream;
     }
 

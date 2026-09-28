@@ -415,9 +415,9 @@ impl PlatformStore {
     ) -> Result<RecordingIngestQuotaCheckpoint, StoreError> {
         validate_text("producer_id", producer_id)?;
         let checkpoint = RecordingIngestQuotaCheckpoint::containing(tenant_id, producer_id, at)?;
-        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.minute)
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.minute, at)
             .await?;
-        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.day)
+        self.ensure_recording_ingest_quota_window(tenant_id, producer_id, &checkpoint.day, at)
             .await?;
         Ok(checkpoint)
     }
@@ -479,7 +479,7 @@ impl PlatformStore {
         };
         let committed = self
             .db
-            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; LET $minute = (UPDATE ONLY $minute_window SET batch_count += 1, byte_len += $byte_len, updated_at = $now WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'minute' AND window_started_at = $minute_started_at AND window_ends_at = $minute_ends_at AND batch_count < $maximum_batches_per_minute RETURN AFTER); IF $minute = NONE { THROW 'recording_ingest_batches_per_minute_quota'; }; LET $day = (UPDATE ONLY $day_window SET batch_count += 1, byte_len += $byte_len, updated_at = $now WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'day' AND window_started_at = $day_started_at AND window_ends_at = $day_ends_at AND byte_len + $byte_len <= $maximum_bytes_per_day RETURN AFTER); IF $day = NONE { THROW 'recording_ingest_bytes_per_day_quota'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
+            .query("BEGIN TRANSACTION; LET $current = (SELECT * FROM ONLY $stream); IF $current.state != 'open' OR $current.revision != $revision OR $current.next_sequence != $sequence { THROW 'recording_ingest_checkpoint_conflict'; }; LET $minute = (UPDATE ONLY $minute_window SET batch_count += 1, byte_len += $byte_len, updated_at = IF updated_at > $now { updated_at } ELSE { $now } WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'minute' AND window_started_at = $minute_started_at AND window_ends_at = $minute_ends_at AND batch_count < $maximum_batches_per_minute RETURN AFTER); IF $minute = NONE { THROW 'recording_ingest_batches_per_minute_quota'; }; LET $day = (UPDATE ONLY $day_window SET batch_count += 1, byte_len += $byte_len, updated_at = IF updated_at > $now { updated_at } ELSE { $now } WHERE tenant = $tenant AND producer_id = $producer_id AND period = 'day' AND window_started_at = $day_started_at AND window_ends_at = $day_ends_at AND byte_len + $byte_len <= $maximum_bytes_per_day RETURN AFTER); IF $day = NONE { THROW 'recording_ingest_bytes_per_day_quota'; }; CREATE ONLY $batch CONTENT $content RETURN NONE; UPDATE ONLY $stream SET next_sequence += 1, byte_len += $byte_len, message_count += $message_count, updated_at = $now, revision += 1 RETURN NONE; COMMIT TRANSACTION;")
             .bind(("stream", draft.stream_id.record_id()))
             .bind(("revision", stream.revision))
             .bind(("sequence", sequence))
@@ -580,6 +580,7 @@ impl PlatformStore {
         tenant_id: TenantId,
         producer_id: &str,
         window: &RecordingIngestQuotaWindow,
+        accepted_at: DateTime<Utc>,
     ) -> Result<(), StoreError> {
         if let Some(existing) = self.recording_ingest_quota_window(window.id).await? {
             return validate_quota_window(&existing, tenant_id, producer_id, window);
@@ -598,7 +599,6 @@ impl PlatformStore {
             .take::<Vec<RecordingIngestQuotaUsage>>(0)?
             .into_iter()
             .next();
-        let now = Utc::now();
         let content = RecordingIngestQuotaWindowContent {
             tenant: tenant_id.record_id(),
             producer_id: producer_id.to_owned(),
@@ -607,8 +607,8 @@ impl PlatformStore {
             window_ends_at: window.ends_at,
             batch_count: usage.as_ref().map_or(0, |usage| usage.batch_count),
             byte_len: usage.and_then(|usage| usage.byte_len).unwrap_or_default(),
-            created_at: now,
-            updated_at: now,
+            created_at: accepted_at,
+            updated_at: accepted_at,
         };
         let created = self
             .db

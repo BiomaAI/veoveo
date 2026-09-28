@@ -138,10 +138,12 @@ than aggregating the producer's retained batch history. Expired counter records
 are removed when the next window is created.
 
 Each batch has one acceptance time, read once when Hub admits the append. Hub picks
-the minute and day windows that contain that time, and the store writes the ledger
-entry, the stream checkpoint, and both window counters with the same timestamp. A
-batch whose journal write finishes after a minute or day boundary still commits once,
-counted in the windows it was admitted to.
+the minute and day windows that contain that time. Store writes that timestamp to
+the ledger and stream checkpoint and uses it when creating a quota window. Window
+updates preserve the greatest acceptance time already seen, including when another
+stream prepared the shared counter from a later acceptance. A batch whose journal
+write finishes after a minute or day boundary still commits once, counted in the
+windows it was admitted to.
 
 One ordered materializer converts a journal batch into an immutable sequence
 part beneath one cataloged writing segment before the append completes. A batch
