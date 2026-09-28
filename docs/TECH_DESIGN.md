@@ -292,6 +292,17 @@ condition holds, and the owner reviews the table with each SurrealDB release.
 |---|---|
 | File buckets (`DEFINE BUCKET`) for Artifact bytes | The feature leaves experimental status and supports range reads, streaming, multipart or resumable upload, and documented rollback semantics for object-storage backends |
 | Enterprise audit logging | An installation licenses SurrealDB Enterprise and wants a database-level record beside the application audit log; it records no application events and can drop records under overflow |
+| Schema-aware SurrealQL construction in the official Rust SDK | A stable API checks field names, parameter types, and query composition against the schema and supports the required server-side authorization predicates, ordering, pagination, and transactional mutations. Qualify generated queries against the existing isolation and atomicity tests before adoption. |
+
+The pinned Rust SDK provides builders for basic record operations and record-key
+ranges. Its general query API accepts SurrealQL text with bound parameters; typed
+inputs and decoded results do not make that text compile-checked. See the upstream
+[select](https://surrealdb.com/docs/reference/rust/methods/select) and
+[query](https://surrealdb.com/docs/reference/rust/methods/query) APIs. Review stronger
+query construction when upgrading the SDK. This watch item does not block the
+foundations plan or require a custom ORM. Until adoption, keep domain query inputs
+typed, bind values at the driver boundary, apply visibility and other filters in SQL
+before limits, and qualify statements against the pinned database.
 
 ## Durable Task Runtime
 
