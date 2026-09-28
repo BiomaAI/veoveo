@@ -1,3 +1,6 @@
+#[path = "contract/resources.rs"]
+mod resources;
+
 use veoveo_uav_sim_mcp::contract::*;
 
 #[test]

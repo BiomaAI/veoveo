@@ -8,7 +8,7 @@
 pub mod adapter;
 #[cfg(feature = "contract")]
 pub mod contract;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 #[cfg(feature = "runtime")]
 pub mod world;

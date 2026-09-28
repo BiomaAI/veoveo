@@ -5,12 +5,15 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
-use veoveo_types::{AccessSubject, DataLabelId, PolicyVersion, TenantId, WorkContextId};
+use veoveo_types::{
+    AccessSubject, DataLabelId, PolicyVersion, ResourceUriParts, TenantId, WorkContextId,
+};
 
 pub const LIVE_VIEW_SCHEMA: &str = "veoveo.ai/live-view/v4";
 
 fn validate_id(value: &str) -> Result<(), LiveViewIdentityError> {
     if value.is_empty()
+        || matches!(value, "." | "..")
         || value.len() > 128
         || !value
             .bytes()
@@ -96,28 +99,23 @@ pub struct LiveViewUri(String);
 impl LiveViewUri {
     pub fn new(value: impl Into<String>) -> Result<Self, LiveViewIdentityError> {
         let value = value.into();
-        let parsed = Url::parse(&value).map_err(|_| LiveViewIdentityError(value.clone()))?;
+        let parsed =
+            ResourceUriParts::parse(&value).map_err(|_| LiveViewIdentityError(value.clone()))?;
         let valid_scheme = parsed.scheme().len() <= 64
             && parsed
                 .scheme()
                 .bytes()
                 .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
             && !matches!(parsed.scheme(), "http" | "https" | "ws" | "wss");
-        let segments = parsed
-            .path_segments()
-            .map(Iterator::collect::<Vec<_>>)
-            .unwrap_or_default();
+        let segments = parsed.path_segments().collect::<Vec<_>>();
         if !valid_scheme
-            || parsed.host_str() != Some("session")
+            || parsed.authority() != "session"
             || segments.len() != 3
-            || validate_id(segments[0]).is_err()
+            || validate_id(&segments[0]).is_err()
             || segments[1] != "live-view"
-            || validate_id(segments[2]).is_err()
-            || parsed.username() != ""
-            || parsed.password().is_some()
-            || parsed.port().is_some()
-            || parsed.query().is_some()
-            || parsed.fragment().is_some()
+            || validate_id(&segments[2]).is_err()
+            || parsed.has_query()
+            || value.contains('%')
             || value.len() > 512
         {
             return Err(LiveViewIdentityError(value));

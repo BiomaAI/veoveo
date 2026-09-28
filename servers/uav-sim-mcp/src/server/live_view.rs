@@ -170,11 +170,9 @@ impl LiveViewService {
         let live_view_id = LiveViewId::new(format!("view-{}", Uuid::now_v7()))
             .map_err(|_| LiveViewError::Identifier)?;
         let token = new_token()?;
-        let resource_uri = LiveViewUri::new(format!(
-            "uav-sim://session/{}/live-view/{live_view_id}",
-            request.session_id
-        ))
-        .map_err(|_| LiveViewError::Identifier)?;
+        let resource_uri =
+            LiveViewUri::new(crate::uris::live_view(&request.session_id, &live_view_id).as_str())
+                .map_err(|_| LiveViewError::Identifier)?;
         let stream = LiveViewState {
             schema_version: LIVE_VIEW_SCHEMA.to_owned(),
             live_view_id: live_view_id.clone(),
@@ -704,22 +702,26 @@ mod tests {
                 expected.insert(connection.stream.live_view_id);
             }
             let session = LiveSessionId::new("session-alpha").unwrap();
-            let root = crate::uris::live_views(&session);
+            let cursor = |view: &LiveViewState| -> anyhow::Result<String> {
+                Ok(crate::contract::UavLiveViewCursor::new(
+                    session.clone(),
+                    view.live_view_id.clone(),
+                )?
+                .as_str()
+                .to_owned())
+            };
             let rows = service.page(&owner(), &actor, &session, None).await;
             assert_eq!(rows.len(), 101);
-            let first =
-                super::super::index::page(rows, &root, |view| view.live_view_id.clone(), Ok)
-                    .unwrap();
+            let first = super::super::index::page(rows, cursor, Ok).unwrap();
             assert_eq!(first.items.len(), 100);
             let after =
-                super::super::index::decode::<LiveViewId>(&root, first.next_cursor.as_deref())
+                crate::contract::UavLiveViewCursor::parse(&session, first.next_cursor.unwrap())
                     .unwrap();
             let rows = service
-                .page(&owner(), &actor, &session, after.as_ref())
+                .page(&owner(), &actor, &session, Some(after.position()))
                 .await;
             assert_eq!(rows.len(), 2);
-            let last = super::super::index::page(rows, &root, |view| view.live_view_id.clone(), Ok)
-                .unwrap();
+            let last = super::super::index::page(rows, cursor, Ok).unwrap();
             assert!(last.next_cursor.is_none());
             assert_eq!(
                 first

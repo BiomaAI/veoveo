@@ -32,7 +32,7 @@ mod lease_tests;
 mod map_tests;
 #[cfg(test)]
 mod task_link_tests;
-pub(super) use reads::{ControlCollection, grant_collection};
+pub(super) use reads::ControlCollection;
 
 const PLAN_TTL: Duration = Duration::minutes(15);
 

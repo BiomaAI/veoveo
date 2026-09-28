@@ -98,3 +98,32 @@ pub(super) fn state(
         live_view_connect_origin: "wss://example.test".into(),
     })
 }
+
+pub(super) fn context(
+    peer: &rmcp::service::Peer<rmcp::RoleServer>,
+    scopes: &[crate::contract::UavScope],
+    tasks: bool,
+) -> rmcp::service::RequestContext<rmcp::RoleServer> {
+    use super::auth::ForwardedBearer;
+    use rmcp::{model::ClientCapabilities, service::RequestContext};
+    use veoveo_types::ScopeName;
+    let mut identity = identity("scope-test", "operations", "pilot", &[]);
+    identity.actor.scopes = scopes.iter().copied().map(Into::into).collect();
+    identity
+        .actor
+        .scopes
+        .insert(ScopeName::new("external:custom").unwrap());
+    let (mut parts, _) = axum::http::Request::new(()).into_parts();
+    parts.extensions.insert(identity);
+    parts
+        .extensions
+        .insert(ForwardedBearer("native-fixture".into()));
+    let mut context = RequestContext::new(rmcp::model::NumberOrString::Number(1), peer.clone());
+    context.extensions.insert(parts);
+    if tasks {
+        context
+            .meta
+            .set_client_capabilities(ClientCapabilities::builder().enable_tasks().build());
+    }
+    context
+}

@@ -14,6 +14,12 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Invariants
 
+- Use `UavResource` and the typed `uris` constructors for resource addresses.
+  Collection cursors belong to the contract and preserve their version 1 wire profile.
+  Decode each resource once; reads and subscriptions share scopes and parent checks.
+  Relative IDs fail construction and retained JSON admission. Apply the design's
+  retained-data and provider preflight before a coordinated upgrade.
+
 - Public UAV and live-view v4 types belong in this library's `contract` module.
   Keep the `contract` feature free of MCP, async, database, adapter and GPU dependencies.
   Other crates import it with default features disabled. Gateway-to-domain ownership

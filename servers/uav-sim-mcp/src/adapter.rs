@@ -444,7 +444,7 @@ impl FakeAdapter {
                 return Ok(ConfigureWorldOutput {
                     accepted: true,
                     world: world.clone(),
-                    resource_uri: uris::world(session_id),
+                    resource_uri: uris::world(session_id).into(),
                 });
             }
             return Err(AdapterError::InvalidState(
@@ -457,7 +457,7 @@ impl FakeAdapter {
         Ok(ConfigureWorldOutput {
             accepted: true,
             world: world.clone(),
-            resource_uri: uris::world(session_id),
+            resource_uri: uris::world(session_id).into(),
         })
     }
 
@@ -543,7 +543,7 @@ impl FakeAdapter {
         Ok(CommandAcknowledgement {
             accepted: true,
             detail,
-            resource_uri,
+            resource_uri: resource_uri.into(),
         })
     }
 

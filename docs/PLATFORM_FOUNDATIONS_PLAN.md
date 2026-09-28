@@ -589,6 +589,21 @@ their decisions with unrelated external grants. The independent consumer passes 
 checks, preserving the 97 existing schemas, and four contract-only compile-fail examples
 pass. Strict workspace Clippy passes. Installed replacement of every UAV replica and
 a rollback build preserving the Task guard are required.
+UAV resource addresses and collection cursors now belong to the isolated contract.
+Reads and subscriptions use typed variants and shared permission checks. The URI
+builder supplies notifications and response references, and live-view reads check
+both the current session and the view's retained session. Version 1 cursor bytes
+are preserved, with session binding on active grants and live-view pages. Relative
+ID and normalized URI admission are stricter; the owning design declares retained-data
+and producer preflight, a coordinated drain, and rollback requirements. Prompts validate
+session/mission IDs and publish typed resource addresses. The affected native suites
+pass 172 cases, including SQL catalog pagination, read/subscription authority and live-view
+parent checks. The final prompt regression passes separately. Eleven independent-consumer
+checks preserve all 97 published schemas and qualify each route, cursor family, malformed
+component and relative ID. Its 134-package graph excludes MCP, async, database, adapter
+and GPU dependencies. Six contract-only compile-fail examples and strict workspace Clippy
+pass. Checked MCP setup, broader DTO relationships and cross-language URI construction,
+including the browser acceptance script, remain work. Installed qualification is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -1090,7 +1105,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify coordinated hosted replacement and retained-owner preflight; audit domain-specific Task adapters for their additional policy |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
-| UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types | Complete typed resource builders and checked MCP setup; qualify installed consumers and recovery |
+| UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types | Typed resource/cursor native qualification passes; complete checked MCP setup, broader DTO relationships and cross-language construction; qualify installed consumers, URI admission preflight and recovery |
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify installed replacement of every UAV replica; rollback builds must preserve Task scope enforcement |
 | Reason, Recording, Stream, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |

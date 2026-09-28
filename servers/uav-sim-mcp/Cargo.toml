@@ -24,6 +24,7 @@ required-features = ["mcp"]
 default = ["mcp"]
 contract = [
     "dep:chrono",
+    "dep:hex",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
@@ -53,7 +54,6 @@ mcp = [
     "dep:dotenvy",
     "dep:futures",
     "dep:getrandom",
-    "dep:hex",
     "dep:rmcp",
     "dep:rustls",
     "dep:sha2",

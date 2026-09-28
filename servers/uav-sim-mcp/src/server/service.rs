@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
-use crate::contract::{LiveSessionId, UavScope};
+use crate::contract::{LiveSessionId, UavGrantCursor, UavScope};
 use chrono::Utc;
 use rmcp::tool;
 use rmcp::{
@@ -31,8 +31,8 @@ use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot, TaskStatus};
 use crate::contract::{
     CameraCodec, CameraEncoder, CameraLifecycle, CameraState, CaptureDatasetRequest,
     CloseLiveViewRequest, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
-    ControlGrantId, DurableOperation, ExecuteVehicleMissionPlanRequest, GrantVehicleControlRequest,
-    MissionPlanId, OpenLiveViewRequest, PrepareVehicleMissionRequest, RenewLiveViewRequest,
+    DurableOperation, ExecuteVehicleMissionPlanRequest, GrantVehicleControlRequest,
+    OpenLiveViewRequest, PrepareVehicleMissionRequest, RenewLiveViewRequest,
     RevokeVehicleControlRequest, RunScenarioRequest, SessionId, SessionRequest, SimulationCommand,
     SimulationLifecycle, SimulationState, StepSimulationRequest, TakeoffRequest, TileLifecycle,
     TileState, VehicleControlPermission, VehicleId, VehicleRequest, VehicleState, Wgs84Position,
@@ -250,7 +250,7 @@ impl UavSimMcp {
             &[UavScope::Read, UavScope::Control, UavScope::Admin],
         )?;
         let state = self.visible_state(&identity).await?;
-        require_session(&state, request.session_id.as_str())?;
+        require_session(&state, &request.session_id)?;
         structured_result("current UAV simulation state".to_owned(), &state)
     }
 
@@ -268,10 +268,12 @@ impl UavSimMcp {
         let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
         self.state_for(&request.session_id).await?;
         let include_all = identity_has_scope(&identity, UavScope::Admin);
-        let after: Option<ControlGrantId> = index::decode(
-            &super::control_authority::grant_collection(Some(&request.session_id)),
-            request.cursor.as_deref(),
-        )?;
+        let after = request
+            .cursor
+            .as_deref()
+            .map(|cursor| UavGrantCursor::parse(Some(&request.session_id), cursor))
+            .transpose()
+            .map_err(invalid)?;
         let grants = self
             .state
             .control_authority
@@ -279,7 +281,7 @@ impl UavSimMcp {
                 &identity,
                 include_all,
                 Some(&request.session_id),
-                after.as_ref(),
+                after.as_ref().map(UavGrantCursor::position),
             )
             .await
             .map_err(authority_error)?;
@@ -1225,8 +1227,8 @@ fn command_session(command: &SimulationCommand) -> &SessionId {
     }
 }
 
-fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpError> {
-    if state.session_id.as_str() == session_id {
+fn require_session(state: &SimulationState, session_id: &SessionId) -> Result<(), McpError> {
+    if &state.session_id == session_id {
         Ok(())
     } else {
         Err(McpError::resource_not_found(
@@ -1234,6 +1236,11 @@ fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpE
             None,
         ))
     }
+}
+
+fn require_live_session(state: &SimulationState, session: &LiveSessionId) -> Result<(), McpError> {
+    let session = SessionId::new(session.as_str()).map_err(invalid)?;
+    require_session(state, &session)
 }
 
 fn require_scope(

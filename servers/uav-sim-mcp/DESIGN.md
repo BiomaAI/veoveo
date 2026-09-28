@@ -19,6 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | UAV execution read profiles | Internal `legacy_v1` retained-plan adapter and `task_linked_v1` exact Task correlation; public plan JSON is unchanged. |
+| Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
@@ -69,6 +70,44 @@ Internal Rust imports use one owner without compatibility exports. This library 
 requires no data conversion or deployment drain. Contract schema snapshots and
 an independently resolved consumer qualify the library surface; installation behavior
 and hardware execution require their separate acceptance runs.
+
+## Resource Addresses And Cursors
+
+The contract feature owns `UavResource`, which implements foundational
+`ResourceAddress`. Each variant takes the corresponding session, vehicle, mission,
+grant, plan or live-view ID. `uris` exposes typed constructors and fixed discovery
+roots and templates. The foundational builder encodes components and the parser
+rejects normalization, credentials, fragments, duplicate queries and unsupported
+routes. Both resource reads and subscription admission dispatch the parsed variant.
+They share scope requirements and check the requested session and child identity.
+Persisted catalogs reach their SQL visibility queries without fetching simulator state.
+
+Each collection owns its cursor type. Version 1 preserves hexadecimal JSON field
+order (`version`, `collection`, `position`). Grant tool cursors bind their active
+session; live-view cursors bind their session path. Cursors contain positions and
+establish no authority. Every page checks the current caller. UAV usage cursors and
+addresses require native UUIDv7 Task identities. The runtime converts their typed
+positions into TaskRuntime inputs at the service boundary. `server/index.rs` assembles
+100-item pages from at most 101 selected rows and serializes owner-produced cursors.
+
+Public ID constructors and Serde decoding reject relative path segments `.` and `..`.
+The provider-neutral `LiveViewUri` also uses the foundational parser, preserves other
+provider schemes, and rejects normalized or escaped spellings outside its ASCII ID
+profile. Existing accepted route and cursor bytes keep their representation.
+
+This admission tightening requires a coordinated upgrade of UAV replicas and producers.
+Before replacement, drain mutations and export retained UAV grants, plans, Tasks,
+world bindings and provider configuration. Check their UAV identity fields with the
+new contract decoder and check stored resource references with their owning parser.
+An invalid record or provider ID stops the upgrade with its storage key or configuration
+location. Correct the producer configuration or perform an explicit, reviewed rekey
+of the record and all references before retrying. Keep the original export; this
+change performs no automatic rewriting or destructive conversion. Ephemeral live views
+close during the drain and clients reopen them after replacement. Resume work only
+after native and installed contract checks pass. Rollback uses the retained export
+and a compatible prior build that preserves the Task scope guard and the new ID
+admission rules; a build accepting relative IDs cannot overlap with this profile.
+The owner must qualify this preflight and rollback on the installation before rollout.
 
 ## Authority Boundary
 
@@ -740,8 +779,8 @@ that could settle such an outcome automatically.
 `server/control_authority/task_link.rs` owns execution read profiles, typed Task links
 and SQL retention selection. `task_link_tests.rs` qualifies migration reapplication,
 correlation, rollback and filtering before page limits against an isolated Store.
-`server/task_index.rs` owns Task usage and mission correlations. `server/index.rs`
-encodes collection cursors, and `server/resources.rs` composes discovery, reads,
+`server/task_index.rs` owns Task usage and mission correlations. `contract/resources.rs` owns addresses and `contract/resources/cursors.rs` owns
+collection cursors. `server/index.rs` assembles pages, and `server/resources.rs` composes discovery, reads,
 completion, and subscription admission. `server/bootstrap.rs` constructs the service,
 wires HTTP, and owns observer shutdown. `server/catalog_tests.rs` qualifies these
 paths against a disposable pinned Store; it performs no simulation or GPU work.

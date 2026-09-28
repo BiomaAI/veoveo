@@ -13,6 +13,8 @@ mod live_view;
 pub use live_view::*;
 mod scopes;
 pub use scopes::UavScope;
+mod resources;
+pub use resources::*;
 
 use std::{collections::BTreeMap, fmt, str::FromStr};
 
@@ -24,6 +26,12 @@ use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, Wor
 use veoveo_map_mcp::contract::{MapMobilityProfileUri, MapRouteHandoff};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
+    if matches!(value, "." | "..") {
+        return Err(IdentityError::new(
+            value,
+            "must not be a relative path segment",
+        ));
+    }
     if value.is_empty() || value.len() > 128 {
         return Err(IdentityError::new(value, "must be 1 to 128 characters"));
     }

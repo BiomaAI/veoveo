@@ -1,6 +1,9 @@
 //! Domain resource discovery, reads, completions, and subscription admission.
 use super::super::{control_authority::ControlCollection, task_index};
 use super::*;
+use crate::contract::{
+    UavDocument, UavLiveViewCursor, UavMissionCursor, UavPlanCursor, UavResource, UavUsageCursor,
+};
 
 impl UavSimMcp {
     pub(super) async fn resource_read(
@@ -9,250 +12,248 @@ impl UavSimMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let uri = request.uri.as_str();
-            if uri == uris::LIVE_APP_URI {
-                require_scope(&context, UavScope::Stream)?;
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
-                ]));
-            }
-            // Well-known surface (contract C18, C19): readable by any identity
-            // that can list resources.
-            if uri == uris::DOCS {
-                internal_identity(&context)?;
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc(uri) {
-                internal_identity(&context)?;
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
+        let resource = UavResource::parse(&request.uri).map_err(invalid)?;
+        let identity = internal_identity(&context)?;
+        require_resource_scope(&identity, &resource)?;
+        self.read_address(&request.uri, &resource, &identity)
+            .await
+            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+    }
+
+    async fn read_address(
+        &self,
+        uri: &str,
+        resource: &UavResource,
+        identity: &GatewayInternalIdentity,
+    ) -> Result<ReadResourceResult, McpError> {
+        match resource {
+            UavResource::LiveApp => Ok(ReadResourceResult::new(vec![
+                veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
+            ])),
+            UavResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
+            UavResource::Document(document) => {
+                let doc = SERVER_DOCS.doc(document.id()).ok_or_else(|| {
                     McpError::resource_not_found("unknown UAV simulation document", None)
                 })?;
-                return Ok(ReadResourceResult::new(vec![
+                Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
+                ]))
             }
-            if uri == uris::CONTRACT {
-                internal_identity(&context)?;
-                return json_resource(uri, SERVER_DOCS.contract_declaration());
-            }
-            if let Some(after) = index::parse::<ControlGrantId>(uri, uris::CONTROL_GRANTS)? {
-                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
+            UavResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
+            UavResource::ControlGrants { cursor } => {
                 let page = self
                     .state
                     .control_authority
                     .grants_page(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
+                        identity,
+                        identity_has_scope(identity, UavScope::Admin),
                         None,
-                        after.as_ref(),
+                        cursor.as_ref().map(UavGrantCursor::position),
                     )
                     .await
                     .map_err(authority_error)?;
-                return json_resource(uri, &page);
+                json_resource(uri, &page)
             }
-            if let Some(id) = uris::parse_control_grant(uri) {
-                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
+            UavResource::ControlGrant(id) => {
                 let grant = self
                     .state
                     .control_authority
-                    .visible_grant(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
-                        &ControlGrantId::new(id).map_err(invalid)?,
-                    )
+                    .visible_grant(identity, identity_has_scope(identity, UavScope::Admin), id)
                     .await
                     .map_err(authority_error)?
                     .ok_or_else(|| McpError::resource_not_found("control grant not found", None))?;
-                return json_resource(uri, &grant);
+                json_resource(uri, &grant)
             }
-            if let Some(after) = index::parse::<MissionPlanId>(uri, uris::MISSION_PLANS)? {
-                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
+            UavResource::MissionPlans { cursor } => {
                 let page = self
                     .state
                     .control_authority
                     .plans_page(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
-                        after.as_ref(),
+                        identity,
+                        identity_has_scope(identity, UavScope::Admin),
+                        cursor.as_ref().map(UavPlanCursor::position),
                     )
                     .await
                     .map_err(authority_error)?;
-                return json_resource(uri, &page);
+                json_resource(uri, &page)
             }
-            if let Some(id) = uris::parse_mission_plan(uri) {
-                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
+            UavResource::MissionPlan(id) => {
                 let plan = self
                     .state
                     .control_authority
-                    .visible_plan(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
-                        &MissionPlanId::new(id).map_err(invalid)?,
-                    )
+                    .visible_plan(identity, identity_has_scope(identity, UavScope::Admin), id)
                     .await
                     .map_err(authority_error)?
                     .ok_or_else(|| McpError::resource_not_found("mission plan not found", None))?;
-                return json_resource(uri, &plan);
+                json_resource(uri, &plan)
             }
-            let identity = require_any_scope(
-                &context,
-                &[UavScope::Read, UavScope::Control, UavScope::Admin],
-            )?;
-            if let Some(after) =
-                index::parse::<veoveo_task_runtime::TaskPageCursor>(uri, uris::USAGE)?
-            {
-                if after
-                    .as_ref()
-                    .is_some_and(|cursor| cursor.task_id.as_uuid().get_version_num() != 7)
-                {
-                    return Err(McpError::invalid_params("invalid UAV task cursor", None));
-                }
-                return json_resource(
-                    uri,
-                    &task_index::usage_page(&self.state.tasks, &identity, after.as_ref())
-                        .await
-                        .map_err(internal)?,
-                );
-            }
-            if let Some(after) = index::parse::<crate::contract::MissionId>(uri, uris::MISSIONS)? {
-                return json_resource(
-                    uri,
-                    &task_index::missions_page(
-                        self.state.tasks.platform_store(),
-                        &identity,
-                        after.as_ref(),
-                    )
-                    .await
-                    .map_err(internal)?,
-                );
-            }
-            if let Some(id) = uris::parse_usage_task(uri) {
-                let task_id = parse_task_id(id)?;
-                let task = task_index::task(self.state.tasks.platform_store(), &identity, task_id)
+            UavResource::Usage { cursor } => json_resource(
+                uri,
+                &task_index::usage_page(
+                    &self.state.tasks,
+                    identity,
+                    cursor.as_ref().map(UavUsageCursor::position),
+                )
+                .await
+                .map_err(internal)?,
+            ),
+            UavResource::Missions { cursor } => json_resource(
+                uri,
+                &task_index::missions_page(
+                    self.state.tasks.platform_store(),
+                    identity,
+                    cursor.as_ref().map(UavMissionCursor::position),
+                )
+                .await
+                .map_err(internal)?,
+            ),
+            UavResource::UsageTask(id) => {
+                let task = task_index::task(self.state.tasks.platform_store(), identity, *id)
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| McpError::resource_not_found("task not found", None))?;
-                return json_resource(uri, &task_usage(&task, uri));
+                json_resource(uri, &task_usage(&task, uri))
             }
-            if let Some(id) = uris::parse_mission(uri) {
-                let task = task_index::mission(
-                    self.state.tasks.platform_store(),
-                    &identity,
-                    &crate::contract::MissionId::new(id).map_err(invalid)?,
-                )
-                .await
-                .map_err(internal)?
-                .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
-                return json_resource(uri, &task);
-            }
-            let state = self.visible_state(&identity).await?;
-            if let Some(session_id) = uris::parse_live_cameras(uri) {
-                require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                return json_resource(uri, &state.live_cameras);
-            }
-            if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
-                require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                let camera = state
-                    .live_cameras
-                    .iter()
-                    .find(|camera| camera.camera_id == camera_id)
-                    .ok_or_else(|| McpError::resource_not_found("live camera not found", None))?;
-                return json_resource(uri, camera);
-            }
-            if let Some(session_id) = uris::parse_stream_products(uri) {
-                require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                return json_resource(uri, &state.stream_products);
-            }
-            if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
-                require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                let product = state
-                    .stream_products
-                    .iter()
-                    .find(|product| product.stream_product_id == product_id)
-                    .ok_or_else(|| {
-                        McpError::resource_not_found("stream product not found", None)
-                    })?;
-                return json_resource(uri, product);
-            }
-            let collection_root = uri.split_once('?').map_or(uri, |(root, _)| root);
-            if let Some(session_id) = uris::parse_live_views(collection_root) {
-                let identity = require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                let owner = crate::server::ownership::live_view_owner(&identity);
-                let after =
-                    index::parse::<crate::contract::LiveViewId>(uri, collection_root)?.flatten();
-                let views = self
-                    .state
-                    .live_views
-                    .page(&owner, &identity.actor.id, &session_id, after.as_ref())
-                    .await;
-                return json_resource(
-                    uri,
-                    &index::page(views, collection_root, |view| view.live_view_id.clone(), Ok)
-                        .map_err(internal)?,
-                );
-            }
-            if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
-                let identity = require_scope(&context, UavScope::Stream)?;
-                require_session(&state, session_id.as_str())?;
-                let owner = crate::server::ownership::live_view_owner(&identity);
-                let view = self
-                    .state
-                    .live_views
-                    .get(&owner, &identity.actor.id, &live_view_id)
+            UavResource::Mission(id) => {
+                let task = task_index::mission(self.state.tasks.platform_store(), identity, id)
                     .await
-                    .map_err(live_view_error)?;
-                return json_resource(uri, &view);
+                    .map_err(internal)?
+                    .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
+                json_resource(uri, &task)
             }
-            if uri == uris::SESSIONS {
-                return json_resource(uri, &vec![session_summary(&state)]);
-            }
-            if let Some(session_id) = uris::parse_session(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state);
-            }
-            if let Some(session_id) = uris::parse_world(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &world_view(&state));
-            }
-            if let Some(session_id) = uris::parse_tiles(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.tiles);
-            }
-            if let Some(session_id) = uris::parse_vehicles(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.vehicles);
-            }
-            if let Some((session_id, vehicle_id)) = uris::parse_vehicle(uri) {
-                require_session(&state, session_id)?;
-                let vehicle = state
-                    .vehicles
-                    .iter()
-                    .find(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("Vehicle `{}` was not found in this session.", vehicle_id),
-                            None,
+            UavResource::Sessions
+            | UavResource::Session(_)
+            | UavResource::World(_)
+            | UavResource::Tiles(_)
+            | UavResource::Vehicles(_)
+            | UavResource::Recordings(_)
+            | UavResource::Vehicle { .. }
+            | UavResource::LiveCameras(_)
+            | UavResource::LiveCamera { .. }
+            | UavResource::StreamProducts(_)
+            | UavResource::StreamProduct { .. }
+            | UavResource::LiveViews { .. }
+            | UavResource::LiveView { .. } => {
+                let state = self.resource_state(resource, identity).await?;
+                match resource {
+                    UavResource::Sessions => json_resource(uri, &vec![session_summary(&state)]),
+                    UavResource::Session(_) => json_resource(uri, &state),
+                    UavResource::World(_) => json_resource(uri, &world_view(&state)),
+                    UavResource::Tiles(_) => json_resource(uri, &state.tiles),
+                    UavResource::Vehicles(_) => json_resource(uri, &state.vehicles),
+                    UavResource::Recordings(_) => json_resource(uri, &state.recordings),
+                    UavResource::Vehicle { vehicle, .. } => {
+                        let vehicle = state
+                            .vehicles
+                            .iter()
+                            .find(|row| &row.vehicle_id == vehicle)
+                            .ok_or_else(|| {
+                                McpError::resource_not_found("vehicle not found", None)
+                            })?;
+                        json_resource(uri, vehicle)
+                    }
+                    UavResource::LiveCameras(_) => json_resource(uri, &state.live_cameras),
+                    UavResource::LiveCamera { camera, .. } => {
+                        let camera = state
+                            .live_cameras
+                            .iter()
+                            .find(|row| &row.camera_id == camera)
+                            .ok_or_else(|| {
+                                McpError::resource_not_found("live camera not found", None)
+                            })?;
+                        json_resource(uri, camera)
+                    }
+                    UavResource::StreamProducts(_) => json_resource(uri, &state.stream_products),
+                    UavResource::StreamProduct { product, .. } => {
+                        let product = state
+                            .stream_products
+                            .iter()
+                            .find(|row| &row.stream_product_id == product)
+                            .ok_or_else(|| {
+                                McpError::resource_not_found("stream product not found", None)
+                            })?;
+                        json_resource(uri, product)
+                    }
+                    UavResource::LiveViews { session, cursor } => {
+                        let owner = crate::server::ownership::live_view_owner(identity);
+                        let views = self
+                            .state
+                            .live_views
+                            .page(
+                                &owner,
+                                &identity.actor.id,
+                                session,
+                                cursor.as_ref().map(UavLiveViewCursor::position),
+                            )
+                            .await;
+                        let page = index::page(
+                            views,
+                            |view| {
+                                Ok(UavLiveViewCursor::new(
+                                    session.clone(),
+                                    view.live_view_id.clone(),
+                                )?
+                                .as_str()
+                                .to_owned())
+                            },
+                            Ok,
                         )
-                    })?;
-                return json_resource(uri, vehicle);
+                        .map_err(internal)?;
+                        json_resource(uri, &page)
+                    }
+                    UavResource::LiveView { session, view } => {
+                        let owner = crate::server::ownership::live_view_owner(identity);
+                        let view = self
+                            .state
+                            .live_views
+                            .get(&owner, &identity.actor.id, view)
+                            .await
+                            .map_err(live_view_error)?;
+                        if &view.session_id != session {
+                            return Err(McpError::resource_not_found(
+                                "live view not found in session",
+                                None,
+                            ));
+                        }
+                        json_resource(uri, &view)
+                    }
+                    _ => Err(McpError::resource_not_found(
+                        "unknown simulation state resource",
+                        None,
+                    )),
+                }
             }
-            if let Some(session_id) = uris::parse_recordings(uri) {
-                require_session(&state, session_id)?;
-                return json_resource(uri, &state.recordings);
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown UAV simulation resource `{uri}`"),
-                None,
-            ))
         }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+    }
+
+    async fn resource_state(
+        &self,
+        resource: &UavResource,
+        identity: &GatewayInternalIdentity,
+    ) -> Result<SimulationState, McpError> {
+        let state = self.visible_state(identity).await?;
+        match resource {
+            UavResource::Session(session)
+            | UavResource::World(session)
+            | UavResource::Tiles(session)
+            | UavResource::Vehicles(session)
+            | UavResource::Recordings(session)
+            | UavResource::Vehicle { session, .. } => require_session(&state, session)?,
+            UavResource::LiveCameras(session)
+            | UavResource::StreamProducts(session)
+            | UavResource::LiveCamera { session, .. }
+            | UavResource::StreamProduct { session, .. }
+            | UavResource::LiveViews { session, .. }
+            | UavResource::LiveView { session, .. } => require_live_session(&state, session)?,
+            UavResource::Sessions => (),
+            _ => {
+                return Err(McpError::resource_not_found(
+                    "unknown simulation state resource",
+                    None,
+                ));
+            }
+        }
+        Ok(state)
     }
 
     pub(super) async fn resource_complete(
@@ -348,127 +349,78 @@ impl UavSimMcp {
     }
 }
 
+/// Reads and subscription admission use the same domain permission rules.
+fn require_resource_scope(
+    identity: &GatewayInternalIdentity,
+    resource: &UavResource,
+) -> Result<(), McpError> {
+    match resource {
+        UavResource::Docs | UavResource::Document(_) | UavResource::Contract => Ok(()),
+        UavResource::LiveApp => super::super::auth::require_scope(identity, UavScope::Stream),
+        UavResource::ControlGrants { .. }
+        | UavResource::ControlGrant(_)
+        | UavResource::MissionPlans { .. }
+        | UavResource::MissionPlan(_) => {
+            require_any_identity_scope(identity, &[UavScope::Control, UavScope::Admin])
+        }
+        UavResource::LiveCameras(_)
+        | UavResource::LiveCamera { .. }
+        | UavResource::StreamProducts(_)
+        | UavResource::StreamProduct { .. }
+        | UavResource::LiveViews { .. }
+        | UavResource::LiveView { .. } => {
+            require_any_identity_scope(
+                identity,
+                &[UavScope::Read, UavScope::Control, UavScope::Admin],
+            )?;
+            super::super::auth::require_scope(identity, UavScope::Stream)
+        }
+        UavResource::Sessions
+        | UavResource::Session(_)
+        | UavResource::World(_)
+        | UavResource::Tiles(_)
+        | UavResource::Vehicles(_)
+        | UavResource::Recordings(_)
+        | UavResource::Vehicle { .. }
+        | UavResource::Usage { .. }
+        | UavResource::UsageTask(_)
+        | UavResource::Missions { .. }
+        | UavResource::Mission(_) => require_any_identity_scope(
+            identity,
+            &[UavScope::Read, UavScope::Control, UavScope::Admin],
+        ),
+    }
+}
+
 impl UavSimMcp {
     pub(super) async fn require_subscribable(
         &self,
         uri: &str,
         context: &RequestContext<RoleServer>,
     ) -> Result<(), McpError> {
+        let resource = UavResource::parse(uri).map_err(invalid)?;
         let identity = internal_identity(context)?;
-        if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
-            require_any_identity_scope(&identity, &[UavScope::Control, UavScope::Admin])?;
-            if let Some(id) = uris::parse_control_grant(uri) {
-                self.state
-                    .control_authority
-                    .visible_grant(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
-                        &ControlGrantId::new(id).map_err(invalid)?,
-                    )
-                    .await
-                    .map_err(authority_error)?
-                    .ok_or_else(|| McpError::resource_not_found("control grant not found", None))?;
+        require_resource_scope(&identity, &resource)?;
+        if !resource.is_subscribable() {
+            return Err(McpError::resource_not_found(
+                "resource is not subscribable",
+                None,
+            ));
+        }
+        match &resource {
+            UavResource::ControlGrants { .. }
+            | UavResource::MissionPlans { .. }
+            | UavResource::Usage { .. }
+            | UavResource::Missions { .. } => Ok(()),
+            UavResource::LiveViews { .. } => {
+                self.resource_state(&resource, &identity).await.map(|_| ())
             }
-            return Ok(());
+            // Exact targets share the read path's SQL visibility, session and child checks.
+            _ => self
+                .read_address(uri, &resource, &identity)
+                .await
+                .map(|_| ()),
         }
-        if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
-            require_any_identity_scope(&identity, &[UavScope::Control, UavScope::Admin])?;
-            if let Some(id) = uris::parse_mission_plan(uri) {
-                self.state
-                    .control_authority
-                    .visible_plan(
-                        &identity,
-                        identity_has_scope(&identity, UavScope::Admin),
-                        &MissionPlanId::new(id).map_err(invalid)?,
-                    )
-                    .await
-                    .map_err(authority_error)?
-                    .ok_or_else(|| McpError::resource_not_found("mission plan not found", None))?;
-            }
-            return Ok(());
-        }
-        require_any_identity_scope(
-            &identity,
-            &[UavScope::Read, UavScope::Control, UavScope::Admin],
-        )?;
-        if matches!(uri, uris::USAGE | uris::MISSIONS) {
-            return Ok(());
-        }
-        if let Some(id) = uris::parse_usage_task(uri) {
-            task_index::task(
-                self.state.tasks.platform_store(),
-                &identity,
-                parse_task_id(id)?,
-            )
-            .await
-            .map_err(internal)?
-            .ok_or_else(|| McpError::resource_not_found("task not found", None))?;
-            return Ok(());
-        }
-        if let Some(id) = uris::parse_mission(uri) {
-            task_index::mission(
-                self.state.tasks.platform_store(),
-                &identity,
-                &crate::contract::MissionId::new(id).map_err(invalid)?,
-            )
-            .await
-            .map_err(internal)?
-            .ok_or_else(|| McpError::resource_not_found("mission not found", None))?;
-            return Ok(());
-        }
-        let state = self.visible_state(&identity).await?;
-        if let Some(session_id) = live_session_from_subscribable(uri) {
-            require_scope(context, UavScope::Stream)?;
-            require_session(&state, session_id.as_str())?;
-            if let Some((_, camera_id)) = uris::parse_live_camera(uri)
-                && !state
-                    .live_cameras
-                    .iter()
-                    .any(|camera| camera.camera_id == camera_id)
-            {
-                return Err(McpError::resource_not_found("live camera not found", None));
-            }
-            if let Some((_, product_id)) = uris::parse_stream_product(uri)
-                && !state
-                    .stream_products
-                    .iter()
-                    .any(|product| product.stream_product_id == product_id)
-            {
-                return Err(McpError::resource_not_found(
-                    "stream product not found",
-                    None,
-                ));
-            }
-            if let Some((_, live_view_id)) = uris::parse_live_view(uri) {
-                let identity = internal_identity(context)?;
-                let owner = crate::server::ownership::live_view_owner(&identity);
-                self.state
-                    .live_views
-                    .get(&owner, &identity.actor.id, &live_view_id)
-                    .await
-                    .map_err(live_view_error)?;
-            }
-            return Ok(());
-        }
-        if let Some(session_id) = session_from_subscribable(uri) {
-            require_session(&state, session_id)?;
-            if let Some((_, vehicle_id)) = uris::parse_vehicle(uri)
-                && !state
-                    .vehicles
-                    .iter()
-                    .any(|vehicle| vehicle.vehicle_id.as_str() == vehicle_id)
-            {
-                return Err(McpError::resource_not_found(
-                    format!("Vehicle `{}` was not found in this session.", vehicle_id),
-                    None,
-                ));
-            }
-            return Ok(());
-        }
-        Err(McpError::resource_not_found(
-            "resource is not subscribable",
-            None,
-        ))
     }
 }
 
@@ -546,14 +498,6 @@ fn discovery_roots(identity: &GatewayInternalIdentity) -> Vec<Resource> {
     roots
 }
 
-fn parse_task_id(value: &str) -> Result<veoveo_types::TaskId, McpError> {
-    let id: veoveo_types::TaskId = value.parse().map_err(invalid)?;
-    if id.as_uuid().get_version_num() != 7 {
-        return Err(McpError::invalid_params("task ID must be UUIDv7", None));
-    }
-    Ok(id)
-}
-
 pub(in crate::server) async fn observe(
     store: veoveo_platform_store::PlatformStore,
     subscribers: Arc<SubscriptionHub>,
@@ -588,10 +532,13 @@ fn well_known_resources() -> Vec<Resource> {
     )];
     for doc in SERVER_DOCS.iter() {
         resources.push(
-            Resource::new(uris::doc(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
+            Resource::new(
+                uris::doc(UavDocument::parse(doc.id).expect("declared UAV document")),
+                doc.title,
+            )
+            .with_title(doc.title)
+            .with_description("Crate document embedded at build time.")
+            .with_mime_type("text/markdown"),
         );
     }
     resources.push(descriptor(
@@ -788,24 +735,6 @@ fn task_usage(task: &TaskSnapshot, uri: &str) -> UsageReport {
     }])
 }
 
-fn session_from_subscribable(uri: &str) -> Option<&str> {
-    uris::parse_session(uri)
-        .or_else(|| uris::parse_world(uri))
-        .or_else(|| uris::parse_tiles(uri))
-        .or_else(|| uris::parse_vehicles(uri))
-        .or_else(|| uris::parse_recordings(uri))
-        .or_else(|| uris::parse_vehicle(uri).map(|(session_id, _)| session_id))
-}
-
-fn live_session_from_subscribable(uri: &str) -> Option<LiveSessionId> {
-    uris::parse_live_cameras(uri)
-        .or_else(|| uris::parse_live_camera(uri).map(|(session, _)| session))
-        .or_else(|| uris::parse_stream_products(uri))
-        .or_else(|| uris::parse_stream_product(uri).map(|(session, _)| session))
-        .or_else(|| uris::parse_live_views(uri))
-        .or_else(|| uris::parse_live_view(uri).map(|(session, _)| session))
-}
-
 fn complete_values(values: Vec<String>, needle: &str) -> Result<CompleteResult, McpError> {
     let needle = needle.to_lowercase();
     let mut matches = values
@@ -864,3 +793,7 @@ pub(super) fn live_app_resource(
         .expect("validated UAV App agent message targets")
     }
 }
+
+#[cfg(test)]
+#[path = "resource_tests.rs"]
+mod tests;

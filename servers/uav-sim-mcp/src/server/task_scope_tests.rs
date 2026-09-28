@@ -1,49 +1,22 @@
 //! Native admission qualification with disposable Store and a deterministic adapter.
 //! The fake executes no simulation or GPU work.
+use crate::server::test_support::context;
 use crate::{
     adapter::{Adapter, FakeAdapter},
     contract::UavScope,
     server::{
-        auth::ForwardedBearer,
         service::{UavSimMcp, fake_state},
         task_worker::await_result,
         test_support,
     },
 };
 use rmcp::{
-    RoleServer, ServerHandler,
-    model::{CallToolRequestParams, CallToolResponse, ClientCapabilities},
-    service::{Peer, RequestContext, serve_directly},
+    ServerHandler,
+    model::{CallToolRequestParams, CallToolResponse},
+    service::serve_directly,
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Mutex;
-use veoveo_types::ScopeName;
-
-fn context(
-    peer: &Peer<RoleServer>,
-    scopes: &[UavScope],
-    tasks: bool,
-) -> RequestContext<RoleServer> {
-    let mut identity = test_support::identity("scope-test", "operations", "pilot", &[]);
-    identity.actor.scopes = scopes.iter().copied().map(Into::into).collect();
-    identity
-        .actor
-        .scopes
-        .insert(ScopeName::new("external:custom").unwrap());
-    let (mut parts, _) = axum::http::Request::new(()).into_parts();
-    parts.extensions.insert(identity);
-    parts
-        .extensions
-        .insert(ForwardedBearer("native-fixture".into()));
-    let mut context = RequestContext::new(rmcp::model::NumberOrString::Number(1), peer.clone());
-    context.extensions.insert(parts);
-    if tasks {
-        context
-            .meta
-            .set_client_capabilities(ClientCapabilities::builder().enable_tasks().build());
-    }
-    context
-}
 
 fn request(tool: &str) -> CallToolRequestParams {
     let arguments = match tool {

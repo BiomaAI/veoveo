@@ -223,7 +223,9 @@ async fn run_task(
 ) {
     let session_id = operation_session(&operation).clone();
     let mission_uri = match &operation {
-        DurableOperation::ExecuteMission(request) => Some(uris::mission(&request.mission_id)),
+        DurableOperation::ExecuteMission(request) => {
+            Some(String::from(uris::mission(&request.mission_id)))
+        }
         _ => None,
     };
     let authority = authority.map(MissionExecutionGuard::dispatch);

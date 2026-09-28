@@ -11,7 +11,7 @@ use veoveo_types::TaskId;
 
 use super::{index, ownership::runtime_owner};
 use crate::{
-    contract::{CollectionPage, MissionId},
+    contract::{CollectionPage, MissionId, UavMissionCursor, UavUsageCursor, UavUsagePosition},
     uris,
 };
 
@@ -59,7 +59,7 @@ fn scope(identity: &GatewayInternalIdentity) -> Result<Scope> {
 pub(super) async fn usage_page(
     tasks: &TaskRuntime,
     identity: &GatewayInternalIdentity,
-    after: Option<&TaskPageCursor>,
+    after: Option<&UavUsagePosition>,
 ) -> Result<CollectionPage<String>> {
     if let Some(cursor) = after {
         anyhow::ensure!(
@@ -67,11 +67,15 @@ pub(super) async fn usage_page(
             "invalid task cursor ID"
         );
     }
+    let after = after.map(|position| TaskPageCursor {
+        created_at: position.created_at,
+        task_id: position.task_id,
+    });
     let page = tasks
         .list_page_for_owner(
             &runtime_owner(identity),
             TASK_TYPES,
-            after,
+            after.as_ref(),
             index::PAGE_SIZE,
         )
         .await?;
@@ -79,12 +83,18 @@ pub(super) async fn usage_page(
         items: page
             .items
             .into_iter()
-            .map(|task| uris::usage_task(&task.task_id.to_string()))
-            .collect(),
+            .map(|task| uris::usage_task(task.task_id).map(String::from))
+            .collect::<Result<_, _>>()?,
         limit: index::PAGE_SIZE,
         next_cursor: page
             .next_cursor
-            .map(|cursor| index::encode(uris::USAGE, cursor))
+            .map(|cursor| {
+                UavUsageCursor::new(UavUsagePosition {
+                    created_at: cursor.created_at,
+                    task_id: cursor.task_id,
+                })
+                .map(|cursor| cursor.as_str().to_owned())
+            })
             .transpose()?,
     })
 }
@@ -195,9 +205,14 @@ pub(super) async fn missions_page(
     let rows: Vec<Mission> = response.take(0)?;
     index::page(
         rows,
-        uris::MISSIONS,
-        |row| row.mission_id.clone(),
-        |row| Ok(uris::mission(&MissionId::new(row.mission_id)?)),
+        |row| {
+            Ok(
+                UavMissionCursor::new(MissionId::new(row.mission_id.clone())?)?
+                    .as_str()
+                    .to_owned(),
+            )
+        },
+        |row| Ok(uris::mission(&MissionId::new(row.mission_id)?).into()),
     )
 }
 

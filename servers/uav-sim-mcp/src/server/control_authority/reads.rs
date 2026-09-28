@@ -1,6 +1,9 @@
 //! SQL owns grant/plan visibility and selection before page and completion limits.
 use super::*;
-use crate::{contract::CollectionPage, server::index, uris};
+use crate::{
+    contract::{CollectionPage, UavGrantCursor, UavPlanCursor},
+    server::index,
+};
 
 const VISIBLE: &str = "tenant = $tenant AND work_context = $work_context AND ($include_all OR principal_key = $principal)";
 const ACTIVE: &str =
@@ -48,8 +51,16 @@ impl VehicleControlAuthority {
         let records: Vec<GrantRecord> = response.take(0)?;
         index::page(
             records,
-            &grant_collection(active_session),
-            |row| row.grant_id.clone(),
+            |row| {
+                Ok(
+                    UavGrantCursor::new(
+                        active_session,
+                        ControlGrantId::new(row.grant_id.clone())?,
+                    )?
+                    .as_str()
+                    .to_owned(),
+                )
+            },
             |row| Ok(grant_view(row)?),
         )
         .map_err(ControlAuthorityError::Index)
@@ -80,8 +91,13 @@ impl VehicleControlAuthority {
         let records: Vec<PlanRecord> = response.take(0)?;
         index::page(
             records,
-            uris::MISSION_PLANS,
-            |row| row.plan_id.clone(),
+            |row| {
+                Ok(
+                    UavPlanCursor::new(MissionPlanId::new(row.plan_id.clone())?)?
+                        .as_str()
+                        .to_owned(),
+                )
+            },
             |row| Ok(visible_plan_view(&row, identity)?),
         )
         .map_err(ControlAuthorityError::Index)
@@ -275,11 +291,4 @@ impl VehicleControlAuthority {
 pub(in crate::server) enum ControlCollection {
     Grants,
     Plans,
-}
-
-pub(in crate::server) fn grant_collection(active_session: Option<&SessionId>) -> String {
-    active_session.map_or_else(
-        || uris::CONTROL_GRANTS.to_owned(),
-        |session| format!("{}?active_session={session}", uris::CONTROL_GRANTS),
-    )
 }

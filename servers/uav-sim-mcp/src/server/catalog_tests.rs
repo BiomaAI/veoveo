@@ -1,7 +1,6 @@
 //! Native catalog qualification: disposable SurrealDB, no simulator or GPU workload.
 use super::{
-    control_authority::{ControlCollection, VehicleControlAuthority, grant_collection},
-    index,
+    control_authority::{ControlCollection, VehicleControlAuthority},
     ownership::runtime_owner,
     task_index,
     test_support::identity,
@@ -240,23 +239,15 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         assert_eq!(active.items.len(), 100);
         assert_eq!(active.items[0].grant_id.as_str(), "visible-0000");
         let cursor = active.next_cursor.unwrap();
-        let after =
-            index::decode::<ControlGrantId>(&grant_collection(Some(&session)), Some(&cursor))
-                .unwrap();
+        let after = UavGrantCursor::parse(Some(&session), &cursor).unwrap();
         let last = reader
-            .grants_page(&pilot, false, Some(&session), after.as_ref())
+            .grants_page(&pilot, false, Some(&session), Some(after.position()))
             .await
             .unwrap();
         assert_eq!(last.items.len(), 2);
         assert!(last.next_cursor.is_none());
-        assert!(index::decode::<ControlGrantId>(uris::CONTROL_GRANTS, Some(&cursor)).is_err());
-        assert!(
-            index::decode::<ControlGrantId>(
-                &grant_collection(Some(&SessionId::new("other").unwrap())),
-                Some(&cursor)
-            )
-            .is_err()
-        );
+        assert!(UavGrantCursor::parse(None, &cursor).is_err());
+        assert!(UavGrantCursor::parse(Some(&SessionId::new("other").unwrap()), &cursor).is_err());
         let mut count = 0;
         let mut after = None;
         loop {
@@ -268,7 +259,12 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             let Some(cursor) = page.next_cursor else {
                 break;
             };
-            after = index::decode::<ControlGrantId>(uris::CONTROL_GRANTS, Some(&cursor)).unwrap();
+            after = Some(
+                UavGrantCursor::parse(None, &cursor)
+                    .unwrap()
+                    .position()
+                    .clone(),
+            );
             assert!(count <= 623);
         }
         assert_eq!(count, 623);
@@ -390,12 +386,10 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         );
         let page = reader.plans_page(&pilot, false, None).await.unwrap();
         assert_eq!(page.items.len(), 100);
-        let after =
-            index::decode::<MissionPlanId>(uris::MISSION_PLANS, page.next_cursor.as_deref())
-                .unwrap();
+        let after = UavPlanCursor::parse(page.next_cursor.unwrap()).unwrap();
         assert_eq!(
             reader
-                .plans_page(&pilot, false, after.as_ref())
+                .plans_page(&pilot, false, Some(after.position()))
                 .await
                 .unwrap()
                 .items
@@ -419,10 +413,9 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             .unwrap();
         assert_eq!(page.items.len(), 100);
         assert_eq!(page.items[0], "uav-sim://mission/mission-0000");
-        let after =
-            index::decode::<MissionId>(uris::MISSIONS, page.next_cursor.as_deref()).unwrap();
+        let after = UavMissionCursor::parse(page.next_cursor.unwrap()).unwrap();
         assert_eq!(
-            task_index::missions_page(&db.b, &pilot, after.as_ref())
+            task_index::missions_page(&db.b, &pilot, Some(after.position()))
                 .await
                 .unwrap()
                 .items
@@ -487,14 +480,10 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
             .await
             .unwrap();
         assert_eq!(page.items.len(), 100);
-        let after = index::decode::<veoveo_task_runtime::TaskPageCursor>(
-            uris::USAGE,
-            page.next_cursor.as_deref(),
-        )
-        .unwrap();
+        let after = UavUsageCursor::parse(page.next_cursor.unwrap()).unwrap();
         // Task ownership admits the same actor's other Work Context, preserving the
         // shared runtime read profile. Mission resources use their plan's context.
-        let tail = task_index::usage_page(&task_reader, &pilot, after.as_ref())
+        let tail = task_index::usage_page(&task_reader, &pilot, Some(after.position()))
             .await
             .unwrap();
         assert_eq!(tail.items.len(), 5);
@@ -579,31 +568,4 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
     })
     .await
     .expect("UAV native catalog qualification exceeded 120 seconds");
-}
-
-#[test]
-fn cursors_reject_wrong_collection_version_and_malformed_parameters() {
-    let cursor = index::encode(
-        uris::CONTROL_GRANTS,
-        ControlGrantId::new("grant-one").unwrap(),
-    )
-    .unwrap();
-    assert!(index::decode::<ControlGrantId>(uris::MISSION_PLANS, Some(&cursor)).is_err());
-    for suffix in [
-        "?",
-        "?cursor=",
-        "?cursor=broken",
-        "?cursor=00&cursor=00",
-        "?offset=1",
-    ] {
-        assert!(
-            index::parse::<ControlGrantId>(
-                &format!("{}{suffix}", uris::CONTROL_GRANTS),
-                uris::CONTROL_GRANTS
-            )
-            .is_err()
-        );
-    }
-    let cursor = hex::encode(serde_json::to_vec(&serde_json::json!({"version":2,"collection":uris::CONTROL_GRANTS,"position":"grant-one"})).unwrap());
-    assert!(index::decode::<ControlGrantId>(uris::CONTROL_GRANTS, Some(&cursor)).is_err());
 }

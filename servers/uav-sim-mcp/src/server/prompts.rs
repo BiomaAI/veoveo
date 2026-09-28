@@ -1,3 +1,7 @@
+use crate::{
+    contract::{MissionId, SessionId},
+    uris,
+};
 use rmcp::{
     ErrorData as McpError,
     model::{GetPromptResult, JsonObject, Prompt, PromptArgument, PromptMessage, Role},
@@ -48,22 +52,27 @@ impl UavSimPrompt {
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
         struct Args {
-            session_id: String,
-            mission_id: Option<String>,
+            session_id: SessionId,
+            mission_id: Option<MissionId>,
             objective: Option<String>,
         }
         let args: Args = serde_json::from_value(Value::Object(arguments.unwrap_or_default()))
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
+        let session = uris::session(&args.session_id);
+        let world = uris::world(&args.session_id);
+        let vehicles = uris::vehicles(&args.session_id);
         let text = match self {
             Self::MissionPlan => format!(
-                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, uav-sim://control-grants, and uav-sim://session/{0}/vehicles. Ask Map MCP to resolve and route the objective, then call Map's prepare_route_handoff tool. Pass that handoff unchanged to prepare_vehicle_mission for mission {1} and only the vehicle granted to your authenticated principal. Objective: {2}. Do not invent coordinates, restrictions, mobility profiles, or world revisions. Do not call execute_vehicle_mission_plan until the operator accepts the admitted plan.",
-                args.session_id,
-                args.mission_id.as_deref().unwrap_or("unspecified"),
+                "Read {session}, {world}, {}, and {vehicles}. Ask Map MCP to resolve and route the objective, then call Map's prepare_route_handoff tool. Pass that handoff unchanged to prepare_vehicle_mission for mission {} and only the vehicle granted to your authenticated principal. Objective: {}. Do not invent coordinates, restrictions, mobility profiles, or world revisions. Do not call execute_vehicle_mission_plan until the operator accepts the admitted plan.",
+                uris::CONTROL_GRANTS,
+                args.mission_id
+                    .ok_or_else(|| McpError::invalid_params("mission_id is required", None))?,
                 args.objective.as_deref().unwrap_or("unspecified")
             ),
             Self::SessionReview => format!(
-                "Read uav-sim://session/{0}, uav-sim://session/{0}/world, uav-sim://session/{0}/tiles, uav-sim://session/{0}/vehicles, and uav-sim://session/{0}/recordings. Report tile readiness, native sensor-stream health, frame identity, PX4 connectivity, flight states, collisions, recording availability, and results of relevant Tasks.",
-                args.session_id
+                "Read {session}, {world}, {}, {vehicles}, and {}. Report tile readiness, native sensor-stream health, frame identity, PX4 connectivity, flight states, collisions, recording availability, and results of relevant Tasks.",
+                uris::tiles(&args.session_id),
+                uris::recordings(&args.session_id)
             ),
         };
         Ok(GetPromptResult::new(vec![PromptMessage::new_text(
@@ -83,4 +92,40 @@ fn optional(name: &str, description: &str) -> PromptArgument {
     PromptArgument::new(name)
         .with_description(description)
         .with_required(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn prompts_validate_ids_before_building_resource_addresses() {
+        for prompt in UavSimPrompt::ALL {
+            for id in ["..", "s/world", "s?cursor=x", "s#fragment"] {
+                let args = serde_json::json!({"session_id": id, "mission_id": "m"});
+                assert!(
+                    prompt
+                        .render(Some(args.as_object().unwrap().clone()))
+                        .is_err()
+                );
+            }
+            let args = serde_json::json!({"session_id": "Session_1.2", "mission_id": "mission-1"});
+            let result = prompt
+                .render(Some(args.as_object().unwrap().clone()))
+                .unwrap();
+            let text = serde_json::to_string(&result).unwrap();
+            assert!(text.contains("uav-sim://session/Session_1.2/world"));
+            assert!(text.contains("uav-sim://session/Session_1.2/vehicles"));
+        }
+        for args in [
+            serde_json::json!({"session_id":"s"}),
+            serde_json::json!({"session_id":"s","mission_id":".."}),
+        ] {
+            assert!(
+                UavSimPrompt::MissionPlan
+                    .render(Some(args.as_object().unwrap().clone()))
+                    .is_err()
+            );
+        }
+    }
 }
