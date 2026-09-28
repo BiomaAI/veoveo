@@ -43,7 +43,8 @@ run, solution, and evidence resources.
 
 ## Module Boundaries
 
-- `src/domain/`: public controlled types and versions.
+- `src/contract/`: public controlled types and versions.
+- `src/usage.rs`: current owner and Work Context policy through TaskRuntime SQL.
 - `src/compiler/`: deterministic public-to-private solver compilation.
 - `src/verification/`: cuOpt-independent solution checks.
 - `src/executor/`: private typed protocol and Unix-socket client.
@@ -57,6 +58,7 @@ Python adapter, and executor-native indices must not become the MCP contract.
 
 ## Build And Test
 
+- `cargo check -p veoveo-optimization-mcp --no-default-features --features contract`
 - `cargo check -p veoveo-optimization-mcp --all-targets`
 - `cargo test -p veoveo-optimization-mcp --all-targets`
 - `PYTHONPATH=servers/optimization-mcp/executor python -m unittest discover -s servers/optimization-mcp/executor/tests`
@@ -78,7 +80,7 @@ Contract revision: 3
 - C06: met — one canonical surface; no compatibility projection
 - C07: met
 - C08: met
-- C09: met
+- C09: pending — other resource families and scope declarations need typed builders and admission
 - C10: met
 - C11: met
 - C12: met
@@ -100,4 +102,5 @@ Contract revision: 3
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection
-- C31: met
+- C31: pending — checked MCP setup and installed readiness qualification remain
+- C32: pending — knowledge-source extension adoption is planned

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    domain::{
+    contract::{
         DenseTravelMatrix, LocationId, OptimizationSolution, RouteNodeKind, RouteObjectiveMetric,
         RouteOrderKind, RouteServicePolicy, RoutingProblem, SolutionDetail, TravelModelSource,
         VehicleTypeId,
@@ -212,7 +212,7 @@ fn compile_vehicles(
         .vehicles
         .iter()
         .map(|vehicle| {
-            let time_window = vehicle.time_window.unwrap_or(crate::domain::TimeWindow {
+            let time_window = vehicle.time_window.unwrap_or(crate::contract::TimeWindow {
                 earliest: 0,
                 latest: UNBOUNDED_TIME,
             });
@@ -351,13 +351,13 @@ fn compile_nodes(
 }
 
 fn compile_node(
-    order_id: crate::domain::OrderId,
-    stop: &crate::domain::RouteStop,
+    order_id: crate::contract::OrderId,
+    stop: &crate::contract::RouteStop,
     kind: RouteNodeKind,
     prize: f32,
     locations: &BTreeMap<LocationId, u32>,
 ) -> CompiledRouteNode {
-    let window = stop.time_window.unwrap_or(crate::domain::TimeWindow {
+    let window = stop.time_window.unwrap_or(crate::contract::TimeWindow {
         earliest: 0,
         latest: UNBOUNDED_TIME,
     });
@@ -477,7 +477,7 @@ mod tests {
 
     use chrono::Utc;
 
-    use crate::domain::{
+    use crate::contract::{
         DenseTravelMatrix, FiniteF64, InlineTravelModel, LocationId, NonNegativeF64,
         ROUTING_PROBLEM_VERSION, RouteFleet, RouteLocation, RouteObjective, RouteOrder, RouteStop,
         RouteVehicle, TimeBasis, TimeUnit, TravelModelSource, VehicleTypeId,

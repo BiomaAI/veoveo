@@ -2,7 +2,7 @@ use veoveo_map_mcp::contract::{
     OptimizationTravelModel, TRAVEL_MODEL_ARTIFACT_VERSION, TravelLocationId, TravelModelArtifact,
     TravelModelMatrix, TravelVehicleTypeId,
 };
-use veoveo_optimization_mcp::domain::{
+use veoveo_optimization_mcp::contract::{
     TRAVEL_MODEL_ARTIFACT_VERSION as OPTIMIZATION_ARTIFACT_VERSION,
     TravelModelArtifact as OptimizationArtifact,
 };

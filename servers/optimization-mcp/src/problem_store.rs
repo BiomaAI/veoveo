@@ -9,7 +9,7 @@ use tokio::io::AsyncWriteExt;
 use veoveo_types::TaskId;
 
 use crate::{
-    domain::{
+    contract::{
         ConvexProblem, MilpProblem, OptimizationProblemResource, RouteCaseId, RoutingProblem,
     },
     executor::{CompiledMathematicalModel, CompiledRoutingProblem},

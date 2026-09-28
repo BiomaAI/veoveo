@@ -1,0 +1,4405 @@
+{
+  "OptimizationRunRecord": {
+    "$defs": {
+      "EngineProvenance": {
+        "properties": {
+          "compute_capability": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "container_digest": {
+            "type": "string"
+          },
+          "executor_protocol": {
+            "type": "string"
+          },
+          "gpu_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gpu_uuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "solver_profile_uri": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "container_digest",
+          "executor_protocol",
+          "solver_profile_uri"
+        ],
+        "type": "object"
+      },
+      "IncumbentSummary": {
+        "properties": {
+          "best_bound": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "found_at_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "objective": {
+            "format": "double",
+            "type": "number"
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sequence": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "objective",
+          "found_at_seconds"
+        ],
+        "type": "object"
+      },
+      "OptimizationAuthority": {
+        "properties": {
+          "policy_revision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "principal_id": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "principal_id",
+          "policy_revision",
+          "submitted_at"
+        ],
+        "type": "object"
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "ProblemFamily": {
+        "enum": [
+          "routing",
+          "route_scenarios",
+          "convex",
+          "milp"
+        ],
+        "type": "string"
+      },
+      "RunPhase": {
+        "enum": [
+          "preparing",
+          "staging",
+          "queued",
+          "solving",
+          "verifying",
+          "publishing",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
+      },
+      "RunTimings": {
+        "properties": {
+          "preparation_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "publication_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "queue_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "solve_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "transfer_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "verification_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "authority": {
+        "$ref": "#/$defs/OptimizationAuthority"
+      },
+      "created_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "engine": {
+        "$ref": "#/$defs/EngineProvenance"
+      },
+      "family": {
+        "$ref": "#/$defs/ProblemFamily"
+      },
+      "incumbent": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/IncumbentSummary"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "phase": {
+        "$ref": "#/$defs/RunPhase"
+      },
+      "problem_uri": {
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "run_uri": {
+        "type": "string"
+      },
+      "solution_uri": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "timings": {
+        "$ref": "#/$defs/RunTimings"
+      },
+      "updated_at": {
+        "format": "date-time",
+        "type": "string"
+      }
+    },
+    "required": [
+      "run_id",
+      "run_uri",
+      "problem_uri",
+      "family",
+      "phase",
+      "engine",
+      "timings",
+      "authority",
+      "created_at",
+      "updated_at"
+    ],
+    "title": "OptimizationRunRecord",
+    "type": "object"
+  },
+  "OptimizationSolution": {
+    "$defs": {
+      "ConstraintValue": {
+        "properties": {
+          "activity": {
+            "format": "double",
+            "type": "number"
+          },
+          "constraint_id": {
+            "type": "string"
+          },
+          "dual_value": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "constraint_id",
+          "activity"
+        ],
+        "type": "object"
+      },
+      "EngineProvenance": {
+        "properties": {
+          "compute_capability": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "container_digest": {
+            "type": "string"
+          },
+          "executor_protocol": {
+            "type": "string"
+          },
+          "gpu_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gpu_uuid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "solver_profile_uri": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "container_digest",
+          "executor_protocol",
+          "solver_profile_uri"
+        ],
+        "type": "object"
+      },
+      "IncumbentSummary": {
+        "properties": {
+          "best_bound": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "found_at_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "objective": {
+            "format": "double",
+            "type": "number"
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sequence": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "objective",
+          "found_at_seconds"
+        ],
+        "type": "object"
+      },
+      "MathematicalQuality": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "best_bound": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dual_objective": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dual_residual": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "iterations": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maximum_bound_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_constraint_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_integrality_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "nodes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "primal_objective": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "primal_residual": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "proven_optimal": {
+            "type": "boolean"
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "proven_optimal"
+        ],
+        "type": "object"
+      },
+      "OptimizationAuthority": {
+        "properties": {
+          "policy_revision": {
+            "$ref": "#/$defs/PolicyVersion"
+          },
+          "principal_id": {
+            "$ref": "#/$defs/PrincipalId"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "principal_id",
+          "policy_revision",
+          "submitted_at"
+        ],
+        "type": "object"
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "RouteNodeKind": {
+        "enum": [
+          "depot",
+          "service",
+          "pickup",
+          "delivery",
+          "break"
+        ],
+        "type": "string"
+      },
+      "RouteSolutionSummary": {
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objective": {
+            "format": "double",
+            "type": "number"
+          },
+          "objective_components": {
+            "additionalProperties": false,
+            "properties": {
+              "cost": {
+                "format": "double",
+                "type": "number"
+              },
+              "prize": {
+                "format": "double",
+                "type": "number"
+              },
+              "route_service_time_variance": {
+                "format": "double",
+                "type": "number"
+              },
+              "route_size_variance": {
+                "format": "double",
+                "type": "number"
+              },
+              "travel_time": {
+                "format": "double",
+                "type": "number"
+              },
+              "vehicle_fixed_cost": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "orders_dropped": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "orders_served": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "undeliverable_orders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "vehicles_used": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "vehicles_used",
+          "orders_served",
+          "orders_dropped",
+          "undeliverable_orders",
+          "objective",
+          "objective_components"
+        ],
+        "type": "object"
+      },
+      "RouteStopResult": {
+        "properties": {
+          "arrival": {
+            "format": "double",
+            "type": "number"
+          },
+          "cumulative_cost": {
+            "format": "double",
+            "type": "number"
+          },
+          "departure": {
+            "format": "double",
+            "type": "number"
+          },
+          "load": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "node_kind": {
+            "$ref": "#/$defs/RouteNodeKind"
+          },
+          "order_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequence": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sequence",
+          "location_id",
+          "node_kind",
+          "arrival",
+          "departure",
+          "cumulative_cost"
+        ],
+        "type": "object"
+      },
+      "RunTimings": {
+        "properties": {
+          "preparation_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "publication_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "queue_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "solve_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "transfer_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "verification_seconds": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "SolutionDetail": {
+        "oneOf": [
+          {
+            "properties": {
+              "family": {
+                "const": "routing",
+                "type": "string"
+              },
+              "routes": {
+                "items": {
+                  "$ref": "#/$defs/VehicleRoute"
+                },
+                "type": "array"
+              },
+              "summaries": {
+                "items": {
+                  "$ref": "#/$defs/RouteSolutionSummary"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "family",
+              "summaries"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "constraints": {
+                "items": {
+                  "$ref": "#/$defs/ConstraintValue"
+                },
+                "type": "array"
+              },
+              "family": {
+                "const": "convex",
+                "type": "string"
+              },
+              "quality": {
+                "$ref": "#/$defs/MathematicalQuality"
+              },
+              "variables": {
+                "items": {
+                  "$ref": "#/$defs/VariableValue"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "family",
+              "quality",
+              "variables"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "constraints": {
+                "items": {
+                  "$ref": "#/$defs/ConstraintValue"
+                },
+                "type": "array"
+              },
+              "family": {
+                "const": "milp",
+                "type": "string"
+              },
+              "incumbents": {
+                "items": {
+                  "$ref": "#/$defs/IncumbentSummary"
+                },
+                "type": "array"
+              },
+              "quality": {
+                "$ref": "#/$defs/MathematicalQuality"
+              },
+              "variables": {
+                "items": {
+                  "$ref": "#/$defs/VariableValue"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "family",
+              "quality",
+              "variables"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SolutionFeasibility": {
+        "enum": [
+          "feasible",
+          "partial",
+          "infeasible",
+          "unbounded",
+          "no_solution"
+        ],
+        "type": "string"
+      },
+      "SolverTermination": {
+        "enum": [
+          "completed",
+          "optimal",
+          "time_limit",
+          "work_limit",
+          "node_limit",
+          "iteration_limit",
+          "infeasible",
+          "unbounded",
+          "numerical_failure",
+          "cancelled",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "VariableValue": {
+        "properties": {
+          "value": {
+            "format": "double",
+            "type": "number"
+          },
+          "variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variable_id",
+          "value"
+        ],
+        "type": "object"
+      },
+      "VehicleRoute": {
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objective": {
+            "format": "double",
+            "type": "number"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/$defs/RouteStopResult"
+            },
+            "type": "array"
+          },
+          "vehicle_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "stops",
+          "objective"
+        ],
+        "type": "object"
+      },
+      "VerificationCode": {
+        "enum": [
+          "missing_variable",
+          "duplicate_variable",
+          "unknown_variable",
+          "variable_lower_bound",
+          "variable_upper_bound",
+          "variable_integrality",
+          "constraint_lower_bound",
+          "constraint_upper_bound",
+          "objective_mismatch",
+          "unknown_vehicle",
+          "duplicate_vehicle_route",
+          "invalid_route_endpoint",
+          "unknown_route_node",
+          "duplicate_route_node",
+          "missing_mandatory_order",
+          "partial_pickup_delivery",
+          "pickup_delivery_precedence",
+          "vehicle_order_restriction",
+          "order_time_window",
+          "vehicle_time_window",
+          "vehicle_capacity",
+          "vehicle_maximum_cost",
+          "vehicle_maximum_time",
+          "unavailable_travel_arc",
+          "arrival_sequence",
+          "solver_reported_failure"
+        ],
+        "type": "string"
+      },
+      "VerificationFinding": {
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/VerificationCode"
+          },
+          "constraint_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "$ref": "#/$defs/VerificationSeverity"
+          },
+          "variable_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vehicle_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "type": "object"
+      },
+      "VerificationReport": {
+        "properties": {
+          "absolute_tolerance": {
+            "format": "double",
+            "type": "number"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/VerificationFinding"
+            },
+            "type": "array"
+          },
+          "maximum_bound_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_constraint_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_integrality_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_tolerance": {
+            "format": "double",
+            "type": "number"
+          },
+          "verification_id": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_id",
+          "verified",
+          "findings",
+          "absolute_tolerance",
+          "relative_tolerance",
+          "verified_at"
+        ],
+        "type": "object"
+      },
+      "VerificationSeverity": {
+        "enum": [
+          "information",
+          "warning",
+          "error"
+        ],
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "authority": {
+        "$ref": "#/$defs/OptimizationAuthority"
+      },
+      "created_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "detail": {
+        "$ref": "#/$defs/SolutionDetail"
+      },
+      "digest_sha256": {
+        "type": "string"
+      },
+      "engine": {
+        "$ref": "#/$defs/EngineProvenance"
+      },
+      "feasibility": {
+        "$ref": "#/$defs/SolutionFeasibility"
+      },
+      "problem_uri": {
+        "type": "string"
+      },
+      "run_id": {
+        "type": "string"
+      },
+      "solution_id": {
+        "type": "string"
+      },
+      "solution_uri": {
+        "type": "string"
+      },
+      "termination": {
+        "$ref": "#/$defs/SolverTermination"
+      },
+      "timings": {
+        "$ref": "#/$defs/RunTimings"
+      },
+      "verification": {
+        "$ref": "#/$defs/VerificationReport"
+      }
+    },
+    "required": [
+      "solution_id",
+      "solution_uri",
+      "run_id",
+      "problem_uri",
+      "feasibility",
+      "termination",
+      "detail",
+      "verification",
+      "engine",
+      "timings",
+      "digest_sha256",
+      "authority",
+      "created_at"
+    ],
+    "title": "OptimizationSolution",
+    "type": "object"
+  },
+  "OptimizationToolOutput": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "byte_len": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "default": null
+          },
+          "mime_type": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactReleaseState": {
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "MathematicalQuality": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "best_bound": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dual_objective": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dual_residual": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "iterations": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maximum_bound_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_constraint_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_integrality_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "nodes": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "primal_objective": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "primal_residual": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "proven_optimal": {
+            "type": "boolean"
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "proven_optimal"
+        ],
+        "type": "object"
+      },
+      "NoIdentity": false,
+      "OptimizationToolSummary": {
+        "oneOf": [
+          {
+            "properties": {
+              "cases": {
+                "items": {
+                  "$ref": "#/$defs/RouteSolutionSummary"
+                },
+                "type": "array"
+              },
+              "family": {
+                "const": "routing",
+                "type": "string"
+              }
+            },
+            "required": [
+              "family",
+              "cases"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "family": {
+                "const": "convex",
+                "type": "string"
+              },
+              "quality": {
+                "$ref": "#/$defs/MathematicalQuality"
+              }
+            },
+            "required": [
+              "family",
+              "quality"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "family": {
+                "const": "milp",
+                "type": "string"
+              },
+              "quality": {
+                "$ref": "#/$defs/MathematicalQuality"
+              }
+            },
+            "required": [
+              "family",
+              "quality"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "ProblemFamily": {
+        "enum": [
+          "routing",
+          "route_scenarios",
+          "convex",
+          "milp"
+        ],
+        "type": "string"
+      },
+      "RouteSolutionSummary": {
+        "properties": {
+          "case_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "objective": {
+            "format": "double",
+            "type": "number"
+          },
+          "objective_components": {
+            "additionalProperties": false,
+            "properties": {
+              "cost": {
+                "format": "double",
+                "type": "number"
+              },
+              "prize": {
+                "format": "double",
+                "type": "number"
+              },
+              "route_service_time_variance": {
+                "format": "double",
+                "type": "number"
+              },
+              "route_size_variance": {
+                "format": "double",
+                "type": "number"
+              },
+              "travel_time": {
+                "format": "double",
+                "type": "number"
+              },
+              "vehicle_fixed_cost": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "type": "object"
+          },
+          "orders_dropped": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "orders_served": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "undeliverable_orders": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "vehicles_used": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "vehicles_used",
+          "orders_served",
+          "orders_dropped",
+          "undeliverable_orders",
+          "objective",
+          "objective_components"
+        ],
+        "type": "object"
+      },
+      "SolutionFeasibility": {
+        "enum": [
+          "feasible",
+          "partial",
+          "infeasible",
+          "unbounded",
+          "no_solution"
+        ],
+        "type": "string"
+      },
+      "SolverTermination": {
+        "enum": [
+          "completed",
+          "optimal",
+          "time_limit",
+          "work_limit",
+          "node_limit",
+          "iteration_limit",
+          "infeasible",
+          "unbounded",
+          "numerical_failure",
+          "cancelled",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "artifacts": {
+        "items": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        },
+        "type": "array"
+      },
+      "family": {
+        "$ref": "#/$defs/ProblemFamily"
+      },
+      "feasibility": {
+        "$ref": "#/$defs/SolutionFeasibility"
+      },
+      "problem_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "problem_uri": {
+        "type": "string"
+      },
+      "result_uri": {
+        "type": "string"
+      },
+      "run_uri": {
+        "type": "string"
+      },
+      "solution_artifact": {
+        "$ref": "#/$defs/ArtifactMetadata"
+      },
+      "summary": {
+        "$ref": "#/$defs/OptimizationToolSummary"
+      },
+      "termination": {
+        "$ref": "#/$defs/SolverTermination"
+      }
+    },
+    "required": [
+      "run_uri",
+      "problem_uri",
+      "result_uri",
+      "family",
+      "feasibility",
+      "termination",
+      "summary",
+      "problem_artifact",
+      "solution_artifact"
+    ],
+    "title": "OptimizationToolOutput",
+    "type": "object"
+  },
+  "OptimizeRouteScenariosRequest": {
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DenseTravelMatrix": {
+        "properties": {
+          "dimension": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unavailable_cells": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "values": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "vehicle_type_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_type_id",
+          "dimension",
+          "values"
+        ],
+        "type": "object"
+      },
+      "InlineTravelModel": {
+        "properties": {
+          "cost_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          },
+          "location_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "transit_time_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_ids",
+          "cost_matrices"
+        ],
+        "type": "object"
+      },
+      "QualityTarget": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "RouteFleet": {
+        "properties": {
+          "exact_vehicles": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minimum_vehicles": {
+            "default": 0,
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/$defs/RouteVehicle"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicles"
+        ],
+        "type": "object"
+      },
+      "RouteLocation": {
+        "properties": {
+          "latitude_deg": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "longitude_deg": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "type": "object"
+      },
+      "RouteObjective": {
+        "properties": {
+          "metric": {
+            "$ref": "#/$defs/RouteObjectiveMetric"
+          },
+          "weight": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "weight"
+        ],
+        "type": "object"
+      },
+      "RouteObjectiveMetric": {
+        "enum": [
+          "cost",
+          "travel_time",
+          "route_size_variance",
+          "route_service_time_variance",
+          "prize",
+          "vehicle_fixed_cost"
+        ],
+        "type": "string"
+      },
+      "RouteOrder": {
+        "properties": {
+          "allowed_vehicle_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "demand": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "drop_penalty": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "order": {
+            "$ref": "#/$defs/RouteOrderKind"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "service_policy": {
+            "$ref": "#/$defs/RouteServicePolicy"
+          }
+        },
+        "required": [
+          "order_id",
+          "order",
+          "service_policy"
+        ],
+        "type": "object"
+      },
+      "RouteOrderKind": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "service",
+                "type": "string"
+              },
+              "stop": {
+                "$ref": "#/$defs/RouteStop"
+              }
+            },
+            "required": [
+              "kind",
+              "stop"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delivery": {
+                "$ref": "#/$defs/RouteStop"
+              },
+              "kind": {
+                "const": "pickup_delivery",
+                "type": "string"
+              },
+              "pickup": {
+                "$ref": "#/$defs/RouteStop"
+              }
+            },
+            "required": [
+              "kind",
+              "pickup",
+              "delivery"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RouteOutputPolicy": {
+        "properties": {
+          "include_route_table_artifact": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RouteScenario": {
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "initial_solution": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "problem": {
+            "$ref": "#/$defs/RoutingProblemSource"
+          }
+        },
+        "required": [
+          "case_id",
+          "problem"
+        ],
+        "type": "object"
+      },
+      "RouteServicePolicy": {
+        "enum": [
+          "mandatory",
+          "optional"
+        ],
+        "type": "string"
+      },
+      "RouteStop": {
+        "properties": {
+          "location_id": {
+            "type": "string"
+          },
+          "service_duration": {
+            "default": 0,
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_window": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "type": "object"
+      },
+      "RouteVehicle": {
+        "properties": {
+          "breaks": {
+            "items": {
+              "$ref": "#/$defs/VehicleBreak"
+            },
+            "type": "array"
+          },
+          "capacity": {
+            "additionalProperties": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "end_location_id": {
+            "type": "string"
+          },
+          "fixed_cost": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "maximum_cost": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_time": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "omit_first_trip": {
+            "default": false,
+            "type": "boolean"
+          },
+          "omit_last_trip": {
+            "default": false,
+            "type": "boolean"
+          },
+          "start_location_id": {
+            "type": "string"
+          },
+          "time_window": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vehicle_id": {
+            "type": "string"
+          },
+          "vehicle_type_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "vehicle_type_id",
+          "start_location_id",
+          "end_location_id"
+        ],
+        "type": "object"
+      },
+      "RoutingProblem": {
+        "properties": {
+          "fleet": {
+            "$ref": "#/$defs/RouteFleet"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/$defs/RouteLocation"
+            },
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/$defs/RouteObjective"
+            },
+            "type": "array"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/$defs/RouteOrder"
+            },
+            "type": "array"
+          },
+          "time_basis": {
+            "$ref": "#/$defs/TimeBasis"
+          },
+          "travel_model": {
+            "$ref": "#/$defs/TravelModelSource"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "time_basis",
+          "locations",
+          "orders",
+          "fleet",
+          "travel_model",
+          "objectives"
+        ],
+        "type": "object"
+      },
+      "RoutingProblemSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "problem": {
+                "$ref": "#/$defs/RoutingProblem"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "problem"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "source": {
+                "const": "resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "manifest_uri"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SolverPolicyRef": {
+        "properties": {
+          "deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_uri": {
+            "type": "string"
+          },
+          "quality_target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QualityTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "profile_uri"
+        ],
+        "type": "object"
+      },
+      "TimeBasis": {
+        "properties": {
+          "origin": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/$defs/TimeUnit"
+          }
+        },
+        "required": [
+          "origin",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "TimeUnit": {
+        "enum": [
+          "second",
+          "minute"
+        ],
+        "type": "string"
+      },
+      "TimeWindow": {
+        "properties": {
+          "earliest": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "latest": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "earliest",
+          "latest"
+        ],
+        "type": "object"
+      },
+      "TravelModelSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "map_resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri",
+              "manifest_uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "manifest_uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/InlineTravelModel"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "model"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VehicleBreak": {
+        "properties": {
+          "allowed_location_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "duration": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_window": {
+            "$ref": "#/$defs/TimeWindow"
+          }
+        },
+        "required": [
+          "time_window",
+          "duration"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "cases": {
+        "items": {
+          "$ref": "#/$defs/RouteScenario"
+        },
+        "type": "array"
+      },
+      "output": {
+        "$ref": "#/$defs/RouteOutputPolicy",
+        "default": {
+          "include_route_table_artifact": false
+        }
+      },
+      "policy": {
+        "$ref": "#/$defs/SolverPolicyRef"
+      }
+    },
+    "required": [
+      "cases",
+      "policy"
+    ],
+    "title": "OptimizeRouteScenariosRequest",
+    "type": "object"
+  },
+  "OptimizeRoutesRequest": {
+    "$defs": {
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "DenseTravelMatrix": {
+        "properties": {
+          "dimension": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unavailable_cells": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "values": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "vehicle_type_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_type_id",
+          "dimension",
+          "values"
+        ],
+        "type": "object"
+      },
+      "InlineTravelModel": {
+        "properties": {
+          "cost_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          },
+          "location_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "transit_time_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_ids",
+          "cost_matrices"
+        ],
+        "type": "object"
+      },
+      "QualityTarget": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "RouteFleet": {
+        "properties": {
+          "exact_vehicles": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "minimum_vehicles": {
+            "default": 0,
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/$defs/RouteVehicle"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicles"
+        ],
+        "type": "object"
+      },
+      "RouteLocation": {
+        "properties": {
+          "latitude_deg": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "location_id": {
+            "type": "string"
+          },
+          "longitude_deg": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "type": "object"
+      },
+      "RouteObjective": {
+        "properties": {
+          "metric": {
+            "$ref": "#/$defs/RouteObjectiveMetric"
+          },
+          "weight": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "metric",
+          "weight"
+        ],
+        "type": "object"
+      },
+      "RouteObjectiveMetric": {
+        "enum": [
+          "cost",
+          "travel_time",
+          "route_size_variance",
+          "route_service_time_variance",
+          "prize",
+          "vehicle_fixed_cost"
+        ],
+        "type": "string"
+      },
+      "RouteOrder": {
+        "properties": {
+          "allowed_vehicle_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "demand": {
+            "additionalProperties": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "drop_penalty": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "order": {
+            "$ref": "#/$defs/RouteOrderKind"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "service_policy": {
+            "$ref": "#/$defs/RouteServicePolicy"
+          }
+        },
+        "required": [
+          "order_id",
+          "order",
+          "service_policy"
+        ],
+        "type": "object"
+      },
+      "RouteOrderKind": {
+        "oneOf": [
+          {
+            "properties": {
+              "kind": {
+                "const": "service",
+                "type": "string"
+              },
+              "stop": {
+                "$ref": "#/$defs/RouteStop"
+              }
+            },
+            "required": [
+              "kind",
+              "stop"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delivery": {
+                "$ref": "#/$defs/RouteStop"
+              },
+              "kind": {
+                "const": "pickup_delivery",
+                "type": "string"
+              },
+              "pickup": {
+                "$ref": "#/$defs/RouteStop"
+              }
+            },
+            "required": [
+              "kind",
+              "pickup",
+              "delivery"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "RouteOutputPolicy": {
+        "properties": {
+          "include_route_table_artifact": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RouteServicePolicy": {
+        "enum": [
+          "mandatory",
+          "optional"
+        ],
+        "type": "string"
+      },
+      "RouteStop": {
+        "properties": {
+          "location_id": {
+            "type": "string"
+          },
+          "service_duration": {
+            "default": 0,
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_window": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "location_id"
+        ],
+        "type": "object"
+      },
+      "RouteVehicle": {
+        "properties": {
+          "breaks": {
+            "items": {
+              "$ref": "#/$defs/VehicleBreak"
+            },
+            "type": "array"
+          },
+          "capacity": {
+            "additionalProperties": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "end_location_id": {
+            "type": "string"
+          },
+          "fixed_cost": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "maximum_cost": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_time": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "omit_first_trip": {
+            "default": false,
+            "type": "boolean"
+          },
+          "omit_last_trip": {
+            "default": false,
+            "type": "boolean"
+          },
+          "start_location_id": {
+            "type": "string"
+          },
+          "time_window": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TimeWindow"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vehicle_id": {
+            "type": "string"
+          },
+          "vehicle_type_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "vehicle_type_id",
+          "start_location_id",
+          "end_location_id"
+        ],
+        "type": "object"
+      },
+      "RoutingProblem": {
+        "properties": {
+          "fleet": {
+            "$ref": "#/$defs/RouteFleet"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/$defs/RouteLocation"
+            },
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/$defs/RouteObjective"
+            },
+            "type": "array"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/$defs/RouteOrder"
+            },
+            "type": "array"
+          },
+          "time_basis": {
+            "$ref": "#/$defs/TimeBasis"
+          },
+          "travel_model": {
+            "$ref": "#/$defs/TravelModelSource"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "time_basis",
+          "locations",
+          "orders",
+          "fleet",
+          "travel_model",
+          "objectives"
+        ],
+        "type": "object"
+      },
+      "RoutingProblemSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "problem": {
+                "$ref": "#/$defs/RoutingProblem"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "problem"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "source": {
+                "const": "resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "manifest_uri"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SolverPolicyRef": {
+        "properties": {
+          "deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_uri": {
+            "type": "string"
+          },
+          "quality_target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QualityTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "profile_uri"
+        ],
+        "type": "object"
+      },
+      "TimeBasis": {
+        "properties": {
+          "origin": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "unit": {
+            "$ref": "#/$defs/TimeUnit"
+          }
+        },
+        "required": [
+          "origin",
+          "unit"
+        ],
+        "type": "object"
+      },
+      "TimeUnit": {
+        "enum": [
+          "second",
+          "minute"
+        ],
+        "type": "string"
+      },
+      "TimeWindow": {
+        "properties": {
+          "earliest": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "latest": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "earliest",
+          "latest"
+        ],
+        "type": "object"
+      },
+      "TravelModelSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "map_resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri",
+              "manifest_uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "manifest_uri": {
+                "$ref": "#/$defs/ArtifactUri"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "manifest_uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/InlineTravelModel"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "model"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "VehicleBreak": {
+        "properties": {
+          "allowed_location_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "duration": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_window": {
+            "$ref": "#/$defs/TimeWindow"
+          }
+        },
+        "required": [
+          "time_window",
+          "duration"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "initial_solution": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "output": {
+        "$ref": "#/$defs/RouteOutputPolicy",
+        "default": {
+          "include_route_table_artifact": false
+        }
+      },
+      "policy": {
+        "$ref": "#/$defs/SolverPolicyRef"
+      },
+      "problem": {
+        "$ref": "#/$defs/RoutingProblemSource"
+      }
+    },
+    "required": [
+      "problem",
+      "policy"
+    ],
+    "title": "OptimizeRoutesRequest",
+    "type": "object"
+  },
+  "SolveConvexRequest": {
+    "$defs": {
+      "ArtifactModelFormat": {
+        "enum": [
+          "optimization_json_v1"
+        ],
+        "type": "string"
+      },
+      "ArtifactModelSource": {
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/ArtifactModelFormat"
+          },
+          "uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          }
+        },
+        "required": [
+          "uri",
+          "format"
+        ],
+        "type": "object"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ConvexOutputPolicy": {
+        "properties": {
+          "retain_warm_start": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ConvexProblem": {
+        "properties": {
+          "initial_dual_solution": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "initial_primal_solution": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/$defs/ConvexProblemKind"
+          },
+          "linear_constraints": {
+            "items": {
+              "$ref": "#/$defs/LinearConstraint"
+            },
+            "type": "array"
+          },
+          "objective": {
+            "$ref": "#/$defs/ModelObjective"
+          },
+          "quadratic_constraints": {
+            "items": {
+              "$ref": "#/$defs/QuadraticConstraint"
+            },
+            "type": "array"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/$defs/ModelVariable"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "kind",
+          "variables",
+          "objective"
+        ],
+        "type": "object"
+      },
+      "ConvexProblemKind": {
+        "enum": [
+          "linear_program",
+          "quadratic_program",
+          "quadratically_constrained_program",
+          "second_order_cone_program"
+        ],
+        "type": "string"
+      },
+      "ConvexProblemSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "problem": {
+                "$ref": "#/$defs/ConvexProblem"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "problem"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "source": {
+                "const": "resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/ArtifactModelSource"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "model"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "LinearConstraint": {
+        "properties": {
+          "bounds": {
+            "$ref": "#/$defs/VariableBounds"
+          },
+          "constraint_id": {
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/$defs/LinearTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "terms",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "LinearTerm": {
+        "properties": {
+          "coefficient": {
+            "format": "double",
+            "type": "number"
+          },
+          "variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variable_id",
+          "coefficient"
+        ],
+        "type": "object"
+      },
+      "ModelObjective": {
+        "properties": {
+          "direction": {
+            "$ref": "#/$defs/ObjectiveDirection"
+          },
+          "linear_terms": {
+            "items": {
+              "$ref": "#/$defs/LinearTerm"
+            },
+            "type": "array"
+          },
+          "offset": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "quadratic_terms": {
+            "items": {
+              "$ref": "#/$defs/QuadraticTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "direction"
+        ],
+        "type": "object"
+      },
+      "ModelVariable": {
+        "properties": {
+          "bounds": {
+            "$ref": "#/$defs/VariableBounds"
+          },
+          "kind": {
+            "$ref": "#/$defs/VariableKind"
+          },
+          "variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variable_id",
+          "kind",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "ObjectiveDirection": {
+        "enum": [
+          "minimize",
+          "maximize"
+        ],
+        "type": "string"
+      },
+      "QuadraticConstraint": {
+        "properties": {
+          "bounds": {
+            "$ref": "#/$defs/VariableBounds"
+          },
+          "constraint_id": {
+            "type": "string"
+          },
+          "linear_terms": {
+            "items": {
+              "$ref": "#/$defs/LinearTerm"
+            },
+            "type": "array"
+          },
+          "quadratic_terms": {
+            "items": {
+              "$ref": "#/$defs/QuadraticTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "quadratic_terms",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "QuadraticTerm": {
+        "properties": {
+          "coefficient": {
+            "format": "double",
+            "type": "number"
+          },
+          "left_variable_id": {
+            "type": "string"
+          },
+          "right_variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "left_variable_id",
+          "right_variable_id",
+          "coefficient"
+        ],
+        "type": "object"
+      },
+      "QualityTarget": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "SolverPolicyRef": {
+        "properties": {
+          "deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_uri": {
+            "type": "string"
+          },
+          "quality_target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QualityTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "profile_uri"
+        ],
+        "type": "object"
+      },
+      "VariableBounds": {
+        "properties": {
+          "lower": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "upper": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "VariableKind": {
+        "enum": [
+          "continuous",
+          "integer",
+          "semi_continuous"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "output": {
+        "$ref": "#/$defs/ConvexOutputPolicy",
+        "default": {
+          "retain_warm_start": false
+        }
+      },
+      "policy": {
+        "$ref": "#/$defs/SolverPolicyRef"
+      },
+      "problem": {
+        "$ref": "#/$defs/ConvexProblemSource"
+      }
+    },
+    "required": [
+      "problem",
+      "policy"
+    ],
+    "title": "SolveConvexRequest",
+    "type": "object"
+  },
+  "SolveMilpRequest": {
+    "$defs": {
+      "ArtifactModelFormat": {
+        "enum": [
+          "optimization_json_v1"
+        ],
+        "type": "string"
+      },
+      "ArtifactModelSource": {
+        "properties": {
+          "format": {
+            "$ref": "#/$defs/ArtifactModelFormat"
+          },
+          "uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          }
+        },
+        "required": [
+          "uri",
+          "format"
+        ],
+        "type": "object"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "LinearConstraint": {
+        "properties": {
+          "bounds": {
+            "$ref": "#/$defs/VariableBounds"
+          },
+          "constraint_id": {
+            "type": "string"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/$defs/LinearTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "constraint_id",
+          "terms",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "LinearTerm": {
+        "properties": {
+          "coefficient": {
+            "format": "double",
+            "type": "number"
+          },
+          "variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variable_id",
+          "coefficient"
+        ],
+        "type": "object"
+      },
+      "MilpOutputPolicy": {
+        "properties": {
+          "retain_incumbents": {
+            "default": false,
+            "type": "boolean"
+          },
+          "retain_warm_start": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MilpProblem": {
+        "properties": {
+          "constraints": {
+            "items": {
+              "$ref": "#/$defs/LinearConstraint"
+            },
+            "type": "array"
+          },
+          "mip_start": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "objective": {
+            "$ref": "#/$defs/ModelObjective"
+          },
+          "variables": {
+            "items": {
+              "$ref": "#/$defs/ModelVariable"
+            },
+            "type": "array"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "variables",
+          "objective"
+        ],
+        "type": "object"
+      },
+      "MilpProblemSource": {
+        "oneOf": [
+          {
+            "properties": {
+              "problem": {
+                "$ref": "#/$defs/MilpProblem"
+              },
+              "source": {
+                "const": "inline",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "problem"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "source": {
+                "const": "resource",
+                "type": "string"
+              },
+              "uri": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "uri"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "model": {
+                "$ref": "#/$defs/ArtifactModelSource"
+              },
+              "source": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "model"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ModelObjective": {
+        "properties": {
+          "direction": {
+            "$ref": "#/$defs/ObjectiveDirection"
+          },
+          "linear_terms": {
+            "items": {
+              "$ref": "#/$defs/LinearTerm"
+            },
+            "type": "array"
+          },
+          "offset": {
+            "default": 0.0,
+            "format": "double",
+            "type": "number"
+          },
+          "quadratic_terms": {
+            "items": {
+              "$ref": "#/$defs/QuadraticTerm"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "direction"
+        ],
+        "type": "object"
+      },
+      "ModelVariable": {
+        "properties": {
+          "bounds": {
+            "$ref": "#/$defs/VariableBounds"
+          },
+          "kind": {
+            "$ref": "#/$defs/VariableKind"
+          },
+          "variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "variable_id",
+          "kind",
+          "bounds"
+        ],
+        "type": "object"
+      },
+      "ObjectiveDirection": {
+        "enum": [
+          "minimize",
+          "maximize"
+        ],
+        "type": "string"
+      },
+      "QuadraticTerm": {
+        "properties": {
+          "coefficient": {
+            "format": "double",
+            "type": "number"
+          },
+          "left_variable_id": {
+            "type": "string"
+          },
+          "right_variable_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "left_variable_id",
+          "right_variable_id",
+          "coefficient"
+        ],
+        "type": "object"
+      },
+      "QualityTarget": {
+        "properties": {
+          "absolute_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_gap": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "SolverPolicyRef": {
+        "properties": {
+          "deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "profile_uri": {
+            "type": "string"
+          },
+          "quality_target": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/QualityTarget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "profile_uri"
+        ],
+        "type": "object"
+      },
+      "VariableBounds": {
+        "properties": {
+          "lower": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "upper": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "VariableKind": {
+        "enum": [
+          "continuous",
+          "integer",
+          "semi_continuous"
+        ],
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "initial_solution": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "output": {
+        "$ref": "#/$defs/MilpOutputPolicy",
+        "default": {
+          "retain_incumbents": false,
+          "retain_warm_start": false
+        }
+      },
+      "policy": {
+        "$ref": "#/$defs/SolverPolicyRef"
+      },
+      "problem": {
+        "$ref": "#/$defs/MilpProblemSource"
+      }
+    },
+    "required": [
+      "problem",
+      "policy"
+    ],
+    "title": "SolveMilpRequest",
+    "type": "object"
+  },
+  "SolverProfile": {
+    "$defs": {
+      "ProblemFamily": {
+        "enum": [
+          "routing",
+          "route_scenarios",
+          "convex",
+          "milp"
+        ],
+        "type": "string"
+      },
+      "SolverIntent": {
+        "enum": [
+          "interactive",
+          "balanced",
+          "thorough"
+        ],
+        "type": "string"
+      },
+      "SolverProfileDefaults": {
+        "properties": {
+          "convex_deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "convex_optimality_tolerance": {
+            "format": "double",
+            "type": "number"
+          },
+          "milp_absolute_gap": {
+            "format": "double",
+            "type": "number"
+          },
+          "milp_deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "milp_relative_gap": {
+            "format": "double",
+            "type": "number"
+          },
+          "retain_milp_incumbents": {
+            "type": "boolean"
+          },
+          "routing_deadline_seconds": {
+            "format": "uint32",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "routing_deadline_seconds",
+          "convex_deadline_seconds",
+          "milp_deadline_seconds",
+          "convex_optimality_tolerance",
+          "milp_relative_gap",
+          "milp_absolute_gap",
+          "retain_milp_incumbents"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "defaults": {
+        "$ref": "#/$defs/SolverProfileDefaults"
+      },
+      "description": {
+        "type": "string"
+      },
+      "intent": {
+        "$ref": "#/$defs/SolverIntent"
+      },
+      "maximum_deadline_seconds": {
+        "format": "uint32",
+        "minimum": 1,
+        "type": "integer"
+      },
+      "profile_id": {
+        "type": "string"
+      },
+      "profile_uri": {
+        "type": "string"
+      },
+      "supported_families": {
+        "items": {
+          "$ref": "#/$defs/ProblemFamily"
+        },
+        "type": "array"
+      },
+      "title": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "profile_id",
+      "profile_uri",
+      "title",
+      "description",
+      "intent",
+      "supported_families",
+      "maximum_deadline_seconds",
+      "defaults"
+    ],
+    "title": "SolverProfile",
+    "type": "object"
+  },
+  "TravelModelArtifact": {
+    "$defs": {
+      "DenseTravelMatrix": {
+        "properties": {
+          "dimension": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "unavailable_cells": {
+            "items": {
+              "format": "uint32",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "values": {
+            "items": {
+              "format": "float",
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "vehicle_type_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_type_id",
+          "dimension",
+          "values"
+        ],
+        "type": "object"
+      },
+      "InlineTravelModel": {
+        "properties": {
+          "cost_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          },
+          "location_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "transit_time_matrices": {
+            "items": {
+              "$ref": "#/$defs/DenseTravelMatrix"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "location_ids",
+          "cost_matrices"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "map_resource_uri": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "model": {
+        "$ref": "#/$defs/InlineTravelModel"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "version",
+      "model"
+    ],
+    "title": "TravelModelArtifact",
+    "type": "object"
+  },
+  "VerifySolutionOutput": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "byte_len": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "default": null
+          },
+          "mime_type": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactReleaseState": {
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "VerificationCode": {
+        "enum": [
+          "missing_variable",
+          "duplicate_variable",
+          "unknown_variable",
+          "variable_lower_bound",
+          "variable_upper_bound",
+          "variable_integrality",
+          "constraint_lower_bound",
+          "constraint_upper_bound",
+          "objective_mismatch",
+          "unknown_vehicle",
+          "duplicate_vehicle_route",
+          "invalid_route_endpoint",
+          "unknown_route_node",
+          "duplicate_route_node",
+          "missing_mandatory_order",
+          "partial_pickup_delivery",
+          "pickup_delivery_precedence",
+          "vehicle_order_restriction",
+          "order_time_window",
+          "vehicle_time_window",
+          "vehicle_capacity",
+          "vehicle_maximum_cost",
+          "vehicle_maximum_time",
+          "unavailable_travel_arc",
+          "arrival_sequence",
+          "solver_reported_failure"
+        ],
+        "type": "string"
+      },
+      "VerificationFinding": {
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/VerificationCode"
+          },
+          "constraint_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "order_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "severity": {
+            "$ref": "#/$defs/VerificationSeverity"
+          },
+          "variable_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "vehicle_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "type": "object"
+      },
+      "VerificationReport": {
+        "properties": {
+          "absolute_tolerance": {
+            "format": "double",
+            "type": "number"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/$defs/VerificationFinding"
+            },
+            "type": "array"
+          },
+          "maximum_bound_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_constraint_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maximum_integrality_violation": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "relative_tolerance": {
+            "format": "double",
+            "type": "number"
+          },
+          "verification_id": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "verified_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verification_id",
+          "verified",
+          "findings",
+          "absolute_tolerance",
+          "relative_tolerance",
+          "verified_at"
+        ],
+        "type": "object"
+      },
+      "VerificationSeverity": {
+        "enum": [
+          "information",
+          "warning",
+          "error"
+        ],
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "report": {
+        "$ref": "#/$defs/VerificationReport"
+      },
+      "report_artifact": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ArtifactMetadata"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "solution_uri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "solution_uri",
+      "report"
+    ],
+    "title": "VerifySolutionOutput",
+    "type": "object"
+  },
+  "VerifySolutionRequest": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "absolute_tolerance": {
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "relative_tolerance": {
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "solution_uri": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "solution_uri"
+    ],
+    "title": "VerifySolutionRequest",
+    "type": "object"
+  }
+}

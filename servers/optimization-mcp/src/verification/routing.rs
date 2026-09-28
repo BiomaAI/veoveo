@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
-    domain::{
+    contract::{
         FiniteF64, NonNegativeF64, OrderId, RouteNodeKind, RouteStopResult, VehicleId,
         VehicleRoute, VerificationCode, VerificationFinding, VerificationReport,
         VerificationSeverity,
@@ -467,7 +467,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     use crate::{
-        domain::{LocationId, OrderId, RouteObjectiveMetric, VehicleId},
+        contract::{LocationId, OrderId, RouteObjectiveMetric, VehicleId},
         executor::{
             CompiledRouteNode, CompiledRouteObjective, CompiledVehicle, ExecutorRouteVisit,
             ExecutorRoutingStatus, ExecutorVehicleRoute,

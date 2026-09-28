@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::domain::{
+use crate::contract::{
     ConstraintValue, ConvexProblem, FiniteF64, LinearConstraint, LinearTerm, MilpProblem,
     ModelObjective, ModelVariable, NonNegativeF64, ObjectiveDirection, QuadraticConstraint,
     QuadraticTerm, VariableId, VariableKind, VariableValue, VerificationCode, VerificationFinding,
@@ -309,7 +309,7 @@ fn objective_activity(
 
 #[allow(clippy::too_many_arguments)]
 fn check_constraint_bounds(
-    constraint_id: crate::domain::ConstraintId,
+    constraint_id: crate::contract::ConstraintId,
     activity: f64,
     lower: Option<f64>,
     upper: Option<f64>,
@@ -366,7 +366,7 @@ fn variable_finding(
 fn constraint_finding(
     code: VerificationCode,
     message: String,
-    constraint_id: crate::domain::ConstraintId,
+    constraint_id: crate::contract::ConstraintId,
 ) -> VerificationFinding {
     VerificationFinding {
         code,
@@ -381,7 +381,7 @@ fn constraint_finding(
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::{
+    use crate::contract::{
         CONVEX_PROBLEM_VERSION, ConstraintId, ConvexProblemKind, ModelVariable, VariableBounds,
     };
 

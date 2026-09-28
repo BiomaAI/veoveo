@@ -1,5 +1,6 @@
 //! DuckDb usage reads under the linked Task's current owner policy.
 use veoveo_platform_store::DomainUsageRecord;
+use veoveo_task_runtime::TaskUsageAccess;
 use veoveo_task_runtime::{TaskOwner, TaskRuntime};
 
 use crate::contract::{
@@ -25,8 +26,8 @@ impl<'a> DuckDbUsage<'a> {
     ) -> anyhow::Result<DuckDbUsagePage> {
         let page = self
             .tasks
-            .usage_page_for_owner(
-                owner,
+            .usage_page(
+                TaskUsageAccess::Owner(owner),
                 cursor.map(DuckDbUsageCursor::after),
                 DUCKDB_USAGE_PAGE_SIZE,
             )
@@ -42,6 +43,9 @@ impl<'a> DuckDbUsage<'a> {
         owner: &TaskOwner,
         uri: &DuckDbTaskUsageUri,
     ) -> anyhow::Result<Vec<DomainUsageRecord>> {
-        Ok(self.tasks.usage_for_owner(owner, uri.task_id()).await?)
+        Ok(self
+            .tasks
+            .usage(TaskUsageAccess::Owner(owner), uri.task_id())
+            .await?)
     }
 }

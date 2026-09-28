@@ -8,7 +8,7 @@ use veoveo_optimization_mcp::{
         compile_convex_problem, compile_milp_problem, compile_routing_initial_solution,
         compile_routing_problem,
     },
-    domain::{
+    contract::{
         ArtifactModelFormat, ConvexProblem, ConvexProblemSource, MapTravelModelUri, MilpProblem,
         MilpProblemSource, OptimizationAuthority, OptimizationProblemDefinition,
         OptimizationProblemRecord, OptimizationProblemResource, OptimizationProblemUri,
@@ -92,7 +92,7 @@ pub(super) async fn prepare_route_scenarios(
     let resource = problem_resource(
         identity,
         ProblemFamily::RouteScenarios,
-        veoveo_optimization_mcp::domain::ROUTING_PROBLEM_VERSION.to_owned(),
+        veoveo_optimization_mcp::contract::ROUTING_PROBLEM_VERSION.to_owned(),
         definition,
         dimensions,
     )?;
@@ -171,7 +171,7 @@ pub(super) async fn load_solution(
     solution_uri: &str,
 ) -> anyhow::Result<OptimizationSolution> {
     let solution_uri =
-        veoveo_optimization_mcp::domain::OptimizationSolutionUri::parse(solution_uri.to_owned())?;
+        veoveo_optimization_mcp::contract::OptimizationSolutionUri::parse(solution_uri.to_owned())?;
     let task = find_solution_task(state, identity, &solution_uri)
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown or unauthorized solution {solution_uri}"))?;
@@ -426,14 +426,14 @@ fn solution_variable_map(
     solution: &OptimizationSolution,
 ) -> anyhow::Result<
     std::collections::BTreeMap<
-        veoveo_optimization_mcp::domain::VariableId,
-        veoveo_optimization_mcp::domain::FiniteF64,
+        veoveo_optimization_mcp::contract::VariableId,
+        veoveo_optimization_mcp::contract::FiniteF64,
     >,
 > {
     let variables = match &solution.detail {
-        veoveo_optimization_mcp::domain::SolutionDetail::Convex { variables, .. }
-        | veoveo_optimization_mcp::domain::SolutionDetail::Milp { variables, .. } => variables,
-        veoveo_optimization_mcp::domain::SolutionDetail::Routing { .. } => {
+        veoveo_optimization_mcp::contract::SolutionDetail::Convex { variables, .. }
+        | veoveo_optimization_mcp::contract::SolutionDetail::Milp { variables, .. } => variables,
+        veoveo_optimization_mcp::contract::SolutionDetail::Routing { .. } => {
             anyhow::bail!("routing solution cannot seed a MILP")
         }
     };

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::{
-    domain::{
+    contract::{
         ConvexProblem, FiniteF64, LinearConstraint, LinearTerm, MilpProblem, ModelObjective,
         ModelVariable, QuadraticConstraint, QuadraticTerm, VariableId,
     },
@@ -270,7 +270,7 @@ fn finite_sum(value: f64, field: &'static str) -> Result<FiniteF64, CompileError
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::{
+    use crate::contract::{
         CONVEX_PROBLEM_VERSION, ConstraintId, ConvexProblemKind, ModelVariable, ObjectiveDirection,
         VariableBounds, VariableKind,
     };

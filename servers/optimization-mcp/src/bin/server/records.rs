@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::IssuedArtifactWriteCapability;
 use veoveo_optimization_mcp::{
-    domain::{
+    contract::{
         OptimizationProfileUri, OptimizationSolution, OptimizeRouteScenariosRequest,
         OptimizeRoutesRequest, ProblemFamily, ProblemId, RunId, SolveConvexRequest,
         SolveMilpRequest, VerifySolutionRequest,

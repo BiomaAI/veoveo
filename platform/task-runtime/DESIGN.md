@@ -128,20 +128,25 @@ between bounded observations handled by different replicas.
 
 ## Filtered Task Observation
 
-`runtime/usage` applies `TaskOwner::allows` in SQL for usage collections and exact
+`runtime/usage` requires an explicit `TaskUsageAccess` policy for usage collections and exact
 Task usage reads. Both the usage row and linked Task must match this runtime's server
 and the caller's tenant. The Task's principal, profile, optional tenant spelling, and
 complete required label set must match the caller's authority. Stored record fields
 and owner-envelope identities must agree with the supplied owner. Missing Task parents
 provide no access. Task visibility is rechecked on every read.
 
-`usage_page_for_owner` groups matching usage rows into distinct native Task IDs before
+`usage_page` groups matching usage rows into distinct native Task IDs before
 ordering and selecting at most 1,001 IDs. The requested limit is 1–1,000; the extra
-ID establishes continuation. `usage_for_owner` applies the same selection for an exact
-Task. `task_visible_to_owner` can admit a subscription before that Task produces its
-first usage row. These methods implement owner policy only. A domain that also requires
-a particular Work Context must implement its narrower SQL predicate before adopting
-them; the methods establish no Work Context membership or permission.
+ID establishes continuation. `usage` applies the same selection for an exact
+Task. `task_visible` can admit a subscription before that Task produces its
+first usage row. `TaskUsageAccess::Owner` applies `TaskOwner::allows`.
+`TaskUsageAccess::WorkContext` adds agreement between the caller's Work Context,
+the Task's indexed context record, retained authority context key, and owner-envelope
+context and tenant. It rejects a caller whose authority tenant conflicts with its owner
+tenant. Each predicate runs before grouping or limits. Neither policy establishes
+Work Context membership or permissions; invocation admission supplies that authority.
+Domains choose their policy in their library reader. The shared runtime contains no
+server vocabulary.
 
 The runtime owns these authority queries. Domain libraries own their collection
 responses, cursor envelopes, and resource address profiles. A cursor is a position

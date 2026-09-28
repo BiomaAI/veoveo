@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use rmcp::ErrorData as McpError;
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::GatewayInternalIdentity;
-use veoveo_optimization_mcp::domain::{
+use veoveo_optimization_mcp::contract::{
     OptimizationSolutionUri, OptimizationToolOutput, ProblemId, RunId,
 };
 use veoveo_platform_store::task_record_id;
@@ -16,7 +16,6 @@ use veoveo_types::TaskId;
 
 use super::{
     app_state::AppState,
-    ownership::{optional_task_owner, task_owner_allows},
     records::{
         OPTIMIZE_ROUTE_SCENARIOS_TASK, OPTIMIZE_ROUTES_TASK, OptimizationTaskRequest,
         SOLVE_CONVEX_TASK, SOLVE_MILP_TASK,
@@ -26,7 +25,6 @@ use super::{
 pub(super) const OPTIMIZATION_INDEX_CURSOR_VERSION: u8 = 1;
 pub(super) const OPTIMIZATION_INDEX_PAGE_SIZE: usize = 100;
 const INSTALLATION_TENANT: &str = "installation";
-const USAGE_INDEX_CURSOR_VERSION: u8 = 1;
 
 const SOLVE_TASK_TYPES: [&str; 4] = [
     OPTIMIZE_ROUTES_TASK,
@@ -92,27 +90,6 @@ pub(super) struct VisibleOptimizationTaskPage {
     pub next_cursor: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct OptimizationUsageCursor {
-    version: u8,
-    task_id: TaskId,
-}
-
-#[derive(Debug, Serialize)]
-pub(super) struct OptimizationUsageIndexEntry {
-    task_id: String,
-    usage_uri: String,
-}
-
-#[derive(Debug, Serialize)]
-pub(super) struct OptimizationUsageIndexPage {
-    usage: Vec<OptimizationUsageIndexEntry>,
-    limit: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    next_cursor: Option<String>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub(super) enum OptimizationIndexError {
     #[error("invalid Optimization index cursor")]
@@ -174,78 +151,6 @@ pub(super) fn parse_collection_uri(
         collection,
         cursor: Some(decode_index_cursor(collection, cursor)?),
     }))
-}
-
-fn encode_usage_cursor(task_id: TaskId) -> String {
-    URL_SAFE_NO_PAD.encode(
-        serde_json::to_vec(&OptimizationUsageCursor {
-            version: USAGE_INDEX_CURSOR_VERSION,
-            task_id,
-        })
-        .expect("the controlled Optimization usage cursor serializes"),
-    )
-}
-
-fn decode_usage_cursor(value: &str) -> Result<TaskId, OptimizationIndexError> {
-    let bytes = URL_SAFE_NO_PAD
-        .decode(value)
-        .map_err(|_| OptimizationIndexError::InvalidCursor)?;
-    let cursor: OptimizationUsageCursor =
-        serde_json::from_slice(&bytes).map_err(|_| OptimizationIndexError::InvalidCursor)?;
-    if cursor.version != USAGE_INDEX_CURSOR_VERSION {
-        return Err(OptimizationIndexError::InvalidCursor);
-    }
-    Ok(cursor.task_id)
-}
-
-pub(super) fn parse_usage_index_uri(
-    uri: &str,
-) -> Result<Option<Option<TaskId>>, OptimizationIndexError> {
-    if uri == veoveo_optimization_mcp::uris::USAGE_URI {
-        return Ok(Some(None));
-    }
-    let Some(cursor) = uri
-        .strip_prefix("optimization://usage?cursor=")
-        .filter(|cursor| !cursor.is_empty() && !cursor.contains(['&', '=', '?', '#']))
-    else {
-        return if uri.starts_with("optimization://usage?") {
-            Err(OptimizationIndexError::InvalidCollectionUri)
-        } else {
-            Ok(None)
-        };
-    };
-    Ok(Some(Some(decode_usage_cursor(cursor)?)))
-}
-
-pub(super) async fn load_usage_index_page(
-    state: &AppState,
-    identity: &GatewayInternalIdentity,
-    after: Option<TaskId>,
-) -> Result<OptimizationUsageIndexPage, McpError> {
-    let page = state
-        .tasks
-        .platform_store()
-        .domain_usage_task_page("optimization", after, OPTIMIZATION_INDEX_PAGE_SIZE)
-        .await
-        .map_err(internal)?;
-    let mut usage = Vec::with_capacity(page.task_ids.len());
-    for task_id in page.task_ids {
-        let task_id = task_id.to_string();
-        let Some(owner) = optional_task_owner(state, &task_id).await? else {
-            continue;
-        };
-        if task_owner_allows(&owner, identity) {
-            usage.push(OptimizationUsageIndexEntry {
-                usage_uri: veoveo_optimization_mcp::uris::usage_task_uri(&task_id),
-                task_id,
-            });
-        }
-    }
-    Ok(OptimizationUsageIndexPage {
-        usage,
-        limit: OPTIMIZATION_INDEX_PAGE_SIZE,
-        next_cursor: page.next_task_id.map(encode_usage_cursor),
-    })
 }
 
 pub(super) async fn visible_task_page(

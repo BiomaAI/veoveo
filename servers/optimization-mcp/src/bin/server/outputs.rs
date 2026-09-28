@@ -6,7 +6,7 @@ use serde_json::json;
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
 use veoveo_optimization_mcp::{
-    domain::{
+    contract::{
         ConvexOutputPolicy, MilpOutputPolicy, OptimizationProblemResource, OptimizationSolution,
         OptimizationToolOutput, OptimizationToolSummary, ProblemFamily, RouteOutputPolicy,
         SolutionDetail, VerificationReport, VerifySolutionOutput,
@@ -135,7 +135,7 @@ pub(super) async fn solution_result(
         },
     };
     let output = OptimizationToolOutput {
-        run_uri: veoveo_optimization_mcp::domain::OptimizationRunUri::parse(uris::run_uri(
+        run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::parse(uris::run_uri(
             &solution.run_id,
         ))?,
         problem_uri: solution.problem_uri.clone(),
@@ -263,7 +263,7 @@ fn json_link(uri: &str, title: String, description: &str) -> ContentBlock {
 
 fn solution_variables(
     solution: &OptimizationSolution,
-) -> anyhow::Result<&Vec<veoveo_optimization_mcp::domain::VariableValue>> {
+) -> anyhow::Result<&Vec<veoveo_optimization_mcp::contract::VariableValue>> {
     match &solution.detail {
         SolutionDetail::Convex { variables, .. } | SolutionDetail::Milp { variables, .. } => {
             Ok(variables)
@@ -276,7 +276,7 @@ fn solution_variables(
 
 fn solution_incumbents(
     solution: &OptimizationSolution,
-) -> anyhow::Result<&Vec<veoveo_optimization_mcp::domain::IncumbentSummary>> {
+) -> anyhow::Result<&Vec<veoveo_optimization_mcp::contract::IncumbentSummary>> {
     match &solution.detail {
         SolutionDetail::Milp { incumbents, .. } => Ok(incumbents),
         _ => anyhow::bail!("only MILP solutions contain incumbent histories"),
@@ -361,8 +361,8 @@ fn family_name(family: ProblemFamily) -> &'static str {
 
 fn solution_status(
     family: ProblemFamily,
-    termination: veoveo_optimization_mcp::domain::SolverTermination,
-    feasibility: veoveo_optimization_mcp::domain::SolutionFeasibility,
+    termination: veoveo_optimization_mcp::contract::SolverTermination,
+    feasibility: veoveo_optimization_mcp::contract::SolutionFeasibility,
     verified: bool,
 ) -> String {
     format!(
@@ -378,7 +378,7 @@ fn verification_status(verified: bool, findings: usize) -> String {
 #[cfg(test)]
 mod terminal_status_tests {
     use super::*;
-    use veoveo_optimization_mcp::domain::{SolutionFeasibility, SolverTermination};
+    use veoveo_optimization_mcp::contract::{SolutionFeasibility, SolverTermination};
 
     #[test]
     fn terminal_status_is_short_and_identity_free() {

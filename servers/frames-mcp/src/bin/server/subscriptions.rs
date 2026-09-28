@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use veoveo_task_runtime::TaskUsageAccess;
 
 use futures::StreamExt;
 use rmcp::{ErrorData as McpError, service::SubscriptionContext};
@@ -74,7 +75,7 @@ pub(super) async fn authorize(
             Resource::TaskUsage(task_id) => {
                 if !state
                     .tasks
-                    .task_visible_to_owner(&runtime_owner(&identity), task_id)
+                    .task_visible(TaskUsageAccess::Owner(&runtime_owner(&identity)), task_id)
                     .await
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?
                 {

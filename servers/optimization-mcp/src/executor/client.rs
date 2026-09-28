@@ -7,7 +7,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    domain::{EXECUTOR_PROTOCOL_VERSION, RunId},
+    contract::{EXECUTOR_PROTOCOL_VERSION, RunId},
     executor::{ExecutorOperation, ExecutorRequest, ExecutorResponse},
 };
 

@@ -2,8 +2,6 @@ use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_optimization_mcp::state::TaskOwner;
 
-use super::app_state::AppState;
-
 pub(super) fn internal_identity(
     context: &RequestContext<RoleServer>,
 ) -> Result<GatewayInternalIdentity, McpError> {
@@ -88,39 +86,6 @@ pub(super) fn task_owner_from_runtime(
     })
 }
 
-pub(super) async fn optional_task_owner(
-    state: &AppState,
-    task_id: &str,
-) -> Result<Option<TaskOwner>, McpError> {
-    let Some(owner) = state
-        .tasks
-        .owner(task_id)
-        .await
-        .map_err(|err| McpError::internal_error(err.to_string(), None))?
-    else {
-        return Ok(None);
-    };
-    Ok(Some(TaskOwner {
-        task_id: task_id.to_owned(),
-        principal_id: veoveo_types::PrincipalId::new(owner.principal_key)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
-        profile: veoveo_mcp_contract::GatewayProfileId::new(owner.profile)
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
-        tenant: owner
-            .tenant_key
-            .map(veoveo_types::TenantId::new)
-            .transpose()
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
-        data_labels: owner
-            .data_labels
-            .into_iter()
-            .map(veoveo_types::DataLabelId::new)
-            .collect::<Result<_, _>>()
-            .map_err(|err| McpError::internal_error(err.to_string(), None))?,
-        authority: owner.authority,
-    }))
-}
-
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_runtime::TaskOwner {
     veoveo_task_runtime::TaskOwner {
         principal_key: identity.actor.id.to_string(),
@@ -142,31 +107,4 @@ pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_r
             .collect(),
         authority: identity.authority.clone(),
     }
-}
-
-pub(super) async fn require_task_owner(
-    state: &AppState,
-    context: &RequestContext<RoleServer>,
-    task_id: &str,
-) -> Result<GatewayInternalIdentity, McpError> {
-    let identity = internal_identity(context)?;
-    let owner = optional_task_owner(state, task_id)
-        .await?
-        .ok_or_else(|| McpError::invalid_request("task ownership record missing", None))?;
-    if task_owner_allows(&owner, &identity) {
-        Ok(identity)
-    } else {
-        Err(McpError::invalid_request(
-            "You don't have permission to access this task.",
-            None,
-        ))
-    }
-}
-
-pub(super) fn task_owner_allows(owner: &TaskOwner, identity: &GatewayInternalIdentity) -> bool {
-    owner.principal_id == identity.actor.id
-        && owner.profile == identity.profile
-        && owner.tenant == identity.actor.tenant
-        && owner.data_labels.is_subset(&identity.actor.data_labels)
-        && owner.authority.work_context == identity.authority.work_context
 }

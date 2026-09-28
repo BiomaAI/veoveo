@@ -22,16 +22,18 @@ use veoveo_mcp_contract::{
     paginate,
 };
 use veoveo_optimization_mcp::{
-    domain::{
+    contract::{
         CUOPT_CONTAINER_DIGEST, CUOPT_STABLE_VERSION, EngineProvenance, OptimizationAuthority,
         OptimizationProblemUri, OptimizationRunRecord, OptimizationRunUri, OptimizationSolution,
-        OptimizationSolutionUri, OptimizationToolOutput, OptimizeRouteScenariosRequest,
-        OptimizeRoutesRequest, ProblemFamily, RunPhase, RunTimings, SolutionDetail,
-        SolutionFeasibility, SolveConvexRequest, SolveMilpRequest, SolverTermination,
-        VerifySolutionOutput, VerifySolutionRequest,
+        OptimizationSolutionUri, OptimizationTaskUsageUri, OptimizationToolOutput,
+        OptimizationUsageIndexUri, OptimizeRouteScenariosRequest, OptimizeRoutesRequest,
+        ProblemFamily, RunPhase, RunTimings, SolutionDetail, SolutionFeasibility,
+        SolveConvexRequest, SolveMilpRequest, SolverTermination, VerifySolutionOutput,
+        VerifySolutionRequest,
     },
     profiles::profiles,
     uris,
+    usage::OptimizationUsage,
 };
 use veoveo_platform_store::{DomainUsageKind as StoreUsageKind, DomainUsageRecord, TaskStatus};
 use veoveo_task_runtime::TaskSnapshot;
@@ -41,10 +43,9 @@ use super::{
     app_state::AppState,
     index::{
         OPTIMIZATION_INDEX_PAGE_SIZE, OptimizationCollection, OptimizationCompletionDomain,
-        completion_candidates, find_run_task, load_usage_index_page, parse_collection_uri,
-        parse_usage_index_uri, visible_task_page,
+        completion_candidates, find_run_task, parse_collection_uri, visible_task_page,
     },
-    ownership::{internal_caller, internal_identity, require_task_owner, task_owner_from_runtime},
+    ownership::{internal_caller, internal_identity, runtime_owner, task_owner_from_runtime},
     problems::{load_prepared_problem_by_uri, load_solution},
     prompts::OptimizationPrompt,
     records::SolveTaskCommon,
@@ -52,7 +53,6 @@ use super::{
 };
 
 const LIST_PAGE_SIZE: usize = 100;
-const SERVER_SLUG: &str = "optimization";
 const ROUTES_APP_TOOLS: &[&str] = &["optimize_route_scenarios", "optimize_routes"];
 const MODELS_APP_TOOLS: &[&str] = &["solve_convex", "solve_milp", "verify_solution"];
 
@@ -85,7 +85,7 @@ impl OptimizationMcp {
     #[rmcp::tool(
         title = "Optimize vehicle routes",
         description = "Solve a vehicle-routing or pickup-and-delivery problem with cuOpt: mixed vehicle types, cost and transit-time matrices, time windows, breaks, capacities, order-vehicle restrictions, optional orders, fixed costs, and weighted objectives. The problem can be inline, a saved Optimization problem, an artifact, or a Map travel model. The solution is checked independently of the solver. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::contract::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn optimize_routes(
@@ -99,7 +99,7 @@ impl OptimizationMcp {
     #[rmcp::tool(
         title = "Optimize route scenarios",
         description = "Solve 2 to 64 independent routing cases as one cuOpt GPU batch and return a checked solution for each case. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::contract::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn optimize_route_scenarios(
@@ -113,7 +113,7 @@ impl OptimizationMcp {
     #[rmcp::tool(
         title = "Solve a convex model",
         description = "Solve a continuous LP, QP, QCQP, or SOCP problem with cuOpt on the GPU, then check variables, bounds, constraints, and objective independently of the solver. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::contract::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn solve_convex(
@@ -127,7 +127,7 @@ impl OptimizationMcp {
     #[rmcp::tool(
         title = "Solve a mixed-integer model",
         description = "Solve a linear MILP with continuous, integer, and semi-continuous variables, an optional MIP start, an optional quality target, and a history of incumbent solutions. The result is checked for bounds, integrality, constraints, and objective independently of the solver. Run as an MCP Task.",
-        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::domain::OptimizationToolOutput>(),
+        output_schema = rmcp::handler::server::tool::schema_for_type::<veoveo_optimization_mcp::contract::OptimizationToolOutput>(),
         annotations(read_only_hint = false, destructive_hint = false, idempotent_hint = false, open_world_hint = false)
     )]
     async fn solve_milp(
@@ -623,32 +623,25 @@ impl ServerHandler for OptimizationMcp {
                     .map_err(not_found_error)?;
                 return json_resource(uri, &solution.verification);
             }
-            if let Some(after) = parse_usage_index_uri(uri)
-                .map_err(|error| McpError::invalid_params(error.to_string(), None))?
-            {
-                return json_resource(
-                    uri,
-                    &load_usage_index_page(&self.state, &identity, after).await?,
-                );
+            if let Ok(index) = OptimizationUsageIndexUri::parse(uri) {
+                let page = OptimizationUsage::new(&self.state.tasks)
+                    .map_err(internal)?
+                    .page(&runtime_owner(&identity), index.cursor())
+                    .await
+                    .map_err(internal)?;
+                return json_resource(uri, &page);
             }
-            if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let records = self
-                    .state
-                    .tasks
-                    .platform_store()
-                    .domain_usage_for_task(
-                        SERVER_SLUG,
-                        task_id
-                            .parse::<TaskId>()
-                            .map_err(|error| McpError::invalid_params(error.to_string(), None))?,
-                    )
+            if let Ok(address) = OptimizationTaskUsageUri::parse(uri) {
+                let records = OptimizationUsage::new(&self.state.tasks)
+                    .map_err(internal)?
+                    .task(&runtime_owner(&identity), &address)
                     .await
                     .map_err(internal)?;
                 if records.is_empty() {
                     return Err(not_found("task usage"));
                 }
-                let report = UsageReport::new(task_id, uri).with_records(
+                let task_id = address.task_id();
+                let report = UsageReport::new(task_id.to_string(), address.as_str()).with_records(
                     records
                         .into_iter()
                         .map(|record| usage_record(task_id, record))
@@ -828,7 +821,7 @@ struct SolutionIndexPage {
 
 fn capabilities(state: &AppState) -> OptimizationCapabilities {
     OptimizationCapabilities {
-        contract_version: veoveo_optimization_mcp::domain::OPTIMIZATION_CONTRACT_VERSION,
+        contract_version: veoveo_optimization_mcp::contract::OPTIMIZATION_CONTRACT_VERSION,
         cuopt_version: CUOPT_STABLE_VERSION,
         cuopt_container_digest: CUOPT_CONTAINER_DIGEST,
         gpu_required: true,
@@ -838,9 +831,9 @@ fn capabilities(state: &AppState) -> OptimizationCapabilities {
         problem_families: vec!["routing", "route_scenarios", "convex", "milp"],
         routing_order_families: vec!["service", "pickup_delivery"],
         model_artifact_formats: vec!["optimization_json_v1"],
-        maximum_inline_matrix_cells: veoveo_optimization_mcp::domain::MAX_INLINE_MATRIX_CELLS,
-        maximum_inline_model_nonzeros: veoveo_optimization_mcp::domain::MAX_INLINE_MODEL_NONZEROS,
-        maximum_route_cases: veoveo_optimization_mcp::domain::MAX_ROUTE_CASES,
+        maximum_inline_matrix_cells: veoveo_optimization_mcp::contract::MAX_INLINE_MATRIX_CELLS,
+        maximum_inline_model_nonzeros: veoveo_optimization_mcp::contract::MAX_INLINE_MODEL_NONZEROS,
+        maximum_route_cases: veoveo_optimization_mcp::contract::MAX_ROUTE_CASES,
         maximum_executor_frame_bytes: state.max_executor_frame_bytes,
         independent_verification: vec![
             "routing_endpoints",
@@ -876,11 +869,11 @@ fn run_record(
     });
     Ok(OptimizationRunRecord {
         run_id: common.run_id.clone(),
-        run_uri: veoveo_optimization_mcp::domain::OptimizationRunUri::parse(uris::run_uri(
+        run_uri: veoveo_optimization_mcp::contract::OptimizationRunUri::parse(uris::run_uri(
             &common.run_id,
         ))
         .map_err(internal)?,
-        problem_uri: veoveo_optimization_mcp::domain::OptimizationProblemUri::parse(
+        problem_uri: veoveo_optimization_mcp::contract::OptimizationProblemUri::parse(
             uris::problem_uri(&common.problem_id),
         )
         .map_err(internal)?,
@@ -893,7 +886,7 @@ fn run_record(
                 name: "NVIDIA cuOpt".to_owned(),
                 version: state.executor_health.cuopt_version.clone(),
                 container_digest: CUOPT_CONTAINER_DIGEST.to_owned(),
-                executor_protocol: veoveo_optimization_mcp::domain::EXECUTOR_PROTOCOL_VERSION
+                executor_protocol: veoveo_optimization_mcp::contract::EXECUTOR_PROTOCOL_VERSION
                     .to_owned(),
                 gpu_name: Some(state.executor_health.gpu_name.clone()),
                 gpu_uuid: Some(state.executor_health.gpu_uuid.clone()),
@@ -935,7 +928,7 @@ async fn solution_for_run(
     state: &AppState,
     identity: &veoveo_mcp_contract::GatewayInternalIdentity,
     caller: &veoveo_mcp_contract::PlaneCaller,
-    run_id: &veoveo_optimization_mcp::domain::RunId,
+    run_id: &veoveo_optimization_mcp::contract::RunId,
 ) -> Result<OptimizationSolution, McpError> {
     let output = find_run_task(state, identity, run_id)
         .await?
@@ -1059,12 +1052,12 @@ fn resource_templates() -> Vec<ResourceTemplate> {
             "Immutable bytes on the shared artifact plane.",
         ),
         (
-            uris::USAGE_TASK_TEMPLATE,
+            OptimizationTaskUsageUri::TEMPLATE,
             "Optimization task usage",
             "Measured GPU solve usage.",
         ),
         (
-            uris::USAGE_PAGE_TEMPLATE,
+            OptimizationUsageIndexUri::TEMPLATE,
             "Optimization usage page",
             "Bounded usage index page selected by its opaque cursor.",
         ),
@@ -1109,7 +1102,7 @@ fn root_resources() -> Vec<Resource> {
         (uris::PROBLEMS_URI, "Optimization problems"),
         (uris::RUNS_URI, "Optimization runs"),
         (uris::SOLUTIONS_URI, "Optimization solutions"),
-        (uris::USAGE_URI, "Optimization usage"),
+        (OptimizationUsageIndexUri::ROOT, "Optimization usage"),
     ]
     .into_iter()
     .map(|(uri, title)| json_descriptor(uri, title, "Authorized Optimization index."))
@@ -1149,9 +1142,9 @@ fn mcp_page<T>(
         .map_err(|error| McpError::invalid_params(error.to_string(), None))
 }
 
-fn usage_record(task_id: &str, record: DomainUsageRecord) -> UsageRecord {
+fn usage_record(task_id: TaskId, record: DomainUsageRecord) -> UsageRecord {
     UsageRecord {
-        task_id: task_id.to_owned(),
+        task_id: task_id.to_string(),
         source_id: record.source_id,
         provider_job_id: record.provider_job_id,
         model_id: record.model_id,

@@ -8,12 +8,14 @@ mod model;
 mod profile;
 mod routing;
 mod solution;
+mod usage;
 
 pub use common::*;
 pub use model::*;
 pub use profile::*;
 pub use routing::*;
 pub use solution::*;
+pub use usage::*;
 
 pub const OPTIMIZATION_CONTRACT_VERSION: &str = "veoveo.ai/optimization/v1";
 pub const ROUTING_PROBLEM_VERSION: &str = "veoveo.ai/routing-problem/v1";

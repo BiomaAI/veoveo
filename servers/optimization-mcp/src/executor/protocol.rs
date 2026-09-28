@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::domain::{
+use crate::contract::{
     CapacityDimensionId, ConstraintId, EXECUTOR_PROTOCOL_VERSION, FiniteF64, LocationId,
     NonNegativeF64, ObjectiveDirection, OrderId, ProblemFamily, RouteCaseId, RouteNodeKind,
     RouteObjectiveMetric, RunId, VariableId, VariableKind, VehicleId, VerificationFinding,

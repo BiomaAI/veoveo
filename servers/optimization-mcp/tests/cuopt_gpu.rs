@@ -2,7 +2,7 @@ use std::env;
 
 use tokio_util::sync::CancellationToken;
 use veoveo_optimization_mcp::{
-    domain::{
+    contract::{
         ConstraintId, FiniteF64, LocationId, NonNegativeF64, ObjectiveDirection, OrderId,
         ProblemFamily, RouteNodeKind, RouteObjectiveMetric, RunId, VariableId, VariableKind,
         VehicleId,

@@ -14,7 +14,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_optimization_mcp::{
     artifacts::ArtifactRepository,
-    domain::CUOPT_STABLE_VERSION,
+    contract::CUOPT_STABLE_VERSION,
     executor::{ExecutorClient, ExecutorResult},
     problem_store::ProblemStore,
 };

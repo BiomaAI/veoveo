@@ -22,6 +22,7 @@ use veoveo_frames_mcp::{
     uris,
 };
 use veoveo_mcp_contract::UsageReport;
+use veoveo_task_runtime::TaskUsageAccess;
 
 impl FramesMcp {
     pub(super) async fn read_frames_resource(
@@ -112,8 +113,8 @@ impl FramesMcp {
                 let page = self
                     .state
                     .tasks
-                    .usage_page_for_owner(
-                        &runtime_owner(&identity),
+                    .usage_page(
+                        TaskUsageAccess::Owner(&runtime_owner(&identity)),
                         catalog.cursor().map(FrameUsageCursor::after),
                         FRAME_USAGE_PAGE_SIZE,
                     )
@@ -190,7 +191,7 @@ impl FramesMcp {
                 let records = self
                     .state
                     .tasks
-                    .usage_for_owner(&runtime_owner(&identity), task_id)
+                    .usage(TaskUsageAccess::Owner(&runtime_owner(&identity)), task_id)
                     .await
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?;
                 let report: UsageReport =

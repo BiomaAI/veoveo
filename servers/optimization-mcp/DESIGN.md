@@ -46,6 +46,7 @@ retain the `optimization://` scheme.
 | `veoveo.ai/travel-model-artifact/v1` | Immutable Map-to-Optimization matrix exchange with location order, vehicle types, units, unavailable cells, and Map resource attestation. |
 | `veoveo.ai/cuopt-executor/v1` | Private control-to-executor protocol over a Unix-domain socket. Each JSON message has an unsigned 64-bit big-endian length prefix and a configured byte bound. It is not a public contract. |
 | SHA-256 and UUID version 7 | Canonical problem and solution digests use SHA-256. Problem, run, solution, and verification identities use UUIDv7-derived controlled identifiers. |
+| Veoveo usage resource profile | Native UUIDv7 Task addresses built through the shared URI component profile, 100-entry pages, and version 1 URL-safe unpadded Base64 cursors as specified under Usage Reads. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, the 8 MiB final serialized-response cap, the hosted runtime, artifact plane, platform store, documentation resources, and gateway registration. |
 
 ## Design Position
@@ -108,6 +109,19 @@ The socket transport avoids an additional network endpoint and keeps
 solver-private compiled structures out of the public MCP contract. The
 configured frame limit defaults to 256 MiB. Prepared problems are staged under
 the Optimization workspace with a recorded byte length and SHA-256 digest.
+
+## Library Features
+
+The `contract` feature exposes the public model through `contract` with default
+features disabled. It gates dependencies as well as modules, excluding the MCP
+adapter, Store, TaskRuntime, Artifact client, compiler and executor. Map imports
+this feature to qualify its travel-model exchange. The `runtime` feature adds
+compilation, execution clients, verification, Artifact access and the usage reader.
+The default `mcp` feature adds the hosted binary and transport integration.
+
+The usage contract provides typed builders and checked decoding. Other Optimization
+resource families still need component builders and stronger cross-field admission.
+Server-owned scopes and checked MCP setup are tracked in the active foundations plan.
 
 ## Public MCP Contract
 
@@ -344,7 +358,7 @@ return at most 100 compact discriminators in stable creation and task order,
 with a versioned opaque cursor bound to the selected collection. Exact problem,
 run, and solution reads use indexed domain identities under the full caller
 authority and never load the current collection. Resource reads repeat
-authorization and never turn a denial into a missing object.
+authorization. Usage reads return the same not-found response for absent and inaccessible Tasks.
 
 ## Prompts, Completions, And Notifications
 
@@ -399,8 +413,50 @@ through resolution. The owner validates occurrence identity and URI components;
 Optimization owns model validation and current caller access. Public fields serialize
 as strings under the Artifact contract's declared compatibility profile.
 
-Usage records capture measured solve work against the durable task. They are
-read through canonical usage resources and the same owner visibility rules.
+Usage records capture measured solve work against the durable task.
+
+## Usage Reads
+
+`OptimizationUsage` binds reads to the Optimization Task runtime and selects
+`TaskUsageAccess::WorkContext`. SQL checks principal, profile, optional tenant
+spelling and the complete label clearance. Both usage and Task records must match
+the runtime's server and tenant. The Task's indexed Work Context, retained authority
+context and owner-envelope context must match the caller; the authority tenant must
+also agree. Selection precedes grouping, ordering and the 101-ID lookahead for a
+100-entry page. Exact reads use the same predicates in one query. Missing parents
+and conflicting stored identities grant no access. Rust decodes only selected rows.
+
+The isolated contract owns `OptimizationTaskUsageUri`, `OptimizationUsageIndexUri`,
+`OptimizationUsageCursor`, entries and pages. Builders require native UUIDv7 Task
+identities and use the foundational [URI component profile](../../platform/types/DESIGN.md).
+Parsers reject aliases, fragments and duplicate or unsupported query parameters.
+Entries derive their Task identity from the typed URI. Pages require ascending unique
+IDs, a limit of 100, and a continuation matching the last entry of a full page.
+
+The cursor preserves the published version 1 JSON envelope
+`{"version":1,"task_id":"<uuid>"}` encoded as URL-safe unpadded Base64.
+It grants no access: every read checks the current caller and stored authority.
+The response fields are `usage`, `limit` and optional `next_cursor`; terminal pages
+omit the cursor. Exact usage report fields are unchanged.
+
+### Usage Deployment And Qualification
+
+Replace all Optimization control replicas together when adopting SQL-filtered pages.
+Old replicas can return short nonterminal pages that the checked consumer rejects.
+Pause new solves and let active solver Tasks settle before replacing the control
+container and its executor pair. This transition changes no retained rows or solver
+protocol. Emitted addresses and cursor bytes remain valid; callers must refresh
+hand-written noncanonical addresses. Rollback uses the previous service/client pair
+with the same Store and restores its earlier pagination behavior. Installed acceptance
+must traverse multiple pages behind denied rows and check direct reads under changed
+labels and Work Contexts before the transition is accepted.
+
+`tests/usage.rs` exercises the library reader through separate connections to the
+isolated pinned Store. TaskRuntime's native suite owns the shared owner/context and
+retained-metadata matrix. `tests/usage_contract.rs` qualifies wire forms, URI admission,
+page relationships and typed construction. `tests/contract_schema.rs` preserves eleven
+public solver schemas. An independent contract consumer and a runtime-only build
+qualify dependency gates. These checks do not execute the GPU solver.
 
 ## Identity, Visibility, And Storage
 
@@ -473,7 +529,8 @@ matches the compiled provenance constant.
 
 | Path | Responsibility |
 |---|---|
-| `src/domain/` | Public problem, profile, solution, verification, ID, and URI-adjacent types. |
+| `src/contract/` | Public problem, profile, solution, verification, ID, and URI-adjacent types. |
+| `src/usage.rs` | Owner and Work Context usage reads through TaskRuntime SQL. |
 | `src/compiler/` | Deterministic routing and sparse mathematical compilation. |
 | `src/verification/` | Independent route and mathematical checks. |
 | `src/executor/` | Private protocol types and bounded Unix-socket client. |
@@ -481,7 +538,7 @@ matches the compiled provenance constant.
 | `src/profiles.rs` | Curated immutable solver profiles. |
 | `src/solution_builder.rs` | Typed solution construction, provenance, digest, and initial verification. |
 | `src/bin/server/` | Thin HTTP/MCP wiring, tasks, identity, artifacts, resources, prompts, and output publication. |
-| `src/bin/server/index.rs` | Authorization-scoped exact lookup, compact collection pages, opaque cursors, bounded completion search, and usage pages. |
+| `src/bin/server/index.rs` | Authorization-scoped exact lookup, compact collection pages, opaque cursors, bounded completion search. |
 | `executor/veoveo_cuopt_executor/` | Python cuOpt GPU adapter. |
 | `tests/cuopt_gpu.rs` | Ignored hardware-GPU acceptance test. |
 
@@ -501,8 +558,9 @@ or mocked CUDA result cannot satisfy this test.
 
 Contract revision: 3.
 
-All mandatory checks C01 through C31 are met. There are no compatibility
-projections, so C06 is satisfied by the single canonical surface. The gateway
+C09 has remaining scope and resource-family typing work; checked MCP setup and
+installed readiness qualification for C31 are pending. The knowledge-source extension
+(C32) is planned. C06 is satisfied by the single canonical surface. The gateway
 registration states revision 3 and the cuOpt 26.08 engine. Documentation and
 contract resources are embedded at build time and served through MCP and the
 canonical administrative mount.

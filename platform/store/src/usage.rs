@@ -2,7 +2,7 @@ use crate::task_record_id;
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
+use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
@@ -12,14 +12,6 @@ use crate::{
 use veoveo_types::TaskId;
 
 const DOMAIN_USAGE_EVENT_SCHEMA_VERSION: i64 = 1;
-const MAX_DOMAIN_USAGE_TASK_PAGE_SIZE: usize = 1_000;
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DomainUsageTaskPage {
-    pub task_ids: Vec<TaskId>,
-    pub next_task_id: Option<TaskId>,
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub struct DomainUsageDraft {
     pub task_id: TaskId,
@@ -128,67 +120,6 @@ impl PlatformStore {
             })
     }
 
-    pub async fn domain_usage_for_task(
-        &self,
-        server: &str,
-        task_id: TaskId,
-    ) -> Result<Vec<DomainUsageRecord>, StoreError> {
-        validate_server(server)?;
-        let mut response = self
-            .client()
-            .query("SELECT * FROM domain_usage WHERE server = $server AND task = $task ORDER BY recorded_at ASC, id ASC;")
-            .bind(("server", RecordId::new("mcp_server", server.to_owned())))
-            .bind(("task", task_record_id(task_id)))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
-    pub async fn domain_usage_task_page(
-        &self,
-        server: &str,
-        after: Option<TaskId>,
-        page_size: usize,
-    ) -> Result<DomainUsageTaskPage, StoreError> {
-        validate_server(server)?;
-        if page_size == 0 || page_size > MAX_DOMAIN_USAGE_TASK_PAGE_SIZE {
-            return Err(StoreError::InvalidUsageField {
-                field: "page_size",
-                reason: "must be in 1..=1000",
-            });
-        }
-        let query = if after.is_some() {
-            "SELECT VALUE task FROM domain_usage WHERE server = $server AND task > $after GROUP BY task ORDER BY task ASC LIMIT $limit;"
-        } else {
-            "SELECT VALUE task FROM domain_usage WHERE server = $server GROUP BY task ORDER BY task ASC LIMIT $limit;"
-        };
-        let mut request = self
-            .client()
-            .query(query)
-            .bind(("server", RecordId::new("mcp_server", server.to_owned())))
-            .bind(("limit", (page_size + 1) as i64));
-        if let Some(after) = after {
-            request = request.bind(("after", task_record_id(after)));
-        }
-        let mut response = request.await?.check()?;
-        let mut task_ids = response
-            .take::<Vec<RecordId>>(0)?
-            .into_iter()
-            .map(task_id_from_record)
-            .collect::<Result<Vec<_>, _>>()?;
-        let has_more = task_ids.len() > page_size;
-        task_ids.truncate(page_size);
-        let next_task_id = has_more.then(|| {
-            *task_ids
-                .last()
-                .expect("an overfull page has at least one returned task")
-        });
-        Ok(DomainUsageTaskPage {
-            task_ids,
-            next_task_id,
-        })
-    }
-
     async fn task_for_usage(&self, task_id: TaskId) -> Result<Option<TaskRecord>, StoreError> {
         let mut response = self
             .client()
@@ -273,20 +204,6 @@ fn usage_kind_name(kind: DomainUsageKind) -> &'static str {
     match kind {
         DomainUsageKind::Estimate => "estimate",
         DomainUsageKind::Actual => "actual",
-    }
-}
-
-fn task_id_from_record(record: RecordId) -> Result<TaskId, StoreError> {
-    if record.table.as_str() != "task" {
-        return Err(StoreError::MissingRecord {
-            operation: "domain usage task identity",
-        });
-    }
-    match record.key {
-        RecordIdKey::Uuid(value) => Ok(TaskId::from_uuid(*value)),
-        _ => Err(StoreError::MissingRecord {
-            operation: "domain usage task UUID",
-        }),
     }
 }
 

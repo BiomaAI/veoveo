@@ -1,3 +1,4 @@
+use veoveo_task_runtime::TaskUsageAccess;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
 
@@ -99,20 +100,20 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
             expected.push(create(&writer, &caller, number, 2).await);
         }
         let first = reader
-            .usage_page_for_owner(&caller, None, 100)
+            .usage_page(TaskUsageAccess::Owner(&caller), None, 100)
             .await
             .unwrap();
         assert_eq!(first.task_ids, expected[..100]);
         assert_eq!(first.next_task_id, Some(expected[99]));
         let second = reader
-            .usage_page_for_owner(&caller, first.next_task_id, 100)
+            .usage_page(TaskUsageAccess::Owner(&caller), first.next_task_id, 100)
             .await
             .unwrap();
         assert_eq!(second.task_ids, expected[100..]);
         assert_eq!(second.next_task_id, None);
         assert_eq!(
             reader
-                .usage_for_owner(&caller, expected[0])
+                .usage(TaskUsageAccess::Owner(&caller), expected[0])
                 .await
                 .unwrap()
                 .len(),
@@ -120,27 +121,27 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
         );
         assert!(
             reader
-                .task_visible_to_owner(&caller, expected[0])
+                .task_visible(TaskUsageAccess::Owner(&caller), expected[0])
                 .await
                 .unwrap()
         );
         for denied in &denied[..3] {
             assert!(
                 reader
-                    .usage_for_owner(denied, expected[0])
+                    .usage(TaskUsageAccess::Owner(denied), expected[0])
                     .await
                     .unwrap()
                     .is_empty()
             );
             assert!(
                 !reader
-                    .task_visible_to_owner(denied, expected[0])
+                    .task_visible(TaskUsageAccess::Owner(denied), expected[0])
                     .await
                     .unwrap()
             );
             assert!(
                 reader
-                    .usage_page_for_owner(denied, first.next_task_id, 100)
+                    .usage_page(TaskUsageAccess::Owner(denied), first.next_task_id, 100)
                     .await
                     .unwrap()
                     .task_ids
@@ -152,7 +153,7 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
         partial.data_labels.remove("mission");
         assert!(
             reader
-                .usage_page_for_owner(&partial, first.next_task_id, 100)
+                .usage_page(TaskUsageAccess::Owner(&partial), first.next_task_id, 100)
                 .await
                 .unwrap()
                 .task_ids
@@ -160,7 +161,7 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
         );
         assert!(
             reader
-                .usage_for_owner(&partial, expected[0])
+                .usage(TaskUsageAccess::Owner(&partial), expected[0])
                 .await
                 .unwrap()
                 .is_empty()
@@ -176,7 +177,7 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
             .unwrap();
         assert_eq!(
             reader
-                .usage_page_for_owner(&caller, first.next_task_id, 100)
+                .usage_page(TaskUsageAccess::Owner(&caller), first.next_task_id, 100)
                 .await
                 .unwrap()
                 .task_ids
@@ -185,30 +186,44 @@ async fn usage_pages_filter_owners_and_linked_tasks_before_grouping_and_limits()
         );
         assert!(
             reader
-                .usage_for_owner(&caller, last)
+                .usage(TaskUsageAccess::Owner(&caller), last)
                 .await
                 .unwrap()
                 .is_empty()
         );
-        assert!(!reader.task_visible_to_owner(&caller, last).await.unwrap());
+        assert!(
+            !reader
+                .task_visible(TaskUsageAccess::Owner(&caller), last)
+                .await
+                .unwrap()
+        );
         let mut cleared = caller.clone();
         cleared.data_labels.insert("secret".into());
         assert_eq!(
-            reader.usage_for_owner(&cleared, last).await.unwrap().len(),
+            reader
+                .usage(TaskUsageAccess::Owner(&cleared), last)
+                .await
+                .unwrap()
+                .len(),
             2
         );
         assert_eq!(
             reader
-                .usage_page_for_owner(&cleared, first.next_task_id, 100)
+                .usage_page(TaskUsageAccess::Owner(&cleared), first.next_task_id, 100)
                 .await
                 .unwrap()
                 .task_ids,
             expected[100..]
         );
-        assert!(reader.usage_page_for_owner(&caller, None, 0).await.is_err());
         assert!(
             reader
-                .usage_page_for_owner(&caller, None, 1001)
+                .usage_page(TaskUsageAccess::Owner(&caller), None, 0)
+                .await
+                .is_err()
+        );
+        assert!(
+            reader
+                .usage_page(TaskUsageAccess::Owner(&caller), None, 1001)
                 .await
                 .is_err()
         );
@@ -229,7 +244,7 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         let second = create(&writer, &named_tenant, 2, 1).await;
         assert_eq!(
             reader
-                .usage_page_for_owner(&anonymous_tenant, None, 100)
+                .usage_page(TaskUsageAccess::Owner(&anonymous_tenant), None, 100)
                 .await
                 .unwrap()
                 .task_ids,
@@ -237,7 +252,7 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         );
         assert_eq!(
             reader
-                .usage_page_for_owner(&named_tenant, None, 100)
+                .usage_page(TaskUsageAccess::Owner(&named_tenant), None, 100)
                 .await
                 .unwrap()
                 .task_ids,
@@ -245,14 +260,14 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         );
         assert!(
             reader
-                .usage_for_owner(&named_tenant, first)
+                .usage(TaskUsageAccess::Owner(&named_tenant), first)
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert!(
             reader
-                .usage_for_owner(&anonymous_tenant, second)
+                .usage(TaskUsageAccess::Owner(&anonymous_tenant), second)
                 .await
                 .unwrap()
                 .is_empty()
@@ -260,20 +275,20 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         let pending = create(&writer, &named_tenant, 3, 0).await;
         assert!(
             reader
-                .task_visible_to_owner(&named_tenant, pending)
+                .task_visible(TaskUsageAccess::Owner(&named_tenant), pending)
                 .await
                 .unwrap()
         );
         assert!(
             reader
-                .usage_for_owner(&named_tenant, pending)
+                .usage(TaskUsageAccess::Owner(&named_tenant), pending)
                 .await
                 .unwrap()
                 .is_empty()
         );
         assert!(
             !reader
-                .task_visible_to_owner(&named_tenant, TaskId::new())
+                .task_visible(TaskUsageAccess::Owner(&named_tenant), TaskId::new())
                 .await
                 .unwrap()
         );
@@ -315,7 +330,7 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
                 .unwrap();
             assert!(
                 reader
-                    .usage_for_owner(&named_tenant, id)
+                    .usage(TaskUsageAccess::Owner(&named_tenant), id)
                     .await
                     .unwrap()
                     .is_empty(),
@@ -324,7 +339,7 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
         }
         assert_eq!(
             reader
-                .usage_page_for_owner(&named_tenant, None, 100)
+                .usage_page(TaskUsageAccess::Owner(&named_tenant), None, 100)
                 .await
                 .unwrap()
                 .task_ids,
@@ -333,4 +348,71 @@ async fn usage_reads_reject_orphans_wrong_parent_metadata_and_tenant_aliases() {
     })
     .await
     .expect("usage parent qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn context_policy_filters_before_limits_and_requires_all_stored_contexts_to_agree() {
+    use veoveo_task_runtime::{
+        TaskError,
+        TaskUsageAccess::{Owner, WorkContext},
+    };
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = store::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "optimization", "writer");
+        let reader = TaskRuntime::new(db.b.clone(), "optimization", "reader");
+        let caller = owner(Some("tenant-a"), "owner", "operator", &["mission"]);
+        let mut foreign = caller.clone();
+        foreign.authority.work_context = veoveo_types::WorkContextId::new("other-context").unwrap();
+        for number in 1..=105 {
+            let id = create(&writer, &foreign, number, 1).await;
+            db.a.client().query("UPDATE ONLY $task SET request.input = NONE RETURN NONE;")
+                .bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
+        }
+        let mut expected = Vec::new();
+        for number in 200..301 {
+            expected.push(create(&writer, &caller, number, 2).await);
+        }
+        let first = reader.usage_page(WorkContext(&caller), None, 100).await.unwrap();
+        assert_eq!(first.task_ids, expected[..100]);
+        assert_eq!(first.next_task_id, Some(expected[99]));
+        let second = reader.usage_page(WorkContext(&caller), first.next_task_id, 100).await.unwrap();
+        assert_eq!(second.task_ids, expected[100..]);
+        assert_eq!(second.next_task_id, None);
+        assert_eq!(reader.usage(WorkContext(&caller), expected[0]).await.unwrap().len(), 2);
+        assert!(reader.usage(WorkContext(&foreign), expected[0]).await.unwrap().is_empty());
+        assert!(reader.usage_page(WorkContext(&foreign), first.next_task_id, 100).await.unwrap().task_ids.is_empty());
+        assert!(reader.task_visible(WorkContext(&caller), expected[0]).await.unwrap());
+        assert!(!reader.task_visible(WorkContext(&foreign), expected[0]).await.unwrap());
+        // The explicit owner policy keeps its existing cross-context behavior.
+        assert_eq!(reader.usage(Owner(&foreign), expected[0]).await.unwrap().len(), 2);
+        let pending = create(&writer, &caller, 400, 0).await;
+        assert!(reader.task_visible(WorkContext(&caller), pending).await.unwrap());
+        assert!(!reader.task_visible(WorkContext(&foreign), pending).await.unwrap());
+
+        let mut invalid = caller.clone();
+        invalid.authority.tenant = veoveo_types::TenantId::new("wrong-tenant").unwrap();
+        assert!(matches!(reader.usage_page(WorkContext(&invalid), None, 100).await, Err(TaskError::InvalidAuthority(_))));
+        assert!(matches!(reader.usage(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
+        assert!(matches!(reader.task_visible(WorkContext(&invalid), pending).await, Err(TaskError::InvalidAuthority(_))));
+
+        for (number, query) in [
+            (500, "UPDATE ONLY $task SET work_context = work_context:wrong RETURN NONE;"),
+            (501, "UPDATE ONLY $task SET authority.context_key = 'wrong' RETURN NONE;"),
+            (502, "UPDATE ONLY $task SET request.owner.authority.work_context = 'wrong' RETURN NONE;"),
+            (503, "UPDATE ONLY $task SET request.owner.authority.tenant = 'wrong' RETURN NONE;"),
+            (504, "UPDATE ONLY $task SET request.owner.authority = NONE RETURN NONE;"),
+        ] {
+            let id = create(&writer, &caller, number, 1).await;
+            db.a.client().query(query).bind(("task", task_record_id(id))).await.unwrap().check().unwrap();
+            assert!(reader.usage(WorkContext(&caller), id).await.unwrap().is_empty(), "{query}");
+            assert!(!reader.task_visible(WorkContext(&caller), id).await.unwrap(), "{query}");
+        }
+        assert_eq!(reader.usage_page(WorkContext(&caller), first.next_task_id, 100).await.unwrap().task_ids, expected[100..]);
+        // Previously returned positions and URIs must re-evaluate the current context.
+        let last = expected[100];
+        db.a.client().query("UPDATE ONLY $task SET request.owner.authority.work_context = 'other-context' RETURN NONE;")
+            .bind(("task", task_record_id(last))).await.unwrap().check().unwrap();
+        assert!(reader.usage_page(WorkContext(&caller), first.next_task_id, 100).await.unwrap().task_ids.is_empty());
+        assert!(reader.usage(WorkContext(&caller), last).await.unwrap().is_empty());
+    }).await.expect("usage context qualification exceeded 90 seconds");
 }

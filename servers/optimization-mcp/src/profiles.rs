@@ -1,7 +1,7 @@
 use std::{num::NonZeroU32, sync::LazyLock};
 
 use crate::{
-    domain::{
+    contract::{
         ConvexProblemKind, NonNegativeF64, OptimizationContractError, OptimizationProfileUri,
         ProblemFamily, SolverIntent, SolverPolicyRef, SolverProfile, SolverProfileDefaults,
         SolverProfileId, UnitInterval,

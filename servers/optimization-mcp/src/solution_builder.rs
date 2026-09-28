@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    domain::{
+    contract::{
         ConvexProblem, EngineProvenance, IncumbentSummary, MathematicalQuality, MilpProblem,
         NonNegativeF64, OptimizationAuthority, OptimizationProblemUri, OptimizationSolution,
         OptimizationSolutionUri, ProblemFamily, RouteCaseId, RouteSolutionSummary, RunId,
@@ -222,7 +222,7 @@ pub fn build_milp_solution(
 }
 
 fn candidate_values(
-    variables: &[crate::domain::ModelVariable],
+    variables: &[crate::contract::ModelVariable],
     executor: &ExecutorMathematicalSolution,
 ) -> Vec<VariableValue> {
     variables

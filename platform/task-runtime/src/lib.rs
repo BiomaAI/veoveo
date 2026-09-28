@@ -16,7 +16,7 @@ mod types;
 
 pub use mcp::{project_snapshot, task_seed};
 pub use provider_transaction::ProviderCommit;
-pub use runtime::{TaskRuntime, TaskUpdateStream, TaskUsagePage};
+pub use runtime::{TaskRuntime, TaskUpdateStream, TaskUsageAccess, TaskUsagePage};
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,
     TASK_RETENTION_PIN_META_KEY, authorized_snapshot, cancel_durable_task, durable_input_responses,

@@ -10,7 +10,7 @@ use veoveo_mcp_contract::{
     GatewayInternalIdentity, IssueArtifactWriteCapabilityRequest, PlaneCaller,
 };
 use veoveo_optimization_mcp::{
-    domain::{
+    contract::{
         EngineProvenance, NonNegativeF64, OptimizationAuthority, OptimizationSolution,
         OptimizeRouteScenariosRequest, OptimizeRoutesRequest, ProblemFamily, RunTimings,
         SolutionDetail, SolveConvexRequest, SolveMilpRequest, VerifySolutionRequest,
@@ -828,7 +828,7 @@ fn solution_context(
     state: &AppState,
     common: &SolveTaskCommon,
     owner: &veoveo_optimization_mcp::state::TaskOwner,
-    problem_uri: veoveo_optimization_mcp::domain::OptimizationProblemUri,
+    problem_uri: veoveo_optimization_mcp::contract::OptimizationProblemUri,
     executor_started_at: chrono::DateTime<Utc>,
     queue_seconds: NonNegativeF64,
 ) -> SolutionContext {
@@ -843,8 +843,8 @@ fn solution_context(
         engine: EngineProvenance {
             name: "NVIDIA cuOpt".to_owned(),
             version: state.executor_health.cuopt_version.clone(),
-            container_digest: veoveo_optimization_mcp::domain::CUOPT_CONTAINER_DIGEST.to_owned(),
-            executor_protocol: veoveo_optimization_mcp::domain::EXECUTOR_PROTOCOL_VERSION
+            container_digest: veoveo_optimization_mcp::contract::CUOPT_CONTAINER_DIGEST.to_owned(),
+            executor_protocol: veoveo_optimization_mcp::contract::EXECUTOR_PROTOCOL_VERSION
                 .to_owned(),
             gpu_name: Some(state.executor_health.gpu_name.clone()),
             gpu_uuid: Some(state.executor_health.gpu_uuid.clone()),
@@ -908,7 +908,7 @@ fn reverify_solution(
     prepared: &PreparedProblem,
     solution: &OptimizationSolution,
     tolerance: VerificationTolerance,
-) -> anyhow::Result<veoveo_optimization_mcp::domain::VerificationReport> {
+) -> anyhow::Result<veoveo_optimization_mcp::contract::VerificationReport> {
     match (prepared, &solution.detail) {
         (
             PreparedProblem::Routing { compiled, .. },
@@ -953,9 +953,9 @@ fn reverify_solution(
 
 fn routing_candidate(
     problem: &veoveo_optimization_mcp::executor::CompiledRoutingProblem,
-    summary: Option<&veoveo_optimization_mcp::domain::RouteSolutionSummary>,
-    routes: &[veoveo_optimization_mcp::domain::VehicleRoute],
-    case_id: Option<&veoveo_optimization_mcp::domain::RouteCaseId>,
+    summary: Option<&veoveo_optimization_mcp::contract::RouteSolutionSummary>,
+    routes: &[veoveo_optimization_mcp::contract::VehicleRoute],
+    case_id: Option<&veoveo_optimization_mcp::contract::RouteCaseId>,
 ) -> anyhow::Result<ExecutorRoutingSolution> {
     let vehicle_indices = problem
         .vehicles
@@ -978,12 +978,12 @@ fn routing_candidate(
                 .iter()
                 .map(|stop| {
                     let node = match stop.node_kind {
-                        veoveo_optimization_mcp::domain::RouteNodeKind::Depot => {
+                        veoveo_optimization_mcp::contract::RouteNodeKind::Depot => {
                             ExecutorRouteNode::Depot {
                                 location: location_index(problem, &stop.location_id)?,
                             }
                         }
-                        veoveo_optimization_mcp::domain::RouteNodeKind::Break => {
+                        veoveo_optimization_mcp::contract::RouteNodeKind::Break => {
                             ExecutorRouteNode::Break {
                                 location: location_index(problem, &stop.location_id)?,
                             }
@@ -1000,7 +1000,7 @@ fn routing_candidate(
                                 })
                                 .or_else(|| {
                                     (kind
-                                        == veoveo_optimization_mcp::domain::RouteNodeKind::Service)
+                                        == veoveo_optimization_mcp::contract::RouteNodeKind::Service)
                                         .then(|| {
                                             problem.nodes.iter().position(|candidate| {
                                                 &candidate.order_id == order_id
@@ -1028,7 +1028,7 @@ fn routing_candidate(
         status: ExecutorRoutingStatus::Success,
         message: "reconstructed for independent verification".to_owned(),
         objective: summary.map_or_else(
-            veoveo_optimization_mcp::domain::FiniteF64::default,
+            veoveo_optimization_mcp::contract::FiniteF64::default,
             |summary| summary.objective,
         ),
         objective_components: summary
@@ -1043,7 +1043,7 @@ fn routing_candidate(
 
 fn location_index(
     problem: &veoveo_optimization_mcp::executor::CompiledRoutingProblem,
-    location: &veoveo_optimization_mcp::domain::LocationId,
+    location: &veoveo_optimization_mcp::contract::LocationId,
 ) -> anyhow::Result<u32> {
     problem
         .location_ids
@@ -1054,9 +1054,9 @@ fn location_index(
 }
 
 fn merge_verification_reports(
-    reports: Vec<veoveo_optimization_mcp::domain::VerificationReport>,
+    reports: Vec<veoveo_optimization_mcp::contract::VerificationReport>,
     tolerance: VerificationTolerance,
-) -> veoveo_optimization_mcp::domain::VerificationReport {
+) -> veoveo_optimization_mcp::contract::VerificationReport {
     let mut merged = veoveo_optimization_mcp::verification::empty_report(tolerance);
     for report in reports {
         merged.verified &= report.verified;
@@ -1120,14 +1120,14 @@ fn executor_result_error<T>(result: ExecutorResult) -> anyhow::Result<T> {
 fn common(
     prepared: &PreparedProblem,
     prepared_ref: PreparedProblemRef,
-    profile_uri: veoveo_optimization_mcp::domain::OptimizationProfileUri,
+    profile_uri: veoveo_optimization_mcp::contract::OptimizationProfileUri,
     _task_id: TaskId,
     submitted_at: chrono::DateTime<Utc>,
     artifact_write_capability: veoveo_mcp_contract::IssuedArtifactWriteCapability,
 ) -> Result<SolveTaskCommon, rmcp::ErrorData> {
     Ok(SolveTaskCommon {
         problem_id: prepared.resource().record.problem_id.clone(),
-        run_id: veoveo_optimization_mcp::domain::RunId::new(),
+        run_id: veoveo_optimization_mcp::contract::RunId::new(),
         family: prepared.resource().record.family,
         profile_uri,
         submitted_at,

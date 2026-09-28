@@ -6,7 +6,7 @@ mod routing;
 pub use mathematical::{CandidateVerification, verify_convex_candidate, verify_milp_candidate};
 pub use routing::{RoutingVerification, verify_routing_solution};
 
-use crate::domain::{NonNegativeF64, VerificationFinding, VerificationReport};
+use crate::contract::{NonNegativeF64, VerificationFinding, VerificationReport};
 
 pub const DEFAULT_ABSOLUTE_TOLERANCE: f64 = 1e-6;
 pub const DEFAULT_RELATIVE_TOLERANCE: f64 = 1e-6;
@@ -45,9 +45,9 @@ pub(crate) fn report(
 ) -> VerificationReport {
     let verified = !findings
         .iter()
-        .any(|finding| finding.severity == crate::domain::VerificationSeverity::Error);
+        .any(|finding| finding.severity == crate::contract::VerificationSeverity::Error);
     VerificationReport {
-        verification_id: crate::domain::VerificationId::new(),
+        verification_id: crate::contract::VerificationId::new(),
         verified,
         findings,
         absolute_tolerance: non_negative(tolerance.absolute),

@@ -1,5 +1,6 @@
 //! Timeseries usage reads under the linked Task's current owner policy.
 use veoveo_platform_store::DomainUsageRecord;
+use veoveo_task_runtime::TaskUsageAccess;
 use veoveo_task_runtime::{TaskOwner, TaskRuntime};
 
 use crate::contract::{
@@ -28,8 +29,8 @@ impl<'a> TimeseriesUsage<'a> {
     ) -> anyhow::Result<TimeseriesUsagePage> {
         let page = self
             .tasks
-            .usage_page_for_owner(
-                owner,
+            .usage_page(
+                TaskUsageAccess::Owner(owner),
                 cursor.map(TimeseriesUsageCursor::after),
                 TIMESERIES_USAGE_PAGE_SIZE,
             )
@@ -45,6 +46,9 @@ impl<'a> TimeseriesUsage<'a> {
         owner: &TaskOwner,
         uri: &TimeseriesTaskUsageUri,
     ) -> anyhow::Result<Vec<DomainUsageRecord>> {
-        Ok(self.tasks.usage_for_owner(owner, uri.task_id()).await?)
+        Ok(self
+            .tasks
+            .usage(TaskUsageAccess::Owner(owner), uri.task_id())
+            .await?)
     }
 }

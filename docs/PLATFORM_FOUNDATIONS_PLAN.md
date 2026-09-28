@@ -285,6 +285,21 @@ Runtime-only and workspace Clippy pass. Installed restart/replica and activation
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
+Optimization usage now selects the current owner and Work Context in SQL before
+limits. TaskRuntime exposes an explicit access policy and checks indexed context,
+retained authority and owner-envelope agreement. Frames, Timeseries and DuckDB
+explicitly retain their owner-only policy. Optimization exposes typed usage builders,
+cursors and checked pages through its contract feature; all Rust imports use the
+`contract` module, including Map's lightweight travel-model consumer. Valid cursor
+and report fields are preserved. Unscoped Store usage reads and post-read ownership
+helpers are removed. Four affected server suites pass 151 cases and 15 compile-fail
+examples; TaskRuntime's three usage cases pass separately. The independent 90-package
+consumer passes five checks, preserving eleven solver schemas without service
+dependencies. Map's consumer, runtime-only and workspace Clippy, and documentation
+checks pass. The GPU solver test is ignored and does not count as acceptance.
+Cleanup removed 15.8 GiB of superseded executables, leaving 226 GiB free while retaining
+compiler libraries, incremental data and needed binaries. Other Optimization query
+families and Media's separate usage ledger remain work; installed qualification is pending.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -464,7 +479,7 @@ selectors, and finalizers already use `veoveo.ai/`.
 | Group | Count | Examples and defining locations |
 |---|---|---|
 | MCP `_meta` keys | 5 | `io.veoveo/agent-message-targets` (`mcp/apps-extension/src/models.rs:14`); `io.veoveo/app-resource-dependencies` and `io.veoveo/app-tool-dependencies` (`mcp/contract/src/gateway/server_config.rs:45-46`); `veoveo.io/gateway-discovery-degradation` (`mcp/contract/src/catalog.rs:7`) becomes `ai.veoveo/gateway-discovery-degradation`; `ai.bioma.veoveo/taskRetentionPin` (`platform/task-runtime/src/service.rs:19`, `servers/timeseries-mcp/src/bin/server.rs:95`, `sdk/python/src/veoveo_mcp/task_extension/models.py:23`) becomes `ai.veoveo/task-retention-pin` |
-| Public payload schemas | about 12 | `live-view/v4` (`mcp/contract/src/live_view.rs:12`), `hosted-mcp/v3` (`mcp/contract/src/lib.rs:9`), conformance profile and report (`mcp/conformance/src/profile.rs:10`, `report.rs:7`), recording catalog, projection, and playback tags, `map-route-handoff/v1` (map and `servers/uav-sim-mcp/src/contract.rs:388`), and the optimization problem tags (`servers/optimization-mcp/src/domain/mod.rs:18-21`) |
+| Public payload schemas | about 12 | `live-view/v4` (`mcp/contract/src/live_view.rs:12`), `hosted-mcp/v3` (`mcp/contract/src/lib.rs:9`), conformance profile and report (`mcp/conformance/src/profile.rs:10`, `report.rs:7`), recording catalog, projection, and playback tags, `map-route-handoff/v1` (map and `servers/uav-sim-mcp/src/contract.rs:388`), and the optimization problem tags (`servers/optimization-mcp/src/contract/mod.rs`) |
 | Internal protocols | 4 | `cuopt-executor/v1` (Rust and Python), `uav-runtime-event/v2` (Rust and Python), `computer-storage/v1` with its `$id` (`platform/runtimes/computers/protocol/storage.json:3`), `computer-host/v1` |
 | Persisted formats | about 9 | `travel-model-artifact/v1`, `recording-manifest/v9`, `retained-storage-host/v1`, `retained-home/v1`, `recording-journal-quarantine/v1`, `replacement-policy`, `computer-persistent-home/v1`, `computers-unconfigured/v1`, and the `simulation-view-desired-digest` values in migrations `0031` and `0032` |
 | Deployment and installation formats | about 14 | `deployment/v8`, `deployment-lock/v8`, `local-registry/v1`, `image-release-evidence/v3`, `component-*`, `installed-deployment-unit/v1`, `computers-service/v3`, `computer-host/v1` config, and simulation lock and evidence tags |
@@ -729,10 +744,10 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 
 #### Migration Inventory And Status
 
-All 15 Rust MCP server packages under `servers/` have library targets. Time, Map, and
-Frames define the required `contract` feature and pass independently resolved consumer
-checks. The other 12 packages still need feature isolation. Existing libraries remain the
-default owner; the inventory must not become a central domain-type registry.
+All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
+Frames, Timeseries, DuckDB and Optimization define the `contract` feature. Independent
+consumer qualification is recorded in each owning row. The other nine packages still
+need feature isolation. Existing libraries remain the default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
@@ -761,7 +776,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Contract, HTTP, native Store, independent-consumer, and strict workspace Clippy checks pass; qualify installed consumption; retain the documented preflight and recovery requirements for existing data |
 | Remaining Artifact references | Download URLs, Reason grounding references, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
-| Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
+| Artifact MCP and Media | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
 | Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static; private driver records and mutations also belong to Frames | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
 | Frames mutation inputs | Frames owns typed mutations, private driver records and world-event vocabulary. World publication checks owner, current labels and head agreement in the transaction; repeated writes settle from authorized matching state. Store has no world draft API | Qualify installed publication, concurrent replay and the coordinated writer upgrade |
 | Frames world metadata construction | Checked summaries, immutable revisions, and source references derive their repeated identities from typed URIs. The contract owns complete-tree validation and hashing; Store reads and UAV use it. Native corruption/visibility and independent schema/consumer checks pass | Qualify installed consumers and the stricter retained-metadata preflight |
@@ -771,7 +786,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Frames operation visibility | Frames owns SQL-scoped operation reads and transactional authority/immutable replay checks; native caller, parent, migration and event-rollback cases pass. Version 1 stores profile authority; historical version 0 records are preserved without public access | Qualify installed direct/Task operation reads and execute the documented coordinated upgrade |
 | Timeseries usage | The library delegates pages and exact reads to TaskRuntime's SQL owner policy; typed usage URIs, cursors and checked pages belong to its isolated contract feature. Valid version 1 cursor bytes and response fields are preserved. Native denied-row, continuation, label-change and parent-metadata cases pass; the independent 75-package consumer and strict runtime/workspace Clippy pass | Complete other resource builders and checked MCP setup; qualify the coordinated replica replacement and installed reads |
 | DuckDB usage and discovery | The library uses TaskRuntime SQL visibility for 100-entry usage pages and exact reads. Its isolated contract owns usage addresses, collection-bound cursors and checked pages; discovery declares roots/templates without scanning records. The unused unbounded Store usage catalog API is removed. Native reads and Spatial, the independent 74-package contract consumer, and strict runtime/workspace Clippy pass. Workbench cursor construction uses the browser URL API; headless navigation and reserved-character cases pass | Qualify the coordinated array-to-page transition, installed reads and headed hardware Workbench acceptance |
-| Other usage query owners | Optimization retains a separate usage selection path whose policy additionally compares Work Context identity | Apply its full policy in SQL before limits and qualify context-aware selection |
+| Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields; Map consumes the contract feature. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent 90-package consumer preserves eleven solver schemas and excludes service dependencies; Map consumption and strict runtime/workspace Clippy pass | Qualify the coordinated control/executor replacement and installed reads |
+| Other Optimization contracts | Problem/run/solution queries filter indexed owner, profile, tenant, context and labels; envelope agreement and optional-tenant distinctions need qualification. Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and query admission through the domain library; qualify retained rows, collection reads, completion and installed acceptance |
 | Media usage and prediction reads | Media uses its own ledger; usage catalogs and prediction discovery enumerate rows before checking Task owners, and exact reads check ownership separately from selection | Move current owner and linked-record checks into Media's SQL, expose typed bounded catalogs, replace dynamic discovery with roots/templates, and qualify subscriptions under the same policy |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |

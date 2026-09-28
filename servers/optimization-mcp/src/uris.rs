@@ -1,7 +1,7 @@
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
 
-use crate::domain::{ProblemId, RunId, SolutionId, SolverProfileId};
+use crate::contract::{ProblemId, RunId, SolutionId, SolverProfileId};
 
 pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
     std::sync::LazyLock::new(|| {
@@ -28,9 +28,6 @@ pub const SOLUTION_VARIABLES_TEMPLATE: &str = "optimization://solution/{solution
 pub const SOLUTION_VERIFICATION_TEMPLATE: &str =
     "optimization://solution/{solution_id}/verification";
 pub const ARTIFACT_TEMPLATE: &str = "optimization://artifact/{artifact_id}";
-pub const USAGE_URI: &str = "optimization://usage";
-pub const USAGE_PAGE_TEMPLATE: &str = "optimization://usage{?cursor}";
-pub const USAGE_TASK_TEMPLATE: &str = "optimization://usage/task/{task_id}";
 pub const DOCS_URI: &str = "optimization://docs";
 pub const DOC_TEMPLATE: &str = "optimization://docs/{doc_id}";
 pub const CONTRACT_URI: &str = "optimization://contract";
@@ -75,10 +72,6 @@ pub fn solution_verification_uri(solution_id: &SolutionId) -> String {
     format!("{}/verification", solution_uri(solution_id))
 }
 
-pub fn usage_task_uri(task_id: &str) -> String {
-    optimization_uris().usage_task_uri(task_id)
-}
-
 pub fn parse_profile_uri(uri: &str) -> Option<SolverProfileId> {
     parse_id(uri, "optimization://profile/", SolverProfileId::new)
 }
@@ -118,10 +111,6 @@ pub fn parse_solution_verification_uri(uri: &str) -> Option<SolutionId> {
 
 pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     optimization_uris().parse_artifact_uri(uri)
-}
-
-pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
-    optimization_uris().parse_usage_task_uri(uri)
 }
 
 pub fn parse_doc_uri(uri: &str) -> Option<&str> {
@@ -183,11 +172,9 @@ mod tests {
     }
 
     #[test]
-    fn artifact_and_usage_uris_round_trip() {
+    fn artifact_uris_round_trip() {
         let artifact_id = ArtifactId::new();
         let artifact = artifact_uri(artifact_id);
         assert_eq!(parse_artifact_uri(artifact.as_str()), Some(artifact_id));
-        let usage = usage_task_uri("task-1");
-        assert_eq!(parse_usage_task_uri(&usage), Some("task-1"));
     }
 }
