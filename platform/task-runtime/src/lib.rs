@@ -22,7 +22,8 @@ pub use resource_subscriptions::{
     TaskResourceSubscriptions, TaskResourceUpdate, TaskResourceUpdateStream,
 };
 pub use runtime::{
-    OwnerTaskSubscription, TaskRuntime, TaskUpdateStream, TaskUsageAccess, TaskUsagePage,
+    OwnerTaskQuery, OwnerTaskSubscription, TaskRuntime, TaskUpdateStream, TaskUsageAccess,
+    TaskUsagePage,
 };
 pub use service::{
     DurableTaskService, DurableTaskSubscription, DurableTaskUpdateStream,

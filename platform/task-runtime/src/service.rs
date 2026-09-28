@@ -157,14 +157,13 @@ pub fn durable_input_responses(
 
 /// Loads a first-party durable task and enforces its retained owner on every use.
 pub async fn authorized_snapshot(
-    runtime: &TaskRuntime,
-    owner: &TaskOwner,
+    query: &crate::OwnerTaskQuery,
     task_id: &str,
 ) -> Result<TaskSnapshot, McpError> {
     let task_id = crate::types::parse_task_id(task_id)
         .map_err(|_| McpError::invalid_params("unknown task id", None))?;
-    runtime
-        .get_for_owner(owner, task_id)
+    query
+        .get(task_id)
         .await
         .map_err(task_error)?
         .ok_or_else(|| McpError::invalid_params("unknown task id", None))
@@ -175,7 +174,7 @@ pub async fn get_durable_task(
     owner: &TaskOwner,
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
-    let snapshot = authorized_snapshot(runtime, owner, &request.task_id).await?;
+    let snapshot = authorized_snapshot(&runtime.for_owner(owner), &request.task_id).await?;
     project_snapshot(runtime, snapshot)
         .await
         .map(GetTaskResult::new)
@@ -187,7 +186,7 @@ pub async fn update_durable_task(
     owner: &TaskOwner,
     request: UpdateTaskParams,
 ) -> Result<(), McpError> {
-    authorized_snapshot(runtime, owner, &request.task_id).await?;
+    authorized_snapshot(&runtime.for_owner(owner), &request.task_id).await?;
     let task_id = request.task_id.clone();
     let responses = durable_input_responses(request)?;
     runtime
@@ -202,14 +201,13 @@ pub async fn cancel_durable_task(
     owner: &TaskOwner,
     task_id: String,
 ) -> Result<(), McpError> {
-    authorized_snapshot(runtime, owner, &task_id).await?;
+    authorized_snapshot(&runtime.for_owner(owner), &task_id).await?;
     runtime.cancel(&task_id).await.map_err(task_error)?;
     Ok(())
 }
 
 pub async fn subscribe_durable_tasks(
-    runtime: &TaskRuntime,
-    owner: TaskOwner,
+    query: &crate::OwnerTaskQuery,
     task_ids: Vec<String>,
 ) -> Result<DurableTaskSubscription, McpError> {
     if task_ids.len() > 256 {
@@ -222,11 +220,8 @@ pub async fn subscribe_durable_tasks(
         .iter()
         .filter_map(|id| crate::types::parse_task_id(id).ok())
         .collect::<Vec<_>>();
-    let subscription = runtime
-        .subscribe_for_owner(owner, &ids)
-        .await
-        .map_err(task_error)?;
-    let runtime = runtime.clone();
+    let subscription = query.subscribe(&ids).await.map_err(task_error)?;
+    let runtime = query.runtime.clone();
     let stream = subscription.updates.then(move |update| {
         let runtime = runtime.clone();
         async move {

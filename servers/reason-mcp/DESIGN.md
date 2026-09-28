@@ -272,7 +272,10 @@ snapshot: retention can remove Tasks and subsequent Tasks can appear on later pa
 The cursor version and collection identity are validated before use.
 
 Direct analysis and result reads and subscription admission use the Task runtime's
-SQL owner read. Tenant, principal, profile and data-label predicates exclude denied
+SQL owner read. `ReasonTaskKind` declares operations in the contract-only library
+through `TaskTypeDefinition`. Reads, pages and Task result subscriptions select those
+names with `OwnerTaskQuery`, including updates and Store reconnect baselines.
+Tenant, principal, profile, operation and data-label predicates exclude denied
 rows before request or result decoding. Only analysis and result addresses admit
 resource subscriptions. `AnalysisResource` implements `TaskResourceAddress` in the
 isolated contract and derives the backing native Task from its typed analysis ID.

@@ -1,3 +1,5 @@
+mod task_kind;
+pub use task_kind::ReasonTaskKind;
 mod analysis_view;
 mod catalog_views;
 mod output;

@@ -220,7 +220,11 @@ impl DurableTaskService for TimeseriesTaskService {
         caller: &Self::Caller,
         task_ids: Vec<String>,
     ) -> Result<DurableTaskSubscription, McpError> {
-        subscribe_durable_tasks(&self.state.tasks, runtime_owner(&caller.identity), task_ids).await
+        subscribe_durable_tasks(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            task_ids,
+        )
+        .await
     }
 }
 

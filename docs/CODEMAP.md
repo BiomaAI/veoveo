@@ -366,6 +366,8 @@ and server library features.
 prefixed SHA-256 representation shared by provenance contracts.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
+`src/task_type.rs` owns validated operation names and the open `TaskTypeDefinition` trait;
+server contract libraries own its enum implementations.
 `src/task.rs` owns native Task UUID identity; `platform/store/src/task_ids.rs` binds it
 to database record keys. TaskRuntime owns lifecycle and its external v7 admission profile.
 `src/identifier_syntax.rs` shares lexical validation with other owners' newtypes.
@@ -545,7 +547,7 @@ observation lease and cancellation epoch in one transaction.
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
-| `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | shared SQL owner selection for exact reads, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
+| `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/operation query builder and shared SQL selection for exact reads, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |

@@ -1,6 +1,8 @@
 //! Disposable real-store acceptance, never environment-gated.
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "support/owner_query_cases.rs"]
+mod owner_query_cases;
 use futures::StreamExt;
 use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
@@ -88,14 +90,15 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
             .unwrap()
             .snapshot;
         let id = target.task_id.to_string();
-        let mut first = subscribe_durable_tasks(&reader, owner(), vec![id.clone()])
+        let mut first = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.clone()])
             .await
             .unwrap()
             .updates;
-        let mut second = subscribe_durable_tasks(&reader.clone(), owner(), vec![id.clone()])
-            .await
-            .unwrap()
-            .updates;
+        let mut second =
+            subscribe_durable_tasks(&reader.clone().for_owner(&owner()), vec![id.clone()])
+                .await
+                .unwrap()
+                .updates;
         for stream in [&mut first, &mut second] {
             assert_eq!(stream.next().await.unwrap().unwrap().task.task_id, id);
         }
@@ -121,7 +124,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         }
         drop(first);
         drop(second);
-        let mut resumed = subscribe_durable_tasks(&reader, owner(), vec![id.clone()])
+        let mut resumed = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![id.clone()])
             .await
             .unwrap()
             .updates;
@@ -131,7 +134,7 @@ async fn exact_subscriptions_share_wakes_and_observe_other_replicas_without_unre
         );
         let mut stranger = owner();
         stranger.principal_key = "stranger".into();
-        let denied = subscribe_durable_tasks(&reader, stranger, vec![id])
+        let denied = subscribe_durable_tasks(&reader.for_owner(&stranger), vec![id])
             .await
             .unwrap();
         assert!(denied.accepted_task_ids.is_empty());
@@ -238,7 +241,9 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
         let mut actual = Vec::new();
         for length in [2, 2, 1] {
             let page = runtime
-                .list_page_for_owner(&owner(), &["analysis"], after.as_ref(), 2)
+                .for_owner(&owner())
+                .of_type(veoveo_types::TaskTypeName::from_static("analysis"))
+                .page(after.as_ref(), 2)
                 .await
                 .unwrap();
             assert_eq!(page.items.len(), length);
@@ -248,28 +253,29 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
         assert_eq!(actual, expected);
         assert!(after.is_none());
         let first = runtime
-            .list_page_for_owner(&owner(), &["analysis"], None, 2)
+            .for_owner(&owner())
+            .of_type(veoveo_types::TaskTypeName::from_static("analysis"))
+            .page(None, 2)
             .await
             .unwrap();
         let mut stranger = owner();
         stranger.principal_key = "no-records".into();
         assert!(
             runtime
-                .list_page_for_owner(&stranger, &["analysis"], first.next_cursor.as_ref(), 2)
+                .for_owner(&stranger)
+                .of_type(veoveo_types::TaskTypeName::from_static("analysis"))
+                .page(first.next_cursor.as_ref(), 2)
                 .await
                 .unwrap()
                 .items
                 .is_empty()
         );
+        assert!(runtime.for_owner(&owner()).of_types([]).is_err());
         assert!(
             runtime
-                .list_page_for_owner(&owner(), &[], None, 2)
-                .await
-                .is_err()
-        );
-        assert!(
-            runtime
-                .list_page_for_owner(&owner(), &["analysis"], None, 1001)
+                .for_owner(&owner())
+                .of_type(veoveo_types::TaskTypeName::from_static("analysis"))
+                .page(None, 1001)
                 .await
                 .is_err()
         );
@@ -287,7 +293,9 @@ async fn task_pages_filter_before_limit_and_resume_creation_time_ties() {
         let explicit = writer.create(input).await.unwrap().snapshot.task_id;
         for (caller, expected) in [(installation_owner, absent), (explicit_owner, explicit)] {
             let page = runtime
-                .list_page_for_owner(&caller, &["analysis"], None, 2)
+                .for_owner(&caller)
+                .of_type(veoveo_types::TaskTypeName::from_static("analysis"))
+                .page(None, 2)
                 .await
                 .unwrap();
             assert_eq!(page.items.len(), 1);
@@ -331,12 +339,13 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
                 .unwrap();
             assert!(
                 reader
-                    .get_for_owner(&owner(), task.task_id)
+                    .for_owner(&owner())
+                    .get(task.task_id)
                     .await
                     .unwrap()
                     .is_none()
             );
-            let error = authorized_snapshot(&reader, &owner(), &task.task_id.to_string())
+            let error = authorized_snapshot(&reader.for_owner(&owner()), &task.task_id.to_string())
                 .await
                 .unwrap_err();
             assert_eq!(error.message.as_ref(), "unknown task id");
@@ -358,7 +367,8 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
             .snapshot;
         assert_eq!(
             reader
-                .get_for_owner(&owner(), task.task_id)
+                .for_owner(&owner())
+                .get(task.task_id)
                 .await
                 .unwrap()
                 .unwrap()
@@ -372,13 +382,15 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
             TaskId::new().to_string(),
         ]);
         let page = reader
-            .list_page_for_owner(&owner(), &["selected"], None, 1)
+            .for_owner(&owner())
+            .of_type(veoveo_types::TaskTypeName::from_static("selected"))
+            .page(None, 1)
             .await
             .unwrap();
         assert_eq!(page.items.len(), 1);
         assert_eq!(page.items[0].task_id, task.task_id);
         assert!(page.next_cursor.is_none());
-        let mut subscription = subscribe_durable_tasks(&reader, owner(), ids)
+        let mut subscription = subscribe_durable_tasks(&reader.for_owner(&owner()), ids)
             .await
             .unwrap();
         assert_eq!(subscription.accepted_task_ids, [task.task_id.to_string()]);
@@ -395,22 +407,25 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
         );
         assert!(
             reader
-                .get_for_owner(&owner(), TaskId::new())
+                .for_owner(&owner())
+                .get(TaskId::new())
                 .await
                 .unwrap()
                 .is_none()
         );
         assert!(
             reader
-                .subscribe_for_owner(owner(), &vec![task.task_id; 257])
+                .for_owner(&owner())
+                .subscribe(&vec![task.task_id; 257])
                 .await
                 .is_err()
         );
         let invalid: TaskId = "0195dabe-7777-4abc-8def-000000000001".parse().unwrap();
-        assert!(reader.get_for_owner(&owner(), invalid).await.is_err());
+        assert!(reader.for_owner(&owner()).get(invalid).await.is_err());
         assert!(
             reader
-                .subscribe_for_owner(owner(), &[invalid])
+                .for_owner(&owner())
+                .subscribe(&[invalid])
                 .await
                 .is_err()
         );
@@ -425,21 +440,24 @@ async fn owner_reads_and_subscription_baselines_filter_before_decoding() {
             let task = writer.create(input).await.unwrap().snapshot;
             assert!(
                 reader
-                    .get_for_owner(denied, task.task_id)
+                    .for_owner(denied)
+                    .get(task.task_id)
                     .await
                     .unwrap()
                     .is_none()
             );
             assert!(
                 reader
-                    .get_for_owner(allowed, task.task_id)
+                    .for_owner(allowed)
+                    .get(task.task_id)
                     .await
                     .unwrap()
                     .is_some()
             );
             assert!(
                 reader
-                    .subscribe_for_owner(denied.clone(), &[task.task_id])
+                    .for_owner(&denied.clone())
+                    .subscribe(&[task.task_id])
                     .await
                     .unwrap()
                     .accepted_task_ids
@@ -459,7 +477,7 @@ async fn owner_updates_recheck_authority_and_advance_past_denied_event_pages() {
         let writer = TaskRuntime::new(db.b.clone(), "integration-server", "writer");
         let revoked = writer.create(draft("revoked", RecoveryClass::Resume)).await.unwrap().snapshot;
         let target = writer.create(draft("target", RecoveryClass::Resume)).await.unwrap().snapshot;
-        let mut stream = subscribe_durable_tasks(&reader, owner(), vec![revoked.task_id.to_string(), target.task_id.to_string()]).await.unwrap().updates;
+        let mut stream = subscribe_durable_tasks(&reader.for_owner(&owner()), vec![revoked.task_id.to_string(), target.task_id.to_string()]).await.unwrap().updates;
         for _ in 0..2 { stream.next().await.unwrap().unwrap(); }
         db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;")
             .bind(("task", task_record_id(revoked.task_id))).await.unwrap().check().unwrap();

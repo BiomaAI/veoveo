@@ -168,7 +168,8 @@ impl ComputersMcp {
                 .map_err(|_| auth::unavailable())?;
             for (id, owner) in &authority.tasks {
                 let snapshot =
-                    veoveo_task_runtime::authorized_snapshot(&self.app.tasks, owner, id).await?;
+                    veoveo_task_runtime::authorized_snapshot(&self.app.tasks.for_owner(owner), id)
+                        .await?;
                 let task = veoveo_task_runtime::project_snapshot(&self.app.tasks, snapshot)
                     .await
                     .map_err(|_| auth::unavailable())?;

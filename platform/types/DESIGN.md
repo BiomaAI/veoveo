@@ -11,7 +11,8 @@
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
-| Rust extension interfaces | Public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
+| Rust extension interfaces | Public `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
+| Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
 | SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
 
@@ -111,6 +112,15 @@ This additional validation does not narrow historical wire decoding. The require
 separation of concrete addresses and templates at gateway policy and audit boundaries,
 builder adoption, and server contract features are tracked in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
+## Task Operation Names
+
+`TaskTypeName` applies the operation-name grammar to dynamic input and Serde decoding.
+Code-owned declarations use a constant constructor that rejects invalid literals at
+compile time. `TaskTypeDefinition` lets a server-owned enum supply its operation names.
+Stream and Reason expose these enums through their contract-only libraries. The shared
+runtime accepts their names in `OwnerTaskQuery`; it contains no domain variants.
+Selected names convert to text when binding to the database driver.
 
 ## Concrete Resource Components
 

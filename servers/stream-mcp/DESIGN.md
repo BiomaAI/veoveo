@@ -64,6 +64,11 @@ and validation behavior. GPU and installed acceptance use the owning workload ch
 
 ## MCP Setup And Compliance
 
+`StreamTaskKind` declares durable operation names in the contract-only library through
+`TaskTypeDefinition`. Resource reads, collection pages and Task result subscriptions
+select those names with `OwnerTaskQuery`. SQL excludes other operation types before
+request or result decoding, including updates and Store reconnect baselines.
+
 The MCP feature implements `McpServerContract` with Stream-owned resource types and
 an empty `StreamScope` vocabulary. Gateway operation policy and current owner, context
 and label checks authorize access. Startup builds `McpServerSetup` before Store access

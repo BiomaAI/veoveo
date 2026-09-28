@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_reason_mcp::contract::ReasonTaskKind;
+use veoveo_types::TaskTypeDefinition;
 
 use anyhow::{Result, ensure};
 use chrono::{TimeDelta, Utc};
@@ -55,9 +57,9 @@ impl ReasonTaskInput {
         }
     }
 
-    fn task_type(&self) -> &'static str {
+    fn task_type(&self) -> veoveo_types::TaskTypeName {
         match self {
-            Self::Analyze(_) => "analyze_recording",
+            Self::Analyze(_) => ReasonTaskKind::AnalyzeRecording.name(),
         }
     }
 
@@ -139,7 +141,7 @@ pub(super) async fn start_reason_task(
         .await
         .map_err(|error| error.to_string())?;
     let recovery_class = input.recovery_class();
-    let task_type = input.task_type().to_owned();
+    let task_type = input.task_type().to_string();
     let request = DurableReasonRequest {
         input,
         grounding: grounding.map(grounding_input::GroundingInput::into_detections),

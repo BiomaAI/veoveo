@@ -7,6 +7,7 @@ use rmcp::{
 };
 use serde::Serialize;
 use veoveo_platform_store::TaskStatus;
+use veoveo_reason_mcp::contract::ReasonTaskKind;
 use veoveo_reason_mcp::{
     catalog::{model_view, pipeline_view},
     contract::{
@@ -16,6 +17,7 @@ use veoveo_reason_mcp::{
     uris,
 };
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_types::TaskTypeDefinition;
 
 use super::{
     SERVER_DOCS,
@@ -137,13 +139,12 @@ pub(super) async fn analysis_snapshot(
     analysis_id: AnalysisId,
 ) -> Result<TaskSnapshot, McpError> {
     let snapshot = tasks
-        .get_for_owner(owner, analysis_id.task_id())
+        .for_owner(owner)
+        .of_type(ReasonTaskKind::AnalyzeRecording.name())
+        .get(analysis_id.task_id())
         .await
         .map_err(internal)?
         .ok_or_else(|| McpError::resource_not_found("analysis not found", None))?;
-    if snapshot.task_type != "analyze_recording" {
-        return Err(McpError::resource_not_found("analysis not found", None));
-    }
     Ok(snapshot)
 }
 

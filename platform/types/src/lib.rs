@@ -31,6 +31,7 @@ mod resource_components;
 mod resource_template;
 mod scopes;
 mod task;
+mod task_type;
 
 pub use digest::{Sha256Digest, Sha256DigestError};
 pub use error::IdentifierError;
@@ -47,3 +48,4 @@ pub use identity::{
 };
 pub use provenance::{InvocationMode, InvocationProvenance};
 pub use task::TaskId;
+pub use task_type::{TaskTypeDefinition, TaskTypeName};

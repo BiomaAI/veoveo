@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
+use veoveo_stream_mcp::contract::StreamTaskKind;
+use veoveo_types::TaskTypeDefinition;
 
 use anyhow::{Result, ensure};
 use chrono::{TimeDelta, Utc};
@@ -51,8 +53,10 @@ impl StreamTaskInput {
         }
     }
 
-    fn task_type(&self) -> &'static str {
-        "run_recording"
+    fn task_type(&self) -> veoveo_types::TaskTypeName {
+        match self {
+            Self::RunRecording(_) => StreamTaskKind::RunRecording.name(),
+        }
     }
 
     fn artifact_count(&self) -> NonZeroU32 {
@@ -122,7 +126,7 @@ pub(super) async fn start_stream_task(
         .await
         .map_err(|error| error.to_string())?;
     let recovery_class = input.recovery_class();
-    let task_type = input.task_type().to_owned();
+    let task_type = input.task_type().to_string();
     let request = DurableStreamRequest {
         input,
         artifact_write_capability: capability,

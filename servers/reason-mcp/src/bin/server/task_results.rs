@@ -8,10 +8,12 @@ use rmcp::{
 };
 use veoveo_mcp_contract::set_related_task_meta;
 use veoveo_reason_mcp::contract::AnalyzeRecordingOutput;
+use veoveo_reason_mcp::contract::ReasonTaskKind;
 use veoveo_task_runtime::{
     DurableTaskSubscription, TaskOwner, TaskRuntime, TaskSnapshot, TaskStatus, authorized_snapshot,
     project_snapshot, subscribe_durable_tasks,
 };
+use veoveo_types::TaskTypeDefinition;
 
 use super::{internal, resources::analysis_view};
 
@@ -38,7 +40,13 @@ pub(super) async fn get_task(
     owner: &TaskOwner,
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
-    let snapshot = authorized_snapshot(runtime, owner, &request.task_id).await?;
+    let snapshot = authorized_snapshot(
+        &runtime
+            .for_owner(owner)
+            .of_type(ReasonTaskKind::AnalyzeRecording.name()),
+        &request.task_id,
+    )
+    .await?;
     validate_snapshot(&snapshot)?;
     project_snapshot(runtime, snapshot)
         .await
@@ -51,7 +59,13 @@ pub(super) async fn subscribe_tasks(
     owner: TaskOwner,
     task_ids: Vec<String>,
 ) -> Result<DurableTaskSubscription, McpError> {
-    let subscription = subscribe_durable_tasks(runtime, owner.clone(), task_ids).await?;
+    let subscription = subscribe_durable_tasks(
+        &runtime
+            .for_owner(&owner)
+            .of_type(ReasonTaskKind::AnalyzeRecording.name()),
+        task_ids,
+    )
+    .await?;
     let runtime = runtime.clone();
     let updates = subscription.updates.then(move |task| {
         let runtime = runtime.clone();
@@ -63,7 +77,13 @@ pub(super) async fn subscribe_tasks(
             }
             // Recheck current authorization before decoding the retained domain
             // envelope; the watch's older observation conveys no new authority.
-            let snapshot = authorized_snapshot(&runtime, &owner, &task.task.task_id).await?;
+            let snapshot = authorized_snapshot(
+                &runtime
+                    .for_owner(&owner)
+                    .of_type(ReasonTaskKind::AnalyzeRecording.name()),
+                &task.task.task_id,
+            )
+            .await?;
             validate_snapshot(&snapshot)?;
             project_snapshot(&runtime, snapshot).await.map_err(internal)
         }
@@ -75,9 +95,6 @@ pub(super) async fn subscribe_tasks(
 }
 
 fn validate_snapshot(snapshot: &TaskSnapshot) -> Result<(), McpError> {
-    if snapshot.task_type != "analyze_recording" {
-        return Err(McpError::invalid_params("unknown Reason Task", None));
-    }
     if snapshot.status == TaskStatus::Succeeded {
         analysis_view(snapshot)?;
     }

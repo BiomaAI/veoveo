@@ -1,5 +1,5 @@
 //! Current Task owner policy, applied before records cross the database boundary.
-use super::{TaskRuntime, owner_record, tenant_record};
+use super::{OwnerTaskQuery, TaskRuntime, owner_record, tenant_record};
 use crate::types::{TaskError, TaskOwner, TaskSnapshot, record_to_snapshot, validate_task_id};
 use std::collections::BTreeSet;
 use surrealdb::{Connection, method::Query};
@@ -51,25 +51,22 @@ impl OwnerScope {
     }
 }
 
-impl TaskRuntime {
+impl OwnerTaskQuery {
     /// Select a current caller-owned Task before decoding its request or result.
     /// Missing and denied Tasks both return `None`.
     /// ```compile_fail
     /// use veoveo_task_runtime::{TaskOwner, TaskRuntime};
     /// async fn wrong(runtime: &TaskRuntime, owner: &TaskOwner) {
-    ///     runtime.get_for_owner(owner, "raw-task-id").await;
+    ///     runtime.for_owner(owner).get("raw-task-id").await;
     /// }
     /// ```
-    pub async fn get_for_owner(
-        &self,
-        owner: &TaskOwner,
-        task: TaskId,
-    ) -> Result<Option<TaskSnapshot>, TaskError> {
+    pub async fn get(&self, task: TaskId) -> Result<Option<TaskSnapshot>, TaskError> {
         let task = validate_task_id(task)?;
-        let mut response = OwnerScope::new(self, owner)?
-            .bind(self.store.client().query(format!(
-                "SELECT * FROM task WHERE id = $task AND {VISIBLE_TASK} LIMIT 1;"
-            )))
+        let mut response = self
+            .bind(self.runtime.store.client().query(format!(
+                "SELECT * FROM task WHERE id = $task AND {VISIBLE_TASK} {} LIMIT 1;",
+                self.type_predicate()
+            )))?
             .bind(("task", task_record_id(task)))
             .await?
             .check()?;

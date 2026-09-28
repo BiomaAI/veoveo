@@ -392,8 +392,7 @@ impl veoveo_task_runtime::DurableTaskService for MapTaskExtension {
         task_ids: Vec<String>,
     ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
         veoveo_task_runtime::subscribe_durable_tasks(
-            &self.state.tasks,
-            runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             task_ids,
         )
         .await

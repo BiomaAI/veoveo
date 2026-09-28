@@ -455,6 +455,8 @@ pub(crate) fn value_to_open_object(value: Value) -> OpenObject {
 }
 
 pub(crate) fn open_object_to_value(value: OpenObject) -> Value {
+    // TODO(foundations): Replace this ambiguous result representation by hard cut.
+    // A one-field object {"value": 42} must not become the scalar 42 on readback.
     let mut values: serde_json::Map<String, Value> = value.into_map().into_iter().collect();
     if values.len() == 1 && values.contains_key("value") {
         values.remove("value").unwrap_or(Value::Null)

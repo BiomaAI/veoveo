@@ -170,7 +170,7 @@ impl DurableTaskService for Service {
         ids: Vec<String>,
     ) -> Result<DurableTaskSubscription, McpError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
-        subscribe_durable_tasks(&self.runtime, caller.clone(), ids).await
+        subscribe_durable_tasks(&self.runtime.for_owner(&caller.clone()), ids).await
     }
 }
 impl ServerHandler for Service {

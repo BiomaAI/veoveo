@@ -11,7 +11,8 @@ impl SpeechService {
         task: &str,
         read_source: bool,
     ) -> Result<TaskSnapshot, McpError> {
-        let snapshot = authorized_snapshot(&self.tasks, &owner(&caller.identity), task).await?;
+        let snapshot =
+            authorized_snapshot(&self.tasks.for_owner(&owner(&caller.identity)), task).await?;
         if snapshot.owner.authority.work_context != caller.identity.authority.work_context
             || snapshot.owner.authority.tenant != caller.identity.authority.tenant
         {

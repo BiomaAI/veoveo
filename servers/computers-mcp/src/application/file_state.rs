@@ -96,8 +96,7 @@ impl Application {
         let task = tokio::time::timeout_at(
             tokio::time::Instant::from_std(access.valid_until()),
             veoveo_task_runtime::authorized_snapshot(
-                &self.tasks,
-                access.owner()?,
+                &self.tasks.for_owner(access.owner()?),
                 &access.transfer_id().to_string(),
             ),
         )

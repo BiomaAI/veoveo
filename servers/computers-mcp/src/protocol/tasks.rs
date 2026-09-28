@@ -235,8 +235,7 @@ impl ComputersMcp {
         }
         let task = access
             .run(veoveo_task_runtime::authorized_snapshot(
-                &self.app.tasks,
-                &access.owner,
+                &self.app.tasks.for_owner(&access.owner),
                 &task_id,
             ))
             .await?;

@@ -1,5 +1,7 @@
+mod task_kind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+pub use task_kind::StreamTaskKind;
 
 mod cursor;
 mod ids;

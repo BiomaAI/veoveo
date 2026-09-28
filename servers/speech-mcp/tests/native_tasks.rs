@@ -162,7 +162,7 @@ async fn exercise() -> Result<()> {
         "Task crossed Work Context"
     );
     let mut subscription =
-        subscribe_durable_tasks(&reader, owner(&alice.identity), vec![id.clone()])
+        subscribe_durable_tasks(&reader.for_owner(&owner(&alice.identity)), vec![id.clone()])
             .await?
             .updates;
     loop {

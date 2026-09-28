@@ -1,9 +1,11 @@
+mod owner_query;
 mod owner_reads;
 mod owner_subscriptions;
 mod subscriptions;
 mod task_pages;
 mod usage;
 
+pub use owner_query::OwnerTaskQuery;
 pub use owner_subscriptions::OwnerTaskSubscription;
 pub use usage::{TaskUsageAccess, TaskUsagePage};
 

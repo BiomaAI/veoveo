@@ -25,6 +25,12 @@ the owning domain.
 observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
 `admission` composes a domain admission with the exact queued, unclaimed Task.
+`runtime/owner_query` owns `OwnerTaskQuery`, built by `TaskRuntime::for_owner`.
+The builder holds the current owner and an optional selection of 1–32 validated
+`TaskTypeName` values. Omitting that selection admits every operation hosted by the
+runtime server; an empty explicit selection is an error. `get`, `page` and `subscribe`
+apply the same selection in SQL before decoding. Subscription updates and Store
+reconnect baselines preserve it. Shared code contains no server operation variants.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
 `runtime/owner_subscriptions` delivers the selected current state to public listeners.
 `resource_subscriptions` maps that authorized Task stream to requested Task status
@@ -153,15 +159,15 @@ between bounded observations handled by different replicas.
 
 ## Filtered Task Observation
 
-`get_for_owner` takes a native `TaskId` and applies tenant, server, principal,
-profile, optional-tenant spelling and label clearance in SQL. Indexed owner and
+`OwnerTaskQuery::get` takes a native `TaskId` and applies tenant, server, principal,
+profile, optional-tenant spelling, selected operation names and label clearance in SQL. Indexed owner and
 profile fields must agree with the stored owner envelope. Only a selected record
 is decoded. Missing and denied Tasks have the same public response. The shared hosted
 helpers use this query for Task get, update and cancellation admission. Trusted internal `get`
 also applies its server predicate in SQL, without adding caller authorization.
 
-`subscribe_for_owner` admits up to 256 typed Task IDs in one SQL baseline and
-reapplies the same current-owner predicates during delivery. The shared hosted
+`OwnerTaskQuery::subscribe` admits up to 256 typed Task IDs in one SQL baseline and
+reapplies the same current-owner and operation predicates during delivery. The shared hosted
 helper uses this stream. Outbox pages select only event sequence and Task identity;
 the database then selects current visible Tasks. Historical event payloads never
 supply public results or authorization. Pages advance past denied events without
@@ -265,3 +271,6 @@ qualifies concurrent listeners, cross-replica completion, reconnection, excluded
 unauthorized IDs and an unrelated malformed envelope that must not be decoded.
 It also qualifies exact owner reads, indexed/envelope disagreement, optional tenants,
 revocation after admission and a full replay page of denied malformed events.
+`tests/support/owner_query_cases.rs` adds owner-visible malformed rows of excluded
+operation types. It checks exact reads, limits, multiple selected types, subscription
+admission, operation changes during delivery and Store reconnect after event removal.

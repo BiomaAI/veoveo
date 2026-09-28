@@ -220,8 +220,10 @@ impl ComputersMcp {
                     .map_err(|error| super::read_error(error.into()))?;
                 let read = async {
                     let task = veoveo_task_runtime::authorized_snapshot(
-                        &self.app.tasks,
-                        access.owner().map_err(|_| auth::forbidden())?,
+                        &self
+                            .app
+                            .tasks
+                            .for_owner(access.owner().map_err(|_| auth::forbidden())?),
                         &id.to_string(),
                     )
                     .await?;

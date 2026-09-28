@@ -127,7 +127,7 @@ async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
             .await
             .unwrap();
         assert_eq!(blocking.structured_content.as_ref(), Some(&expected));
-        let retained = reader.get_for_owner(&owner(), id).await.unwrap().unwrap();
+        let retained = reader.for_owner(&owner()).get(id).await.unwrap().unwrap();
         assert_eq!(retained.result, Some(stored));
         assert_eq!(
             serde_json::to_value(run_view(&retained).unwrap().output().unwrap()).unwrap(),
@@ -238,4 +238,23 @@ async fn explicit_tool_error_keeps_its_no_product_envelope() {
     })
     .await
     .expect("Stream tool error qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn unrelated_malformed_operation_is_excluded_before_task_and_resource_decode() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = fixture::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "stream", "writer");
+        let reader = TaskRuntime::new(db.b.clone(), "stream", "reader");
+        let id = TaskId::new();
+        create(&writer, owner(), id).await;
+        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE;")
+            .bind(("task", veoveo_platform_store::task_record_id(id))).await.unwrap().check().unwrap();
+        assert!(reader.for_owner(&owner()).get(id).await.is_err());
+        let error = get_task(&reader, &owner(), GetTaskParams::new(id.to_string())).await.unwrap_err();
+        assert_eq!(error.message, "unknown task id");
+        assert!(subscribe_tasks(&reader, owner(), vec![id.to_string()]).await.unwrap().accepted_task_ids.is_empty());
+        let error = super::super::resources::run_snapshot(&reader, &owner(), veoveo_stream_mcp::contract::RunId::try_from(id).unwrap()).await.unwrap_err();
+        assert_eq!(error.code, rmcp::model::ErrorCode::RESOURCE_NOT_FOUND);
+    }).await.expect("operation isolation exceeded 60 seconds");
 }

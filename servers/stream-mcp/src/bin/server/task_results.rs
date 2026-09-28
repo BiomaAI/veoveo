@@ -7,6 +7,7 @@ use rmcp::{
     model::{CallToolResult, ContentBlock, GetTaskParams, GetTaskResult, Resource, TaskPayload},
 };
 use veoveo_mcp_contract::set_related_task_meta;
+use veoveo_stream_mcp::contract::StreamTaskKind;
 use veoveo_stream_mcp::{
     annotation::RESULTS_MIME_TYPE,
     contract::{
@@ -19,6 +20,7 @@ use veoveo_task_runtime::{
     authorized_snapshot, project_snapshot, subscribe_durable_tasks,
 };
 use veoveo_types::ResourceUri;
+use veoveo_types::TaskTypeDefinition;
 
 use super::{
     internal,
@@ -86,7 +88,13 @@ pub(super) async fn get_task(
     owner: &TaskOwner,
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
-    let snapshot = authorized_snapshot(runtime, owner, &request.task_id).await?;
+    let snapshot = authorized_snapshot(
+        &runtime
+            .for_owner(owner)
+            .of_type(StreamTaskKind::RunRecording.name()),
+        &request.task_id,
+    )
+    .await?;
     validate_snapshot(&snapshot)?;
     project_snapshot(runtime, snapshot)
         .await
@@ -99,7 +107,13 @@ pub(super) async fn subscribe_tasks(
     owner: TaskOwner,
     task_ids: Vec<String>,
 ) -> Result<DurableTaskSubscription, McpError> {
-    let subscription = subscribe_durable_tasks(runtime, owner.clone(), task_ids).await?;
+    let subscription = subscribe_durable_tasks(
+        &runtime
+            .for_owner(&owner)
+            .of_type(StreamTaskKind::RunRecording.name()),
+        task_ids,
+    )
+    .await?;
     let runtime = runtime.clone();
     let updates = subscription.updates.then(move |task| {
         let runtime = runtime.clone();
@@ -111,7 +125,13 @@ pub(super) async fn subscribe_tasks(
             }
             // Reauthorize through SQL before decoding a retained product. An older
             // watch observation cannot confer current access to that product.
-            let snapshot = authorized_snapshot(&runtime, &owner, &task.task.task_id).await?;
+            let snapshot = authorized_snapshot(
+                &runtime
+                    .for_owner(&owner)
+                    .of_type(StreamTaskKind::RunRecording.name()),
+                &task.task.task_id,
+            )
+            .await?;
             validate_snapshot(&snapshot)?;
             project_snapshot(&runtime, snapshot).await.map_err(internal)
         }
@@ -123,9 +143,6 @@ pub(super) async fn subscribe_tasks(
 }
 
 fn validate_snapshot(snapshot: &TaskSnapshot) -> Result<(), McpError> {
-    if snapshot.task_type != "run_recording" {
-        return Err(McpError::invalid_params("unknown Stream Task", None));
-    }
     if snapshot.status == TaskStatus::Succeeded {
         run_view(snapshot)?;
     }
@@ -211,7 +228,13 @@ pub(super) async fn completed_payload(
     owner: &TaskOwner,
     id: RunId,
 ) -> Result<CallToolResult, McpError> {
-    let snapshot = authorized_snapshot(runtime, owner, &id.to_string()).await?;
+    let snapshot = authorized_snapshot(
+        &runtime
+            .for_owner(owner)
+            .of_type(StreamTaskKind::RunRecording.name()),
+        &id.to_string(),
+    )
+    .await?;
     validate_snapshot(&snapshot)?;
     match runtime
         .await_payload_state(&id.to_string())
@@ -219,7 +242,13 @@ pub(super) async fn completed_payload(
         .map_err(internal)?
     {
         TaskPayloadState::Completed(_) => {
-            let snapshot = authorized_snapshot(runtime, owner, &id.to_string()).await?;
+            let snapshot = authorized_snapshot(
+                &runtime
+                    .for_owner(owner)
+                    .of_type(StreamTaskKind::RunRecording.name()),
+                &id.to_string(),
+            )
+            .await?;
             validate_snapshot(&snapshot)?;
             retained_result(&snapshot)?.ok_or_else(retained_output_error)
         }

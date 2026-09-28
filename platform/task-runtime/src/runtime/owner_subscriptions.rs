@@ -1,12 +1,9 @@
 //! Public Task streams observe current authorized state, never historical payloads.
 use super::{
-    TaskRuntime, TaskUpdateBaseline, TaskUpdateStream,
-    owner_reads::{OwnerScope, VISIBLE_TASK},
+    OwnerTaskQuery, TaskUpdateBaseline, TaskUpdateStream, owner_reads::VISIBLE_TASK,
     subscriptions::AVAILABLE_OUTBOX_TAIL,
 };
-use crate::types::{
-    TaskError, TaskOwner, TaskUpdate, TaskUpdateCursor, record_to_snapshot, validate_task_id,
-};
+use crate::types::{TaskError, TaskUpdate, TaskUpdateCursor, record_to_snapshot, validate_task_id};
 use chrono::Utc;
 use std::{collections::BTreeSet, time::Duration};
 use surrealdb::types::SurrealValue;
@@ -26,14 +23,10 @@ struct UpdatePage {
     tasks: Vec<TaskRecord>,
 }
 
-impl TaskRuntime {
+impl OwnerTaskQuery {
     /// Admit at most 256 native identities and reapply current owner policy on updates.
     /// Notifications can coalesce intermediate states; this is not an event-log API.
-    pub async fn subscribe_for_owner(
-        &self,
-        owner: TaskOwner,
-        ids: &[TaskId],
-    ) -> Result<OwnerTaskSubscription, TaskError> {
+    pub async fn subscribe(&self, ids: &[TaskId]) -> Result<OwnerTaskSubscription, TaskError> {
         if ids.len() > 256 {
             return Err(TaskError::InvalidPageQuery);
         }
@@ -49,12 +42,13 @@ impl TaskRuntime {
             });
         }
         let mut wake = self
+            .runtime
             .subscription_wake
-            .subscribe(self.store.clone(), self.server.clone())
+            .subscribe(self.runtime.store.clone(), self.runtime.server.clone())
             .await;
         let mut connections = wake.borrow().connections;
         let baseline = self
-            .owner_baseline(&owner, &ids.into_iter().collect::<Vec<_>>())
+            .owner_baseline(&ids.into_iter().collect::<Vec<_>>())
             .await?;
         let initial = baseline
             .tasks
@@ -89,7 +83,7 @@ impl TaskRuntime {
                     connections = current_connections;
                     // A new LIVE source may follow a gap longer than retained events.
                     // Reconcile admitted identities from current SQL-authorized state.
-                    let baseline = match runtime.owner_baseline(&owner, &ids).await {
+                    let baseline = match runtime.owner_baseline(&ids).await {
                         Ok(baseline) => baseline,
                         Err(error) => { yield Err(error); return; }
                     };
@@ -105,7 +99,7 @@ impl TaskRuntime {
                     }
                 }
                 loop {
-                    let page = match runtime.owner_update_page(&owner, &ids, cursor).await {
+                    let page = match runtime.owner_update_page(&ids, cursor).await {
                         Ok(page) => page,
                         Err(error) => { yield Err(error); return; }
                     };
@@ -131,14 +125,10 @@ impl TaskRuntime {
         })
     }
 
-    async fn owner_baseline(
-        &self,
-        owner: &TaskOwner,
-        ids: &[TaskId],
-    ) -> Result<TaskUpdateBaseline, TaskError> {
-        let mut response = OwnerScope::new(self, owner)?.bind(self.store.client().query(format!(
-            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK}) }};"
-        )))
+    async fn owner_baseline(&self, ids: &[TaskId]) -> Result<TaskUpdateBaseline, TaskError> {
+        let mut response = self.bind(self.runtime.store.client().query(format!(
+            "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}) }};"
+        , self.type_predicate())))?
             .bind(("records", ids.iter().copied().map(task_record_id).collect::<Vec<_>>()))
             .bind(("now", Utc::now())).await?.check()?;
         response
@@ -148,25 +138,25 @@ impl TaskRuntime {
 
     async fn owner_update_page(
         &self,
-        owner: &TaskOwner,
         ids: &[TaskId],
         cursor: TaskUpdateCursor,
     ) -> Result<UpdatePage, TaskError> {
         // Event identities wake current reads. Stored event snapshots are neither
         // selected nor decoded, and cannot preserve authority that has been revoked.
-        let mut response = OwnerScope::new(self, owner)?
-            .bind(self.store.client().query(format!(
+        let mut response = self
+            .bind(self.runtime.store.client().query(format!(
                 "LET $changes = SELECT sequence, aggregate_id FROM outbox_event
                 WHERE sequence > $cursor AND available_at <= $now
                 AND aggregate_type = 'task' AND aggregate_id IN $ids
                 AND payload.snapshot.server = $server_key ORDER BY sequence ASC LIMIT 256;
              RETURN {{ cursor: array::last($changes.sequence), full: array::len($changes) = 256,
-                tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK}
-                    AND <string> record::id(id) IN $changes.aggregate_id) }};"
-            )))
+                tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}
+                    AND <string> record::id(id) IN $changes.aggregate_id) }};",
+                self.type_predicate()
+            )))?
             .bind(("cursor", cursor.sequence()))
             .bind(("now", Utc::now()))
-            .bind(("server_key", self.server.clone()))
+            .bind(("server_key", self.runtime.server.clone()))
             .bind((
                 "ids",
                 ids.iter().map(ToString::to_string).collect::<Vec<_>>(),

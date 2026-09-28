@@ -46,7 +46,7 @@ pub async fn subscribe_tasks(
 ) -> Result<DurableTaskSubscription, McpError> {
     MediaReads::new(runtime).map_err(internal)?;
     let subscription =
-        veoveo_task_runtime::subscribe_durable_tasks(runtime, owner.clone(), task_ids).await?;
+        veoveo_task_runtime::subscribe_durable_tasks(&runtime.for_owner(&owner), task_ids).await?;
     let runtime = runtime.clone();
     let updates = subscription.updates.then(move |task| {
         let runtime = runtime.clone();

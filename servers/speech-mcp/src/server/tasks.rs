@@ -99,6 +99,6 @@ impl DurableTaskService for SpeechTasks {
         for id in &task_ids {
             self.0.authorize(caller, id, true).await?;
         }
-        subscribe_durable_tasks(&self.0.tasks, owner(&caller.identity), task_ids).await
+        subscribe_durable_tasks(&self.0.tasks.for_owner(&owner(&caller.identity)), task_ids).await
     }
 }

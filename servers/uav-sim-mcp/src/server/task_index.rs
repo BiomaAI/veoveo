@@ -85,12 +85,14 @@ pub(super) async fn usage_page(
         task_id: position.task_id,
     });
     let page = tasks
-        .list_page_for_owner(
-            &runtime_owner(identity),
-            TASK_TYPES,
-            after.as_ref(),
-            index::PAGE_SIZE,
-        )
+        .for_owner(&runtime_owner(identity))
+        .of_types(
+            TASK_TYPES
+                .iter()
+                .copied()
+                .map(veoveo_types::TaskTypeName::from_static),
+        )?
+        .page(after.as_ref(), index::PAGE_SIZE)
         .await?;
     Ok(CollectionPage {
         items: page

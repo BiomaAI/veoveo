@@ -1,4 +1,6 @@
 use std::collections::BTreeSet;
+use veoveo_reason_mcp::contract::ReasonTaskKind;
+use veoveo_types::TaskTypeDefinition;
 
 use rmcp::{ErrorData as McpError, model::CompletionInfo};
 use veoveo_platform_store::{RecordId, deterministic_principal_id, deterministic_tenant_id};
@@ -19,7 +21,9 @@ pub(super) async fn analyses_page(
         task_id: cursor.analysis_id().task_id(),
     });
     let page = tasks
-        .list_page_for_owner(owner, &["analyze_recording"], after.as_ref(), PAGE_SIZE)
+        .for_owner(owner)
+        .of_type(ReasonTaskKind::AnalyzeRecording.name())
+        .page(after.as_ref(), PAGE_SIZE)
         .await
         .map_err(internal)?;
     Ok(AnalysisPage {

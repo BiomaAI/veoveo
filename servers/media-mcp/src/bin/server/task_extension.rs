@@ -128,8 +128,7 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         task_id: String,
     ) -> Result<(), rmcp::ErrorData> {
         let snapshot = veoveo_task_runtime::authorized_snapshot(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             &task_id,
         )
         .await?;

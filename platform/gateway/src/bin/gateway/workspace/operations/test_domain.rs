@@ -223,8 +223,7 @@ impl ServerHandler for Domain {
             }
         }
         let mut source = veoveo_task_runtime::subscribe_durable_tasks(
-            &self.runtime,
-            self.owner.clone(),
+            &self.runtime.for_owner(&self.owner.clone()),
             context.accepted().task_ids.clone().unwrap_or_default(),
         )
         .await?

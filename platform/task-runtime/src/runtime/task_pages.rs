@@ -1,26 +1,18 @@
-use super::{
-    TaskRuntime,
-    owner_reads::{OwnerScope, VISIBLE_TASK},
-};
-use crate::types::{TaskError, TaskOwner, TaskPage, TaskPageCursor, record_to_snapshot};
+use super::{OwnerTaskQuery, owner_reads::VISIBLE_TASK};
+use crate::types::{TaskError, TaskPage, TaskPageCursor, record_to_snapshot};
 use veoveo_platform_store::TaskRecord;
 use veoveo_platform_store::task_record_id;
 
-impl TaskRuntime {
+impl OwnerTaskQuery {
     /// Apply the same authority as `TaskOwner::allows` before the database limit.
     /// Domains that further restrict Work Context must use their narrower query.
     /// The cursor is a position, never an authorization grant or a snapshot lease.
-    pub async fn list_page_for_owner(
+    pub async fn page(
         &self,
-        owner: &TaskOwner,
-        task_types: &[&str],
         after: Option<&TaskPageCursor>,
         limit: usize,
     ) -> Result<TaskPage, TaskError> {
-        if !(1..=1000).contains(&limit)
-            || !(1..=32).contains(&task_types.len())
-            || task_types.iter().any(|kind| kind.is_empty())
-        {
+        if !(1..=1000).contains(&limit) {
             return Err(TaskError::InvalidPageQuery);
         }
         let position = if after.is_some() {
@@ -28,17 +20,9 @@ impl TaskRuntime {
         } else {
             ""
         };
-        let mut query = OwnerScope::new(self, owner)?.bind(self.store.client().query(format!(
-            "SELECT * FROM task WHERE {VISIBLE_TASK} AND task_type IN $task_types {position} ORDER BY created_at ASC, id ASC LIMIT $limit;"
-        )))
-            .bind((
-                "task_types",
-                task_types
-                    .iter()
-                    .map(|kind| (*kind).to_owned())
-                    .collect::<Vec<_>>(),
-            ))
-            .bind(("limit", limit + 1));
+        let mut query = self.bind(self.runtime.store.client().query(format!(
+            "SELECT * FROM task WHERE {VISIBLE_TASK} {} {position} ORDER BY created_at ASC, id ASC LIMIT $limit;", self.type_predicate()
+        )))?.bind(("limit", limit + 1));
         if let Some(after) = after {
             query = query
                 .bind(("after_created_at", after.created_at))

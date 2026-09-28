@@ -5,11 +5,13 @@ use rmcp::{
     model::{ReadResourceResult, ResourceContents},
     service::RequestContext,
 };
+use veoveo_stream_mcp::contract::StreamTaskKind;
 use veoveo_stream_mcp::{
     catalog::{model_view, pipeline_view},
     contract::{RunId, StreamResource},
 };
 use veoveo_task_runtime::{TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_types::TaskTypeDefinition;
 
 use super::{
     SERVER_DOCS, app_state::AppState, index, inline_artifact, internal, internal_caller,
@@ -143,13 +145,12 @@ pub(super) async fn run_snapshot(
 ) -> Result<TaskSnapshot, McpError> {
     let missing = || McpError::resource_not_found("Stream run not found", None);
     let snapshot = tasks
-        .get_for_owner(owner, id.task_id())
+        .for_owner(owner)
+        .of_type(StreamTaskKind::RunRecording.name())
+        .get(id.task_id())
         .await
         .map_err(internal)?
         .ok_or_else(missing)?;
-    if snapshot.task_type != "run_recording" {
-        return Err(missing());
-    }
     Ok(snapshot)
 }
 
