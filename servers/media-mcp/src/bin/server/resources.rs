@@ -14,7 +14,8 @@ use rmcp::{
 use veoveo_mcp_contract::UsageReport;
 use veoveo_media_mcp::{
     contract::{
-        MediaPredictionIndexUri, MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri,
+        MediaGenerationUri, MediaPredictionIndexUri, MediaPredictionUri, MediaTaskUsageUri,
+        MediaUsageIndexUri,
     },
     reads::MediaReads,
     uris,
@@ -66,6 +67,12 @@ pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
             .with_description(
                 "Live state of a prediction. Subscribable: resources/updated fires when \
                      the provider reports a terminal state.",
+            )
+            .with_mime_type("application/json"),
+        ResourceTemplate::new(MediaGenerationUri::TEMPLATE, "generation_result")
+            .with_title("Media generation result")
+            .with_description(
+                "Completed generation and its published output metadata, retained with the Task.",
             )
             .with_mime_type("application/json"),
         ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
@@ -238,6 +245,16 @@ impl MediaMcp {
                     })?;
                 serde_json::to_string(&entry)
                     .map_err(|e| McpError::internal_error(e.to_string(), None))?
+            } else if let Ok(address) = MediaGenerationUri::parse(uri) {
+                let result = MediaReads::new(&self.state.tasks)
+                    .map_err(internal)?
+                    .generation_result(&runtime_owner(&identity), &address)
+                    .await
+                    .map_err(internal)?
+                    .ok_or_else(|| {
+                        McpError::resource_not_found("unknown generation result", None)
+                    })?;
+                encode(&result)?
             } else if let Ok(address) = MediaPredictionUri::parse(uri) {
                 let summary = MediaReads::new(&self.state.tasks)
                     .map_err(internal)?
@@ -326,6 +343,7 @@ mod tests {
             MediaPredictionIndexUri::TEMPLATE,
             MediaTaskUsageUri::TEMPLATE,
             MediaPredictionUri::TEMPLATE,
+            MediaGenerationUri::TEMPLATE,
         ] {
             assert!(
                 templates

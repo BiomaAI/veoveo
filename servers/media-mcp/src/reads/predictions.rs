@@ -9,7 +9,8 @@ use crate::{
 use veoveo_platform_store::OpenObject;
 use veoveo_task_runtime::TaskOwner;
 
-const VISIBLE_PREDICTION: &str = "provider = $provider AND external_job_id = provider_payload.id";
+pub(super) const VISIBLE_PREDICTION: &str =
+    "provider = $provider AND external_job_id = provider_payload.id";
 
 impl MediaReads<'_> {
     pub async fn predictions(

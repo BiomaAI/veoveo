@@ -921,8 +921,8 @@ Media-specific ownership:
 
 | Path | Responsibility |
 |---|---|
-| `servers/media-mcp/src/contract/` | isolated contract feature: Media generation results, typed provider identity, prediction/usage addresses, collection cursors and checked pages |
-| `servers/media-mcp/src/reads/` | SQL selection of usage and prediction resources under current Task owner and parent-record checks |
+| `servers/media-mcp/src/contract/` | isolated contract feature: checked Media generation results and output attribution, typed provider identity, prediction/result/usage addresses, collection cursors and checked pages |
+| `servers/media-mcp/src/reads/` | SQL selection of usage, prediction and retained generation result resources under current Task owner and parent-record checks; private v0/v1 stored-result decoding |
 | `servers/media-mcp/src/state/usage.rs` | ledger writes, retention and paged SQL billing recovery |
 | `servers/media-mcp/src/bin/server/resources.rs` and `subscriptions.rs` | static MCP discovery, typed resource dispatch and SQL-backed subscription admission |
 | `servers/media-mcp/src/provider.rs` | provider-neutral registry/submission adapter |

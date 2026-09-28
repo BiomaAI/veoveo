@@ -1,3 +1,5 @@
+#[path = "support/generation.rs"]
+mod generation_fixture;
 #[path = "../../../testing/fixtures/store.rs"]
 mod store;
 #[path = "../src/bin/server/subscriptions.rs"]
@@ -464,4 +466,185 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
     })
     .await
     .expect("Media subscription selection exceeded 60 seconds");
+}
+
+async fn store_result(tasks: &TaskRuntime, task: TaskId, result: serde_json::Value) {
+    let result = OpenObject::new(result.as_object().unwrap().clone().into_iter().collect());
+    tasks
+        .platform_store()
+        .client()
+        .query("UPDATE ONLY $task SET result = $result RETURN NONE;")
+        .bind(("task", task_record_id(task)))
+        .bind(("result", result))
+        .await
+        .unwrap()
+        .check()
+        .unwrap();
+}
+
+#[tokio::test]
+async fn retained_generation_profiles_read_without_rewriting_task_results() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = store::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "media", "writer");
+        let reader = TaskRuntime::new(db.b.clone(), "media", "reader");
+        let reads = MediaReads::new(&reader).unwrap();
+        let caller = owner(Some("tenant-a"), "owner", "operator", &[]);
+        let (task, job) = create(&writer, &caller, 1, "provider/id?with-reserved").await;
+        let expected = generation_fixture::generation(task.task_id, job.external_job_id);
+        let legacy =
+            json!({"prediction": expected.prediction(), "artifacts": expected.artifacts()});
+        let profiles = [legacy, serde_json::to_value(&expected).unwrap()];
+        for profile in profiles {
+            let stored = json!({"content":[], "structuredContent": profile, "isError":false});
+            store_result(&writer, task.task_id, stored.clone()).await;
+            db.a.client()
+                .query("UPDATE ONLY $task SET status = 'queued' RETURN NONE;")
+                .bind(("task", task_record_id(task.task_id)))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert!(
+                reads
+                    .generation_result(&caller, expected.result_uri())
+                    .await
+                    .unwrap()
+                    .is_none()
+            );
+            db.a.client()
+                .query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+                .bind(("task", task_record_id(task.task_id)))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+            assert_eq!(
+                reads
+                    .generation_result(&caller, expected.result_uri())
+                    .await
+                    .unwrap(),
+                Some(expected.clone())
+            );
+            assert_eq!(
+                reader
+                    .get(&task.task_id.to_string())
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .result,
+                Some(stored)
+            );
+        }
+        // The immutable result is an exact read; no subscription is advertised.
+        let filter = rmcp::model::SubscriptionFilter::builder()
+            .resource_subscriptions([expected.result_uri().as_str()])
+            .build();
+        assert!(
+            subscriptions::authorize(&reader, &caller, &filter)
+                .await
+                .is_err()
+        );
+    })
+    .await
+    .expect("Media retained result qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn generation_selection_excludes_denied_malformed_results_before_decoding() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = store::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "media", "writer");
+        let reader = TaskRuntime::new(db.b.clone(), "media", "reader");
+        let reads = MediaReads::new(&reader).unwrap();
+        let caller = owner(Some("tenant-a"), "owner", "operator", &["mission"]);
+        let denied = [
+            owner(Some("tenant-b"), "owner", "operator", &[]),
+            owner(Some("tenant-a"), "other", "operator", &[]),
+            owner(Some("tenant-a"), "owner", "observer", &[]),
+            owner(Some("tenant-a"), "owner", "operator", &["secret"]),
+        ];
+        for (index, denied) in denied.iter().enumerate() {
+            let prediction = if index == 0 { "collision".to_owned() } else { format!("denied-{index}") };
+            let (task, job) = create(&writer, denied, index as u64 + 1, &prediction).await;
+            store_result(&writer, task.task_id, json!({"structuredContent": {
+                "schema":"unsupported", "prediction":{"id":prediction}
+            }})).await;
+            db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+                .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+            assert!(reads.generation_result(&caller, &MediaGenerationUri::new(job.external_job_id)).await.unwrap().is_none());
+        }
+        let (task, job) = create(&writer, &caller, 10, "collision").await;
+        let expected = generation_fixture::generation(task.task_id, job.external_job_id);
+        store_result(&writer, task.task_id, json!({"structuredContent": expected})).await;
+        db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+            .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+        assert_eq!(reads.generation_result(&caller, expected.result_uri()).await.unwrap(), Some(expected.clone()));
+        db.a.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['mission','secret'] RETURN NONE;")
+            .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+        assert!(reads.generation_result(&caller, expected.result_uri()).await.unwrap().is_none());
+        let mut cleared = caller.clone();
+        cleared.data_labels.insert("secret".into());
+        assert_eq!(reads.generation_result(&cleared, expected.result_uri()).await.unwrap(), Some(expected));
+        let implicit = owner(None, "owner", "operator", &[]);
+        let explicit = owner(Some("installation"), "owner", "operator", &[]);
+        for (index, (allowed, denied)) in [(&implicit, &explicit), (&explicit, &implicit)].into_iter().enumerate() {
+            let (task, job) = create(&writer, allowed, index as u64 + 20, &format!("optional-tenant-{index}")).await;
+            let expected = generation_fixture::generation(task.task_id, job.external_job_id);
+            store_result(&writer, task.task_id, json!({"structuredContent": expected})).await;
+            db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+                .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+            assert!(reads.generation_result(denied, expected.result_uri()).await.unwrap().is_none());
+            assert_eq!(reads.generation_result(allowed, expected.result_uri()).await.unwrap(), Some(expected));
+        }
+    }).await.expect("Media result visibility qualification exceeded 60 seconds");
+}
+
+#[tokio::test]
+async fn generation_results_require_success_and_consistent_retained_parents() {
+    tokio::time::timeout(Duration::from_secs(60), async {
+        let db = store::TestDb::new().await;
+        let writer = TaskRuntime::new(db.a.clone(), "media", "writer");
+        let reader = TaskRuntime::new(db.b.clone(), "media", "reader");
+        let reads = MediaReads::new(&reader).unwrap();
+        let caller = owner(Some("tenant-a"), "owner", "operator", &[]);
+        for (index, mutation) in [
+            "UPDATE ONLY $task SET status = 'failed' RETURN NONE;",
+            "UPDATE ONLY $task SET status = 'cancelled' RETURN NONE;",
+            "UPDATE ONLY $task SET result.isError = true RETURN NONE;",
+            "UPDATE ONLY $task SET result.structuredContent.prediction.id = 'wrong' RETURN NONE;",
+            "UPDATE ONLY $task SET request.owner.profile = 'wrong' RETURN NONE;",
+            "UPDATE ONLY $task SET tenant = tenant:missing RETURN NONE;",
+            "UPDATE ONLY $task SET server = mcp_server:other RETURN NONE;",
+            "UPDATE ONLY $job SET provider_payload.id = 'wrong' RETURN NONE;",
+            "UPDATE ONLY $job SET tenant = tenant:missing RETURN NONE;",
+            "UPDATE ONLY $job SET provider = 'other' RETURN NONE;",
+            "DELETE ONLY $task;",
+            "DELETE ONLY $job;",
+        ].into_iter().enumerate() {
+            let (task, job) = create(&writer, &caller, index as u64 + 1, &format!("parent-{index}")).await;
+            let expected = generation_fixture::generation(task.task_id, job.external_job_id);
+            store_result(&writer, task.task_id, json!({"structuredContent": expected})).await;
+            db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+                .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+            assert!(reads.generation_result(&caller, expected.result_uri()).await.unwrap().is_some());
+            db.a.client().query(mutation).bind(("task", task_record_id(task.task_id)))
+                .bind(("job", job.job_id.record_id())).await.unwrap().check().unwrap();
+            assert!(reads.generation_result(&caller, expected.result_uri()).await.unwrap().is_none(), "accepted {mutation}");
+        }
+        let (task, job) = create(&writer, &caller, 100, "invalid-visible").await;
+        let expected = generation_fixture::generation(task.task_id, job.external_job_id.clone());
+        db.a.client().query("UPDATE ONLY $task SET status = 'succeeded' RETURN NONE;")
+            .bind(("task", task_record_id(task.task_id))).await.unwrap().check().unwrap();
+        let wrong_parent = generation_fixture::generation(TaskId::new(), job.external_job_id);
+        store_result(&writer, task.task_id, json!({"structuredContent": wrong_parent})).await;
+        assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err());
+        for profile in [
+            json!({"schema":"veoveo.ai/media-generation/v2", "prediction":expected.prediction(), "artifacts": expected.artifacts()}),
+            json!({"prediction": expected.prediction(), "artifacts": [], "unknown": true}),
+        ] {
+            store_result(&writer, task.task_id, json!({"structuredContent": profile})).await;
+            assert!(reads.generation_result(&caller, expected.result_uri()).await.is_err());
+        }
+    }).await.expect("Media result integrity qualification exceeded 60 seconds");
 }

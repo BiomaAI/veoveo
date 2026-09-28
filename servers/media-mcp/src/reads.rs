@@ -1,4 +1,5 @@
 //! SQL-owned Media visibility. Cursors carry position, never caller authority.
+mod generation;
 mod predictions;
 mod usage;
 

@@ -321,6 +321,21 @@ handoff and provider recovery budgets remain work.
 Cleanup removed 42 superseded executables (19.8 GiB) and both failed-smoke fixtures.
 Current binaries, compiler libraries, incremental data, images and build caches are
 preserved. The host has 208 GiB free and no running Docker containers.
+Media's completed generation resource now uses the typed
+`media://prediction/{id}/result` address and checked
+`veoveo.ai/media-generation/v1` contract. SQL selects the linked successful Task
+under current owner and provider-parent predicates before its limit. The private
+reader accepts retained v0 and v1 results without rewriting Tasks; unknown profiles,
+inconsistent Task identity and invalid output attribution fail. The producer uses
+typed output attribution while retaining its v0 completion shape. This reader is the
+rollback checkpoint for the next C02 publication change; C02 remains pending.
+The Media package passes 48 cases and six compile-fail examples, including three new
+native result cases. The independent 88-package consumer passes twelve checks without
+service dependencies. Thirty-one complete result/fixture statements pass the pinned
+CLI validator. Native MCP smoke checks result equality and caller isolation;
+runtime-only and strict workspace Clippy pass. Installed result-profile transition,
+retained-data preflight and rollback remain pending. Fixtures cleaned up their owned
+containers and files; the cluster stays stopped and the host has 206 GiB free.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -810,6 +825,7 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Optimization usage and contract | The library selects explicit owner-plus-Work-Context policy in TaskRuntime SQL before grouping and limits. Context records and stored authority must agree. Contract-only types preserve version 1 cursor bytes and report fields; Map consumes the contract feature. Unscoped Store usage reads and Rust post-filter helpers are removed. Native owner/context selection and current-authority checks pass. The independent 90-package consumer preserves eleven solver schemas and excludes service dependencies; Map consumption and strict runtime/workspace Clippy pass | Qualify the coordinated control/executor replacement and installed reads |
 | Other Optimization contracts | Problem/run/solution queries filter indexed owner, profile, tenant, context and labels; envelope agreement and optional-tenant distinctions need qualification. Other resource builders, server scopes and checked MCP setup remain | Complete typed builders and query admission through the domain library; qualify retained rows, collection reads, completion and installed acceptance |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; both generation schemas are preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
+| Media generation result | The isolated contract owns checked v1 generation results, typed result addresses and output attribution. SQL reads successful linked Tasks under current owner policy; the private v0/v1 decoder preserves stored data. Native contract, database and MCP checks pass, establishing a reader rollback checkpoint | Switch terminal publication and Task projections to the single canonical result handoff; qualify the coordinated producer/client transition and installed rollback before retiring v0 support |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
 | Reason, Recording, Stream, UAV, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |

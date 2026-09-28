@@ -3,10 +3,11 @@ use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, now_utc, set_related_task_meta};
 use veoveo_media_mcp::{
-    contract::GenerationRunOutput,
+    contract::{GenerationRunOutput, MediaOutputArtifactMetadata},
     provider::Prediction,
     state::{MediaTaskContext, data_labels},
 };
+use veoveo_types::TaskId;
 
 use super::AppState;
 
@@ -35,18 +36,10 @@ fn filename_from_url(url: &str, index: usize) -> String {
         .unwrap_or_else(|| format!("output-{index}.bin"))
 }
 
-#[derive(serde::Serialize)]
-struct OutputArtifactMetadata<'a> {
-    task_id: &'a str,
-    job_id: &'a str,
-    model_id: &'a str,
-    output_index: usize,
-}
-
 async fn ingest_output_artifact(
     state: &AppState,
     prediction: &Prediction,
-    task_id: &str,
+    task_id: TaskId,
     context: &MediaTaskContext,
     url: &str,
     index: usize,
@@ -72,10 +65,10 @@ async fn ingest_output_artifact(
     artifact.compliance.data_labels = data_labels(&context.owner)?;
     artifact.compliance.retention_expires_at =
         Some(state.retention.artifact_expires_at(now_utc())?);
-    artifact.metadata = serde_json::to_value(OutputArtifactMetadata {
+    artifact.metadata = serde_json::to_value(MediaOutputArtifactMetadata {
         task_id,
-        job_id: prediction.id.as_str(),
-        model_id: prediction.model.as_str(),
+        job_id: prediction.id.clone(),
+        model_id: prediction.model.clone(),
         output_index: index,
     })?;
     // Async completion has no live gateway bearer. Redeem only the capability
@@ -94,7 +87,7 @@ async fn ingest_output_artifact(
 pub(super) async fn prediction_result(
     state: &AppState,
     prediction: &Prediction,
-    task_id: &str,
+    task_id: TaskId,
     context: &MediaTaskContext,
 ) -> anyhow::Result<CallToolResult> {
     let mut artifacts = Vec::new();
@@ -126,6 +119,6 @@ pub(super) async fn prediction_result(
         prediction: prediction.summary(),
         artifacts,
     })?);
-    set_related_task_meta(&mut result.meta, task_id);
+    set_related_task_meta(&mut result.meta, task_id.to_string());
     Ok(result)
 }

@@ -1,7 +1,7 @@
 use super::*;
 use veoveo_media_mcp::contract::{
-    GenerationRunOutput, MediaPredictionIndexUri, MediaPredictionPage, MediaPredictionUri,
-    MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
+    GenerationRunOutput, MediaGenerationResult, MediaGenerationUri, MediaPredictionIndexUri,
+    MediaPredictionPage, MediaPredictionUri, MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
 };
 
 pub(crate) async fn media_mcp_auth(
@@ -420,6 +420,17 @@ pub(crate) async fn media_task_run(
             )],
         )
     };
+    let result_uri = MediaGenerationUri::new(structured.prediction.id.clone());
+    let generation: MediaGenerationResult =
+        serde_json::from_str(&read_index(result_uri.as_str())?)?;
+    if generation.task_id().to_string() != task_id
+        || generation.result_uri() != &result_uri
+        || generation.prediction() != &structured.prediction
+        || generation.artifacts() != structured.artifacts
+    {
+        bail!("Media generation resource disagreed with the completed Task");
+    }
+    not_contains(&post_run_resources, result_uri.as_str())?;
     let usage_catalog: MediaUsagePage =
         serde_json::from_str(&read_index(MediaUsageIndexUri::ROOT)?)?;
     if !usage_catalog
@@ -440,6 +451,17 @@ pub(crate) async fn media_task_run(
         vec!["--internal-tenant", "other-tenant"],
         vec!["--internal-profile", "observer"],
     ] {
+        let mut arguments = identity.iter().map(OsString::from).collect::<Vec<_>>();
+        arguments.extend(["resource".into(), result_uri.as_str().into()]);
+        assert_direct_mcp_denied(
+            conformance,
+            &mcp_url,
+            arguments,
+            [(
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            )],
+        )?;
         for uri in [MediaUsageIndexUri::ROOT, MediaPredictionIndexUri::ROOT] {
             let mut arguments = identity.iter().map(OsString::from).collect::<Vec<_>>();
             arguments.extend(["resource".into(), uri.into()]);

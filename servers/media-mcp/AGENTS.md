@@ -17,6 +17,10 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 - Public prediction and usage selection belongs to `src/reads/`. Apply current
   caller policy and linked-record agreement in SQL before ordering and limits.
   Discovery declares roots/templates; instance catalogs supply paged links.
+- Generation results use `MediaGenerationResult` and `MediaGenerationUri`. Read them
+  from the linked successful Task through `MediaReads`; keep retained-profile
+  adaptation in the Media reader. The producer transition and rollback requirements
+  are declared in `DESIGN.md`.
 - Durable task and prediction state lives in the installation SurrealDB
   through `veoveo_platform_store` (`src/state.rs`). The server keeps no
   private database.
@@ -46,7 +50,7 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 Contract revision: 3
 
 - C01: met
-- C02: pending — generation output schemas are declared; the addressable result still needs one top-level canonical result_uri
+- C02: pending — the typed result resource exists; terminal Task publication still needs its top-level canonical result_uri and single result link
 - C03: met
 - C04: met
 - C05: met

@@ -204,7 +204,7 @@ impl AppState {
                 anyhow::anyhow!("media task {task_id} has no durable write context")
             })?;
         let result: CallToolResult =
-            prediction_result(self, &event.prediction, &task_id, &context).await?;
+            prediction_result(self, &event.prediction, event.job.task_id, &context).await?;
         let result = serde_json::to_value(result)?;
         self.durable
             .complete_event(
