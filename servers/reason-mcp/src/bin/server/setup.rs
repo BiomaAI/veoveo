@@ -154,10 +154,11 @@ fn resource_templates() -> Result<Vec<McpResourceTemplate>, McpSetupError> {
 pub(super) fn catalog_resources(catalog: &PipelineCatalog) -> Result<Vec<Resource>, McpSetupError> {
     let mut resources = Vec::new();
     for pipeline in catalog.pipeline_views() {
+        let name = format!("pipeline {}", pipeline.id());
         let address = ReasonResource::Pipeline(pipeline.uri);
         resources.push(
             McpResource::new(address, |uri| {
-                Resource::new(uri, format!("pipeline {}", pipeline.id))
+                Resource::new(uri, name)
                     .with_title(pipeline.title)
                     .with_description(pipeline.description)
                     .with_mime_type("application/json")
@@ -167,10 +168,11 @@ pub(super) fn catalog_resources(catalog: &PipelineCatalog) -> Result<Vec<Resourc
         );
     }
     for model in catalog.model_views() {
+        let name = format!("model {}", model.id());
         let address = ReasonResource::Model(model.uri);
         resources.push(
             McpResource::new(address, |uri| {
-                Resource::new(uri, format!("model {}", model.id))
+                Resource::new(uri, name)
                     .with_title(model.title)
                     .with_description(model.description)
                     .with_mime_type("application/json")

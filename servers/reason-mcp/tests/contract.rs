@@ -1,5 +1,7 @@
 #[path = "contract/resources.rs"]
 mod resources;
+#[path = "contract/responses.rs"]
+mod responses;
 
 use veoveo_reason_mcp::contract::*;
 

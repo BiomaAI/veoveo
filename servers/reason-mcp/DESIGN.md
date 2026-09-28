@@ -291,9 +291,22 @@ profile. The route parser rejects escaped aliases, extra path segments, fragment
 unsupported query parameters and noncanonical UUID spellings. Builders delegate
 component encoding to the shared URI implementation.
 
+Catalog views derive their public IDs from typed addresses. `AnalyzeRecordingOutput`
+derives the results address from its analysis identity. `AnalysisView` derives both
+addresses from the Task ID and admits an output only when its Task and pipeline match
+the parent. Constructors establish these relationships; private wire conversions check
+them when decoding the published flat JSON fields. Callers cannot mutate a nested
+output through an analysis view.
+
+Resource reads decode stored results after the SQL owner read. Missing results and
+explicit tool errors have no product. A malformed successful result produces a fixed
+recovery diagnostic without echoing its payload. Both analysis and results reads check
+the retained output against the Task ID and the pipeline in its retained request.
+
 The serialized fields and 25 captured public schemas keep their published shapes.
 Valid version-1 cursors preserve their admitted wire bytes. Before installation,
-check retained Reason requests and results against the ID and URI profiles, and
+check retained Reason requests and results against the ID and URI profiles and verify
+agreement between repeated identities, parent Tasks and requested pipelines. Also
 verify client links and cursors. Invalid retained values require an explicit repair
 or recovery decision before replacing the service; startup performs no destructive
 conversion. Drain active requests and replace all Reason replicas together because

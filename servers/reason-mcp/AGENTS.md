@@ -19,6 +19,10 @@ appear in its public MCP identities.
   resource builders and cursors belong to `contract`; hosted declarations use
   the shared checked setup. Exact analysis reads and subscription admission use
   the Task runtime's SQL owner read before decoding.
+- Construct catalog and analysis responses through their contract constructors.
+  Derive repeated identities from one typed value and reject conflicting wire fields.
+  Retained successful outputs must match their owning Task and requested pipeline;
+  corrupt output is an explicit recovery error.
 - Analysis and result notifications use the shared Task-backed resource listener.
   Do not restore process-local broadcasts or emit Task status for resource-only
   listeners. Additional Task-backed routes implement the owning contract trait.
@@ -67,7 +71,7 @@ appear in its public MCP identities.
 Contract revision: 3
 
 - C01: met
-- C02: met
+- C02: pending — terminal products need the top-level canonical `result_uri` and a coordinated retained-Task/client transition tracked in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work)
 - C03: met
 - C04: met — analyses use Store cursor pages; discovery lists roots and fixed catalog entries
 - C05: met

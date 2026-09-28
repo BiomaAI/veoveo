@@ -5,9 +5,8 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{
-    ModelFormat, ModelId, ModelView, PipelineId, PipelineOperation, PipelineView,
+    ModelFormat, ModelId, ModelView, PipelineDetails, PipelineId, PipelineOperation, PipelineView,
 };
-use crate::uris;
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -226,28 +225,28 @@ impl PipelineCatalog {
 }
 
 pub fn pipeline_view(config: &PipelineConfig) -> PipelineView {
-    PipelineView {
-        id: config.id.clone(),
-        uri: uris::pipeline_uri(&config.id),
-        title: config.title.clone(),
-        description: config.description.clone(),
-        operation: config.operation,
-        model_uri: uris::model_uri(&config.model_id),
-        prompt_revision: config.prompt_revision.clone(),
-        observation_width: config.observation.width,
-        observation_height: config.observation.height,
-    }
+    PipelineView::new(
+        config.id.clone(),
+        config.model_id.clone(),
+        PipelineDetails {
+            title: config.title.clone(),
+            description: config.description.clone(),
+            operation: config.operation,
+            prompt_revision: config.prompt_revision.clone(),
+            observation_width: config.observation.width,
+            observation_height: config.observation.height,
+        },
+    )
 }
 
 pub fn model_view(config: &ModelConfig) -> ModelView {
-    ModelView {
-        id: config.id.clone(),
-        uri: uris::model_uri(&config.id),
-        title: config.title.clone(),
-        description: config.description.clone(),
-        format: config.format,
-        model_digest: config.model_digest.clone(),
-    }
+    ModelView::new(
+        config.id.clone(),
+        config.title.clone(),
+        config.description.clone(),
+        config.format,
+    )
+    .with_model_digest(config.model_digest.clone())
 }
 
 #[cfg(test)]

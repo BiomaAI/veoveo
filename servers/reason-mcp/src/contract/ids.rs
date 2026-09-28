@@ -9,6 +9,7 @@ pub enum ReasonContractError {
     InvalidId(&'static str),
     InvalidResource,
     InvalidCursor,
+    InvalidRelationship(&'static str),
 }
 impl fmt::Display for ReasonContractError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -16,6 +17,7 @@ impl fmt::Display for ReasonContractError {
             Self::InvalidId(kind) => write!(f, "invalid Reason {kind} identifier"),
             Self::InvalidResource => f.write_str("invalid Reason resource address"),
             Self::InvalidCursor => f.write_str("invalid Reason analyses cursor"),
+            Self::InvalidRelationship(field) => write!(f, "inconsistent Reason {field}"),
         }
     }
 }

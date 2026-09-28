@@ -10,7 +10,8 @@ use veoveo_platform_store::TaskStatus;
 use veoveo_reason_mcp::{
     catalog::{model_view, pipeline_view},
     contract::{
-        AnalysisId, AnalysisResource, AnalysisView, AnalyzeRecordingOutput, ReasonResource,
+        AnalysisDetails, AnalysisId, AnalysisResource, AnalysisView, AnalyzeRecordingOutput,
+        ReasonResource,
     },
     uris,
 };
@@ -104,7 +105,8 @@ pub(super) async fn read(
         ReasonResource::Results(address) => {
             let snapshot =
                 analysis_snapshot(&state.tasks, &runtime_owner(&identity), *address.id()).await?;
-            let output = analysis_output(&snapshot).ok_or_else(|| {
+            let view = analysis_view(&snapshot)?;
+            let output = view.output().ok_or_else(|| {
                 McpError::resource_not_found("analysis results are not available", None)
             })?;
             let caller = internal_caller(context)?;
@@ -155,27 +157,49 @@ pub(super) fn analysis_view(snapshot: &TaskSnapshot) -> Result<AnalysisView, Mcp
     let request: tasks::DurableReasonRequest =
         serde_json::from_value(snapshot.request.clone()).map_err(internal)?;
     let ReasonTaskInput::Analyze(input) = request.input;
-    Ok(AnalysisView {
-        analysis_uri: uris::analysis_uri(AnalysisId::try_from(snapshot.task_id).map_err(internal)?),
-        results_uri: uris::results_uri(AnalysisId::try_from(snapshot.task_id).map_err(internal)?),
-        task_id: AnalysisId::try_from(snapshot.task_id).map_err(internal)?,
-        status: task_status(snapshot.status).to_owned(),
-        progress: snapshot.progress,
-        pipeline_id: input.pipeline_id,
-        task_kind: input.task.kind().to_owned(),
-        recording_uri: input.video.recording_uri,
-        entity_path: input.video.entity_path,
-        timeline: input.video.timeline,
-        created_at: snapshot.created_at.to_rfc3339(),
-        updated_at: snapshot.updated_at.to_rfc3339(),
-        output: analysis_output(snapshot),
-        error: snapshot.error.as_ref().map(|error| error.message.clone()),
-    })
+    AnalysisView::new(
+        AnalysisId::try_from(snapshot.task_id).map_err(internal)?,
+        input.pipeline_id,
+        AnalysisDetails {
+            status: task_status(snapshot.status).to_owned(),
+            progress: snapshot.progress,
+            task_kind: input.task.kind().to_owned(),
+            recording_uri: input.video.recording_uri,
+            entity_path: input.video.entity_path,
+            timeline: input.video.timeline,
+            created_at: snapshot.created_at.to_rfc3339(),
+            updated_at: snapshot.updated_at.to_rfc3339(),
+        },
+    )
+    .with_error(snapshot.error.as_ref().map(|error| error.message.clone()))
+    .with_output(analysis_output(snapshot.result.as_ref())?)
+    .map_err(|_| retained_output_error())
 }
 
-fn analysis_output(snapshot: &TaskSnapshot) -> Option<AnalyzeRecordingOutput> {
-    let result = serde_json::from_value::<CallToolResult>(snapshot.result.clone()?).ok()?;
-    serde_json::from_value(result.structured_content?).ok()
+fn analysis_output(
+    stored: Option<&serde_json::Value>,
+) -> Result<Option<AnalyzeRecordingOutput>, McpError> {
+    let Some(stored) = stored else {
+        return Ok(None);
+    };
+    let result: CallToolResult =
+        serde_json::from_value(stored.clone()).map_err(|_| retained_output_error())?;
+    if result.is_error == Some(true) {
+        return Ok(None);
+    }
+    let content = result
+        .structured_content
+        .ok_or_else(retained_output_error)?;
+    serde_json::from_value(content)
+        .map(Some)
+        .map_err(|_| retained_output_error())
+}
+
+fn retained_output_error() -> McpError {
+    McpError::internal_error(
+        "retained Reason output is invalid; repair or recover the Task before retrying",
+        None,
+    )
 }
 
 fn task_status(status: TaskStatus) -> &'static str {
@@ -258,5 +282,36 @@ pub(super) fn accepted_subscription_filter(
         None
     } else {
         Some(accepted)
+    }
+}
+
+#[cfg(test)]
+mod retained_output_tests {
+    use super::*;
+    use rmcp::model::ContentBlock;
+    use serde_json::json;
+
+    #[test]
+    fn absent_results_and_explicit_tool_errors_have_no_product() {
+        assert!(analysis_output(None).unwrap().is_none());
+        let error = CallToolResult::error(vec![ContentBlock::text("analysis failed")]);
+        assert!(
+            analysis_output(Some(&serde_json::to_value(error).unwrap()))
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn malformed_retained_success_is_an_error_instead_of_an_absent_product() {
+        for value in [
+            json!({"content": "sensitive invalid payload"}),
+            json!({"content": []}),
+            json!({"content": [], "structuredContent": {"analysis_uri": "private payload"}}),
+        ] {
+            let error = analysis_output(Some(&value)).unwrap_err();
+            assert_eq!(error, retained_output_error());
+            assert!(error.data.is_none());
+        }
     }
 }

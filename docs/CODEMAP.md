@@ -1127,6 +1127,7 @@ depend on Recording Hub.
 |---|---|
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
 | `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs`, `subscriptions.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors, the empty domain scope vocabulary and Task-backed analysis resource relationships |
+| `src/contract/catalog_views.rs`, `output.rs`, `analysis_view.rs`, `tests/contract/responses.rs` | constructor-derived response identities and checked flat JSON decoding, including nested output ownership by Task and pipeline |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
 | `src/grounding.rs` | typed Stream-results grounding subset extraction |

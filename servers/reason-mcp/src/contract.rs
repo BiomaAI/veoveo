@@ -1,3 +1,10 @@
+mod analysis_view;
+mod catalog_views;
+mod output;
+pub use analysis_view::{AnalysisDetails, AnalysisView};
+pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
+pub use output::AnalyzeRecordingOutput;
+
 mod cursor;
 mod ids;
 mod resources;
@@ -14,7 +21,6 @@ pub use subscriptions::AnalysisResource;
 use anyhow::{Result, ensure};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_artifact_contract::ArtifactMetadata;
 
 pub use veoveo_recording_video::contract::{
     IndexRange, RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
@@ -195,19 +201,6 @@ pub struct ReasoningResults {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-pub struct AnalyzeRecordingOutput {
-    pub analysis_uri: AnalysisUri,
-    pub results_uri: ResultsUri,
-    pub pipeline_uri: PipelineUri,
-    pub model_uri: ModelUri,
-    pub summary: ReasoningSummary,
-    pub results_artifact: ArtifactMetadata,
-    pub annotations_artifact: ArtifactMetadata,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_clip_artifact: Option<ArtifactMetadata>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 pub struct ReasoningSummary {
     pub observed_frames: u64,
     pub event_count: u64,
@@ -217,34 +210,10 @@ pub struct ReasoningSummary {
     pub requested_end_index: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct PipelineView {
-    pub id: PipelineId,
-    pub uri: PipelineUri,
-    pub title: String,
-    pub description: String,
-    pub operation: PipelineOperation,
-    pub model_uri: ModelUri,
-    pub prompt_revision: String,
-    pub observation_width: u32,
-    pub observation_height: u32,
-}
-
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum PipelineOperation {
     VideoReasoning,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct ModelView {
-    pub id: ModelId,
-    pub uri: ModelUri,
-    pub title: String,
-    pub description: String,
-    pub format: ModelFormat,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_digest: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
@@ -254,26 +223,6 @@ pub enum ModelFormat {
     /// by the deployment. Runtime optimization belongs to the runner image,
     /// never to the request path.
     LocalCheckpoint,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-pub struct AnalysisView {
-    pub analysis_uri: AnalysisUri,
-    pub results_uri: ResultsUri,
-    pub task_id: AnalysisId,
-    pub status: String,
-    pub progress: f64,
-    pub pipeline_id: PipelineId,
-    pub task_kind: String,
-    pub recording_uri: String,
-    pub entity_path: String,
-    pub timeline: String,
-    pub created_at: String,
-    pub updated_at: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub output: Option<AnalyzeRecordingOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
 }
 
 /// One authorized page of analyses, in descending creation time and native ID order.

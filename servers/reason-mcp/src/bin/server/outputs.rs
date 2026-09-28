@@ -10,7 +10,6 @@ use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, OpenObject};
 use veoveo_reason_mcp::{
     annotation::{MP4_MIME_TYPE, RESULTS_MIME_TYPE, RRD_MIME_TYPE},
     contract::{AnalyzeRecordingOutput, ReasoningResults, ReasoningSummary},
-    uris,
 };
 use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_types::DataLabelId;
@@ -97,12 +96,11 @@ pub(super) async fn publish_analysis(
     };
     record_usage(state, task_id, &products.results).await?;
     let event_count = products.results.answer.event_count();
-    let output = AnalyzeRecordingOutput {
-        analysis_uri: uris::analysis_uri(task_id),
-        results_uri: uris::results_uri(task_id),
-        pipeline_uri: uris::pipeline_uri(&products.results.pipeline_id),
-        model_uri: uris::model_uri(&products.results.model_id),
-        summary: ReasoningSummary {
+    let output = AnalyzeRecordingOutput::new(
+        task_id,
+        products.results.pipeline_id.clone(),
+        products.results.model_id.clone(),
+        ReasoningSummary {
             observed_frames: products.results.observed_frames,
             event_count,
             elapsed_ms: products.results.elapsed_ms,
@@ -110,10 +108,10 @@ pub(super) async fn publish_analysis(
             requested_start_index: products.source.clip.requested_start_index,
             requested_end_index: products.source.clip.requested_end_index,
         },
-        results_artifact: results_artifact.clone(),
-        annotations_artifact: annotations_artifact.clone(),
-        source_clip_artifact: source_clip_artifact.clone(),
-    };
+        results_artifact.clone(),
+        annotations_artifact.clone(),
+    )
+    .with_source_clip(source_clip_artifact.clone());
     let mut blocks = vec![ContentBlock::text(format!(
         "reason analysis completed: {} `{}` over {} observed frame(s)",
         products.results.task.kind(),
