@@ -180,7 +180,7 @@ impl TimeMcp {
                     .map_err(invalid_params)?;
                 let projection = engine
                     .convert(&ConvertTimeRequest {
-                        instant: now.instant,
+                        instant: now.into_instant(),
                         zone_ids: vec![zone_id.as_str().to_owned()],
                         scales: Vec::new(),
                     })

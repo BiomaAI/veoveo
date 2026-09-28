@@ -86,7 +86,10 @@ impl TimeMcp {
             .map_err(internal)?
             .resolve(&request)
             .map_err(invalid_params)?;
-        structured_result(format!("resolved {}", output.utc_rfc3339), &output)
+        structured_result(
+            format!("resolved {}", output.projection().utc_rfc3339),
+            &output,
+        )
     }
 
     #[tool(

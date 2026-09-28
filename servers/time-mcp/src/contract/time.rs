@@ -2,7 +2,7 @@ use super::{ClockQualityPolicy, SubsecondNanoseconds, TimeInstant};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use super::{AuthorityReleaseId, EffectiveTimeAuthority, MissionEpochId};
+use super::{AuthorityReleaseId, MissionEpochId, ResolveTimeOutput};
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -78,19 +78,6 @@ pub struct ResolveTimeRequest {
     pub expression: TimeExpression,
     #[serde(default)]
     pub additional_uncertainty_nanoseconds: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct ResolveTimeOutput {
-    pub instant: TimeInstant,
-    pub effective_authority: EffectiveTimeAuthority,
-    pub utc_rfc3339: String,
-    pub utc_is_leap_second: bool,
-    pub military_dtg: String,
-    pub unix_seconds: i64,
-    pub gps_week: Option<u32>,
-    pub gps_seconds_of_week: Option<f64>,
-    pub julian_day_tai: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]

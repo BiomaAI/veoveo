@@ -93,6 +93,11 @@ leap second assumptions.
   schedule clipping preserve selected endpoint uncertainty, taking the maximum at
   tied coordinates without moving the bound. `tests/window_contract.rs` checks wire
   admission; `engine/windows.rs` and engine schedule tests qualify runtime behavior.
+- `contract/resolution.rs` binds each resolved instant to matching effective release
+  metadata, with read-only accessors and the existing flat projection fields. The
+  engine calculates the projections and rejects foreign epoch authorities. Keep
+  epoch IDs typed and carry their uncertainty through checked addition. Authority
+  contract tests and native engine cases qualify decoding and relative resolution.
 - `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
   equality. Download checks compare its canonical digest values; provenance uses the
   foundational `sha256:` representation. Keep digests typed through persistence drafts.

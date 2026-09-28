@@ -184,7 +184,7 @@ impl TimeApplication {
                 },
                 additional_uncertainty_nanoseconds: 0,
             })?
-            .instant;
+            .into_instant();
         let delta = event.due.total_nanoseconds() - now.total_nanoseconds();
         let delay = if delta <= 0 {
             Duration::ZERO

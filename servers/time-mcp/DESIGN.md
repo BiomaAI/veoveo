@@ -140,6 +140,19 @@ label. Decoding additionally checks URI/ID equality, distinct release IDs and no
 labels; those relational and whitespace checks use the Rust constructors. These metadata
 checks describe reference consistency; authority selection and file loading run in the registry.
 
+`ResolveTimeOutput::new` takes an instant, its complete authority pair and the engine's
+`TimeProjection`. Construction and JSON decoding require the instant's binding to agree
+with both release references. Read-only accessors protect the admitted pair. Projections
+keep their existing flat wire fields; the schema describes that shape, while the constructor
+checks release agreement. The contract library does not load authority files or recompute
+UTC, GPS and Julian representations. The temporal engine owns those calculations.
+`ConvertTimeOutput` embeds this checked resolution as its `canonical` field.
+
+Valid deterministic results preserve their wire representation and need no migration.
+Consumers reject historical results with inconsistent release metadata; retained protocol
+records are not rewritten. Installed resolution and conversion acceptance must qualify
+the stricter decoder during the coordinated Time upgrade.
+
 `TimeWindow` keeps the existing `start` and `end` wire fields. Its schema describes
 each instant; the Rust constructor enforces ordering and authority agreement across
 the fields. Runtime operations also check that this pair matches the active engine.
@@ -434,6 +447,12 @@ named by its input expressions. SurrealDB selects the latest version of each key
 inside the caller's tenant, in batches of at most 100 keys. The request has a
 30-second epoch-read deadline and accepts at most 100,000 expressions. A calculation's
 epoch set belongs to that calculation, so concurrent requests cannot replace it.
+Engine maps retain `MissionEpochId` keys. Relative resolution requires the epoch's
+authority pair to match the active engine and preserves its uncertainty while adding
+the requested offset. Additional resolution uncertainty uses checked addition; a sum
+outside the unsigned 64-bit nanosecond range fails. Activation may therefore require
+publishing a new epoch version under the selected authority before relative calculations
+can resume. Exact reads keep the stored epoch's original binding.
 An exact epoch resource read selects its tenant and epoch key in SurrealDB, orders
 versions descending, and fetches one record. Clock observations, exact resource reads,
 and zone completions use the authority cache without loading the epoch catalog.
@@ -858,6 +877,7 @@ Examples of agent requests include:
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/contract/instant.rs` | checked subsecond values, instant metadata and lossless total-coordinate conversion |
 | `src/contract/authority.rs` | checked release references, effective authority pairs, derived bindings and wire adapters |
+| `src/contract/resolution.rs` | resolved instant/release agreement, read-only metadata and flat projection wire fields |
 | `src/contract/window.rs` | checked half-open bounds, authority agreement and metadata-preserving intersection |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
@@ -893,6 +913,9 @@ admit one writer. Window contract cases check JSON admission, read-only bounds a
 signed-coordinate extremes. Native interval cases compare all three operations with
 half-open membership and check endpoint uncertainty; schedule cases cover horizon
 clipping, recurrence limits and foreign authority rejection.
+Resolution contract cases check flat wire fields, schema admission and release agreement
+inside both output models. Native epoch cases cover offset fractions, authority rejection
+and uncertainty preservation, including overflow without epoch mutation.
 Active-pointer cases corrupt family, identity, version, history and
 release links; raw query checks prove SQL excludes denied release payloads. Fixture
 events change pointer and previous-release fields after the candidate update, proving

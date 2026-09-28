@@ -205,7 +205,7 @@ fn resolved(engine: &TemporalEngine) -> TimeInstant {
             additional_uncertainty_nanoseconds: 0,
         })
         .unwrap()
-        .instant
+        .into_instant()
 }
 
 async fn set(store: &PlatformStore, record: RecordId, field: &str, value: impl SurrealValue) {
@@ -506,7 +506,7 @@ async fn event_batches_reuse_authority_and_skip_registered_or_terminal_events() 
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap()
-            .instant;
+            .into_instant();
         let acquisitions = crate::acquisition::AcquisitionService::new(
             crate::acquisition::AcquisitionServiceConfig {
                 scratch_root: files.root.path().join("scratch"),

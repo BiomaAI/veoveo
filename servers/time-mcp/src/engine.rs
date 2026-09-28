@@ -16,10 +16,10 @@ use crate::{
     contract::{
         ConvertTimeOutput, ConvertTimeRequest, Disambiguation, EvaluateWindowsOutput,
         EvaluateWindowsRequest, ExpandScheduleOutput, ExpandScheduleRequest, MissionEpoch,
-        RecurrenceFrequency, ResolveTimeOutput, ResolveTimeRequest, ScaleRepresentation,
-        ScheduleOccurrence, SubsecondNanoseconds, TimeExpression, TimeInstant, TimeScale,
-        TimeWindow, TimelineViolation, ValidateTimelineOutput, ValidateTimelineRequest, Weekday,
-        ZonedRepresentation,
+        MissionEpochId, RecurrenceFrequency, ResolveTimeOutput, ResolveTimeRequest,
+        ScaleRepresentation, ScheduleOccurrence, SubsecondNanoseconds, TimeExpression, TimeInstant,
+        TimeProjection, TimeScale, TimeWindow, TimelineViolation, ValidateTimelineOutput,
+        ValidateTimelineRequest, Weekday, ZonedRepresentation,
     },
 };
 
@@ -31,7 +31,7 @@ const JULIAN_DAY_AT_1970_TAI: f64 = 2_440_587.5;
 #[derive(Clone)]
 pub struct TemporalEngine {
     authority: Arc<AuthorityContext>,
-    epochs: Arc<RwLock<BTreeMap<String, MissionEpoch>>>,
+    epochs: Arc<RwLock<BTreeMap<MissionEpochId, MissionEpoch>>>,
 }
 
 impl TemporalEngine {
@@ -54,7 +54,7 @@ impl TemporalEngine {
         let mut active = self.epochs.write().expect("mission epoch lock poisoned");
         active.clear();
         for epoch in epochs {
-            let key = epoch.epoch_id.to_string();
+            let key = epoch.epoch_id.clone();
             match active.get(&key) {
                 Some(current) if current.version >= epoch.version => {}
                 _ => {
@@ -68,7 +68,8 @@ impl TemporalEngine {
         let mut instant = self.resolve_expression(&request.expression)?;
         instant.uncertainty_nanoseconds = instant
             .uncertainty_nanoseconds
-            .saturating_add(request.additional_uncertainty_nanoseconds);
+            .checked_add(request.additional_uncertainty_nanoseconds)
+            .context("time uncertainty exceeds the supported unsigned 64-bit nanoseconds range")?;
         self.project(instant)
     }
 
@@ -352,13 +353,14 @@ impl TemporalEngine {
             } => {
                 let epochs = self.epochs.read().expect("mission epoch lock poisoned");
                 let epoch = epochs
-                    .get(epoch_id.as_str())
+                    .get(epoch_id)
                     .context("mission epoch is not active")?;
+                self.ensure_authority(&epoch.instant)?;
                 let total = epoch.instant.total_nanoseconds() + i128::from(*offset_nanoseconds);
                 return Ok(TimeInstant::from_total_nanoseconds(
                     total,
-                    0,
-                    self.authority.binding().clone(),
+                    epoch.instant.uncertainty_nanoseconds,
+                    epoch.instant.authority.clone(),
                 )?);
             }
         };
@@ -395,17 +397,22 @@ impl TemporalEngine {
             .single()
             .context("instant is outside the UTC projection range")?;
         let julian_day_tai = julian_day_tai(&instant);
-        Ok(ResolveTimeOutput {
+        Ok(ResolveTimeOutput::new(
             instant,
-            effective_authority: self.authority.effective().clone(),
-            utc_rfc3339: render_leap_second(timestamp.to_string(), utc_coordinate.is_leap_second)?,
-            utc_is_leap_second: utc_coordinate.is_leap_second,
-            military_dtg: utc.format("%d%H%MZ%b%y").to_string().to_uppercase(),
-            unix_seconds: utc_seconds,
-            gps_week,
-            gps_seconds_of_week,
-            julian_day_tai,
-        })
+            self.authority.effective().clone(),
+            TimeProjection {
+                utc_rfc3339: render_leap_second(
+                    timestamp.to_string(),
+                    utc_coordinate.is_leap_second,
+                )?,
+                utc_is_leap_second: utc_coordinate.is_leap_second,
+                military_dtg: utc.format("%d%H%MZ%b%y").to_string().to_uppercase(),
+                unix_seconds: utc_seconds,
+                gps_week,
+                gps_seconds_of_week,
+                julian_day_tai,
+            },
+        )?)
     }
 
     fn ensure_authority(&self, instant: &TimeInstant) -> Result<()> {
@@ -524,12 +531,13 @@ fn scale_representation(
 ) -> ScaleRepresentation {
     let (seconds, reference_epoch) = match scale {
         TimeScale::Utc => (
-            canonical.unix_seconds as f64 + f64::from(canonical.instant.nanosecond.get()) / 1e9,
+            canonical.projection().unix_seconds as f64
+                + f64::from(canonical.instant().nanosecond.get()) / 1e9,
             "1970-01-01T00:00:00Z",
         ),
         TimeScale::Tai => (
-            canonical.instant.tai_seconds_since_1970 as f64
-                + f64::from(canonical.instant.nanosecond.get()) / 1e9,
+            canonical.instant().tai_seconds_since_1970 as f64
+                + f64::from(canonical.instant().nanosecond.get()) / 1e9,
             "1970-01-01T00:00:00 TAI",
         ),
         TimeScale::Tt => (
@@ -745,17 +753,17 @@ mod tests {
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap();
-        assert_eq!(rfc.instant, dtg.instant);
+        assert_eq!(rfc.instant(), dtg.instant());
         let gps = engine
             .resolve(&ResolveTimeRequest {
                 expression: TimeExpression::Gps {
-                    week: rfc.gps_week.unwrap(),
-                    seconds_of_week: rfc.gps_seconds_of_week.unwrap(),
+                    week: rfc.projection().gps_week.unwrap(),
+                    seconds_of_week: rfc.projection().gps_seconds_of_week.unwrap(),
                 },
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap();
-        assert_eq!(rfc.instant, gps.instant);
+        assert_eq!(rfc.instant(), gps.instant());
     }
 
     #[test]
@@ -768,6 +776,15 @@ mod tests {
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap();
+        assert_eq!(
+            output.instant().authority,
+            output.effective_authority().binding()
+        );
+        assert_eq!(
+            serde_json::from_value::<ResolveTimeOutput>(serde_json::to_value(&output).unwrap())
+                .unwrap(),
+            output
+        );
         let value = serde_json::to_value(output).unwrap();
 
         assert!(value["effective_authority"]["tzdb"]["source_digest"].is_string());
@@ -826,7 +843,7 @@ mod tests {
                     additional_uncertainty_nanoseconds: 0,
                 })
                 .unwrap()
-                .instant
+                .into_instant()
         };
         let output = engine
             .expand_schedule(&ExpandScheduleRequest {
@@ -864,7 +881,9 @@ mod tests {
                 engine
                     .project(occurrence.window.start().clone())
                     .unwrap()
+                    .projection()
                     .utc_rfc3339
+                    .clone()
             })
             .collect();
         assert_eq!(output.occurrences.len(), 4);
@@ -886,7 +905,7 @@ mod tests {
                     additional_uncertainty_nanoseconds: uncertainty,
                 })
                 .unwrap()
-                .instant
+                .into_instant()
         };
         let horizon =
             |start: &str, end: &str| TimeWindow::new(resolve(start, 7), resolve(end, 11)).unwrap();
@@ -1052,7 +1071,7 @@ mod tests {
                 additional_uncertainty_nanoseconds: 0,
             })
             .unwrap();
-        assert_eq!(resolved.instant.tai_seconds_since_1970, 4_001);
+        assert_eq!(resolved.instant().tai_seconds_since_1970, 4_001);
     }
 
     #[test]
@@ -1067,7 +1086,7 @@ mod tests {
             })
             .unwrap();
         let leap = TimeInstant {
-            tai_seconds_since_1970: midnight.instant.tai_seconds_since_1970 - 1,
+            tai_seconds_since_1970: midnight.instant().tai_seconds_since_1970 - 1,
             nanosecond: SubsecondNanoseconds::new(500_000_000).unwrap(),
             uncertainty_nanoseconds: 0,
             authority: engine.authority.binding().clone(),
@@ -1079,10 +1098,149 @@ mod tests {
                 scales: vec![TimeScale::Tai],
             })
             .unwrap();
-        assert!(projected.canonical.utc_is_leap_second);
-        assert_eq!(projected.canonical.utc_rfc3339, "2016-12-31T23:59:60.5Z");
+        assert!(projected.canonical.projection().utc_is_leap_second);
+        assert_eq!(
+            projected.canonical.projection().utc_rfc3339,
+            "2016-12-31T23:59:60.5Z"
+        );
         assert!(projected.zoned[0].rfc9557.contains("23:59:60.5"));
         assert!(projected.zoned[1].rfc9557.contains("18:59:60.5"));
+    }
+
+    #[test]
+    fn epoch_resolution_preserves_uncertainty_and_rejects_foreign_authority() {
+        let engine = engine();
+        let base = engine
+            .resolve(&ResolveTimeRequest {
+                expression: TimeExpression::Rfc3339 {
+                    value: "2024-06-01T00:00:00Z".into(),
+                },
+                additional_uncertainty_nanoseconds: 7,
+            })
+            .unwrap()
+            .into_instant();
+        let id = MissionEpochId::new("epoch-uncertain-launch").unwrap();
+        let epoch = |instant| MissionEpoch {
+            epoch_id: id.clone(),
+            name: "launch".into(),
+            instant,
+            version: crate::TimeVersion::FIRST,
+        };
+        engine.replace_epochs([epoch(base.clone())]);
+        for offset in [-1, 0, 1] {
+            let output = engine
+                .resolve(&ResolveTimeRequest {
+                    expression: TimeExpression::EpochRelative {
+                        epoch_id: id.clone(),
+                        offset_nanoseconds: offset,
+                    },
+                    additional_uncertainty_nanoseconds: 11,
+                })
+                .unwrap();
+            assert_eq!(
+                output.instant().total_nanoseconds(),
+                base.total_nanoseconds() + i128::from(offset)
+            );
+            assert_eq!(output.instant().uncertainty_nanoseconds, 18);
+            assert_eq!(output.instant().authority, base.authority);
+            assert_eq!(
+                output.instant().authority,
+                output.effective_authority().binding()
+            );
+            let converted = engine
+                .convert(&ConvertTimeRequest {
+                    instant: output.instant().clone(),
+                    zone_ids: vec!["UTC".into()],
+                    scales: vec![TimeScale::Tai],
+                })
+                .unwrap();
+            assert_eq!(converted.canonical, output);
+        }
+        let mut foreign = base;
+        foreign.authority = crate::AuthorityBinding::new(
+            AuthorityReleaseId::new("time-release-sensitive-tzdb").unwrap(),
+            AuthorityReleaseId::new("time-release-sensitive-leaps").unwrap(),
+        )
+        .unwrap();
+        engine.replace_epochs([epoch(foreign)]);
+        let expression = TimeExpression::EpochRelative {
+            epoch_id: id,
+            offset_nanoseconds: 0,
+        };
+        let error = engine
+            .resolve(&ResolveTimeRequest {
+                expression: expression.clone(),
+                additional_uncertainty_nanoseconds: 0,
+            })
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "instant references a non-active temporal authority"
+        );
+        assert!(
+            engine
+                .validate_timeline(&ValidateTimelineRequest {
+                    points: vec![TimelinePoint {
+                        name: "launch".into(),
+                        at: expression
+                    }],
+                    constraints: vec![],
+                })
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn uncertainty_addition_rejects_overflow_without_changing_the_epoch() {
+        let engine = engine();
+        let id = MissionEpochId::new("epoch-uncertainty-limit").unwrap();
+        let base = engine
+            .resolve(&ResolveTimeRequest {
+                expression: TimeExpression::Rfc3339 {
+                    value: "2024-06-01T00:00:00Z".into(),
+                },
+                additional_uncertainty_nanoseconds: u64::MAX - 1,
+            })
+            .unwrap()
+            .into_instant();
+        engine.replace_epochs([MissionEpoch {
+            epoch_id: id.clone(),
+            name: "uncertain".into(),
+            instant: base,
+            version: crate::TimeVersion::FIRST,
+        }]);
+        let mut request = ResolveTimeRequest {
+            expression: TimeExpression::EpochRelative {
+                epoch_id: id,
+                offset_nanoseconds: 0,
+            },
+            additional_uncertainty_nanoseconds: 1,
+        };
+        assert_eq!(
+            engine
+                .resolve(&request)
+                .unwrap()
+                .instant()
+                .uncertainty_nanoseconds,
+            u64::MAX
+        );
+        request.additional_uncertainty_nanoseconds = 2;
+        assert!(
+            engine
+                .resolve(&request)
+                .unwrap_err()
+                .to_string()
+                .contains("time uncertainty exceeds")
+        );
+        request.additional_uncertainty_nanoseconds = 0;
+        assert_eq!(
+            engine
+                .resolve(&request)
+                .unwrap()
+                .instant()
+                .uncertainty_nanoseconds,
+            u64::MAX - 1
+        );
     }
 
     #[test]
