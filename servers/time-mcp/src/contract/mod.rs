@@ -1,4 +1,5 @@
 mod admin;
+mod authority;
 mod calendar;
 mod clock_policy;
 mod digest;
@@ -10,6 +11,7 @@ mod time;
 mod version;
 
 pub use admin::*;
+pub use authority::*;
 pub use calendar::*;
 pub use clock_policy::*;
 pub use digest::*;

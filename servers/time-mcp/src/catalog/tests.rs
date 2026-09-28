@@ -36,10 +36,11 @@ fn instant() -> TimeInstant {
         tai_seconds_since_1970: 2_000_000_000,
         nanosecond: crate::SubsecondNanoseconds::new(17).unwrap(),
         uncertainty_nanoseconds: 0,
-        authority: AuthorityBinding {
-            tzdb_release_id: AuthorityReleaseId::new("time-release-tzdb").unwrap(),
-            leap_seconds_release_id: AuthorityReleaseId::new("time-release-leaps").unwrap(),
-        },
+        authority: AuthorityBinding::new(
+            AuthorityReleaseId::new("time-release-tzdb").unwrap(),
+            AuthorityReleaseId::new("time-release-leaps").unwrap(),
+        )
+        .unwrap(),
     }
 }
 

@@ -79,7 +79,7 @@ impl TemporalEngine {
         let mut zoned = Vec::with_capacity(request.zone_ids.len());
         for zone_id in &request.zone_ids {
             validate_zone_id(zone_id)?;
-            let zone = self.authority.tzdb.get(zone_id)?;
+            let zone = self.authority.tzdb().get(zone_id)?;
             zoned.push(ZonedRepresentation {
                 zone_id: zone_id.clone(),
                 rfc9557: render_leap_second(
@@ -112,8 +112,8 @@ impl TemporalEngine {
             .first()
             .or_else(|| request.right.first())
             .map(|window| window.start.authority.clone())
-            .unwrap_or_else(|| self.authority.binding.clone());
-        if authority != self.authority.binding {
+            .unwrap_or_else(|| self.authority.binding().clone());
+        if &authority != self.authority.binding() {
             bail!("window operation references a non-active temporal authority");
         }
         for window in request.left.iter().chain(&request.right) {
@@ -163,7 +163,7 @@ impl TemporalEngine {
             bail!("calendar name must be set");
         }
         validate_zone_id(&request.calendar.zone_id)?;
-        let zone = self.authority.tzdb.get(&request.calendar.zone_id)?;
+        let zone = self.authority.tzdb().get(&request.calendar.zone_id)?;
         let excluded: BTreeSet<_> = request
             .calendar
             .excluded_dates
@@ -332,16 +332,16 @@ impl TemporalEngine {
                 let parser = jiff::fmt::temporal::DateTimeParser::new()
                     .disambiguation(to_jiff_disambiguation(*disambiguation));
                 let zoned = parser
-                    .parse_zoned_with(&self.authority.tzdb, value)
+                    .parse_zoned_with(self.authority.tzdb(), value)
                     .context("invalid RFC 9557 timestamp")?;
                 instant_parts_from_timestamp(zoned.timestamp(), &self.authority)?
             }
             TimeExpression::Civil { value } => {
-                if value.tzdb_release_id != self.authority.binding.tzdb_release_id {
+                if &value.tzdb_release_id != self.authority.binding().tzdb_release_id() {
                     bail!("civil time references a non-active TZDB authority");
                 }
                 validate_zone_id(&value.zone_id)?;
-                let zone = self.authority.tzdb.get(&value.zone_id)?;
+                let zone = self.authority.tzdb().get(&value.zone_id)?;
                 let datetime = civil::DateTime::from_str(&value.local_datetime)
                     .context("invalid civil datetime")?;
                 let zoned = zone
@@ -354,7 +354,7 @@ impl TemporalEngine {
                 nanosecond,
             } => (
                 seconds
-                    .checked_add(self.authority.leap_seconds.offset_for_utc(*seconds)?)
+                    .checked_add(self.authority.leap_seconds().offset_for_utc(*seconds)?)
                     .context("Unix timestamp exceeds the supported range")?,
                 *nanosecond,
             ),
@@ -402,7 +402,7 @@ impl TemporalEngine {
                 return Ok(TimeInstant::from_total_nanoseconds(
                     total,
                     0,
-                    self.authority.binding.clone(),
+                    self.authority.binding().clone(),
                 )?);
             }
         };
@@ -410,7 +410,7 @@ impl TemporalEngine {
             tai_seconds_since_1970,
             nanosecond,
             uncertainty_nanoseconds: 0,
-            authority: self.authority.binding.clone(),
+            authority: self.authority.binding().clone(),
         })
     }
 
@@ -418,7 +418,7 @@ impl TemporalEngine {
         self.ensure_authority(&instant)?;
         let utc_coordinate = self
             .authority
-            .leap_seconds
+            .leap_seconds()
             .utc_from_tai(instant.tai_seconds_since_1970)?;
         let utc_seconds = utc_coordinate.unix_seconds;
         let timestamp = Timestamp::new(utc_seconds, instant.nanosecond.get() as i32)?;
@@ -441,7 +441,7 @@ impl TemporalEngine {
         let julian_day_tai = julian_day_tai(&instant);
         Ok(ResolveTimeOutput {
             instant,
-            effective_authority: self.authority.effective.clone(),
+            effective_authority: self.authority.effective().clone(),
             utc_rfc3339: render_leap_second(timestamp.to_string(), utc_coordinate.is_leap_second)?,
             utc_is_leap_second: utc_coordinate.is_leap_second,
             military_dtg: utc.format("%d%H%MZ%b%y").to_string().to_uppercase(),
@@ -453,7 +453,7 @@ impl TemporalEngine {
     }
 
     fn ensure_authority(&self, instant: &TimeInstant) -> Result<()> {
-        if instant.authority != self.authority.binding {
+        if &instant.authority != self.authority.binding() {
             bail!("instant references a non-active temporal authority");
         }
         Ok(())
@@ -499,7 +499,7 @@ fn instant_parts_from_unix(
 ) -> Result<(i64, SubsecondNanoseconds)> {
     Ok((
         utc_seconds
-            .checked_add(authority.leap_seconds.offset_for_utc(utc_seconds)?)
+            .checked_add(authority.leap_seconds().offset_for_utc(utc_seconds)?)
             .context("timestamp exceeds the supported range")?,
         nanosecond,
     ))
@@ -510,7 +510,7 @@ fn timestamp_from_instant(
     authority: &AuthorityContext,
 ) -> Result<(Timestamp, bool)> {
     let coordinate = authority
-        .leap_seconds
+        .leap_seconds()
         .utc_from_tai(instant.tai_seconds_since_1970)?;
     Ok((
         Timestamp::new(coordinate.unix_seconds, instant.nanosecond.get() as i32)?,
@@ -642,7 +642,7 @@ fn civil_to_instant(
         tai_seconds_since_1970,
         nanosecond,
         uncertainty_nanoseconds: 0,
-        authority: authority.binding.clone(),
+        authority: authority.binding().clone(),
     })
 }
 
@@ -761,13 +761,11 @@ mod tests {
         let tzdb_release_id = AuthorityReleaseId::new("time-release-tzdb-test").unwrap();
         let leap_release_id = AuthorityReleaseId::new("time-release-leaps-test").unwrap();
         let authority = AuthorityContext::from_paths(
-            EffectiveTimeAuthority {
-                tzdb: test_authority_reference(tzdb_release_id, AuthorityDatasetKind::Tzdb),
-                leap_seconds: test_authority_reference(
-                    leap_release_id,
-                    AuthorityDatasetKind::LeapSeconds,
-                ),
-            },
+            EffectiveTimeAuthority::new(
+                test_authority_reference(tzdb_release_id, AuthorityDatasetKind::Tzdb),
+                test_authority_reference(leap_release_id, AuthorityDatasetKind::LeapSeconds),
+            )
+            .unwrap(),
             "/usr/share/zoneinfo",
             LeapSecondTable::from_iana_content(LEAPS).unwrap(),
         )
@@ -779,14 +777,14 @@ mod tests {
         release_id: AuthorityReleaseId,
         dataset_kind: AuthorityDatasetKind,
     ) -> TimeAuthorityReference {
-        TimeAuthorityReference {
-            release_uri: TimeAuthorityReleaseUri::new(&release_id),
-            version_label: release_id.to_string(),
-            release_id,
+        TimeAuthorityReference::new(
+            TimeAuthorityReleaseUri::new(&release_id),
             dataset_kind,
-            source: TimeAuthoritySource::Bootstrap,
-            source_digest: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
-        }
+            TimeAuthoritySource::Bootstrap,
+            veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+            release_id.to_string(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -846,7 +844,7 @@ mod tests {
                 value: crate::contract::CivilTime {
                     local_datetime: "2024-11-03T01:30:00".to_owned(),
                     zone_id: "America/New_York".to_owned(),
-                    tzdb_release_id: engine.authority.binding.tzdb_release_id.clone(),
+                    tzdb_release_id: engine.authority.binding().tzdb_release_id().clone(),
                     disambiguation: Disambiguation::Reject,
                 },
             },
@@ -858,7 +856,7 @@ mod tests {
     #[test]
     fn half_open_window_algebra_coalesces_adjacent_ranges() {
         let engine = engine();
-        let authority = engine.authority.binding.clone();
+        let authority = engine.authority.binding().clone();
         let instant = |seconds| TimeInstant {
             tai_seconds_since_1970: seconds,
             nanosecond: SubsecondNanoseconds::ZERO,
@@ -977,7 +975,7 @@ mod tests {
     #[test]
     fn mission_relative_resolution_selects_the_highest_epoch_version() {
         let engine = engine();
-        let authority = engine.authority.binding.clone();
+        let authority = engine.authority.binding().clone();
         let epoch = |version, seconds| MissionEpoch {
             epoch_id: MissionEpochId::new("epoch-launch").unwrap(),
             name: "Launch".to_owned(),
@@ -1017,7 +1015,7 @@ mod tests {
             tai_seconds_since_1970: midnight.instant.tai_seconds_since_1970 - 1,
             nanosecond: SubsecondNanoseconds::new(500_000_000).unwrap(),
             uncertainty_nanoseconds: 0,
-            authority: engine.authority.binding.clone(),
+            authority: engine.authority.binding().clone(),
         };
         let projected = engine
             .convert(&ConvertTimeRequest {
@@ -1044,7 +1042,7 @@ mod tests {
                 tai_seconds_since_1970: seconds,
                 nanosecond: nanos,
                 uncertainty_nanoseconds: 0,
-                authority: engine.authority.binding.clone(),
+                authority: engine.authority.binding().clone(),
             };
             let total = instant.total_nanoseconds();
             engine.replace_epochs([MissionEpoch {

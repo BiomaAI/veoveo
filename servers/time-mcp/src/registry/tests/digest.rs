@@ -47,8 +47,8 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
                 .authority_reference(&owner, &retained)
                 .await
                 .unwrap()
-                .source_digest,
-            canonical
+                .source_digest(),
+            &canonical
         );
         let registry = files.registry();
         activate(
@@ -65,10 +65,10 @@ async fn retained_digest_spelling_preserves_idempotency_and_canonical_provenance
                 .await
                 .unwrap()
                 .authority()
-                .effective
-                .leap_seconds
-                .source_digest,
-            canonical
+                .effective()
+                .leap_seconds()
+                .source_digest(),
+            &canonical
         );
 
         acquisition.acquisition_id =

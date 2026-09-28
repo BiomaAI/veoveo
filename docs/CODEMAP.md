@@ -899,6 +899,7 @@ admission and recovery synchronize the local worker inventory in
 | `servers/time-mcp/src/index.rs`, `servers/time-mcp/src/catalog/pages.rs` | fixed-size collection envelopes and catalog APIs using domain cursor types |
 | `servers/time-mcp/src/contract/clock_policy.rs`, `servers/time-mcp/src/contract/version.rs` | checked policy construction and schemas, positive metadata versions, optional-row write guards and the zero-only source-creation sentinel |
 | `servers/time-mcp/src/contract/instant.rs` | subsecond type and schemas, instant metadata, negative-coordinate splitting and checked seconds conversion; contract checks in `tests/instant_contract.rs` |
+| `servers/time-mcp/src/contract/authority.rs` | checked authority references, pair roles and distinct release identities, derived instant bindings and preserved wire shapes; `tests/authority_contract.rs` qualifies the public contract |
 | `servers/time-mcp/src/contract/digest.rs` | bare-hexadecimal wire adapter, preserved request spelling and canonical SHA-256 content values; contract and retained-record qualification live in `tests/digest_contract.rs` and `src/registry/tests/digest.rs` |
 | `servers/time-mcp/src/catalog/clock.rs` | stored clock-policy identity, scalar and version admission |
 | `servers/time-mcp/src/catalog/records.rs` | checked retained identity, version and indexed metadata decoding; lifecycle-column authority and redacted body diagnostics |

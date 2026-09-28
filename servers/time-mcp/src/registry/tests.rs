@@ -47,16 +47,14 @@ impl AuthorityFiles {
                 .unwrap();
         }
         let bootstrap = AuthorityContext::from_paths(
-            EffectiveTimeAuthority {
-                tzdb: bootstrap_reference(
-                    "time-release-bootstrap-tzdb",
-                    AuthorityDatasetKind::Tzdb,
-                ),
-                leap_seconds: bootstrap_reference(
+            EffectiveTimeAuthority::new(
+                bootstrap_reference("time-release-bootstrap-tzdb", AuthorityDatasetKind::Tzdb),
+                bootstrap_reference(
                     "time-release-bootstrap-leaps",
                     AuthorityDatasetKind::LeapSeconds,
                 ),
-            },
+            )
+            .unwrap(),
             &tzdb,
             LeapSecondTable::from_path(&bootstrap_leaps).await.unwrap(),
         )
@@ -82,14 +80,14 @@ impl AuthorityFiles {
 
 fn bootstrap_reference(id: &str, kind: AuthorityDatasetKind) -> TimeAuthorityReference {
     let release_id = AuthorityReleaseId::new(id).unwrap();
-    TimeAuthorityReference {
-        release_uri: TimeAuthorityReleaseUri::new(&release_id),
-        release_id,
-        dataset_kind: kind,
-        version_label: "fixture".into(),
-        source: TimeAuthoritySource::Bootstrap,
-        source_digest: Sha256Digest::from_hex("a".repeat(64)).unwrap(),
-    }
+    TimeAuthorityReference::new(
+        TimeAuthorityReleaseUri::new(&release_id),
+        kind,
+        TimeAuthoritySource::Bootstrap,
+        Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+        "fixture".into(),
+    )
+    .unwrap()
 }
 
 async fn scope(store: &PlatformStore, tenant: &str) -> TimeAccessContext {
@@ -236,7 +234,10 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         let owner = scope(&db.a, "registry-owner").await;
         let foreign = scope(&db.a, "registry-other").await;
         let bootstrap = registry.authority_engine(&reader, &owner).await.unwrap();
-        assert_eq!(bootstrap.authority().effective, files.bootstrap.effective);
+        assert_eq!(
+            bootstrap.authority().effective(),
+            files.bootstrap.effective()
+        );
         let (first, acquisition) = stage(
             &writer,
             &owner,
@@ -248,8 +249,8 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         // No notification or manual reload: request-time selection is authoritative.
         let first_engine = registry.authority_engine(&reader, &owner).await.unwrap();
         assert_eq!(
-            first_engine.authority().binding.leap_seconds_release_id,
-            first.release_id
+            first_engine.authority().binding().leap_seconds_release_id(),
+            &first.release_id
         );
         assert_eq!(
             resolved(&first_engine).tai_seconds_since_1970,
@@ -257,8 +258,8 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         );
         let reused = registry.authority_engine(&reader, &owner).await.unwrap();
         assert!(Arc::ptr_eq(
-            &first_engine.authority().leap_seconds,
-            &reused.authority().leap_seconds
+            first_engine.authority().leap_seconds(),
+            reused.authority().leap_seconds()
         ));
         assert_eq!(
             registry
@@ -266,23 +267,26 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
                 .await
                 .unwrap()
                 .authority()
-                .effective,
-            files.bootstrap.effective
+                .effective(),
+            files.bootstrap.effective()
         );
 
         let (tzdb, _) = stage(&writer, &owner, AuthorityDatasetKind::Tzdb, &files.tzdb).await;
         activate(&writer, &registry, &owner, &tzdb, TimeWriteGuard::Absent).await;
         let restarted = files.registry();
         let engine = restarted.authority_engine(&reader, &owner).await.unwrap();
-        assert_eq!(engine.authority().binding.tzdb_release_id, tzdb.release_id);
         assert_eq!(
-            engine.authority().binding.leap_seconds_release_id,
-            first.release_id
+            engine.authority().binding().tzdb_release_id(),
+            &tzdb.release_id
+        );
+        assert_eq!(
+            engine.authority().binding().leap_seconds_release_id(),
+            &first.release_id
         );
         assert!(
             engine
                 .authority()
-                .tzdb
+                .tzdb()
                 .available()
                 .any(|zone| zone.to_string() == "Mission/Test")
         );
@@ -341,9 +345,9 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
         assert!(registry.authority_engine(&reader, &owner).await.is_err());
         assert_eq!(
             registry
-                .bootstrap_reference(&files.bootstrap.binding.tzdb_release_id)
+                .bootstrap_reference(files.bootstrap.binding().tzdb_release_id())
                 .unwrap(),
-            files.bootstrap.effective.tzdb
+            files.bootstrap.effective().tzdb().clone()
         );
         assert!(registry.bootstrap_reference(&first.release_id).is_none());
         set(&db.a, release_id.clone(), "canonical_json", body).await;
@@ -371,8 +375,8 @@ async fn replicas_load_persisted_authority_before_serving_and_validate_cache_reu
                 .await
                 .unwrap()
                 .authority()
-                .effective,
-            files.bootstrap.effective
+                .effective(),
+            files.bootstrap.effective()
         );
     })
     .await
@@ -419,8 +423,8 @@ async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshnes
         registry.invalidate().await;
         let first_engine = registry.authority_engine(&reader, &owner).await.unwrap();
         assert_ne!(
-            first_engine.authority().binding,
-            bootstrap.authority().binding
+            first_engine.authority().binding(),
+            bootstrap.authority().binding()
         );
         drop(changes);
         let (next, _) = stage(
@@ -440,8 +444,8 @@ async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshnes
         .await;
         let next_engine = registry.authority_engine(&reader, &owner).await.unwrap();
         assert_eq!(
-            next_engine.authority().binding.leap_seconds_release_id,
-            next.release_id
+            next_engine.authority().binding().leap_seconds_release_id(),
+            &next.release_id
         );
         assert_eq!(
             resolved(&next_engine).tai_seconds_since_1970,
@@ -457,12 +461,12 @@ async fn live_and_reconciliation_invalidate_contexts_without_becoming_a_freshnes
         registry.invalidate().await;
         let reloaded = registry.authority_engine(&reader, &owner).await.unwrap();
         assert_eq!(
-            reloaded.authority().effective,
-            next_engine.authority().effective
+            reloaded.authority().effective(),
+            next_engine.authority().effective()
         );
         assert!(!Arc::ptr_eq(
-            &reloaded.authority().leap_seconds,
-            &next_engine.authority().leap_seconds
+            reloaded.authority().leap_seconds(),
+            next_engine.authority().leap_seconds()
         ));
     })
     .await

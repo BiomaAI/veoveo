@@ -36,6 +36,10 @@ required-features = ["contract"]
 name = "instant_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "authority_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [

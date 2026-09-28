@@ -122,6 +122,21 @@ Leap-table NTP conversion checks epoch subtraction. TAI-to-UTC conversion select
 offset directly from the ordered TAI transition intervals and checks the final subtraction;
 it preserves representable early coordinates without guessing an offset from the newest entry.
 
+`TimeAuthorityReference::new` takes a typed release URI, dataset kind, provenance,
+digest and nonblank version label. The URI supplies the release ID. A private wire
+adapter preserves the published fields and checks their repeated identity on decoding.
+`EffectiveTimeAuthority::new` checks the two dataset roles and distinct release IDs;
+its `binding` method derives the instant's `AuthorityBinding`. Both the binding and
+the complete pair expose read-only accessors. `AuthorityContext` derives its private
+binding from the checked pair and exposes read-only accessors for its metadata and loaded
+time databases. Catalog reads select visible records in SQL and verify their
+producing-acquisition relationships.
+
+The schemas constrain each pair member's dataset kind and require a nonempty version
+label. Decoding additionally checks URI/ID equality, distinct release IDs and nonblank
+labels; those relational and whitespace checks use the Rust constructors. These metadata
+checks describe reference consistency; authority selection and file loading run in the registry.
+
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
 names once through `scope_enum!`. MCP handlers and Task admission use the enum when
 checking authenticated grants. Administrative configuration accepts a validated
@@ -720,6 +735,10 @@ The Time owner must preflight retained catalogs before an installation upgrade,
 checking bodies and keys under each tenant and event owner, plus clock scalar bounds
 and positive lifecycle versions. Every stored instant fraction must be within
 `0..=999999999`; matching out-of-range JSON and indexed columns still fail admission.
+Each instant binding and configured bootstrap pair must use distinct release IDs for
+TZDB and leap seconds. Preflight retained instant bodies and bootstrap configuration
+for this condition before the coordinated upgrade. Reference decoding checks repeated
+URI/ID agreement, dataset roles and nonblank labels without rewriting persisted data.
 The public instant and Unix/TAI schemas declare this same subsecond range. Clients must
 send policies within the declared bounds;
 zero-version update requests are supported only where the absence guard applies. Export rejected rows
@@ -811,6 +830,7 @@ Examples of agent requests include:
 | `src/contract/digest.rs` | Time's bare-hexadecimal digest adapter over the foundational SHA-256 type |
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/contract/instant.rs` | checked subsecond values, instant metadata and lossless total-coordinate conversion |
+| `src/contract/authority.rs` | checked release references, effective authority pairs, derived bindings and wire adapters |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
 | `src/catalog/records/lifecycle.rs` | retained lifecycle-body DTOs and construction with the checked current column version |

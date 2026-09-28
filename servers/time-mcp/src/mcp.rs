@@ -540,7 +540,7 @@ impl ServerHandler for TimeMcp {
                 .await
                 .map_err(internal)?
                 .authority()
-                .tzdb
+                .tzdb()
                 .available()
                 .map(|name| name.to_string())
                 .collect(),

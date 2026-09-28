@@ -695,3 +695,108 @@ async fn matching_subsecond_corruption_rejects_reads_without_rewriting_rows() {
     .await
     .expect("Time subsecond metadata qualification exceeded 90 seconds");
 }
+
+#[tokio::test]
+async fn retained_instants_reject_ambiguous_authority_bindings_after_sql_visibility() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::new().await;
+        let owner = scope(&db.a, "time-binding", "owner").await;
+        let foreign = scope(&db.a, "time-binding-other", "owner").await;
+        let catalog = TimeCatalog::new(db.b.clone());
+        let epoch = catalog
+            .create_epoch(
+                &owner,
+                MissionEpoch {
+                    epoch_id: MissionEpochId::new("epoch-00000000-0000-7000-8000-000000000001")
+                        .unwrap(),
+                    name: "epoch".into(),
+                    instant: instant(),
+                    version: TimeVersion::FIRST,
+                },
+            )
+            .await
+            .unwrap();
+        let event = super::event(
+            &catalog,
+            &owner,
+            "event-00000000-0000-7000-8000-000000000001",
+        )
+        .await;
+        let records = [
+            (
+                RecordId::new("time_mission_epoch", format!("{}:1", epoch.epoch_id)),
+                "instant",
+            ),
+            (
+                RecordId::new("time_temporal_event", event.event_id.to_string()),
+                "due",
+            ),
+        ];
+        let mut originals = Vec::new();
+        let mut corrupted_bodies = Vec::new();
+        for (record, field) in &records {
+            let original = body(&db.a, record).await;
+            let mut corrupted: serde_json::Value = serde_json::from_str(&original).unwrap();
+            corrupted[field]["authority"]["leap_seconds_release_id"] =
+                corrupted[field]["authority"]["tzdb_release_id"].clone();
+            let corrupted = corrupted.to_string();
+            set(&db.a, record, "canonical_json", corrupted.clone()).await;
+            originals.push(original);
+            corrupted_bodies.push(corrupted);
+        }
+        for error in [
+            catalog.epoch(&owner, &epoch.epoch_id).await.unwrap_err(),
+            catalog.epochs_page(&owner, None).await.unwrap_err(),
+            catalog.event(&owner, &event.event_id).await.unwrap_err(),
+            catalog.events_page(&owner, None, None).await.unwrap_err(),
+        ] {
+            assert!(error.to_string().contains("canonical_json"));
+        }
+        assert!(
+            catalog
+                .epoch(&foreign, &epoch.epoch_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            catalog
+                .event(&foreign, &event.event_id)
+                .await
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            catalog
+                .epochs_page(&foreign, None)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        assert!(
+            catalog
+                .events_page(&foreign, None, None)
+                .await
+                .unwrap()
+                .items
+                .is_empty()
+        );
+        for (((record, _), original), corrupted) in
+            records.iter().zip(originals).zip(corrupted_bodies)
+        {
+            assert_eq!(body(&db.a, record).await, corrupted);
+            set(&db.a, record, "canonical_json", original).await;
+        }
+        assert_eq!(
+            catalog.epoch(&owner, &epoch.epoch_id).await.unwrap(),
+            Some(epoch)
+        );
+        assert_eq!(
+            catalog.event(&owner, &event.event_id).await.unwrap(),
+            Some(event)
+        );
+    })
+    .await
+    .expect("Time authority binding metadata qualification exceeded 90 seconds");
+}

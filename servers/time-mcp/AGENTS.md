@@ -82,6 +82,12 @@ leap second assumptions.
   separate ranges. `tests/instant_contract.rs` checks wire/schema bounds, defaults,
   negative fractions and both signed-seconds endpoints. Native metadata checks reject
   matching invalid body/column fractions without rewriting stored rows.
+- `contract/authority.rs` owns checked release references, family pairs and instant
+  bindings. Derive repeated identity from the typed release URI and derive bindings
+  from the effective pair. Keep their fields and the runtime `AuthorityContext`
+  private; callers consume accessors. Pair construction checks dataset roles and
+  distinct release IDs. `tests/authority_contract.rs` qualifies wire admission and
+  schemas, while native metadata tests qualify stricter retained-binding admission.
 - `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
   equality. Download checks compare its canonical digest values; provenance uses the
   foundational `sha256:` representation. Keep digests typed through persistence drafts.

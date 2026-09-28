@@ -40,8 +40,8 @@ impl TimeAuthorityReleaseUri {
         })
     }
 
-    pub fn release_id(&self) -> AuthorityReleaseId {
-        self.release_id.clone()
+    pub fn release_id(&self) -> &AuthorityReleaseId {
+        &self.release_id
     }
 
     pub fn as_str(&self) -> &str {

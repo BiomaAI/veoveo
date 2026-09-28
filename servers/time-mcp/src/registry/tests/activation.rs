@@ -81,8 +81,8 @@ async fn additive_fence_schema_preserves_retained_authorities() {
         .await;
         let engine = registry.authority_engine(&catalog, &owner).await.unwrap();
         assert_eq!(
-            engine.authority().effective.leap_seconds.release_id,
-            replacement.release_id
+            engine.authority().effective().leap_seconds().release_id(),
+            &replacement.release_id
         );
     })
     .await

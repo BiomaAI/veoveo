@@ -242,17 +242,16 @@ impl TimeCatalog {
                 release.release_id
             );
         }
-        Ok(TimeAuthorityReference {
-            release_uri: TimeAuthorityReleaseUri::new(&release.release_id),
-            release_id: release.release_id.clone(),
-            dataset_kind: release.dataset_kind,
-            source: TimeAuthoritySource::Acquisition {
+        Ok(TimeAuthorityReference::new(
+            TimeAuthorityReleaseUri::new(&release.release_id),
+            release.dataset_kind,
+            TimeAuthoritySource::Acquisition {
                 source_id: release.source_id.clone(),
                 acquisition_id: acquisition.acquisition_id,
             },
-            source_digest: release.source_digest_sha256.canonical().clone(),
-            version_label: release.version_label.clone(),
-        })
+            release.source_digest_sha256.canonical().clone(),
+            release.version_label.clone(),
+        )?)
     }
 
     pub async fn create_acquisition(

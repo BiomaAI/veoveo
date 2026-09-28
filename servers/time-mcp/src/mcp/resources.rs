@@ -187,7 +187,7 @@ impl TimeMcp {
                     .map_err(invalid_params)?;
                 json_resource(
                     uri,
-                    &json!({"zone_id": zone_id, "tzdb_release_id": engine.authority().binding.tzdb_release_id, "current": projection.zoned.into_iter().next()}),
+                    &json!({"zone_id": zone_id, "tzdb_release_id": engine.authority().binding().tzdb_release_id(), "current": projection.zoned.into_iter().next()}),
                 )
             }
             TimeResource::Calendar { id, version } => json_resource(
@@ -253,7 +253,7 @@ impl TimeMcp {
             }
             TimeResource::AuthoritiesCurrent => {
                 let engine = self.state.engine(&scope).await.map_err(internal)?;
-                json_resource(uri, &engine.authority().effective)
+                json_resource(uri, engine.authority().effective())
             }
             TimeResource::Docs
             | TimeResource::Document(_)

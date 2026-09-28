@@ -69,7 +69,7 @@ fn consumer_constructs_authority_identity_from_the_owning_library() {
         "time://authorities/releases/time-release-iana"
     );
     let decoded: TimeAuthorityReleaseUri = serde_json::from_value(uri.as_str().into()).unwrap();
-    assert_eq!(decoded.release_id(), id);
+    assert_eq!(decoded.release_id(), &id);
     assert_eq!(uri.to_uri().unwrap().as_str(), uri.as_str());
     assert_eq!(
         <TimeAuthorityReleaseUri as ResourceAddress>::parse(&uri.to_uri().unwrap()).unwrap(),
@@ -120,7 +120,7 @@ fn release_uri_preserves_every_supported_id_character() {
         let id = AuthorityReleaseId::new(id).unwrap();
         let uri = TimeAuthorityReleaseUri::new(&id);
         let decoded = TimeAuthorityReleaseUri::parse(uri.as_str()).unwrap();
-        assert_eq!(decoded.release_id(), id);
+        assert_eq!(decoded.release_id(), &id);
         assert_eq!(decoded, uri);
     }
 }

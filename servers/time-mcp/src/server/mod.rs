@@ -76,20 +76,20 @@ pub async fn run() -> Result<()> {
             .map_err(anyhow::Error::msg)?;
     let leap_seconds = LeapSecondTable::from_path(&args.bootstrap_leap_seconds_file).await?;
     let bootstrap = AuthorityContext::from_paths(
-        EffectiveTimeAuthority {
-            tzdb: bootstrap_authority_reference(
+        EffectiveTimeAuthority::new(
+            bootstrap_authority_reference(
                 tzdb_release_id,
                 AuthorityDatasetKind::Tzdb,
                 &args.bootstrap_tzdb_source_file,
             )
             .await?,
-            leap_seconds: bootstrap_authority_reference(
+            bootstrap_authority_reference(
                 leap_seconds_release_id,
                 AuthorityDatasetKind::LeapSeconds,
                 &args.bootstrap_leap_seconds_file,
             )
             .await?,
-        },
+        )?,
         &args.bootstrap_tzdb_dir,
         leap_seconds,
     )?;
@@ -245,14 +245,13 @@ async fn bootstrap_authority_reference(
         )
     })?;
     let source_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(source)))?;
-    Ok(TimeAuthorityReference {
-        release_uri: TimeAuthorityReleaseUri::new(&release_id),
-        version_label: release_id.to_string(),
-        release_id,
+    Ok(TimeAuthorityReference::new(
+        TimeAuthorityReleaseUri::new(&release_id),
         dataset_kind,
-        source: TimeAuthoritySource::Bootstrap,
+        TimeAuthoritySource::Bootstrap,
         source_digest,
-    })
+        release_id.to_string(),
+    )?)
 }
 
 fn install_rustls_provider() {

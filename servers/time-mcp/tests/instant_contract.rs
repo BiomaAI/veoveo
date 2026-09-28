@@ -5,10 +5,11 @@ use veoveo_time_mcp::{
 };
 
 fn authority() -> AuthorityBinding {
-    AuthorityBinding {
-        tzdb_release_id: AuthorityReleaseId::new("time-release-tzdb").unwrap(),
-        leap_seconds_release_id: AuthorityReleaseId::new("time-release-leaps").unwrap(),
-    }
+    AuthorityBinding::new(
+        AuthorityReleaseId::new("time-release-tzdb").unwrap(),
+        AuthorityReleaseId::new("time-release-leaps").unwrap(),
+    )
+    .unwrap()
 }
 
 #[test]

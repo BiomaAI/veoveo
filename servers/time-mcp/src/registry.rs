@@ -184,16 +184,16 @@ impl AuthorityRegistry {
                 || self.bootstrap_leaps.clone(),
                 |release| release.artifact_path.clone().into(),
             ),
-            effective: EffectiveTimeAuthority {
-                tzdb: match pair.tzdb {
+            effective: EffectiveTimeAuthority::new(
+                match pair.tzdb {
                     Some(release) => catalog.authority_reference(scope, &release).await?,
-                    None => self.bootstrap.effective.tzdb.clone(),
+                    None => self.bootstrap.effective().tzdb().clone(),
                 },
-                leap_seconds: match pair.leap_seconds {
+                match pair.leap_seconds {
                     Some(release) => catalog.authority_reference(scope, &release).await?,
-                    None => self.bootstrap.effective.leap_seconds.clone(),
+                    None => self.bootstrap.effective().leap_seconds().clone(),
                 },
-            },
+            )?,
         })
     }
 
@@ -242,11 +242,11 @@ impl AuthorityRegistry {
     /// Immutable packaged metadata does not require loading the tenant engine.
     pub fn bootstrap_reference(&self, id: &AuthorityReleaseId) -> Option<TimeAuthorityReference> {
         [
-            &self.bootstrap.effective.tzdb,
-            &self.bootstrap.effective.leap_seconds,
+            self.bootstrap.effective().tzdb(),
+            self.bootstrap.effective().leap_seconds(),
         ]
         .into_iter()
-        .find(|reference| &reference.release_id == id)
+        .find(|reference| reference.release_id() == id)
         .cloned()
     }
 }
