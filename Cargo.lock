@@ -17483,6 +17483,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-media-mcp",
  "veoveo-platform-store",
+ "veoveo-reason-mcp",
  "veoveo-recording-forwarder",
  "veoveo-recording-hub",
  "veoveo-recording-protocol",

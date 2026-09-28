@@ -23,6 +23,10 @@ appear in its public MCP identities.
   Derive repeated identities from one typed value and reject conflicting wire fields.
   Retained successful outputs must match their owning Task and requested pipeline;
   corrupt output is an explicit recovery error.
+- Publish terminal success through the shared Reason result builder with one
+  canonical `result_uri` and one product link. Admit retained v0 only through
+  `RetainedAnalysisOutput`; Task reads and subscriptions expose v1 after current
+  owner checks. Follow the design's coordinated upgrade and rollback profile.
 - Analysis and result notifications use the shared Task-backed resource listener.
   Do not restore process-local broadcasts or emit Task status for resource-only
   listeners. Additional Task-backed routes implement the owning contract trait.
@@ -71,7 +75,7 @@ appear in its public MCP identities.
 Contract revision: 3
 
 - C01: met
-- C02: pending — terminal products need the top-level canonical `result_uri` and a coordinated retained-Task/client transition tracked in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work)
+- C02: met — v1 terminal products carry canonical `result_uri`; native retained v0/v1 Task delivery passes, while the [installed transition](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work) is pending
 - C03: met
 - C04: met — analyses use Store cursor pages; discovery lists roots and fixed catalog entries
 - C05: met

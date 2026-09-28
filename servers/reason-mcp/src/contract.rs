@@ -1,9 +1,11 @@
 mod analysis_view;
 mod catalog_views;
 mod output;
+mod output_profiles;
 pub use analysis_view::{AnalysisDetails, AnalysisView};
 pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
-pub use output::AnalyzeRecordingOutput;
+pub use output::{AnalysisOutputSchema, AnalyzeRecordingOutput};
+pub use output_profiles::{AnalysisOutputProfile, RetainedAnalysisOutput};
 
 mod cursor;
 mod ids;

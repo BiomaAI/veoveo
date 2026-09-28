@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use veoveo_reason_mcp::contract::{AnalysisId, ModelId, PipelineId};
 
 use anyhow::{Context, Result};
-use rmcp::model::{CallToolResult, ContentBlock, Resource};
+use rmcp::model::CallToolResult;
 use serde::Serialize;
 use veoveo_artifact_contract::{ArtifactPut, ComplianceMetadata};
 use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, IssuedArtifactWriteCapability, now_utc};
@@ -14,7 +14,7 @@ use veoveo_reason_mcp::{
 use veoveo_recording_video::runtime::MaterializedVideo;
 use veoveo_types::DataLabelId;
 
-use super::app_state::AppState;
+use super::{app_state::AppState, task_results::analysis_tool_result};
 
 pub(super) struct AnalysisProducts {
     pub(super) results: ReasoningResults,
@@ -108,36 +108,11 @@ pub(super) async fn publish_analysis(
             requested_start_index: products.source.clip.requested_start_index,
             requested_end_index: products.source.clip.requested_end_index,
         },
-        results_artifact.clone(),
-        annotations_artifact.clone(),
+        results_artifact,
+        annotations_artifact,
     )
-    .with_source_clip(source_clip_artifact.clone());
-    let mut blocks = vec![ContentBlock::text(format!(
-        "reason analysis completed: {} `{}` over {} observed frame(s)",
-        products.results.task.kind(),
-        products.results.pipeline_id,
-        products.results.observed_frames,
-    ))];
-    blocks.push(resource_link(
-        &results_artifact.artifact_uri,
-        "Reason results",
-        RESULTS_MIME_TYPE,
-    ));
-    blocks.push(resource_link(
-        &annotations_artifact.artifact_uri,
-        "Rerun annotation layer",
-        RRD_MIME_TYPE,
-    ));
-    if let Some(artifact) = &source_clip_artifact {
-        blocks.push(resource_link(
-            &artifact.artifact_uri,
-            "Reason source clip",
-            MP4_MIME_TYPE,
-        ));
-    }
-    let mut result = CallToolResult::success(blocks);
-    result.structured_content = Some(serde_json::to_value(output)?);
-    Ok(result)
+    .with_source_clip(source_clip_artifact);
+    analysis_tool_result(output)
 }
 
 #[derive(Debug, Serialize)]
@@ -221,18 +196,6 @@ fn compliance(classification: &str, labels: &[String]) -> Result<ComplianceMetad
             .collect::<Result<BTreeSet<_>, _>>()?,
         ..Default::default()
     })
-}
-
-fn resource_link(
-    uri: &veoveo_artifact_contract::ArtifactUri,
-    title: &str,
-    mime_type: &str,
-) -> ContentBlock {
-    ContentBlock::ResourceLink(
-        Resource::new(uri.to_string(), title.to_owned())
-            .with_title(title.to_owned())
-            .with_mime_type(mime_type),
-    )
 }
 
 async fn record_usage(

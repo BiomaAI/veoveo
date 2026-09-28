@@ -138,7 +138,7 @@ pub(crate) enum ProbeOutcome {
         result: Box<RunRecordingOutput>,
     },
     ReasonGpuQualified {
-        result: Box<super::reason::ReasonOutput>,
+        result: Box<veoveo_reason_mcp::contract::AnalyzeRecordingOutput>,
     },
     WorkloadFailed {
         message: String,

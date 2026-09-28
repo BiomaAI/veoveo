@@ -10,14 +10,15 @@ use rmcp::{
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_reason_mcp::contract::AnalyzeRecordingRequest;
 use veoveo_task_runtime::{
-    DurableTaskService, DurableTaskSubscription, cancel_durable_task, get_durable_task,
-    retention_pins, subscribe_durable_tasks, task_seed, update_durable_task,
+    DurableTaskService, DurableTaskSubscription, cancel_durable_task, retention_pins, task_seed,
+    update_durable_task,
 };
 
 use super::{
     app_state::AppState,
     internal_auth::ForwardedBearer,
     ownership::{caller_from, runtime_owner},
+    task_results,
     tasks::{ReasonTaskInput, start_reason_task},
 };
 
@@ -100,7 +101,7 @@ impl DurableTaskService for ReasonTaskService {
         caller: &Self::Caller,
         request: GetTaskParams,
     ) -> Result<GetTaskResult, McpError> {
-        get_durable_task(&self.state.tasks, &runtime_owner(&caller.identity), request).await
+        task_results::get_task(&self.state.tasks, &runtime_owner(&caller.identity), request).await
     }
 
     async fn update_task(
@@ -120,6 +121,7 @@ impl DurableTaskService for ReasonTaskService {
         caller: &Self::Caller,
         task_ids: Vec<String>,
     ) -> Result<DurableTaskSubscription, McpError> {
-        subscribe_durable_tasks(&self.state.tasks, runtime_owner(&caller.identity), task_ids).await
+        task_results::subscribe_tasks(&self.state.tasks, runtime_owner(&caller.identity), task_ids)
+            .await
     }
 }

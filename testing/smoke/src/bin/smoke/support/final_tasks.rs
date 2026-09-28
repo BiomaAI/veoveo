@@ -29,25 +29,33 @@ impl FinalTaskSmokeClient {
         self
     }
 
+    async fn connect(&self) -> Result<SmokeMcpClient> {
+        let mut config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
+            .auth_header(self.bearer_token.clone());
+        if let Some(host) = &self.host {
+            config = config.custom_headers(HashMap::from([(HOST, host.clone())]));
+        }
+        let client = tokio::time::timeout(
+            Duration::from_secs(30),
+            SmokeMcpHandler.serve_with_lifecycle(
+                StreamableHttpClientTransport::from_config(config),
+                ClientLifecycleMode::Discover {
+                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
+                },
+            ),
+        )
+        .await
+        .context("MCP discovery exceeded 30 seconds")??;
+        Ok(client)
+    }
+
     pub(crate) async fn run_tool(
         &self,
         name: &str,
         arguments: Value,
         timeout: Duration,
     ) -> Result<CallToolResult> {
-        let mut config = StreamableHttpClientTransportConfig::with_uri(self.endpoint.clone())
-            .auth_header(self.bearer_token.clone());
-        if let Some(host) = &self.host {
-            config = config.custom_headers(HashMap::from([(HOST, host.clone())]));
-        }
-        let client = SmokeMcpHandler
-            .serve_with_lifecycle(
-                StreamableHttpClientTransport::from_config(config),
-                ClientLifecycleMode::Discover {
-                    preferred_versions: vec![rmcp::model::ProtocolVersion::V_2026_07_28],
-                },
-            )
-            .await?;
+        let client = self.connect().await?;
         ensure!(
             client
                 .peer_info()
@@ -108,6 +116,21 @@ impl FinalTaskSmokeClient {
             TaskPayload::Working => unreachable!("task wait returns a non-working state"),
             other => bail!("task returned an unsupported payload: {other:?}"),
         }
+    }
+
+    pub(crate) async fn read_resource<T: serde::de::DeserializeOwned>(
+        &self,
+        uri: &veoveo_types::ResourceUri,
+    ) -> Result<T> {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let client = self.connect().await?;
+            let value = read_mcp_resource_json(&client, uri.as_str()).await;
+            client.cancel().await?;
+            serde_json::from_value(value?)
+                .context("MCP resource does not match its owning contract")
+        })
+        .await
+        .context("MCP resource read exceeded 30 seconds")?
     }
 
     pub(crate) async fn run_tool_structured(

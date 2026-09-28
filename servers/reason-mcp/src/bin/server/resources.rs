@@ -11,7 +11,7 @@ use veoveo_reason_mcp::{
     catalog::{model_view, pipeline_view},
     contract::{
         AnalysisDetails, AnalysisId, AnalysisResource, AnalysisView, AnalyzeRecordingOutput,
-        ReasonResource,
+        ReasonResource, RetainedAnalysisOutput,
     },
     uris,
 };
@@ -190,14 +190,14 @@ fn analysis_output(
     let content = result
         .structured_content
         .ok_or_else(retained_output_error)?;
-    serde_json::from_value(content)
-        .map(Some)
+    RetainedAnalysisOutput::decode(content)
+        .map(|retained| Some(retained.into_output()))
         .map_err(|_| retained_output_error())
 }
 
 fn retained_output_error() -> McpError {
     McpError::internal_error(
-        "retained Reason output is invalid; repair or recover the Task before retrying",
+        "retained Reason output is invalid; use a compatible Reason build or repair or recover the Task before retrying",
         None,
     )
 }

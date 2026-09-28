@@ -1075,9 +1075,6 @@
       "analysis_uri": {
         "type": "string"
       },
-      "results_uri": {
-        "type": "string"
-      },
       "pipeline_uri": {
         "type": "string"
       },
@@ -1102,11 +1099,18 @@
             "type": "null"
           }
         ]
+      },
+      "result_uri": {
+        "type": "string"
+      },
+      "schema": {
+        "$ref": "#/$defs/AnalysisOutputSchema"
       }
     },
     "required": [
+      "schema",
       "analysis_uri",
-      "results_uri",
+      "result_uri",
       "pipeline_uri",
       "model_uri",
       "summary",
@@ -1470,8 +1474,15 @@
       "DelegationId": {
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
         "type": "string"
+      },
+      "AnalysisOutputSchema": {
+        "enum": [
+          "veoveo.ai/reason-analysis/v1"
+        ],
+        "type": "string"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "ReasoningSummary": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1717,9 +1728,6 @@
           "analysis_uri": {
             "type": "string"
           },
-          "results_uri": {
-            "type": "string"
-          },
           "pipeline_uri": {
             "type": "string"
           },
@@ -1744,17 +1752,25 @@
                 "type": "null"
               }
             ]
+          },
+          "result_uri": {
+            "type": "string"
+          },
+          "schema": {
+            "$ref": "#/$defs/AnalysisOutputSchema"
           }
         },
         "required": [
+          "schema",
           "analysis_uri",
-          "results_uri",
+          "result_uri",
           "pipeline_uri",
           "model_uri",
           "summary",
           "results_artifact",
           "annotations_artifact"
-        ]
+        ],
+        "additionalProperties": false
       },
       "ReasoningSummary": {
         "type": "object",
@@ -2111,6 +2127,12 @@
       },
       "DelegationId": {
         "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "AnalysisOutputSchema": {
+        "enum": [
+          "veoveo.ai/reason-analysis/v1"
+        ],
         "type": "string"
       }
     }

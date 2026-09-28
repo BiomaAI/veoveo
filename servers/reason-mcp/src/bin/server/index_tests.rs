@@ -11,8 +11,7 @@ use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
 
-#[path = "../../../../../testing/fixtures/store.rs"]
-mod fixture;
+use crate::store_fixture as fixture;
 
 use super::*;
 

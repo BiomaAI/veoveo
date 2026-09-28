@@ -2,9 +2,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail, ensure};
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use veoveo_artifact_contract::ArtifactMetadata;
+use rmcp::model::ContentBlock;
+use serde_json::json;
+use veoveo_reason_mcp::contract::{AnalyzeRecordingOutput, ReasoningResults};
 
 use super::candidate;
 use super::stream::{
@@ -17,28 +17,6 @@ use super::*;
 const REASON_MCP_URL: &str = "http://127.0.0.1:8803/reason/mcp";
 const REASON_READY_URL: &str = "http://127.0.0.1:8803/reason/readyz";
 const REASON_HOST: &str = "reason-mcp:8803";
-
-#[derive(Deserialize, Serialize)]
-pub(crate) struct ReasonOutput {
-    analysis_uri: String,
-    results_uri: String,
-    pipeline_uri: String,
-    model_uri: String,
-    summary: ReasonSummary,
-    results_artifact: ArtifactMetadata,
-    annotations_artifact: ArtifactMetadata,
-    source_clip_artifact: Option<ArtifactMetadata>,
-}
-
-#[derive(Deserialize, Serialize)]
-struct ReasonSummary {
-    observed_frames: u64,
-    event_count: u64,
-    elapsed_ms: u64,
-    decode_start_index: i64,
-    requested_start_index: i64,
-    requested_end_index: i64,
-}
 
 pub(crate) async fn reason_gpu(
     installation: &InstalledTarget,
@@ -198,7 +176,7 @@ pub(crate) async fn reason_gpu(
     let task_client =
         FinalTaskSmokeClient::new(REASON_MCP_URL, bearer_token).with_host(REASON_HOST);
     let task = task_client
-        .run_tool_structured("analyze_recording", arguments, Duration::from_secs(600))
+        .run_tool("analyze_recording", arguments, Duration::from_secs(600))
         .await;
     let output = match task {
         Ok(output) => output,
@@ -220,29 +198,37 @@ pub(crate) async fn reason_gpu(
             bail!("reason MCP task failed: {error:#}\nKubernetes logs:\n{logs}");
         }
     };
-    let summary = output
-        .get("summary")
-        .and_then(Value::as_object)
-        .context("reason task output omitted its typed summary")?;
-    let observed_frames = summary
-        .get("observed_frames")
-        .and_then(Value::as_u64)
-        .context("reason task summary omitted observed_frames")?;
+    let result: AnalyzeRecordingOutput = serde_json::from_value(
+        output
+            .structured_content
+            .context("Reason task omitted structured content")?,
+    )
+    .context("Reason task returned an invalid canonical output")?;
     ensure!(
-        observed_frames > 0,
-        "reason task observed no GPU frames: {output}"
+        matches!(output.content.as_slice(), [ContentBlock::Text(status), ContentBlock::ResourceLink(link)]
+            if status.text == "Analysis completed." && link.uri == result.result_uri().to_string()),
+        "Reason terminal content must contain the status and one canonical result link"
     );
-    for artifact in ["results_artifact", "annotations_artifact"] {
-        ensure!(
-            output.get(artifact).is_some_and(Value::is_object),
-            "reason task omitted {artifact}: {output}"
-        );
-    }
+    let observed_frames = result.summary.observed_frames;
+    ensure!(observed_frames > 0, "Reason task observed no GPU frames");
+    let resource: ReasoningResults = task_client
+        .read_resource(&result.result_uri().to_uri())
+        .await?;
+    ensure!(
+        resource.pipeline_id == *result.pipeline_uri.id()
+            && resource.model_id == *result.model_uri.id()
+            && resource.observed_frames == observed_frames
+            && resource.elapsed_ms == result.summary.elapsed_ms
+            && resource.answer.event_count() == result.summary.event_count
+            && resource.requested_range.start == result.summary.requested_start_index
+            && resource.requested_range.end == result.summary.requested_end_index,
+        "Reason canonical resource disagrees with the terminal completion"
+    );
     if let Some(candidate) = candidate.as_mut() {
         candidate.finish(
             work_dir,
             candidate::ProbeOutcome::ReasonGpuQualified {
-                result: Box::new(serde_json::from_value(output.clone())?),
+                result: Box::new(result),
             },
         )?;
     }

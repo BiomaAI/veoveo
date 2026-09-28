@@ -65,8 +65,13 @@ mod prompts;
 mod resources;
 #[path = "server/setup.rs"]
 mod setup;
+#[cfg(test)]
+#[path = "../../../../testing/fixtures/store.rs"]
+mod store_fixture;
 #[path = "server/task_extension.rs"]
 mod task_extension;
+#[path = "server/task_results.rs"]
+mod task_results;
 #[path = "server/tasks.rs"]
 mod tasks;
 

@@ -8,8 +8,12 @@ use super::{
     ReasoningSummary, ResultsUri,
 };
 
-// TODO(foundations): migrate the terminal envelope to the canonical result_uri
-// profile, including retained Task results and all installed consumers (C02).
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+pub enum AnalysisOutputSchema {
+    #[serde(rename = "veoveo.ai/reason-analysis/v1")]
+    V1,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(
     try_from = "AnalyzeRecordingOutputWire",
@@ -51,15 +55,17 @@ impl AnalyzeRecordingOutput {
     pub fn analysis_id(&self) -> AnalysisId {
         *self.analysis_uri.id()
     }
-    pub fn results_uri(&self) -> ResultsUri {
+    pub fn result_uri(&self) -> ResultsUri {
         ResultsUri::new(self.analysis_id())
     }
 }
 
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct AnalyzeRecordingOutputWire {
+    schema: AnalysisOutputSchema,
     analysis_uri: AnalysisUri,
-    results_uri: ResultsUri,
+    result_uri: ResultsUri,
     pipeline_uri: PipelineUri,
     model_uri: ModelUri,
     summary: ReasoningSummary,
@@ -71,7 +77,9 @@ struct AnalyzeRecordingOutputWire {
 impl TryFrom<AnalyzeRecordingOutputWire> for AnalyzeRecordingOutput {
     type Error = ReasonContractError;
     fn try_from(wire: AnalyzeRecordingOutputWire) -> Result<Self, Self::Error> {
-        if wire.analysis_uri.id() != wire.results_uri.id() {
+        // Adding a version requires an explicit conversion here.
+        let AnalysisOutputSchema::V1 = wire.schema;
+        if wire.analysis_uri.id() != wire.result_uri.id() {
             return Err(ReasonContractError::InvalidRelationship(
                 "analysis and results URIs",
             ));
@@ -90,7 +98,8 @@ impl TryFrom<AnalyzeRecordingOutputWire> for AnalyzeRecordingOutput {
 impl From<AnalyzeRecordingOutput> for AnalyzeRecordingOutputWire {
     fn from(output: AnalyzeRecordingOutput) -> Self {
         Self {
-            results_uri: output.results_uri(),
+            schema: AnalysisOutputSchema::V1,
+            result_uri: output.result_uri(),
             analysis_uri: output.analysis_uri,
             pipeline_uri: output.pipeline_uri,
             model_uri: output.model_uri,

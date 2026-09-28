@@ -1,0 +1,28 @@
+{
+  "analysis_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001",
+  "results_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001/results",
+  "pipeline_uri": "reason://pipeline/traffic-events",
+  "model_uri": "reason://model/world-model",
+  "summary": {
+    "observed_frames": 10,
+    "event_count": 1,
+    "elapsed_ms": 10,
+    "decode_start_index": 0,
+    "requested_start_index": 10,
+    "requested_end_index": 20
+  },
+  "results_artifact": {
+    "artifact_id": "01983da0-0000-7000-8000-000000000001",
+    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000001",
+    "byte_len": 12,
+    "mime_type": "application/vnd.veoveo.reason-results+json",
+    "created_at": "2026-09-28T00:00:00Z"
+  },
+  "annotations_artifact": {
+    "artifact_id": "01983da0-0000-7000-8000-000000000003",
+    "artifact_uri": "reason://artifact/01983da0-0000-7000-8000-000000000003",
+    "byte_len": 12,
+    "mime_type": "application/vnd.rerun.rrd",
+    "created_at": "2026-09-28T00:00:00Z"
+  }
+}

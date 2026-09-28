@@ -4,7 +4,7 @@ use veoveo_reason_mcp::contract::*;
 const ID: &str = "01983da0-0000-7000-8000-000000000001";
 const OTHER: &str = "01983da0-0000-7000-8000-000000000002";
 
-fn output(id: &str, pipeline: &str) -> AnalyzeRecordingOutput {
+pub(super) fn output(id: &str, pipeline: &str) -> AnalyzeRecordingOutput {
     let artifact = json!({
         "artifact_id": ID,
         "artifact_uri": format!("reason://artifact/{ID}"),
@@ -108,7 +108,7 @@ fn terminal_output_rejects_individually_valid_but_inconsistent_addresses() {
     let wire = serde_json::to_value(output(ID, "traffic-events")).unwrap();
     assert_eq!(wire["analysis_uri"], format!("reason://analysis/{ID}"));
     assert_eq!(
-        wire["results_uri"],
+        wire["result_uri"],
         format!("reason://analysis/{ID}/results")
     );
     assert!(wire.get("source_clip_artifact").is_none());
@@ -121,7 +121,7 @@ fn terminal_output_rejects_individually_valid_but_inconsistent_addresses() {
     );
     for (field, address) in [
         ("analysis_uri", format!("reason://analysis/{OTHER}")),
-        ("results_uri", format!("reason://analysis/{OTHER}/results")),
+        ("result_uri", format!("reason://analysis/{OTHER}/results")),
     ] {
         let mut value = wire.clone();
         value[field] = address.into();
@@ -149,7 +149,7 @@ fn analysis_construction_binds_output_to_task_and_requested_pipeline() {
     assert_eq!(view.task_id(), view.output().unwrap().analysis_id());
     assert_eq!(view.pipeline_id(), view.output().unwrap().pipeline_uri.id());
     assert_eq!(view.analysis_uri().id(), &view.task_id());
-    assert_eq!(view.results_uri(), view.output().unwrap().results_uri());
+    assert_eq!(view.results_uri(), view.output().unwrap().result_uri());
 }
 
 #[test]
