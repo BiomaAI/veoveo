@@ -167,6 +167,17 @@ consumer cases pass without runtime dependencies, and six compile-fail cases pas
 native MCP smoke passes direct and Task-backed operation reads and denial under a
 different principal, tenant or profile. Store regressions and strict workspace Clippy
 pass. Installed operation acceptance is pending.
+Frames metadata now derives repeated world/revision IDs from typed addresses. Immutable
+revision construction requires a positive publication number and a complete admitted
+tree; decoding verifies root membership and the canonical SHA-256 digest. Summary heads
+and source references have checked construction and decoding. The existing tree validator
+now belongs to the contract feature, and UAV consumes that implementation. Native reads
+reject corrupted stored roots, digests and trees after SQL visibility checks. The maximum
+10,000-node depth case passes without recursion; completed parent paths are memoized.
+Twenty-two independent contract cases preserve the published schemas and exclude runtime
+dependencies; eight compile-fail cases pass. The affected native library and adapter
+tests, Frames MCP smoke, and strict workspace Clippy pass. Installed consumers and
+retained-metadata preflight remain qualification work.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -640,7 +651,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Artifact MCP, Media, Optimization | Public operation types still depend on shared access/provider contracts and server runtime modules | Assign each contract to its domain owner and gate runtime dependencies |
 | Frames world reads | Frames owns typed reads over the existing Store client; SQL applies visibility and parent checks, world catalogs use typed keyset pages, and completion binds parents and matches before limits. Six isolated native cases pass. Discovery is static and Store's unscoped world readbacks are private to mutations | Qualify installed paging and completion; enforce the documented client/server coordinated upgrade |
 | Frames mutation inputs | Store mutation drafts still accept raw world/revision keys and complete definition objects | Keep the public mutation contract in Frames and move domain admission to its repository adapter without making Store depend on a server runtime |
-| Frames world metadata construction | Public world summaries, revisions, and source references repeat identities already carried in their typed URIs | Provide checked construction and decoding that establish ID/URI/tree agreement while preserving the declared wire profile |
+| Frames world metadata construction | Checked summaries, immutable revisions, and source references derive their repeated identities from typed URIs. The contract owns complete-tree validation and hashing; Store reads and UAV use it. Native corruption/visibility and independent schema/consumer checks pass | Qualify installed consumers and the stricter retained-metadata preflight |
 | Frames operation references | Operation addresses use typed component builders; checked provenance derives its ID from the URI and rejects conflicting wire identity. Existing schema snapshots and independent contract consumption pass | Qualify installed consumption and the documented retained-provenance preflight |
 | Frames stream references | Dynamic-stream fields still use strings | Migrate these with their owning URI profiles, scopes, query APIs, and declared persisted-data handling |
 | Frames usage visibility and pages | TaskRuntime applies current Task owner policy and linked-record agreement in SQL before grouping and limiting usage. Frames owns checked pages and typed Task cursors/URIs in its isolated contract feature; native denied-row and cursor cases pass | Qualify installed reads and subscriptions; enforce the documented coordinated catalog upgrade and retained-reference preflight |

@@ -1,8 +1,7 @@
 use std::collections::BTreeSet;
 
 use crate::contract::{
-    FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri,
-    WorldFrameUri,
+    FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri, WorldFrameUri,
 };
 use anyhow::{Context, Result, anyhow, bail};
 use veoveo_platform_store::{
@@ -11,8 +10,8 @@ use veoveo_platform_store::{
 };
 
 use crate::{
+    contract::ValidatedWorldTree,
     contract::{CreateWorldRequest, FrameWorldSummary, PublishWorldOutput, PublishWorldRequest},
-    world::validate_world_tree,
 };
 
 mod completion;
@@ -79,7 +78,7 @@ impl FramesState {
         scope: &FrameScope,
         request: PublishWorldRequest,
     ) -> Result<PublishWorldOutput> {
-        let validated = validate_world_tree(request.tree)?;
+        let validated = ValidatedWorldTree::new(request.tree)?;
         let revision_id = FrameWorldRevisionId::new(format!("revision-{}", uuid::Uuid::now_v7()))?;
         let publication = self
             .store
@@ -88,9 +87,9 @@ impl FramesState {
                 world_key: request.world_id.to_string(),
                 expected_head_revision_key: request.expected_head_revision_id.map(String::from),
                 revision_key: revision_id.to_string(),
-                spec_sha256: validated.spec_digest.hex().to_owned(),
-                root_frame_key: validated.root_frame_id.to_string(),
-                definition: object_from_value(serde_json::to_value(validated.tree)?)?,
+                spec_sha256: validated.spec_digest().hex().to_owned(),
+                root_frame_key: validated.root_frame_id().to_string(),
+                definition: object_from_value(serde_json::to_value(validated.into_tree())?)?,
             })
             .await?;
         Ok(PublishWorldOutput {
@@ -127,19 +126,17 @@ impl FramesState {
 
 fn world_summary(record: FrameWorldRecord) -> Result<FrameWorldSummary> {
     let world_id = FrameWorldId::new(record.world_key)?;
-    Ok(FrameWorldSummary {
-        world_uri: FrameWorldUri::new(&world_id),
-        world_id,
-        display_name: record.display_name,
-        description: record.description,
-        head_revision_id: record
-            .head_revision_key
-            .map(FrameWorldRevisionId::new)
-            .transpose()?,
-        revision: u64::try_from(record.revision).context("negative frame world revision")?,
-        created_at: record.created_at,
-        updated_at: record.updated_at,
-    })
+    let mut summary = FrameWorldSummary::new(world_id, record.display_name, record.created_at)
+        .with_description(record.description);
+    match (record.head_revision_key, u64::try_from(record.revision)?) {
+        (None, 0) => {}
+        (Some(id), number) if number > 0 => {
+            summary = summary.with_head(FrameWorldRevisionId::new(id)?, number.try_into()?);
+        }
+        _ => bail!("stored world head and publication number disagree"),
+    }
+    summary.updated_at = record.updated_at;
+    Ok(summary)
 }
 
 fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision> {
@@ -147,18 +144,17 @@ fn world_revision(record: FrameWorldRevisionRecord) -> Result<FrameWorldRevision
     let revision_id = FrameWorldRevisionId::new(record.revision_key)?;
     let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
     let root_frame_id = crate::contract::FrameId::new(record.root_frame_key)?;
-    Ok(FrameWorldRevision {
-        world_uri: FrameWorldUri::new(&world_id),
-        world_id,
-        revision_id,
-        revision_uri: revision_uri.clone(),
-        revision: u64::try_from(record.revision).context("negative frame world revision")?,
-        spec_digest: veoveo_types::Sha256Digest::from_hex(record.spec_sha256)?,
-        root_frame_uri: WorldFrameUri::new(&revision_uri, &root_frame_id),
-        tree: serde_json::from_value(value_from_object(record.definition))
+    Ok(FrameWorldRevision::from_parts(
+        revision_uri.clone(),
+        u64::try_from(record.revision)
+            .context("negative frame world revision")?
+            .try_into()?,
+        serde_json::from_value(value_from_object(record.definition))
             .context("decoding frame world revision")?,
-        created_at: record.created_at,
-    })
+        WorldFrameUri::new(&revision_uri, &root_frame_id),
+        veoveo_types::Sha256Digest::from_hex(record.spec_sha256)?,
+        record.created_at,
+    )?)
 }
 
 fn object_from_value(value: serde_json::Value) -> Result<OpenObject> {

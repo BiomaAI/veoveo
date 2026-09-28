@@ -1,24 +1,17 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use anyhow::{Context, Result, anyhow, bail};
-use sha2::{Digest, Sha256};
+use anyhow::{Result, anyhow, bail};
 use veoveo_frames_mcp::contract::FrameParentTransform;
 
 use crate::contract::{ConfigureWorldRequest, SimulationWorldBinding, Wgs84Position};
 
 pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldBinding> {
     let revision = &request.world_revision;
-    if request.simulation_frame_uri.revision_uri() != revision.revision_uri {
+    if request.simulation_frame_uri.revision_uri() != *revision.revision_uri() {
         bail!("simulation_frame_uri must belong to world_revision");
     }
-    let encoded = serde_json::to_vec(&revision.tree)
-        .context("encoding frame world tree for integrity verification")?;
-    let actual_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(encoded)))?;
-    if actual_digest != revision.spec_digest {
-        bail!("world revision tree does not match spec_digest");
-    }
     let frames = revision
-        .tree
+        .tree()
         .frames
         .iter()
         .map(|frame| (frame.frame_id.clone(), frame))
@@ -56,8 +49,8 @@ pub fn world_binding(request: &ConfigureWorldRequest) -> Result<SimulationWorldB
             .ok_or_else(|| anyhow!("simulation frame has an unknown parent"))?;
     };
     Ok(SimulationWorldBinding {
-        revision_uri: revision.revision_uri.clone(),
-        spec_sha256: revision.spec_digest.hex().to_owned(),
+        revision_uri: revision.revision_uri().clone(),
+        spec_sha256: revision.spec_digest().hex().to_owned(),
         simulation_frame_uri: request.simulation_frame_uri.clone(),
         georeference_origin,
     })
@@ -69,7 +62,8 @@ mod tests {
     use chrono::Utc;
     use veoveo_frames_mcp::contract::{
         FrameAxes, FrameBasis, FrameId, FrameNode, FrameWorldId, FrameWorldRevision,
-        FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri, WorldFrameUri,
+        FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldTree, ValidatedWorldTree,
+        WorldFrameUri,
     };
 
     #[test]
@@ -113,33 +107,18 @@ mod tests {
                 },
             ],
         };
-        let spec_digest = veoveo_types::Sha256Digest::from_hex(hex::encode(Sha256::digest(
-            serde_json::to_vec(&tree).unwrap(),
-        )))
-        .unwrap();
         let request = ConfigureWorldRequest {
             session_id: crate::contract::SessionId::new("showcase").unwrap(),
             simulation_frame_uri: WorldFrameUri::new(
                 &revision_uri,
                 &FrameId::new("isaac-world").unwrap(),
             ),
-            world_revision: FrameWorldRevision {
-                world_id: world_id.clone(),
-                world_uri: FrameWorldUri::new(&world_id),
-                revision_id,
+            world_revision: FrameWorldRevision::new(
                 revision_uri,
-                revision: 1,
-                spec_digest,
-                root_frame_uri: WorldFrameUri::new(
-                    &FrameWorldRevisionUri::new(
-                        &world_id,
-                        &FrameWorldRevisionId::new("revision-1").unwrap(),
-                    ),
-                    &FrameId::new("earth-ecef").unwrap(),
-                ),
-                tree,
-                created_at: Utc::now(),
-            },
+                1.try_into().unwrap(),
+                ValidatedWorldTree::new(tree).unwrap(),
+                Utc::now(),
+            ),
         };
         let binding = world_binding(&request).unwrap();
         assert_eq!(binding.georeference_origin.latitude_degrees, 40.758);

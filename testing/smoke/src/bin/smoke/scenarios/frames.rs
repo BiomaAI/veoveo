@@ -137,7 +137,7 @@ pub(crate) async fn frames_mcp(
         ["resource".into(), "frames://worlds".into()],
     )?;
     let worlds: veoveo_frames_mcp::contract::FrameWorldPage = serde_json::from_str(&worlds)?;
-    if worlds.items.len() != 1 || worlds.items[0].world_id.as_str() != "smoke-world" {
+    if worlds.items.len() != 1 || worlds.items[0].world_id().as_str() != "smoke-world" {
         bail!("Frames world catalog must contain the authored world");
     }
 

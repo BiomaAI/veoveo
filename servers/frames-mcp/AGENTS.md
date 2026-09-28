@@ -46,6 +46,9 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - `cargo test -p veoveo-frames-mcp --lib state::read_tests` runs isolated SurrealDB
   visibility, parent-integrity, head-consistency, and direct-frame selection cases.
 - Cross-server consumers enable only `contract` with default features disabled.
+- `world_contract` checks metadata identity, tree/root/digest admission, canonical hashing,
+  and the maximum-depth tree without runtime dependencies. Revision content is immutable;
+  use `ValidatedWorldTree` and the metadata constructors.
 - `cargo test -p veoveo-frames-mcp --no-default-features --features contract --test coordinate_contract`
   checks schema compatibility, typed world addresses, and malformed identity admission.
 - Docker is required for SurrealDB backed smoke tests (root README, Develop

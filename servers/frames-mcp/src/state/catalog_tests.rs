@@ -37,7 +37,7 @@ async fn native_world_pages_and_completion_filter_before_limits() {
         let second = reader.worlds_page(&owner, Some(cursor)).await.unwrap();
         assert_eq!(second.items.len(), 26);
         assert!(second.next_cursor.is_none());
-        assert_eq!(first.items.iter().chain(second.items.iter()).map(|world| world.world_id.clone()).collect::<Vec<_>>(), expected);
+        assert_eq!(first.items.iter().chain(second.items.iter()).map(|world| world.world_id().clone()).collect::<Vec<_>>(), expected);
         assert_eq!(reader.complete_worlds(&owner, "NEEDLE").await.unwrap(), vec![matching]);
         let completions = reader.complete_worlds(&owner, "").await.unwrap();
         assert_eq!(completions, expected[..101]);
@@ -98,8 +98,8 @@ async fn native_revision_and_frame_completions_bind_visible_parents_before_limit
                 .await
                 .unwrap()
                 .revision;
-            expected.push(revision.revision_id.clone());
-            head = Some(revision.revision_id);
+            expected.push(revision.revision_id().clone());
+            head = Some(revision.revision_id());
         }
         let revision_id = head.unwrap();
         let revision = FrameWorldRevisionUri::new(&world, &revision_id);

@@ -1,22 +1,24 @@
 mod catalog;
 mod ids;
+mod metadata;
 mod operations;
+mod tree;
 mod uris;
 mod usage;
 mod world;
 
 pub use catalog::*;
 pub use ids::*;
+pub use metadata::*;
 pub use operations::*;
+pub use tree::*;
 pub use uris::*;
 pub use usage::*;
 pub use world::*;
 
-use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
-use veoveo_types::Sha256Digest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -63,34 +65,11 @@ pub struct ConvertFrameOutput {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct FrameSourceReference {
-    pub revision_uri: FrameWorldRevisionUri,
-    pub revision_id: FrameWorldRevisionId,
-    pub digest: Sha256Digest,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
 pub struct CreateWorldRequest {
     pub world_id: FrameWorldId,
     pub display_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct FrameWorldSummary {
-    pub world_id: FrameWorldId,
-    pub world_uri: FrameWorldUri,
-    pub display_name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub head_revision_id: Option<FrameWorldRevisionId>,
-    pub revision: u64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

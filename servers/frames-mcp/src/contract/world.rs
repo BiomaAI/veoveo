@@ -1,11 +1,6 @@
-use super::{
-    FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri,
-    WorldFrameUri,
-};
-use chrono::{DateTime, Utc};
+use super::FrameId;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_types::Sha256Digest;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -169,31 +164,4 @@ pub struct FrameNode {
 pub struct FrameWorldTree {
     #[schemars(length(min = 1, max = 10_000))]
     pub frames: Vec<FrameNode>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct FrameWorldRevision {
-    pub world_id: FrameWorldId,
-    pub world_uri: FrameWorldUri,
-    pub revision_id: FrameWorldRevisionId,
-    pub revision_uri: FrameWorldRevisionUri,
-    pub revision: u64,
-    pub spec_digest: Sha256Digest,
-    pub root_frame_uri: WorldFrameUri,
-    pub tree: FrameWorldTree,
-    pub created_at: DateTime<Utc>,
-}
-
-impl FrameWorldRevision {
-    pub fn frame(&self, frame_uri: &WorldFrameUri) -> Option<&FrameNode> {
-        if frame_uri.revision_uri() != self.revision_uri {
-            return None;
-        }
-        let frame_id = frame_uri.frame_id();
-        self.tree
-            .frames
-            .iter()
-            .find(|frame| frame.frame_id == frame_id)
-    }
 }

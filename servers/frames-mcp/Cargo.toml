@@ -20,6 +20,10 @@ required-features = ["contract"]
 name = "usage_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "world_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
@@ -28,6 +32,7 @@ contract = [
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
+    "dep:sha2",
     "dep:veoveo-artifact-contract",
     "dep:veoveo-map-mcp",
     "dep:veoveo-types",
@@ -40,7 +45,6 @@ runtime = [
     "dep:rayon",
     "dep:reqwest",
     "dep:sguaba",
-    "dep:sha2",
     "dep:surrealdb",
     "dep:uuid",
     "dep:veoveo-artifact-client",

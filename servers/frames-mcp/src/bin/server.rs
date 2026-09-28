@@ -184,7 +184,7 @@ impl FramesMcp {
             .map_err(invalid_params)?;
         let output = CreateWorldOutput { world };
         structured_result(
-            format!("created frame world {}", output.world.world_id),
+            format!("created frame world {}", output.world.world_id()),
             &output,
         )
     }
@@ -216,10 +216,10 @@ impl FramesMcp {
         let message = if output.created {
             format!(
                 "published frame world revision {}",
-                output.revision.revision_uri
+                output.revision.revision_uri()
             )
         } else {
-            format!("frame world already at {}", output.revision.revision_uri)
+            format!("frame world already at {}", output.revision.revision_uri())
         };
         structured_result(message, &output)
     }

@@ -44,6 +44,12 @@ geography, place resolution, mobility profiles, restrictions, routing, and the r
 handoff. Frames MCP owns world trees and immutable revisions. The UAV server consumes
 those exact products and never reimplements either vertical.
 
+UAV configuration consumes Frames' checked `FrameWorldRevision` from its contract-only
+library. Frames validates the complete tree, root, repeated identities and SHA-256 digest
+when decoding that value. UAV checks that the requested simulation frame belongs to the
+revision and has a static path to a geodetic tangent ancestor. Those domain checks grant
+no caller authority; configuration still applies the session's admission policy.
+
 The cluster-private adapter is the only boundary between those responsibilities. It exposes
 typed configuration, command, state, and live-stream operations. It does
 not carry a visualization pose stream. No MCP request participates in the physics or

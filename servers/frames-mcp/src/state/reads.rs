@@ -38,7 +38,7 @@ impl FramesState {
             .map(world_summary)
             .collect::<Result<Vec<_>>>()?;
         let next_cursor = has_more.then(|| {
-            FrameWorldCursor::new(&items.last().expect("overfull page has items").world_id)
+            FrameWorldCursor::new(&items.last().expect("overfull page has items").world_id())
         });
         Ok(FrameWorldPage {
             items,

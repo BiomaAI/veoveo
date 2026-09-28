@@ -73,6 +73,9 @@ the schemas and all admitted route spellings keep the published 0.1.x representa
 The Frames owner requires a coordinated drain for the stricter identity admission.
 Before upgrading an installation with retained data, decode its world records, complete
 revision trees, operation provenance, and consumer references using the new contract.
+The preflight checks ID/URI agreement, empty or published head consistency, complete-tree
+admission, root membership, and the canonical tree digest. Include pending UAV
+configuration requests and retained conversion source references.
 An invalid retained identity stops the upgrade. Preserve the original data and resolve
 its references under the owning domain's recovery procedure before retrying; do not
 normalize or rewrite IDs during reads. The reference installation is rebuilt empty.
@@ -105,8 +108,26 @@ duplicate identities, missing parents, multiple roots, cycles, disconnected
 nodes, invalid axes, non-finite transforms, and unnormalized quaternions.
 
 Publication sorts nodes by frame identity before hashing. The SHA-256 digest is
-stored beside the immutable revision. Consumers can therefore verify the exact
-tree they received.
+stored beside the immutable revision. `ValidatedWorldTree` owns complete-tree admission,
+canonical ordering and hashing in the contract feature, using the existing SHA-256 pin.
+Its tree, root and digest are private. Parent traversal memoizes completed paths and
+visits each edge once; the 10,000-frame limit also applies to contract decoding.
+
+`FrameWorldRevision` requires a typed revision URI, a positive publication number,
+and an admitted tree. It derives world and revision IDs, the world URI, root address
+and digest. Its public accessors borrow immutable content. Decoding checks the wire's
+repeated identities, root and digest against those derived values. The Store adapter
+performs the same admission after SQL selects an authorized revision. A mismatch fails
+the read without changing stored data. Per-frame resources select their requested node
+in SQL and do not claim to have checked the entire revision's digest.
+
+`FrameWorldSummary` derives its world ID from its address. The builder binds a head
+revision to a positive publication number; an empty world has no head and revision zero.
+`FrameSourceReference` derives its revision ID from its address. A source reference
+carries a digest claim; resolving and authorizing the referenced revision establishes
+its content. JSON field names and generated schemas preserve the published forms.
+The coordinated preflight above governs stricter decoding; current reads never repair
+inconsistent retained metadata.
 
 ## Lifecycle
 
@@ -360,7 +381,9 @@ servers/frames-mcp/src/
   contract/               public IDs, worlds, addresses, tool and result types
   contract/usage.rs       checked Task usage addresses, cursors and pages
   engine.rs               coordinate conversion
-  world.rs                tree validation, hashing, and transform resolution
+  contract/tree.rs        complete-tree admission, canonical ordering and hashing
+  contract/metadata.rs    checked world summaries, revisions and source references
+  world.rs                transform resolution
   state.rs                world mutation and revision adapters
   state/operations.rs     typed operation authority and driver records
   state/operations/       transactional recording SQL and native qualification

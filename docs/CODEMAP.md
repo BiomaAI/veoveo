@@ -672,6 +672,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
 | `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `servers/frames-mcp/src/contract/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
 | `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `servers/frames-mcp/src/contract/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |

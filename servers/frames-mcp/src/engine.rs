@@ -32,7 +32,7 @@ pub struct ResolvedWorlds {
 
 impl ResolvedWorlds {
     pub fn insert(&mut self, revision: FrameWorldRevision) -> Result<()> {
-        let uri = revision.revision_uri.clone();
+        let uri = revision.revision_uri().clone();
         if self.revisions.insert(uri.clone(), revision).is_some() {
             bail!("world revision `{uri}` was resolved more than once");
         }
@@ -98,11 +98,7 @@ pub fn convert_frame(
         .into_iter()
         .map(|revision_uri| {
             let revision = worlds.require_revision(&revision_uri)?;
-            Ok(FrameSourceReference {
-                revision_uri,
-                revision_id: revision.revision_id.clone(),
-                digest: revision.spec_digest.clone(),
-            })
+            Ok(FrameSourceReference::from(revision))
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(ConvertFrameOutput {
@@ -130,7 +126,7 @@ fn point_to_ecef(
             ensure_finite(&[position.x_m, position.y_m, position.z_m])?;
             let revision = worlds.require_for_frame(&position.frame_uri)?;
             let ecef_from_frame = world::ecef_from_frame(revision, &position.frame_uri)?;
-            used_revisions.insert(revision.revision_uri.clone());
+            used_revisions.insert(revision.revision_uri().clone());
             Ok(ecef_from_frame.transform_point3(DVec3::new(
                 position.x_m,
                 position.y_m,
@@ -161,7 +157,7 @@ fn ecef_to_target(
                 bail!("frame `{frame_uri}` has a non-invertible transform");
             }
             let point = ecef_from_frame.inverse().transform_point3(ecef);
-            used_revisions.insert(revision.revision_uri.clone());
+            used_revisions.insert(revision.revision_uri().clone());
             Ok(CoordinatePoint::WorldFrame(WorldFramePosition {
                 frame_uri: frame_uri.clone(),
                 x_m: point.x,
@@ -242,7 +238,7 @@ mod tests {
     use super::*;
     use crate::contract::{
         FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevisionId,
-        FrameWorldRevisionUri, FrameWorldTree, FrameWorldUri,
+        FrameWorldRevisionUri, FrameWorldTree,
     };
     use chrono::Utc;
 
@@ -250,15 +246,10 @@ mod tests {
         let world_id = FrameWorldId::new("new-york-showcase").unwrap();
         let revision_id = FrameWorldRevisionId::new("revision-1").unwrap();
         let revision_uri = FrameWorldRevisionUri::new(&world_id, &revision_id);
-        FrameWorldRevision {
-            world_id: world_id.clone(),
-            world_uri: FrameWorldUri::new(&world_id),
-            revision_id,
-            revision_uri: revision_uri.clone(),
-            revision: 1,
-            spec_digest: veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
-            root_frame_uri: WorldFrameUri::new(&revision_uri, &FrameId::new("earth-ecef").unwrap()),
-            tree: FrameWorldTree {
+        FrameWorldRevision::new(
+            revision_uri,
+            1.try_into().unwrap(),
+            crate::contract::ValidatedWorldTree::new(FrameWorldTree {
                 frames: vec![
                     FrameNode {
                         frame_id: FrameId::new("earth-ecef").unwrap(),
@@ -281,17 +272,18 @@ mod tests {
                         description: None,
                     },
                 ],
-            },
-            created_at: Utc::now(),
-        }
+            })
+            .unwrap(),
+            Utc::now(),
+        )
     }
 
     #[test]
     fn world_frame_round_trips_through_wgs84() {
         let revision = revision();
-        let expected_revision_uri = revision.revision_uri.clone();
+        let expected_revision_uri = revision.revision_uri().clone();
         let frame_uri = WorldFrameUri::new(
-            &revision.revision_uri,
+            revision.revision_uri(),
             &FrameId::new("times-square-enu").unwrap(),
         );
         let mut worlds = ResolvedWorlds::default();
@@ -316,7 +308,7 @@ mod tests {
         assert!((origin.latitude_degrees - 40.758).abs() < 1.0e-8);
         assert!((origin.longitude_degrees + 73.9855).abs() < 1.0e-8);
         assert_eq!(to_wgs84.sources.len(), 1);
-        assert_eq!(to_wgs84.sources[0].revision_uri, expected_revision_uri);
+        assert_eq!(to_wgs84.sources[0].revision_uri(), &expected_revision_uri);
 
         let back = convert_frame(
             ConvertFrameRequest {
@@ -356,20 +348,18 @@ mod tests {
     #[test]
     fn conversion_excludes_prefetched_but_unused_world_revisions() {
         let used = revision();
-        let used_uri = used.revision_uri.clone();
-        let mut unused = revision();
+        let used_uri = used.revision_uri().clone();
         let unused_world_id = FrameWorldId::new("unused-world").unwrap();
         let unused_revision_id = FrameWorldRevisionId::new("revision-unused").unwrap();
-        let unused_revision_uri = FrameWorldRevisionUri::new(&unused_world_id, &unused_revision_id);
-        unused.world_id = unused_world_id.clone();
-        unused.world_uri = FrameWorldUri::new(&unused_world_id);
-        unused.revision_id = unused_revision_id;
-        unused.revision_uri = unused_revision_uri.clone();
-        unused.root_frame_uri =
-            WorldFrameUri::new(&unused_revision_uri, &FrameId::new("earth-ecef").unwrap());
+        let unused = FrameWorldRevision::new(
+            FrameWorldRevisionUri::new(&unused_world_id, &unused_revision_id),
+            1.try_into().unwrap(),
+            crate::contract::ValidatedWorldTree::new(used.tree().clone()).unwrap(),
+            Utc::now(),
+        );
 
         let frame_uri = WorldFrameUri::new(
-            &used.revision_uri,
+            used.revision_uri(),
             &FrameId::new("times-square-enu").unwrap(),
         );
         let mut worlds = ResolvedWorlds::default();
@@ -392,6 +382,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(converted.sources.len(), 1);
-        assert_eq!(converted.sources[0].revision_uri, used_uri);
+        assert_eq!(converted.sources[0].revision_uri(), &used_uri);
     }
 }

@@ -186,17 +186,17 @@ pub(super) async fn verify_published_world(
     .context("decoding the published Frames world revision resource")?;
     let mut expected_frames = scenario.world.tree.frames.clone();
     expected_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
-    let mut published_frames = published_revision.tree.frames.clone();
+    let mut published_frames = published_revision.tree().frames.clone();
     published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
     ensure!(
-        published_revision.revision_uri.as_str() == revision_uri
+        published_revision.revision_uri().as_str() == revision_uri
             && published_frames == expected_frames,
         "published Frames world revision disagrees with the complete scenario hierarchy: \
          {published_revision:?}"
     );
     if let Some(expected_world_id) = expected_world_id {
         ensure!(
-            &published_revision.world_id == expected_world_id,
+            &published_revision.world_id() == expected_world_id,
             "published Frames world revision changed its run-scoped identity: \
              {published_revision:?}"
         );

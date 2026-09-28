@@ -96,7 +96,7 @@ async fn assert_revision_visible(
 ) {
     assert_eq!(
         state
-            .get_revision(scope, &revision.revision_uri)
+            .get_revision(scope, revision.revision_uri())
             .await
             .unwrap()
             .is_some(),
@@ -104,7 +104,7 @@ async fn assert_revision_visible(
     );
     assert_eq!(
         state
-            .get_head_revision(scope, &revision.world_id)
+            .get_head_revision(scope, &revision.world_id())
             .await
             .unwrap()
             .is_some(),
@@ -112,7 +112,7 @@ async fn assert_revision_visible(
     );
     assert_eq!(
         state
-            .get_frame(scope, &revision.root_frame_uri)
+            .get_frame(scope, &revision.root_frame_uri())
             .await
             .unwrap()
             .is_some(),
@@ -146,7 +146,7 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
             assert_revision_visible(&reader, denied, &revision, false).await;
             let worlds = reader.worlds_page(denied, None).await.unwrap().items;
             assert_eq!(worlds.len(), 1);
-            assert_eq!(worlds[0].world_id, public_id);
+            assert_eq!(worlds[0].world_id(), public_id);
         }
         assert_revision_visible(&reader, &foreign, &revision, false).await;
         assert!(reader.get_world(&foreign, &public_id).await.unwrap().is_none());
@@ -155,7 +155,7 @@ async fn native_world_reads_apply_current_tenant_and_all_labels_in_sql() {
         // Same-tenant readers need not own a world, but publication still does.
         assert!(writer.publish_world(&peer, PublishWorldRequest {
             world_id: world_id.clone(),
-            expected_head_revision_id: Some(revision.revision_id.clone()),
+            expected_head_revision_id: Some(revision.revision_id().clone()),
             tree: tree(),
         }).await.is_err());
 
@@ -186,7 +186,7 @@ async fn native_revision_reads_reject_wrong_or_deleted_parents() {
         create(&writer, &foreign, "world").await;
         let revision = publish(&writer, &owner, &world_id).await;
         assert_revision_visible(&reader, &owner, &revision, true).await;
-        let wrong_uri = FrameWorldRevisionUri::new(&other_id, &revision.revision_id);
+        let wrong_uri = FrameWorldRevisionUri::new(&other_id, &revision.revision_id());
         assert!(reader.get_revision(&owner, &wrong_uri).await.unwrap().is_none());
         assert!(reader.get_frame(&owner, &WorldFrameUri::new(&wrong_uri, &FrameId::new("root").unwrap())).await.unwrap().is_none());
 
@@ -196,14 +196,14 @@ async fn native_revision_reads_reject_wrong_or_deleted_parents() {
                 .bind(("parent_tenant", parent_scope.identity.tenant_id.record_id()))
                 .bind(("parent_key", parent_world.to_string()))
                 .bind(("tenant", owner.identity.tenant_id.record_id()))
-                .bind(("revision_key", revision.revision_id.to_string()))
+                .bind(("revision_key", revision.revision_id().to_string()))
                 .await.unwrap().check().unwrap();
             assert_revision_visible(&reader, &owner, &revision, false).await;
         }
         db.a.client().query("UPDATE frame_world_revision SET world = (SELECT VALUE id FROM frame_world WHERE tenant = $tenant AND world_key = $world_key LIMIT 1)[0] WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;")
             .bind(("tenant", owner.identity.tenant_id.record_id()))
             .bind(("world_key", world_id.to_string()))
-            .bind(("revision_key", revision.revision_id.to_string()))
+            .bind(("revision_key", revision.revision_id().to_string()))
             .await.unwrap().check().unwrap();
         assert_revision_visible(&reader, &owner, &revision, true).await;
         db.a.client().query("DELETE frame_world WHERE tenant = $tenant AND world_key = $world_key RETURN NONE;")
@@ -228,11 +228,11 @@ async fn native_head_reads_require_consistent_pointer_key_and_revision() {
         revised.frames[0].description = Some("second revision".to_owned());
         let new = writer.publish_world(&owner, PublishWorldRequest {
             world_id: world_id.clone(),
-            expected_head_revision_id: Some(old.revision_id.clone()),
+            expected_head_revision_id: Some(old.revision_id().clone()),
             tree: revised,
         }).await.unwrap().revision;
         assert_eq!(reader.get_head_revision(&owner, &world_id).await.unwrap(), Some(new.clone()));
-        assert_eq!(reader.get_revision(&owner, &old.revision_uri).await.unwrap(), Some(old.clone()));
+        assert_eq!(reader.get_revision(&owner, old.revision_uri()).await.unwrap(), Some(old.clone()));
         // Each independently inconsistent head representation fails closed.
         for query in [
             "UPDATE frame_world SET head_revision_key = $old_key WHERE tenant = $tenant AND world_key = $world_key RETURN NONE;",
@@ -242,11 +242,11 @@ async fn native_head_reads_require_consistent_pointer_key_and_revision() {
             db.a.client().query(query)
                 .bind(("tenant", owner.identity.tenant_id.record_id()))
                 .bind(("world_key", world_id.to_string()))
-                .bind(("old_key", old.revision_id.to_string()))
-                .bind(("new_key", new.revision_id.to_string()))
+                .bind(("old_key", old.revision_id().to_string()))
+                .bind(("new_key", new.revision_id().to_string()))
                 .await.unwrap().check().unwrap();
             assert!(reader.get_head_revision(&owner, &world_id).await.unwrap().is_none());
-            assert_eq!(reader.get_revision(&owner, &new.revision_uri).await.unwrap(), Some(new.clone()));
+            assert_eq!(reader.get_revision(&owner, new.revision_uri()).await.unwrap(), Some(new.clone()));
         }
     }).await.expect("head consistency qualification exceeded 90 seconds");
 }
@@ -260,13 +260,13 @@ async fn native_frame_reads_select_only_the_requested_node() {
         let owner = scope(&db.a, "frames-a", "owner", &[]).await;
         let world_id = create(&writer, &owner, "world").await;
         let revision = publish(&writer, &owner, &world_id).await;
-        for node in &revision.tree.frames {
-            let uri = WorldFrameUri::new(&revision.revision_uri, &node.frame_id);
+        for node in &revision.tree().frames {
+            let uri = WorldFrameUri::new(revision.revision_uri(), &node.frame_id);
             assert_eq!(reader.get_frame(&owner, &uri).await.unwrap(), Some(node.clone()));
         }
-        let missing = WorldFrameUri::new(&revision.revision_uri, &FrameId::new("missing").unwrap());
+        let missing = WorldFrameUri::new(revision.revision_uri(), &FrameId::new("missing").unwrap());
         assert!(reader.get_frame(&owner, &missing).await.unwrap().is_none());
-        let root = revision.frame(&revision.root_frame_uri).unwrap();
+        let root = revision.frame(&revision.root_frame_uri()).unwrap();
         // An invalid unrelated node proves resource selection happens in SQL,
         // before decoding a full tree at the application boundary.
         for unrelated in [serde_json::json!({"frame_id": "bad", "basis": {"kind": "invalid"}}), serde_json::to_value(root).unwrap()] {
@@ -274,14 +274,43 @@ async fn native_frame_reads_select_only_the_requested_node() {
             db.a.client().query("UPDATE frame_world_revision SET definition = $definition WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;")
                 .bind(("definition", definition))
                 .bind(("tenant", owner.identity.tenant_id.record_id()))
-                .bind(("revision_key", revision.revision_id.to_string()))
+                .bind(("revision_key", revision.revision_id().to_string()))
                 .await.unwrap().check().unwrap();
             if unrelated["frame_id"] == "bad" {
-                assert_eq!(reader.get_frame(&owner, &revision.root_frame_uri).await.unwrap(), Some(root.clone()));
-                assert!(reader.get_revision(&owner, &revision.revision_uri).await.is_err());
+                assert_eq!(reader.get_frame(&owner, &revision.root_frame_uri()).await.unwrap(), Some(root.clone()));
+                assert!(reader.get_revision(&owner, revision.revision_uri()).await.is_err());
             } else {
-                assert!(reader.get_frame(&owner, &revision.root_frame_uri).await.is_err());
+                assert!(reader.get_frame(&owner, &revision.root_frame_uri()).await.is_err());
             }
         }
     }).await.expect("frame selection qualification exceeded 90 seconds");
+}
+
+#[tokio::test]
+async fn native_revision_admission_rejects_stored_root_digest_and_tree_mismatch() {
+    tokio::time::timeout(Duration::from_secs(90), async {
+        let db = TestDb::new().await;
+        let writer = FramesState::new(db.a.clone());
+        let reader = FramesState::new(db.b.clone());
+        let owner = scope(&db.a, "frames-a", "owner", &["private"]).await;
+        let denied = scope(&db.a, "frames-a", "reader", &[]).await;
+        let world_id = create(&writer, &owner, "world").await;
+        let revision = publish(&writer, &owner, &world_id).await;
+        for query in [
+            "UPDATE frame_world_revision SET root_frame_key = 'missing' WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;",
+            "UPDATE frame_world_revision SET root_frame_key = $root, spec_sha256 = $wrong_digest WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;",
+            "UPDATE frame_world_revision SET spec_sha256 = $digest, definition.frames[0].description = 'tampered' WHERE tenant = $tenant AND revision_key = $revision_key RETURN NONE;",
+        ] {
+            db.a.client().query(query)
+                .bind(("tenant", owner.identity.tenant_id.record_id()))
+                .bind(("revision_key", revision.revision_id().to_string()))
+                .bind(("root", revision.root_frame_uri().frame_id().to_string()))
+                .bind(("digest", revision.spec_digest().hex().to_owned()))
+                .bind(("wrong_digest", "0".repeat(64)))
+                .await.unwrap().check().unwrap();
+            assert!(reader.get_revision(&denied, revision.revision_uri()).await.unwrap().is_none());
+            assert!(reader.get_revision(&owner, revision.revision_uri()).await.is_err());
+            assert!(reader.get_head_revision(&owner, &world_id).await.is_err());
+        }
+    }).await.expect("stored revision integrity qualification exceeded 90 seconds");
 }
