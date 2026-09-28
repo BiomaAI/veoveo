@@ -1,11 +1,10 @@
 mod analysis_view;
 mod catalog_views;
 mod output;
-mod output_profiles;
 pub use analysis_view::{AnalysisDetails, AnalysisView};
 pub use catalog_views::{ModelView, PipelineDetails, PipelineView};
 pub use output::{AnalysisOutputSchema, AnalyzeRecordingOutput};
-pub use output_profiles::{AnalysisOutputProfile, RetainedAnalysisOutput};
+pub use veoveo_stream_mcp::contract::StreamArtifactUri;
 
 mod cursor;
 mod ids;
@@ -108,7 +107,13 @@ pub struct GroundingReference {
     /// `stream://artifact/{uuidv7}` identity of a typed perception
     /// results artifact, exactly as a completed perception analysis
     /// presents it.
-    pub results_artifact_uri: String,
+    pub results_artifact_uri: StreamArtifactUri,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+pub enum GroundingSchema {
+    #[serde(rename = "veoveo.reason-grounding/v1")]
+    V1,
 }
 
 /// Bounded typed subset of perception detections embedded in the durable
@@ -116,8 +121,8 @@ pub struct GroundingReference {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct GroundingDetections {
-    pub schema: String,
-    pub source_artifact_uri: String,
+    pub schema: GroundingSchema,
+    pub source_artifact_uri: StreamArtifactUri,
     pub frames: Vec<GroundingFrame>,
 }
 

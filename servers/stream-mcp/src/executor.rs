@@ -10,12 +10,12 @@ use crate::catalog::{
 };
 use crate::contract::{
     AnalysisResults, BoundingBox2D, Detection, FrameDetections, IndexRange,
-    RecordingSourceSnapshot, RecordingVideoSelection, SamplingPolicy, VideoTimelineKind,
+    RecordingSourceSnapshot, RecordingVideoSelection, SamplingPolicy, StreamResultsSchema,
+    VideoTimelineKind,
 };
 
 pub const RUNNER_REQUEST_SCHEMA: &str = "veoveo.stream-recording-runner-request/v1";
 pub const RUNNER_RESPONSE_SCHEMA: &str = "veoveo.stream-recording-runner-response/v1";
-pub const STREAM_RESULTS_SCHEMA: &str = "veoveo.stream-results/v1";
 
 #[derive(Clone, Debug)]
 pub struct StreamExecutor {
@@ -169,8 +169,8 @@ impl StreamExecutor {
             analysis.input_height,
             &response,
         )?;
-        Ok(AnalysisResults {
-            schema: STREAM_RESULTS_SCHEMA.to_owned(),
+        let results = AnalysisResults {
+            schema: StreamResultsSchema::V1,
             pipeline_id: analysis.pipeline.id.clone(),
             model_id: analysis.model.id.clone(),
             recording_uri: analysis.video.recording_uri.clone(),
@@ -182,7 +182,9 @@ impl StreamExecutor {
             frames: response.frames,
             processed_frames: response.processed_frames,
             elapsed_ms: response.elapsed_ms,
-        })
+        };
+        results.validate()?;
+        Ok(results)
     }
 
     fn validate_response(
@@ -324,39 +326,13 @@ pub fn validate_frame(
 }
 
 fn validate_detection(detection: &Detection, input_width: u16, input_height: u16) -> Result<()> {
-    ensure!(
-        u16::try_from(detection.class_id).is_ok(),
-        "detection class_id exceeds the Rerun annotation limit"
-    );
-    ensure!(
-        !detection.label.trim().is_empty() && detection.label.len() <= 256,
-        "detection label is empty or too long"
-    );
-    for (name, confidence) in [
-        ("detection confidence", detection.confidence),
-        ("tracker confidence", detection.tracker_confidence),
-    ] {
-        if let Some(confidence) = confidence {
-            ensure!(
-                confidence.is_finite() && (0.0..=1.0).contains(&confidence),
-                "{name} must be within 0..=1"
-            );
-        }
-    }
+    detection.validate()?;
     let BoundingBox2D {
         x,
         y,
         width,
         height,
     } = detection.bounds;
-    ensure!(
-        [x, y, width, height].into_iter().all(f32::is_finite),
-        "detection bounds must be finite"
-    );
-    ensure!(
-        width > 0.0 && height > 0.0,
-        "detection bounds must have positive size"
-    );
     ensure!(
         x >= 0.0
             && y >= 0.0

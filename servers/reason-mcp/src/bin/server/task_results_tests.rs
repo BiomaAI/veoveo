@@ -6,7 +6,6 @@ use serde_json::{Value, json};
 use veoveo_mcp_contract::{
     InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
-use veoveo_reason_mcp::contract::{AnalysisOutputProfile, RetainedAnalysisOutput};
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskTransition};
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
@@ -45,11 +44,11 @@ fn owner() -> TaskOwner {
     }
 }
 
-fn legacy_output(id: TaskId) -> Value {
+fn current_output(id: TaskId) -> Value {
     let mut value: Value =
-        serde_json::from_str(include_str!("../../../testdata/analysis-output-v0.json")).unwrap();
+        serde_json::from_str(include_str!("../../../testdata/analysis-output-v1.json")).unwrap();
     value["analysis_uri"] = format!("reason://analysis/{id}").into();
-    value["results_uri"] = format!("reason://analysis/{id}/results").into();
+    value["result_uri"] = format!("reason://analysis/{id}/results").into();
     value
 }
 
@@ -103,7 +102,7 @@ async fn finish(runtime: &TaskRuntime, id: TaskId, stored: Value) {
         .transition(
             &id.to_string(),
             TaskTransition::Succeeded {
-                message: format!("old completion for {id}"),
+                message: ANALYSIS_COMPLETED.into(),
                 result: stored,
             },
         )
@@ -134,72 +133,57 @@ fn assert_handoff(task: DetailedTask, expected: &Value) {
 }
 
 #[tokio::test]
-async fn both_retained_profiles_project_identically_without_writing_the_store() {
+async fn current_results_survive_cross_replica_reads_and_listener_reconnects() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
         let writer = TaskRuntime::new(db.a.clone(), "reason", "result-writer");
         let reader = TaskRuntime::new(db.b.clone(), "reason", "result-reader");
-        for profile in [
-            AnalysisOutputProfile::UnversionedV0,
-            AnalysisOutputProfile::V1,
-        ] {
-            let id = TaskId::new();
-            create(&writer, owner(), id).await;
-            let canonical = RetainedAnalysisOutput::decode(legacy_output(id))
-                .unwrap()
-                .into_output();
-            let expected = serde_json::to_value(&canonical).unwrap();
-            let stored = match profile {
-                AnalysisOutputProfile::UnversionedV0 => json!({
-                    "content": [{"type":"text", "text": format!("legacy analysis {id}")}],
-                    "structuredContent": legacy_output(id)
-                }),
-                AnalysisOutputProfile::V1 => {
-                    serde_json::to_value(analysis_tool_result(canonical).unwrap()).unwrap()
-                }
-            };
-            let mut subscription = subscribe_tasks(&reader, owner(), vec![id.to_string()])
-                .await
-                .unwrap();
-            assert_eq!(subscription.accepted_task_ids, vec![id.to_string()]);
-            assert!(matches!(
-                subscription.updates.next().await.unwrap().unwrap().payload,
-                TaskPayload::Working
-            ));
-            finish(&writer, id, stored.clone()).await;
-            let completed = tokio::time::timeout(Duration::from_secs(10), async {
-                loop {
-                    let task = subscription.updates.next().await.unwrap().unwrap();
-                    if matches!(task.payload, TaskPayload::Completed { .. }) {
-                        break task;
-                    }
-                }
-            })
+        let id = TaskId::new();
+        create(&writer, owner(), id).await;
+        let canonical: AnalyzeRecordingOutput = serde_json::from_value(current_output(id)).unwrap();
+        let expected = serde_json::to_value(&canonical).unwrap();
+        let stored = serde_json::to_value(analysis_tool_result(canonical).unwrap()).unwrap();
+        let mut subscription = subscribe_tasks(&reader, owner(), vec![id.to_string()])
             .await
             .unwrap();
-            assert_handoff(completed, &expected);
-            let fetched = get_task(&reader, &owner(), GetTaskParams::new(id.to_string()))
-                .await
-                .unwrap();
-            assert_handoff(fetched.task, &expected);
-            // A new listener's baseline uses the same conversion after reconnect.
-            let mut reconnected = subscribe_tasks(&reader, owner(), vec![id.to_string()])
-                .await
-                .unwrap();
-            assert_handoff(
-                reconnected.updates.next().await.unwrap().unwrap(),
-                &expected,
-            );
-            let retained = reader.get_for_owner(&owner(), id).await.unwrap().unwrap();
-            assert_eq!(retained.result, Some(stored));
-            assert_eq!(
-                serde_json::to_value(analysis_view(&retained).unwrap().output().unwrap()).unwrap(),
-                expected
-            );
-        }
+        assert_eq!(subscription.accepted_task_ids, vec![id.to_string()]);
+        assert!(matches!(
+            subscription.updates.next().await.unwrap().unwrap().payload,
+            TaskPayload::Working
+        ));
+        finish(&writer, id, stored.clone()).await;
+        let completed = tokio::time::timeout(Duration::from_secs(10), async {
+            loop {
+                let task = subscription.updates.next().await.unwrap().unwrap();
+                if matches!(task.payload, TaskPayload::Completed { .. }) {
+                    break task;
+                }
+            }
+        })
+        .await
+        .unwrap();
+        assert_handoff(completed, &expected);
+        let fetched = get_task(&reader, &owner(), GetTaskParams::new(id.to_string()))
+            .await
+            .unwrap();
+        assert_handoff(fetched.task, &expected);
+        // A new listener receives the stored current result after reconnect.
+        let mut reconnected = subscribe_tasks(&reader, owner(), vec![id.to_string()])
+            .await
+            .unwrap();
+        assert_handoff(
+            reconnected.updates.next().await.unwrap().unwrap(),
+            &expected,
+        );
+        let retained = reader.get_for_owner(&owner(), id).await.unwrap().unwrap();
+        assert_eq!(retained.result, Some(stored));
+        assert_eq!(
+            serde_json::to_value(analysis_view(&retained).unwrap().output().unwrap()).unwrap(),
+            expected
+        );
     })
     .await
-    .expect("Reason retained result qualification exceeded 90 seconds");
+    .expect("Reason current result qualification exceeded 90 seconds");
 }
 
 #[tokio::test]
@@ -210,17 +194,26 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
         let reader = TaskRuntime::new(db.b.clone(), "reason", "invalid-reader");
         for corruption in [
             "unknown-schema",
+            "unversioned",
+            "obsolete-result-field",
             "wrong-pipeline",
             "wrong-task",
             "missing-product",
         ] {
             let id = TaskId::new();
             create(&writer, owner(), id).await;
-            let mut value = legacy_output(id);
+            let mut value = current_output(id);
             match corruption {
                 "unknown-schema" => value["schema"] = "unknown/v2".into(),
+                "unversioned" => {
+                    value.as_object_mut().unwrap().remove("schema");
+                }
+                "obsolete-result-field" => {
+                    value["results_uri"] =
+                        value.as_object_mut().unwrap().remove("result_uri").unwrap();
+                }
                 "wrong-pipeline" => value["pipeline_uri"] = "reason://pipeline/other".into(),
-                "wrong-task" => value = legacy_output(TaskId::new()),
+                "wrong-task" => value = current_output(TaskId::new()),
                 "missing-product" => value = Value::Null,
                 _ => unreachable!(),
             }
@@ -234,7 +227,9 @@ async fn task_delivery_rejects_corruption_and_denies_access_before_domain_decode
                 .await
                 .unwrap_err();
             assert!(
-                error.message.contains("retained Reason output is invalid"),
+                error
+                    .message
+                    .contains("stored Reason output does not satisfy the current contract"),
                 "{corruption}"
             );
             let mut subscription = subscribe_tasks(&reader, owner(), vec![id.to_string()])

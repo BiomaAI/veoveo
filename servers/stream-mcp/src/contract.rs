@@ -2,6 +2,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 
+mod artifact;
+mod results;
+pub use artifact::{StreamArtifactUri, StreamArtifactUriError};
+pub use results::{StreamResultsError, StreamResultsSchema};
+
 pub use veoveo_recording_video::contract::{
     IndexRange, RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
     RecordingVideoSelection, VideoTimelineKind,
@@ -63,7 +68,7 @@ pub struct FrameDetections {
 
 #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
 pub struct AnalysisResults {
-    pub schema: String,
+    pub schema: StreamResultsSchema,
     pub pipeline_id: String,
     pub model_id: String,
     pub recording_uri: String,

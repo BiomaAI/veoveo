@@ -388,9 +388,12 @@ A marker trait cannot certify these behaviors. Python and other SDKs follow the 
 ownership and wire contracts through their language-native types and validation.
 
 This decision preserves current wire spellings and policy semantics during extraction.
-Internal callers move to one implementation without compatibility aliases. Published
-wire changes and persisted format changes follow the declared transition requirements.
-Implementation and remaining qualification are tracked in the
+Internal callers move to one implementation without compatibility aliases. The
+Foundations rollout is an explicitly coordinated hard cut across servers, clients
+and stored formats. Its reference data is disposable. Ship one current contract and
+remove historical readers, migration shims and compatibility-only tests introduced
+during that work. Current-format task restart, authorization and failure recovery
+still require qualification. Implementation and remaining qualification are tracked in the
 [foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Delivery And Decision Checkpoints

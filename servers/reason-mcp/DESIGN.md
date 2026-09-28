@@ -31,7 +31,9 @@ inference service, and no agent framework.
 | RFC 3986 and RFC 6570 | Concrete resource addresses use the shared URI component parser and builder; discovery templates expand to the same typed routes. Reason accepts one spelling for each address and rejects duplicate or unsupported query parameters. |
 | RFC 9562 UUIDv7 | Analysis identities use lowercase hyphenated UUIDv7 values with the RFC UUID variant, backed by native Task identities. |
 | Reason analyses cursor version 1 | URL-safe, unpadded base64 wraps collection-bound JSON with creation time and analysis identity. The input limit is 1024 bytes. |
-| Reason terminal result `veoveo.ai/reason-analysis/v1` | Public structured completion with one canonical result URI. The Reason-owned retained decoder also accepts the unversioned v0 profile during the documented transition. |
+| Reason terminal result `veoveo.ai/reason-analysis/v1` | Public structured completion with one canonical result URI; the reader accepts this current profile only. |
+| Stream replay `veoveo.stream-results/v1` | Grounding consumes the complete result through Stream's contract-only library and its validation API. |
+| Reason grounding `veoveo.reason-grounding/v1` | Selected frame indices, labels and track IDs passed to the runner. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; every reasoning invocation is a durable, cancellable task whose terminal payload is returned by `tasks/get`. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD and `VideoStream` | Frozen or sealed sources and task-start snapshots of complete acknowledged ingest parts preserve exact time; derived semantic events are published as RRD annotations. |
 | H.264/AVC Annex B | The source profile matches Stream: no B-frames and decoder-reentrant IDRs marked in the Rerun stream. |
@@ -61,6 +63,9 @@ response and result models, distinct pipeline, model and analysis identities,
 resource addresses and collection cursors. Video selection and source identity come from the
 [recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
 through its contract feature. Artifact metadata comes from the Artifact contract.
+Stream owns `StreamArtifactUri`, the replay result model and its portable validation.
+Reason imports these through Stream's contract feature. Its own `grounding` module
+exposes selection and subset extraction through `contract` for independent consumers.
 These imports exclude MCP integration, asynchronous runtimes, database clients,
 Rerun and GPU execution libraries.
 
@@ -154,13 +159,22 @@ reasoning output from a Stream perception result's calibrated detector
 confidences. Same engine, same input, same prompt revision, and greedy decoding
 must produce the same result.
 
-A request may reference grounding: a governed
-`stream://artifact/{artifact_id}` results artifact produced by a completed
-Stream perception replay over the same recording. The server resolves
-the artifact with the caller's authority at submission time, validates its
-schema, extracts a bounded typed subset of detections, and embeds that
-subset in the durable request. Reasoning output may then cite Stream track
-identities. Grounding never travels as a bearer token or a URL.
+A request may reference grounding through Stream's `StreamArtifactUri` builder and
+parser. The server fetches that Artifact with the caller's authority at submission
+and checks both the reported size and returned bytes against its configured limit.
+It decodes the complete Stream replay result and runs the producer-owned validation.
+The recording, entity and timeline must match the requested video, and the replay
+range must cover the requested range. Admission caps the whole document at 100,000
+detections and selects only frames inside the requested range. Reason owns the
+resulting subset; the runner may cite only track IDs present in that subset.
+
+The returned Artifact metadata supplies the required data labels and classification.
+Reason passes their union into Artifact write-capability issuance, whose service
+requires caller clearance and persists this output label floor. All products retain
+that floor in addition to source-video obligations. The task stores the validated
+subset and its issued capabilities for restart recovery. It contains no submitted
+gateway bearer or external fetch URL. The Artifact service owns capability persistence
+and enforcement; Reason does not maintain a second admission ledger.
 
 ## Work Context and ownership
 
@@ -305,18 +319,11 @@ recovery diagnostic without echoing its payload. Both analysis and results reads
 the retained output against the Task ID and the pipeline in its retained request.
 
 The catalog and request schemas preserve their published shapes; terminal output and
-its nested analysis view use the result profile below. Valid version-1 cursors preserve
-their admitted wire bytes. Before installation,
-check retained Reason requests and results against the ID and URI profiles and verify
-agreement between repeated identities, parent Tasks and requested pipelines. Also
-verify client links and cursors. Invalid retained values require an explicit repair
-or recovery decision before replacing the service; startup performs no destructive
-conversion. Drain active requests and replace all Reason replicas together because
-permissive URI admission in an older replica must not depend on routing. Rollback
-builds must preserve the SQL owner predicates and admitted identity profiles. Retain
-the installation backup until hosted resource reads and recovery pass qualification.
+its nested analysis view use the result profile below. Version-1 cursors carry the
+current collection contract. Contract changes ship as coordinated hard cuts across
+servers and consumers. Rebuild the disposable reference data for installation checks.
 
-### Terminal Result Profiles And Recovery
+### Terminal Results And Task Recovery
 
 `AnalyzeRecordingOutput` publishes `veoveo.ai/reason-analysis/v1`. Its `result_uri`
 identifies `reason://analysis/{analysis_id}/results`, whose authorized reader returns
@@ -325,38 +332,23 @@ and links that resource once. Structured content carries the analysis address, m
 pipeline, summary and Artifact descriptors. The result builder derives the product
 address from the same analysis identity as the parent address.
 
-Reason owns `RetainedAnalysisOutput` in its isolated contract library. Its v0 decoder
-accepts the unversioned envelope with `results_uri`; v1 requires its schema marker and
-`result_uri`. Both profiles enforce address agreement and checked Artifact metadata.
-A declared unknown version, incomplete v1, or mixed field set fails with a compatibility
-or recovery diagnostic. Ordinary v1 deserialization accepts only v1. The retained
-decoder constructs the same current type without writing the Store or granting access.
+Task reads and subscriptions authorize through the shared SQL owner read before
+decoding the request or output. A completed result must match the native Task ID and
+the pipeline in its request. Resource views use the same current output type. Unknown
+versions, missing schema markers, obsolete fields and inconsistent identities fail
+validation. Explicit tool errors keep their no-product result.
 
-Task reads and Task subscriptions authorize through the shared SQL owner read before
-decoding the Reason request or output. Completed output must match the native Task ID
-and the pipeline in its retained request. Both delivery paths present v1 through the
-same builder as new producers. Resource views use that retained decoder too. Explicit
-tool errors keep their no-product result; corruption in a successful envelope fails.
-The installed smoke imports Reason's contract-only library and checks the canonical
-profile, status text and product link. It reads that link through MCP and verifies the
-typed result's model, pipeline, observed frames, event count and requested range against
-the completion summary.
+The producer constructs terminal success through one result builder. Authorized reads
+and subscription reconnects deliver the stored current result without rewriting it.
+Task recovery reuses the current request, validated grounding subset and issued
+capabilities. There are no readers or migrations for historical result formats.
 
-Drain Reason submissions, active Tasks and subscriptions before replacing all replicas
-and consumers together. Mixed producer versions are unsupported. Export retained Tasks
-and keep their Artifact references before deployment; preflight both profiles and their
-parent identities. Quarantine rejected records for operator review without rewriting
-them during reads. Rollback requires a qualified build that admits both v0 and v1 and
-keeps current-owner SQL delivery. Builds at or before `d6fe7b21` cannot read v1 and are
-not rollback targets after the first v1 write. Preserve a qualified dual-profile binary
-before enabling new writes, and rehearse forward and reverse replacement against the
-same retained Store before installation acceptance. Artifact bytes and Task results
-need no conversion.
-
-Retire the v0 decoder only after the installation's rollback window has ended and every
-retained or pinned v0 Task has expired or passed an owner-approved conversion with a
-backup and qualified reverse conversion. The native fixture qualifies result delivery;
-installed transition, rollback rehearsal and NVIDIA execution require separate checks.
+The installed smoke imports Reason's contract-only library and checks the completion,
+status text and product link. It reads that link through MCP and verifies the typed
+result's model, pipeline, observed frames, event count and requested range against the
+completion summary. Install producers and consumers together against current-format
+state. Native control-plane fixtures cover delivery and reconnects; NVIDIA execution
+requires the installed GPU checks.
 
 Analysis publishes immutable occurrences through the shared artifact plane:
 typed JSON results, a Rerun annotation layer, and optionally the remuxed

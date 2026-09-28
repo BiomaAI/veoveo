@@ -1,6 +1,6 @@
-//! Reason-owned public projection of both retained terminal-result profiles.
-// TODO(foundations): qualify the coordinated installed transition, preserved
-// dual-profile rollback binary and GPU completion through the reference runbook.
+//! Current Reason terminal results and authorized Task delivery.
+// TODO(foundations): qualify current result delivery and GPU completion on the
+// rebuilt reference installation through its runbook.
 use futures::StreamExt;
 use rmcp::{
     ErrorData as McpError,
@@ -39,7 +39,8 @@ pub(super) async fn get_task(
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
     let snapshot = authorized_snapshot(runtime, owner, &request.task_id).await?;
-    project_snapshot(runtime, canonical_snapshot(snapshot)?)
+    validate_snapshot(&snapshot)?;
+    project_snapshot(runtime, snapshot)
         .await
         .map(GetTaskResult::new)
         .map_err(internal)
@@ -63,9 +64,8 @@ pub(super) async fn subscribe_tasks(
             // Recheck current authorization before decoding the retained domain
             // envelope; the watch's older observation conveys no new authority.
             let snapshot = authorized_snapshot(&runtime, &owner, &task.task.task_id).await?;
-            project_snapshot(&runtime, canonical_snapshot(snapshot)?)
-                .await
-                .map_err(internal)
+            validate_snapshot(&snapshot)?;
+            project_snapshot(&runtime, snapshot).await.map_err(internal)
         }
     });
     Ok(DurableTaskSubscription {
@@ -74,21 +74,14 @@ pub(super) async fn subscribe_tasks(
     })
 }
 
-fn canonical_snapshot(mut snapshot: TaskSnapshot) -> Result<TaskSnapshot, McpError> {
+fn validate_snapshot(snapshot: &TaskSnapshot) -> Result<(), McpError> {
     if snapshot.task_type != "analyze_recording" {
         return Err(McpError::invalid_params("unknown Reason Task", None));
     }
     if snapshot.status == TaskStatus::Succeeded {
-        let view = analysis_view(&snapshot)?;
-        if let Some(output) = view.output() {
-            snapshot.result = Some(
-                serde_json::to_value(analysis_tool_result(output.clone()).map_err(internal)?)
-                    .map_err(internal)?,
-            );
-            snapshot.status_message = Some(ANALYSIS_COMPLETED.into());
-        }
+        analysis_view(snapshot)?;
     }
-    Ok(snapshot)
+    Ok(())
 }
 
 #[cfg(test)]

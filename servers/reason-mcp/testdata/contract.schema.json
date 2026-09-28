@@ -383,7 +383,7 @@
     "type": "object",
     "properties": {
       "schema": {
-        "type": "string"
+        "$ref": "#/$defs/GroundingSchema"
       },
       "source_artifact_uri": {
         "type": "string"
@@ -441,6 +441,12 @@
         "required": [
           "label"
         ]
+      },
+      "GroundingSchema": {
+        "enum": [
+          "veoveo.reason-grounding/v1"
+        ],
+        "type": "string"
       }
     }
   },

@@ -13,6 +13,10 @@ provider-neutral.
 ## Invariants
 
 - Own `stream://` and `ui://stream/live.html`.
+- Keep replay result validation and `StreamArtifactUri` in the contract-only library.
+  Producers and cross-server consumers share those checks. The producer also verifies
+  detection bounds against its input dimensions; portable checks cannot prove GPU
+  execution or authorize a source.
 - Clients select stable pipeline IDs. Native launch strings, element names,
   model paths, and tracker paths are private operator configuration.
 - Live inference consumes new encoded frames directly. It must not resolve or

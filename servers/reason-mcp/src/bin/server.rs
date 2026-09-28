@@ -49,6 +49,8 @@ mod admin;
 mod app_state;
 #[path = "server/config.rs"]
 mod config;
+#[path = "server/grounding_input.rs"]
+mod grounding_input;
 #[path = "server/host.rs"]
 mod host;
 #[path = "server/index.rs"]

@@ -1,61 +1,59 @@
-//! Extraction of a bounded typed grounding subset from a completed
-//! perception analysis results document.
+//! Admission of a bounded grounding subset through Stream's public contract.
 
 use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
+use veoveo_stream_mcp::contract::AnalysisResults;
 
-use crate::contract::{GroundingDetection, GroundingDetections, GroundingFrame};
+use crate::contract::{
+    GroundingDetection, GroundingDetections, GroundingFrame, GroundingSchema,
+    RecordingVideoSelection, StreamArtifactUri,
+};
 
-pub const GROUNDING_SCHEMA: &str = "veoveo.reason-grounding/v1";
-pub const STREAM_RESULTS_SCHEMA: &str = "veoveo.stream-results/v1";
 pub const MAX_GROUNDING_DETECTIONS: usize = 100_000;
 
-/// Lenient read of the perception results contract. Only the fields the
-/// reasoning runner consumes are extracted; unknown fields are ignored so a
-/// forward-compatible perception results revision still grounds correctly as
-/// long as its schema identity matches.
-#[derive(Deserialize)]
-struct StreamResultsDocument {
-    schema: String,
-    frames: Vec<StreamFrame>,
-}
-
-#[derive(Deserialize)]
-struct StreamFrame {
-    index: i64,
-    detections: Vec<StreamDetection>,
-}
-
-#[derive(Deserialize)]
-struct StreamDetection {
-    label: String,
-    #[serde(default)]
-    track_id: Option<u64>,
-}
-
-pub fn extract_grounding(source_artifact_uri: &str, bytes: &[u8]) -> Result<GroundingDetections> {
-    let document: StreamResultsDocument =
-        serde_json::from_slice(bytes).context("parsing grounding results document")?;
-    ensure!(
-        document.schema == STREAM_RESULTS_SCHEMA,
-        "grounding artifact schema `{}` is not the typed perception results contract",
-        document.schema
-    );
-    let detection_count: usize = document
+/// The caller authorizes the Artifact and enforces its byte limit before decoding.
+/// Stream owns the complete input shape and validation; Reason owns the selected
+/// detection subset sent to its runner.
+pub fn extract_grounding(
+    source_artifact_uri: &StreamArtifactUri,
+    selection: &RecordingVideoSelection,
+    bytes: &[u8],
+) -> Result<GroundingDetections> {
+    let document: AnalysisResults = serde_json::from_slice(bytes).context(
+        "grounding requires a complete supported Stream result; upgrade the reader or rerun with a compatible Stream producer",
+    )?;
+    let detection_count = document
         .frames
         .iter()
-        .map(|frame| frame.detections.len())
-        .sum();
+        .flat_map(|frame| &frame.detections)
+        .take(MAX_GROUNDING_DETECTIONS + 1)
+        .count();
     ensure!(
         detection_count <= MAX_GROUNDING_DETECTIONS,
         "grounding document exceeds {MAX_GROUNDING_DETECTIONS} detections"
     );
+    document
+        .validate()
+        .context("validating Stream replay results")?;
+    veoveo_recording_video::contract::validate_video_selection(selection)?;
+    ensure!(
+        document.recording_uri == selection.recording_uri
+            && document.entity_path == selection.entity_path
+            && document.timeline == selection.timeline,
+        "grounding recording, entity and timeline must match the requested video"
+    );
+    ensure!(
+        document.requested_range.contains(selection.range),
+        "grounding result range must cover the requested video range"
+    );
     Ok(GroundingDetections {
-        schema: GROUNDING_SCHEMA.to_owned(),
-        source_artifact_uri: source_artifact_uri.to_owned(),
+        schema: GroundingSchema::V1,
+        source_artifact_uri: source_artifact_uri.clone(),
         frames: document
             .frames
             .into_iter()
+            .filter(|frame| {
+                frame.index >= selection.range.start && frame.index <= selection.range.end
+            })
             .map(|frame| GroundingFrame {
                 index: frame.index,
                 detections: frame
@@ -71,54 +69,12 @@ pub fn extract_grounding(source_artifact_uri: &str, bytes: &[u8]) -> Result<Grou
     })
 }
 
-/// Every track identity a grounding subset can justify a citation for.
+/// Every track identity the admitted grounding subset can justify a citation for.
 pub fn grounded_track_ids(grounding: &GroundingDetections) -> std::collections::BTreeSet<u64> {
     grounding
         .frames
         .iter()
-        .flat_map(|frame| frame.detections.iter())
+        .flat_map(|frame| &frame.detections)
         .filter_map(|detection| detection.track_id)
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn typed_stream_results_ground_with_a_subset() {
-        let document = serde_json::json!({
-            "schema": STREAM_RESULTS_SCHEMA,
-            "pipeline_id": "detect-and-track",
-            "model_id": "primary-detector",
-            "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
-            "entity_path": "/camera/front",
-            "timeline": "sensor_time",
-            "timeline_kind": "duration_nanoseconds",
-            "requested_range": {"start": 0, "end": 100},
-            "frames": [
-                {"index": 10, "detections": [
-                    {"class_id": 0, "label": "car", "confidence": 0.9,
-                     "bounds": {"x": 1.0, "y": 2.0, "width": 3.0, "height": 4.0},
-                     "track_id": 7}
-                ]}
-            ],
-            "processed_frames": 1,
-            "elapsed_ms": 5
-        });
-        let grounding =
-            extract_grounding("artifact://test", &serde_json::to_vec(&document).unwrap()).unwrap();
-        assert_eq!(grounding.schema, GROUNDING_SCHEMA);
-        assert_eq!(grounding.frames.len(), 1);
-        assert_eq!(grounding.frames[0].detections[0].label, "car");
-        assert!(grounded_track_ids(&grounding).contains(&7));
-    }
-
-    #[test]
-    fn unversioned_grounding_is_rejected() {
-        let document = serde_json::json!({"schema": "something-else/v9", "frames": []});
-        let error = extract_grounding("artifact://test", &serde_json::to_vec(&document).unwrap())
-            .unwrap_err();
-        assert!(error.to_string().contains("typed perception results"));
-    }
 }

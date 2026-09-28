@@ -24,9 +24,9 @@ appear in its public MCP identities.
   Retained successful outputs must match their owning Task and requested pipeline;
   corrupt output is an explicit recovery error.
 - Publish terminal success through the shared Reason result builder with one
-  canonical `result_uri` and one product link. Admit retained v0 only through
-  `RetainedAnalysisOutput`; Task reads and subscriptions expose v1 after current
-  owner checks. Follow the design's coordinated upgrade and rollback profile.
+  canonical `result_uri` and one product link. Task reads and subscriptions validate
+  the current result type after owner checks. Replace old contracts by hard cut;
+  do not add historical-data readers or compatibility migrations.
 - Analysis and result notifications use the shared Task-backed resource listener.
   Do not restore process-local broadcasts or emit Task status for resource-only
   listeners. Additional Task-backed routes implement the owning contract trait.
@@ -40,9 +40,12 @@ appear in its public MCP identities.
   template revision, decode parameters) and states
   `confidence_basis: model_reported`. Never present reasoning output as
   calibrated detector confidence.
-- Grounding accepts the typed perception results schema only, resolved with
-  the caller's authority at submission. It never travels as a bearer token or
-  a URL.
+- Grounding imports Stream's contract-only result and Artifact address types.
+  Require the same recording, entity and timeline with a covering replay range;
+  admit citations only from selected frames. Capture classification and labels
+  from the authorized Artifact read and require them on the output capability.
+  Persist the validated subset and issued capabilities for current-task recovery;
+  the Artifact service owns output-label persistence and enforcement.
 - Runner responses are validated fail closed: answer kind must match the
   task, events must lie inside the requested range in strict order, and
   counts, label lengths, and bytes are capped. The runner writes nothing to
@@ -75,7 +78,7 @@ appear in its public MCP identities.
 Contract revision: 3
 
 - C01: met
-- C02: met — v1 terminal products carry canonical `result_uri`; native retained v0/v1 Task delivery passes, while the [installed transition](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work) is pending
+- C02: met — v1 terminal products carry canonical `result_uri`; native current-format Task delivery passes, while [installed qualification](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#deferred-work) is pending
 - C03: met
 - C04: met — analyses use Store cursor pages; discovery lists roots and fixed catalog entries
 - C05: met

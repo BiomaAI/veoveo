@@ -1,5 +1,5 @@
-#[path = "contract/output_profiles.rs"]
-mod output_profiles;
+#[path = "contract/grounding.rs"]
+mod grounding;
 #[path = "contract/resources.rs"]
 mod resources;
 #[path = "contract/responses.rs"]

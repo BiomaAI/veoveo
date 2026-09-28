@@ -1101,6 +1101,7 @@ and Artifact publication.
 | Path | Responsibility |
 |---|---|
 | `src/contract.rs`, `src/contract/live.rs` | replay, video, result, sampling, detection, timeline, and output types; the pure live-session module is also compiled by the focused flight client |
+| `src/contract/artifact.rs`, `results.rs`, `tests/contract/replay.rs` | contract-only Stream Artifact addresses, replay version and portable result validation; shared by the producer and Reason grounding |
 | `src/catalog.rs` | validated admitted GStreamer graphs, typed profiles, live ingress, and immutable model catalog |
 | `src/executor.rs` | native replay-runner protocol and response validation |
 | `src/annotation.rs` | derived Rerun bounding-box annotation layers |
@@ -1128,16 +1129,16 @@ depend on Recording Hub.
 | `src/contract.rs` | reasoning tasks, decode policy, grounding, results, and output types through the isolated `contract` feature; `runtime` and `mcp` enable execution and hosted integration |
 | `src/contract/ids.rs`, `resources.rs`, `cursor.rs`, `scopes.rs`, `subscriptions.rs` | Reason-owned pipeline, model and analysis identities, typed addresses, versioned analysis cursors, the empty domain scope vocabulary and Task-backed analysis resource relationships |
 | `src/contract/catalog_views.rs`, `output.rs`, `analysis_view.rs`, `tests/contract/responses.rs` | constructor-derived response identities and checked flat JSON decoding, including nested output ownership by Task and pipeline |
-| `src/contract/output_profiles.rs`, `tests/contract/output_profiles.rs`, `testdata/analysis-output-v0.json` | explicit retained v0/v1 terminal result admission and the frozen v0 fixture |
 | `src/catalog.rs` | validated world-model checkpoint and reasoning pipeline catalog |
 | `src/executor.rs` | world-model runner protocol and response validation |
-| `src/grounding.rs` | typed Stream-results grounding subset extraction |
+| `src/grounding.rs`, `tests/contract/grounding.rs` | contract-only consumption of Stream's complete replay model, matching video selection and extraction of selected track citations |
 | `src/annotation.rs` | derived Rerun provenance and event annotation layers |
 | `src/artifacts.rs` | shared artifact-plane adapter |
 | `src/uris.rs` | contract-only typed resource builders and matching fixed discovery declarations |
 | `src/bin/server/` | auth, tasks, prompts, resources, notifications, and composition |
 | `src/bin/server/resources.rs` | exhaustive typed resource dispatch and SQL-authorized analysis reads and subscription admission |
-| `src/bin/server/task_results.rs`, `task_results_tests.rs` | canonical Reason completion construction and current-owner Task read/subscription conversion without stored-row rewrites |
+| `src/bin/server/task_results.rs`, `task_results_tests.rs` | current Reason completion construction and owner-authorized Task read/subscription validation |
+| `src/bin/server/grounding_input.rs`, `grounding_input_tests.rs` | authorized grounding reads and input-label capture for output capabilities |
 | `src/bin/server/setup.rs` | checked MCP setup, immutable discovery declarations, templates and catalog descriptor validation |
 | `runner/` | Python world-model runner: typed protocol, GPU frame sampling, vLLM inference, and locked image assets outside Rust compilation |
 | `runner/src/reason_runner/video.py` | exact packet timestamps, NVDEC device surfaces, and owned CUDA observation tensors |

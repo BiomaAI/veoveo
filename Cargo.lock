@@ -17199,6 +17199,7 @@ dependencies = [
  "veoveo-platform-store",
  "veoveo-recording-reader",
  "veoveo-recording-video",
+ "veoveo-stream-mcp",
  "veoveo-task-runtime",
  "veoveo-types",
 ]

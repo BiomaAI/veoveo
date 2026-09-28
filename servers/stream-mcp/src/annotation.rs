@@ -16,7 +16,7 @@ pub const MP4_MIME_TYPE: &str = "video/mp4";
 struct AnnotationProvenance<'a> {
     schema: &'static str,
     run_uri: String,
-    results_schema: &'a str,
+    results_schema: &'a crate::contract::StreamResultsSchema,
     pipeline_id: &'a str,
     model_id: &'a str,
     recording_uri: &'a str,

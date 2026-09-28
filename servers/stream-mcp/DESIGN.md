@@ -15,6 +15,8 @@ over encoded sensor streams and governed recordings.
 | [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with direct live-session tools, durable recording runs, resources, templates, prompts, completions, subscriptions, and notifications. |
 | MCP Apps SEP-1865 / `ext-apps` | Version `2026-01-26`; `ui://stream/live.html` is a self-contained App using canonical Stream tools and resources. |
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Pipeline profiles, RTP ingress, live sessions, detections, encoded preview chunks, recording selections, and artifact results use closed typed shapes. |
+| Stream replay `veoveo.stream-results/v1` | The contract library owns the version enum, complete result model and portable validation shared by producers and consumers. |
+| Stream Artifact addresses | `StreamArtifactUri` wraps the Artifact contract's presented address with the fixed `stream` scheme and a typed Artifact occurrence ID. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; recording replay is durable, cancellable, resumable from governed identity, and returns its terminal payload through `tasks/get`. A live session is direct bounded work, not an indefinitely running task. |
 | [GStreamer 1.0](https://gstreamer.freedesktop.org/documentation/) | Operator-admitted native launch graphs are private installation configuration. Clients select stable pipeline IDs and never submit launch text. |
 | Rust 1.98.1 and GNU ELF | The Linux amd64 control executable compiles on Bookworm independently of the DeepStream C++ runner; their private JSON process boundary is unchanged. |
@@ -39,8 +41,9 @@ response validation and Rerun annotations. The `mcp` feature adds the hosted ser
 HTTP authentication, Tasks and App integration. Defaults enable `mcp`, and the binary
 requires it. Feature selection preserves the JSON fields, schema names and retained
 source-snapshot digest. Runtime source access still requires current authorization.
-The URI helper module belongs to `runtime`; contract-only imports do not expose
-its string-based address constructors.
+`StreamArtifactUri` is available through `contract`. It delegates parsing and building
+to the Artifact owner's `ArtifactUri`, preserves admitted wire spelling and implements
+the foundational `ResourceAddress` trait. Other URI helpers belong to `runtime`.
 
 Public contract tests compare every exported schema with the captured wire profile.
 Run those tests through an independent Cargo consumer to check dependency isolation;
@@ -224,6 +227,19 @@ runner directory, which lets a Rust edit reuse the native result. Runtime images
 continue to require the NVIDIA GPU resource and the admitted DeepStream plugins.
 
 ## Recording Replay
+
+`AnalysisResults` declares `StreamResultsSchema::V1`. Its `validate` method checks
+selection shape, strictly ordered frames inside the requested range, a processed-frame
+count that covers returned frames, and every detection. Detections require a supported
+class ID, a nonblank label of at most 256 bytes, finite probabilities in 0–1 and finite
+positive box sizes with nonnegative origins. The producer also checks boxes against
+its private input dimensions. Contract-only readers run the same portable checks;
+the result schema does not authenticate a producer or establish source access.
+
+The supported v1 wire value and fields are unchanged. Unknown schema versions and
+partial result documents fail admission. Cross-server consumers import this owning
+model instead of maintaining a subset decoder. Reason applies its own video-selection
+and citation limits after Stream validation.
 
 `run_recording` accepts a canonical
 `recording://recordings/{uuidv7}` video selection and an admitted pipeline ID.

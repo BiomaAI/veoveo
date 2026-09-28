@@ -3,16 +3,15 @@ use std::num::{NonZeroU32, NonZeroU64};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Result, ensure};
 use chrono::{TimeDelta, Utc};
 use rmcp::model::{CallToolResult, ContentBlock};
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
-use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
     ArtifactReadAuthority, ArtifactTaskId, GatewayInternalIdentity,
     IssueArtifactReadCapabilityRequest, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller, ServerResourceUris,
+    IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller,
 };
 use veoveo_reason_mcp::{
     annotation::write_annotation_rrd,
@@ -20,7 +19,6 @@ use veoveo_reason_mcp::{
         AnalysisId, AnalyzeRecordingRequest, GroundingDetections, RecordingVideoSelection,
         validate_decode, validate_reasoning_task, validate_sampling,
     },
-    grounding::extract_grounding,
 };
 use veoveo_recording_video::contract::{RecordingSourceSnapshot, validate_video_selection};
 use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
@@ -31,6 +29,7 @@ use veoveo_task_runtime::{
 use veoveo_types::TaskId;
 
 use super::app_state::{AppState, update_task};
+use super::grounding_input;
 use super::outputs::{AnalysisProducts, publish_analysis};
 use super::ownership::{
     recording_authority_from_identity, recording_authority_from_runtime, runtime_owner,
@@ -101,7 +100,7 @@ pub(super) async fn start_reason_task(
     retention_pins: BTreeSet<TaskRetentionPin>,
 ) -> Result<TaskSnapshot, String> {
     validate_input(&state, &input).map_err(|error| error.to_string())?;
-    let grounding = resolve_grounding(&state, &caller, &input)
+    let grounding = grounding_input::resolve(&state, &caller, &input)
         .await
         .map_err(|error| error.to_string())?;
     let task_id = TaskId::new();
@@ -110,7 +109,10 @@ pub(super) async fn start_reason_task(
         .issue_write_capability(
             &caller,
             &IssueArtifactWriteCapabilityRequest {
-                required_data_labels: Default::default(),
+                required_data_labels: grounding
+                    .as_ref()
+                    .map(|input| input.required_labels().clone())
+                    .unwrap_or_default(),
                 task_id: task_id.to_string(),
                 expires_at: Utc::now() + ARTIFACT_CAPABILITY_TTL,
                 max_artifact_count: input.artifact_count(),
@@ -140,7 +142,7 @@ pub(super) async fn start_reason_task(
     let task_type = input.task_type().to_owned();
     let request = DurableReasonRequest {
         input,
-        grounding,
+        grounding: grounding.map(grounding_input::GroundingInput::into_detections),
         artifact_write_capability: capability,
         artifact_read_capability: read_capability,
     };
@@ -498,50 +500,6 @@ fn validate_input(state: &AppState, input: &ReasonTaskInput) -> Result<()> {
     validate_sampling(request.sampling)?;
     validate_decode(request.decode)?;
     Ok(())
-}
-
-/// Resolve the request's optional grounding reference with the caller's
-/// authority. The typed subset travels in the durable request; the artifact
-/// identity and caller bearer do not.
-async fn resolve_grounding(
-    state: &AppState,
-    caller: &PlaneCaller,
-    input: &ReasonTaskInput,
-) -> Result<Option<GroundingDetections>> {
-    let ReasonTaskInput::Analyze(request) = input;
-    let Some(reference) = &request.grounding else {
-        return Ok(None);
-    };
-    let artifact_id = grounding_artifact_id(&reference.results_artifact_uri)?;
-    let metadata = state
-        .artifacts
-        .head(caller, &artifact_id)
-        .await?
-        .context("grounding artifact not found")?;
-    ensure!(
-        metadata.byte_len <= state.max_grounding_bytes,
-        "grounding artifact is {} bytes and exceeds the {}-byte grounding limit",
-        metadata.byte_len,
-        state.max_grounding_bytes
-    );
-    let artifact = state
-        .artifacts
-        .get(caller, &artifact_id)
-        .await?
-        .context("grounding artifact not found")?;
-    ensure!(
-        artifact.bytes.len() as u64 <= state.max_grounding_bytes,
-        "grounding artifact grew past the grounding limit while reading"
-    );
-    extract_grounding(&reference.results_artifact_uri, &artifact.bytes).map(Some)
-}
-
-fn grounding_artifact_id(uri: &str) -> Result<ArtifactId> {
-    ServerResourceUris::new(
-        veoveo_types::ResourceScheme::new("stream").expect("declared resource scheme"),
-    )
-    .parse_artifact_uri(uri)
-    .context("grounding results_artifact_uri must match stream://artifact/{artifact_id}")
 }
 
 pub(super) async fn completed_payload(

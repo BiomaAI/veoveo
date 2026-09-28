@@ -1,0 +1,100 @@
+{
+  "schema": "veoveo.stream-results/v1",
+  "pipeline_id": "traffic",
+  "model_id": "detector",
+  "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+  "entity_path": "/camera/front",
+  "timeline": "sensor_time",
+  "timeline_kind": "duration_nanoseconds",
+  "requested_range": {
+    "start": 0,
+    "end": 30
+  },
+  "source_snapshot": {
+    "recording_id": "01983da0-0000-7000-8000-000000000000",
+    "dataset_id": "01983da0-0000-7000-8000-000000000010",
+    "captured_at": "2026-09-28T00:00:00Z",
+    "sources": [
+      {
+        "layer_id": "01983da0-0000-7000-8000-000000000020",
+        "layer_name": "camera",
+        "layer_ordinal": 0,
+        "kind": "committed_layer",
+        "byte_len": 100,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ]
+  },
+  "frames": [
+    {
+      "index": 0,
+      "detections": [
+        {
+          "class_id": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "track_id": 2
+        }
+      ]
+    },
+    {
+      "index": 10,
+      "detections": [
+        {
+          "class_id": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "track_id": 7
+        }
+      ]
+    },
+    {
+      "index": 20,
+      "detections": [
+        {
+          "class_id": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "track_id": 8
+        }
+      ]
+    },
+    {
+      "index": 30,
+      "detections": [
+        {
+          "class_id": 0,
+          "label": "car",
+          "confidence": 0.9,
+          "bounds": {
+            "x": 1.0,
+            "y": 2.0,
+            "width": 3.0,
+            "height": 4.0
+          },
+          "track_id": 9
+        }
+      ]
+    }
+  ],
+  "processed_frames": 4,
+  "elapsed_ms": 5
+}

@@ -1,6 +1,5 @@
 {
   "analysis_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001",
-  "results_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001/results",
   "pipeline_uri": "reason://pipeline/traffic-events",
   "model_uri": "reason://model/world-model",
   "summary": {
@@ -24,5 +23,7 @@
     "byte_len": 12,
     "mime_type": "application/vnd.rerun.rrd",
     "created_at": "2026-09-28T00:00:00Z"
-  }
+  },
+  "schema": "veoveo.ai/reason-analysis/v1",
+  "result_uri": "reason://analysis/01983da0-0000-7000-8000-000000000001/results"
 }

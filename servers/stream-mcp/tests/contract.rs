@@ -1,5 +1,8 @@
 use veoveo_stream_mcp::contract::*;
 
+#[path = "contract/replay.rs"]
+mod replay;
+
 #[test]
 fn replay_requests_share_the_video_owner_and_preserve_defaults() {
     let request: RunRecordingRequest = serde_json::from_value(serde_json::json!({

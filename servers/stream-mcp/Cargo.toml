@@ -27,6 +27,7 @@ contract = [
     "dep:serde_json",
     "dep:veoveo-artifact-contract",
     "dep:veoveo-recording-video",
+    "dep:veoveo-types",
 ]
 runtime = [
     "contract",
@@ -40,7 +41,6 @@ runtime = [
     "dep:re_log_types",
     "dep:veoveo-artifact-client",
     "dep:veoveo-mcp-contract",
-    "dep:veoveo-types",
 ]
 mcp = [
     "runtime",
