@@ -100,7 +100,7 @@ impl ContainerGuard {
 impl Drop for ContainerGuard {
     fn drop(&mut self) {
         let _ = Command::new("docker")
-            .args(["rm", "-f", self.name.as_str()])
+            .args(["rm", "-f", "--volumes", self.name.as_str()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();

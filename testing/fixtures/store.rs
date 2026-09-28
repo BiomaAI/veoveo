@@ -30,7 +30,7 @@ impl Drop for PendingContainer {
 }
 fn stop(name: &str) {
     let _ = Command::new("docker")
-        .args(["rm", "--force", name])
+        .args(["rm", "--force", "--volumes", name])
         .output();
 }
 impl Drop for TestDb {
