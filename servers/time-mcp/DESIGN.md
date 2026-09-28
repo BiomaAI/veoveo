@@ -538,24 +538,13 @@ them every 40 seconds. Both temporal task types use `Resume` recovery because th
 outputs are deterministic under the persisted authority-bound request. Terminal task
 records retain for seven days unless a retention pin extends their lifetime.
 
-### Zone Completion Template Compatibility
+### Zone Completion
 
-Time advertises `time://zones/{+zone_id}`, which preserves the slash and plus signs
-in a zone key. The public completion adapter also accepts the v1 reference spelling
-`time://zones/{zone_id}` through the 0.1.x support series. Both spellings select the
-same zone completion handler after the same `time:read` check. The adapter does not
-change resource reads, policy targets, or the concrete zone URI format.
-
-Clients refresh `resources/templates/list` and use the advertised template for new
-completion requests. The Time server owns this adapter. Removal may occur in 0.2.0
-only after installed acceptance proves refreshed discovery and completion for both
-profiles and supported clients have adopted the advertised form. Upgrade from v1-only
-servers requires a drained Time service and refreshed template discovery before
-traffic resumes; overlap with v1-only replicas is unsupported. Rollback also drains
-the service and refreshes discovery. Neither direction converts persisted data.
-Native cases qualify both exact reference spellings and leave unrelated references
-unchanged. The reference installation's rebuild must qualify that drain and discovery
-refresh before release, as tracked in the foundations plan.
+Time advertises `time://zones/{+zone_id}` to preserve slash and plus signs in zone
+keys. Completion requests use that exact advertised template after the `time:read`
+check. Clients obtain the reference through `resources/templates/list`; other template
+spellings do not select the zone completion handler. Contract and discovery tests
+qualify the current template against the typed zone builder.
 
 ### Resources
 

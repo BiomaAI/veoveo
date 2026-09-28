@@ -82,7 +82,7 @@ Component designs live beside the code whose contract they specify:
 | [`servers/speech-mcp/contract/DESIGN.md`](../servers/speech-mcp/contract/DESIGN.md) | lightweight public Speech types shared by service, gateway and browser edge |
 | [`servers/recording-mcp/DESIGN.md`](../servers/recording-mcp/DESIGN.md) | recording catalog, queries and the Recording Explorer App |
 | [`platform/policy/DESIGN.md`](../platform/policy/DESIGN.md) | policy decisions shared by the gateway and workers, indexed revisions, and current authority supplied by the caller |
-| [`platform/gateway/src/state/audit/DESIGN.md`](../platform/gateway/src/state/audit/DESIGN.md) | gateway policy-event persistence versions, template-target decoding, coordinated upgrade and rollback |
+| [`platform/gateway/src/state/audit/DESIGN.md`](../platform/gateway/src/state/audit/DESIGN.md) | current gateway policy-event persistence and action/target validation |
 | [`platform/computers/storage/DESIGN.md`](../platform/computers/storage/DESIGN.md) | retained-home journal/ext4 backend, private worker mTLS service and Docker plugin; shared-mount restart and physical writer handoff |
 | [`platform/computers/host/DESIGN.md`](../platform/computers/host/DESIGN.md) | private compute-host container: daemon, provider and storage process order, retained local state and installation trust |
 | [`platform/gateway/src/auth/DESIGN.md`](../platform/gateway/src/auth/DESIGN.md) | signed access-token session families, cross-replica revocation and rollout into renewable Computer grants |
@@ -185,7 +185,7 @@ designs above.
 | `platform/runtimes/computers/tests/native_support/guest_authority.rs` | native TLS-positive, user-authority-negative check for the guest supervisor certificate |
 | `platform/store/src/gateway_control.rs` | current control-plane pointer/revision read shared by gateway and worker authority, with corrupt-pointer rejection |
 | `platform/store/src/gateway_retention.rs` | batched gateway audit cleanup over the kind/time index added in migration 0072 |
-| `platform/gateway/src/state/audit/policy_codec.rs` and `policy_codec/v1.rs` | version 2 policy-event admission and read-only conversion of retained version 1 resource/template targets |
+| `platform/gateway/src/state/audit/policy_codec.rs` | current policy-event format admission and shared action/target validation for writes and reads |
 | `platform/policy/src/resource_policy.rs` | typed resource/template ownership and shared lexical exposure checks |
 | `platform/policy/` | shared policy evaluator, immutable catalog view and session-family predicate; callers own authentication, store reads and freshness |
 | `platform/computers/src/authority.rs` | verified identity for operation admission and the source context that execution policy checks |

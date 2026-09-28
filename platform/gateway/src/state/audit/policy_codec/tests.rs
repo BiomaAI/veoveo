@@ -76,7 +76,7 @@ fn template(uri: &str) -> PolicyTarget {
     }
 }
 
-fn legacy(event: &AuditEvent) -> OpenObject {
+fn unmarked(event: &AuditEvent) -> OpenObject {
     OpenObject::new(BTreeMap::from([
         ("gateway_kind".into(), "gateway_policy".into()),
         ("event".into(), serde_json::to_value(event).unwrap()),
@@ -84,53 +84,23 @@ fn legacy(event: &AuditEvent) -> OpenObject {
 }
 
 #[test]
-fn v1_decoding_uses_the_action_for_literal_and_expressive_templates() {
-    for action in [
-        GatewayAction::CompletionComplete,
-        GatewayAction::ResourcesTemplatesList,
+fn current_reads_preserve_concrete_and_prompt_targets() {
+    for original in [
+        event(
+            GatewayAction::ResourcesRead,
+            resource("media://model/literal"),
+        ),
+        event(
+            GatewayAction::CompletionComplete,
+            PolicyTarget::Prompt {
+                server: ServerSlug::new("media").unwrap(),
+                prompt: veoveo_mcp_contract::PromptName::new("media-model-select").unwrap(),
+            },
+        ),
     ] {
-        for uri in ["media://model/literal", "media://model/{+id}{?cursor}"] {
-            let mut old = event(action, resource(uri));
-            old.decision.effect = PolicyEffect::Deny;
-            old.decision.reason = PolicyReasonCode::MissingScope;
-            let decoded = decode(&legacy(&old)).unwrap();
-            let mut expected = old;
-            expected.target = template(uri);
-            expected.decision.target = expected.target.clone();
-            assert_eq!(decoded, expected);
-        }
+        let record = canonical_policy_record(&original).unwrap();
+        assert_eq!(decode(&record.details).unwrap(), original);
     }
-    // Discovery historically classified usage/artifact templates as read targets.
-    for old in [
-        PolicyTarget::Usage {
-            server: ServerSlug::new("media").unwrap(),
-            usage_uri: ResourceUri::new("media://usage/task/{task_id}").unwrap(),
-        },
-        PolicyTarget::Artifact {
-            server: ServerSlug::new("media").unwrap(),
-            artifact_uri: ResourceUri::new("media://artifact/{artifact_id}").unwrap(),
-        },
-    ] {
-        let decoded = decode(&legacy(&event(GatewayAction::ResourcesTemplatesList, old))).unwrap();
-        assert!(matches!(
-            decoded.target,
-            PolicyTarget::ResourceTemplate { .. }
-        ));
-        assert_eq!(decoded.target, decoded.decision.target);
-    }
-    let read = event(
-        GatewayAction::ResourcesRead,
-        resource("media://model/literal"),
-    );
-    assert_eq!(decode(&legacy(&read)).unwrap(), read);
-    let prompt = event(
-        GatewayAction::CompletionComplete,
-        PolicyTarget::Prompt {
-            server: ServerSlug::new("media").unwrap(),
-            prompt: veoveo_mcp_contract::PromptName::new("media-model-select").unwrap(),
-        },
-    );
-    assert_eq!(decode(&legacy(&prompt)).unwrap(), prompt);
 }
 
 #[test]
@@ -152,24 +122,24 @@ fn v2_writes_and_reads_preserve_event_identity_and_template_target() {
 }
 
 #[test]
-fn incompatible_versions_and_inconsistent_targets_fail_without_payload_disclosure() {
+fn missing_or_unknown_formats_and_inconsistent_targets_fail_without_payload_disclosure() {
     let current = event(
         GatewayAction::CompletionComplete,
         template("media://model/{id}"),
     );
-    assert!(decode(&legacy(&current)).is_err());
+    assert!(decode(&unmarked(&current)).is_err());
     let old = event(
         GatewayAction::CompletionComplete,
         resource("media://private-fixture/{id:65536}"),
     );
-    let error = decode(&legacy(&old)).unwrap_err();
+    let error = decode(&mark_current(unmarked(&old))).unwrap_err();
     assert!(!format!("{error:#}").contains("private-fixture"));
     for version in [
         serde_json::json!("private-fixture-future-version"),
         serde_json::json!(null),
         serde_json::json!(2),
     ] {
-        let mut details = legacy(&current).as_map().clone();
+        let mut details = unmarked(&current).as_map().clone();
         details.insert(FORMAT_KEY.into(), version);
         let error = decode(&OpenObject::new(details)).unwrap_err();
         assert!(!format!("{error:#}").contains("private-fixture"));
@@ -192,11 +162,11 @@ fn incompatible_versions_and_inconsistent_targets_fail_without_payload_disclosur
         resource("media://model/literal"),
     );
     assert!(canonical_policy_record(&old).is_err());
-    assert!(decode(&mark_current(legacy(&old))).is_err());
+    assert!(decode(&mark_current(unmarked(&old))).is_err());
 }
 
 #[tokio::test]
-async fn separate_store_connections_read_both_formats_without_rewriting_legacy_rows() {
+async fn separate_store_connections_read_current_events_and_reject_invalid_writes() {
     tokio::time::timeout(Duration::from_secs(90), async {
         let db = fixture::TestDb::new().await;
         let writer = GatewayState::new(db.a.clone());
@@ -206,36 +176,31 @@ async fn separate_store_connections_read_both_formats_without_rewriting_legacy_r
             template("media://model/{+id}{?cursor}"),
         );
         writer.record_audit_event(&current).await.unwrap();
-        let old = event(
+        let literal = event(
             GatewayAction::CompletionComplete,
-            resource("media://model/literal"),
+            template("media://model/literal"),
         );
-        let mut upgraded = old.clone();
-        upgraded.target = template("media://model/literal");
-        upgraded.decision.target = upgraded.target.clone();
-        let mut old_record = canonical_policy_record(&upgraded).unwrap();
-        old_record.details = legacy(&old);
-        db.a.record_gateway_audit_event(GatewayAuditKind::Policy, old_record.clone())
-            .await
-            .unwrap();
+        writer.record_audit_event(&literal).await.unwrap();
         let events = reader.policy_audit_events().await.unwrap();
-        assert_eq!(events, [current, upgraded]);
+        assert_eq!(events, [current, literal]);
         let stored =
             db.b.gateway_audit_events(GatewayAuditKind::Policy)
                 .await
                 .unwrap();
-        assert_eq!(
+        assert!(
             stored
                 .iter()
-                .find(|record| record.id == old_record.id)
-                .unwrap(),
-            &old_record
+                .all(|row| row.details.as_map()[FORMAT_KEY] == CURRENT_FORMAT)
         );
         assert_eq!(
             reader.policy_audit_method_summary().await.unwrap()[0].allow_events,
             2
         );
-        assert!(writer.record_audit_event(&old).await.is_err());
+        let invalid = event(
+            GatewayAction::CompletionComplete,
+            resource("media://model/literal"),
+        );
+        assert!(writer.record_audit_event(&invalid).await.is_err());
         assert_eq!(reader.audit_counts().await.unwrap().policy_events, 2);
     })
     .await

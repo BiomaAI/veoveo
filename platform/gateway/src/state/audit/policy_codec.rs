@@ -1,9 +1,7 @@
-//! Versioned persistence adapter. Live policy consumes only the current target model.
+//! Current policy-event persistence and action/target validation.
 use anyhow::{Result, anyhow, bail};
 use veoveo_mcp_contract::{AuditEvent, GatewayAction, PolicyTarget};
 use veoveo_platform_store::OpenObject;
-
-mod v1;
 
 const FORMAT_KEY: &str = "policy_event_format";
 const CURRENT_FORMAT: &str = "veoveo.ai/gateway-policy-event/v2";
@@ -16,22 +14,15 @@ pub(super) fn mark_current(details: OpenObject) -> OpenObject {
 
 pub(super) fn decode(details: &OpenObject) -> Result<AuditEvent> {
     let fields = details.as_map();
-    let legacy = match fields.get(FORMAT_KEY) {
-        None => true, // The deployed, unversioned envelope is persistence version 1.
-        Some(serde_json::Value::String(version)) if version == CURRENT_FORMAT => false,
-        Some(_) => bail!("unsupported gateway policy audit format; upgrade the gateway reader"),
-    };
+    if !matches!(fields.get(FORMAT_KEY), Some(serde_json::Value::String(version)) if version == CURRENT_FORMAT)
+    {
+        bail!("gateway policy audit record requires the current format");
+    }
     let value = fields
         .get("event")
         .ok_or_else(|| anyhow!("gateway policy audit event is missing"))?;
-    let event = if legacy {
-        serde_json::from_value::<v1::Event>(value.clone())
-            .map_err(|_| anyhow!("invalid gateway policy audit v1 event; inspect the retained record with compatible tooling"))?
-            .into_current()?
-    } else {
-        serde_json::from_value::<AuditEvent>(value.clone())
-            .map_err(|_| anyhow!("invalid gateway policy audit v2 event; inspect the retained record with compatible tooling"))?
-    };
+    let event = serde_json::from_value::<AuditEvent>(value.clone())
+        .map_err(|_| anyhow!("gateway policy audit event does not satisfy the current contract"))?;
     validate(&event)?;
     Ok(event)
 }

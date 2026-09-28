@@ -226,16 +226,14 @@ The separate 72-package consumer passes 19 cases without MCP, database, provider
 GPU or asynchronous runtime dependencies.
 Strict workspace Clippy passes. Cleanup removed 21.4 GiB of superseded test
 executables while preserving libraries, fingerprints, incremental data and build caches.
-Gateway completion and template discovery now use `PolicyTarget::ResourceTemplate`.
+Gateway completion and template discovery use `PolicyTarget::ResourceTemplate`.
 The shared evaluator preserves lexical selectors, rejects declaration targets for reads,
-and keeps ownership, scope and deny checks in force. New policy audit writes carry the
-v2 format marker. A read-only v1 adapter converts historical targets according to their
-recorded action, including literal-only templates, without changing stored rows or decisions.
-Native checks cover both formats through separate Store connections and reject invalid
-new events before writing. Contract, policy, gateway library and gateway integration
-checks pass 280 cases, plus five compile-fail examples; strict workspace Clippy passes.
-The gateway audit design declares the coordinated drain,
-snapshot rollback and adapter retirement; installed transition qualification is pending.
+and keeps ownership, scope and deny checks in force. Policy audit writes and reads
+require the current v2 format and matching event/decision targets. The historical DTO
+reader is removed. Four native cases qualify current targets, invalid formats, redacted
+errors and separate Store connections; invalid new events add no row. Time's obsolete
+zone-template adapter and support window are also removed. Its four native MCP tests
+qualify current discovery, typed addresses and schemas. Installed checks remain pending.
 Cleanup removed 14.6 GiB of superseded test executables and kept the newest binary for
 each target, current qualification binaries, libraries, fingerprints and compiler caches.
 Time now owns its queries, mutation drafts and private driver records over Store's
@@ -1156,12 +1154,12 @@ default owner; the inventory must not become a central domain-type registry.
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time, UAV, Reason and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Extend checked declarations and domain-builder agreement across remaining servers |
-| Gateway completion and audit targets | Completion and template discovery use `PolicyTarget::ResourceTemplate`; shared policy keeps the existing lexical selectors. New stored events use v2; the read-only v1 DTO adapter separates historical targets using their actions. Native qualification preserves old rows through separate Store connections | Remove the v1 historical DTO adapter and its compatibility-only fixtures; use the current target format and qualify installed authorization |
+| Gateway completion and audit targets | Completion and template discovery use `PolicyTarget::ResourceTemplate`. Stored policy events require the current v2 marker and typed event; the historical DTO adapter is removed. Native cross-connection reads and invalid-write checks pass | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed consumers with the current absolute frame-ID profile |
 | Map identity admission | Domain IDs accept UUIDv5/v7 spellings through the UUID library; Store authoring keys check only a prefix, byte bound, and slash exclusion | Qualify persisted spellings and establish one domain-owned admission profile when moving IDs into query APIs |
-| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Remove the old zone-template completion adapter and support window; complete broader DTO types and qualify current-format installed behavior |
+| Time | The contract feature excludes runtime dependencies; handlers, Tasks, and configuration defaults use `TimeScope`; `TimeResource` owns every URI family and the three collection cursor types. Checked server setup supplies startup, discovery and scope membership. Private runtime persistence owns SQL, mutation drafts and driver records; catalog calls retain domain IDs, versions, completion parents and cursors until driver conversion. Checked catalog decoding binds JSON identity, versions and indexed fields to the stored row; native corruption and immutable-acquisition checks pass | Complete broader DTO types and qualify current-format installed behavior; completion now requires the advertised reserved-expansion zone template |
 | Time identity admission | Time owns both profiles: public IDs accept bounded prefixed names, including bootstrap authority references, while stored catalog keys require UUIDv7 suffixes. Persistence validates the stored profile without narrowing public provenance; Store has no Time query or draft API and owns the shared connection and migrations | Qualify installed admission; use the distinct current public and stored ID profiles when strengthening metadata construction |
 | Time scalar admission | Clock policies have a checked builder. Metadata versions use `TimeVersion`, with a distinct zero-only source-creation input and private retained-body decoding. `SubsecondNanoseconds` covers instants, expressions, cursors and persistence drafts. Total-coordinate conversion and NTP/UTC epoch arithmetic check seconds overflow; native boundary, transition and retained-row cases pass. JSON keeps its numeric shape. Requests and persistence keep typed guards; exhaustion checks preserve rows and atomically roll back failed retirement | Qualify installed numeric admission; finish remaining expression/projection scalar types and acquisition-state relationships |
 | Time intervals | `TimeWindow` checks increasing bounds and a common authority at construction and decoding; accessors preserve these invariants. Algebra keeps endpoint uncertainty, selecting the maximum at tied coordinates. Schedule expansion clips to the horizon while preserving recurrence limits and labels. Native membership, metadata, authority and clipping cases pass; independent contract consumption qualifies the unchanged valid wire shape | Qualify current-format installed schedule Tasks and restart recovery |
@@ -1214,8 +1212,8 @@ default owner; the inventory must not become a central domain-type registry.
 The initial extraction preserves `ResourceUri`'s current opaque lexical profile and
 wire strings. Concrete validation is a separate step through `ResourceUriParts`, also
 available from `ResourceUri::components`. This lets domain contracts validate their
-addresses. Remove the gateway's historical v1 adapter and require the current typed
-completion and audit target format.
+addresses. The gateway requires the current typed completion and audit target format;
+its historical v1 reader is removed.
 Do not pass a template through the concrete parser or claim the opaque constructor
 establishes route safety. Gateway completion authorization and stored target decoding
 now have native qualification; the installation transition remains pending. Its
@@ -1262,9 +1260,9 @@ foundation helper. Roots now yield no segments; an explicit slash is distinct. T
 resource tests cover every family, malformed IDs and queries, cursor family mismatch,
 version bounds, subscriptions, schemas, and compile-fail construction. Discovery's
 zone template uses RFC 6570 reserved expansion to preserve slash-separated keys.
-The old Time completion adapter and its support window must be removed under the
-hard-cut rule. Update callers to the current zone template and qualify discovery on
-the rebuilt reference installation.
+Time completion accepts only the advertised current zone template. The old adapter
+and its support window are removed. Native discovery and typed-address checks pass;
+qualify installed discovery on the rebuilt reference installation.
 
 ## Phase 4: Unified Audit Log
 

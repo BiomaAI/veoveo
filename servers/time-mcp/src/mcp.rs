@@ -490,10 +490,7 @@ impl ServerHandler for TimeMcp {
         };
         let identity = require_scope(&context, TimeScope::Read)?;
         let scope = self.state.scope(&identity).await.map_err(internal)?;
-        let domain = match (
-            adapt_zone_completion_v1(&reference.uri),
-            request.argument.name.as_str(),
-        ) {
+        let domain = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::CALENDAR_TEMPLATE, "calendar_id") => Some(TimeCompletion::CalendarId),
             (uris::CALENDAR_TEMPLATE, "version") => Some(TimeCompletion::CalendarVersion {
                 calendar_key: request
@@ -530,10 +527,7 @@ impl ServerHandler for TimeMcp {
             ));
         }
         // These catalogs are packaged with the server's documents and TZDB.
-        let values: Vec<String> = match (
-            adapt_zone_completion_v1(&reference.uri),
-            request.argument.name.as_str(),
-        ) {
+        let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::DOC_TEMPLATE, "doc_id") => {
                 SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect()
             }
@@ -665,15 +659,6 @@ fn internal(error: impl std::fmt::Display) -> McpError {
 fn not_found(kind: &str) -> McpError {
     McpError::resource_not_found(format!("unknown {kind}"), None)
 }
-// Public Time completion-template v1 adapter. Its support window and retirement
-// gate are declared in Time's DESIGN.md; both spellings reach the same handler.
-fn adapt_zone_completion_v1(template: &str) -> &str {
-    match template {
-        "time://zones/{zone_id}" => uris::ZONE_TEMPLATE,
-        _ => template,
-    }
-}
-
 fn default_clock_policy() -> ClockQualityPolicy {
     ClockQualityPolicy::builder()
         .maximum_error_nanoseconds(100_000_000)
@@ -687,26 +672,6 @@ fn default_clock_policy() -> ClockQualityPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn zone_completion_v1_adapter_uses_the_current_reserved_expansion_template() {
-        assert_eq!(uris::ZONE_TEMPLATE, "time://zones/{+zone_id}");
-        assert_eq!(
-            adapt_zone_completion_v1("time://zones/{zone_id}"),
-            uris::ZONE_TEMPLATE
-        );
-        assert_eq!(
-            adapt_zone_completion_v1(uris::ZONE_TEMPLATE),
-            uris::ZONE_TEMPLATE
-        );
-        for unrelated in [
-            uris::EPOCH_TEMPLATE,
-            "other://zones/{zone_id}",
-            "time://zones/{other}",
-        ] {
-            assert_eq!(adapt_zone_completion_v1(unrelated), unrelated);
-        }
-    }
 
     #[test]
     fn advertised_resources_and_simple_templates_agree_with_typed_addresses() {
