@@ -13,6 +13,7 @@ mod ownership;
 mod prompts;
 mod runtime_events;
 mod service;
+mod setup;
 mod state;
 mod task_extension;
 mod task_index;

@@ -14,7 +14,7 @@ use axum::{
     routing::get,
 };
 
-use super::service::SERVER_DOCS;
+use super::setup::SERVER_SETUP;
 
 pub(super) fn router<S>() -> Router<S>
 where
@@ -29,14 +29,14 @@ where
 async fn docs_index() -> Response {
     (
         [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        SERVER_DOCS.llms_txt(),
+        SERVER_SETUP.documents().llms_txt(),
     )
         .into_response()
 }
 
 /// `GET {mount}/admin/docs/{doc_id}` (contract C20).
 async fn doc_body(Path(doc_id): Path<String>) -> Response {
-    match SERVER_DOCS.doc(&doc_id) {
+    match SERVER_SETUP.documents().doc(&doc_id) {
         Some(doc) => (
             [(header::CONTENT_TYPE, "text/markdown; charset=utf-8")],
             doc.body,

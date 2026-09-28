@@ -374,7 +374,7 @@ to database record keys. TaskRuntime owns lifecycle and its external v7 admissio
 `src/resource_components/builder.rs` encodes typed scheme, authority, path, and query inputs
 at the serialization step.
 `src/resource_template.rs` owns the separate ASCII RFC 6570 template profile and
-checked expansion through iri-string; gateway policy selectors keep their existing
+checked expansion through iri-string, including standard-map scalar contexts; gateway policy selectors keep their existing
 restricted matching semantics.
 
 ### `mcp/apps-extension`
@@ -991,6 +991,7 @@ Simulation live-view ownership:
 | `servers/uav-sim-mcp/src/contract/live_view.rs` | UAV-owned provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
 | `servers/uav-sim-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | isolated public UAV and live-view contract feature; runtime adapter and hosted MCP gates; Map and Frames contracts remain owner imports |
 | `servers/uav-sim-mcp/src/contract/resources.rs`, `src/contract/resources/cursors.rs`, `src/uris.rs`, `tests/contract/resources.rs`, `src/server/resource_tests.rs` | typed UAV resource routes, collection-bound v1 cursors, foundational URI builders and native read/subscription admission checks |
+| `servers/uav-sim-mcp/src/server/setup.rs`, `src/server/setup_tests.rs` | domain-owned MCP trait implementation, checked startup/discovery, typed scope membership and RFC template-to-builder qualification |
 | `servers/uav-sim-mcp/src/contract/scopes.rs`, `src/server/auth.rs`, `src/server/task_scope_tests.rs` | UAV-owned scope vocabulary, shared typed permission guards, and native ordinary/Task routing checks before persistence or simulator dispatch |
 | `servers/uav-sim-mcp/tests/contract.rs`, `testdata/contract.schema.json` | 97 pre-extraction public schemas and independent-consumer wire qualification |
 | `servers/uav-sim-mcp/src/server/ownership.rs` | authenticated gateway-to-Task and live-view ownership conversion; output-policy label and classification handling |

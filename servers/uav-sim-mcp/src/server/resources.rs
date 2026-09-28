@@ -2,7 +2,7 @@
 use super::super::{control_authority::ControlCollection, task_index};
 use super::*;
 use crate::contract::{
-    UavDocument, UavLiveViewCursor, UavMissionCursor, UavPlanCursor, UavResource, UavUsageCursor,
+    UavLiveViewCursor, UavMissionCursor, UavPlanCursor, UavResource, UavUsageCursor,
 };
 
 impl UavSimMcp {
@@ -30,16 +30,20 @@ impl UavSimMcp {
             UavResource::LiveApp => Ok(ReadResourceResult::new(vec![
                 veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
             ])),
-            UavResource::Docs => json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>()),
+            UavResource::Docs => {
+                json_resource(uri, &SERVER_SETUP.documents().iter().collect::<Vec<_>>())
+            }
             UavResource::Document(document) => {
-                let doc = SERVER_DOCS.doc(document.id()).ok_or_else(|| {
+                let doc = SERVER_SETUP.documents().doc(document.id()).ok_or_else(|| {
                     McpError::resource_not_found("unknown UAV simulation document", None)
                 })?;
                 Ok(ReadResourceResult::new(vec![
                     ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
                 ]))
             }
-            UavResource::Contract => json_resource(uri, SERVER_DOCS.contract_declaration()),
+            UavResource::Contract => {
+                json_resource(uri, SERVER_SETUP.documents().contract_declaration())
+            }
             UavResource::ControlGrants { cursor } => {
                 let page = self
                     .state
@@ -309,7 +313,11 @@ impl UavSimMcp {
         }
         if reference.uri == uris::DOC_TEMPLATE && request.argument.name == "doc_id" {
             return complete_values(
-                SERVER_DOCS.iter().map(|doc| doc.id.to_owned()).collect(),
+                SERVER_SETUP
+                    .documents()
+                    .iter()
+                    .map(|doc| doc.id.to_owned())
+                    .collect(),
                 &request.argument.value,
             );
         }
@@ -450,10 +458,13 @@ impl UavSimMcp {
             )
             .await
             .map_err(internal)?;
-            resources.push(live_app_resource(
-                &self.state.live_view_connect_origin,
-                &targets,
-            ));
+            resources.push(
+                super::super::setup::live_app_resource(
+                    &self.state.live_view_connect_origin,
+                    &targets,
+                )
+                .map_err(internal)?,
+            );
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         Ok(resources)
@@ -461,41 +472,19 @@ impl UavSimMcp {
 }
 
 fn discovery_roots(identity: &GatewayInternalIdentity) -> Vec<Resource> {
-    let mut roots = well_known_resources();
-    for (uri, title, description) in [
-        (
-            uris::SESSIONS,
-            "Simulation sessions",
-            "Authorized simulation session index.",
-        ),
-        (
-            uris::MISSIONS,
-            "Simulation missions",
-            "Paged authorized mission resource URIs.",
-        ),
-        (
-            uris::USAGE,
-            "Simulation task usage",
-            "Paged authorized task usage resource URIs.",
-        ),
-    ] {
-        roots.push(descriptor(uri.into(), title.into(), description));
-    }
-    if identity_has_scope(identity, UavScope::Control)
-        || identity_has_scope(identity, UavScope::Admin)
-    {
-        roots.push(descriptor(
-            uris::CONTROL_GRANTS.into(),
-            "Vehicle control grants".into(),
-            "Paged UAV principal-to-vehicle grants.",
-        ));
-        roots.push(descriptor(
-            uris::MISSION_PLANS.into(),
-            "Vehicle mission plans".into(),
-            "Paged plans admitted from Map route handoffs.",
-        ));
-    }
-    roots
+    SERVER_SETUP
+        .resources()
+        .iter()
+        .filter(|resource| match resource.address() {
+            UavResource::ControlGrants { .. } | UavResource::MissionPlans { .. } => {
+                identity_has_scope(identity, UavScope::Control)
+                    || identity_has_scope(identity, UavScope::Admin)
+            }
+            UavResource::LiveApp => false, // Caller metadata is attached after its SQL selection.
+            _ => true,
+        })
+        .map(|resource| resource.descriptor().clone())
+        .collect()
 }
 
 pub(in crate::server) async fn observe(
@@ -519,165 +508,6 @@ pub(in crate::server) async fn observe(
             }
         }
     }
-}
-
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authorized identity; `capability_inventory` declares the
-/// same URIs at `uav-sim://contract`.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![descriptor(
-        uris::DOCS.to_owned(),
-        "Server documents".to_owned(),
-        "Index of the crate documents embedded at build time.",
-    )];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(
-                uris::doc(UavDocument::parse(doc.id).expect("declared UAV document")),
-                doc.title,
-            )
-            .with_title(doc.title)
-            .with_description("Crate document embedded at build time.")
-            .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(descriptor(
-        uris::CONTRACT.to_owned(),
-        "Contract declaration".to_owned(),
-        "Machine-readable contract revision, compliance, and capability inventory.",
-    ));
-    resources
-}
-
-/// Every advertised resource template. `list_resource_templates` serves this
-/// list and the `uav-sim://contract` capability inventory declares it, so the
-/// two cannot diverge.
-pub(super) fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        template(
-            uris::CONTROL_GRANTS_PAGE_TEMPLATE,
-            "Vehicle control grant page",
-            "100 visible grants per page.",
-        ),
-        template(
-            uris::MISSION_PLANS_PAGE_TEMPLATE,
-            "Vehicle mission plan page",
-            "100 visible plans per page.",
-        ),
-        template(
-            uris::MISSIONS_PAGE_TEMPLATE,
-            "Mission page",
-            "100 authorized mission resource URIs per page.",
-        ),
-        template(
-            uris::USAGE_PAGE_TEMPLATE,
-            "Task usage page",
-            "100 authorized task usage URIs per page.",
-        ),
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "Server document")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        template(
-            uris::SESSION_TEMPLATE,
-            "Simulation session",
-            "Typed session state.",
-        ),
-        template(
-            uris::WORLD_TEMPLATE,
-            "Simulation world",
-            "Frame, georeference, and world clock state.",
-        ),
-        template(
-            uris::TILES_TEMPLATE,
-            "Simulation tiles",
-            "Google Photorealistic 3D Tiles load state inside the simulator.",
-        ),
-        template(
-            uris::VEHICLES_TEMPLATE,
-            "Simulation vehicles",
-            "Vehicle inventory for one session.",
-        ),
-        template(
-            uris::VEHICLE_TEMPLATE,
-            "Simulation vehicle",
-            "Typed state for one simulated vehicle.",
-        ),
-        template(
-            uris::RECORDINGS_TEMPLATE,
-            "Simulation recordings",
-            "Governed recording identities emitted by one session.",
-        ),
-        template(
-            uris::LIVE_CAMERAS_TEMPLATE,
-            "Live cameras",
-            "Authoritative operator-camera inventory.",
-        ),
-        template(
-            uris::LIVE_CAMERA_TEMPLATE,
-            "Live camera",
-            "One authoritative operator camera.",
-        ),
-        template(
-            uris::STREAM_PRODUCTS_TEMPLATE,
-            "Stream products",
-            "Stable camera-owned rendered and encoded products.",
-        ),
-        template(
-            uris::STREAM_PRODUCT_TEMPLATE,
-            "Stream product",
-            "One camera-owned RTX render and NVIDIA NVENC product shared across viewers.",
-        ),
-        template(
-            uris::LIVE_VIEWS_TEMPLATE,
-            "Live views",
-            "Caller-visible live-view authorizations without secret tokens.",
-        ),
-        template(
-            uris::LIVE_VIEWS_PAGE_TEMPLATE,
-            "Live view page",
-            "100 caller-visible live-view authorizations per page.",
-        ),
-        template(
-            uris::LIVE_VIEW_TEMPLATE,
-            "Live view",
-            "One caller-visible live-view authorization without its token.",
-        ),
-        template(
-            uris::MISSION_TEMPLATE,
-            "Simulation mission",
-            "Authorized durable mission task state.",
-        ),
-        template(
-            uris::CONTROL_GRANT_TEMPLATE,
-            "Vehicle control grant",
-            "One UAV-owned principal-to-vehicle authority grant.",
-        ),
-        template(
-            uris::MISSION_PLAN_TEMPLATE,
-            "Vehicle mission plan",
-            "One UAV-owned plan admitted from a Map route handoff.",
-        ),
-        template(
-            uris::USAGE_TASK_TEMPLATE,
-            "Simulation task usage",
-            "Usage report for one authorized task.",
-        ),
-    ]
-}
-
-fn descriptor(uri: String, title: String, description: &str) -> Resource {
-    Resource::new(uri, title.clone())
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
-}
-
-fn template(uri: &str, title: &str, description: &str) -> ResourceTemplate {
-    ResourceTemplate::new(uri, title)
-        .with_title(title)
-        .with_description(description)
-        .with_mime_type("application/json")
 }
 
 fn session_summary(state: &SimulationState) -> serde_json::Value {
@@ -759,39 +589,6 @@ fn json_resource<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResul
         ResourceContents::text(serde_json::to_string(value).map_err(internal)?, uri)
             .with_mime_type("application/json"),
     ]))
-}
-
-const LIVE_APP_ICON: &str = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IiM2NmU0ZmYiIHN0cm9rZS13aWR0aD0iMiI+PHJlY3QgeD0iMiIgeT0iNSIgd2lkdGg9IjIwIiBoZWlnaHQ9IjE0IiByeD0iMiIvPjxwYXRoIGQ9Im04IDlsNiAzLTYgM3oiLz48L3N2Zz4=";
-
-pub(super) fn live_app_resource(
-    connect_origin: &str,
-    agent_message_targets: &[String],
-) -> Resource {
-    let resource = veoveo_mcp_apps_extension::app_resource_with_meta(
-        uris::LIVE_APP_URI,
-        "uav-sim-live-app",
-        veoveo_mcp_apps_extension::ResourceUiMeta {
-            csp: Some(veoveo_mcp_apps_extension::UiCsp {
-                connect_domains: vec![connect_origin.to_owned()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-    )
-    .with_title("Live Cameras")
-    .with_description(
-        "Authoritative simulator cameras tiled into one native NVIDIA NVENC product shared across viewers.",
-    )
-    .with_icons(vec![rmcp::model::Icon::new(LIVE_APP_ICON)]);
-    if agent_message_targets.is_empty() {
-        resource
-    } else {
-        veoveo_mcp_apps_extension::with_agent_message_targets(
-            resource,
-            agent_message_targets.iter().cloned(),
-        )
-        .expect("validated UAV App agent message targets")
-    }
 }
 
 #[cfg(test)]

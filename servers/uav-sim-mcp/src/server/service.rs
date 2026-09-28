@@ -1,5 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use crate::contract::{LiveSessionId, UavGrantCursor, UavScope};
 use chrono::Utc;
@@ -13,8 +13,7 @@ use rmcp::{
         GetPromptRequestParams, GetTaskParams, GetTaskResult, ListPromptsResult,
         ListResourceTemplatesResult, ListResourcesResult, ListToolsResult, PaginatedRequestParams,
         Prompt, ReadResourceRequestParams, ReadResourceResult, Reference, Resource,
-        ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter,
-        UpdateTaskParams,
+        ResourceContents, ServerConfig, SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -23,8 +22,7 @@ use serde::Serialize;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, Page, SubscriptionHub, UsageKind, UsageRecord, UsageReport,
-    docs::ServerDocs, paginate,
+    GatewayInternalIdentity, Page, SubscriptionHub, UsageKind, UsageRecord, UsageReport, paginate,
 };
 use veoveo_task_runtime::{TaskRetentionPin, TaskSnapshot, TaskStatus};
 
@@ -49,13 +47,12 @@ pub(super) mod resources;
 use super::live_view::LiveViewError;
 use super::ownership::{internal_caller, internal_identity};
 use super::prompts::UavSimPrompt;
+use super::setup::{SERVER_SETUP, SERVER_SLUG};
 use super::state::AppState;
 use super::task_extension::UavSimTaskExtension;
 use super::task_worker::{await_result, start_operation, start_vehicle_mission_plan};
 pub(super) use bootstrap::serve;
-use resources::resource_templates;
 
-const SERVER_SLUG: &str = "uav-sim";
 const LIST_PAGE_SIZE: usize = 100;
 const LIVE_APP_TOOLS: &[&str] = &[
     "list_live_cameras",
@@ -63,11 +60,6 @@ const LIVE_APP_TOOLS: &[&str] = &[
     "renew_live_view",
     "close_live_view",
 ];
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `uav-sim://docs`, `uav-sim://docs/{doc_id}`, `uav-sim://contract`,
-/// and the administrative `admin/docs` routes (contract C18-C21).
-pub(super) static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 #[derive(Clone)]
 pub(super) struct UavSimMcp {
     state: Arc<AppState>,
@@ -78,6 +70,7 @@ pub(super) struct UavSimMcp {
 
 impl UavSimMcp {
     pub(super) fn new(state: Arc<AppState>) -> Self {
+        std::sync::LazyLock::force(&SERVER_SETUP);
         Self {
             task_service: UavSimTaskExtension::new(state.clone()),
             state,
@@ -834,27 +827,7 @@ impl ServerHandler for UavSimMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_prompts()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_resources_list_changed()
-            .enable_completions()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut capabilities);
-        capabilities.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = rmcp::model::Implementation::new(SERVER_SLUG, env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Fly simulated UAVs. To fly a mission: (1) call `list_active_vehicle_control_grants` to find your vehicle and its Map mobility profile; (2) get a route handoff from Map MCP; (3) call `prepare_vehicle_mission` with that handoff; (4) call `execute_vehicle_mission_plan` as an MCP Task. Scenarios and sensor captures also run as MCP Tasks, and an interrupted flight is never retried automatically. Watch the operator cameras in the ui://uav-sim/live.html app."
-                .to_owned(),
-        );
-        info
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -966,7 +939,14 @@ impl ServerHandler for UavSimMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -1397,8 +1377,11 @@ mod tests {
 
     #[test]
     fn live_app_uses_the_default_complete_console_content_workspace() {
-        let resource =
-            resources::live_app_resource("wss://stream.example.com", &["uav-1-pilot".to_owned()]);
+        let resource = crate::server::setup::live_app_resource(
+            "wss://stream.example.com",
+            &["uav-1-pilot".to_owned()],
+        )
+        .unwrap();
         let metadata = veoveo_mcp_apps_extension::resource_ui_meta(&resource)
             .expect("live App UI metadata is valid");
         assert_eq!(metadata.prefers_border, None);
@@ -1425,7 +1408,7 @@ mod well_known_tests {
         CONTRACT_REVISION, ComplianceStatus, DOC_ID_AGENTS, DOC_ID_DESIGN,
     };
 
-    use super::SERVER_DOCS;
+    use crate::server::setup::SERVER_DOCS;
 
     #[test]
     fn embedded_documents_carry_the_crate_manual_and_design() {
@@ -1444,7 +1427,7 @@ mod well_known_tests {
         let declaration = veoveo_mcp_contract::docs::ContractDeclaration::from_docs(&SERVER_DOCS);
         assert_eq!(declaration.server, "uav-sim");
         assert_eq!(declaration.contract_revision, CONTRACT_REVISION);
-        for id in ["C18", "C19", "C20", "C21"] {
+        for id in ["C17", "C18", "C19", "C20", "C21"] {
             let item = declaration
                 .compliance
                 .iter()

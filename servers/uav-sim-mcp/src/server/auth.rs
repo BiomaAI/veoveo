@@ -5,12 +5,11 @@ use axum::{
     response::IntoResponse,
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier};
-use veoveo_types::ScopeDefinition;
 
 use crate::contract::UavScope;
 
 pub(super) fn identity_has_scope(identity: &GatewayInternalIdentity, required: UavScope) -> bool {
-    identity.actor.scopes.contains(required.name())
+    super::setup::SERVER_SETUP.has_scope(&identity.actor.scopes, required)
 }
 
 pub(super) fn require_scope(

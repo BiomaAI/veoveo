@@ -33,6 +33,7 @@ pub(in crate::server) async fn serve() -> anyhow::Result<()> {
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
         init_server_telemetry("veoveo-uav-sim-mcp", "info,veoveo_uav_sim_mcp=debug")?;
+    std::sync::LazyLock::force(&super::super::setup::SERVER_SETUP);
     let args = Args::parse();
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;

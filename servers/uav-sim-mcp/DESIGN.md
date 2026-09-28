@@ -19,6 +19,7 @@ for visualization.
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
 | SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease, plan and Task-link transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | UAV execution read profiles | Internal `legacy_v1` retained-plan adapter and `task_linked_v1` exact Task correlation; public plan JSON is unchanged. |
+| RFC 6570 URI Templates | iri-string `0.7.14` through foundational template admission and scalar expansion; every advertised UAV template is checked against the owning address builder. |
 | Concrete resource URIs | URL `2.5.8` and percent-encoding `2.3.2` through foundational components; typed UAV routes and collection-bound hexadecimal JSON cursors, version 1. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
@@ -70,6 +71,29 @@ Internal Rust imports use one owner without compatibility exports. This library 
 requires no data conversion or deployment drain. Contract schema snapshots and
 an independently resolved consumer qualify the library surface; installation behavior
 and hardware execution require their separate acceptance runs.
+
+## Checked MCP Setup
+
+`server/setup.rs` implements `McpServerContract` with `UavScope` and `UavResource`.
+The MCP feature owns this association; the public contract feature has no MCP
+integration dependency. Startup evaluates `McpServerSetup` before Store recovery or
+adapter calls. Service construction also evaluates it for library consumers. The
+shared checker verifies implementation/document identity, resource round trips,
+required documents, resource capabilities and unique scope/resource/template declarations.
+The server declares its own vocabulary without changing MCP core.
+
+Initialization, document reads and discovery consume this setup. Templates have
+RFC 6570 admission and lexicographic ordering. Native checks expand every template,
+including optional collection cursors, through the foundational URI library and compare
+the result with UAV's builder. Domain parsing rejects invalid IDs and cursor parents.
+
+Caller scope checks use the setup's typed scope membership. Domain SQL still selects
+visible grants, plans, missions and Tasks. Discovery filters checked static roots by
+scope. The live App attaches its installation CSP and caller-selected agent targets
+through a checked descriptor constructor, preserving its typed address. Agent-target
+changes keep their declared resource-list invalidation source. This wiring checks
+declarations and types; installed authorization, recovery and GPU behavior have
+separate qualification requirements.
 
 ## Resource Addresses And Cursors
 
@@ -763,8 +787,8 @@ PYTHONPATH=showcase/uav-sim/runtime:sdk/python/src \
 ## Contract Compliance
 
 The normative target is MCP contract revision 3. The [agent manual](AGENTS.md#contract-compliance)
-records each requirement. Gateway registration still needs its revision declaration,
-and installed readiness qualification is pending.
+records each requirement. Local and reference gateway registrations declare revision 3.
+Installed readiness qualification is pending.
 
 Mission admission retains its exact Task identity before dispatch. Unknown outcomes
 preserve that plan, lease and Task pin. Retained completion details across process loss
@@ -779,8 +803,10 @@ that could settle such an outcome automatically.
 `server/control_authority/task_link.rs` owns execution read profiles, typed Task links
 and SQL retention selection. `task_link_tests.rs` qualifies migration reapplication,
 correlation, rollback and filtering before page limits against an isolated Store.
-`server/task_index.rs` owns Task usage and mission correlations. `contract/resources.rs` owns addresses and `contract/resources/cursors.rs` owns
-collection cursors. `server/index.rs` assembles pages, and `server/resources.rs` composes discovery, reads,
+`server/task_index.rs` owns Task usage and mission correlations. `contract/resources.rs`
+owns addresses and `contract/resources/cursors.rs` owns collection cursors.
+`server/setup.rs` owns checked protocol declarations. `server/index.rs` assembles pages,
+and `server/resources.rs` composes caller discovery, reads,
 completion, and subscription admission. `server/bootstrap.rs` constructs the service,
 wires HTTP, and owns observer shutdown. `server/catalog_tests.rs` qualifies these
 paths against a disposable pinned Store; it performs no simulation or GPU work.

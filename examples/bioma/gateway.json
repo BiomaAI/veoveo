@@ -156,7 +156,8 @@
       ],
       "metadata": {
         "runtime": "isaac-sim-6.0.1",
-        "world_source": "google_photorealistic_3d_tiles"
+        "world_source": "google_photorealistic_3d_tiles",
+        "contract_revision": 3
       },
       "resource_projection": "server_owned",
       "referenced_resource_schemes": [

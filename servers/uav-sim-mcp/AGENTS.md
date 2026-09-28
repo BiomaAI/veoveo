@@ -14,6 +14,11 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 ## Invariants
 
+- Declare MCP scopes, resource descriptors, templates, capabilities and documents in
+  `server/setup.rs`. Startup and handlers consume `McpServerSetup<UavContract>`.
+  Keep checked declaration metadata separate from caller authority. Every added
+  template must expand to its typed domain builder in the setup qualification.
+
 - Use `UavResource` and the typed `uris` constructors for resource addresses.
   Collection cursors belong to the contract and preserve their version 1 wire profile.
   Decode each resource once; reads and subscriptions share scopes and parent checks.
@@ -131,7 +136,7 @@ Contract revision: 3
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — gateway registration does not state the contract revision
+- C17: met — local and reference gateway registrations declare contract revision 3
 - C18: met
 - C19: met
 - C20: met

@@ -21,6 +21,10 @@
 `Sha256Digest`, and `Sha256DigestError`. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
 `ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
+`expand_scalars` accepts a standard string map for scalar variables and delegates to
+the same iri-string expansion engine. Consumers need no URI-library context for this
+case. Names keep their RFC spelling, unreferenced entries are ignored, and absent
+variables remain undefined. Domain builders still validate required IDs and parents.
 Platform identity belongs here too: `PrincipalId`, `TenantId`, `WorkContextId`,
 `DelegationId`, `GroupId`, `RoleId`, `DataLabelId`, and `PolicyVersion` are distinct
 validated newtypes. `AccessSubject` identifies a principal or group. `InvocationMode`

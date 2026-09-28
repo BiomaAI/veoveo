@@ -174,3 +174,39 @@ fn opaque_legacy_references_keep_their_existing_wire_admission() {
     assert!(legacy.components().is_err());
     assert!(ResourceTemplateUri::new(wire).is_ok());
 }
+
+#[test]
+fn scalar_maps_preserve_rfc_names_encoding_and_undefined_variables() {
+    use std::collections::BTreeMap;
+    let variables = BTreeMap::from([
+        ("id".into(), "a/b+ café?".into()),
+        ("cursor".into(), "page&token=foo".into()),
+        ("%61".into(), "escaped-name".into()),
+        ("a".into(), "plain-name".into()),
+        ("unused".into(), "not referenced".into()),
+    ]);
+    for (template, expected) in [
+        (
+            "example://items/{id}{?cursor}",
+            "example://items/a%2Fb%2B%20caf%C3%A9%3F?cursor=page%26token%3Dfoo",
+        ),
+        ("example://items/{%61}", "example://items/escaped-name"),
+        ("example://items/{a}", "example://items/plain-name"),
+        ("example://items{?missing}", "example://items"),
+    ] {
+        assert_eq!(
+            ResourceTemplateUri::new(template)
+                .unwrap()
+                .expand_scalars(&variables)
+                .unwrap()
+                .as_str(),
+            expected
+        );
+    }
+    let variables = BTreeMap::from([("id".into(), "secret\0".into())]);
+    let error = ResourceTemplateUri::new("example://items/{id}")
+        .unwrap()
+        .expand_scalars(&variables)
+        .unwrap_err();
+    assert!(!error.to_string().contains("secret"));
+}

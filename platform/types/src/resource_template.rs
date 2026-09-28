@@ -1,9 +1,9 @@
 //! RFC 6570 resource declarations, distinct from concrete resource addresses.
-use std::{error::Error, fmt};
+use std::{collections::BTreeMap, error::Error, fmt};
 
 use iri_string::{
     spec::UriSpec,
-    template::{Context, UriTemplateStr},
+    template::{Context, UriTemplateStr, simple_context::SimpleContext},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -56,6 +56,23 @@ impl ResourceTemplateUri {
     /// occurrences are preserved; this is neither decoding nor a policy matcher.
     pub fn variables(&self) -> impl Iterator<Item = &str> {
         self.template().variables().map(|name| name.as_str())
+    }
+
+    /// Expand scalar variables without requiring a URI-library context in the
+    /// consumer. Names use RFC 6570 spelling; unreferenced entries are ignored and
+    /// missing variables remain undefined. Owners still validate required IDs and
+    /// relationships with their domain address type.
+    pub fn expand_scalars(
+        &self,
+        variables: &BTreeMap<String, String>,
+    ) -> Result<ResourceUri, ResourceTemplateError> {
+        let mut context = SimpleContext::new();
+        for name in self.variables() {
+            if let Some(value) = variables.get(name) {
+                context.insert(name, value.clone());
+            }
+        }
+        self.expand(&context)
     }
 
     /// Expand an upstream library context and validate the concrete resource profile.
