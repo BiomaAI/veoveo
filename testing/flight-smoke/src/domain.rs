@@ -19,9 +19,11 @@ use veoveo_frames_mcp::contract::{
     FrameWorldTree, Wgs84Position,
 };
 use veoveo_map_mcp::contract::MapMobilityProfileUri;
+use veoveo_types::ScopeDefinition;
 
 use veoveo_uav_sim_mcp::contract::{
     LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState,
+    UavScope,
 };
 
 mod artifacts;
@@ -40,18 +42,20 @@ use world::*;
 
 const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
-const OPERATOR_PROFILE_SCOPES: &[&str] = &[
-    "operator:use",
-    "uav-sim:read",
-    "uav-sim:control",
-    "uav-sim:stream",
-    "view:read",
-    "view:write",
-    "view:capture",
-    "map:dataset:read",
-    "map:route",
-    "time:read",
-];
+fn operator_profile_scopes() -> [&'static str; 10] {
+    [
+        "operator:use",
+        UavScope::Read.name().as_str(),
+        UavScope::Control.name().as_str(),
+        UavScope::Stream.name().as_str(),
+        "view:read",
+        "view:write",
+        "view:capture",
+        "map:dataset:read",
+        "map:route",
+        "time:read",
+    ]
+}
 
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,

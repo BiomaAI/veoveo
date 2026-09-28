@@ -11,6 +11,8 @@
 //! ```
 mod live_view;
 pub use live_view::*;
+mod scopes;
+pub use scopes::UavScope;
 
 use std::{collections::BTreeMap, fmt, str::FromStr};
 

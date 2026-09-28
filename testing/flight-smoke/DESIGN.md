@@ -29,6 +29,8 @@ Scenario and grant decoders admit Map profile references through the same owning
 The route request serializes its typed profile ID and version without reparsing text.
 The client imports UAV's public grant and camera-product types. Scenario session and
 vehicle IDs decode through UAV's owning types before any external work.
+UAV scope names for operator and administrator token requests come from `UavScope`
+in that same contract library and convert to text at the token-exchange adapter.
 
 Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.

@@ -567,10 +567,7 @@ async fn native_sql_pages_and_lookups_preserve_authority_beyond_previous_caps() 
         stop.cancel();
         observer.await.unwrap();
         let mut stream_reader = pilot.clone();
-        stream_reader
-            .actor
-            .scopes
-            .insert(veoveo_types::ScopeName::new("uav-sim:stream").unwrap());
+        stream_reader.actor.scopes.insert(UavScope::Stream.into());
         assert!(
             server
                 .resource_descriptors_for_identity(&stream_reader)

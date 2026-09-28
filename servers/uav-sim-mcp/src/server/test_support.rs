@@ -31,7 +31,7 @@ pub(super) fn identity(
             groups: BTreeSet::new(),
             group_roles: BTreeSet::new(),
             roles: BTreeSet::new(),
-            scopes: BTreeSet::from([veoveo_types::ScopeName::new("uav-sim:control").unwrap()]),
+            scopes: BTreeSet::from([crate::contract::UavScope::Control.into()]),
             assurances: BTreeSet::new(),
             authenticated_at: None,
             data_labels: labels

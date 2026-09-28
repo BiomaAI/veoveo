@@ -8,6 +8,8 @@ name = "browser-smoke"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-types.workspace = true
+veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
 anyhow.workspace = true
 base64.workspace = true
 chrono.workspace = true

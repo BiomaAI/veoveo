@@ -157,18 +157,22 @@ const FIRST_PARTY_CONSOLE_APPS: [ConsoleAppExpectation; 16] = [
         required_selector: Some("#gl"),
     },
 ];
-const OPERATOR_PROFILE_SCOPES: &[&str] = &[
-    "operator:use",
-    "uav-sim:read",
-    "uav-sim:control",
-    "uav-sim:stream",
-    "view:read",
-    "view:write",
-    "view:capture",
-    "map:dataset:read",
-    "map:route",
-    "time:read",
-];
+fn operator_profile_scopes() -> [&'static str; 10] {
+    use veoveo_types::ScopeDefinition;
+    use veoveo_uav_sim_mcp::contract::UavScope;
+    [
+        "operator:use",
+        UavScope::Read.name().as_str(),
+        UavScope::Control.name().as_str(),
+        UavScope::Stream.name().as_str(),
+        "view:read",
+        "view:write",
+        "view:capture",
+        "map:dataset:read",
+        "map:route",
+        "time:read",
+    ]
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FocusedUavAppHostPreflight {
@@ -1619,7 +1623,7 @@ async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
             "operations",
         ])
         .args(
-            OPERATOR_PROFILE_SCOPES
+            operator_profile_scopes()
                 .iter()
                 .flat_map(|scope| ["--scope", *scope]),
         )

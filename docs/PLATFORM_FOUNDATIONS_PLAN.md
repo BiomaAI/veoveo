@@ -578,6 +578,17 @@ dispatch check reaches scenario validation in 0.82–0.84 seconds without compil
 or cluster access. Runtime-only and workspace strict Clippy pass. Wider scope/resource
 adoption and installed acceptance remain work; this extraction does not settle the
 retained-completion recovery gap.
+UAV scope checks now use the server-owned `UavScope` enum across tools, resources,
+completion, subscriptions and Task admission. Flight and browser token requests import
+the same vocabulary. The Task path now requires the same administrative scope as
+ordinary scenario and dataset-capture calls before creating a Task or dispatching work.
+The affected UAV and client suites pass 164 checks. The routed regression qualifies
+ordinary and Task-enabled calls, including rejection before persistence, authorized
+completion and rejection of missing mission plans. All 16 scope-grant combinations preserve
+their decisions with unrelated external grants. The independent consumer passes four
+checks, preserving the 97 existing schemas, and four contract-only compile-fail examples
+pass. Strict workspace Clippy passes. Installed replacement of every UAV replica and
+a rollback build preserving the Task guard are required.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -1079,7 +1090,8 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify coordinated hosted replacement and retained-owner preflight; audit domain-specific Task adapters for their additional policy |
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
-| UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types | Complete typed scope/resource builders and checked MCP setup; qualify installed consumers and recovery |
+| UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types | Complete typed resource builders and checked MCP setup; qualify installed consumers and recovery |
+| UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify installed replacement of every UAV replica; rollback builds must preserve Task scope enforcement |
 | Reason, Recording, Stream, View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |

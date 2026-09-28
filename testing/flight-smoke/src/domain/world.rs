@@ -488,7 +488,11 @@ pub(super) async fn ensure_operator_control_grant(
         operator.base,
         "admin-service",
         "admin",
-        &["operator:use", "admin:manage", "uav-sim:admin"],
+        &[
+            "operator:use",
+            "admin:manage",
+            UavScope::Admin.name().as_str(),
+        ],
         "operations",
     )
     .await?;

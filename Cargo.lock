@@ -16403,6 +16403,8 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
+ "veoveo-types",
+ "veoveo-uav-sim-mcp",
 ]
 
 [[package]]
@@ -16764,6 +16766,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
+ "veoveo-types",
  "veoveo-uav-sim-mcp",
 ]
 

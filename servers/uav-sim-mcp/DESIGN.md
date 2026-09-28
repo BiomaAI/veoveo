@@ -39,7 +39,7 @@ for visualization.
 `veoveo-uav-sim-mcp` exposes `contract`, `runtime` and `mcp` features. The default is
 `mcp`, and the server binary requires it. Consumers of public types use
 `default-features = false, features = ["contract"]`. This feature includes IDs, tool
-requests and results, Map/Frames handoffs, and the live-view v4 model. Its dependencies
+requests and results, `UavScope`, Map/Frames handoffs, and the live-view v4 model. Its dependencies
 provide value types, validation, serialization and URI parsing. It excludes the server,
 MCP integration, database, async runtime, simulator adapter and GPU libraries. Chrono's
 clock support belongs to the runtime feature.
@@ -262,6 +262,27 @@ twenty times their requested duration plus 120 seconds. Recording resolution per
 100 reads per key at 100-millisecond intervals. There is no operation-status poller,
 resumable completion receipt, or qualified remote abort in this profile. An operator
 must reconcile an unknown simulator outcome before releasing its vehicle fence.
+
+## Scope Authorization
+
+The contract library owns `UavScope` and the four published scope spellings:
+`uav-sim:read`, `uav-sim:control`, `uav-sim:admin`, and `uav-sim:stream`.
+Tool, resource, completion and subscription checks take enum values. The shared
+authentication adapter compares their validated names with the caller's grants;
+unrelated installation or external scopes may coexist in that set. Administrative
+authority does not imply the control or stream scope. The flight and browser clients
+import the same vocabulary and convert it to text when preparing token-exchange inputs.
+
+Ordinary and Task calls use the same scope guards. Scenario execution and dataset
+capture require `Admin`; mission-plan execution requires `Control` before admission
+checks the plan and vehicle grant. Task checks run before request decoding, persistence
+or simulator dispatch. Task ownership still governs subsequent status, cancellation
+and result access. Read-only document HTTP routes require authenticated gateway identity
+and establish no domain administration API.
+
+Installation qualification requires replacing every UAV replica with this Task guard.
+Rollback builds must preserve it. Scope spellings and retained Task formats are unchanged;
+already admitted Tasks keep their recorded owner and recovery profile.
 
 ## Vehicle Authority And Mission Admission
 

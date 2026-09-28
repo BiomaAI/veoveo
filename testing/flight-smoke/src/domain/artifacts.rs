@@ -80,7 +80,7 @@ pub(super) async fn assert_governed_artifact_access(
         base,
         "operator-service",
         "operator",
-        OPERATOR_PROFILE_SCOPES,
+        &operator_profile_scopes(),
         "independent-review",
     )
     .await?;

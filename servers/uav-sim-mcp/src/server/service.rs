@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, LazyLock};
 
-use crate::contract::LiveSessionId;
+use crate::contract::{LiveSessionId, UavScope};
 use chrono::Utc;
 use rmcp::tool;
 use rmcp::{
@@ -39,6 +39,7 @@ use crate::contract::{
 };
 use crate::uris;
 
+use super::auth::{identity_has_scope, require_any_scope as require_any_identity_scope};
 use super::control_authority::ControlAuthorityError;
 use super::index;
 #[path = "bootstrap.rs"]
@@ -110,17 +111,12 @@ impl UavSimMcp {
         identity: &GatewayInternalIdentity,
     ) -> Result<SimulationState, McpError> {
         let mut state = self.current_state().await?;
-        if identity_has_scope(identity, "uav-sim:read")
-            || identity_has_scope(identity, "uav-sim:admin")
+        if identity_has_scope(identity, UavScope::Read)
+            || identity_has_scope(identity, UavScope::Admin)
         {
             return Ok(state);
         }
-        if !identity_has_scope(identity, "uav-sim:control") {
-            return Err(McpError::invalid_request(
-                "one of scopes uav-sim:read, uav-sim:control, uav-sim:admin is required",
-                None,
-            ));
-        }
+        super::auth::require_scope(identity, UavScope::Control)?;
         let visible_vehicle_ids = self
             .state
             .control_authority
@@ -170,7 +166,7 @@ impl UavSimMcp {
         vehicle_id: &VehicleId,
         permission: VehicleControlPermission,
     ) -> Result<GatewayInternalIdentity, McpError> {
-        let identity = require_scope(context, "uav-sim:control")?;
+        let identity = require_scope(context, UavScope::Control)?;
         let state = self.state_for(session_id).await?;
         if !state
             .vehicles
@@ -220,7 +216,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<ConfigureWorldRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         let output = self
             .state
             .adapter
@@ -251,7 +247,7 @@ impl UavSimMcp {
     ) -> Result<CallToolResult, McpError> {
         let identity = require_any_scope(
             &context,
-            &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+            &[UavScope::Read, UavScope::Control, UavScope::Admin],
         )?;
         let state = self.visible_state(&identity).await?;
         require_session(&state, request.session_id.as_str())?;
@@ -269,9 +265,9 @@ impl UavSimMcp {
         Parameters(request): Parameters<crate::contract::ActiveVehicleGrantsRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+        let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
         self.state_for(&request.session_id).await?;
-        let include_all = identity_has_scope(&identity, "uav-sim:admin");
+        let include_all = identity_has_scope(&identity, UavScope::Admin);
         let after: Option<ControlGrantId> = index::decode(
             &super::control_authority::grant_collection(Some(&request.session_id)),
             request.cursor.as_deref(),
@@ -304,7 +300,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<GrantVehicleControlRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:admin")?;
+        let identity = require_scope(&context, UavScope::Admin)?;
         let state = self.state_for(&request.session_id).await?;
         if !state
             .vehicles
@@ -350,7 +346,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<RevokeVehicleControlRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:admin")?;
+        let identity = require_scope(&context, UavScope::Admin)?;
         let grant = self
             .state
             .control_authority
@@ -382,7 +378,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<PrepareVehicleMissionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:control")?;
+        let identity = require_scope(&context, UavScope::Control)?;
         let state = self.state_for(&request.session_id).await?;
         if !state
             .vehicles
@@ -437,7 +433,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<SessionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:stream")?;
+        require_scope(&context, UavScope::Stream)?;
         let state = self.state_for(&request.session_id).await?;
         structured_result(
             "authoritative UAV live cameras".to_owned(),
@@ -456,7 +452,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<OpenLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:stream")?;
+        let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
         let details = live_view_details(&request.session_id, Some(request.camera_id.as_str()));
         let result = self
@@ -519,7 +515,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<RenewLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:stream")?;
+        let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
@@ -597,7 +593,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<CloseLiveViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "uav-sim:stream")?;
+        let identity = require_scope(&context, UavScope::Stream)?;
         let owner = crate::server::ownership::live_view_owner(&identity);
         let session_id = request.session_id.clone();
         let live_view_id = request.live_view_id.clone();
@@ -658,7 +654,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<SessionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.apply_command(SimulationCommand::Pause(request)).await
     }
 
@@ -673,7 +669,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<SessionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.apply_command(SimulationCommand::Resume(request)).await
     }
 
@@ -688,7 +684,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<SessionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.apply_command(SimulationCommand::Reset(request)).await
     }
 
@@ -703,7 +699,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<StepSimulationRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.apply_command(SimulationCommand::Step(request)).await
     }
 
@@ -782,7 +778,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<RunScenarioRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.start_and_wait(&context, DurableOperation::RunScenario(request))
             .await
     }
@@ -798,7 +794,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<ExecuteVehicleMissionPlanRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:control")?;
+        require_scope(&context, UavScope::Control)?;
         let snapshot = start_vehicle_mission_plan(
             self.state.clone(),
             internal_caller(&context)?,
@@ -821,7 +817,7 @@ impl UavSimMcp {
         Parameters(request): Parameters<CaptureDatasetRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        require_scope(&context, "uav-sim:admin")?;
+        require_scope(&context, UavScope::Admin)?;
         self.start_and_wait(&context, DurableOperation::CaptureDataset(request))
             .await
     }
@@ -1242,47 +1238,20 @@ fn require_session(state: &SimulationState, session_id: &str) -> Result<(), McpE
 
 fn require_scope(
     context: &RequestContext<RoleServer>,
-    required: &str,
+    required: UavScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
-    identity_has_scope(&identity, required)
-        .then_some(identity)
-        .ok_or_else(|| {
-            McpError::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
+    super::auth::require_scope(&identity, required)?;
+    Ok(identity)
 }
 
 fn require_any_scope(
     context: &RequestContext<RoleServer>,
-    required: &[&str],
+    required: &[UavScope],
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
     require_any_identity_scope(&identity, required)?;
     Ok(identity)
-}
-
-fn require_any_identity_scope(
-    identity: &GatewayInternalIdentity,
-    required: &[&str],
-) -> Result<(), McpError> {
-    required
-        .iter()
-        .any(|required| identity_has_scope(identity, required))
-        .then_some(())
-        .ok_or_else(|| {
-            McpError::invalid_request(
-                format!(
-                    "You don't have permission to make this request. It needs one of these scopes: {}.",
-                    required.join(", ")
-                ),
-                None,
-            )
-        })
 }
 
 fn authority_error(error: ControlAuthorityError) -> McpError {
@@ -1302,14 +1271,6 @@ fn authority_error(error: ControlAuthorityError) -> McpError {
         | ControlAuthorityError::Json(_)
         | ControlAuthorityError::Index(_) => McpError::internal_error(error.to_string(), None),
     }
-}
-
-fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
 }
 
 fn live_view_details(

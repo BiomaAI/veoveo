@@ -1,6 +1,41 @@
 use veoveo_uav_sim_mcp::contract::*;
 
 #[test]
+fn scopes_admit_only_the_domain_vocabulary_and_preserve_wire_names() {
+    let expected = [
+        (UavScope::Read, "uav-sim:read"),
+        (UavScope::Control, "uav-sim:control"),
+        (UavScope::Admin, "uav-sim:admin"),
+        (UavScope::Stream, "uav-sim:stream"),
+    ];
+    assert_eq!(UavScope::ALL.len(), expected.len());
+    for (scope, wire) in expected {
+        assert_eq!(wire.parse::<UavScope>().unwrap(), scope);
+        assert_eq!(serde_json::to_value(scope).unwrap(), wire);
+        assert_eq!(
+            serde_json::from_value::<UavScope>(wire.into()).unwrap(),
+            scope
+        );
+        assert_eq!(scope.to_string(), wire);
+    }
+    for unknown in [
+        "uav-sim:unknown",
+        "other:read",
+        "uav-sim:READ",
+        "uav-sim:read uav-sim:admin",
+        "",
+    ] {
+        assert!(unknown.parse::<UavScope>().is_err());
+        assert!(serde_json::from_value::<UavScope>(unknown.into()).is_err());
+    }
+    let schema = serde_json::to_value(schemars::schema_for!(UavScope)).unwrap();
+    assert_eq!(
+        schema["enum"],
+        serde_json::json!(expected.map(|(_, name)| name))
+    );
+}
+
+#[test]
 fn schemas_preserve_the_published_contract() {
     let baseline: serde_json::Value =
         serde_json::from_str(include_str!("../testdata/contract.schema.json")).unwrap();

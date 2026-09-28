@@ -4,11 +4,17 @@ use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 
 use crate::contract::{
     CaptureDatasetRequest, DurableOperation, ExecuteVehicleMissionPlanRequest, RunScenarioRequest,
+    UavScope,
 };
 
+use super::auth::require_scope;
 use super::ownership::{plane_caller, runtime_owner};
 use super::state::AppState;
 use super::task_worker::{start_operation, start_vehicle_mission_plan};
+
+#[cfg(test)]
+#[path = "task_scope_tests.rs"]
+mod scope_tests;
 
 #[derive(Clone)]
 pub(super) struct UavSimTaskExtension {
@@ -76,7 +82,7 @@ impl veoveo_task_runtime::DurableTaskService for UavSimTaskExtension {
     ) -> Result<Option<rmcp::model::CreateTaskResult>, rmcp::ErrorData> {
         let arguments = serde_json::Value::Object(request.arguments.unwrap_or_default());
         if request.name.as_ref() == "execute_vehicle_mission_plan" {
-            require_scope(&caller.identity, "uav-sim:control")?;
+            require_scope(&caller.identity, UavScope::Control)?;
             let mission_request =
                 serde_json::from_value::<ExecuteVehicleMissionPlanRequest>(arguments)
                     .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
@@ -93,14 +99,22 @@ impl veoveo_task_runtime::DurableTaskService for UavSimTaskExtension {
             )));
         }
         let operation = match request.name.as_ref() {
-            "run_scenario" => DurableOperation::RunScenario(
-                serde_json::from_value::<RunScenarioRequest>(arguments)
-                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?,
-            ),
-            "capture_dataset" => DurableOperation::CaptureDataset(
-                serde_json::from_value::<CaptureDatasetRequest>(arguments)
-                    .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?,
-            ),
+            "run_scenario" => {
+                require_scope(&caller.identity, UavScope::Admin)?;
+                DurableOperation::RunScenario(
+                    serde_json::from_value::<RunScenarioRequest>(arguments).map_err(|error| {
+                        rmcp::ErrorData::invalid_params(error.to_string(), None)
+                    })?,
+                )
+            }
+            "capture_dataset" => {
+                require_scope(&caller.identity, UavScope::Admin)?;
+                DurableOperation::CaptureDataset(
+                    serde_json::from_value::<CaptureDatasetRequest>(arguments).map_err(
+                        |error| rmcp::ErrorData::invalid_params(error.to_string(), None),
+                    )?,
+                )
+            }
             _ => return Ok(None),
         };
         let snapshot = start_operation(
@@ -167,24 +181,4 @@ impl veoveo_task_runtime::DurableTaskService for UavSimTaskExtension {
         )
         .await
     }
-}
-
-fn require_scope(
-    identity: &GatewayInternalIdentity,
-    required: &str,
-) -> Result<(), rmcp::ErrorData> {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-        .then_some(())
-        .ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
 }

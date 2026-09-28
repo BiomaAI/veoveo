@@ -88,7 +88,7 @@ pub(super) async fn gateway_token(conformance: &Path, base: &str) -> Result<Stri
         base,
         "operator-service",
         "operator",
-        OPERATOR_PROFILE_SCOPES,
+        &operator_profile_scopes(),
         "operations",
     )
     .await

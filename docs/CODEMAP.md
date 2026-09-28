@@ -755,7 +755,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `testing/flight-smoke/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
 | `testing/browser-smoke/src/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
 | `testing/flight-smoke/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |
-| `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows |
+| `testing/browser-smoke/src/main.rs` | focused headed-browser commands and versioned evidence manifests for the Map workspace and UAV visual workflows; token requests consume UAV's contract-only scope vocabulary |
 | `testing/browser-smoke/src/restart.rs` | focused same-document native live-view recovery across independent MCP-pod and simulator-container restarts, including proof that MCP replacement leaves the GPU pod unchanged |
 | `testing/browser-smoke/src/browser/recording_acceptance.rs` | scoped Redap network evidence, live-source continuity, archive-request rejection, and nonblank Rerun viewport measurement |
 
@@ -990,6 +990,7 @@ Simulation live-view ownership:
 |---|---|
 | `servers/uav-sim-mcp/src/contract/live_view.rs` | UAV-owned provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
 | `servers/uav-sim-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | isolated public UAV and live-view contract feature; runtime adapter and hosted MCP gates; Map and Frames contracts remain owner imports |
+| `servers/uav-sim-mcp/src/contract/scopes.rs`, `src/server/auth.rs`, `src/server/task_scope_tests.rs` | UAV-owned scope vocabulary, shared typed permission guards, and native ordinary/Task routing checks before persistence or simulator dispatch |
 | `servers/uav-sim-mcp/tests/contract.rs`, `testdata/contract.schema.json` | 97 pre-extraction public schemas and independent-consumer wire qualification |
 | `servers/uav-sim-mcp/src/server/ownership.rs` | authenticated gateway-to-Task and live-view ownership conversion; output-policy label and classification handling |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |

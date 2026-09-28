@@ -19,6 +19,12 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   Other crates import it with default features disabled. Gateway-to-domain ownership
   conversion belongs in the authenticated server adapter; MCP core exports no live-view types.
 
+- Use `UavScope` in domain permission checks and Task admission. Ordinary and Task
+  routes apply the same scope requirement before starting work: scenarios and captures
+  require `Admin`, and mission-plan execution requires `Control` plus its vehicle grant.
+  Unrelated validated grants remain admissible. Clients import scope spellings from
+  this contract library; installation configuration retains validated wire names.
+
 - Owns the `uav-sim://` URI scheme. Identity: slug `uav-sim`, endpoint
   `/uav-sim/mcp`, port 8802. Provider names (Isaac, Cesium, Newton, Warp, PX4)
   never enter canonical tool or resource identities.

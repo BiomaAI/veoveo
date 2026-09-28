@@ -12,7 +12,7 @@ impl UavSimMcp {
         async {
             let uri = request.uri.as_str();
             if uri == uris::LIVE_APP_URI {
-                require_scope(&context, "uav-sim:stream")?;
+                require_scope(&context, UavScope::Stream)?;
                 return Ok(ReadResourceResult::new(vec![
                     veoveo_mcp_apps_extension::app_html_contents(uri, crate::live_app::html()),
                 ]));
@@ -37,13 +37,13 @@ impl UavSimMcp {
                 return json_resource(uri, SERVER_DOCS.contract_declaration());
             }
             if let Some(after) = index::parse::<ControlGrantId>(uri, uris::CONTROL_GRANTS)? {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
                 let page = self
                     .state
                     .control_authority
                     .grants_page(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         None,
                         after.as_ref(),
                     )
@@ -52,13 +52,13 @@ impl UavSimMcp {
                 return json_resource(uri, &page);
             }
             if let Some(id) = uris::parse_control_grant(uri) {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
                 let grant = self
                     .state
                     .control_authority
                     .visible_grant(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         &ControlGrantId::new(id).map_err(invalid)?,
                     )
                     .await
@@ -67,13 +67,13 @@ impl UavSimMcp {
                 return json_resource(uri, &grant);
             }
             if let Some(after) = index::parse::<MissionPlanId>(uri, uris::MISSION_PLANS)? {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
                 let page = self
                     .state
                     .control_authority
                     .plans_page(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         after.as_ref(),
                     )
                     .await
@@ -81,13 +81,13 @@ impl UavSimMcp {
                 return json_resource(uri, &page);
             }
             if let Some(id) = uris::parse_mission_plan(uri) {
-                let identity = require_any_scope(&context, &["uav-sim:control", "uav-sim:admin"])?;
+                let identity = require_any_scope(&context, &[UavScope::Control, UavScope::Admin])?;
                 let plan = self
                     .state
                     .control_authority
                     .visible_plan(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         &MissionPlanId::new(id).map_err(invalid)?,
                     )
                     .await
@@ -97,7 +97,7 @@ impl UavSimMcp {
             }
             let identity = require_any_scope(
                 &context,
-                &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+                &[UavScope::Read, UavScope::Control, UavScope::Admin],
             )?;
             if let Some(after) =
                 index::parse::<veoveo_task_runtime::TaskPageCursor>(uri, uris::USAGE)?
@@ -148,12 +148,12 @@ impl UavSimMcp {
             }
             let state = self.visible_state(&identity).await?;
             if let Some(session_id) = uris::parse_live_cameras(uri) {
-                require_scope(&context, "uav-sim:stream")?;
+                require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 return json_resource(uri, &state.live_cameras);
             }
             if let Some((session_id, camera_id)) = uris::parse_live_camera(uri) {
-                require_scope(&context, "uav-sim:stream")?;
+                require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 let camera = state
                     .live_cameras
@@ -163,12 +163,12 @@ impl UavSimMcp {
                 return json_resource(uri, camera);
             }
             if let Some(session_id) = uris::parse_stream_products(uri) {
-                require_scope(&context, "uav-sim:stream")?;
+                require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 return json_resource(uri, &state.stream_products);
             }
             if let Some((session_id, product_id)) = uris::parse_stream_product(uri) {
-                require_scope(&context, "uav-sim:stream")?;
+                require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 let product = state
                     .stream_products
@@ -181,7 +181,7 @@ impl UavSimMcp {
             }
             let collection_root = uri.split_once('?').map_or(uri, |(root, _)| root);
             if let Some(session_id) = uris::parse_live_views(collection_root) {
-                let identity = require_scope(&context, "uav-sim:stream")?;
+                let identity = require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 let owner = crate::server::ownership::live_view_owner(&identity);
                 let after =
@@ -198,7 +198,7 @@ impl UavSimMcp {
                 );
             }
             if let Some((session_id, live_view_id)) = uris::parse_live_view(uri) {
-                let identity = require_scope(&context, "uav-sim:stream")?;
+                let identity = require_scope(&context, UavScope::Stream)?;
                 require_session(&state, session_id.as_str())?;
                 let owner = crate::server::ownership::live_view_owner(&identity);
                 let view = self
@@ -271,13 +271,13 @@ impl UavSimMcp {
             _ => None,
         };
         if let Some(domain) = completion {
-            require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
+            require_any_identity_scope(&identity, &[UavScope::Control, UavScope::Admin])?;
             return index::completion(
                 self.state
                     .control_authority
                     .complete_ids(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         domain,
                         &request.argument.value,
                     )
@@ -293,7 +293,7 @@ impl UavSimMcp {
         if let Some(domain) = completion {
             require_any_identity_scope(
                 &identity,
-                &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+                &[UavScope::Read, UavScope::Control, UavScope::Admin],
             )?;
             return index::completion(
                 task_index::complete(
@@ -356,13 +356,13 @@ impl UavSimMcp {
     ) -> Result<(), McpError> {
         let identity = internal_identity(context)?;
         if uri == uris::CONTROL_GRANTS || uris::parse_control_grant(uri).is_some() {
-            require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
+            require_any_identity_scope(&identity, &[UavScope::Control, UavScope::Admin])?;
             if let Some(id) = uris::parse_control_grant(uri) {
                 self.state
                     .control_authority
                     .visible_grant(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         &ControlGrantId::new(id).map_err(invalid)?,
                     )
                     .await
@@ -372,13 +372,13 @@ impl UavSimMcp {
             return Ok(());
         }
         if uri == uris::MISSION_PLANS || uris::parse_mission_plan(uri).is_some() {
-            require_any_identity_scope(&identity, &["uav-sim:control", "uav-sim:admin"])?;
+            require_any_identity_scope(&identity, &[UavScope::Control, UavScope::Admin])?;
             if let Some(id) = uris::parse_mission_plan(uri) {
                 self.state
                     .control_authority
                     .visible_plan(
                         &identity,
-                        identity_has_scope(&identity, "uav-sim:admin"),
+                        identity_has_scope(&identity, UavScope::Admin),
                         &MissionPlanId::new(id).map_err(invalid)?,
                     )
                     .await
@@ -389,7 +389,7 @@ impl UavSimMcp {
         }
         require_any_identity_scope(
             &identity,
-            &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+            &[UavScope::Read, UavScope::Control, UavScope::Admin],
         )?;
         if matches!(uri, uris::USAGE | uris::MISSIONS) {
             return Ok(());
@@ -418,7 +418,7 @@ impl UavSimMcp {
         }
         let state = self.visible_state(&identity).await?;
         if let Some(session_id) = live_session_from_subscribable(uri) {
-            require_scope(context, "uav-sim:stream")?;
+            require_scope(context, UavScope::Stream)?;
             require_session(&state, session_id.as_str())?;
             if let Some((_, camera_id)) = uris::parse_live_camera(uri)
                 && !state
@@ -487,10 +487,10 @@ impl UavSimMcp {
     ) -> Result<Vec<Resource>, McpError> {
         require_any_identity_scope(
             identity,
-            &["uav-sim:read", "uav-sim:control", "uav-sim:admin"],
+            &[UavScope::Read, UavScope::Control, UavScope::Admin],
         )?;
         let mut resources = discovery_roots(identity);
-        if identity_has_scope(identity, "uav-sim:stream") {
+        if identity_has_scope(identity, UavScope::Stream) {
             let targets = super::super::agent_targets::targets(
                 self.state.tasks.platform_store(),
                 identity,
@@ -529,8 +529,8 @@ fn discovery_roots(identity: &GatewayInternalIdentity) -> Vec<Resource> {
     ] {
         roots.push(descriptor(uri.into(), title.into(), description));
     }
-    if identity_has_scope(identity, "uav-sim:control")
-        || identity_has_scope(identity, "uav-sim:admin")
+    if identity_has_scope(identity, UavScope::Control)
+        || identity_has_scope(identity, UavScope::Admin)
     {
         roots.push(descriptor(
             uris::CONTROL_GRANTS.into(),
