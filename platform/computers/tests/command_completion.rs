@@ -79,7 +79,7 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         // Corrupt only the disposable fixture projection. Status alone cannot
         // acknowledge a substituted output occurrence or wrong tool-error flag.
         db.a.client()
-            .query("UPDATE $task SET result.isError = $wrong;")
+            .query("UPDATE $task SET result.payload.isError = $wrong;")
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("wrong", code == 0))
             .await
@@ -89,67 +89,32 @@ async fn known_exit_and_outputs_settle_once_before_task_projection_and_allow_the
         assert!(b.acknowledge_command_task(&completed).await.is_err());
         assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
-            .query("UPDATE $task SET result.isError = $correct;")
+            .query("UPDATE $task SET result.payload.isError = $correct;")
             .bind(("task", task_record_id(completed.task_id())))
             .bind(("correct", code != 0))
             .await
             .unwrap()
             .check()
             .unwrap();
-        b.acknowledge_command_task(&completed).await.unwrap();
-        // Emulate the exact pre-0067 result shapes in this isolated store, then
-        // qualify the coordinated data/Task projection migration twice.
-        db.a.client().query("BEGIN; UPDATE computer_execution SET result.result_uri = NONE WHERE execution_id = $execution; UPDATE $task SET result.structuredContent.result_uri = NONE; COMMIT;")
-            .bind(("execution", completed.execution_id()))
-            .bind(("task", task_record_id(completed.task_id())))
-            .await.unwrap().check().unwrap();
-        let migrate = format!(
-            "BEGIN; {} COMMIT;",
-            include_str!("../../store/migrations/0067_computer_execution_result_uri.surql")
-        );
         db.a.client()
-            .query("UPDATE $task SET result.isError = $wrong;")
+            .query("UPDATE $task SET result.payload.structuredContent.stdout = $output;")
             .bind(("task", task_record_id(completed.task_id())))
-            .bind(("wrong", code == 0))
+            .bind(("output", serde_json::to_value(output(32)).unwrap()))
             .await
             .unwrap()
             .check()
             .unwrap();
-        assert!(
-            db.a.client()
-                .query(&migrate)
-                .await
-                .unwrap()
-                .check()
-                .is_err()
-        );
-        let mut untouched = db
-            .a
-            .client()
-            .query(
-                "RETURN (SELECT VALUE result.structuredContent.result_uri FROM ONLY $task) = NONE;",
-            )
-            .bind(("task", task_record_id(completed.task_id())))
-            .await
-            .unwrap()
-            .check()
-            .unwrap();
-        assert_eq!(untouched.take::<Option<bool>>(0).unwrap(), Some(true));
+        assert!(b.acknowledge_command_task(&completed).await.is_err());
+        assert!(!b.command_for_claim(&claim).await.unwrap().task_projected());
         db.a.client()
-            .query("UPDATE $task SET result.isError = $correct;")
+            .query("UPDATE $task SET result.payload.structuredContent.stdout = $output;")
             .bind(("task", task_record_id(completed.task_id())))
-            .bind(("correct", code != 0))
+            .bind(("output", serde_json::to_value(stdout).unwrap()))
             .await
             .unwrap()
             .check()
             .unwrap();
         for _ in 0..2 {
-            db.a.client()
-                .query(&migrate)
-                .await
-                .unwrap()
-                .check()
-                .unwrap();
             assert_eq!(
                 b.command_for_claim(&claim).await.unwrap().outcome(),
                 completed.outcome()

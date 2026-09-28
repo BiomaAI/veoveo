@@ -77,17 +77,13 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 .unwrap()
                 .snapshot;
             let artifact = uuid::Uuid::now_v7().to_string();
-            let result = veoveo_platform_store::OpenObject::new(
-                [(
-                    "structuredContent".into(),
-                    json!({
-                        "results_artifact": {"artifact_id": artifact},
-                        "annotations_artifact": {"artifact_id": artifact},
-                        "source_clip_artifact": {"artifact_id": artifact},
-                    }),
-                )]
-                .into(),
-            );
+            let result = veoveo_platform_store::TaskResultRecord::new(json!({
+                "structuredContent": {
+                    "results_artifact": {"artifact_id": artifact},
+                    "annotations_artifact": {"artifact_id": artifact},
+                    "source_clip_artifact": {"artifact_id": artifact},
+                }
+            }));
             db.b.client()
                 .query("UPDATE ONLY $id SET result = $result;")
                 .bind(("id", task_record_id(task.task_id)))

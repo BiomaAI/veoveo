@@ -28,8 +28,8 @@ const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
     AND request.owner.authority.work_context = $work_context_key
     AND request.owner.authority.tenant = $authority_tenant";
 const SOLVE: &str = "task_type IN $task_types AND request.input.kind = task_type";
-const COMPLETED: &str = "status = 'succeeded' AND (result.isError ?? false) = false
-    AND result.structuredContent.result_uri != NONE";
+const COMPLETED: &str = "status = 'succeeded' AND (result.payload.isError ?? false) = false
+    AND result.payload.structuredContent.result_uri != NONE";
 const SOLVE_TASK_TYPES: [&str; 4] = [
     OPTIMIZE_ROUTES_TASK,
     OPTIMIZE_ROUTE_SCENARIOS_TASK,
@@ -148,7 +148,7 @@ impl<'a> OptimizationReads<'a> {
         let predicate = match selection {
             Selection::Problem(_) => "request.input.common.problem_id = $identity",
             Selection::Run(_) => "request.input.common.run_id = $identity",
-            Selection::Solution(_) => "result.structuredContent.result_uri = $identity",
+            Selection::Solution(_) => "result.payload.structuredContent.result_uri = $identity",
         };
         let terminal = if matches!(selection, Selection::Solution(_)) {
             COMPLETED
@@ -234,7 +234,7 @@ impl<'a> OptimizationReads<'a> {
         let field = match collection {
             OptimizationCollection::Problems => "request.input.common.problem_id",
             OptimizationCollection::Runs => "request.input.common.run_id",
-            OptimizationCollection::Solutions => "result.structuredContent.result_uri",
+            OptimizationCollection::Solutions => "result.payload.structuredContent.result_uri",
         };
         let terminal = if collection == OptimizationCollection::Solutions {
             COMPLETED

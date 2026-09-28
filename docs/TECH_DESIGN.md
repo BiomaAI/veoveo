@@ -247,6 +247,13 @@ creates or rotates the database runtime user, and publishes the first gateway co
 revision. Long-running services connect with database-scoped credentials and never run
 migrations.
 
+Store's `json_value` adapter preserves JSON unsigned integers above `i64::MAX` as
+SurrealDB decimals instead of routing them through the driver's floating-point
+conversion. Nested objects and arrays use the same adapter. `OpenObject` and Task
+result records share it, including the JSON snapshots inside outbox events.
+Task results use a checked `{payload: ...}` envelope whose installation and replay
+profiles are defined by the [Task runtime](../platform/task-runtime/DESIGN.md#result-persistence-and-installation).
+
 Before publishing a control revision, the gateway sorts keys recursively in opaque
 JSON objects and reconstructs the typed control document. Its SHA-256 covers the
 typed document's JSON bytes, with struct field order and array order preserved.

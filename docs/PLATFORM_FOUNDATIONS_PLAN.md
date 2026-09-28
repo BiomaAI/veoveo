@@ -744,6 +744,22 @@ fields and moving other servers' operation declarations into their owning contra
 Other domain-specific post-read operation checks still require review. Installed
 qualification remains pending while reference workloads are stopped.
 
+Task results now use Store's typed `TaskResultRecord` with one required `payload`
+field. This preserves scalars, JSON null and objects such as `{"value":42}` without
+collisions. Outbox schema 3 distinguishes absent results from completed JSON null;
+the shared JSON driver adapter preserves unsigned integer precision. Media's atomic
+writer and every direct SQL consumer use the same format. Schema 99 requires no Task
+rows or Task outbox events. Reference installation requires stopped writers and a
+fresh platform database; no old result conversion or reader is provided.
+
+Native qualification passes 277 Rust checks across Store, Task runtime, Media, Stream,
+Reason, Map, Optimization and Computers. The Store suite runs with its database gate
+enabled. That qualification also fixed quota checkpoint timestamps when appends reach
+a shared producer counter out of acceptance-time order. Map and Computers tests now
+verify current-format replay and result agreement without reconstructing old formats.
+Strict all-target, all-feature workspace Clippy passes.
+Installed result-format acceptance remains pending while reference workloads are stopped.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1671,7 +1687,7 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 3 Task result shape | `platform/task-runtime/src/types.rs` | Preserve scalar and object result shapes through a single unambiguous stored representation; qualify `{"value":42}` and scalar round trips by hard cut | Operation-query qualification exposed this independent storage collision; its format and consumer changes need a separate implementation and tests |
+| Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
 | Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |

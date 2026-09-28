@@ -49,6 +49,9 @@ link and the status `Generation completed.`. Both `tasks/get` and Task subscript
 use the adapter. Completed Task reads validate the linked generation through
 `MediaReads` before delivering the stored payload; working, failed and cancelled
 payloads keep the shared Task model. Reads do not rewrite results.
+Webhook settlement writes the shared `TaskResultRecord` envelope and publishes the
+Task runtime's event schema version in the same transaction. Generation selection
+checks `task.result.payload` before returning domain data.
 
 ## Resource Selection
 

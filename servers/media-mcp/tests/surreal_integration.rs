@@ -3,6 +3,7 @@ mod store;
 use std::{collections::BTreeSet, time::Duration};
 
 use chrono::{TimeDelta, Utc};
+use futures::StreamExt;
 use serde_json::json;
 use veoveo_mcp_contract::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, InvocationAuthority,
@@ -165,17 +166,29 @@ async fn webhook_on_other_replica_is_idempotent_and_restart_recoverable() {
                 .await,
             Err(StoreError::ArtifactWriteConflict { .. })
         ));
+        let payload = json!({"value":{"artifacts": [], "prediction": {"id": terminal.id}, "count": u64::MAX}});
+        let mut updates = first.live_updates_for(&[task_id.to_string()]).await.unwrap();
+        updates.next().await.unwrap().unwrap();
         second_state
             .complete_event(
                 &second,
                 &receipt.event,
-                Ok(json!({"artifacts": [], "prediction": {"id": terminal.id}})),
+                Ok(payload.clone()),
                 "completed by signed webhook".into(),
             )
             .await
             .unwrap();
         let completed = first.get(&task_id.to_string()).await.unwrap().unwrap();
         assert_eq!(completed.status, TaskStatus::Succeeded);
+        assert_eq!(completed.result, Some(payload.clone()));
+        loop {
+            let update = updates.next().await.unwrap().unwrap();
+            if update.snapshot.status == TaskStatus::Succeeded {
+                assert_eq!(update.snapshot.result, Some(payload.clone()));
+                break;
+            }
+        }
+
         assert_eq!(
             first_state
                 .task_context(&completed)

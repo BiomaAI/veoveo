@@ -48,10 +48,10 @@ impl MediaReads<'_> {
         };
         let query = bind_owner(
             self.tasks.platform_store().client().query(format!(
-                "SELECT task, task.result.structuredContent AS result FROM provider_job
+                "SELECT task, task.result.payload.structuredContent AS result FROM provider_job
              WHERE {VISIBLE_TASK} AND {VISIBLE_PREDICTION} AND {predicate}
-               AND task.status = 'succeeded' AND (task.result.isError ?? false) = false
-               AND task.result.structuredContent.prediction.id = external_job_id LIMIT 1;"
+               AND task.status = 'succeeded' AND (task.result.payload.isError ?? false) = false
+               AND task.result.payload.structuredContent.prediction.id = external_job_id LIMIT 1;"
             )),
             owner,
         )?;

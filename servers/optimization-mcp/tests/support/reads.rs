@@ -1,7 +1,7 @@
 use serde_json::json;
 use std::collections::BTreeSet;
 use veoveo_optimization_mcp::{contract::*, task_records::OptimizationTaskRequest};
-use veoveo_platform_store::{OpenObject, task_record_id};
+use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime};
 use veoveo_types::TaskId;
 
@@ -83,7 +83,7 @@ pub async fn create(runtime: &TaskRuntime, owner: &TaskOwner, number: u64) -> Ro
     runtime.platform_store().client().query("UPDATE ONLY $task SET status = 'succeeded', created_at = $created_at, result = $result RETURN NONE;")
         .bind(("task",task_record_id(task)))
         .bind(("created_at","2026-09-28T00:00:00Z".parse::<chrono::DateTime<chrono::Utc>>().unwrap()))
-        .bind(("result",OpenObject::new(result.as_object().unwrap().clone().into_iter().collect())))
+        .bind(("result",veoveo_platform_store::TaskResultRecord::new(result)))
         .await.unwrap().check().unwrap();
     Row {
         task,

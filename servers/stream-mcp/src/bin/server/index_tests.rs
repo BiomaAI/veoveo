@@ -124,15 +124,8 @@ async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
                 serde_json::from_value(output).unwrap(),
             )
             .unwrap();
-            let result = veoveo_platform_store::OpenObject::new(
-                serde_json::to_value(result)
-                    .unwrap()
-                    .as_object()
-                    .unwrap()
-                    .clone()
-                    .into_iter()
-                    .collect(),
-            );
+            let result =
+                veoveo_platform_store::TaskResultRecord::new(serde_json::to_value(result).unwrap());
             db.b.client()
                 .query("UPDATE ONLY $id SET result = $result;")
                 .bind(("id", task_record_id(task.task_id)))

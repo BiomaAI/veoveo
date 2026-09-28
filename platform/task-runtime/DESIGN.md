@@ -9,6 +9,7 @@
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
+| Internal Task result and event format | Store results have one required `payload` field. Task outbox schema 3 preserves absent and JSON-null results as distinct states. |
 
 This library is the shared Task authority used by hosted domain services. Public
 handlers delegate protocol projection to the official RMCP types and the shared
@@ -123,19 +124,26 @@ Existing classes keep their behavior. Deterministic Resume work can be reclaimed
 WebhookWait work stays on its qualified webhook path, and interrupted indeterminate
 execution produces its declared failure. Media retains its existing profile.
 
-## Migration And Rollout
+## Result Persistence And Installation
 
-Migration 0052 adds `provider_wait` to the stored enum and preserves every existing
-row and class. Deploy compatible shared-store readers and Task workers before
-admitting the new class. Older readers cannot deserialize it, including on retained
-terminal Tasks. A mixed rollout may run old components only while new-class admission
-is closed. Computers admission opens after the compatible rollout has converged.
+A present Task result uses Store's `TaskResultRecord` with one required `payload`
+field. Domain JSON stays inside that field, including scalars, arrays and JSON null.
+SQL readers and indexes address domain fields beneath `result.payload`. An absent
+result is database `NONE`; a completed JSON null is `{payload: NULL}`. Envelope
+validation rejects missing or additional fields before returning a result.
 
-Keep the expanded schema and compatible readers during application rollback. A
-rollback to older Task readers requires retiring all new-class records through the
-normal retention procedure, including their pins, or an explicit qualified data
-migration. Draining active Tasks alone is insufficient. No automatic destructive
-downgrade or reclassification is provided.
+Task outbox events use the shared `TASK_EVENT_SCHEMA_VERSION`, currently 3. Snapshot
+JSON omits an absent result and includes a present result even when its value is null.
+Replay deserialization preserves that distinction. The official MCP adapter projects
+object results directly and wraps a scalar as `{"value": scalar}` because the Task
+protocol requires an object. That protocol projection does not alter stored results.
+
+Store schema 99 requires an empty Task table and no Task outbox events before installing the result format.
+Stop all Task writers and rebuild the platform database for this coordinated release.
+The disposable reference installation follows its documented reset runbook. Every
+reader and writer must use the same release; mixed execution is unsupported. Saved
+ambiguous results are not converted. If bootstrap fails, its transaction leaves the
+schema and migration history unchanged; correct the installation state and retry.
 
 ## Verification
 
@@ -146,7 +154,10 @@ owned by `testing/fixtures`; its root credentials remain in process/container
 configuration, and runtime clients use a scoped database editor. No environment flag
 silently skips these tests. `tests/surreal_integration.rs` uses the same disposable
 fixture for lifecycle, recovery, cancellation, idempotency and internal event replay.
-Each case has a 60-second deadline and owns its cleanup.
+Cases have 60-second deadlines, or 90 seconds for the result-shape matrix, and own
+their cleanup. `tests/support/result_shape_cases.rs` covers store reads, internal
+event replay, current-owner reconnects, JSON null, nested objects, arrays, unsigned
+integer precision, malformed envelopes and the populated-store installation guard.
 
 A current `provider_wait` observer may update a Waiting message without changing its
 status. This preserves visible recovery progress and its lease instead of inventing

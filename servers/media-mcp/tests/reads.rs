@@ -471,7 +471,7 @@ async fn subscriptions_and_unlinked_estimates_follow_current_task_authority() {
 }
 
 async fn store_result(tasks: &TaskRuntime, task: TaskId, result: serde_json::Value) {
-    let result = OpenObject::new(result.as_object().unwrap().clone().into_iter().collect());
+    let result = veoveo_platform_store::TaskResultRecord::new(result);
     tasks
         .platform_store()
         .client()
@@ -676,8 +676,8 @@ async fn generation_results_require_success_and_consistent_retained_parents() {
         for (index, mutation) in [
             "UPDATE ONLY $task SET status = 'failed' RETURN NONE;",
             "UPDATE ONLY $task SET status = 'cancelled' RETURN NONE;",
-            "UPDATE ONLY $task SET result.isError = true RETURN NONE;",
-            "UPDATE ONLY $task SET result.structuredContent.prediction.id = 'wrong' RETURN NONE;",
+            "UPDATE ONLY $task SET result.payload.isError = true RETURN NONE;",
+            "UPDATE ONLY $task SET result.payload.structuredContent.prediction.id = 'wrong' RETURN NONE;",
             "UPDATE ONLY $task SET request.owner.profile = 'wrong' RETURN NONE;",
             "UPDATE ONLY $task SET tenant = tenant:missing RETURN NONE;",
             "UPDATE ONLY $task SET server = mcp_server:other RETURN NONE;",

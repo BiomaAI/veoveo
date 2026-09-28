@@ -1,5 +1,7 @@
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "support/result_shape_cases.rs"]
+mod result_shape_cases;
 use std::collections::BTreeSet;
 use std::time::Duration;
 use veoveo_platform_store::task_record_id;

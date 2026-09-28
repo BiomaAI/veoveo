@@ -27,10 +27,10 @@ const VISIBLE: &str = "server = $server AND tenant = $tenant AND owner = $owner
     AND request.input.request.identity.authority.tenant = $authority_tenant";
 const COMPLETED: &str = "task_type = 'build_travel_model'
     AND request.input.kind = 'build_travel_model'
-    AND status = 'succeeded' AND (result.isError ?? false) = false
-    AND result.structuredContent.created_by = $principal_key
-    AND result.structuredContent.work_context = $context_key
-    AND result.structuredContent.travel_model_id = request.input.request.travel_model_id";
+    AND status = 'succeeded' AND (result.payload.isError ?? false) = false
+    AND result.payload.structuredContent.created_by = $principal_key
+    AND result.payload.structuredContent.work_context = $context_key
+    AND result.payload.structuredContent.travel_model_id = request.input.request.travel_model_id";
 
 pub struct TravelModelReads<'a> {
     store: &'a PlatformStore,
@@ -112,14 +112,14 @@ impl<'a> TravelModelReads<'a> {
         let statement = match selection {
             Selection::Page(cursor) => {
                 let after = if cursor.is_some() { "AND id > $after" } else { "" };
-                format!("SELECT record::id(id) AS task_id, result.structuredContent AS record FROM task WHERE {VISIBLE} AND {COMPLETED} {after} ORDER BY task_id ASC LIMIT 101;")
+                format!("SELECT record::id(id) AS task_id, result.payload.structuredContent AS record FROM task WHERE {VISIBLE} AND {COMPLETED} {after} ORDER BY task_id ASC LIMIT 101;")
             }
-            Selection::Exact(_) => format!("SELECT VALUE result.structuredContent FROM task
+            Selection::Exact(_) => format!("SELECT VALUE result.payload.structuredContent FROM task
                 WHERE {VISIBLE} AND {COMPLETED} AND request.input.request.travel_model_id = $identity LIMIT 2;"),
-            Selection::Completion(_) => format!("SELECT VALUE result.structuredContent.travel_model_id FROM task
-                WHERE {VISIBLE} AND {COMPLETED} AND result.structuredContent.travel_model_id != NONE
-                AND string::lowercase(result.structuredContent.travel_model_id) CONTAINS $needle
-                GROUP BY result.structuredContent.travel_model_id ORDER BY result.structuredContent.travel_model_id ASC LIMIT 101;"),
+            Selection::Completion(_) => format!("SELECT VALUE result.payload.structuredContent.travel_model_id FROM task
+                WHERE {VISIBLE} AND {COMPLETED} AND result.payload.structuredContent.travel_model_id != NONE
+                AND string::lowercase(result.payload.structuredContent.travel_model_id) CONTAINS $needle
+                GROUP BY result.payload.structuredContent.travel_model_id ORDER BY result.payload.structuredContent.travel_model_id ASC LIMIT 101;"),
         };
         let query = self
             .store

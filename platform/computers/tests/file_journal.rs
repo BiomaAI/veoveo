@@ -208,7 +208,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             assert_eq!(result.direction, payload.transfer().direction());
             tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();
             db.a.client()
-                .query("UPDATE $task SET result.structuredContent.artifactId=$wrong;")
+                .query("UPDATE $task SET result.payload.structuredContent.artifactId=$wrong;")
                 .bind(("task", task_record_id(completed.task_id())))
                 .bind(("wrong", Uuid::now_v7().to_string()))
                 .await
@@ -217,7 +217,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
                 .unwrap();
             assert!(b.acknowledge_file_task(&completed).await.is_err());
             db.a.client()
-                .query("UPDATE $task SET result.structuredContent.artifactId=$correct;")
+                .query("UPDATE $task SET result.payload.structuredContent.artifactId=$correct;")
                 .bind(("task", task_record_id(completed.task_id())))
                 .bind(("correct", artifact.to_string()))
                 .await

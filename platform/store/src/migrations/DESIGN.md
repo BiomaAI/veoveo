@@ -43,6 +43,15 @@ with an older catalog to a newer database fails schema validation. Mixed-version
 migration jobs are unsupported: drain the previous migration owner before upgrading.
 Ordinary service rollout follows the data compatibility of the qualified release.
 
+## Task Result Format
+
+The Task result envelope installation requires an empty Task table and no Task
+outbox events. It stops with `task_result_reset_required` otherwise. Operators stop all writers and rebuild the
+platform database for the coordinated release. The current schema admits only one
+required `payload` key in a result and indexes Optimization result URIs beneath it.
+No stored Task result is converted. The [Task runtime design](../../../task-runtime/DESIGN.md#result-persistence-and-installation)
+defines the reader and event profile.
+
 ## Recovery And Qualification
 
 A failed transaction rolls back its body and history record. The additive history-table

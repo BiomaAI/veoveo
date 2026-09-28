@@ -76,15 +76,15 @@ async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_s
             "request.input.request.identity.profile = 'other'",
             "request.input.request.identity.authority.work_context = 'other'",
             "request.input.request.identity.authority.tenant = 'other'",
-            "result.structuredContent.created_by = 'other'",
-            "result.structuredContent.work_context = 'other'",
+            "result.payload.structuredContent.created_by = 'other'",
+            "result.payload.structuredContent.work_context = 'other'",
             "request.input.request.travel_model_id = 'other'",
             "task_type = 'route'",
             "status = 'queued'",
             "status = 'failed'",
             "status = 'cancelled'",
-            "result.isError = true",
-            "result.isError = 'false'",
+            "result.payload.isError = true",
+            "result.payload.isError = 'false'",
         ]
         .into_iter()
         .enumerate()
@@ -94,7 +94,7 @@ async fn travel_reads_exclude_inconsistent_authority_and_unfinished_results_in_s
             update(
                 &runtime,
                 id,
-                &format!("{mutation}, result.structuredContent.created_at = 'malformed'"),
+                &format!("{mutation}, result.payload.structuredContent.created_at = 'malformed'"),
             )
             .await;
             assert!(
@@ -145,11 +145,11 @@ async fn optional_tenants_clearance_and_selected_parent_corruption_are_checked()
         }
         let model: TravelModelId = key(30).parse().unwrap();
         let id = task(&runtime, explicit.clone(), Some(model.as_str())).await;
-        update(&runtime, id, "result.structuredContent.travel_model_uri = 'map://travel-model/travel-model-0195dabe-7777-7abc-8def-ffffffffffff'").await;
+        update(&runtime, id, "result.payload.structuredContent.travel_model_uri = 'map://travel-model/travel-model-0195dabe-7777-7abc-8def-ffffffffffff'").await;
         assert!(reads.get(&explicit, &model).await.is_err());
-        update(&runtime, id, &format!("result.structuredContent.travel_model_uri = 'map://travel-model/{}', result.structuredContent.manifest_uri = 'artifact://0195dabe-7777-7abc-8def-ffffffffffff'", model)).await;
+        update(&runtime, id, &format!("result.payload.structuredContent.travel_model_uri = 'map://travel-model/{}', result.payload.structuredContent.manifest_uri = 'artifact://0195dabe-7777-7abc-8def-ffffffffffff'", model)).await;
         assert!(reads.get(&explicit, &model).await.is_err());
-        update(&runtime, id, "request.input.request.travel_model_id = 'malformed', result.structuredContent.travel_model_id = 'malformed'").await;
+        update(&runtime, id, "request.input.request.travel_model_id = 'malformed', result.payload.structuredContent.travel_model_id = 'malformed'").await;
         assert!(reads.complete(&explicit, "malformed").await.is_err());
         assert!(reads.complete(&explicit, "\n").await.is_err());
         assert!(reads.complete(&explicit, &"x".repeat(513)).await.is_err());
@@ -208,10 +208,9 @@ async fn task(runtime: &TaskRuntime, owner: TaskOwner, key: Option<&str>) -> Tas
             work_context: context,
             created_at: now,
         };
-        let result = veoveo_platform_store::OpenObject::new(std::collections::BTreeMap::from([(
-            "structuredContent".into(),
-            serde_json::to_value(record).unwrap(),
-        )]));
+        let result = veoveo_platform_store::TaskResultRecord::new(serde_json::json!({
+            "structuredContent": serde_json::to_value(record).unwrap(),
+        }));
         runtime
             .platform_store()
             .client()
@@ -265,7 +264,7 @@ async fn qualify() {
         update(
             &runtime,
             denied,
-            "result.structuredContent.created_at = 'malformed'",
+            "result.payload.structuredContent.created_at = 'malformed'",
         )
         .await;
     }

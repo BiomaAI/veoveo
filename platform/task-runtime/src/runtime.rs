@@ -39,10 +39,10 @@ use crate::types::{
     TaskInputExchange, TaskInputRequest, TaskInputSubmission, TaskOwner, TaskPayloadState,
     TaskRetentionPin, TaskRuntimeConfig, TaskSnapshot, TaskTransition, TaskUpdate,
     TaskUpdateCursor, failure_to_open_object, open_object_to_value, parse_task_id,
-    record_to_snapshot, value_to_open_object,
+    record_to_snapshot,
 };
 
-const EVENT_SCHEMA_VERSION: i64 = 2;
+pub const TASK_EVENT_SCHEMA_VERSION: i64 = 3;
 const DEFAULT_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 const MAX_TRANSACTION_ATTEMPTS: u32 = 8;
 
@@ -63,7 +63,7 @@ struct TaskContent {
     recovery_class: StoreRecoveryClass,
     request: OpenObject,
     progress: f64,
-    result: Option<OpenObject>,
+    result: Option<veoveo_platform_store::TaskResultRecord>,
     error: Option<OpenObject>,
     result_artifact: Option<RecordId>,
     idempotency_key: Option<String>,
@@ -851,7 +851,7 @@ impl TaskRuntime {
             .bind(("next", next))
             .bind(("request", envelope.into_open_object()?))
             .bind(("progress", progress))
-            .bind(("result", transition.result().map(value_to_open_object)))
+            .bind(("result", transition.result().map(veoveo_platform_store::TaskResultRecord::new)))
             .bind(("error", transition.failure().as_ref().map(failure_to_open_object)))
             .bind((
                 "cancel_requested_at",
@@ -1271,7 +1271,7 @@ pub(super) fn task_event(
         "task",
         snapshot.task_id.to_string(),
         event_type,
-        EVENT_SCHEMA_VERSION,
+        TASK_EVENT_SCHEMA_VERSION,
         OpenObject::new(payload),
     ))
 }
@@ -1284,10 +1284,10 @@ struct TaskEventPayload {
 pub(super) fn task_snapshot_from_event(
     event: &OutboxEventRecord,
 ) -> Result<TaskSnapshot, TaskError> {
-    if event.schema_version != EVENT_SCHEMA_VERSION {
+    if event.schema_version != TASK_EVENT_SCHEMA_VERSION {
         return Err(TaskError::InvalidRecord(format!(
             "task outbox event {} has schema version {}, expected {}",
-            event.sequence, event.schema_version, EVENT_SCHEMA_VERSION
+            event.sequence, event.schema_version, TASK_EVENT_SCHEMA_VERSION
         )));
     }
     let payload: TaskEventPayload =

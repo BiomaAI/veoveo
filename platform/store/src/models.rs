@@ -53,7 +53,7 @@ macro_rules! string_enum {
 }
 
 /// A genuinely open-ended JSON object used only at provider/configuration boundaries.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, SurrealValue)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OpenObject(BTreeMap<String, serde_json::Value>);
 
@@ -621,7 +621,7 @@ pub struct TaskRecord {
     pub recovery_class: RecoveryClass,
     pub request: OpenObject,
     pub progress: f64,
-    pub result: Option<OpenObject>,
+    pub result: Option<crate::TaskResultRecord>,
     pub error: Option<OpenObject>,
     pub result_artifact: Option<RecordId>,
     pub idempotency_key: Option<String>,

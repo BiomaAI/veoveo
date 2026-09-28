@@ -193,6 +193,11 @@ pub struct TaskSnapshot {
     pub status: StoreTaskStatus,
     pub status_message: Option<String>,
     pub progress: f64,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_present_result"
+    )]
     pub result: Option<Value>,
     pub error: Option<TaskFailure>,
     pub idempotency_key: Option<String>,
@@ -447,26 +452,22 @@ impl RequestEnvelope {
     }
 }
 
-pub(crate) fn value_to_open_object(value: Value) -> OpenObject {
-    match value {
-        Value::Object(values) => OpenObject::new(values.into_iter().collect()),
-        value => OpenObject::new(BTreeMap::from([("value".to_owned(), value)])),
-    }
-}
-
 pub(crate) fn open_object_to_value(value: OpenObject) -> Value {
-    // TODO(foundations): Replace this ambiguous result representation by hard cut.
-    // A one-field object {"value": 42} must not become the scalar 42 on readback.
-    let mut values: serde_json::Map<String, Value> = value.into_map().into_iter().collect();
-    if values.len() == 1 && values.contains_key("value") {
-        values.remove("value").unwrap_or(Value::Null)
-    } else {
-        Value::Object(values)
-    }
+    Value::Object(value.into_map().into_iter().collect())
 }
 
 pub(crate) fn failure_to_open_object(failure: &TaskFailure) -> OpenObject {
-    value_to_open_object(serde_json::to_value(failure).expect("TaskFailure serializes"))
+    let Value::Object(fields) = serde_json::to_value(failure).expect("TaskFailure serializes")
+    else {
+        unreachable!("TaskFailure is an object");
+    };
+    OpenObject::new(fields.into_iter().collect())
+}
+
+fn deserialize_present_result<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(deserializer).map(Some)
 }
 
 pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, TaskError> {
@@ -519,7 +520,9 @@ pub(crate) fn record_to_snapshot(record: TaskRecord) -> Result<TaskSnapshot, Tas
         status: record.status,
         status_message: envelope.status_message,
         progress: record.progress,
-        result: record.result.map(open_object_to_value),
+        result: record
+            .result
+            .map(veoveo_platform_store::TaskResultRecord::into_payload),
         error,
         idempotency_key: record.idempotency_key,
         lease_owner: record.lease_owner,

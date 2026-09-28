@@ -489,6 +489,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `migrations.rs` | ordered SurrealDB 3.2 schema migrations |
 | `migration_preparation.rs` | online index preparation before migration 0072; checks the physical definition and readiness without changing the published checksum |
 | `models.rs` | persisted Rust record and enum definitions |
+| `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested outbox payloads |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
 | `recording_catalog.rs` | recording datasets and layers, durable read grants, projection receipts, expiry, and cleanup |

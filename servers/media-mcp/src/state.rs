@@ -19,7 +19,9 @@ use veoveo_platform_store::{
     ProviderJobRecord, ProviderJobState, RecordId, RecordIdKey, RedactedSecret, StoreError,
     TaskStatus,
 };
-use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
+use veoveo_task_runtime::{
+    RecoveryClass, TASK_EVENT_SCHEMA_VERSION, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot,
+};
 use veoveo_types::DataLabelId;
 use veoveo_types::TaskId;
 
@@ -29,7 +31,6 @@ use crate::{
 };
 
 const PROVIDER: &str = "media";
-const TASK_EVENT_SCHEMA_VERSION: i64 = 2;
 const MEDIA_EVENT_SCHEMA_VERSION: i64 = 1;
 const STATE_ID_NAMESPACE: Uuid = Uuid::from_u128(0xc05a_75ed_011f_5234_9482_9e94_be0c_1cc1);
 
@@ -512,7 +513,12 @@ impl MediaState {
         validate_webhook_task(&current)?;
         let now = Utc::now();
         let (status, result, error, progress) = match result {
-            Ok(result) => (TaskStatus::Succeeded, Some(open_object(result)), None, 1.0),
+            Ok(result) => (
+                TaskStatus::Succeeded,
+                Some(veoveo_platform_store::TaskResultRecord::new(result)),
+                None,
+                1.0,
+            ),
             Err(error) => (
                 TaskStatus::Failed,
                 None,
@@ -526,7 +532,9 @@ impl MediaState {
         completed.status = status;
         completed.status_message = Some(message.clone());
         completed.progress = progress;
-        completed.result = result.clone().map(open_value);
+        completed.result = result
+            .clone()
+            .map(veoveo_platform_store::TaskResultRecord::into_payload);
         completed.error = error
             .clone()
             .map(open_value)
@@ -1067,19 +1075,14 @@ fn tenant_record(owner: &TaskOwner) -> Result<RecordId, StoreError> {
 }
 
 fn open_object(value: Value) -> OpenObject {
-    match value {
-        Value::Object(values) => OpenObject::new(values.into_iter().collect()),
-        value => OpenObject::new(BTreeMap::from([("value".into(), value)])),
-    }
+    let Value::Object(values) = value else {
+        unreachable!("typed Media envelopes serialize as objects");
+    };
+    OpenObject::new(values.into_iter().collect())
 }
 
 fn open_value(value: OpenObject) -> Value {
-    let mut values: serde_json::Map<String, Value> = value.into_map().into_iter().collect();
-    if values.len() == 1 && values.contains_key("value") {
-        values.remove("value").unwrap_or(Value::Null)
-    } else {
-        Value::Object(values)
-    }
+    Value::Object(value.into_map().into_iter().collect())
 }
 
 fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {

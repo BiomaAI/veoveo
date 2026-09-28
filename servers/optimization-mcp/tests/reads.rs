@@ -291,7 +291,7 @@ async fn solutions_require_success_and_selected_corruption_never_becomes_a_short
         let runtime=TaskRuntime::new(db.b.clone(),"optimization","reader");
         let reads=OptimizationReads::new(&runtime).unwrap();
         let caller=owner(Some("tenant-a"),"owner","route-plan", &[]);
-        for (number, mutation) in ["status = 'queued'","status = 'failed'","status = 'cancelled'","result.isError = true"].into_iter().enumerate() {
+        for (number, mutation) in ["status = 'queued'","status = 'failed'","status = 'cancelled'","result.payload.isError = true"].into_iter().enumerate() {
             let row=create(&writer,&caller,number as u64+1).await;
             update(&writer,row.task,&format!("UPDATE ONLY $task SET {mutation} RETURN NONE;")).await;
             assert!(reads.solution(&caller,&row.solution).await.unwrap().is_none());
@@ -299,11 +299,11 @@ async fn solutions_require_success_and_selected_corruption_never_becomes_a_short
             assert!(reads.page(&caller,&OptimizationCollectionUri::new(OptimizationCollection::Solutions,None).unwrap()).await.unwrap().items.is_empty());
         }
         let row=create(&writer,&caller,20).await;
-        update(&writer, row.task, "UPDATE ONLY $task SET result.isError = 'false' RETURN NONE;").await;
+        update(&writer, row.task, "UPDATE ONLY $task SET result.payload.isError = 'false' RETURN NONE;").await;
         assert!(reads.run(&caller, &row.run).await.is_err());
         assert!(reads.solution(&caller, &row.solution).await.unwrap().is_none());
-        update(&writer, row.task, "UPDATE ONLY $task SET result.isError = false RETURN NONE;").await;
-        update(&writer,row.task,"UPDATE ONLY $task SET result.structuredContent.run_uri = 'optimization://run/run-0195dabe-7777-7abc-8def-ffffffffffff' RETURN NONE;").await;
+        update(&writer, row.task, "UPDATE ONLY $task SET result.payload.isError = false RETURN NONE;").await;
+        update(&writer,row.task,"UPDATE ONLY $task SET result.payload.structuredContent.run_uri = 'optimization://run/run-0195dabe-7777-7abc-8def-ffffffffffff' RETURN NONE;").await;
         assert!(reads.solution(&caller,&row.solution).await.is_err());
         update(&writer,row.task,"UPDATE ONLY $task SET request.input.common.problem_id = 'malformed' RETURN NONE;").await;
         assert!(reads.complete_problems(&caller,"malformed",100).await.is_err());

@@ -84,9 +84,9 @@ pub(super) async fn complete(
     let fields: &[&str] = match domain {
         CompletionDomain::Runs => &["type::string(record::id(id))"],
         CompletionDomain::Artifacts => &[
-            "result.structuredContent.results_artifact.artifact_id",
-            "result.structuredContent.annotations_artifact.artifact_id",
-            "result.structuredContent.source_clip_artifact.artifact_id",
+            "result.payload.structuredContent.results_artifact.artifact_id",
+            "result.payload.structuredContent.annotations_artifact.artifact_id",
+            "result.payload.structuredContent.source_clip_artifact.artifact_id",
         ],
     };
     let mut values = BTreeSet::new();

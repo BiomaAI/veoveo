@@ -124,7 +124,7 @@ async fn operation_selection_survives_updates_and_store_reconnect_without_events
 
         // Current type selection must survive normal outbox wakes, even if a
         // previously admitted row changes to a malformed unrelated operation.
-        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE; CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 2, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
+        db.b.client().query("UPDATE ONLY $task SET task_type = 'other-operation', request.input = NONE RETURN NONE; CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = { snapshot: { server: 'integration-server' } } RETURN NONE;")
             .bind(("task", task_record_id(ids[0]))).bind(("id", ids[0].to_string())).await.unwrap().check().unwrap();
         writer.transition(&ids[2].to_string(), TaskTransition::Running { progress: 0.5, message: "halfway".into() }).await.unwrap();
         loop {

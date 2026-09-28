@@ -343,7 +343,7 @@ async fn revoked_resource_updates_are_filtered_in_sql_before_malformed_payload_d
         let mut updates = TaskResourceSubscriptions::from_filter::<Address>(&filter).unwrap().subscribe(&service, &owner()).await.unwrap();
         for _ in 0..2 { updates.next().await.unwrap().unwrap(); }
         db.b.client().query("UPDATE ONLY $task SET request.owner.data_labels = ['restricted'], request.input = NONE RETURN NONE;
-            CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 2, payload = {snapshot: {server: 'resource-fixture'}} RETURN NONE;")
+            CREATE outbox_event SET aggregate_type = 'task', aggregate_id = $id, event_type = 'task.fixture', schema_version = 3, payload = {snapshot: {server: 'resource-fixture'}} RETURN NONE;")
             .bind(("task", veoveo_platform_store::task_record_id(revoked))).bind(("id", revoked.to_string())).await.unwrap().check().unwrap();
         assert!(writer.get(&revoked.to_string()).await.is_err());
         writer.claim(&sentinel.to_string(), Duration::from_secs(30)).await.unwrap();
