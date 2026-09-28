@@ -2,6 +2,7 @@ use anyhow::{Context, Result, anyhow, bail};
 pub mod owned;
 pub mod releases;
 pub mod restrictions;
+pub mod routing_authority;
 use chrono::Utc;
 use veoveo_platform_store::{
     MapAcquisitionDraft, MapAcquisitionState, MapAcquisitionUpdate, MapDependencyKind,

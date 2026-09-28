@@ -682,42 +682,11 @@ impl RouteService {
         BTreeSet<crate::contract::DatasetReleaseId>,
         BTreeSet<MapFamily>,
     )> {
-        let sources = self.catalog.list_sources(scope).await?;
-        let sources = sources
-            .into_iter()
-            .filter(|source| source.enabled)
-            .map(|source| (source.source_id, source.map_families))
-            .collect::<std::collections::BTreeMap<_, _>>();
-        let compatible = profile.compatible_map_families();
-        let mut releases = BTreeSet::new();
-        let mut families = BTreeSet::new();
-        for release in self.catalog.list_releases(scope).await? {
-            if self
-                .catalog
-                .active_release_id(scope, &release.dataset_id)
-                .await?
-                .as_ref()
-                != Some(&release.release_id)
-                || release.valid_from > departure_time
-                || release
-                    .valid_until
-                    .is_some_and(|until| until <= departure_time)
-            {
-                continue;
-            }
-            let Some(source_families) = sources.get(&release.source_id) else {
-                continue;
-            };
-            let selected = source_families
-                .intersection(&compatible)
-                .copied()
-                .collect::<BTreeSet<_>>();
-            if !selected.is_empty() {
-                releases.insert(release.release_id);
-                families.extend(selected);
-            }
-        }
-        Ok((releases, families))
+        Ok(self
+            .catalog
+            .routing_authority(scope, &profile.compatible_map_families(), departure_time)
+            .await?
+            .into_parts())
     }
 }
 

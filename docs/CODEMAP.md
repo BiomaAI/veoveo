@@ -793,6 +793,10 @@ own restriction addresses, compact metadata, collection cursors and page admissi
 `src/catalog/restrictions.rs` owns tenant-scoped
 exact reads, pages and completion, plus SQL time/family/withdrawal selection for routing
 and spatial operations. Store owns restriction writes and the retained table schema.
+`src/catalog/routing_authority.rs` selects the active pointer, release and enabled source
+relationships in one SQL statement for routing, matrices, travel models and reachable
+areas. It checks tenant/dataset agreement, release validity, map-family compatibility and
+retained document agreement before returning typed release and family sets.
 `src/authoring/service.rs` applies Work Context policy
 and optimistic concurrency. `platform/store/src/map_authoring/reads.rs` applies
 tenant, context, and label predicates in SQL to layer and composition reads;

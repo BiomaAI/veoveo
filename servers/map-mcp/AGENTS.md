@@ -42,6 +42,9 @@ Map Explorer App.
 - Restriction addresses and pages use the contract's typed builders. The domain reader
   applies tenant and operational time/family/withdrawal predicates in SQL. It rejects
   selected document/index disagreement and operations above 10,000 effective restrictions.
+- Routing authority uses the domain SQL reader across active pointers, releases and
+  enabled sources. Preserve tenant/dataset agreement, active state, departure validity
+  and map-family selection; selected retained documents must agree with indexed fields.
 - Domain profile pins (DESIGN.md, Standards And Protocols): GeoJSON RFC 7946,
   OGC JSON-FG 1.0, RFC 8142 text sequences, OGC GeoPackage 1.4, Basic
   CQL2-JSON from OGC CQL2 1.0, GeoParquet 1.0.0, Mapbox Vector Tile 2.1,

@@ -875,6 +875,27 @@ carry domain-specific certification. Planning requires connected activated
 edges, supports fastest and shortest objectives, and accepts explicit avoided
 areas. The caller opts into planning-advisory output through its data policy.
 
+Routing selects its release IDs and compatible map families through
+`MapCatalog::routing_authority`. One SurrealQL statement follows each tenant's active
+pointer to its release and source. All three records must belong to the tenant and
+agree on the dataset. The release must be active and valid at departure; the source
+must be enabled and share a map family with the mobility profile. SQL computes that
+family intersection. A missing parent or mismatched reference cannot supply routing
+coverage. This selection also serves matrices, travel models and reachable areas.
+
+The reader checks the selected documents against the indexed IDs, versions, release
+validity, active state and source family/enabled fields. It also checks pointer identity
+and a positive pointer version. A selected malformed record fails planning. The internal
+result contains the complete matching release and family sets, with a five-second
+database deadline. Public catalog paging has its own resource contract.
+
+Preflight retained pointer/source/release relationships before replacing Map replicas
+together, after their active routing Tasks settle. Stored formats are unchanged. Preserve
+rejected rows for repair; the reader never rewrites them. Rollback restores the prior
+binary and its selection policy against the same data. Operators must accept that
+policy difference before restoring traffic. Installed routing and reverse/forward
+replacement remain required for acceptance.
+
 ### Restrictions And Validation
 
 Map owns restriction selection in `catalog/restrictions.rs`. SQL applies the tenant
