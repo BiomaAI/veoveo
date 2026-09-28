@@ -184,8 +184,8 @@ async fn pilot(
 
 async fn grant(store: &PlatformStore, pilot: &ManagedAgentInstance, session: &str) -> RecordId {
     let id = RecordId::new("uav_vehicle_control_grant", Uuid::now_v7().to_string());
-    store.client().query("CREATE ONLY $id SET tenant=$tenant, work_context=$context, grant_id=$key, session_id=$simulation_session, vehicle_id='vehicle-one', principal_key=$principal, permissions=['inspect','plan','execute'], map_mobility_profile_uri='map://mobility-profile/fixture/1', valid_from=time::now()-1h, created_by='https://identity.test#owner', created_at=time::now(), updated_at=time::now();")
-        .bind(("id",id.clone())).bind(("tenant",pilot.tenant.clone())).bind(("context",pilot.work_context.clone())).bind(("key",pilot.key.clone())).bind(("simulation_session",session.to_owned())).bind(("principal",format!("{}#{}",pilot.identity.issuer,pilot.identity.client_id))).await.unwrap().check().unwrap();
+    store.client().query("CREATE ONLY $id SET tenant=$tenant, work_context=$context, grant_id=$key, session_id=$simulation_session, vehicle_id='vehicle-one', principal_key=$principal, permissions=['inspect','plan','execute'], map_mobility_profile_uri=$profile, valid_from=time::now()-1h, created_by='https://identity.test#owner', created_at=time::now(), updated_at=time::now();")
+        .bind(("profile", veoveo_map_mcp::contract::MapMobilityProfileUri::new(veoveo_map_mcp::contract::MobilityProfileId::from_stable_key(b"fixture"), veoveo_map_mcp::contract::MobilityProfileVersion::FIRST).as_str().to_owned())).bind(("id",id.clone())).bind(("tenant",pilot.tenant.clone())).bind(("context",pilot.work_context.clone())).bind(("key",pilot.key.clone())).bind(("simulation_session",session.to_owned())).bind(("principal",format!("{}#{}",pilot.identity.issuer,pilot.identity.client_id))).await.unwrap().check().unwrap();
     id
 }
 async fn listed(store: &PlatformStore, pilot: &ManagedAgentInstance, session: &str) -> Vec<String> {

@@ -5,21 +5,25 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use surrealdb::types::{RecordId, SurrealValue};
 use uuid::Uuid;
+use veoveo_map_mcp::contract::{MapMobilityProfileUri, MapRouteHandoff};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
     PlatformStore, deterministic_tenant_id, deterministic_work_context_id,
 };
 
 use crate::contract::{
-    ControlGrantId, GrantVehicleControlRequest, MAP_ROUTE_HANDOFF_SCHEMA, MapRouteHandoffStatus,
-    MissionPlanId, MissionPlanLifecycle, PrepareVehicleMissionRequest, RevokeVehicleControlRequest,
-    SessionId, VehicleControlGrant, VehicleControlPermission, VehicleId, VehicleMissionPlan,
+    ControlGrantId, GrantVehicleControlRequest, MissionPlanId, MissionPlanLifecycle,
+    PrepareVehicleMissionRequest, RevokeVehicleControlRequest, SessionId, VehicleControlGrant,
+    VehicleControlPermission, VehicleId, VehicleMissionPlan,
 };
 
+mod map_handoff;
 mod reads;
+use map_handoff::{RouteRequirement, validate_map_handoff};
+#[cfg(test)]
+mod map_tests;
 pub(super) use reads::{ControlCollection, grant_collection};
 
-const PLAN_VALIDATION_MAX_AGE: Duration = Duration::minutes(5);
 const PLAN_TTL: Duration = Duration::minutes(15);
 const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
 
@@ -215,7 +219,7 @@ impl VehicleControlAuthority {
             vehicle_id: request.vehicle_id.to_string(),
             principal_key: request.principal_key,
             permissions: permission_strings(&request.permissions),
-            map_mobility_profile_uri: request.map_mobility_profile_uri,
+            map_mobility_profile_uri: request.map_mobility_profile_uri.as_str().to_owned(),
             allow_planning_advisory: request.allow_planning_advisory,
             valid_from: request.valid_from,
             valid_until: request.valid_until,
@@ -280,11 +284,12 @@ impl VehicleControlAuthority {
         request: PrepareVehicleMissionRequest,
     ) -> Result<VehicleMissionPlan> {
         let grant = self
-            .require_permission(
+            .require_route_permission(
                 identity,
                 &request.session_id,
                 &request.vehicle_id,
                 VehicleControlPermission::Plan,
+                &request.map_route,
             )
             .await?;
         validate_map_handoff(&request, &grant)?;
@@ -318,7 +323,7 @@ impl VehicleControlAuthority {
             vehicle_id: plan.vehicle_id.to_string(),
             map_route_uri: plan.map_route.route_uri.clone(),
             map_route_digest_sha256: plan.map_route.route_digest_sha256.clone(),
-            map_mobility_profile_uri: plan.map_route.mobility_profile_uri.clone(),
+            map_mobility_profile_uri: plan.map_route.mobility_profile_uri.as_str().to_owned(),
             state: "prepared".to_owned(),
             canonical_json: serde_json::to_string(&plan)?,
             expires_at: plan.expires_at,
@@ -345,35 +350,69 @@ impl VehicleControlAuthority {
     ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
         let record_id = scoped_record_id("uav_vehicle_mission_plan", identity, plan_id.as_str());
         let record = self.plan_record(&record_id).await?;
-        if record.principal_key != identity.actor.id.as_str()
+        let (tenant, context) = context_records(identity)?;
+        if record.tenant != tenant
+            || record.work_context != context
+            || record.principal_key != identity.actor.id.as_str()
             || record.state != "prepared"
             || record.revision != checked_i64(expected_revision)?
             || record.expires_at <= Utc::now()
         {
             return Err(ControlAuthorityError::Conflict);
         }
-        let plan: VehicleMissionPlan = serde_json::from_str(&record.canonical_json)?;
-        self.require_permission(
+        let plan = visible_plan_view(&record, identity)?;
+        if &plan.plan_id != plan_id {
+            return Err(ControlAuthorityError::Conflict);
+        }
+        self.require_route_permission(
             identity,
             &plan.session_id,
             &plan.vehicle_id,
             VehicleControlPermission::Execute,
+            &plan.map_route,
         )
         .await?;
         let lease = self.acquire_lease(identity, &plan).await?;
+        self.admit_execution(identity, record, plan, lease).await
+    }
+
+    async fn admit_execution(
+        &self,
+        identity: &GatewayInternalIdentity,
+        record: PlanRecord,
+        mut plan: VehicleMissionPlan,
+        lease: CommandLease,
+    ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
+        let (tenant, context) = context_records(identity)?;
         let now = Utc::now();
-        let mut updated_plan = plan;
-        updated_plan.state = MissionPlanLifecycle::Executing;
-        updated_plan.revision += 1;
-        updated_plan.updated_at = now;
+        let route = RouteRequirement::new(&plan.map_route)?;
+        let profile = route.profile.as_str().to_owned();
+        let advisory = route.advisory;
+        plan.state = MissionPlanLifecycle::Executing;
+        plan.revision += 1;
+        plan.updated_at = now;
+        let permitted = reads::PERMITTED;
         let mut response = self
             .store
             .client()
-            .query("UPDATE ONLY $record SET state = 'executing', canonical_json = $canonical, updated_at = $now, revision += 1 WHERE state = 'prepared' AND revision = $revision RETURN AFTER;")
-            .bind(("record", record_id.clone()))
-            .bind(("canonical", serde_json::to_string(&updated_plan)?))
+            .query(format!("UPDATE ONLY $record SET state = 'executing', canonical_json = $canonical, updated_at = $now, revision += 1
+                WHERE tenant = $tenant AND work_context = $work_context AND principal_key = $principal
+                AND state = 'prepared' AND revision = $revision AND expires_at > $now AND canonical_json = $previous
+                AND array::len((SELECT VALUE id FROM uav_vehicle_control_grant WHERE {permitted} LIMIT 1)) = 1
+                RETURN AFTER;"))
+            .bind(("record", record.id.clone()))
+            .bind(("canonical", serde_json::to_string(&plan)?))
+            .bind(("previous", record.canonical_json))
             .bind(("now", now))
-            .bind(("revision", checked_i64(expected_revision)?))
+            .bind(("revision", record.revision))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("simulation_session", plan.session_id.to_string()))
+            .bind(("vehicle", plan.vehicle_id.to_string()))
+            .bind(("permissions", permission_strings(&BTreeSet::from([VehicleControlPermission::Execute]))))
+            .bind(("profile", profile))
+            .bind(("advisory", advisory))
             .await?
             .check()?;
         let updated: Option<PlanRecord> = response.take(0)?;
@@ -381,14 +420,12 @@ impl VehicleControlAuthority {
             self.release_lease(&lease).await?;
             return Err(ControlAuthorityError::Conflict);
         }
-        Ok((
-            updated_plan,
-            MissionExecutionGuard {
-                plan_record_id: record_id,
-                plan_id: plan_id.clone(),
-                lease,
-            },
-        ))
+        let guard = MissionExecutionGuard {
+            plan_record_id: record.id,
+            plan_id: plan.plan_id.clone(),
+            lease,
+        };
+        Ok((plan, guard))
     }
 
     pub(super) async fn finish_execution(
@@ -397,7 +434,7 @@ impl VehicleControlAuthority {
         succeeded: bool,
     ) -> Result<()> {
         let record = self.plan_record(&guard.plan_record_id).await?;
-        let mut plan: VehicleMissionPlan = serde_json::from_str(&record.canonical_json)?;
+        let mut plan = plan_view(&record)?;
         plan.state = if succeeded {
             MissionPlanLifecycle::Completed
         } else {
@@ -555,102 +592,12 @@ fn validate_grant_request(request: &GrantVehicleControlRequest) -> Result<()> {
             "a vehicle control grant requires at least one permission".to_owned(),
         ));
     }
-    validate_map_profile_uri(&request.map_mobility_profile_uri)?;
     if request
         .valid_until
         .is_some_and(|until| until <= request.valid_from)
     {
         return Err(ControlAuthorityError::Invalid(
             "valid_until must be later than valid_from".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_map_handoff(
-    request: &PrepareVehicleMissionRequest,
-    grant: &VehicleControlGrant,
-) -> Result<()> {
-    let handoff = &request.map_route;
-    if handoff.schema_profile != MAP_ROUTE_HANDOFF_SCHEMA {
-        return Err(ControlAuthorityError::Invalid(
-            "Map route handoff uses an unsupported schema profile".to_owned(),
-        ));
-    }
-    if handoff.mobility_profile_uri != grant.map_mobility_profile_uri {
-        return Err(ControlAuthorityError::Invalid(
-            "Map route mobility profile does not match the vehicle grant".to_owned(),
-        ));
-    }
-    if handoff.route_status == MapRouteHandoffStatus::PlanningAdvisory
-        && !grant.allow_planning_advisory
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "the vehicle grant does not admit planning-advisory Map routes".to_owned(),
-        ));
-    }
-    if !single_resource_uri(&handoff.route_uri, "map://route/")
-        || !valid_sha256(&handoff.route_digest_sha256)
-        || handoff.path.len() < 2
-        || handoff.path.len() > 10_000
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "Map route handoff identity, digest, or path bounds are invalid".to_owned(),
-        ));
-    }
-    if handoff.path.iter().any(|position| {
-        !position.longitude_deg.is_finite()
-            || !(-180.0..=180.0).contains(&position.longitude_deg)
-            || !position.latitude_deg.is_finite()
-            || !(-90.0..=90.0).contains(&position.latitude_deg)
-            || position
-                .ellipsoidal_height_m
-                .is_none_or(|height| !height.is_finite())
-    }) {
-        return Err(ControlAuthorityError::Invalid(
-            "every executable Map route position requires valid ellipsoidal height".to_owned(),
-        ));
-    }
-    let now = Utc::now();
-    if handoff.validated_at < now - PLAN_VALIDATION_MAX_AGE
-        || handoff.validated_at > now + Duration::seconds(30)
-        || handoff.prepared_at < handoff.validated_at
-        || handoff.prepared_at > now + Duration::seconds(30)
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "Map route handoff validation is stale or temporally inconsistent".to_owned(),
-        ));
-    }
-    if !request.speed_mps.is_finite()
-        || !(0.1..=100.0).contains(&request.speed_mps)
-        || !request.hold_seconds_at_destination.is_finite()
-        || !(0.0..=3_600.0).contains(&request.hold_seconds_at_destination)
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "mission speed or destination hold is outside UAV bounds".to_owned(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_map_profile_uri(value: &str) -> Result<()> {
-    let Some(rest) = value.strip_prefix("map://mobility-profile/") else {
-        return Err(ControlAuthorityError::Invalid(
-            "map_mobility_profile_uri must use the canonical Map resource".to_owned(),
-        ));
-    };
-    let Some((profile, version)) = rest.split_once('/') else {
-        return Err(ControlAuthorityError::Invalid(
-            "map_mobility_profile_uri must name one exact profile version".to_owned(),
-        ));
-    };
-    if profile.is_empty()
-        || profile.contains('/')
-        || version.parse::<u64>().is_err()
-        || version.contains('/')
-    {
-        return Err(ControlAuthorityError::Invalid(
-            "map_mobility_profile_uri must name one exact profile version".to_owned(),
         ));
     }
     Ok(())
@@ -693,7 +640,10 @@ fn grant_view(record: GrantRecord) -> Result<VehicleControlGrant> {
                 )),
             })
             .collect::<Result<_>>()?,
-        map_mobility_profile_uri: record.map_mobility_profile_uri,
+        map_mobility_profile_uri: MapMobilityProfileUri::parse(&record.map_mobility_profile_uri)
+            .map_err(|_| ControlAuthorityError::Invalid(
+                "persisted grant has an invalid Map profile URI; repair the retained grant before retrying".into()
+            ))?,
         allow_planning_advisory: record.allow_planning_advisory,
         valid_from: record.valid_from,
         valid_until: record.valid_until,
@@ -704,6 +654,56 @@ fn grant_view(record: GrantRecord) -> Result<VehicleControlGrant> {
         created_at: record.created_at,
         updated_at: record.updated_at,
     })
+}
+
+// This validates records already selected by SQL; it never filters a result page.
+fn visible_plan_view(
+    record: &PlanRecord,
+    identity: &GatewayInternalIdentity,
+) -> Result<VehicleMissionPlan> {
+    let plan = plan_view(record)?;
+    let (tenant, context) = context_records(identity)?;
+    if record.tenant != tenant
+        || record.work_context != context
+        || record.id
+            != scoped_record_id("uav_vehicle_mission_plan", identity, plan.plan_id.as_str())
+    {
+        return Err(ControlAuthorityError::Invalid(
+            "persisted mission plan has inconsistent ownership or physical identity; repair the retained plan before retrying".into(),
+        ));
+    }
+    Ok(plan)
+}
+
+fn plan_view(record: &PlanRecord) -> Result<VehicleMissionPlan> {
+    let plan: VehicleMissionPlan = serde_json::from_str(&record.canonical_json)?;
+    let state = match plan.state {
+        MissionPlanLifecycle::Prepared => "prepared",
+        MissionPlanLifecycle::Executing => "executing",
+        MissionPlanLifecycle::Completed => "completed",
+        MissionPlanLifecycle::Failed => "failed",
+        MissionPlanLifecycle::Cancelled => "cancelled",
+    };
+    if plan.plan_id.as_str() != record.plan_id
+        || plan.mission_id.as_str() != record.mission_id
+        || plan.principal_key != record.principal_key
+        || plan.session_id.as_str() != record.session_id
+        || plan.vehicle_id.as_str() != record.vehicle_id
+        || plan.map_route.route_uri != record.map_route_uri
+        || plan.map_route.route_digest_sha256 != record.map_route_digest_sha256
+        || plan.map_route.mobility_profile_uri.as_str() != record.map_mobility_profile_uri
+        || state != record.state
+        || checked_i64(plan.revision)? != record.revision
+        || plan.expires_at != record.expires_at
+        || plan.created_at != record.created_at
+        || plan.updated_at != record.updated_at
+    {
+        return Err(ControlAuthorityError::Invalid(
+            "persisted mission plan disagrees with indexed metadata; repair the retained plan before retrying".into(),
+        ));
+    }
+    RouteRequirement::new(&plan.map_route)?;
+    Ok(plan)
 }
 
 fn permission_strings(permissions: &BTreeSet<VehicleControlPermission>) -> Vec<String> {
@@ -774,9 +774,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn profile_and_digest_validation_is_strict() {
-        assert!(validate_map_profile_uri("map://mobility-profile/uas-demo/1").is_ok());
-        assert!(validate_map_profile_uri("map://mobility-profile/uas-demo").is_err());
+    fn digest_validation_is_strict() {
         assert!(valid_sha256(&"a".repeat(64)));
         assert!(!valid_sha256(&"g".repeat(64)));
     }

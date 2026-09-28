@@ -11,7 +11,7 @@ pub(super) struct UavAcceptanceScenario {
     pub(super) world_ready_timeout_seconds: u64,
     pub(super) takeoff: TakeoffScenario,
     pub(super) camera: CameraAcceptance,
-    pub(super) map_mobility_profile_uri: String,
+    pub(super) map_mobility_profile_uri: MapMobilityProfileUri,
     pub(super) mission: MissionScenario,
     pub(super) recording: RecordingAcceptance,
     pub(super) stream: StreamScenario,
@@ -147,7 +147,6 @@ impl UavAcceptanceScenario {
         validate_identity("session_id", &self.session_id)?;
         validate_identity("geospatial_layer_id", &self.geospatial_layer_id)?;
         validate_identity("vehicle_id", &self.vehicle_id)?;
-        parse_mobility_profile_uri(&self.map_mobility_profile_uri)?;
         ensure!(
             !self.world.display_name.trim().is_empty(),
             "world display name must not be blank"

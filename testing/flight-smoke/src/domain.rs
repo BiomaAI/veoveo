@@ -18,6 +18,7 @@ use veoveo_frames_mcp::contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
     FrameWorldTree, Wgs84Position,
 };
+use veoveo_map_mcp::contract::MapMobilityProfileUri;
 use veoveo_mcp_contract::{
     LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState,
 };
@@ -220,14 +221,13 @@ async fn uav_sim_verify_with_visual_hold(
         .context("UAV state returned an invalid current vehicle WGS84 position")?;
         let target_position =
             nearby_mission_position(&current_position, scenario.mission.longitude_offset_degrees)?;
-        let (mobility_profile_id, mobility_profile_version) =
-            parse_mobility_profile_uri(json_string(&control_grant, "/map_mobility_profile_uri")?)?;
+        let mobility_profile = &control_grant.map_mobility_profile_uri;
         let route = operator
             .task_tool(
                 "map__route",
                 serde_json::json!({
-                    "mobility_profile_id": mobility_profile_id,
-                    "mobility_profile_version": mobility_profile_version,
+                    "mobility_profile_id": mobility_profile.id(),
+                    "mobility_profile_version": mobility_profile.version(),
                     "origin": {
                         "kind": "position",
                         "position": map_position(&current_position)

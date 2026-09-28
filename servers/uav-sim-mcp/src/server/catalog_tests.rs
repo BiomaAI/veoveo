@@ -13,6 +13,10 @@ use crate::{
 };
 use chrono::{TimeDelta, Utc};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use veoveo_map_mcp::contract::{
+    MAP_ROUTE_HANDOFF_SCHEMA, MapMobilityProfileUri, MapRouteHandoff, MobilityProfileId,
+    MobilityProfileVersion, RouteStatus, ValidationId, Wgs84Position as MapPosition,
+};
 use veoveo_mcp_contract::{GatewayInternalIdentity, SubscriptionHub};
 use veoveo_platform_store::PlatformStore;
 use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskRuntime};
@@ -20,7 +24,7 @@ use veoveo_types::TaskId;
 
 use crate::server::test_support::fixture;
 
-fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehicleControlRequest {
+pub(super) fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehicleControlRequest {
     GrantVehicleControlRequest {
         grant_id: ControlGrantId::new(key).unwrap(),
         session_id: SessionId::new("native-session").unwrap(),
@@ -31,14 +35,17 @@ fn grant(identity: &GatewayInternalIdentity, key: &str) -> GrantVehicleControlRe
             VehicleControlPermission::Plan,
             VehicleControlPermission::Execute,
         ]),
-        map_mobility_profile_uri: "map://mobility-profile/native/1".into(),
+        map_mobility_profile_uri: MapMobilityProfileUri::new(
+            MobilityProfileId::from_stable_key(b"native"),
+            MobilityProfileVersion::FIRST,
+        ),
         allow_planning_advisory: false,
         valid_from: Utc::now() - TimeDelta::hours(2),
         valid_until: None,
     }
 }
 
-fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
+pub(super) fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
     let now = Utc::now();
     PrepareVehicleMissionRequest {
         session_id: SessionId::new("native-session").unwrap(),
@@ -52,21 +59,24 @@ fn mission_request(key: &str) -> PrepareVehicleMissionRequest {
             schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.into(),
             route_uri: "map://route/native".into(),
             route_digest_sha256: "a".repeat(64),
-            route_status: MapRouteHandoffStatus::Validated,
-            mobility_profile_uri: "map://mobility-profile/native/1".into(),
+            route_status: RouteStatus::Validated,
+            mobility_profile_uri: MapMobilityProfileUri::new(
+                MobilityProfileId::from_stable_key(b"native"),
+                MobilityProfileVersion::FIRST,
+            ),
             path: vec![
-                MapRoutePosition {
+                MapPosition {
                     longitude_deg: -74.0,
                     latitude_deg: 40.0,
                     ellipsoidal_height_m: Some(100.0),
                 },
-                MapRoutePosition {
+                MapPosition {
                     longitude_deg: -74.1,
                     latitude_deg: 40.1,
                     ellipsoidal_height_m: Some(120.0),
                 },
             ],
-            validation_id: "validation-native".into(),
+            validation_id: ValidationId::new(),
             validated_at: now,
             operational_snapshot_id: "snapshot-native".into(),
             base_release_ids: vec!["release-native".into()],

@@ -401,10 +401,13 @@ pub(super) async fn await_result(
 mod tests {
     use super::*;
     use chrono::Utc;
+    use veoveo_map_mcp::contract::{
+        MAP_ROUTE_HANDOFF_SCHEMA, MapMobilityProfileUri, MapRouteHandoff, MobilityProfileId,
+        MobilityProfileVersion, RouteStatus, ValidationId, Wgs84Position as MapPosition,
+    };
 
     use crate::contract::{
-        CaptureDatasetRequest, MapRouteHandoff, MapRouteHandoffStatus, MapRoutePosition, MissionId,
-        MissionPlanId, MissionPlanLifecycle, SessionId, VehicleId,
+        CaptureDatasetRequest, MissionId, MissionPlanId, MissionPlanLifecycle, SessionId, VehicleId,
     };
 
     #[test]
@@ -436,24 +439,27 @@ mod tests {
             vehicle_id: VehicleId::new("uav-1").unwrap(),
             expected_world_revision_uri: revision_uri,
             map_route: MapRouteHandoff {
-                schema_profile: crate::contract::MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
+                schema_profile: MAP_ROUTE_HANDOFF_SCHEMA.to_owned(),
                 route_uri: "map://route/route-1".to_owned(),
                 route_digest_sha256: "a".repeat(64),
-                route_status: MapRouteHandoffStatus::Validated,
-                mobility_profile_uri: "map://mobility-profile/uas-demo/1".to_owned(),
+                route_status: RouteStatus::Validated,
+                mobility_profile_uri: MapMobilityProfileUri::new(
+                    MobilityProfileId::from_stable_key(b"native"),
+                    MobilityProfileVersion::FIRST,
+                ),
                 path: vec![
-                    MapRoutePosition {
+                    MapPosition {
                         longitude_deg: -74.006,
                         latitude_deg: 40.7128,
                         ellipsoidal_height_m: Some(100.0),
                     },
-                    MapRoutePosition {
+                    MapPosition {
                         longitude_deg: -74.0445,
                         latitude_deg: 40.6892,
                         ellipsoidal_height_m: Some(120.0),
                     },
                 ],
-                validation_id: "validation-1".to_owned(),
+                validation_id: ValidationId::new(),
                 validated_at: now,
                 operational_snapshot_id: "snapshot-1".to_owned(),
                 base_release_ids: vec!["release-1".to_owned()],

@@ -243,8 +243,10 @@ planning operations check validity at the requested departure time.
 Map uses it in profile metadata, route and matrix requests, spatial derivations, travel-model
 requests and provenance. Database-driver bindings and wire serialization perform the
 numeric conversion. `MapMobilityProfileUri` requires both typed ID and version, and
-Map's route handoff carries that address. Public numeric fields and valid URI spellings
-are unchanged.
+Map's route handoff carries that address. UAV grants and mission plans import these
+types from the contract-only library. The flight client keeps profile IDs and versions
+typed until request serialization. Public numeric fields and valid URI spellings are
+unchanged.
 
 `MapMobilityProfilesUri` carries an optional `MapMobilityProfileCursor`. Its decoded
 fields are `version: 1`, `collection: "map://mobility-profiles"`, `after_id` and
@@ -272,7 +274,9 @@ Installed paging and reverse/forward replacement are required qualification.
 ## Coordinate Contract
 
 WGS84 longitude and latitude are the canonical route exchange. Optional height
-is ellipsoidal unless a contract states otherwise.
+is ellipsoidal unless a contract states otherwise. `Wgs84Position` rejects undeclared
+JSON fields; preflight retained coordinate payloads before upgrading consumers. UAV
+requires height for executable waypoints and owns its additional admission checks.
 
 Map provides bounded two-dimensional CRS transformation through PROJ. It
 rejects geocentric EPSG:4978 and vertical values instead of silently copying

@@ -27,7 +27,7 @@ for visualization.
 | RTSP, RTP, and H.264 | RTSP 1.0 over loopback TCP with interleaved RTP/RTCP. The adapter supports the RFC 6184 single-NAL, STAP-A, and FU-A packetization modes and emits decoder-reentrant Annex B access units. |
 | OGC 3D Tiles | Cesium Omniverse `0.29.0` with pinned Cesium Native commit `ca0311f25c412b74ad1af9a3636924122cc76156`, one simulator-owned world, and one cache. The repository extension adds private redacted lifecycle events; it does not add an MCP wire protocol. |
 | WGS 84, ECEF, ENU, NED, and FLU | Explicit world, physics, entity, rig, and camera coordinate boundaries. |
-| `veoveo.ai/map-route-handoff/v1` | Map MCP-owned, execution-neutral route projection with exact route, digest, mobility-profile, snapshot, release, restriction, and validation provenance. |
+| `veoveo.ai/map-route-handoff/v1` | Map-owned `MapRouteHandoff` consumed through its contract-only library, including `MapMobilityProfileUri` and `ValidationId`; UAV admits validated routes and explicitly granted planning-advisory routes. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
@@ -232,6 +232,22 @@ plans expire after 15 minutes. Route validation may be at most five minutes old 
 plan is admitted. Every executable position requires ellipsoidal height. A
 planning-advisory route is accepted only when the vehicle grant says so.
 
+UAV imports the handoff and mobility-profile address from Map's `contract` feature.
+Grant requests, returned grants, persisted plan JSON and the flight client keep that
+address typed. Map owns profile-ID and version parsing. Its WGS84 position decoder
+rejects undeclared fields, and UAV requires finite ellipsoidal height in every waypoint.
+UAV rejects stale, invalidated and unavailable route statuses explicitly.
+
+Grant selection applies tenant, Work Context, principal, session, vehicle, permission,
+validity, profile and advisory approval in SQL before selecting one grant. Execution
+repeats the profile-aware check. Its admission UPDATE also requires a current matching
+grant in the same statement, an unexpired prepared plan, and unchanged revision and
+JSON. A rejected update releases the acquired command lease. An uncertain database
+outcome keeps the lease fenced for reconciliation. SQL-selected plan documents must
+agree with indexed identity, ownership, profile, route digest, lifecycle and timestamps
+before they are returned or used for execution. These checks reject corrupt selected
+records; they do not remove records from a page after SQL selection.
+
 Execution acquires one durable exclusive lease for the Work Context, session, and
 vehicle. A concurrent mission for that vehicle fails closed. Completion, failure,
 cancellation, task-start failure, and task-lease loss all finalize the mission plan and
@@ -239,6 +255,17 @@ release the exact command lease. Physical task interruption remains indeterminat
 is never replayed. Admission may reclaim an unreleased lease only when no matching
 mission plan remains in the executing state. This repairs terminal finalization residue
 without weakening exclusion for active work.
+
+This profile requires a coordinated Map/UAV/client upgrade with UAV command admission
+drained and executing missions settled. Valid handoff and grant JSON keep their wire
+shape. Preflight retained grants and plans for canonical Map mobility-profile IDs,
+positive versions within the signed integer range, valid Map validation IDs, declared
+position fields, and document/index agreement. Preserve rejected records for operator
+repair; readers do not rewrite them. Back up retained records before any repair.
+Rollback restores the prior Map/UAV/client versions and any repaired records from that
+backup. The operator must accept the prior implementation's weaker profile admission.
+Installed grant reads, mission admission and reverse/forward replacement require
+qualification before this transition is accepted.
 
 Restart behavior is intentionally simple. Simulator objects are runtime state. A pod
 restart recreates the configured world, cameras, and products through the one-shot

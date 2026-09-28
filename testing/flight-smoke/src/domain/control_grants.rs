@@ -12,13 +12,13 @@ struct GrantPage {
 
 #[derive(Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-struct ControlGrant {
+pub(super) struct ControlGrant {
     grant_id: String,
     session_id: String,
     vehicle_id: String,
     principal_key: String,
     permissions: BTreeSet<Permission>,
-    map_mobility_profile_uri: String,
+    pub(super) map_mobility_profile_uri: MapMobilityProfileUri,
     allow_planning_advisory: bool,
     valid_from: DateTime<Utc>,
     valid_until: Option<DateTime<Utc>>,
@@ -44,7 +44,7 @@ pub(super) async fn find(
     scenario: &UavAcceptanceScenario,
     grant_id: &str,
     principal_key: &str,
-) -> Result<Value> {
+) -> Result<ControlGrant> {
     tokio::time::timeout(Duration::from_secs(60), async {
         let mut cursor: Option<String> = None;
         let mut seen = BTreeSet::new();
@@ -78,7 +78,7 @@ pub(super) async fn find(
                         && grant.map_mobility_profile_uri == scenario.map_mobility_profile_uri,
                     "operator UAV control grant omits required permissions or Map profile"
                 );
-                return Ok(serde_json::to_value(grant)?);
+                return Ok(grant);
             }
             match page.next_cursor {
                 Some(next) if !next.is_empty() && seen.insert(next.clone()) => cursor = Some(next),

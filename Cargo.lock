@@ -16762,6 +16762,7 @@ dependencies = [
  "url",
  "uuid",
  "veoveo-frames-mcp",
+ "veoveo-map-mcp",
  "veoveo-mcp-contract",
 ]
 

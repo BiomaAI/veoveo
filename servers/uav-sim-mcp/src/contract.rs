@@ -5,6 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 pub use veoveo_frames_mcp::contract::Wgs84Position;
 use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_map_mcp::contract::{MapMobilityProfileUri, MapRouteHandoff};
 use veoveo_mcp_contract::{LiveCameraDescriptor, LiveStreamProductState};
 
 fn validate_id(value: &str) -> Result<(), IdentityError> {
@@ -345,7 +346,7 @@ pub struct GrantVehicleControlRequest {
     pub vehicle_id: VehicleId,
     pub principal_key: String,
     pub permissions: std::collections::BTreeSet<VehicleControlPermission>,
-    pub map_mobility_profile_uri: String,
+    pub map_mobility_profile_uri: MapMobilityProfileUri,
     #[serde(default)]
     pub allow_planning_advisory: bool,
     pub valid_from: DateTime<Utc>,
@@ -368,7 +369,7 @@ pub struct VehicleControlGrant {
     pub vehicle_id: VehicleId,
     pub principal_key: String,
     pub permissions: std::collections::BTreeSet<VehicleControlPermission>,
-    pub map_mobility_profile_uri: String,
+    pub map_mobility_profile_uri: MapMobilityProfileUri,
     pub allow_planning_advisory: bool,
     pub valid_from: DateTime<Utc>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -381,42 +382,6 @@ pub struct VehicleControlGrant {
     pub revision: u64,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-}
-
-pub const MAP_ROUTE_HANDOFF_SCHEMA: &str = "veoveo.ai/map-route-handoff/v1";
-
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum MapRouteHandoffStatus {
-    PlanningAdvisory,
-    Validated,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct MapRoutePosition {
-    pub longitude_deg: f64,
-    pub latitude_deg: f64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ellipsoidal_height_m: Option<f64>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct MapRouteHandoff {
-    pub schema_profile: String,
-    pub route_uri: String,
-    pub route_digest_sha256: String,
-    pub route_status: MapRouteHandoffStatus,
-    pub mobility_profile_uri: String,
-    #[schemars(length(min = 2, max = 10_000))]
-    pub path: Vec<MapRoutePosition>,
-    pub validation_id: String,
-    pub validated_at: DateTime<Utc>,
-    pub operational_snapshot_id: String,
-    pub base_release_ids: Vec<String>,
-    pub restriction_ids: Vec<String>,
-    pub prepared_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -844,11 +809,17 @@ mod tests {
             prepared_at: now,
         };
 
-        let consumed: MapRouteHandoff =
-            serde_json::from_value(serde_json::to_value(produced).unwrap()).unwrap();
-        assert_eq!(consumed.mobility_profile_uri, profile_uri.as_str());
-        assert_eq!(consumed.schema_profile, MAP_ROUTE_HANDOFF_SCHEMA);
-        assert_eq!(consumed.route_status, MapRouteHandoffStatus::Validated);
-        assert_eq!(consumed.path.len(), 2);
+        let request: PrepareVehicleMissionRequest = serde_json::from_value(serde_json::json!({
+            "session_id": "session-alpha",
+            "mission_id": "mission-alpha",
+            "vehicle_id": "vehicle-one",
+            "expected_world_revision_uri": "frames://world/native/revision/revision-one",
+            "map_route": produced,
+            "speed_mps": 5.0,
+            "hold_seconds_at_destination": 0.0
+        }))
+        .unwrap();
+        assert_eq!(request.map_route, produced);
+        assert_eq!(request.map_route.mobility_profile_uri, profile_uri);
     }
 }

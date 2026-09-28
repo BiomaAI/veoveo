@@ -28,6 +28,10 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
   immutable world revisions. This server owns principal-to-vehicle grants,
   mission admission, exclusive command leases, execution, telemetry, and its
   domain App. Do not move Map or Frames behavior into UAV code.
+- Import Map handoffs and profile addresses from its contract-only library. UAV admits
+  only validated or explicitly granted planning-advisory routes. Profile and advisory
+  grant predicates run in SQL before selection and during execution admission. Check
+  selected mission documents against their indexed metadata before use.
 - A gateway scope, agent manifest, message target, or requested vehicle ID never
   grants vehicle authority. Every vehicle mutation requires a current UAV-owned
   principal grant; mission execution additionally requires the exact admitted

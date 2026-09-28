@@ -500,8 +500,31 @@ CLI validation pass. The independent 140-package consumer passes 27 checks witho
 dependencies. The UAV route-handoff wire test, remaining Store completion test, runtime-only
 Clippy and strict workspace Clippy pass. The owning design declares retained-ID/version preflight, coordinated
 server/client replacement and rollback. Installed paging and reverse/forward replacement
-remain pending. UAV control grants, its copied route-handoff DTO and the flight harness
-still need adoption of Map-owned address types; those consumers are not complete.
+remain pending.
+UAV grants and mission plans now consume Map's profile address and handoff types from
+its contract-only library. The copied handoff DTO and manual UAV/flight-client profile
+parsers are removed. UAV explicitly rejects stale, invalidated and unavailable routes;
+Map's position decoder preserves strict field admission. Profile and advisory approval
+join existing grant predicates in SQL before the limit. Execution repeats that selection
+and checks a matching grant in its admission UPDATE after lease acquisition. Selected
+plan documents must agree with indexed metadata and physical identity. The flight client
+keeps profile IDs and versions typed through scenario/grant decoding and route serialization.
+Focused native checks pass for selection behind 110 ineligible grants, current-grant
+revocation, lease release after rejected admission, thirteen metadata corruptions and
+wrong physical identity. Foreign callers do not decode denied malformed rows. The full
+affected suites pass 262 cases, including both million-feature Spatial checks and sixteen
+compile-fail examples. The flight graph check admits server libraries only with their
+isolated contract feature and rejects database/recording implementations. Its separate
+warm-dispatch timing case is not run. The independent consumer passes 27 checks. Strict
+workspace Clippy and documentation checks pass. Both changed SQL statements pass the
+pinned SurrealDB 3.2.4 validator. Six superseded test executables were removed, reclaiming
+3 GiB while preserving compiler caches and application binaries.
+The owning design declares retained-reference preflight, coordinated replacement and
+rollback. Installed qualification and UAV's isolated contract feature remain pending. The next UAV
+checkpoint must qualify concurrent command-lease acquisition and plan admission: inspect
+lease revision monotonicity, replacement before an executing plan exists, and binding
+plan admission to the current lease token. The profile-grant tests do not establish those
+concurrency guarantees.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -681,7 +704,7 @@ selectors, and finalizers already use `veoveo.ai/`.
 | Group | Count | Examples and defining locations |
 |---|---|---|
 | MCP `_meta` keys | 5 | `io.veoveo/agent-message-targets` (`mcp/apps-extension/src/models.rs:14`); `io.veoveo/app-resource-dependencies` and `io.veoveo/app-tool-dependencies` (`mcp/contract/src/gateway/server_config.rs:45-46`); `veoveo.io/gateway-discovery-degradation` (`mcp/contract/src/catalog.rs:7`) becomes `ai.veoveo/gateway-discovery-degradation`; `ai.bioma.veoveo/taskRetentionPin` (`platform/task-runtime/src/service.rs:19`, `servers/timeseries-mcp/src/bin/server.rs:95`, `sdk/python/src/veoveo_mcp/task_extension/models.py:23`) becomes `ai.veoveo/task-retention-pin` |
-| Public payload schemas | about 12 | `live-view/v4` (`mcp/contract/src/live_view.rs:12`), `hosted-mcp/v3` (`mcp/contract/src/lib.rs:9`), conformance profile and report (`mcp/conformance/src/profile.rs:10`, `report.rs:7`), recording catalog, projection, and playback tags, `map-route-handoff/v1` (map and `servers/uav-sim-mcp/src/contract.rs:388`), and the optimization problem tags (`servers/optimization-mcp/src/contract/mod.rs`) |
+| Public payload schemas | about 12 | `live-view/v4` (`mcp/contract/src/live_view.rs:12`), `hosted-mcp/v3` (`mcp/contract/src/lib.rs:9`), conformance profile and report (`mcp/conformance/src/profile.rs:10`, `report.rs:7`), recording catalog, projection, and playback tags, `map-route-handoff/v1` (Map-owned; UAV imports the contract), and the optimization problem tags (`servers/optimization-mcp/src/contract/mod.rs`) |
 | Internal protocols | 4 | `cuopt-executor/v1` (Rust and Python), `uav-runtime-event/v2` (Rust and Python), `computer-storage/v1` with its `$id` (`platform/runtimes/computers/protocol/storage.json:3`), `computer-host/v1` |
 | Persisted formats | about 9 | `travel-model-artifact/v1`, `recording-manifest/v9`, `retained-storage-host/v1`, `retained-home/v1`, `recording-journal-quarantine/v1`, `replacement-policy`, `computer-persistent-home/v1`, `computers-unconfigured/v1`, and the `simulation-view-desired-digest` values in migrations `0031` and `0032` |
 | Deployment and installation formats | about 14 | `deployment/v8`, `deployment-lock/v8`, `local-registry/v1`, `image-release-evidence/v3`, `component-*`, `installed-deployment-unit/v1`, `computers-service/v3`, `computer-host/v1` config, and simulation lock and evidence tags |
@@ -995,7 +1018,8 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Map restriction reads | Map owns typed addresses, collection-bound cursors and checked compact pages. SQL applies tenant visibility before limits and operational time/family/withdrawal selection. Exact reads and pages reject indexed/document disagreement. Native page, validity, corruption, overflow and independent consumer checks pass; the unbounded Store list is removed | Qualify retained-data preflight and the coordinated array-to-summary-page installation transition with rollback; finish broader restriction DTO admission |
 | Map routing authority | One domain-owned SQL statement selects compatible enabled sources through tenant/dataset-matching active pointers and valid active releases. Typed release/family sets replace full-catalog scans and per-release lookups. Native tenant, lifecycle, parent, boundary-time and retained-document cases pass | Qualify retained-data preflight, installed routing and coordinated reverse/forward replacement; finish other internal release selections |
 | Map source catalog | Map owns typed addresses, collection-bound cursors and checked public summaries. Exact reads, pages and completion select the tenant in SQL before limits; selected documents must agree with indexed metadata. Native isolation, continuation, redaction and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer walks the page envelope and the unbounded Store list is removed | Qualify source-ID and retained-document preflight, installed page traversal and the coordinated server/client upgrade with rollback |
-| Map mobility catalogs | Map owns checked profile versions, exact and collection addresses, composite cursors and complete-profile pages. SQL selects tenant, parent, ID and numeric version before limits. Native isolation, ordering, completion and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer traverses pages and the unbounded Store read is removed | Qualify retained-reference preflight, installed traversal and coordinated replacement with rollback; migrate UAV grants/handoff and flight-harness consumers to Map-owned address types |
+| Map mobility catalogs | Map owns checked profile versions, exact and collection addresses, composite cursors and complete-profile pages. SQL selects tenant, parent, ID and numeric version before limits. Native isolation, ordering, completion and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer traverses pages and the unbounded Store read is removed | Qualify retained-reference preflight, installed traversal and coordinated replacement with rollback; UAV grants/handoff and the flight harness now consume Map-owned address types |
+| UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify command-lease acquisition/admission interleavings, retained-data preflight, installed grant/mission behavior and coordinated replacement with rollback; isolate UAV's own contract feature |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

@@ -6,6 +6,15 @@ const VISIBLE: &str = "tenant = $tenant AND work_context = $work_context AND ($i
 const ACTIVE: &str =
     "revoked_at = NONE AND valid_from <= $now AND (valid_until = NONE OR valid_until > $now)";
 
+// Shared by grant selection and the execution-admission UPDATE. Values are bound
+// at the driver boundary; this predicate contains no caller-supplied SQL.
+pub(super) const PERMITTED: &str = "tenant = $tenant AND work_context = $work_context
+    AND principal_key = $principal AND session_id = $simulation_session AND vehicle_id = $vehicle
+    AND revoked_at = NONE AND valid_from <= $now AND (valid_until = NONE OR valid_until > $now)
+    AND permissions CONTAINSALL $permissions
+    AND ($profile = NONE OR map_mobility_profile_uri = $profile)
+    AND ($advisory = false OR allow_planning_advisory = true)";
+
 impl VehicleControlAuthority {
     pub(in crate::server) async fn grants_page(
         &self,
@@ -73,7 +82,7 @@ impl VehicleControlAuthority {
             records,
             uris::MISSION_PLANS,
             |row| row.plan_id.clone(),
-            |row| Ok(serde_json::from_str(&row.canonical_json)?),
+            |row| Ok(visible_plan_view(&row, identity)?),
         )
         .map_err(ControlAuthorityError::Index)
     }
@@ -128,7 +137,7 @@ impl VehicleControlAuthority {
             .check()?;
         response
             .take::<Option<PlanRecord>>(0)?
-            .map(|row| serde_json::from_str(&row.canonical_json).map_err(Into::into))
+            .map(|row| visible_plan_view(&row, identity))
             .transpose()
     }
 
@@ -139,16 +148,63 @@ impl VehicleControlAuthority {
         vehicle: &VehicleId,
         permission: VehicleControlPermission,
     ) -> Result<VehicleControlGrant> {
+        self.select_permission(identity, session, vehicle, permission, None)
+            .await
+    }
+
+    pub(super) async fn require_route_permission(
+        &self,
+        identity: &GatewayInternalIdentity,
+        session: &SessionId,
+        vehicle: &VehicleId,
+        permission: VehicleControlPermission,
+        handoff: &MapRouteHandoff,
+    ) -> Result<VehicleControlGrant> {
+        self.select_permission(
+            identity,
+            session,
+            vehicle,
+            permission,
+            Some(RouteRequirement::new(handoff)?),
+        )
+        .await
+    }
+
+    async fn select_permission(
+        &self,
+        identity: &GatewayInternalIdentity,
+        session: &SessionId,
+        vehicle: &VehicleId,
+        permission: VehicleControlPermission,
+        route: Option<RouteRequirement<'_>>,
+    ) -> Result<VehicleControlGrant> {
         let (tenant, context) = context_records(identity)?;
-        let mut response = self.store.client().query(format!(
-            "SELECT * FROM uav_vehicle_control_grant WHERE {VISIBLE} AND {ACTIVE}
-             AND session_id = $simulation_session AND vehicle_id = $vehicle AND permissions CONTAINSALL $permissions
+        let mut response = self
+            .store
+            .client()
+            .query(format!(
+                "SELECT * FROM uav_vehicle_control_grant WHERE {PERMITTED}
              ORDER BY created_at ASC, grant_id ASC LIMIT 1;"
-        )).bind(("tenant", tenant)).bind(("work_context", context)).bind(("include_all", false))
-            .bind(("principal", identity.actor.id.to_string())).bind(("now", Utc::now()))
-            .bind(("simulation_session", session.to_string())).bind(("vehicle", vehicle.to_string()))
-            .bind(("permissions", permission_strings(&BTreeSet::from([permission]))))
-            .await?.check()?;
+            ))
+            .bind(("tenant", tenant))
+            .bind(("work_context", context))
+            .bind(("principal", identity.actor.id.to_string()))
+            .bind(("now", Utc::now()))
+            .bind(("simulation_session", session.to_string()))
+            .bind(("vehicle", vehicle.to_string()))
+            .bind((
+                "permissions",
+                permission_strings(&BTreeSet::from([permission])),
+            ))
+            .bind((
+                "profile",
+                route
+                    .as_ref()
+                    .map(|route| route.profile.as_str().to_owned()),
+            ))
+            .bind(("advisory", route.is_some_and(|route| route.advisory)))
+            .await?
+            .check()?;
         let records: Vec<GrantRecord> = response.take(0)?;
         grant_view(
             records

@@ -43,7 +43,7 @@ fn canonical_mission_is_runtime_loaded_and_validated() {
     let scenario = UavAcceptanceScenario::load(&canonical_scenario()).unwrap();
     assert_eq!(scenario.schema, "veoveo.uav-sim-acceptance/v11");
     assert_eq!(
-        scenario.map_mobility_profile_uri,
+        scenario.map_mobility_profile_uri.as_str(),
         "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1"
     );
     assert_eq!(scenario.session_id, "uav-showcase");
@@ -82,6 +82,21 @@ fn canonical_mission_is_runtime_loaded_and_validated() {
     assert_eq!(scenario.reason.maximum_frames, 6);
     assert_eq!(scenario.view.camera.width_px, 640);
     assert_eq!(scenario.view.minimum_mission_sensor_frames, 10);
+}
+
+#[test]
+fn mission_rejects_noncanonical_map_profile_references_on_decode() {
+    let good: Value = serde_json::from_slice(&fs::read(canonical_scenario()).unwrap()).unwrap();
+    for uri in [
+        "map://mobility-profile/alias/1",
+        "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/0",
+        "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/01",
+        "map://mobility-profile/mobility-019ffdb2-0598-7476-96d3-f3d7b0769f9e/1?version=2",
+    ] {
+        let mut wire = good.clone();
+        wire["map_mobility_profile_uri"] = uri.into();
+        assert!(serde_json::from_value::<UavAcceptanceScenario>(wire).is_err());
+    }
 }
 
 #[test]

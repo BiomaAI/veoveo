@@ -17,6 +17,7 @@ impl fmt::Display for GeometryError {
 impl std::error::Error for GeometryError {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct Wgs84Position {
     pub longitude_deg: f64,
     pub latitude_deg: f64,

@@ -19,7 +19,7 @@ fn focused_clients_exclude_service_implementations() {
                 "--prefix",
                 "none",
                 "--format",
-                "{p}",
+                "{p} features={f}",
             ])
             .args(roots.iter().flat_map(|root| ["--package", *root]))
             .output()
@@ -34,23 +34,30 @@ fn focused_clients_exclude_service_implementations() {
             .lines()
             .filter_map(|line| line.split_whitespace().next())
             .collect();
-        for name in &names {
+        for line in graph.lines().filter(|line| !line.is_empty()) {
+            let name = line.split_whitespace().next().unwrap();
+            let features = line.split_once("features=").unwrap().1;
+            let contract_only =
+                name.ends_with("-mcp") && features.split_whitespace().next() == Some("contract");
             assert!(
                 !name.starts_with("veoveo-")
+                    || contract_only
                     || matches!(
-                        *name,
+                        name,
                         "veoveo-flight-smoke"
                             | "veoveo-browser-smoke"
                             | "veoveo-mcp-contract"
                             | "veoveo-mcp-conformance"
                             | "veoveo-mcp-apps-extension"
+                            | "veoveo-artifact-contract"
+                            | "veoveo-types"
                     ),
                 "{roots:?} links an unrelated Veoveo implementation: {name}"
             );
             assert!(
                 !name.starts_with("surreal")
                     && !name.starts_with("re_")
-                    && !matches!(*name, "duckdb" | "libduckdb-sys"),
+                    && !matches!(name, "duckdb" | "libduckdb-sys"),
                 "{roots:?} links database or recording implementation {name}"
             );
         }

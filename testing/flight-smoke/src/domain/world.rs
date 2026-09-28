@@ -481,7 +481,7 @@ pub(super) async fn wait_for_native_camera_stream(
 pub(super) async fn ensure_operator_control_grant(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-) -> Result<Value> {
+) -> Result<control_grants::ControlGrant> {
     let principal_key = format!("{}/oauth#operator-service", operator.base);
     let admin_token = gateway_token_for_context(
         operator.conformance,
@@ -530,25 +530,6 @@ pub(super) async fn ensure_operator_control_grant(
         &principal_key,
     )
     .await
-}
-
-pub(super) fn parse_mobility_profile_uri(value: &str) -> Result<(&str, u64)> {
-    let rest = value
-        .strip_prefix("map://mobility-profile/")
-        .context("mobility profile must use the canonical Map URI")?;
-    let (profile_id, version) = rest
-        .split_once('/')
-        .context("mobility profile URI must include one exact version")?;
-    ensure!(
-        !profile_id.is_empty() && !version.contains('/'),
-        "mobility profile URI must identify exactly one profile version"
-    );
-    Ok((
-        profile_id,
-        version
-            .parse()
-            .context("mobility profile URI version must be an unsigned integer")?,
-    ))
 }
 
 pub(super) fn map_position(position: &Wgs84Position) -> Value {

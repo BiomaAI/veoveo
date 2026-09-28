@@ -750,7 +750,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `showcase/uav-sim/scenarios/` | reusable world trees plus strongly typed live mission and acceptance parameters outside the Isaac image context |
 | `examples/bioma/uav-sim-values.yaml` | reference camera, product, public gateway origin, and recording tenant binding |
 | `testing/flight-smoke/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
-| `testing/flight-smoke/src/domain/control_grants.rs` | client-only UAV grant page decoding and bounded authority qualification |
+| `testing/flight-smoke/src/domain/control_grants.rs` | client-only UAV grant page decoding, Map-owned profile references and bounded authority qualification |
 | `testing/flight-smoke/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |
 | `testing/browser-smoke/src/browser.rs` | shared headed Chrome attachment, hardware WebGPU-or-WebGL enforcement, opaque-origin App hosting, Map workspace viewport acceptance, dedicated simultaneous-viewer windows, Console live-view interaction, and screenshots |
 | `testing/flight-smoke/src/cli.rs`, `src/domain/` | focused flight CLI, scenario validation, authenticated MCP client, world admission, live Stream assertions, and artifact checks; contains no service implementations |
@@ -988,9 +988,12 @@ Simulation live-view ownership:
 | Path | Responsibility |
 |---|---|
 | `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
-| `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant, Map handoff consumer, mission-plan, and live-view schemas built from the shared contract |
+| `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant and mission-plan schemas consuming Map and Frames contracts; shared live-view types |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
-| `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, strict Map handoff admission, mission plans, and exclusive command-lease lifecycle |
+| `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, checked retained plans, profile-aware execution admission and exclusive command-lease lifecycle |
+| `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV route-status, geometry, freshness and motion policy over Map-owned handoff types |
+| `servers/uav-sim-mcp/src/server/control_authority/reads.rs` | SQL grant/plan visibility and paging; shared profile/advisory grant predicates for selection and execution admission |
+| `servers/uav-sim-mcp/src/server/control_authority/map_tests.rs` | native profile-selection, revocation, lease cleanup and retained-plan qualification without simulator dispatch |
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorizations, stable shared-product selection, expiry, closure, and connection telemetry |
 | `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated browser WebSocket sessions that forward camera-owned Annex B H.264 products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |
