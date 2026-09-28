@@ -520,11 +520,23 @@ workspace Clippy and documentation checks pass. Both changed SQL statements pass
 pinned SurrealDB 3.2.4 validator. Six superseded test executables were removed, reclaiming
 3 GiB while preserving compiler caches and application binaries.
 The owning design declares retained-reference preflight, coordinated replacement and
-rollback. Installed qualification and UAV's isolated contract feature remain pending. The next UAV
-checkpoint must qualify concurrent command-lease acquisition and plan admission: inspect
-lease revision monotonicity, replacement before an executing plan exists, and binding
-plan admission to the current lease token. The profile-grant tests do not establish those
-concurrency guarantees.
+rollback. Installed qualification and UAV's isolated contract feature remain pending.
+Native reproduction confirmed that an overwritten pending command lease could still
+admit a mission. UAV now acquires its lease and admits the plan in one transaction,
+using the shared vehicle record as the write conflict on SurrealDB 3.2.4. Finalization
+checks the admitting token and settles the plan with its lease release in a transaction.
+Lease revisions increase across replacements, and expiry cannot displace any executing
+plan for that vehicle. Native RocksDB contention across principals, obsolete-token,
+expiry, overflow and injected rollback cases pass. Store migration 0097 adds the composite
+vehicle/state index without changing records. EXPLAIN confirms IndexScan on that index.
+The full UAV suite passes 51 checks, Store migration tests pass nine, and strict workspace
+Clippy passes. The transactions, lookup and index validate under the pinned 3.2.4 CLI.
+The owning design requires every replica and worker to drain before this coordinated
+upgrade or rollback. Rollback builds must retain the additive index and current Store
+catalog; restoring an older installation snapshot requires all database writers drained.
+Retained formats are unchanged. Installed qualification remains pending. Follow-up UAV acceptance must trace adapter cancellation, Task lease-loss
+settlement and the crash interval between admission and Task creation; database exclusion
+alone does not establish that simulator work has stopped.
 The full Rust enforcer passed at `ab61a602`; default-feature workspace acceptance
 and reference installation qualification are pending.
 
@@ -1019,7 +1031,8 @@ need feature isolation. Existing libraries remain the default owner; the invento
 | Map routing authority | One domain-owned SQL statement selects compatible enabled sources through tenant/dataset-matching active pointers and valid active releases. Typed release/family sets replace full-catalog scans and per-release lookups. Native tenant, lifecycle, parent, boundary-time and retained-document cases pass | Qualify retained-data preflight, installed routing and coordinated reverse/forward replacement; finish other internal release selections |
 | Map source catalog | Map owns typed addresses, collection-bound cursors and checked public summaries. Exact reads, pages and completion select the tenant in SQL before limits; selected documents must agree with indexed metadata. Native isolation, continuation, redaction and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer walks the page envelope and the unbounded Store list is removed | Qualify source-ID and retained-document preflight, installed page traversal and the coordinated server/client upgrade with rollback |
 | Map mobility catalogs | Map owns checked profile versions, exact and collection addresses, composite cursors and complete-profile pages. SQL selects tenant, parent, ID and numeric version before limits. Native isolation, ordering, completion and corruption cases, isolated contract consumption and strict Clippy pass; Map Explorer traverses pages and the unbounded Store read is removed | Qualify retained-reference preflight, installed traversal and coordinated replacement with rollback; UAV grants/handoff and the flight harness now consume Map-owned address types |
-| UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify command-lease acquisition/admission interleavings, retained-data preflight, installed grant/mission behavior and coordinated replacement with rollback; isolate UAV's own contract feature |
+| UAV Map admission | Map-owned profile URIs and handoffs replace copied DTOs and manual parsing. SQL applies profile/advisory grants before selection and rechecks them during execution admission. Selected plans validate indexed metadata and physical identity; focused native policy, corruption and revocation checks pass | Qualify adapter/Task recovery, retained-data preflight, installed grant/mission behavior and coordinated replacement with rollback; isolate UAV's own contract feature |
+| UAV execution exclusion | Typed drafts and guards bind caller and mission identity. Admission writes the vehicle lease and plan in one transaction; settlement checks the admitting token and releases its lease atomically. Native RocksDB contention across principals, expired execution fencing, stale guards, monotonic revisions, rollback and index selection pass | Qualify simulator/Task recovery and installed behavior; drain all replicas/workers for upgrade or rollback, preflight retained correlation and preserve the current Store catalog in rollback builds |
 | Media usage and prediction reads | Media owns current-owner and linked-record SQL selection before limits, typed 100-entry catalogs, static discovery and query-backed subscriptions. Billing selects unsettled jobs in SQL with Task/tenant/provider correlation. Native database and isolated contract checks pass; the prediction summary schema is preserved | Execute the coordinated catalog upgrade, retained-data preflight and installed subscription/rollback acceptance |
 | Media generation result | The isolated contract owns checked v1 generation results, typed result addresses, output attribution and explicit retained-profile decoding. New completions and retained Task projections use one canonical result handoff. SQL selects successful linked Tasks under current owner policy; stored results are unchanged. Native reverse/forward replacement, gateway and direct MCP checks pass; the CLI resolves native identity through the result resource | Qualify the coordinated producer/client installation transition and rollback against reader floor `430b1ddd`; retain the v0 decoder until retained-data and installation rollback retirement conditions are satisfied |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |

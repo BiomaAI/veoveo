@@ -17,38 +17,22 @@ use crate::contract::{
     VehicleControlPermission, VehicleId, VehicleMissionPlan,
 };
 
+mod execution;
+pub(super) use execution::MissionExecutionGuard;
 mod map_handoff;
 mod reads;
 use map_handoff::{RouteRequirement, validate_map_handoff};
+#[cfg(test)]
+mod lease_tests;
 #[cfg(test)]
 mod map_tests;
 pub(super) use reads::{ControlCollection, grant_collection};
 
 const PLAN_TTL: Duration = Duration::minutes(15);
-const COMMAND_LEASE_TTL: Duration = Duration::hours(1);
 
 #[derive(Clone)]
 pub(super) struct VehicleControlAuthority {
     store: PlatformStore,
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct MissionExecutionGuard {
-    plan_record_id: RecordId,
-    plan_id: MissionPlanId,
-    lease: CommandLease,
-}
-
-impl MissionExecutionGuard {
-    pub(super) fn plan_id(&self) -> &MissionPlanId {
-        &self.plan_id
-    }
-}
-
-#[derive(Clone, Debug)]
-struct CommandLease {
-    record_id: RecordId,
-    lease_token: String,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -62,11 +46,11 @@ pub(super) enum ControlAuthorityError {
     )]
     NotFound,
     #[error(
-        "vehicle grant changed since you read it; read it again with `list_active_vehicle_control_grants` and retry with its current revision"
+        "vehicle control state changed; read the current grants and mission plan before retrying"
     )]
     Conflict,
     #[error(
-        "vehicle `{0}` is already flying a mission; wait for that mission to finish or cancel its Task, then retry"
+        "vehicle `{0}` has an executing or unresolved mission; inspect its mission and Task before retrying"
     )]
     VehicleBusy(String),
     #[error(transparent)]
@@ -160,39 +144,6 @@ struct PlanContent {
     state: String,
     canonical_json: String,
     expires_at: DateTime<Utc>,
-    revision: i64,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct LeaseRecord {
-    id: RecordId,
-    tenant: RecordId,
-    work_context: RecordId,
-    session_id: String,
-    vehicle_id: String,
-    principal_key: String,
-    mission_id: String,
-    lease_token: String,
-    expires_at: DateTime<Utc>,
-    released_at: Option<DateTime<Utc>>,
-    revision: i64,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct LeaseContent {
-    tenant: RecordId,
-    work_context: RecordId,
-    session_id: String,
-    vehicle_id: String,
-    principal_key: String,
-    mission_id: String,
-    lease_token: String,
-    expires_at: DateTime<Utc>,
-    released_at: Option<DateTime<Utc>>,
     revision: i64,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -340,218 +291,6 @@ impl VehicleControlAuthority {
             .await?
             .check()?;
         Ok(plan)
-    }
-
-    pub(super) async fn begin_execution(
-        &self,
-        identity: &GatewayInternalIdentity,
-        plan_id: &MissionPlanId,
-        expected_revision: u64,
-    ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
-        let record_id = scoped_record_id("uav_vehicle_mission_plan", identity, plan_id.as_str());
-        let record = self.plan_record(&record_id).await?;
-        let (tenant, context) = context_records(identity)?;
-        if record.tenant != tenant
-            || record.work_context != context
-            || record.principal_key != identity.actor.id.as_str()
-            || record.state != "prepared"
-            || record.revision != checked_i64(expected_revision)?
-            || record.expires_at <= Utc::now()
-        {
-            return Err(ControlAuthorityError::Conflict);
-        }
-        let plan = visible_plan_view(&record, identity)?;
-        if &plan.plan_id != plan_id {
-            return Err(ControlAuthorityError::Conflict);
-        }
-        self.require_route_permission(
-            identity,
-            &plan.session_id,
-            &plan.vehicle_id,
-            VehicleControlPermission::Execute,
-            &plan.map_route,
-        )
-        .await?;
-        let lease = self.acquire_lease(identity, &plan).await?;
-        self.admit_execution(identity, record, plan, lease).await
-    }
-
-    async fn admit_execution(
-        &self,
-        identity: &GatewayInternalIdentity,
-        record: PlanRecord,
-        mut plan: VehicleMissionPlan,
-        lease: CommandLease,
-    ) -> Result<(VehicleMissionPlan, MissionExecutionGuard)> {
-        let (tenant, context) = context_records(identity)?;
-        let now = Utc::now();
-        let route = RouteRequirement::new(&plan.map_route)?;
-        let profile = route.profile.as_str().to_owned();
-        let advisory = route.advisory;
-        plan.state = MissionPlanLifecycle::Executing;
-        plan.revision += 1;
-        plan.updated_at = now;
-        let permitted = reads::PERMITTED;
-        let mut response = self
-            .store
-            .client()
-            .query(format!("UPDATE ONLY $record SET state = 'executing', canonical_json = $canonical, updated_at = $now, revision += 1
-                WHERE tenant = $tenant AND work_context = $work_context AND principal_key = $principal
-                AND state = 'prepared' AND revision = $revision AND expires_at > $now AND canonical_json = $previous
-                AND array::len((SELECT VALUE id FROM uav_vehicle_control_grant WHERE {permitted} LIMIT 1)) = 1
-                RETURN AFTER;"))
-            .bind(("record", record.id.clone()))
-            .bind(("canonical", serde_json::to_string(&plan)?))
-            .bind(("previous", record.canonical_json))
-            .bind(("now", now))
-            .bind(("revision", record.revision))
-            .bind(("tenant", tenant))
-            .bind(("work_context", context))
-            .bind(("principal", identity.actor.id.to_string()))
-            .bind(("simulation_session", plan.session_id.to_string()))
-            .bind(("vehicle", plan.vehicle_id.to_string()))
-            .bind(("permissions", permission_strings(&BTreeSet::from([VehicleControlPermission::Execute]))))
-            .bind(("profile", profile))
-            .bind(("advisory", advisory))
-            .await?
-            .check()?;
-        let updated: Option<PlanRecord> = response.take(0)?;
-        if updated.is_none() {
-            self.release_lease(&lease).await?;
-            return Err(ControlAuthorityError::Conflict);
-        }
-        let guard = MissionExecutionGuard {
-            plan_record_id: record.id,
-            plan_id: plan.plan_id.clone(),
-            lease,
-        };
-        Ok((plan, guard))
-    }
-
-    pub(super) async fn finish_execution(
-        &self,
-        guard: &MissionExecutionGuard,
-        succeeded: bool,
-    ) -> Result<()> {
-        let record = self.plan_record(&guard.plan_record_id).await?;
-        let mut plan = plan_view(&record)?;
-        plan.state = if succeeded {
-            MissionPlanLifecycle::Completed
-        } else {
-            MissionPlanLifecycle::Failed
-        };
-        plan.revision =
-            u64::try_from(record.revision).map_err(|_| ControlAuthorityError::Conflict)? + 1;
-        plan.updated_at = Utc::now();
-        self.store
-            .client()
-            .query("UPDATE ONLY $record SET state = $state, canonical_json = $canonical, updated_at = $now, revision += 1 WHERE state = 'executing' AND revision = $revision RETURN NONE;")
-            .bind(("record", guard.plan_record_id.clone()))
-            .bind(("state", if succeeded { "completed" } else { "failed" }))
-            .bind(("canonical", serde_json::to_string(&plan)?))
-            .bind(("now", plan.updated_at))
-            .bind(("revision", record.revision))
-            .await?
-            .check()?;
-        self.release_lease(&guard.lease).await
-    }
-
-    async fn acquire_lease(
-        &self,
-        identity: &GatewayInternalIdentity,
-        plan: &VehicleMissionPlan,
-    ) -> Result<CommandLease> {
-        let (tenant, work_context) = context_records(identity)?;
-        let record_id = vehicle_lease_record_id(identity, &plan.session_id, &plan.vehicle_id);
-        let now = Utc::now();
-        let lease_token = Uuid::now_v7().to_string();
-        let content = LeaseContent {
-            tenant,
-            work_context,
-            session_id: plan.session_id.to_string(),
-            vehicle_id: plan.vehicle_id.to_string(),
-            principal_key: identity.actor.id.to_string(),
-            mission_id: plan.mission_id.to_string(),
-            lease_token: lease_token.clone(),
-            expires_at: now + COMMAND_LEASE_TTL,
-            released_at: None,
-            revision: 0,
-            created_at: now,
-            updated_at: now,
-        };
-        let mut existing_response = self
-            .store
-            .client()
-            .query("SELECT * FROM ONLY $record;")
-            .bind(("record", record_id.clone()))
-            .await?
-            .check()?;
-        let existing: Option<LeaseRecord> = existing_response.take(0)?;
-        if let Some(existing) = existing.as_ref()
-            && existing.released_at.is_none()
-            && existing.expires_at > now
-            && self.lease_has_executing_plan(existing).await?
-        {
-            return Err(ControlAuthorityError::VehicleBusy(
-                plan.vehicle_id.to_string(),
-            ));
-        }
-        let expected_revision = existing.as_ref().map_or(-1, |lease| lease.revision);
-        let query = if existing.is_some() {
-            "UPDATE ONLY $record CONTENT $content WHERE revision = $revision RETURN AFTER;"
-        } else {
-            "CREATE ONLY $record CONTENT $content RETURN AFTER;"
-        };
-        let mut request = self
-            .store
-            .client()
-            .query(query)
-            .bind(("record", record_id.clone()))
-            .bind(("content", content));
-        if expected_revision >= 0 {
-            request = request.bind(("revision", expected_revision));
-        }
-        let mut response = request.await?.check()?;
-        let acquired: Option<LeaseRecord> = response.take(0)?;
-        if acquired.is_none() {
-            return Err(ControlAuthorityError::VehicleBusy(
-                plan.vehicle_id.to_string(),
-            ));
-        }
-        Ok(CommandLease {
-            record_id,
-            lease_token,
-        })
-    }
-
-    async fn release_lease(&self, lease: &CommandLease) -> Result<()> {
-        let now = Utc::now();
-        self.store
-            .client()
-            .query("UPDATE ONLY $record SET released_at = $now, updated_at = $now, revision += 1 WHERE lease_token = $lease_token AND released_at = NONE RETURN NONE;")
-            .bind(("record", lease.record_id.clone()))
-            .bind(("lease_token", lease.lease_token.clone()))
-            .bind(("now", now))
-            .await?
-            .check()?;
-        Ok(())
-    }
-
-    async fn lease_has_executing_plan(&self, lease: &LeaseRecord) -> Result<bool> {
-        let mut response = self
-            .store
-            .client()
-            .query("SELECT VALUE count() FROM uav_vehicle_mission_plan WHERE tenant = $tenant AND work_context = $work_context AND session_id = $session_id AND vehicle_id = $vehicle_id AND principal_key = $principal_key AND mission_id = $mission_id AND state = 'executing' GROUP ALL;")
-            .bind(("tenant", lease.tenant.clone()))
-            .bind(("work_context", lease.work_context.clone()))
-            .bind(("session_id", lease.session_id.clone()))
-            .bind(("vehicle_id", lease.vehicle_id.clone()))
-            .bind(("principal_key", lease.principal_key.clone()))
-            .bind(("mission_id", lease.mission_id.clone()))
-            .await?
-            .check()?;
-        let counts: Vec<i64> = response.take(0)?;
-        Ok(counts.into_iter().next().unwrap_or_default() > 0)
     }
 
     async fn grant_record(&self, record_id: &RecordId) -> Result<GrantRecord> {

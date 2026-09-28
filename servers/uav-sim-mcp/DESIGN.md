@@ -17,7 +17,7 @@ for visualization.
 | Standard or protocol | Supported profile |
 |---|---|
 | Model Context Protocol | Version `2026-07-28` over the repository stateless Streamable HTTP profile, including Discover, tools, resources, templates, `subscriptions/listen`, official Tasks, and one MCP App. |
-| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
+| SurrealDB / SurrealQL `3.2.4` | Tenant and Work Context grant/plan queries, transactional command-lease and plan transitions, caller-owned Task pages, SQL completion, and shared LIVE/changefeed invalidation. |
 | JSON Schema | Draft 2020-12 strict request, result, camera, tiled-product, region, and health schemas. |
 | `veoveo.ai/live-view/v4` | Repository-owned provider-neutral profile for authoritative cameras, typed regions in shared encoded products, viewer authorizations, WebSocket H.264 endpoints, and redacted state. |
 | `veoveo.ai/uav-runtime-event/v2` | Private authenticated HTTP/1.1 NDJSON stream carrying an `adapter_ready` edge before world admission and a final `ready` edge after authoritative visual admission. It is an internal adapter event, not a public MCP resource or a simulation control protocol. |
@@ -240,30 +240,46 @@ UAV rejects stale, invalidated and unavailable route statuses explicitly.
 
 Grant selection applies tenant, Work Context, principal, session, vehicle, permission,
 validity, profile and advisory approval in SQL before selecting one grant. Execution
-repeats the profile-aware check. Its admission UPDATE also requires a current matching
-grant in the same statement, an unexpired prepared plan, and unchanged revision and
-JSON. A rejected update releases the acquired command lease. An uncertain database
-outcome keeps the lease fenced for reconciliation. SQL-selected plan documents must
-agree with indexed identity, ownership, profile, route digest, lifecycle and timestamps
+repeats the profile-aware check. Its transaction also requires a current matching grant,
+an unexpired prepared plan, and an unchanged retained record. It writes the vehicle's
+lease and moves the plan to executing in that transaction. Rejection rolls back both
+writes. An uncertain database outcome keeps the retained state fenced for reconciliation.
+SQL-selected plan documents must agree with indexed identity, ownership, profile, route digest, lifecycle and timestamps
 before they are returned or used for execution. These checks reject corrupt selected
 records; they do not remove records from a page after SQL selection.
 
-Execution acquires one durable exclusive lease for the Work Context, session, and
-vehicle. A concurrent mission for that vehicle fails closed. Completion, failure,
-cancellation, task-start failure, and task-lease loss all finalize the mission plan and
-release the exact command lease. Physical task interruption remains indeterminate and
-is never replayed. Admission may reclaim an unreleased lease only when no matching
-mission plan remains in the executing state. This repairs terminal finalization residue
-without weakening exclusion for active work.
+Execution serializes contenders through a write to the same Work Context/session/vehicle
+lease record. SurrealDB 3.2.4 transaction conflicts reject concurrent decisions from the
+same retained state. Admission rejects any executing plan for that vehicle, across
+principals and mission IDs. A composite tenant/context/session/vehicle/state index serves
+that lookup. Lease expiry does not establish that simulator work stopped and never permits
+replacement while such a plan exists. Lease revisions increase across
+replacement and release; exhausted counters reject mutation.
+
+Finalization checks the admitting token and the retained plan's identity and metadata.
+It settles the plan and releases that lease in one transaction. An obsolete token cannot
+settle another execution or release its lease. Repeating the same terminal outcome with
+the same retained token is a no-op. Admission can replace an orphaned or terminal lease
+only when no executing plan exists for the vehicle. The server preserves unknown database
+outcomes for reconciliation and never replays physical work from an uncertain result.
 
 This profile requires a coordinated Map/UAV/client upgrade with UAV command admission
-drained and executing missions settled. Valid handoff and grant JSON keep their wire
-shape. Preflight retained grants and plans for canonical Map mobility-profile IDs,
+drained and executing missions settled. Drain every UAV replica and worker before
+replacing the prior two-step lease implementation; overlapping versions cannot establish
+vehicle exclusion. Retained uncertain executions must be reconciled before the drain
+finishes. Lease and plan formats stay unchanged. Preflight ownership agreement, active
+plan/lease correlation and available revision capacity; preserve malformed or unresolved
+records for repair. Valid handoff and grant JSON keep their wire shape. Preflight retained
+grants and plans for canonical Map mobility-profile IDs,
 positive versions within the signed integer range, valid Map validation IDs, declared
 position fields, and document/index agreement. Preserve rejected records for operator
 repair; readers do not rewrite them. Back up retained records before any repair.
 Rollback restores the prior Map/UAV/client versions and any repaired records from that
-backup. The operator must accept the prior implementation's weaker profile admission.
+backup, using the same drain. A rollback build must retain the additive mission index
+and current Store migration catalog. Older catalogs reject the advanced database;
+restoring an older installation snapshot instead requires draining all database writers
+and accepting the snapshot's recovery point. The operator must accept the prior
+implementation's weaker profile admission and command-lease exclusion.
 Installed grant reads, mission admission and reverse/forward replacement require
 qualification before this transition is accepted.
 

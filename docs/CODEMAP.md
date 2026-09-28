@@ -990,10 +990,13 @@ Simulation live-view ownership:
 | `mcp/contract/src/live_view.rs` | shared provider-neutral logical-camera, camera-product, viewer-authorization, GPU-capacity, health, and WebSocket H.264 contract |
 | `servers/uav-sim-mcp/src/contract.rs` | UAV session, control-grant and mission-plan schemas consuming Map and Frames contracts; shared live-view types |
 | `servers/uav-sim-mcp/src/server/state.rs` | composed simulator, control-authority, task, logical-camera, and product services |
-| `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, checked retained plans, profile-aware execution admission and exclusive command-lease lifecycle |
+| `servers/uav-sim-mcp/src/server/control_authority.rs` | Work Context-scoped principal-to-vehicle grants, retained-plan validation and shared persistence helpers |
+| `servers/uav-sim-mcp/src/server/control_authority/execution.rs`, `execution/` | typed execution drafts and guards; transactional lease/plan admission and finalization with current grants, per-vehicle write exclusion and checked revisions |
+| `platform/store/migrations/0097_uav_executing_vehicle.surql` | additive tenant/context/session/vehicle/state index for UAV execution exclusion; admission policy stays in UAV |
+| `servers/uav-sim-mcp/src/server/control_authority/lease_tests.rs` | native RocksDB contention across principals, obsolete-token rejection, expiry fencing, revision exhaustion and injected rollback failures |
 | `servers/uav-sim-mcp/src/server/control_authority/map_handoff.rs` | UAV route-status, geometry, freshness and motion policy over Map-owned handoff types |
 | `servers/uav-sim-mcp/src/server/control_authority/reads.rs` | SQL grant/plan visibility and paging; shared profile/advisory grant predicates for selection and execution admission |
-| `servers/uav-sim-mcp/src/server/control_authority/map_tests.rs` | native profile-selection, revocation, lease cleanup and retained-plan qualification without simulator dispatch |
+| `servers/uav-sim-mcp/src/server/control_authority/map_tests.rs` | native profile-selection, admission revocation/rollback and retained-plan qualification without simulator dispatch |
 | `servers/uav-sim-mcp/src/server/live_view.rs` | actor/browser stream authorizations, stable shared-product selection, expiry, closure, and connection telemetry |
 | `servers/uav-sim-mcp/src/server/live_stream.rs` | authenticated browser WebSocket sessions that forward camera-owned Annex B H.264 products |
 | `servers/uav-sim-mcp/src/server/live_view_audit.rs` | append-only live-view audit writes without runtime coupling |

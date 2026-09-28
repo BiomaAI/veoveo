@@ -149,7 +149,7 @@ async fn native_route_grants_filter_profiles_and_advisory_before_limit() {
 }
 
 #[tokio::test]
-async fn native_execution_rechecks_grant_after_command_lease_acquisition() {
+async fn native_execution_rechecks_grant_after_preflight() {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let db = TestDb::new().await;
     tokio::time::timeout(Timeout::from_secs(60), async {
@@ -164,19 +164,10 @@ async fn native_execution_rechecks_grant_after_command_lease_acquisition() {
             .prepare_plan(&pilot, mission_request("revoked-between-reads"))
             .await
             .unwrap();
-        let record_id = scoped_record_id("uav_vehicle_mission_plan", &pilot, plan.plan_id.as_str());
-        let record = authority.plan_record(&record_id).await.unwrap();
-        authority
-            .require_route_permission(
-                &pilot,
-                &plan.session_id,
-                &plan.vehicle_id,
-                VehicleControlPermission::Execute,
-                &plan.map_route,
-            )
+        let draft = authority
+            .prepare_execution(&pilot, &plan.plan_id, 0)
             .await
             .unwrap();
-        let lease = authority.acquire_lease(&pilot, &plan).await.unwrap();
         writer
             .revoke(
                 &pilot,
@@ -188,10 +179,8 @@ async fn native_execution_rechecks_grant_after_command_lease_acquisition() {
             .await
             .unwrap();
         assert!(matches!(
-            authority
-                .admit_execution(&pilot, record, plan.clone(), lease.clone())
-                .await,
-            Err(ControlAuthorityError::Conflict)
+            authority.admit_execution(draft).await,
+            Err(ControlAuthorityError::Forbidden)
         ));
         let retained = authority
             .visible_plan(&pilot, false, &plan.plan_id)
@@ -199,8 +188,22 @@ async fn native_execution_rechecks_grant_after_command_lease_acquisition() {
             .unwrap()
             .unwrap();
         assert_eq!(retained, plan);
-        let released: LeaseRecord = select_only(&db.a, lease.record_id, "lease").await.unwrap();
-        assert!(released.released_at.is_some());
+        let mut response =
+            db.a.client()
+                .query("SELECT VALUE id FROM $record;")
+                .bind((
+                    "record",
+                    vehicle_lease_record_id(&pilot, &plan.session_id, &plan.vehicle_id),
+                ))
+                .await
+                .unwrap()
+                .check()
+                .unwrap();
+        let leases: Vec<RecordId> = response.take(0).unwrap();
+        assert!(
+            leases.is_empty(),
+            "rejected admission must roll back lease creation"
+        );
     })
     .await
     .expect("execution admission exceeded 60 seconds");

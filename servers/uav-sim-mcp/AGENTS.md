@@ -35,7 +35,10 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 - A gateway scope, agent manifest, message target, or requested vehicle ID never
   grants vehicle authority. Every vehicle mutation requires a current UAV-owned
   principal grant; mission execution additionally requires the exact admitted
-  plan revision and an exclusive vehicle command lease.
+  plan revision and an exclusive vehicle command lease. Acquire that lease and admit
+  the plan in one transaction; finalize the plan and release its admitting token together.
+  Lease expiry cannot displace an executing plan. Preserve uncertain outcomes for
+  reconciliation, and reject exhausted revisions without modifying retained records.
 - Every session starts `unconfigured`. `configure_world` binds it exactly once
   to an immutable Frames world revision and a static simulation frame from that
   revision. The adapter derives Cesium and Newton fleet georeferencing from that
