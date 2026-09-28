@@ -19,7 +19,6 @@ pub mod catalog;
 pub mod deployment;
 pub mod docs;
 pub mod gateway;
-pub mod generation;
 pub mod host;
 pub mod internal_auth;
 pub mod live_view;
@@ -121,7 +120,6 @@ pub use gateway::{
     UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
     console_bootstrap_schema,
 };
-pub use generation::{GenerationPredictionSummary, GenerationRunOutput};
 pub use host::{
     HostAuthority, host_authority_is_allowed, parse_allowed_host_authority,
     parse_request_host_authority, public_allowed_hosts,

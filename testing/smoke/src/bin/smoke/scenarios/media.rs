@@ -1,4 +1,8 @@
 use super::*;
+use veoveo_media_mcp::contract::{
+    GenerationRunOutput, MediaPredictionIndexUri, MediaPredictionPage, MediaPredictionUri,
+    MediaTaskUsageUri, MediaUsageIndexUri, MediaUsagePage,
+};
 
 pub(crate) async fn media_mcp_auth(
     conformance: &Path,
@@ -257,10 +261,11 @@ pub(crate) async fn media_task_run(
     )?;
     contains(&complete_output, "fake/image")?;
 
-    let run_output = run_direct_mcp(
+    let run_result = run_raw(
         conformance,
-        &mcp_url,
         [
+            "--url".into(),
+            mcp_url.clone().into(),
             "run".into(),
             "fake/image".into(),
             "--input".into(),
@@ -273,17 +278,29 @@ pub(crate) async fn media_task_run(
             INTERNAL_SIGNING_KEY_DER_B64.into(),
         )],
     )?;
+    let run_output = String::from_utf8(run_result.stdout)?;
+    let notifications = String::from_utf8(run_result.stderr)?;
+    if !run_result.status.success() {
+        bail!(
+            "Media run failed: {}\nstdout:\n{run_output}\nstderr:\n{notifications}",
+            run_result.status
+        );
+    }
     let task_id = task_id_from_output(&run_output)?;
     for expected in [
         "poll: Working — submitted; prediction".to_string(),
-        "  [resource updated] media://prediction/".to_string(),
         "poll: Completed — completed;".to_string(),
         "subscribed to media://prediction/".to_string(),
-        "unsubscribed from media://prediction/".to_string(),
+        "subscription cancelled".to_string(),
     ] {
         contains(&run_output, &expected)?;
     }
-    let structured: SmokeGenerationRunOutput = structured_from_output(&run_output)?;
+    let structured: GenerationRunOutput = structured_from_output(&run_output)?;
+    let prediction_uri = MediaPredictionUri::new(structured.prediction.id.clone());
+    contains(
+        &notifications,
+        &format!("[resource updated] {prediction_uri}"),
+    )?;
     if structured.artifacts.is_empty() {
         bail!("run output had no artifacts: {run_output}");
     }
@@ -292,8 +309,13 @@ pub(crate) async fn media_task_run(
     }) {
         bail!("not all artifact metadata rows used task id `{task_id}`: {structured:?}");
     }
+    let media_scheme = veoveo_types::ResourceScheme::new("media")?;
     if structured.artifacts.iter().any(|artifact| {
-        artifact.artifact_uri != format!("media://artifact/{}", artifact.artifact_id)
+        artifact.artifact_uri
+            != veoveo_artifact_contract::ArtifactUri::presented(
+                &media_scheme,
+                artifact.artifact_id(),
+            )
     }) {
         bail!("not all artifact metadata rows used canonical media artifact URIs: {structured:?}");
     }
@@ -328,7 +350,7 @@ pub(crate) async fn media_task_run(
             "--internal-work-context".into(),
             "intruder-context".into(),
             "artifact".into(),
-            structured.artifacts[0].artifact_id.clone().into(),
+            structured.artifacts[0].artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir.join("denied-artifacts").as_os_str().to_os_string(),
         ],
@@ -347,7 +369,7 @@ pub(crate) async fn media_task_run(
             "--internal-tenant".into(),
             "other-tenant".into(),
             "artifact".into(),
-            structured.artifacts[0].artifact_id.clone().into(),
+            structured.artifacts[0].artifact_id().to_string().into(),
             "--output-dir".into(),
             tmpdir
                 .join("denied-cross-tenant")
@@ -374,10 +396,8 @@ pub(crate) async fn media_task_run(
             INTERNAL_SIGNING_KEY_DER_B64.into(),
         )],
     )?;
-    contains(
-        &task_review_output,
-        &format!("media://usage/task/{task_id}"),
-    )?;
+    let usage_uri = MediaTaskUsageUri::new(task_id.parse()?)?;
+    contains(&task_review_output, usage_uri.as_str())?;
 
     let post_run_resources = run_direct_mcp(
         conformance,
@@ -388,15 +408,69 @@ pub(crate) async fn media_task_run(
             INTERNAL_SIGNING_KEY_DER_B64.into(),
         )],
     )?;
-    contains(
-        &post_run_resources,
-        &format!("media://usage/task/{task_id}"),
-    )?;
+    not_contains(&post_run_resources, usage_uri.as_str())?;
+    let read_index = |uri: &str| {
+        run_direct_mcp(
+            conformance,
+            &mcp_url,
+            ["resource".into(), uri.into()],
+            [(
+                "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                INTERNAL_SIGNING_KEY_DER_B64.into(),
+            )],
+        )
+    };
+    let usage_catalog: MediaUsagePage =
+        serde_json::from_str(&read_index(MediaUsageIndexUri::ROOT)?)?;
+    if !usage_catalog
+        .items()
+        .iter()
+        .any(|entry| entry.usage_uri() == &usage_uri)
+        || usage_catalog.next_cursor().is_some()
+    {
+        bail!("Media usage page did not contain the completed task: {usage_catalog:?}");
+    }
+    let predictions: MediaPredictionPage =
+        serde_json::from_str(&read_index(MediaPredictionIndexUri::ROOT)?)?;
+    if predictions.items().is_empty() || predictions.next_cursor().is_some() {
+        bail!("Media predictions page did not contain submitted jobs: {predictions:?}");
+    }
+    for identity in [
+        vec!["--internal-principal-subject", "intruder"],
+        vec!["--internal-tenant", "other-tenant"],
+        vec!["--internal-profile", "observer"],
+    ] {
+        for uri in [MediaUsageIndexUri::ROOT, MediaPredictionIndexUri::ROOT] {
+            let mut arguments = identity.iter().map(OsString::from).collect::<Vec<_>>();
+            arguments.extend(["resource".into(), uri.into()]);
+            let output = run_direct_mcp(
+                conformance,
+                &mcp_url,
+                arguments,
+                [(
+                    "VEOVEO_INTERNAL_SIGNING_KEY_DER_B64",
+                    INTERNAL_SIGNING_KEY_DER_B64.into(),
+                )],
+            )?;
+            let empty = if uri == MediaUsageIndexUri::ROOT {
+                serde_json::from_str::<MediaUsagePage>(&output)?
+                    .items()
+                    .is_empty()
+            } else {
+                serde_json::from_str::<MediaPredictionPage>(&output)?
+                    .items()
+                    .is_empty()
+            };
+            if !empty {
+                bail!("Media catalog exposed another caller's records");
+            }
+        }
+    }
     // Artifacts on the shared plane are addressable by URI but deliberately not
     // enumerated in the resource listing — listing them would be a cross-tenant
     // existence oracle. The artifact stays readable by its URI (asserted above);
     // it must not appear in the enumerable resource set.
-    not_contains(&post_run_resources, &artifact_uri)?;
+    not_contains(&post_run_resources, artifact_uri.as_str())?;
 
     media_child.stop();
     provider.stop();

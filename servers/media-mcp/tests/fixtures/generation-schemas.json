@@ -1,0 +1,438 @@
+{
+  "output": {
+    "$defs": {
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "ArtifactMetadata": {
+        "description": "Canonical metadata for an artifact managed by a server-owned store.\n\n`artifact_uri` is the protocol identity (`{scheme}://artifact/{artifact_id}`).\n`download_url` is optional bulk-transfer plumbing for large artifacts and\nmust not become a discovery API.",
+        "properties": {
+          "artifact_id": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "artifact_uri": {
+            "$ref": "#/$defs/ArtifactUri"
+          },
+          "byte_len": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "compliance": {
+            "$ref": "#/$defs/ComplianceMetadata",
+            "default": {}
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "download_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filename": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "metadata": {
+            "default": null
+          },
+          "mime_type": {
+            "default": null,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "release_state": {
+            "$ref": "#/$defs/ArtifactReleaseState",
+            "default": "private"
+          }
+        },
+        "required": [
+          "artifact_id",
+          "byte_len",
+          "artifact_uri",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ArtifactProvenance": {
+        "description": "Immutable explanation of how an artifact came into being.",
+        "oneOf": [
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "direct",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "invocation_mode": {
+                "const": "delegated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "initiator",
+              "delegation_id",
+              "policy_revision"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "initiator": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NoIdentity"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invocation_mode": {
+                "const": "automated",
+                "type": "string"
+              },
+              "policy_revision": {
+                "$ref": "#/$defs/PolicyVersion"
+              },
+              "producer": {
+                "$ref": "#/$defs/PrincipalId"
+              }
+            },
+            "required": [
+              "invocation_mode",
+              "producer",
+              "policy_revision"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "ArtifactReleaseState": {
+        "enum": [
+          "private",
+          "releasable",
+          "released"
+        ],
+        "type": "string"
+      },
+      "ArtifactUri": {
+        "description": "Neutral or server-presented Artifact occurrence URI.",
+        "type": "string"
+      },
+      "ComplianceMetadata": {
+        "description": "Compliance and tenancy labels that travel with server-owned artifacts.\n\nObject metadata is not the only authorization source; servers should keep\nowner rows for task/artifact access checks. These typed fields keep exported\nartifact metadata aligned with the gateway principal and policy model.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "owner": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/AccessSubject"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ArtifactProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "retention_expires_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tenant_id": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/TenantId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "work_context": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkContextId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "GenerationPredictionSummary": {
+        "description": "Public, provider-neutral summary of the provider job behind a completed task.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "execution_ms": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "output_count": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "timings": true
+        },
+        "required": [
+          "id",
+          "model_id",
+          "status",
+          "output_count"
+        ],
+        "type": "object"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "NoIdentity": false,
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Structured content returned by generation-oriented `run` tools.",
+    "properties": {
+      "artifacts": {
+        "items": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        },
+        "type": "array"
+      },
+      "prediction": {
+        "$ref": "#/$defs/GenerationPredictionSummary"
+      }
+    },
+    "required": [
+      "prediction",
+      "artifacts"
+    ],
+    "title": "GenerationRunOutput",
+    "type": "object"
+  },
+  "summary": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Public, provider-neutral summary of the provider job behind a completed task.",
+    "properties": {
+      "created_at": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "error": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "execution_ms": {
+        "format": "double",
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "id": {
+        "type": "string"
+      },
+      "model_id": {
+        "type": "string"
+      },
+      "output_count": {
+        "format": "uint",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "status": {
+        "type": "string"
+      },
+      "timings": true
+    },
+    "required": [
+      "id",
+      "model_id",
+      "status",
+      "output_count"
+    ],
+    "title": "GenerationPredictionSummary",
+    "type": "object"
+  }
+}

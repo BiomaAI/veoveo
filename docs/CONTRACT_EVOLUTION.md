@@ -345,6 +345,10 @@ are optional, and binaries require the runtime features. Tests, CLI tools, and
 cross-server consumers use the owning library. A separate contract crate needs a
 concrete dependency or independent release requirement.
 
+Media owns its prediction summaries and generation result DTOs. Protocol utilities
+consume Media's contract feature directly; extracting those DTOs preserves their
+published schema and gives MCP core no dependency on Media.
+
 The domain runtime owns SQL that implements its authorization and persistence rules.
 It uses Store's connection, record primitives and transaction facilities; the shared
 schema catalog stays in Store. Domain driver records and queries belong behind the

@@ -4,12 +4,12 @@ use rmcp::model::CallToolResult;
 use secrecy::SecretString;
 use serde_json::Value;
 use tokio::sync::RwLock;
-use veoveo_mcp_contract::{ResourceListObservers, ServerPublicEndpoint, SubscriptionHub};
+use veoveo_mcp_contract::{ServerPublicEndpoint, SubscriptionHub};
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
+    contract::MediaPredictionUri,
     provider::{ModelEntry, Prediction, ProviderClient},
     state::{MediaProviderEvent, MediaState, WebhookReceipt},
-    uris,
 };
 use veoveo_platform_store::TaskStatus;
 use veoveo_task_runtime::{TaskFailure, TaskRuntime};
@@ -39,7 +39,6 @@ pub(super) struct AppState {
     pub(super) artifacts: ArtifactRepository,
     pub(super) retention: MediaRetentionPolicy,
     pub(super) subscribers: SubscriptionHub,
-    pub(super) resource_lists: ResourceListObservers,
 }
 
 impl std::fmt::Debug for AppState {
@@ -104,7 +103,7 @@ impl AppState {
             .receive_webhook(&self.tasks, task_id, webhook_id, &prediction)
             .await?;
         self.subscribers
-            .notify_resource_updated(uris::prediction_uri(&prediction.id))
+            .notify_resource_updated(MediaPredictionUri::new(prediction.id.clone()).to_string())
             .await;
         if receipt.event.processed_at.is_none()
             && let Err(error) = self.process_event(&receipt.event).await
@@ -114,7 +113,7 @@ impl AppState {
                 .await?;
             tracing::warn!(
                 task_id,
-                provider_job_id = prediction.id,
+                provider_job_id = %prediction.id,
                 "webhook is durable but completion processing will retry: {error}"
             );
         }
@@ -137,13 +136,19 @@ impl AppState {
                 .acknowledge_cancelled_event(&self.tasks, event)
                 .await?;
             self.subscribers
-                .notify_resource_updated(uris::prediction_uri(&event.prediction.id))
+                .notify_resource_updated(
+                    MediaPredictionUri::new(event.prediction.id.clone()).to_string(),
+                )
                 .await;
             // Cancellation is a terminal local decision, not proof that the
             // provider stopped work or waived charges. The signed webhook may
             // reconcile billing, but it can never produce a task result or
             // redeem the task's artifact capability.
-            spawn_actual_usage_reconciliation(self.clone(), task_id, event.prediction.clone());
+            spawn_actual_usage_reconciliation(
+                self.clone(),
+                event.job.task_id,
+                event.prediction.clone(),
+            );
             return Ok(());
         }
 
@@ -163,9 +168,15 @@ impl AppState {
                 )
                 .await?;
             self.subscribers
-                .notify_resource_updated(uris::prediction_uri(&event.prediction.id))
+                .notify_resource_updated(
+                    MediaPredictionUri::new(event.prediction.id.clone()).to_string(),
+                )
                 .await;
-            spawn_actual_usage_reconciliation(self.clone(), task_id, event.prediction.clone());
+            spawn_actual_usage_reconciliation(
+                self.clone(),
+                event.job.task_id,
+                event.prediction.clone(),
+            );
             return Ok(());
         }
 
@@ -181,7 +192,11 @@ impl AppState {
                     snapshot.status_message.clone().unwrap_or_default(),
                 )
                 .await?;
-            spawn_actual_usage_reconciliation(self.clone(), task_id, event.prediction.clone());
+            spawn_actual_usage_reconciliation(
+                self.clone(),
+                event.job.task_id,
+                event.prediction.clone(),
+            );
             return Ok(());
         }
         let context =
@@ -199,14 +214,20 @@ impl AppState {
                 format!(
                     "completed; {} artifact(s); resource {}",
                     event.prediction.outputs.len(),
-                    uris::prediction_uri(&event.prediction.id)
+                    MediaPredictionUri::new(event.prediction.id.clone())
                 ),
             )
             .await?;
         self.subscribers
-            .notify_resource_updated(uris::prediction_uri(&event.prediction.id))
+            .notify_resource_updated(
+                MediaPredictionUri::new(event.prediction.id.clone()).to_string(),
+            )
             .await;
-        spawn_actual_usage_reconciliation(self.clone(), task_id, event.prediction.clone());
+        spawn_actual_usage_reconciliation(
+            self.clone(),
+            event.job.task_id,
+            event.prediction.clone(),
+        );
         Ok(())
     }
 }
@@ -224,7 +245,7 @@ pub(super) fn spawn_provider_event_reconciliation(state: Arc<AppState>) {
                                 .await;
                             tracing::warn!(
                                 webhook_id = event.webhook_id,
-                                provider_job_id = event.job.external_job_id,
+                                provider_job_id = %event.job.external_job_id,
                                 "durable media completion reconciliation failed: {error}"
                             );
                         }
@@ -245,17 +266,18 @@ pub(super) fn spawn_subscription_projection(
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         use futures::StreamExt;
-        use veoveo_platform_store::PlatformTable::{MediaUsage, ProviderJob};
-        let mut changes = state
-            .durable
-            .store()
-            .resource_changes(vec![ProviderJob, MediaUsage]);
+        use veoveo_platform_store::PlatformTable::{MediaUsage, ProviderJob, Task};
+        let mut changes =
+            state
+                .durable
+                .store()
+                .resource_changes(vec![ProviderJob, MediaUsage, Task]);
         loop {
             tokio::select! {
                 () = cancellation.cancelled() => break,
                 change = changes.next() => {
                     if change.is_none() { break; }
-                    state.subscribers.notify_resources_changed().await;
+                    state.subscribers.notify_resource_contents_changed().await;
                 }
             }
         }

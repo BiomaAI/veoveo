@@ -4,6 +4,8 @@ use rmcp::{
     schemars,
 };
 use serde_json::Value;
+use veoveo_media_mcp::contract::MediaTaskUsageUri;
+use veoveo_types::TaskId;
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct ModelSelectPromptArgs {
@@ -28,7 +30,8 @@ struct VideoPromptArgs {
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 struct TaskReviewPromptArgs {
-    task_id: String,
+    #[schemars(with = "String")]
+    task_id: TaskId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -179,15 +182,17 @@ impl MediaPrompt {
             }
             Self::TaskReview => {
                 let args: TaskReviewPromptArgs = parse_prompt_args(self.name(), arguments)?;
+                let usage = MediaTaskUsageUri::new(args.task_id)
+                    .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
                 Ok(prompt_text(
                     self.description(),
                     format!(
                         "Review media task {}.\n\n\
                          Read tasks/get for current status and the terminal result, \
                          inspect any media://artifact/{{artifact_id}} links, and read \
-                         media://usage/task/{} for estimate and actual billing records. Summarize \
+                         {} for estimate and actual billing records. Summarize \
                          artifact count, output types, final cost, and any missing actual usage.",
-                        args.task_id, args.task_id,
+                        args.task_id, usage,
                     ),
                 ))
             }

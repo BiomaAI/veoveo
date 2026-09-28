@@ -103,6 +103,9 @@ Each CLI command reserves standard output for its requested result. Structured r
 therefore remain parseable even when the server emits notifications while the command is
 running. Unsolicited progress, task-status, resource-update, and list-change notifications
 are operator diagnostics on standard error.
+The generation CLI drains request-scoped notifications through the SDK's subscription
+handle while waiting for the next Task read. A stream error or premature end fails the
+command; it does not submit another Task.
 
 ## Distribution
 

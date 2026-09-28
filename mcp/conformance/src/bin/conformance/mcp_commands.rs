@@ -711,7 +711,7 @@ pub(super) async fn cmd_run(
     let poll_ms = created.task.poll_interval_ms.unwrap_or(3000);
     let mut subscription = None;
     let final_task = loop {
-        tokio::time::sleep(Duration::from_millis(poll_ms)).await;
+        wait_with_resource_updates(&mut subscription, Duration::from_millis(poll_ms)).await?;
         let task = client
             .get_task(GetTaskParams::new(task_id.clone()))
             .await?
@@ -774,6 +774,34 @@ pub(super) async fn cmd_run(
         println!("subscription cancelled");
     }
     Ok(())
+}
+
+/// Request-scoped subscriptions deliver through their SDK handle, independently
+/// of the ordinary ClientHandler notification callbacks.
+async fn wait_with_resource_updates(
+    subscription: &mut Option<rmcp::service::Subscription>,
+    delay: Duration,
+) -> Result<()> {
+    let timer = tokio::time::sleep(delay);
+    tokio::pin!(timer);
+    let Some(subscription) = subscription.as_mut() else {
+        timer.await;
+        return Ok(());
+    };
+    loop {
+        tokio::select! {
+            () = &mut timer => return Ok(()),
+            notification = subscription.next() => {
+                match notification? {
+                    Some(rmcp::model::ServerNotification::ResourceUpdatedNotification(update)) => {
+                        eprintln!("  [resource updated] {}", update.params.uri);
+                    }
+                    Some(_) => bail!("prediction subscription received an unexpected notification"),
+                    None => bail!("prediction subscription ended before Task completion: {:?}", subscription.end()),
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

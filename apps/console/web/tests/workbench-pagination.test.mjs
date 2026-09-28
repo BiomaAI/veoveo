@@ -14,6 +14,14 @@ const cases = [
     other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: [{db_id: 'metrics', db_uri: 'duckdb://db/metrics', owned: true}],
     entry: index => ({task_id: taskId(index), usage_uri: `duckdb://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://usage', after: taskId(99)})).toString('base64url')},
+  {domain: 'media-usage', title: 'Studio', collection: 'media://usage', label: 'Usage ledger',
+    other: 'media://models', otherLabel: 'Model catalog', otherValue: [{model_id: 'test/image'}],
+    entry: index => ({task_id: taskId(index), usage_uri: `media://usage/task/${taskId(index)}`}),
+    cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://usage', after: taskId(99)})).toString('base64url')},
+  {domain: 'media-predictions', title: 'Studio', collection: 'media://predictions', label: 'Predictions',
+    other: 'media://models', otherLabel: 'Model catalog', otherValue: [{model_id: 'test/image'}],
+    entry: index => ({id: `prediction-${index}`, prediction_uri: `media://prediction/prediction-${index}`}),
+    cursor: Buffer.from(JSON.stringify({version: 1, collection: 'media://predictions', after: 'prediction-99'})).toString('base64url')},
 ];
 
 for (const fixture of cases) {

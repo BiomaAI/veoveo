@@ -1,10 +1,9 @@
-//! `media://` URI scheme for this server's MCP resources.
+//! Model, document and Artifact resource conventions.
+//! Typed prediction and usage addresses belong to `crate::contract`.
 //!
 //! - `media://models`                  — compact model catalog index
 //! - `media://model/{model_id}`        — full schema + pricing for one model
-//! - `media://prediction/{id}`         — live prediction state (subscribable)
 //! - `media://artifact/{artifact_id}`  — server-owned artifact metadata/content
-//! - `media://usage/task/{task_id}`    — task usage estimates/actuals
 
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::ServerResourceUris;
@@ -17,10 +16,7 @@ pub static SCHEME: std::sync::LazyLock<veoveo_types::ResourceScheme> =
 pub const MODELS_URI: &str = "media://models";
 pub const STUDIO_APP_URI: &str = "ui://media/studio.html";
 pub const MODEL_TEMPLATE: &str = "media://model/{model_id}";
-pub const PREDICTION_TEMPLATE: &str = "media://prediction/{id}";
 pub const ARTIFACT_TEMPLATE: &str = "media://artifact/{artifact_id}";
-pub const USAGE_ROOT_URI: &str = "media://usage";
-pub const USAGE_TASK_TEMPLATE: &str = "media://usage/task/{task_id}";
 
 /// Well-known surface roots (contract C18, C19). These literals must match
 /// `ServerResourceUris::new(SCHEME.clone())`; a unit test below pins the
@@ -37,16 +33,8 @@ pub fn model_uri(model_id: &str) -> String {
     media_uris().model_uri(model_id)
 }
 
-pub fn prediction_uri(id: &str) -> String {
-    media_uris().prediction_uri(id)
-}
-
 pub fn artifact_uri(artifact_id: ArtifactId) -> veoveo_artifact_contract::ArtifactUri {
     media_uris().artifact_uri(artifact_id)
-}
-
-pub fn usage_task_uri(task_id: &str) -> String {
-    media_uris().usage_task_uri(task_id)
 }
 
 pub fn doc_uri(doc_id: &str) -> String {
@@ -63,61 +51,13 @@ pub fn parse_model_uri(uri: &str) -> Option<&str> {
     media_uris().parse_model_uri(uri)
 }
 
-pub fn parse_prediction_uri(uri: &str) -> Option<&str> {
-    media_uris().parse_prediction_uri(uri)
-}
-
 pub fn parse_artifact_uri(uri: &str) -> Option<ArtifactId> {
     media_uris().parse_artifact_uri(uri)
-}
-
-pub fn parse_usage_task_uri(uri: &str) -> Option<&str> {
-    media_uris().parse_usage_task_uri(uri)
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum SubscriptionResource<'a> {
-    Prediction(&'a str),
-    UsageIndex,
-    TaskUsage(&'a str),
-}
-
-pub fn subscription_resource(uri: &str) -> Option<SubscriptionResource<'_>> {
-    if uri == USAGE_ROOT_URI {
-        return Some(SubscriptionResource::UsageIndex);
-    }
-    parse_prediction_uri(uri)
-        .map(SubscriptionResource::Prediction)
-        .or_else(|| parse_usage_task_uri(uri).map(SubscriptionResource::TaskUsage))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn subscriptions_admit_predictions_and_usage_resources() {
-        assert_eq!(
-            subscription_resource("media://prediction/job-1"),
-            Some(SubscriptionResource::Prediction("job-1"))
-        );
-        assert_eq!(
-            subscription_resource("media://usage/task/task-1"),
-            Some(SubscriptionResource::TaskUsage("task-1"))
-        );
-        assert_eq!(
-            subscription_resource(USAGE_ROOT_URI),
-            Some(SubscriptionResource::UsageIndex)
-        );
-        for uri in [
-            MODELS_URI,
-            "media://usage/task/",
-            "media://usage/task/task-1/extra",
-            "other://usage/task/task-1",
-        ] {
-            assert_eq!(subscription_resource(uri), None, "{uri}");
-        }
-    }
 
     #[test]
     fn well_known_uris_match_the_shared_contract_conventions() {
@@ -139,27 +79,11 @@ mod tests {
     }
 
     #[test]
-    fn prediction_uri_round_trip() {
-        let uri = prediction_uri("abc123");
-        assert_eq!(parse_prediction_uri(&uri), Some("abc123"));
-        assert_eq!(parse_prediction_uri("media://prediction/a/b"), None);
-        assert_eq!(parse_model_uri("media://models"), None);
-    }
-
-    #[test]
     fn artifact_uri_round_trip() {
         let artifact_id = ArtifactId::new();
         let uri = artifact_uri(artifact_id);
         assert_eq!(uri.as_str(), format!("media://artifact/{artifact_id}"));
         assert_eq!(parse_artifact_uri(uri.as_str()), Some(artifact_id));
         assert_eq!(parse_artifact_uri("media://artifact/not-a-sha"), None);
-    }
-
-    #[test]
-    fn usage_task_uri_round_trip() {
-        let uri = usage_task_uri("task-1");
-        assert_eq!(uri, "media://usage/task/task-1");
-        assert_eq!(parse_usage_task_uri(&uri), Some("task-1"));
-        assert_eq!(parse_usage_task_uri("media://usage/task/a/b"), None);
     }
 }

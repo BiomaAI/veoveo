@@ -1,7 +1,7 @@
 # Media MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -11,10 +11,12 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 
 ## Invariants
 
-- Canonical URIs come from `src/uris.rs`: `media://models`,
-  `media://model/{model_id}`, `media://prediction/{id}`,
-  `media://artifact/{artifact_id}`, `media://usage/task/{task_id}`. Do not
-  mint URIs elsewhere.
+- Prediction and usage IDs, addresses, cursors and pages belong to the library's
+  isolated `contract` feature. Use its typed builders through handlers and consumers.
+  Model, document and Artifact conventions currently live in `src/uris.rs`.
+- Public prediction and usage selection belongs to `src/reads/`. Apply current
+  caller policy and linked-record agreement in SQL before ordering and limits.
+  Discovery declares roots/templates; instance catalogs supply paged links.
 - Durable task and prediction state lives in the installation SurrealDB
   through `veoveo_platform_store` (`src/state.rs`). The server keeps no
   private database.
@@ -30,18 +32,21 @@ state, task usage records, and generated artifacts under the `media://` scheme.
 
 - `cargo check -p veoveo-media-mcp`
 - `cargo test -p veoveo-media-mcp`
-- `tests/surreal_integration.rs` is opt in: it exits early unless
-  `VEOVEO_SURREAL_INTEGRATION=1`. It needs SurrealDB reachable at
-  `ws://127.0.0.1:8000` (override with `VEOVEO_SURREAL_URL`,
-  `VEOVEO_SURREAL_USER`, `VEOVEO_SURREAL_PASSWORD`), typically a Docker
-  container.
+- `tests/reads.rs` and `tests/surreal_integration.rs` use the shared Store fixture:
+  Docker with the pinned image already present, disposable loopback databases,
+  separate clients, bounded timeouts and owned cleanup. They run by default.
+- `cargo test -p veoveo-media-mcp --no-default-features --features contract
+  --test usage_contract --test prediction_contract --test generation_contract`
+  checks the public types; also resolve a separate consumer to check dependency isolation.
+- `cargo xtask smoke media-task-run` qualifies the native MCP/provider/Artifact path.
+- The Console Workbench pagination test is headless behavioral coverage.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
-- C02: met
+- C02: pending — generation output schemas are declared; the addressable result still needs one top-level canonical result_uri
 - C03: met
 - C04: met
 - C05: met
@@ -65,7 +70,7 @@ Contract revision: 2
 - C23: met
 - C25: met
 - C26: met
-- C27: met — authenticated usage indexes and owner-checked prediction and task-usage filters share the qualified Store LIVE and changefeed source
+- C27: met — SQL-scoped prediction and Task usage admission, authenticated catalog pages, and contents-only invalidations use Store LIVE and change-feed recovery; installed replica acceptance is pending
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

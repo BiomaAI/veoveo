@@ -31,7 +31,6 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
@@ -43,8 +42,8 @@ use rmcp::{
         CompleteRequestParams, CompleteResult, CompletionInfo, GetPromptRequestParams,
         GetTaskParams, GetTaskResult, ListPromptsResult, ListResourceTemplatesResult,
         ListResourcesResult, ListToolsResult, PaginatedRequestParams, Prompt,
-        ReadResourceRequestParams, ReadResourceResult, Reference, Resource, ResourceContents,
-        ResourceTemplate, ServerCapabilities, ServerConfig, SubscriptionFilter, UpdateTaskParams,
+        ReadResourceRequestParams, Reference, ServerCapabilities, ServerConfig, SubscriptionFilter,
+        UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
     tool_handler, tool_router,
@@ -56,12 +55,12 @@ use tokio::sync::RwLock;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
-    GenerationRunOutput, IssueArtifactWriteCapabilityRequest, Page, ResourceListObservers,
-    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs,
-    init_server_telemetry, paginate, public_allowed_hosts,
+    IssueArtifactWriteCapabilityRequest, Page, ServerSlug, SubscriptionHub, TelemetryGuard,
+    TokenIssuer, docs::ServerDocs, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_media_mcp::{
     artifacts::ArtifactRepository,
+    contract::GenerationRunOutput,
     provider::{ModelEntry, Prediction, ProviderClient},
     state::MediaState,
     uris, webhook,
@@ -93,6 +92,11 @@ mod outputs;
 mod ownership;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/resources.rs"]
+mod resources;
+#[path = "server/subscriptions.rs"]
+mod subscriptions;
+use resources::{resource_catalog, resource_templates};
 #[path = "server/retention.rs"]
 mod retention;
 #[path = "server/task_extension.rs"]
@@ -107,11 +111,7 @@ use generation_task::{RunArgs, submit_task};
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
 use model_tools::{ModelSchemaArgs, ModelsArgs};
-use outputs::public_prediction;
-use ownership::{
-    internal_caller, internal_identity, optional_prediction_owner, optional_task_owner,
-    prediction_owner, require_task_owner, runtime_owner, task_owner_allows,
-};
+use ownership::{internal_identity, runtime_owner};
 use prompts::MediaPrompt;
 use retention::{run_retention_gc, spawn_retention_gc_loop};
 use task_extension::MediaTaskExtension;
@@ -283,66 +283,6 @@ fn mcp_page<T>(
 /// Well-known surface resources (contract C18, C19). `list_resources` serves
 /// these for every authenticated identity and `capability_inventory` declares
 /// them at `media://contract`, so the two cannot diverge.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![
-        Resource::new(uris::DOCS_URI, "docs")
-            .with_title("Server documents")
-            .with_description("Index of the crate documents embedded at build time.")
-            .with_mime_type("application/json"),
-    ];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(uris::doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(
-        Resource::new(uris::CONTRACT_URI, "contract")
-            .with_title("Contract declaration")
-            .with_description(
-                "Machine-readable contract revision, compliance, and capability inventory.",
-            )
-            .with_mime_type("application/json"),
-    );
-    resources
-}
-
-/// Templates served by `list_resource_templates` and declared in the
-/// `media://contract` capability inventory.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        ResourceTemplate::new(uris::MODEL_TEMPLATE, "model")
-            .with_title("Media model schema")
-            .with_description(
-                "Full definition of one model: input JSON Schema, pricing, description. \
-                     model_id supports completion/complete.",
-            )
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::PREDICTION_TEMPLATE, "prediction")
-            .with_title("Media prediction state")
-            .with_description(
-                "Live state of a prediction. Subscribable: resources/updated fires when \
-                     the provider reports a terminal state.",
-            )
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-            .with_title("Media artifact")
-            .with_description(
-                "Server-owned immutable output artifact, addressed by occurrence id.",
-            ),
-        ResourceTemplate::new(uris::USAGE_TASK_TEMPLATE, "usage")
-            .with_title("Media task usage")
-            .with_description("Usage estimates and actuals for one task, addressed by task id.")
-            .with_mime_type("application/json"),
-    ]
-}
-
 #[tool_handler]
 impl ServerHandler for MediaMcp {
     fn supported_protocol_versions(
@@ -508,73 +448,8 @@ impl ServerHandler for MediaMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = internal_identity(&context)?;
-        let mut resources = well_known_resources();
-        resources.extend([
-            veoveo_mcp_apps_extension::app_resource(uris::STUDIO_APP_URI, "studio")
-                .with_title("Studio")
-                .with_description(
-                    "Generate media through governed provider models and inspect outputs.",
-                ),
-            Resource::new(uris::MODELS_URI, "models")
-                .with_title("Media model catalog")
-                .with_description(
-                    "Compact index of every media model: model_id, type, description, base price.",
-                )
-                .with_mime_type("application/json"),
-            Resource::new(uris::USAGE_ROOT_URI, "usage")
-                .with_title("Media usage ledger")
-                .with_description("Index of task usage resources.")
-                .with_mime_type("application/json"),
-        ]);
-        let predictions = self
-            .state
-            .durable
-            .provider_jobs()
-            .await
-            .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        for job in predictions {
-            let id = job.external_job_id;
-            let p = job.prediction;
-            let Some(owner) = optional_prediction_owner(&self.state, &id).await? else {
-                continue;
-            };
-            if !task_owner_allows(&owner, &identity) {
-                continue;
-            }
-            resources.push(
-                Resource::new(uris::prediction_uri(&id), format!("prediction {id}"))
-                    .with_description(format!("{} — status: {}", p.model, p.status))
-                    .with_mime_type("application/json"),
-            );
-        }
-        // Artifacts live on the shared plane now; media keeps no local artifact
-        // index to enumerate. They remain readable by their media://artifact URI
-        // through resources/read, which resolves against the plane.
-        let usage_task_ids = self
-            .state
-            .durable
-            .usage_task_ids()
-            .await
-            .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-        for task_id in usage_task_ids {
-            let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                continue;
-            };
-            if !task_owner_allows(&owner, &identity) {
-                continue;
-            }
-            resources.push(
-                Resource::new(
-                    uris::usage_task_uri(&task_id),
-                    format!("usage for task {task_id}"),
-                )
-                .with_description("Usage estimates and actuals for one task.")
-                .with_mime_type("application/json"),
-            );
-        }
-        resources.sort_by(|a, b| a.uri.cmp(&b.uri));
-        let page = mcp_page(resources, request.as_ref())?;
+        internal_identity(&context)?;
+        let page = mcp_page(resource_catalog(), request.as_ref())?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
@@ -606,197 +481,7 @@ impl ServerHandler for MediaMcp {
         request: ReadResourceRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
-        let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let identity = internal_identity(&context)?;
-            let uri = request.uri.as_str();
-            // Well-known surface (contract C18, C19): readable by any
-            // authenticated identity, like `list_resources`.
-            if uri == uris::DOCS_URI {
-                let text = serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(text, uri).with_mime_type("application/json"),
-                ]));
-            }
-            if let Some(doc_id) = uris::parse_doc_uri(uri) {
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found(
-                        format!("unknown server document '{doc_id}'"),
-                        None,
-                    )
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                let declaration = SERVER_DOCS.contract_declaration();
-                let text = serde_json::to_string(declaration)
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(text, uri).with_mime_type("application/json"),
-                ]));
-            }
-            if uri == uris::STUDIO_APP_URI {
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id: "media-studio",
-                        title: "Studio",
-                        subtitle: "Choose a model, run generation, and check usage",
-                        empty_message: "No media models are available.",
-                        resources: &[
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Model catalog",
-                                uri: uris::MODELS_URI,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Usage ledger",
-                                uri: uris::USAGE_ROOT_URI,
-                            },
-                        ],
-                        tools: &[
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Search models",
-                                name: "models",
-                                arguments_json: r#"{"query":"","limit":20}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Inspect model schema",
-                                name: "model_schema",
-                                arguments_json: r#"{"model":""}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Generate media",
-                                name: "run",
-                                arguments_json: r#"{"model":"","input":{}}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Inspect artifact",
-                                name: "artifact",
-                                arguments_json: r#"{"artifact_uri":"media://artifact/"}"#,
-                            },
-                        ],
-                        stream_result: None,
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            let text = if uri == uris::MODELS_URI {
-                let models = self
-                    .state
-                    .registry()
-                    .await
-                    .map_err(|e| McpError::internal_error(e, None))?;
-                Self::models_index_json(&models).to_string()
-            } else if uri == uris::USAGE_ROOT_URI {
-                let task_ids = self
-                    .state
-                    .durable
-                    .usage_task_ids()
-                    .await
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                let mut entries: Vec<Value> = Vec::new();
-                for task_id in task_ids {
-                    let Some(owner) = optional_task_owner(&self.state, &task_id).await? else {
-                        continue;
-                    };
-                    if !task_owner_allows(&owner, &identity) {
-                        continue;
-                    }
-                    entries.push(json!({
-                        "task_id": task_id,
-                        "usage_uri": uris::usage_task_uri(&task_id),
-                    }));
-                }
-                serde_json::to_string(&entries)
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
-            } else if let Some(model_id) = uris::parse_model_uri(uri) {
-                let entry = self
-                    .state
-                    .find_model(model_id)
-                    .await
-                    .map_err(|e| McpError::internal_error(e, None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown model '{model_id}'; browse media://models"),
-                            None,
-                        )
-                    })?;
-                serde_json::to_string(&entry)
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
-            } else if let Some(id) = uris::parse_prediction_uri(uri) {
-                let owner = prediction_owner(&self.state, id).await?;
-                if !task_owner_allows(&owner, &identity) {
-                    return Err(McpError::invalid_request(
-                        "You don't have permission to read this prediction.",
-                        None,
-                    ));
-                }
-                let prediction = self
-                    .state
-                    .durable
-                    .provider_job_for_external(id)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .map(|job| job.prediction)
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(format!("unknown prediction '{id}'"), None)
-                    })?;
-                serde_json::to_string(&public_prediction(&prediction))
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
-            } else if let Some(task_id) = uris::parse_usage_task_uri(uri) {
-                require_task_owner(&self.state, &context, task_id).await?;
-                let records = self
-                    .state
-                    .durable
-                    .usage_records(task_id)
-                    .await
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?;
-                if records.is_empty() {
-                    return Err(McpError::resource_not_found(
-                        format!("unknown usage task '{task_id}'"),
-                        None,
-                    ));
-                }
-                let report = UsageReport::new(task_id, uri).with_records(records);
-                serde_json::to_string(&report)
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
-            } else if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-                // The plane enforces access with the caller's identity.
-                let caller = internal_caller(&context)?;
-                let artifact = self
-                    .state
-                    .artifacts
-                    .get(&caller, &artifact_id)
-                    .await
-                    .map_err(|e| McpError::internal_error(e.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown artifact '{artifact_id}'"),
-                            None,
-                        )
-                    })?;
-                let blob = BASE64_STANDARD.encode(&artifact.bytes);
-                let mut content = ResourceContents::blob(blob, uri);
-                if let Some(mime) = artifact.metadata.mime_type {
-                    content = content.with_mime_type(mime);
-                }
-                return Ok(ReadResourceResult::new(vec![content]));
-            } else {
-                return Err(McpError::resource_not_found(
-                    format!("unknown resource uri: {uri}"),
-                    None,
-                ));
-            };
-            Ok(ReadResourceResult::new(vec![
-                ResourceContents::text(text, uri).with_mime_type("application/json"),
-            ]))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        self.read_media_resource(request, context).await
     }
 
     fn accepted_subscription_filter(
@@ -807,32 +492,18 @@ impl ServerHandler for MediaMcp {
     }
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
-        let request_context = context.request_context().clone();
-        let identity = internal_identity(&request_context)?;
-        for uri in context.accepted().resource_subscriptions.iter().flatten() {
-            let resource = uris::subscription_resource(uri)
-                .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))?;
-            match resource {
-                uris::SubscriptionResource::UsageIndex => {}
-                uris::SubscriptionResource::Prediction(prediction_id) => {
-                    let owner = prediction_owner(&self.state, prediction_id).await?;
-                    if !task_owner_allows(&owner, &identity) {
-                        return Err(McpError::invalid_request(
-                            "You don't have permission to subscribe to this prediction.",
-                            None,
-                        ));
-                    }
-                }
-                uris::SubscriptionResource::TaskUsage(task_id) => {
-                    require_task_owner(&self.state, &request_context, task_id).await?;
-                }
-            }
-        }
+        let identity = internal_identity(context.request_context())?;
+        subscriptions::authorize(
+            &self.state.tasks,
+            &runtime_owner(&identity),
+            context.accepted(),
+        )
+        .await?;
         veoveo_task_runtime::listen_durable_subscriptions(
             &self.task_service,
             context,
             Some(&self.state.subscribers),
-            Some(&self.state.resource_lists),
+            None,
         )
         .await
     }
@@ -1077,7 +748,6 @@ async fn main() -> anyhow::Result<()> {
         artifacts,
         retention,
         subscribers: SubscriptionHub::new(),
-        resource_lists: ResourceListObservers::new(),
     });
 
     run_retention_gc(&state).await?;

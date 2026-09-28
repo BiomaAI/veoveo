@@ -1,5 +1,6 @@
 //! Minimal provider API client: model registry and prediction submit.
 
+use crate::contract::{GenerationPredictionSummary, MediaPredictionId};
 use chrono::{DateTime, Utc};
 use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
@@ -24,7 +25,7 @@ pub struct PredictionUrls {
 /// A prediction as returned by submit, result fetch, and webhook callbacks.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Prediction {
-    pub id: String,
+    pub id: MediaPredictionId,
     pub model: String,
     #[serde(default)]
     pub outputs: Vec<String>,
@@ -45,6 +46,19 @@ pub struct Prediction {
 }
 
 impl Prediction {
+    pub fn summary(&self) -> GenerationPredictionSummary {
+        GenerationPredictionSummary {
+            id: self.id.clone(),
+            model_id: self.model.clone(),
+            status: self.status.clone(),
+            created_at: self.created_at,
+            error: self.error.clone().filter(|error| !error.is_empty()),
+            execution_ms: self.execution_time,
+            timings: self.timings.clone(),
+            output_count: self.outputs.len(),
+        }
+    }
+
     pub fn is_terminal(&self) -> bool {
         matches!(self.status.as_str(), "completed" | "failed")
     }
@@ -110,7 +124,7 @@ pub struct ProviderCancellationReceipt {
 
 #[derive(Debug, Serialize)]
 struct ProviderCancellationRequest<'a> {
-    ids: [&'a str; 1],
+    ids: [&'a MediaPredictionId; 1],
 }
 
 /// One entry from `GET /api/v3/models`.
@@ -252,7 +266,7 @@ impl ProviderClient {
     /// reconciliation, not task-status retrieval.
     pub async fn billing_records(
         &self,
-        prediction_id: &str,
+        prediction_id: &MediaPredictionId,
     ) -> Result<Vec<BillingRecord>, ProviderError> {
         let resp = self
             .http
@@ -275,7 +289,7 @@ impl ProviderClient {
     /// callers must treat the returned count as a best-effort acknowledgement.
     pub async fn request_cancellation(
         &self,
-        prediction_id: &str,
+        prediction_id: &MediaPredictionId,
     ) -> Result<ProviderCancellationReceipt, ProviderError> {
         let resp = self
             .http

@@ -1,5 +1,8 @@
 //! Durable media task state backed by the installation SurrealDB.
 
+mod usage;
+pub use usage::MediaBillingPage;
+
 use std::collections::{BTreeMap, BTreeSet};
 use veoveo_platform_store::task_record_id;
 
@@ -9,19 +12,21 @@ use serde_json::Value;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
-    UsageKind, UsageRecord,
 };
 use veoveo_platform_store::{
     ArtifactWriteCapabilityId as StoreCapabilityId, MediaTaskContextId, MediaTaskContextRecord,
-    MediaUsageId, MediaUsageKind, MediaUsageRecord, OpenObject, OutboxDraft, PlatformStore,
-    ProviderEventId, ProviderEventRecord, ProviderJobId, ProviderJobRecord, ProviderJobState,
-    RecordId, RecordIdKey, RedactedSecret, StoreError, TaskStatus,
+    OpenObject, OutboxDraft, PlatformStore, ProviderEventId, ProviderEventRecord, ProviderJobId,
+    ProviderJobRecord, ProviderJobState, RecordId, RecordIdKey, RedactedSecret, StoreError,
+    TaskStatus,
 };
 use veoveo_task_runtime::{RecoveryClass, TaskFailure, TaskOwner, TaskRuntime, TaskSnapshot};
 use veoveo_types::DataLabelId;
 use veoveo_types::TaskId;
 
-use crate::provider::Prediction;
+use crate::{
+    contract::{MediaPredictionId, MediaPredictionUri},
+    provider::Prediction,
+};
 
 const PROVIDER: &str = "media";
 const TASK_EVENT_SCHEMA_VERSION: i64 = 2;
@@ -55,7 +60,7 @@ impl std::fmt::Debug for MediaTaskContext {
 pub struct MediaProviderJob {
     pub job_id: ProviderJobId,
     pub task_id: TaskId,
-    pub external_job_id: String,
+    pub external_job_id: MediaPredictionId,
     pub state: ProviderJobState,
     pub prediction: Prediction,
     pub updated_at: DateTime<Utc>,
@@ -259,7 +264,7 @@ impl MediaState {
         {
             if job.task_id != current.task_id {
                 return Err(StoreError::ArtifactWriteConflict {
-                    key: prediction.id.clone(),
+                    key: prediction.id.to_string(),
                 });
             }
             self.ensure_task_waiting(runtime, task_id, &job).await?;
@@ -272,7 +277,7 @@ impl MediaState {
             tenant: tenant.clone(),
             task: task_record_id(current.task_id),
             provider: PROVIDER.to_owned(),
-            external_job_id: prediction.id.clone(),
+            external_job_id: prediction.id.to_string(),
             state: ProviderJobState::Waiting,
             provider_payload: prediction_payload(prediction)?,
             submitted_at: now,
@@ -282,8 +287,9 @@ impl MediaState {
         let waiting = waiting_snapshot(
             &current,
             format!(
-                "submitted; prediction {}; resource media://prediction/{}; waiting for signed provider webhook",
-                prediction.id, prediction.id
+                "submitted; prediction {}; resource {}; waiting for signed provider webhook",
+                prediction.id,
+                MediaPredictionUri::new(prediction.id.clone())
             ),
             now,
         );
@@ -360,7 +366,7 @@ impl MediaState {
             .is_some_and(|job| job.task_id != current.task_id)
         {
             return Err(StoreError::ArtifactWriteConflict {
-                key: prediction.id.clone(),
+                key: prediction.id.to_string(),
             });
         }
         let job_id = existing_job
@@ -390,7 +396,7 @@ impl MediaState {
             tenant: tenant.clone(),
             task: task_record_id(current.task_id),
             provider: PROVIDER.to_owned(),
-            external_job_id: prediction.id.clone(),
+            external_job_id: prediction.id.to_string(),
             state: job_state,
             provider_payload: prediction_payload(job_prediction)?,
             submitted_at: existing_job
@@ -639,13 +645,8 @@ impl MediaState {
 
     pub async fn provider_job_for_task(
         &self,
-        task_id: &str,
+        task_id: TaskId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let task_id = task_id
-            .parse::<TaskId>()
-            .map_err(|_| StoreError::MissingRecord {
-                operation: "media provider task id",
-            })?;
         let mut response = self
             .store
             .client()
@@ -709,18 +710,17 @@ impl MediaState {
             })
     }
 
-    pub async fn provider_job_for_external(
+    pub async fn provider_job_for_task_prediction(
         &self,
-        external_job_id: &str,
+        task_id: TaskId,
+        prediction_id: &MediaPredictionId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query("SELECT * FROM provider_job WHERE provider = $provider AND external_job_id = $external_job_id ORDER BY submitted_at ASC LIMIT 1;")
+        let mut response = self.store.client()
+            .query("SELECT * FROM provider_job WHERE provider = $provider AND task = $task AND task.server = mcp_server:media AND tenant = task.tenant AND external_job_id = $prediction AND provider_payload.id = $prediction LIMIT 1;")
             .bind(("provider", PROVIDER.to_owned()))
-            .bind(("external_job_id", external_job_id.to_owned()))
-            .await?
-            .check()?;
+            .bind(("task", task_record_id(task_id)))
+            .bind(("prediction", prediction_id.to_string()))
+            .await?.check()?;
         response
             .take::<Vec<ProviderJobRecord>>(0)?
             .into_iter()
@@ -731,7 +731,7 @@ impl MediaState {
 
     async fn provider_job_for_external_in_tenant(
         &self,
-        external_job_id: &str,
+        external_job_id: &MediaPredictionId,
         tenant: &RecordId,
     ) -> Result<Option<MediaProviderJob>, StoreError> {
         let mut response = self
@@ -740,7 +740,7 @@ impl MediaState {
             .query("SELECT * FROM provider_job WHERE tenant = $tenant AND provider = $provider AND external_job_id = $external_job_id LIMIT 1;")
             .bind(("tenant", tenant.clone()))
             .bind(("provider", PROVIDER.to_owned()))
-            .bind(("external_job_id", external_job_id.to_owned()))
+            .bind(("external_job_id", external_job_id.to_string()))
             .await?
             .check()?;
         response
@@ -749,154 +749,6 @@ impl MediaState {
             .next()
             .map(provider_job)
             .transpose()
-    }
-
-    pub async fn provider_jobs(&self) -> Result<Vec<MediaProviderJob>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "SELECT * FROM provider_job WHERE provider = $provider ORDER BY submitted_at ASC;",
-            )
-            .bind(("provider", PROVIDER.to_owned()))
-            .await?
-            .check()?;
-        response
-            .take::<Vec<ProviderJobRecord>>(0)?
-            .into_iter()
-            .map(provider_job)
-            .collect()
-    }
-
-    pub async fn usage_records(&self, task_id: &str) -> Result<Vec<UsageRecord>, StoreError> {
-        let task_id = task_id
-            .parse::<TaskId>()
-            .map_err(|_| StoreError::MissingRecord {
-                operation: "media usage task id",
-            })?;
-        let mut response = self
-            .store
-            .client()
-            .query("SELECT * FROM media_usage WHERE task = $task ORDER BY recorded_at ASC; SELECT * FROM provider_job WHERE task = $task;")
-            .bind(("task", task_record_id(task_id)))
-            .await?
-            .check()?;
-        let records = response.take::<Vec<MediaUsageRecord>>(0)?;
-        let mut provider_jobs = BTreeMap::new();
-        for job in response.take::<Vec<ProviderJobRecord>>(1)? {
-            provider_jobs.insert(record_uuid(&job.id)?, job.external_job_id);
-        }
-        records
-            .into_iter()
-            .map(|record| usage_record(record, &provider_jobs))
-            .collect()
-    }
-
-    pub async fn usage_task_ids(&self) -> Result<Vec<String>, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query("SELECT VALUE task FROM media_usage GROUP BY task ORDER BY task ASC;")
-            .await?
-            .check()?;
-        response
-            .take::<Vec<RecordId>>(0)?
-            .into_iter()
-            .map(|record| record_uuid(&record).map(|id| id.to_string()))
-            .collect()
-    }
-
-    pub async fn record_usage(
-        &self,
-        task: &TaskSnapshot,
-        provider_job: Option<&MediaProviderJob>,
-        usage: &UsageRecord,
-    ) -> Result<(), StoreError> {
-        let kind = match usage.kind {
-            UsageKind::Estimate => MediaUsageKind::Estimate,
-            UsageKind::Actual => MediaUsageKind::Actual,
-        };
-        let key = format!(
-            "{}:{}:{}",
-            task.task_id,
-            match kind {
-                MediaUsageKind::Estimate => "estimate",
-                MediaUsageKind::Actual => "actual",
-            },
-            usage.source_id.as_deref().unwrap_or("initial")
-        );
-        let id = MediaUsageId::from_uuid(Uuid::new_v5(&STATE_ID_NAMESPACE, key.as_bytes()));
-        let record = MediaUsageRecord {
-            id: id.record_id(),
-            tenant: tenant_record(&task.owner)?,
-            task: task_record_id(task.task_id),
-            provider_job: provider_job.map(|job| job.job_id.record_id()),
-            source_id: usage.source_id.clone(),
-            model_id: usage.model_id.clone(),
-            kind,
-            quantity: usage.quantity,
-            unit: usage.unit.clone(),
-            amount: usage.amount,
-            currency: usage.currency.clone(),
-            metadata: open_object(usage.metadata.clone()),
-            recorded_at: usage.recorded_at,
-        };
-        let outbox = OutboxDraft::now(
-            Some(tenant_record(&task.owner)?),
-            "media_usage",
-            id.to_string(),
-            "media.usage.recorded",
-            MEDIA_EVENT_SCHEMA_VERSION,
-            OpenObject::new(BTreeMap::from([(
-                "task_id".into(),
-                serde_json::json!(task.task_id.to_string()),
-            )])),
-        );
-        self.store
-            .client()
-            .query("BEGIN TRANSACTION; UPSERT ONLY $usage CONTENT $content RETURN NONE; CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;")
-            .bind(("usage", id.record_id()))
-            .bind(("content", record))
-            .bind(("outbox", outbox))
-            .await?
-            .check()?;
-        Ok(())
-    }
-
-    pub async fn has_actual_usage(
-        &self,
-        task_id: &str,
-        external_job_id: &str,
-    ) -> Result<bool, StoreError> {
-        let task = task_id
-            .parse::<TaskId>()
-            .map_err(|_| StoreError::MissingRecord {
-                operation: "media actual usage task id",
-            })?;
-        let job = self.provider_job_for_external(external_job_id).await?;
-        let Some(job) = job else {
-            return Ok(false);
-        };
-        let mut response = self
-            .store
-            .client()
-            .query("RETURN count((SELECT VALUE id FROM media_usage WHERE task = $task AND provider_job = $job AND kind = 'actual' LIMIT 1)) > 0;")
-            .bind(("task", task_record_id(task)))
-            .bind(("job", job.job_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take::<Option<bool>>(0)?.unwrap_or(false))
-    }
-
-    pub async fn delete_usage_before(&self, cutoff: DateTime<Utc>) -> Result<u64, StoreError> {
-        let mut response = self
-            .store
-            .client()
-            .query("DELETE media_usage WHERE recorded_at < $cutoff RETURN BEFORE;")
-            .bind(("cutoff", cutoff))
-            .await?
-            .check()?;
-        Ok(response.take::<Vec<MediaUsageRecord>>(0)?.len() as u64)
     }
 
     pub async fn prune_task_contexts(&self) -> Result<u64, StoreError> {
@@ -927,8 +779,9 @@ impl MediaState {
         let waiting = waiting_snapshot(
             &current,
             format!(
-                "submitted; prediction {}; resource media://prediction/{}; waiting for signed provider webhook",
-                job.external_job_id, job.external_job_id
+                "submitted; prediction {}; resource {}; waiting for signed provider webhook",
+                job.external_job_id,
+                MediaPredictionUri::new(job.external_job_id.clone())
             ),
             now,
         );
@@ -1029,7 +882,11 @@ fn provider_job(record: ProviderJobRecord) -> Result<MediaProviderJob, StoreErro
     Ok(MediaProviderJob {
         job_id: ProviderJobId::from_uuid(record_uuid(&record.id)?),
         task_id: TaskId::from_uuid(record_uuid(&record.task)?),
-        external_job_id: record.external_job_id,
+        external_job_id: MediaPredictionId::new(record.external_job_id).map_err(|_| {
+            StoreError::MissingRecord {
+                operation: "media prediction identity",
+            }
+        })?,
         state: record.state,
         prediction: prediction_from_payload(record.provider_payload)?,
         updated_at: record.updated_at,
@@ -1232,32 +1089,6 @@ fn record_uuid(record: &RecordId) -> Result<Uuid, StoreError> {
             operation: "media UUID record decoding",
         }),
     }
-}
-
-fn usage_record(
-    record: MediaUsageRecord,
-    provider_jobs: &BTreeMap<Uuid, String>,
-) -> Result<UsageRecord, StoreError> {
-    let provider_job_id = match record.provider_job.as_ref() {
-        Some(job) => provider_jobs.get(&record_uuid(job)?).cloned(),
-        None => None,
-    };
-    Ok(UsageRecord {
-        task_id: record_uuid(&record.task)?.to_string(),
-        source_id: record.source_id,
-        provider_job_id,
-        model_id: record.model_id,
-        kind: match record.kind {
-            MediaUsageKind::Estimate => UsageKind::Estimate,
-            MediaUsageKind::Actual => UsageKind::Actual,
-        },
-        quantity: record.quantity,
-        unit: record.unit,
-        amount: record.amount,
-        currency: record.currency,
-        recorded_at: record.recorded_at,
-        metadata: open_value(record.metadata),
-    })
 }
 
 fn task_store_error(error: veoveo_task_runtime::TaskError) -> StoreError {

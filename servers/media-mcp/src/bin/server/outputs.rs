@@ -1,11 +1,9 @@
 use axum::http::header::CONTENT_TYPE;
 use rmcp::model::{CallToolResult, ContentBlock, Resource};
 use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut};
-use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, GenerationPredictionSummary, GenerationRunOutput, now_utc,
-    set_related_task_meta,
-};
+use veoveo_mcp_contract::{ArtifactWriteIdempotencyKey, now_utc, set_related_task_meta};
 use veoveo_media_mcp::{
+    contract::GenerationRunOutput,
     provider::Prediction,
     state::{MediaTaskContext, data_labels},
 };
@@ -35,19 +33,6 @@ fn filename_from_url(url: &str, index: usize) -> String {
         .filter(|n| !n.is_empty())
         .map(str::to_string)
         .unwrap_or_else(|| format!("output-{index}.bin"))
-}
-
-pub(super) fn public_prediction(prediction: &Prediction) -> GenerationPredictionSummary {
-    GenerationPredictionSummary {
-        id: prediction.id.clone(),
-        model_id: prediction.model.clone(),
-        status: prediction.status.clone(),
-        created_at: prediction.created_at,
-        error: prediction.error.clone().filter(|error| !error.is_empty()),
-        execution_ms: prediction.execution_time,
-        timings: prediction.timings.clone(),
-        output_count: prediction.outputs.len(),
-    }
 }
 
 #[derive(serde::Serialize)]
@@ -138,7 +123,7 @@ pub(super) async fn prediction_result(
     }
     let mut result = CallToolResult::success(blocks);
     result.structured_content = Some(serde_json::to_value(GenerationRunOutput {
-        prediction: public_prediction(prediction),
+        prediction: prediction.summary(),
         artifacts,
     })?);
     set_related_task_meta(&mut result.meta, task_id);

@@ -102,13 +102,13 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
         .await
     {
         Ok(job) => {
-            if let Err(error) = record_usage_estimate(&state, &task_id, &job, &entry).await {
+            if let Err(error) = record_usage_estimate(&state, job.task_id, &job, &entry).await {
                 tracing::warn!(task_id, "failed to persist usage estimate: {error}");
             }
-            state.resource_lists.notify_changed().await;
+            state.subscribers.notify_resource_contents_changed().await;
             tracing::info!(
                 task_id,
-                provider_job_id = prediction.id,
+                provider_job_id = %prediction.id,
                 "media task is durably waiting for a signed webhook"
             );
         }
@@ -118,7 +118,7 @@ pub(super) async fn submit_task(state: Arc<AppState>, task_id: String, args: Run
             // task-specific callback URL.
             tracing::error!(
                 task_id,
-                provider_job_id = prediction.id,
+                provider_job_id = %prediction.id,
                 "provider accepted the job but durable binding failed: {error}"
             );
         }

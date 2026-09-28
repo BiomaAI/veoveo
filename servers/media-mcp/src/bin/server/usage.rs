@@ -3,18 +3,23 @@ use std::{sync::Arc, time::Duration};
 use chrono::{DateTime, Utc};
 use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_media_mcp::{
+    contract::{MediaPredictionId, MediaTaskUsageUri},
     provider::{BillingRecord, ModelEntry, Prediction},
     state::MediaProviderJob,
-    uris,
 };
 
 use super::{AppState, BILLING_RECONCILE_INITIAL_DELAY, BILLING_RECONCILE_MAX_DELAY};
+use veoveo_types::TaskId;
 
-fn usage_estimate(task_id: &str, provider_job_id: &str, entry: &ModelEntry) -> UsageRecord {
+fn usage_estimate(
+    task_id: TaskId,
+    provider_job_id: &MediaPredictionId,
+    entry: &ModelEntry,
+) -> UsageRecord {
     UsageRecord {
-        task_id: task_id.to_owned(),
+        task_id: task_id.to_string(),
         source_id: Some("initial-estimate".into()),
-        provider_job_id: Some(provider_job_id.to_owned()),
+        provider_job_id: Some(provider_job_id.to_string()),
         model_id: entry.model_id.clone(),
         kind: UsageKind::Estimate,
         quantity: Some(1.0),
@@ -32,7 +37,7 @@ fn usage_estimate(task_id: &str, provider_job_id: &str, entry: &ModelEntry) -> U
 }
 
 fn actual_usage_record(
-    task_id: &str,
+    task_id: TaskId,
     prediction: &Prediction,
     billing: &BillingRecord,
 ) -> Option<UsageRecord> {
@@ -50,9 +55,9 @@ fn actual_usage_record(
 
     let amount = billing.signed_amount()?;
     Some(UsageRecord {
-        task_id: task_id.to_owned(),
+        task_id: task_id.to_string(),
         source_id: Some(billing.uuid.clone()),
-        provider_job_id: Some(prediction.id.clone()),
+        provider_job_id: Some(prediction.id.to_string()),
         model_id: billing
             .prediction
             .as_ref()
@@ -92,13 +97,13 @@ fn actual_usage_record(
 
 pub(super) async fn record_usage_estimate(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     job: &MediaProviderJob,
     entry: &ModelEntry,
 ) -> anyhow::Result<()> {
     let task = state
         .tasks
-        .get(task_id)
+        .get(&task_id.to_string())
         .await?
         .ok_or_else(|| anyhow::anyhow!("media usage task {task_id} not found"))?;
     state
@@ -114,7 +119,7 @@ pub(super) async fn record_usage_estimate(
 
 async fn reconcile_actual_usage_once(
     state: &AppState,
-    task_id: &str,
+    task_id: TaskId,
     prediction: &Prediction,
 ) -> anyhow::Result<bool> {
     if state
@@ -126,12 +131,12 @@ async fn reconcile_actual_usage_once(
     }
     let task = state
         .tasks
-        .get(task_id)
+        .get(&task_id.to_string())
         .await?
         .ok_or_else(|| anyhow::anyhow!("media billing task {task_id} not found"))?;
     let job = state
         .durable
-        .provider_job_for_external(&prediction.id)
+        .provider_job_for_task_prediction(task_id, &prediction.id)
         .await?
         .ok_or_else(|| anyhow::anyhow!("media provider job {} not found", prediction.id))?;
 
@@ -152,7 +157,7 @@ async fn reconcile_actual_usage_once(
     if recorded > 0 {
         state
             .subscribers
-            .notify_resource_updated(uris::usage_task_uri(task_id))
+            .notify_resource_updated(MediaTaskUsageUri::new(task_id)?.to_string())
             .await;
     }
     Ok(recorded > 0
@@ -164,7 +169,7 @@ async fn reconcile_actual_usage_once(
 
 pub(super) fn spawn_actual_usage_reconciliation(
     state: Arc<AppState>,
-    task_id: String,
+    task_id: TaskId,
     prediction: Prediction,
 ) {
     tokio::spawn(async move {
@@ -173,16 +178,16 @@ pub(super) fn spawn_actual_usage_reconciliation(
             if !delay.is_zero() {
                 tokio::time::sleep(delay).await;
             }
-            match reconcile_actual_usage_once(&state, &task_id, &prediction).await {
+            match reconcile_actual_usage_once(&state, task_id, &prediction).await {
                 Ok(true) => break,
                 Ok(false) => tracing::info!(
-                    task_id,
-                    provider_job_id = prediction.id,
+                    task_id = %task_id,
+                    provider_job_id = %prediction.id,
                     "actual billing usage is not available yet"
                 ),
                 Err(error) => tracing::warn!(
-                    task_id,
-                    provider_job_id = prediction.id,
+                    task_id = %task_id,
+                    provider_job_id = %prediction.id,
                     "actual billing reconciliation failed: {error}"
                 ),
             }
@@ -196,24 +201,21 @@ pub(super) fn spawn_actual_usage_reconciliation(
 }
 
 pub(super) async fn spawn_missing_actual_usage_reconciliations(state: Arc<AppState>) {
-    match state.durable.provider_jobs().await {
-        Ok(jobs) => {
-            for job in jobs {
-                if job.prediction.is_terminal()
-                    && !state
-                        .durable
-                        .has_actual_usage(&job.task_id.to_string(), &job.external_job_id)
-                        .await
-                        .unwrap_or(false)
-                {
-                    spawn_actual_usage_reconciliation(
-                        state.clone(),
-                        job.task_id.to_string(),
-                        job.prediction,
-                    );
-                }
+    let mut after = None;
+    loop {
+        let page = match state.durable.billing_candidates(after).await {
+            Ok(page) => page,
+            Err(error) => {
+                tracing::warn!("failed to select pending billing usage: {error}");
+                return;
             }
+        };
+        for job in page.jobs {
+            spawn_actual_usage_reconciliation(state.clone(), job.task_id, job.prediction);
         }
-        Err(error) => tracing::warn!("failed to enumerate missing billing usage: {error}"),
+        match page.next_job_id {
+            Some(next) => after = Some(next),
+            None => return,
+        }
     }
 }

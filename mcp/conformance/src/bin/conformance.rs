@@ -10,6 +10,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use veoveo_media_mcp::contract::{GenerationPredictionSummary, GenerationRunOutput};
 
 use anyhow::{Result, anyhow};
 use axum::{
@@ -63,16 +64,16 @@ use veoveo_mcp_contract::{
     GatewayInternalTokenIssuer, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
     GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
-    GatewayResourceSubscription, GenerationPredictionSummary, GenerationRunOutput,
-    IdentityProvider, IdentityProviderDeployment, IdentityProviderOidcClientRegistration,
-    IngressDeployment, InvocationAuthority, McpSurfaceCapabilities, OAuthClientRegistration,
-    ObjectStoreDeployment, PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet,
-    Principal, PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure,
-    ResourceAuthorizationServer, SecretManagerDeployment, SecretReference,
-    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
-    ServerSlug, ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel,
-    TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
-    WorkContextMembershipLevel, WorkContextOutputPolicy,
+    GatewayResourceSubscription, IdentityProvider, IdentityProviderDeployment,
+    IdentityProviderOidcClientRegistration, IngressDeployment, InvocationAuthority,
+    McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
+    PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, Principal,
+    PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure, ResourceAuthorizationServer,
+    SecretManagerDeployment, SecretReference, SelfHostedDeploymentPlan,
+    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
+    ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel, TokenIssuer,
+    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport, WorkContextMembershipLevel,
+    WorkContextOutputPolicy,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,

@@ -3,12 +3,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::MediaPredictionId;
 use veoveo_artifact_contract::ArtifactMetadata;
 
 /// Public, provider-neutral summary of the provider job behind a completed task.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct GenerationPredictionSummary {
-    pub id: String,
+    #[schemars(with = "String")]
+    pub id: MediaPredictionId,
     pub model_id: String,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -128,7 +128,9 @@ ID/URI agreement. Other generic URI convention families still need builder adopt
 Coordinate contracts belong to the Map and Frames library contract features, with
 recording-specific spatial metadata in RRD. MCP core has no coordinate domain registry
 or dependency on those libraries.
-Its `ScopeDefinition` and `ResourceAddress` traits accept independent
+Media prediction summaries and generation results belong to the Media library's
+contract feature. Shared protocol infrastructure does not own those domain DTOs.
+The foundation's `ScopeDefinition` and `ResourceAddress` traits accept independent
 domain implementations. The foundation's component parser and builder support concrete
 addresses; gateway policy and stored audit references still accept completion templates.
 Wider URI builder adoption and server feature isolation are implementation work in the
