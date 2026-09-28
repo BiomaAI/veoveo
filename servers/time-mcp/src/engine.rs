@@ -1,3 +1,5 @@
+mod windows;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     str::FromStr,
@@ -8,7 +10,6 @@ use anyhow::{Context, Result, bail};
 use chrono::{Datelike, Duration, FixedOffset, NaiveDate, NaiveDateTime, TimeZone as _, Utc};
 use hifitime::{Epoch, TimeScale as HifiTimeScale};
 use jiff::{Timestamp, civil, tz};
-use rangemap::RangeSet;
 
 use crate::{
     authority::AuthorityContext,
@@ -18,7 +19,7 @@ use crate::{
         RecurrenceFrequency, ResolveTimeOutput, ResolveTimeRequest, ScaleRepresentation,
         ScheduleOccurrence, SubsecondNanoseconds, TimeExpression, TimeInstant, TimeScale,
         TimeWindow, TimelineViolation, ValidateTimelineOutput, ValidateTimelineRequest, Weekday,
-        WindowOperation, ZonedRepresentation,
+        ZonedRepresentation,
     },
 };
 
@@ -107,55 +108,11 @@ impl TemporalEngine {
         &self,
         request: &EvaluateWindowsRequest,
     ) -> Result<EvaluateWindowsOutput> {
-        let authority = request
-            .left
-            .first()
-            .or_else(|| request.right.first())
-            .map(|window| window.start.authority.clone())
-            .unwrap_or_else(|| self.authority.binding().clone());
-        if &authority != self.authority.binding() {
-            bail!("window operation references a non-active temporal authority");
-        }
-        for window in request.left.iter().chain(&request.right) {
-            validate_window(window)?;
-            if window.start.authority != authority || window.end.authority != authority {
-                bail!("window authorities must match");
-            }
-        }
-        let left = window_set(&request.left);
-        let right = window_set(&request.right);
-        let ranges: RangeSet<i128> = match request.operation {
-            WindowOperation::Union => left.union(&right).collect(),
-            WindowOperation::Intersection => left.intersection(&right).collect(),
-            WindowOperation::Difference => {
-                let mut difference = left.clone();
-                for range in right.iter() {
-                    difference.remove(range.clone());
-                }
-                difference
-            }
-        };
-        Ok(EvaluateWindowsOutput {
-            windows: ranges
-                .iter()
-                .map(|range| {
-                    Ok(TimeWindow {
-                        start: TimeInstant::from_total_nanoseconds(
-                            range.start,
-                            0,
-                            authority.clone(),
-                        )?,
-                        end: TimeInstant::from_total_nanoseconds(range.end, 0, authority.clone())?,
-                    })
-                })
-                .collect::<Result<_>>()?,
-        })
+        windows::evaluate(self.authority.binding(), request)
     }
 
     pub fn expand_schedule(&self, request: &ExpandScheduleRequest) -> Result<ExpandScheduleOutput> {
-        validate_window(&request.horizon)?;
-        self.ensure_authority(&request.horizon.start)?;
-        self.ensure_authority(&request.horizon.end)?;
+        self.ensure_authority(request.horizon.start())?;
         if request.maximum_occurrences == 0 || request.maximum_occurrences > 1_000_000 {
             bail!("maximum_occurrences must be in 1..=1000000");
         }
@@ -233,14 +190,13 @@ impl TemporalEngine {
                     {
                         break;
                     }
-                    let window = TimeWindow {
-                        start: start_instant,
-                        end: end_instant,
-                    };
-                    if window.start.total_nanoseconds() >= request.horizon.end.total_nanoseconds() {
+                    let window = TimeWindow::new(start_instant, end_instant)?;
+                    if window.start().total_nanoseconds()
+                        >= request.horizon.end().total_nanoseconds()
+                    {
                         break;
                     }
-                    if window.end.total_nanoseconds() > request.horizon.start.total_nanoseconds() {
+                    if let Some(window) = window.intersection(&request.horizon)? {
                         if occurrences.len() >= request.maximum_occurrences as usize {
                             truncated = true;
                             break;
@@ -259,7 +215,7 @@ impl TemporalEngine {
                 break;
             }
         }
-        occurrences.sort_by_key(|occurrence| occurrence.window.start.total_nanoseconds());
+        occurrences.sort_by_key(|occurrence| occurrence.window.start().total_nanoseconds());
         for (index, occurrence) in occurrences.iter_mut().enumerate() {
             occurrence.sequence = index.try_into().unwrap_or(u32::MAX);
         }
@@ -603,23 +559,6 @@ fn scale_representation(
     }
 }
 
-fn validate_window(window: &TimeWindow) -> Result<()> {
-    if window.start.authority != window.end.authority {
-        bail!("window bounds must use the same authority");
-    }
-    if window.start.total_nanoseconds() >= window.end.total_nanoseconds() {
-        bail!("window end must follow its start");
-    }
-    Ok(())
-}
-
-fn window_set(windows: &[TimeWindow]) -> RangeSet<i128> {
-    windows
-        .iter()
-        .map(|window| window.start.total_nanoseconds()..window.end.total_nanoseconds())
-        .collect()
-}
-
 fn parse_local_datetime(value: &str) -> Result<NaiveDateTime> {
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S")
         .or_else(|_| NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S%.f"))
@@ -751,7 +690,7 @@ mod tests {
             AuthorityDatasetKind, AuthorityReleaseId, CalendarId, CalendarWindow,
             EffectiveTimeAuthority, MissionEpochId, OperationalCalendar, RecurrenceRule,
             TimeAuthorityReference, TimeAuthorityReleaseUri, TimeAuthoritySource,
-            TimelineConstraint, TimelinePoint,
+            TimelineConstraint, TimelinePoint, WindowOperation,
         },
     };
 
@@ -866,19 +805,13 @@ mod tests {
         let output = engine
             .evaluate_windows(&EvaluateWindowsRequest {
                 operation: WindowOperation::Union,
-                left: vec![TimeWindow {
-                    start: instant(100),
-                    end: instant(200),
-                }],
-                right: vec![TimeWindow {
-                    start: instant(200),
-                    end: instant(300),
-                }],
+                left: vec![TimeWindow::new(instant(100), instant(200)).unwrap()],
+                right: vec![TimeWindow::new(instant(200), instant(300)).unwrap()],
             })
             .unwrap();
         assert_eq!(output.windows.len(), 1);
-        assert_eq!(output.windows[0].start.tai_seconds_since_1970, 100);
-        assert_eq!(output.windows[0].end.tai_seconds_since_1970, 300);
+        assert_eq!(output.windows[0].start().tai_seconds_since_1970, 100);
+        assert_eq!(output.windows[0].end().tai_seconds_since_1970, 300);
     }
 
     #[test]
@@ -916,10 +849,11 @@ mod tests {
                     }],
                     excluded_dates: Vec::new(),
                 },
-                horizon: TimeWindow {
-                    start: resolve("2024-03-08T00:00:00Z"),
-                    end: resolve("2024-03-13T00:00:00Z"),
-                },
+                horizon: TimeWindow::new(
+                    resolve("2024-03-08T00:00:00Z"),
+                    resolve("2024-03-13T00:00:00Z"),
+                )
+                .unwrap(),
                 maximum_occurrences: 10,
             })
             .unwrap();
@@ -928,7 +862,7 @@ mod tests {
             .iter()
             .map(|occurrence| {
                 engine
-                    .project(occurrence.window.start.clone())
+                    .project(occurrence.window.start().clone())
                     .unwrap()
                     .utc_rfc3339
             })
@@ -938,6 +872,127 @@ mod tests {
         assert_eq!(starts[1], "2024-03-09T14:00:00Z");
         assert_eq!(starts[2], "2024-03-10T13:00:00Z");
         assert_eq!(starts[3], "2024-03-11T13:00:00Z");
+    }
+
+    #[test]
+    fn schedule_clips_bounds_and_keeps_limits_and_authority_checks() {
+        let engine = engine();
+        let resolve = |value: &str, uncertainty| {
+            engine
+                .resolve(&ResolveTimeRequest {
+                    expression: TimeExpression::Rfc3339 {
+                        value: value.to_owned(),
+                    },
+                    additional_uncertainty_nanoseconds: uncertainty,
+                })
+                .unwrap()
+                .instant
+        };
+        let horizon =
+            |start: &str, end: &str| TimeWindow::new(resolve(start, 7), resolve(end, 11)).unwrap();
+        let mut request = ExpandScheduleRequest {
+            calendar: OperationalCalendar {
+                calendar_id: CalendarId::new("calendar-clipping-test").unwrap(),
+                version: crate::TimeVersion::FIRST,
+                name: "UTC shifts".into(),
+                zone_id: "UTC".into(),
+                windows: vec![CalendarWindow {
+                    start_local: "2024-06-01T08:00:00".into(),
+                    end_local: "2024-06-01T18:00:00".into(),
+                    recurrence: RecurrenceRule {
+                        frequency: RecurrenceFrequency::Daily,
+                        interval: 1,
+                        weekdays: vec![],
+                        count: Some(2),
+                        until: None,
+                    },
+                    labels: vec!["day-shift".into()],
+                }],
+                excluded_dates: vec![],
+            },
+            horizon: horizon("2024-06-01T10:00:00Z", "2024-06-02T12:00:00Z"),
+            maximum_occurrences: 2,
+        };
+        let output = engine.expand_schedule(&request).unwrap();
+        assert!(!output.truncated);
+        assert_eq!(
+            output.occurrences,
+            vec![
+                ScheduleOccurrence {
+                    sequence: 0,
+                    window: TimeWindow::new(
+                        request.horizon.start().clone(),
+                        resolve("2024-06-01T18:00:00Z", 0)
+                    )
+                    .unwrap(),
+                    labels: vec!["day-shift".into()],
+                },
+                ScheduleOccurrence {
+                    sequence: 1,
+                    window: TimeWindow::new(
+                        resolve("2024-06-02T08:00:00Z", 0),
+                        request.horizon.end().clone()
+                    )
+                    .unwrap(),
+                    labels: vec!["day-shift".into()],
+                },
+            ]
+        );
+        request.maximum_occurrences = 1;
+        let limited = engine.expand_schedule(&request).unwrap();
+        assert!(limited.truncated);
+        assert_eq!(limited.occurrences, output.occurrences[..1]);
+        request.maximum_occurrences = 2;
+        request.calendar.windows[0].recurrence.count = Some(1);
+        let counted = engine.expand_schedule(&request).unwrap();
+        assert!(!counted.truncated);
+        assert_eq!(counted.occurrences, output.occurrences[..1]);
+        request.calendar.windows[0].recurrence.count = Some(2);
+        request.calendar.windows[0].recurrence.until = Some(resolve("2024-06-01T08:00:00Z", 0));
+        assert_eq!(
+            engine.expand_schedule(&request).unwrap().occurrences,
+            output.occurrences[..1]
+        );
+        request.calendar.windows[0].recurrence.until = None;
+
+        request.horizon = horizon("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z");
+        let enclosed = engine.expand_schedule(&request).unwrap();
+        assert_eq!(enclosed.occurrences.len(), 1);
+        assert_eq!(
+            enclosed.occurrences[0].window,
+            TimeWindow::new(
+                resolve("2024-06-01T08:00:00Z", 0),
+                resolve("2024-06-01T18:00:00Z", 0)
+            )
+            .unwrap()
+        );
+        for (start, end) in [
+            ("2024-06-01T00:00:00Z", "2024-06-01T08:00:00Z"),
+            ("2024-06-01T18:00:00Z", "2024-06-02T08:00:00Z"),
+        ] {
+            request.horizon = horizon(start, end);
+            assert!(
+                engine
+                    .expand_schedule(&request)
+                    .unwrap()
+                    .occurrences
+                    .is_empty()
+            );
+        }
+
+        let mut foreign_start = request.horizon.start().clone();
+        let mut foreign_end = request.horizon.end().clone();
+        foreign_start.authority = crate::AuthorityBinding::new(
+            AuthorityReleaseId::new("time-release-foreign-tzdb").unwrap(),
+            AuthorityReleaseId::new("time-release-foreign-leaps").unwrap(),
+        )
+        .unwrap();
+        foreign_end.authority = foreign_start.authority.clone();
+        request.calendar.windows[0].recurrence.until = Some(foreign_start.clone());
+        assert!(engine.expand_schedule(&request).is_err());
+        request.calendar.windows[0].recurrence.until = None;
+        request.horizon = TimeWindow::new(foreign_start, foreign_end).unwrap();
+        assert!(engine.expand_schedule(&request).is_err());
     }
 
     #[test]

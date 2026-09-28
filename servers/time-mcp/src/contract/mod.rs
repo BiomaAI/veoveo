@@ -9,6 +9,7 @@ mod resource;
 mod scopes;
 mod time;
 mod version;
+mod window;
 
 pub use admin::*;
 pub use authority::*;
@@ -21,3 +22,4 @@ pub use resource::*;
 pub use scopes::*;
 pub use time::*;
 pub use version::*;
+pub use window::*;

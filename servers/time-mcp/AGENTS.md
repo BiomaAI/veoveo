@@ -88,6 +88,11 @@ leap second assumptions.
   private; callers consume accessors. Pair construction checks dataset roles and
   distinct release IDs. `tests/authority_contract.rs` qualifies wire admission and
   schemas, while native metadata tests qualify stricter retained-binding admission.
+- `contract/window.rs` owns checked nonempty half-open intervals and intersection.
+  Keep bounds private and check the active engine authority at runtime. Algebra and
+  schedule clipping preserve selected endpoint uncertainty, taking the maximum at
+  tied coordinates without moving the bound. `tests/window_contract.rs` checks wire
+  admission; `engine/windows.rs` and engine schedule tests qualify runtime behavior.
 - `AuthoritySourceDigest` preserves the admin bare-hexadecimal spelling and idempotency
   equality. Download checks compare its canonical digest values; provenance uses the
   foundational `sha256:` representation. Keep digests typed through persistence drafts.

@@ -33,14 +33,6 @@ pub struct CivilTime {
     pub disambiguation: Disambiguation,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct TimeWindow {
-    /// Inclusive lower bound.
-    pub start: TimeInstant,
-    /// Exclusive upper bound.
-    pub end: TimeInstant,
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "format", rename_all = "snake_case")]
 pub enum TimeExpression {

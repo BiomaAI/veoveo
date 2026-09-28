@@ -80,7 +80,10 @@ clock changes. Nanoseconds retain subsecond coordinates. The uncertainty field i
 carried forward as evidence rather than folded into the timestamp. Authority ids
 bind every instant to one TZDB release and one leap-second release.
 
-Intervals are half-open `[start, end)`. This convention makes adjacent shifts,
+`TimeWindow` is a nonempty half-open interval `[start, end)`. Its constructor and
+JSON decoder require increasing nominal coordinates and one authority pair for both
+bounds. Read-only accessors preserve those relationships after construction. This
+convention makes adjacent shifts,
 reservations, and routing windows compose without double-counting their shared
 boundary.
 
@@ -136,6 +139,21 @@ The schemas constrain each pair member's dataset kind and require a nonempty ver
 label. Decoding additionally checks URI/ID equality, distinct release IDs and nonblank
 labels; those relational and whitespace checks use the Rust constructors. These metadata
 checks describe reference consistency; authority selection and file loading run in the registry.
+
+`TimeWindow` keeps the existing `start` and `end` wire fields. Its schema describes
+each instant; the Rust constructor enforces ordering and authority agreement across
+the fields. Runtime operations also check that this pair matches the active engine.
+Interval uncertainty describes the selected nominal bounds and does not widen them.
+The contract's intersection method clips two checked windows and returns no window
+for disjoint or touching inputs. Equal endpoint coordinates keep the larger uncertainty.
+
+Valid retained windows require no conversion. Before the coordinated Time upgrade,
+complete or cancel pending schedule Tasks through the running version and refresh client
+discovery before resuming traffic. Recovery rejects an invalid persisted horizon and
+stops startup. Preserve the prior image and database snapshot for the rollback procedure
+in Retained Catalog Metadata; resolve pending Tasks under that version before retrying.
+Completed Task results keep their stored representation. Native checks cover interval
+admission and clipped results; installed Task recovery and client refresh require qualification.
 
 `TimeScope` declares read, schedule, timeline, event-write, and administrative wire
 names once through `scope_enum!`. MCP handlers and Task admission use the enum when
@@ -398,6 +416,10 @@ count or until bounds, excluded civil dates, and caller-defined labels.
 to an authority-bound horizon. The output is ordered, numbered, and bounded by
 `maximum_occurrences`. Expansion understands offset changes because every occurrence
 is resolved from its local civil time rather than by adding fixed UTC durations.
+Clipped bounds retain the selected horizon endpoint's uncertainty. A bound shared with
+an occurrence keeps the larger uncertainty, and an occurrence touching only the
+horizon's exclusive edge is omitted. Recurrence count and cutoff apply to the original
+occurrences before clipping; labels carry through to the numbered results.
 
 The operation accepts at most 1,000,000 returned occurrences and uses a bounded
 calendar search horizon. Invalid local times remain explicit errors unless the
@@ -430,6 +452,10 @@ be below its minimum.
 bound half-open windows. Adjacent ranges coalesce during union. Every bound in one
 request must use the active authority pair, which makes the result suitable for
 direct use by routing, scheduling, and optimization tools.
+Each output endpoint retains the uncertainty at its input coordinate. When several
+input bounds share that coordinate, the result carries their maximum uncertainty.
+Difference preserves this metadata on newly exposed cut boundaries as well. The
+operations compare nominal coordinates and do not expand ranges by uncertainty.
 
 ## Clock Quality
 
@@ -824,13 +850,15 @@ Examples of agent requests include:
 |---|---|
 | `src/contract/` | strong ids, time expressions, calendars, events, admin models |
 | `src/authority.rs` | TZif context and IANA leap-second interpretation |
-| `src/engine.rs` | resolution, projection, recurrence, timelines, interval algebra |
+| `src/engine.rs` | resolution, projection, recurrence, timelines and engine authority checks |
+| `src/engine/windows.rs` | interval-set algebra with input endpoint metadata |
 | `src/clock.rs` | observation adapter and clock-policy assessment |
 | `src/contract/clock_policy.rs`, `src/contract/version.rs` | validated policy builder, numeric request schemas, positive versions and optional-row guards |
 | `src/contract/digest.rs` | Time's bare-hexadecimal digest adapter over the foundational SHA-256 type |
 | `src/catalog/clock.rs` | checked stored clock-policy scalars, identity and version |
 | `src/contract/instant.rs` | checked subsecond values, instant metadata and lossless total-coordinate conversion |
 | `src/contract/authority.rs` | checked release references, effective authority pairs, derived bindings and wire adapters |
+| `src/contract/window.rs` | checked half-open bounds, authority agreement and metadata-preserving intersection |
 | `src/catalog.rs`, `src/catalog/pages.rs` | typed catalog operations, domain body decoding, collection envelopes and completion |
 | `src/catalog/records.rs` | retained body/key and indexed-field checks, lifecycle-column decoding and redacted metadata errors |
 | `src/catalog/records/lifecycle.rs` | retained lifecycle-body DTOs and construction with the checked current column version |
@@ -861,7 +889,11 @@ qualify retirement, competing pointer updates and exhaustion rollback followed b
 Numeric contract cases compare schema bounds with JSON admission, and compile-fail
 examples reject unchecked construction. Native scalar cases reject negative, zero,
 truncated and exhausted values without changing rows; competing clock replacements
-admit one writer. Active-pointer cases corrupt family, identity, version, history and
+admit one writer. Window contract cases check JSON admission, read-only bounds and
+signed-coordinate extremes. Native interval cases compare all three operations with
+half-open membership and check endpoint uncertainty; schedule cases cover horizon
+clipping, recurrence limits and foreign authority rejection.
+Active-pointer cases corrupt family, identity, version, history and
 release links; raw query checks prove SQL excludes denied release payloads. Fixture
 events change pointer and previous-release fields after the candidate update, proving
 that the production transaction rechecks them and rolls back all changes. Store tests

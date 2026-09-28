@@ -40,6 +40,10 @@ required-features = ["contract"]
 name = "authority_contract"
 required-features = ["contract"]
 
+[[test]]
+name = "window_contract"
+required-features = ["contract"]
+
 [features]
 default = ["mcp"]
 contract = [
