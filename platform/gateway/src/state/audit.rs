@@ -17,6 +17,8 @@ use veoveo_types::{PrincipalId, TenantId};
 
 use super::GatewayState;
 
+mod policy_codec;
+
 const GATEWAY_AUDIT_NAMESPACE: Uuid = Uuid::from_u128(0xf9c572b4_0662_5bfb_9e61_32759dfdf997);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -310,12 +312,13 @@ impl GatewayState {
     }
 
     async fn policy_audit_events(&self) -> Result<Vec<AuditEvent>> {
-        decode_audit_events(
-            self.platform
-                .gateway_audit_events(GatewayAuditKind::Policy)
-                .await
-                .context("failed to read canonical gateway policy audit events")?,
-        )
+        self.platform
+            .gateway_audit_events(GatewayAuditKind::Policy)
+            .await
+            .context("failed to read canonical gateway policy audit events")?
+            .into_iter()
+            .map(|record| policy_codec::decode(&record.details))
+            .collect()
     }
 
     async fn auth_audit_events(&self) -> Result<Vec<AuthAuditEvent>> {
@@ -329,8 +332,9 @@ impl GatewayState {
 }
 
 fn canonical_policy_record(event: &AuditEvent) -> Result<AuditEventRecord> {
+    policy_codec::validate(event)?;
     let action = enum_wire_value(event.action)?;
-    canonical_audit_record(
+    let mut record = canonical_audit_record(
         GatewayAuditKind::Policy,
         event.event_id.as_str(),
         event.timestamp,
@@ -344,7 +348,9 @@ fn canonical_policy_record(event: &AuditEvent) -> Result<AuditEventRecord> {
             PolicyEffect::Deny => AuditOutcome::Denied,
         },
         event,
-    )
+    )?;
+    record.details = policy_codec::mark_current(record.details);
+    Ok(record)
 }
 
 pub(super) fn canonical_auth_record(event: &AuthAuditEvent) -> Result<AuditEventRecord> {

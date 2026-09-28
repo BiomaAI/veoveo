@@ -6,9 +6,10 @@
 |---|---|
 | Veoveo gateway control plane | Existing typed profiles, policy sets, principal attributes, resource exposure and recording-ingest declarations |
 | MCP 2026-07-28 | Canonical method/action names and domain resource ownership; evaluation itself performs no protocol I/O |
-| JSON / JSON Schema 2020-12 | Models remain owned by `mcp/contract`; this extraction adds no wire fields or policy versions |
+| JSON / JSON Schema 2020-12 | `mcp/contract` owns typed policy decisions and target kinds; selector configuration and policy versions keep their existing representation |
 | SurrealDB 3.2.4 | Caller-owned current revision read in `platform/store`; the evaluator has no database dependency |
 | Veoveo session-family authority | Internal read-only projection of the stored refresh family and verified request context; no new token or stored wire format |
+| RFC 6570 declaration targets | Template discovery and completion carry the foundational `ResourceTemplateUri`. Policy selectors use their existing restricted lexical matcher, not RFC expansion or set containment. |
 
 Gateway requests and Computers workers need the same policy decision. This library
 owns the pure evaluator previously embedded in the gateway. It depends on canonical
@@ -27,6 +28,15 @@ resolve current Work Context membership and select an authoritative control-plan
 revision. It must account for that read's latency before issuing a bounded lease.
 Caching immutable revisions is compatible with this boundary; renewing from a stale
 head or unreachable authority store is not.
+
+`resource_policy.rs` shares ownership and exposure checks between resource addresses
+and template declarations without converting one type to the other. A template target
+is admitted only for template discovery or completion; those actions reject concrete
+resource targets. Scheme and prefix selectors compare the declaration's spelling.
+The existing simple `{variable}` selector applies its lexical match to that spelling
+through `matches_template`. This does not claim that every possible expansion is
+allowed. Every later concrete read receives its own policy decision. Scope requirements,
+server/scheme filters and deny precedence apply to both target forms.
 
 `PlatformStore::active_gateway_control_revision` reads the active pointer and that
 exact retained revision in one round trip. It distinguishes an absent installation

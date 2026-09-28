@@ -54,8 +54,9 @@ impl From<ResourceUri> for String {
     }
 }
 
-// TODO(foundations): split concrete resource addresses from completion templates
-// in gateway policy and stored audit targets before tightening this wire validator.
+// TODO(foundations): qualify remaining opaque URI families before tightening this
+// wire validator. Gateway templates now use ResourceTemplateUri; the gateway's v1
+// audit adapter decodes old URI text independently of this type.
 fn validate_reference(value: &str) -> Result<(), IdentifierError> {
     let Some((scheme, rest)) = value.split_once("://") else {
         return Err(IdentifierError::new(

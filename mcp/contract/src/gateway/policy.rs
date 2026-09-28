@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use veoveo_types::ResourceTemplateUri;
 
 use super::*;
 
@@ -395,6 +396,19 @@ pub enum PolicyTarget {
     Resource {
         server: ServerSlug,
         uri: ResourceUri,
+    },
+    /// A declaration target for template discovery or argument completion.
+    /// ```compile_fail
+    /// use veoveo_mcp_contract::{PolicyTarget, ServerSlug};
+    /// use veoveo_types::ResourceUri;
+    /// PolicyTarget::ResourceTemplate {
+    ///     server: ServerSlug::new("example").unwrap(),
+    ///     uri: ResourceUri::new("example://items/literal").unwrap(),
+    /// };
+    /// ```
+    ResourceTemplate {
+        server: ServerSlug,
+        uri: ResourceTemplateUri,
     },
     Prompt {
         server: ServerSlug,

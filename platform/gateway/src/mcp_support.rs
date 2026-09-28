@@ -10,7 +10,7 @@ use veoveo_mcp_contract::{
     GatewayResourceProjection, GatewayToolName, McpMethodName, PolicyTarget,
     ResourceProjectionMode, ServerManifest, ServerResourceUri, ServerSlug,
 };
-use veoveo_types::{DataLabelId, ResourceUri, ScopeName};
+use veoveo_types::{DataLabelId, ResourceTemplateUri, ResourceUri, ScopeName};
 
 use crate::GatewayCatalog;
 
@@ -355,6 +355,15 @@ pub(crate) fn project_read_resource_result(
     Ok(())
 }
 
+pub(crate) fn resource_template_policy_target(
+    server: ServerSlug,
+    uri: &str,
+) -> Result<PolicyTarget, McpError> {
+    let uri = ResourceTemplateUri::new(uri)
+        .map_err(|err| mcp_invalid_params(format!("invalid resource template: {err}")))?;
+    Ok(PolicyTarget::ResourceTemplate { server, uri })
+}
+
 pub(crate) fn resource_policy_target(
     server: ServerSlug,
     uri: &str,
@@ -464,6 +473,31 @@ mod tests {
         UpstreamTransportSecurity, UpstreamUrl,
     };
     use veoveo_types::{DataLabelId, ResourceScheme, ResourceUri, ScopeName};
+
+    #[test]
+    fn template_admission_preserves_declarations_and_rejects_malformed_input() {
+        let server = ServerSlug::new("media").unwrap();
+        for wire in [
+            "media://model/literal",
+            "media://model/{+id}{?cursor}",
+            "media://artifact/{id}",
+            "media://usage/task/{id}",
+        ] {
+            let target = resource_template_policy_target(server.clone(), wire).unwrap();
+            assert!(
+                matches!(target, PolicyTarget::ResourceTemplate { uri, .. } if uri.as_str() == wire)
+            );
+        }
+        for wire in [
+            "relative/{id}",
+            "media://private-fixture/{id:65536}",
+            "media://private-fixture/{a..b}",
+        ] {
+            let error = resource_template_policy_target(server.clone(), wire).unwrap_err();
+            assert_eq!(error.code, rmcp::model::ErrorCode::INVALID_PARAMS);
+            assert!(!error.message.contains("private-fixture"));
+        }
+    }
 
     fn test_server(
         slug: &str,

@@ -4,11 +4,14 @@ use anyhow::Result;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfile, GatewayProfileId, McpMethodName, PolicyDecision, PolicyEffect,
     PolicyReasonCode, PolicyRule, PolicyRuleId, PolicyTarget, Principal, RecordingIngestResource,
-    RecordingProducerRegistration, ResourceProjectionMode, ServerManifest, TraceId,
+    RecordingProducerRegistration, TraceId,
 };
 use veoveo_types::{PolicyVersion, ResourceScheme, ScopeName};
 
-use crate::PolicyCatalogView;
+use crate::{
+    PolicyCatalogView,
+    resource_policy::{ResourcePolicyReference, profile_allows_resource},
+};
 
 #[derive(Debug, Clone)]
 pub struct PolicyRequest<'a> {
@@ -386,35 +389,32 @@ fn profile_allows_target(
             server,
             usage_uri: uri,
         } => {
-            let manifest = catalog
-                .server(server)
-                .ok_or(PolicyReasonCode::UnknownServer)?;
-            let scheme = resource_scheme(uri.as_str()).ok_or(PolicyReasonCode::UnknownResource)?;
-            if !manifest_owns_gateway_resource_uri(manifest, uri.as_str(), &scheme) {
-                return Err(PolicyReasonCode::UnknownResource);
+            if matches!(
+                action,
+                GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList
+            ) {
+                return Err(PolicyReasonCode::PolicyDeny);
             }
-            let exposure = profile
-                .servers
-                .iter()
-                .find(|exposure| &exposure.server == server)
-                .ok_or(PolicyReasonCode::PolicyDeny)?;
-            if matches!(&exposure.resources, veoveo_mcp_contract::Exposure::All)
-                || exposure.resources.iter().any(|selector| match selector {
-                    veoveo_mcp_contract::ResourceSelector::Scheme { scheme: allowed } => {
-                        allowed == &scheme
-                    }
-                    veoveo_mcp_contract::ResourceSelector::UriPrefix { prefix } => {
-                        uri.as_str().starts_with(prefix.as_ref())
-                    }
-                    veoveo_mcp_contract::ResourceSelector::Template { uri_template } => {
-                        uri_template.matches_uri(uri)
-                    }
-                })
-            {
-                Ok(())
-            } else {
-                Err(PolicyReasonCode::PolicyDeny)
+            profile_allows_resource(
+                catalog,
+                profile,
+                server,
+                ResourcePolicyReference::Concrete(uri),
+            )
+        }
+        PolicyTarget::ResourceTemplate { server, uri } => {
+            if !matches!(
+                action,
+                GatewayAction::CompletionComplete | GatewayAction::ResourcesTemplatesList
+            ) {
+                return Err(PolicyReasonCode::PolicyDeny);
             }
+            profile_allows_resource(
+                catalog,
+                profile,
+                server,
+                ResourcePolicyReference::Template(uri),
+            )
         }
         PolicyTarget::Prompt { server, prompt } => {
             let manifest = catalog
@@ -513,17 +513,6 @@ fn recording_rule_match(
             strongest_missing_rule_detail(strongest, RuleMatchDetail::MissingPrincipalAssurance);
     }
     strongest
-}
-
-fn manifest_owns_gateway_resource_uri(
-    manifest: &ServerManifest,
-    uri: &str,
-    scheme: &ResourceScheme,
-) -> bool {
-    manifest.uri_scheme == *scheme
-        || (manifest.resource_projection == ResourceProjectionMode::ServerOwned
-            && scheme.as_str() == "ui"
-            && uri.starts_with(&format!("ui://{}/", manifest.slug.as_str())))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -734,6 +723,12 @@ fn matches_target_filters(rule: &PolicyRule, target: &PolicyTarget) -> bool {
             };
             filter_matches(&rule.servers, server) && filter_matches(&rule.resource_schemes, &scheme)
         }
+        PolicyTarget::ResourceTemplate { server, uri } => {
+            let Some(scheme) = resource_scheme(uri.as_str()) else {
+                return false;
+            };
+            filter_matches(&rule.servers, server) && filter_matches(&rule.resource_schemes, &scheme)
+        }
         PolicyTarget::Prompt { server, prompt } => {
             filter_matches(&rule.servers, server) && filter_matches(&rule.prompts, prompt)
         }
@@ -749,21 +744,6 @@ fn has_required_scopes(
     required
         .iter()
         .all(|scope| principal_scopes.contains(scope))
-}
-
-trait ExposureResourceIter {
-    fn iter(&self) -> Box<dyn Iterator<Item = &veoveo_mcp_contract::ResourceSelector> + '_>;
-}
-
-impl ExposureResourceIter for veoveo_mcp_contract::Exposure<veoveo_mcp_contract::ResourceSelector> {
-    fn iter(&self) -> Box<dyn Iterator<Item = &veoveo_mcp_contract::ResourceSelector> + '_> {
-        match self {
-            veoveo_mcp_contract::Exposure::All | veoveo_mcp_contract::Exposure::None => {
-                Box::new([].iter())
-            }
-            veoveo_mcp_contract::Exposure::Listed(items) => Box::new(items.iter()),
-        }
-    }
 }
 
 fn filter_matches<T: Ord>(filter: &BTreeSet<T>, value: &T) -> bool {

@@ -628,6 +628,7 @@ fn policy_denial_message(decision: &PolicyDecision) -> String {
     let action = match &decision.target {
         PolicyTarget::Tool { server, tool } => format!("call `{server}__{tool}`"),
         PolicyTarget::Resource { uri, .. } => format!("read `{uri}`"),
+        PolicyTarget::ResourceTemplate { uri, .. } => format!("use resource template `{uri}`"),
         PolicyTarget::Prompt { server, prompt } => format!("use prompt `{prompt}` on `{server}`"),
         PolicyTarget::Task { task_id, .. } => format!("access task `{task_id}`"),
         PolicyTarget::Artifact { artifact_uri, .. } => format!("access `{artifact_uri}`"),

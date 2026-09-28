@@ -61,7 +61,8 @@ and gateway tests and strict workspace Clippy pass. Time now exposes isolated
 contract, runtime, and MCP features and owns its scope enum. Independent contract
 consumer, native server, and database qualification pass. Shared concrete URI components
 and builders now serve all Time resource variants and collection cursors. Gateway
-completion/audit reference separation, Store key typing, and wider server adoption are pending.
+completion and audit targets now distinguish templates, with native policy and stored-row
+qualification. Installed transition checks, Store key typing, and wider server adoption are pending.
 Map now owns its scope enum and authoring metadata request/cursor types. Layer,
 publication, product, and composition indexes use SQL-scoped pages, and Map Explorer
 follows them before publishing a refresh. Native tests cover 125 admitted records
@@ -220,8 +221,18 @@ The separate 72-package consumer passes 19 cases without MCP, database, provider
 GPU or asynchronous runtime dependencies.
 Strict workspace Clippy passes. Cleanup removed 21.4 GiB of superseded test
 executables while preserving libraries, fingerprints, incremental data and build caches.
-Gateway completion targets, policy matching and persisted audit decoding still need
-the distinct template type; their existing representation is unchanged by this step.
+Gateway completion and template discovery now use `PolicyTarget::ResourceTemplate`.
+The shared evaluator preserves lexical selectors, rejects declaration targets for reads,
+and keeps ownership, scope and deny checks in force. New policy audit writes carry the
+v2 format marker. A read-only v1 adapter converts historical targets according to their
+recorded action, including literal-only templates, without changing stored rows or decisions.
+Native checks cover both formats through separate Store connections and reject invalid
+new events before writing. Contract, policy, gateway library and gateway integration
+checks pass 280 cases, plus five compile-fail examples; strict workspace Clippy passes.
+The gateway audit design declares the coordinated drain,
+snapshot rollback and adapter retirement; installed transition qualification is pending.
+Cleanup removed 14.6 GiB of superseded test executables and kept the newest binary for
+each target, current qualification binaries, libraries, fingerprints and compiler caches.
 Download URL typing, other URI families, and remaining service interfaces need further work. These model changes preserve valid
 persisted representations and current authorization rules; reference installation qualification
 is pending.
@@ -680,8 +691,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Independent extension traits | `ScopeDefinition` and `ResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Time consumes checked setup; the independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup across the remaining servers and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
-| Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Migrate completion and audit targets separately from concrete reads; preserve the gateway policy selector's narrower matching semantics until its qualified transition |
-| Gateway completion and audit targets | `PolicyTarget::Resource` uses `ResourceUri` for concrete addresses and URI templates; stored target strings may contain template expressions | Separate the typed forms and qualify completion policy plus persisted target decoding before tightening URI validation |
+| Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Extend checked declarations and domain-builder agreement across remaining servers |
+| Gateway completion and audit targets | Completion and template discovery use `PolicyTarget::ResourceTemplate`; shared policy keeps the existing lexical selectors. New stored events use v2; the read-only v1 DTO adapter separates historical targets using their actions. Native qualification preserves old rows through separate Store connections | Qualify the declared installation drain and rollback; tighten the opaque resource validator after remaining URI families are inventoried |
 | Platform identity and attribution | Principal, tenant, group, role, Work Context, delegation, data-label, and policy-version types, access subjects, and invocation provenance are extracted into `platform/types`; consumers import them directly; eleven baseline schemas, wire/profile tests, independent consumer tests, and strict workspace Clippy pass | Preserve these contracts during domain extraction; qualify installed identity and policy behavior with the affected services |
 | Map | `MapScope` owns handler, Task, and default administrative scope spellings; authoring metadata requests and cursors use typed IDs and shared URI components; identity, Artifact metadata, and geodetic IDs now come from their owning contract libraries; the contract feature excludes runtime dependencies | Migrate remaining addresses and Store query IDs; qualify installed behavior |
 | Coordinate vocabulary | Map owns geodetic IDs; Frames owns worlds, conversions, and typed world/revision/frame addresses; RRD owns recorded frame/geofence metadata. Shared MCP coordinates are removed. Independent contract consumption and schema compatibility pass | Qualify installed behavior; enforce the documented retained-data preflight and coordinated drain for relative frame-ID rejection |
@@ -711,12 +722,12 @@ default owner; the inventory must not become a central domain-type registry.
 The initial extraction preserves `ResourceUri`'s current opaque lexical profile and
 wire strings. Concrete validation is a separate step through `ResourceUriParts`, also
 available from `ResourceUri::components`. This lets domain contracts validate their
-addresses while historical completion and audit references retain their current decoding.
-The completion/audit overlap above must be resolved before the wire profile is narrowed.
+addresses while the gateway's explicit v1 adapter reads historical completion and audit
+references as text before classifying their target kinds.
 Do not pass a template through the concrete parser or claim the opaque constructor
-establishes route safety. The gateway transition needs a typed template representation,
-completion authorization tests, and qualification of persisted target decoding; the
-existing simple policy selector matcher is not a general RFC 6570 template parser.
+establishes route safety. Gateway completion authorization and stored target decoding
+now have native qualification; the installation transition remains pending. Its
+simple policy selector matcher is not a general RFC 6570 template parser.
 Foundation tests cover wire strings, schema descriptions, lexical rejection, independent
 trait implementations, and compile-fail examples. A separately resolved consumer builds
 without MCP, runtime, database, GPU, or provider dependencies. The shared MCP contract,

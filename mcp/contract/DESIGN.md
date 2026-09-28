@@ -151,6 +151,11 @@ their resource parser. The gateway's simple policy selector is not used as a tem
 parser. This setup establishes API and declaration consistency;
 hosted conformance and domain tests establish the relevant behavior. Authentication,
 resource visibility, and operation policy stay with their existing owners.
+Gateway template discovery and resource completion use `PolicyTarget::ResourceTemplate`;
+concrete resource targets use their existing variants. The shared evaluator preserves
+the selector language and checks action/target consistency. Historical stored events
+enter through the gateway's [versioned persistence adapter](../../platform/gateway/src/state/audit/DESIGN.md),
+which owns the coordinated upgrade and rollback contract.
 Server contracts may use the foundation's `scope_enum!` declaration helper to generate
 their scope conversions and schemas from one set of wire spellings.
 

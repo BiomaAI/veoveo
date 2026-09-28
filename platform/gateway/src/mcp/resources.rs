@@ -16,7 +16,8 @@ use crate::mcp_support::{
     mcp_internal, mcp_invalid_params, project_app_resource_dependencies,
     project_app_tool_dependencies, project_gateway_resource_uri_for_upstream,
     project_listed_resource, project_listed_resource_uri, project_read_resource_result,
-    project_resource_template_uri, resource_policy_target, resource_read_action, upstream_error,
+    project_resource_template_uri, resource_policy_target, resource_read_action,
+    resource_template_policy_target, upstream_error,
 };
 
 use super::tools::{project_detailed_task_resource_uris, rewrite_detailed_task_id};
@@ -364,7 +365,7 @@ impl GatewayMcp {
         let mut targets = Vec::with_capacity(upstream_templates.len());
         for mut template in upstream_templates {
             project_resource_template_uri(manifest, &mut template)?;
-            targets.push(resource_policy_target(
+            targets.push(resource_template_policy_target(
                 server_slug.clone(),
                 &template.uri_template,
             )?);

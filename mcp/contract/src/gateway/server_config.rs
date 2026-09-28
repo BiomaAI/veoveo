@@ -599,6 +599,12 @@ impl ResourceUriTemplate {
     pub fn matches_uri(&self, uri: &ResourceUri) -> bool {
         resource_uri_template_matches(self.as_str(), uri.as_str())
     }
+
+    /// Apply the existing selector to the declaration's spelling. This does not
+    /// establish containment of all RFC 6570 expansions; reads are checked again.
+    pub fn matches_template(&self, template: &veoveo_types::ResourceTemplateUri) -> bool {
+        resource_uri_template_matches(self.as_str(), template.as_str())
+    }
 }
 
 impl AsRef<str> for ResourceUriTemplate {
