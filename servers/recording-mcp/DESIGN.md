@@ -54,6 +54,11 @@ Redap token subjects use the same grant ID admission. The optional reusable-gran
 header accepts one canonical ID; malformed or duplicate values fail before catalog work.
 Authorization, dataset membership and operational limits belong to runtime owners.
 
+Gateway-authenticated MCP, administrative and playback HTTP routes admit the configured
+Host authority before checking the bearer token. A missing, malformed or untrusted Host
+returns HTTP 421; an admitted Host with invalid credentials returns HTTP 401. Health and
+readiness probes remain unauthenticated, and Redap uses its own host-bound read grants.
+
 Store grant requests validate the catalog revision and normalize the selected Recording
 IDs. Viewer and projection grants admit one Recording; catalog grants admit up to 500.
 Grant creation checks dataset tenancy and every selected Recording's current dataset,

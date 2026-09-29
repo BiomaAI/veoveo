@@ -60,6 +60,13 @@ the same scheme, host, and effective port before any credential can be forwarded
 Certification also requires the index and every linked document to return HTTP 401
 without that credential.
 
+Direct-hosted assertions carry an automated service request context whose client ID
+matches the selected principal subject. The context binds the tenant, Work Context,
+scopes and thirty-minute expiry through the shared issuer's validation. Its source
+issuer and resource are `https://conformance.veoveo.local`; it has no browser session
+family or delegation. This synthetic identity supports direct protocol certification.
+Public OAuth and current installation policy require separate installed acceptance.
+
 ## Authoritative Live-View Profile
 
 A simulation profile may require `list_live_cameras`, `open_live_view`,

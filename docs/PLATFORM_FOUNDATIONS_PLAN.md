@@ -11,13 +11,18 @@ Phases 4–9 have not started. The platform and UAV images and charts are publis
 `5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature
 suite passed 2,649. Python passed 156 tests, and documentation and identifier checks
 passed. The old reference node and its five owned volumes have been removed.
-The fresh GPU node and Flux sources are available at release inputs `5b900e61`.
-The first install failed when Computers reached its progress deadline: concurrent
-cold image extraction delayed volume provisioning and database startup. Helm completed
-its uninstall, and the root and both releases are suspended during recovery. Prepare
-the consumed images sequentially before resuming GitOps; installed qualification is
-pending. Publication reused the compiler caches and left about
-519 GiB free. Fresh recording and Computers trust is enrolled
+The fresh GPU installation converged at `c0862f74`; all 24 deployments, both StatefulSets
+and both bootstrap Jobs passed readiness. `installation-verify` passed public OAuth
+and the full, HEAD and range Artifact delivery checks. Live hosted certification passed
+14 of 17 servers. The certifier now supplies a signed automated request context,
+Recording admits Host authorities before credentials, and Charts uses its registered
+resource scheme with static discovery declarations. The correction batch passes 16
+Rust tests and five Node tests; Charts also passes 25 native protocol checks and reads
+of its three domain resources. Publication and installed certification of these changes
+remain pending. The temporary certification Pod and ingress policy are removed, and
+the cluster is stopped during development. Sequential preparation of the consumed
+images resolved the cold-bootstrap I/O
+contention. Fresh recording and Computers trust is enrolled
 locally; its public key IDs and configuration digests pass Helm and rollout checks.
 The native provider accepts the generated JWT key and signs an extension token;
 installed authentication and lifecycle qualification are pending. The Phase 2 catalog fixture
@@ -1512,6 +1517,13 @@ implementation; this lifecycle correction does not complete that work.
 - Work autonomously. Do not stop to ask the user questions. When a choice is open,
   take the option closest to the designs this plan links, or the best-supported guess,
   and record the choice in the commit message.
+- Batch related implementation work before expensive validation. Use local reads,
+  formatting and focused checks to resolve specific uncertainty during development;
+  run affected tests together after the batch. Keep one Cargo pipeline and reuse the
+  qualified feature configuration where practical. Run broad workspace checks at
+  integration milestones or when shared inputs widen the affected dependency set.
+  Publish and perform installed acceptance once per coherent batch, rather than after
+  each small edit. A failure or new change justifies repeating only the affected checks.
 - Evaluate contract adequacy during each change. Improve outdated or inexpressive
   contracts when the accepted architecture requires it, without waiting for the user
   to identify the problem. Explain material tradeoffs, update the owning design and
@@ -2407,7 +2419,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Prepare the consumed images sequentially, resume GitOps on the fresh reference node, stage the Reason checkpoint, then qualify the workloads | Native acceptance and image/chart publication at `5df83706` pass. The first install at `5b900e61` failed during cold image extraction and database provisioning; Helm uninstall completed and reconciliation is suspended for recovery |
+| Phase 1 reference reset | `examples/bioma/README.md` | Publish the certification corrections, finish live certification, then qualify the installed workloads | Fresh GitOps convergence and `installation-verify` passed at `c0862f74`. The Reason checkpoint is staged and verified. Live hosted certification passed 14 of 17 servers; the certifier, Recording and Charts corrections pass native checks |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

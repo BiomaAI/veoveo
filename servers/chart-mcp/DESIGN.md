@@ -36,3 +36,8 @@ and render exports. The direct-launch `ui://charts/composer.html` App owns a
 session-local authoring draft, validates and compiles through canonical tools,
 and renders through the same upstream backend. `flint-v2.mjs` owns their
 final-protocol registration and schemas.
+
+The server owns `charts://chart-types`, `charts://agent-skill`, and
+`charts://theme-skill`; prompts reference those same addresses. Its tool, resource
+and prompt lists are fixed at startup and advertise no list-change notifications.
+The Composer App remains at `ui://charts/composer.html`.

@@ -1,4 +1,5 @@
 use super::*;
+use veoveo_mcp_contract::{GatewayRequestContext, OAuthClientId, ProtectedResourceId};
 
 /// Client handler that surfaces every server-initiated notification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -141,13 +142,35 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
         },
         provenance: InvocationProvenance::Automated,
     };
+    let now = Utc::now();
+    let expires_at = now + TimeDelta::minutes(30);
+    let request_context = GatewayRequestContext {
+        access_token: AccessTokenSubject {
+            managed_agent: None,
+            issuer: principal.issuer.clone(),
+            subject: principal.subject.clone(),
+            oauth_client_id: OAuthClientId::new(principal.subject.as_str())?,
+            session_family: None,
+            audience: ProtectedResourceId::new("https://conformance.veoveo.local")?,
+            work_context: authority.work_context.clone(),
+            invocation_mode: authority.provenance.mode(),
+            initiator: None,
+            delegation_id: None,
+            scopes: principal.scopes.clone(),
+            jwt_id: None,
+            issued_at: now,
+            not_before: Some(now),
+            expires_at,
+        },
+        principal: principal.clone(),
+    };
     let token = issuer.issue(
         GatewayProfileId::new(args.internal_profile.clone())?,
         ServerSlug::new(args.internal_server.clone())?,
         principal,
         authority,
-        None,
-        Utc::now() + TimeDelta::minutes(30),
+        Some(request_context),
+        expires_at,
     )?;
     Ok(token.bearer_token)
 }
@@ -155,6 +178,67 @@ fn issue_internal_conformance_token(args: &Args, private_key_der_b64: &str) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn direct_certification_signs_consistent_automated_request_context() {
+        let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ED25519).unwrap();
+        let args = Args {
+            url: "http://localhost:8804/computers/mcp".into(),
+            scheme: "computer".into(),
+            bearer_token: None,
+            internal_signing_key_der_b64: None,
+            internal_signing_key_id: "certification-key".into(),
+            internal_server: "computers".into(),
+            internal_profile: "test-profile".into(),
+            internal_work_context: "test-context".into(),
+            internal_principal_subject: "test-client".into(),
+            internal_tenant: "test-tenant".into(),
+            internal_scopes: vec!["operator:use".into(), "extension:read".into()],
+            cmd: Cmd::Certify {
+                profile: "unused.json".into(),
+                report: "unused-report.json".into(),
+            },
+        };
+        let trust = GatewayInternalTrustBundle::from_json(
+            &json!({"keys": [{
+                "kty": "OKP", "crv": "Ed25519", "alg": "EdDSA", "use": "sig",
+                "kid": args.internal_signing_key_id,
+                "x": base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(key.public_key_raw()),
+            }]})
+            .to_string(),
+        )
+        .unwrap();
+        let token =
+            issue_internal_conformance_token(&args, &BASE64_STANDARD.encode(key.serialize_der()))
+                .unwrap();
+        let identity = GatewayInternalTokenVerifier::new(
+            TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
+            ServerSlug::new("computers").unwrap(),
+            trust,
+        )
+        .verify(&token)
+        .unwrap();
+        let context = identity.request_context.as_ref().unwrap();
+        context
+            .validate_for(&identity.actor, &identity.authority)
+            .unwrap();
+        assert_eq!(context.access_token.oauth_client_id.as_str(), "test-client");
+        assert_eq!(
+            identity.actor.tenant.as_ref().unwrap().as_str(),
+            "test-tenant"
+        );
+        assert_eq!(context.access_token.work_context.as_str(), "test-context");
+        assert_eq!(context.access_token.scopes.len(), 2);
+        assert_eq!(identity.profile.as_str(), "test-profile");
+        assert!(context.access_token.session_family.is_none());
+        assert!(context.access_token.initiator.is_none());
+        assert!(context.access_token.delegation_id.is_none());
+        assert!(identity.expires_at <= context.access_token.expires_at);
+        assert_eq!(
+            context.access_token.expires_at - context.access_token.issued_at,
+            TimeDelta::minutes(30)
+        );
+    }
 
     #[test]
     fn direct_client_does_not_advertise_tasks() {

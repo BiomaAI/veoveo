@@ -23,8 +23,8 @@ const VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf
 const APP_EXTENSION = "io.modelcontextprotocol/ui";
 const APP_MIME_TYPE = "text/html;profile=mcp-app";
 const CHART_VIEW_URI = "ui://charts/composer.html";
-const AGENT_SKILL_URI = "flint://agent-skill";
-const THEME_SKILL_URI = "flint://theme-skill";
+const AGENT_SKILL_URI = "charts://agent-skill";
+const THEME_SKILL_URI = "charts://theme-skill";
 const SUPPORTED_BACKENDS = ["vegalite", "echarts", "chartjs"];
 const REGISTRY = {
   vegalite: vlAllTemplateDefs,
@@ -207,7 +207,12 @@ export function createServer({ disableFileReference = false } = {}) {
     {
       instructions:
         "Compile, validate, and render Flint chart specifications. The Composer MCP App can author a chart directly or accept create_chart_view input.",
-      capabilities: { extensions: { [APP_EXTENSION]: {} } },
+      capabilities: {
+        extensions: { [APP_EXTENSION]: {} },
+        tools: { listChanged: false },
+        resources: { listChanged: false },
+        prompts: { listChanged: false },
+      },
       cacheHints: {
         "server/discover": { ttlMs: 30000, scope: "private" },
         "tools/list": { ttlMs: 30000, scope: "private" },
@@ -346,7 +351,7 @@ export function createServer({ disableFileReference = false } = {}) {
   registerResource(
     server,
     "chart-types",
-    "flint://chart-types",
+    "charts://chart-types",
     "Flint chart types",
     "application/json",
     JSON.stringify(listChartTypes(), null, 2),

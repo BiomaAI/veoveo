@@ -37,6 +37,10 @@ pub(super) fn router(
     allowed_hosts: BTreeSet<String>,
     cancellation: &CancellationToken,
 ) -> Router {
+    let auth_state = InternalAuthState {
+        verifier,
+        allowed_hosts: Arc::new(allowed_hosts.iter().cloned().collect()),
+    };
     let service = StreamableHttpService::new(
         {
             let state = state.clone();
@@ -47,7 +51,6 @@ pub(super) fn router(
             .with_allowed_hosts(allowed_hosts)
             .with_cancellation_token(cancellation.child_token()),
     );
-    let auth_state = InternalAuthState { verifier };
     let mcp = Router::new()
         .route_service("/", service.clone())
         .route_service("/{*path}", service)

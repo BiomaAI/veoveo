@@ -1,17 +1,25 @@
 use axum::{
     extract::{Request, State},
-    http::{HeaderMap, StatusCode, header::AUTHORIZATION},
+    http::{
+        HeaderMap, StatusCode,
+        header::{AUTHORIZATION, HOST},
+    },
     middleware::Next,
     response::IntoResponse,
 };
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
-use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier, PlaneCaller};
+use std::sync::Arc;
+use veoveo_mcp_contract::{
+    GatewayInternalIdentity, GatewayInternalTokenVerifier, PlaneCaller, host_authority_is_allowed,
+    parse_request_host_authority,
+};
 
 pub(super) const ARTIFACT_READ_AUTHORIZATION_HEADER: &str = "x-veoveo-artifact-read-authorization";
 
 #[derive(Clone)]
 pub(super) struct InternalAuthState {
     pub(super) verifier: GatewayInternalTokenVerifier,
+    pub(super) allowed_hosts: Arc<Vec<String>>,
 }
 
 pub(super) async fn authenticate(
@@ -19,6 +27,20 @@ pub(super) async fn authenticate(
     mut request: Request,
     next: Next,
 ) -> axum::response::Response {
+    let host = request
+        .headers()
+        .get(HOST)
+        .and_then(|value| value.to_str().ok())
+        .and_then(parse_request_host_authority)
+        .or_else(|| {
+            request
+                .uri()
+                .authority()
+                .and_then(|value| parse_request_host_authority(value.as_str()))
+        });
+    if !host.is_some_and(|host| host_authority_is_allowed(&host, &state.allowed_hosts)) {
+        return (StatusCode::MISDIRECTED_REQUEST, "untrusted Host authority").into_response();
+    }
     let token = match bearer(request.headers()) {
         Ok(token) => token.to_owned(),
         Err(message) => {
@@ -108,6 +130,51 @@ fn bearer_from_name(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn untrusted_hosts_are_rejected_before_authentication() {
+        use axum::{Router, body::Body, middleware, routing::post};
+        use tower::ServiceExt;
+        use veoveo_mcp_contract::{GatewayInternalTrustBundle, ServerSlug, TokenIssuer};
+        let state = InternalAuthState {
+            verifier: GatewayInternalTokenVerifier::new(
+                TokenIssuer::new("veoveo-internal").unwrap(),
+                ServerSlug::new("recording").unwrap(),
+                GatewayInternalTrustBundle::from_json(r#"{"keys":[{"kty":"OKP","crv":"Ed25519","x":"OMOoJJu_AQS7UM8u2GVtMVj8W1zcE6QhR0DMBr9HEcg","alg":"EdDSA","use":"sig","kid":"test-key"}]}"#).unwrap(),
+            ),
+            allowed_hosts: Arc::new(vec!["recording-mcp:8796".into()]),
+        };
+        let app = Router::new()
+            .route("/mcp", post(|| async { StatusCode::NO_CONTENT }))
+            .layer(middleware::from_fn_with_state(state, authenticate));
+        for (host, expected) in [
+            (None, StatusCode::MISDIRECTED_REQUEST),
+            (Some("untrusted.invalid"), StatusCode::MISDIRECTED_REQUEST),
+            (Some("recording-mcp:9999"), StatusCode::MISDIRECTED_REQUEST),
+            (
+                Some("recording-mcp:not-a-port"),
+                StatusCode::MISDIRECTED_REQUEST,
+            ),
+            (Some("recording-mcp:8796"), StatusCode::UNAUTHORIZED),
+            (Some("RECORDING-MCP:8796"), StatusCode::UNAUTHORIZED),
+        ] {
+            for bearer in [None, Some("Bearer invalid-token")] {
+                let mut request = Request::builder().method("POST").uri("/mcp");
+                if let Some(host) = host {
+                    request = request.header(HOST, host);
+                }
+                if let Some(bearer) = bearer {
+                    request = request.header(AUTHORIZATION, bearer);
+                }
+                let response = app
+                    .clone()
+                    .oneshot(request.body(Body::empty()).unwrap())
+                    .await
+                    .unwrap();
+                assert_eq!(response.status(), expected, "host {host:?}");
+            }
+        }
+    }
 
     #[test]
     fn bearer_parser_is_strict() {

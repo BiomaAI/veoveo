@@ -115,9 +115,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-<!-- TODO(foundations): Install the published Phase 1 images and charts on the fresh
-reference node and qualify the workloads. Native acceptance and publication passed.
-The old node and its volumes are removed; verify host free space before reactivation. -->
+<!-- TODO(foundations): Publish the remaining certification corrections, then finish
+live certification and workload acceptance. Fresh GitOps convergence and
+installation-verify passed; 14 of 17 hosted servers passed live certification. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
