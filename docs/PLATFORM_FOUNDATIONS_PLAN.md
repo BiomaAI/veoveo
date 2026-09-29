@@ -1112,6 +1112,15 @@ workspace Clippy, formatting, document links and identifier checks pass. Dataset
 identity types, broader playback/projection construction, reservation/lifecycle SQL
 admission and installed acceptance remain open.
 
+At the user's request, a full Rust build cleanup removed the two generated target
+trees found across the local repositories, recovering 915.93 GiB and leaving 967 GiB
+free. The publication worktree and xtask state inside the main target directory were
+preserved and verified. Source checkouts, installed tools, downloaded Cargo dependencies,
+Rust toolchains and Docker caches were untouched. Subsequent checks rebuild only their
+required artifacts; the reference cluster stays stopped. This one-time cleanup
+explicitly discards the prior compiler cache and does not change the plan's normal
+cache-preservation rule.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
