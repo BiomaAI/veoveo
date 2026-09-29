@@ -459,6 +459,8 @@ inspection, encoded-video extraction and MP4 remux, ingest-part discovery, segme
 verification, recording-layer Store ID normalization, deterministic properties layers,
 and Arrow IPC export. `spatial_metadata.rs` owns recording-specific frame kinds and
 geofence metadata; geodetic names come from Map's contract feature.
+`projection.rs` prepares Rerun expressions from the Recording domain's sealed query
+before source access and enforces sample, row and byte limits during Arrow output.
 [`DESIGN.md`](../platform/recordings/rrd/DESIGN.md) specifies these shared file operations. Domain results that do not overlap Rerun
 concepts stay local to their MCP crate.
 
@@ -1066,7 +1068,9 @@ Simulation live-view ownership:
 IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
 the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
-owns grants and projection models. Its `src/playback.rs` owns sealed manifest construction,
+owns grants and projection result models. `projection/query.rs` and `projection/request.rs`
+own checked projection construction and shared bounds; RRD admits the selectors through
+its upstream grammar before loading sources. Its `src/playback.rs` owns sealed manifest construction,
 lifecycle and nested-field admission shared with Console. Hub and Video import this domain crate directly.
 The MCP library exposes the same types through its isolated contract feature. Console's
 browser edge imports its playback DTOs and distinct Recording/dataset/layer/grant/projection

@@ -74,42 +74,6 @@ pub struct RecordingCatalogGrant {
     pub expires_at: String,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RecordingProjectionSparseFill {
-    None,
-    LatestAtGlobal,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
-pub enum RecordingProjectionSampling {
-    Range { start: i64, end: i64 },
-    LatestAt { at: i64 },
-    SampleGrid { values: Vec<i64> },
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct CreateRecordingProjectionRequest {
-    pub dataset_id: RecordingDatasetId,
-    pub recording_id: RecordingId,
-    pub entity_paths: Vec<String>,
-    pub component_ids: Vec<String>,
-    pub timeline: String,
-    pub sampling: RecordingProjectionSampling,
-    pub sparse_fill: RecordingProjectionSparseFill,
-    pub maximum_entities: usize,
-    pub maximum_columns: usize,
-    pub maximum_samples: usize,
-    pub maximum_rows: u64,
-    pub maximum_bytes: u64,
-    pub deadline_ms: u64,
-    pub idempotency_key: String,
-    pub units: BTreeMap<String, String>,
-    pub coordinate_frame_refs: Vec<String>,
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct RecordingProjectionResultMetadata {

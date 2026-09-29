@@ -74,7 +74,7 @@ Manifest assembly uses the domain's checked builder. Console decodes the same se
 model, while the server validates the selected grant and prepares only its admitted
 catalog. Rerun's typed origin stores the URL library's host and explicit or default port;
 its dataset URI builder owns Redap address serialization, including IPv6.
-Projection construction and remaining address-field admission remain adoption work
+Projection result construction and remaining address-field admission remain adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## MCP Setup And Sealing Permission
@@ -210,10 +210,14 @@ scope, expiry, and direct-fetch authorization.
 
 ## Projection
 
-`service/projection.rs` validates every request bound before obtaining a work permit or
-reserving scratch. The shared `veoveo-rrd` projection module builds a Rerun query
-expression, combines the admitted immutable layers, emits canonical Arrow IPC, rejects
-non-finite selected numeric data, and computes result and schema digests.
+The Recording domain's builders admit projection bounds, unique selectors, ordered
+sampling and metadata before producing an immutable request. JSON decoding uses those
+same builders. `service/projection.rs` applies the configured deadline and prepares a
+Rerun query through `ArrowProjectionQuery::new` before Artifact materialization, Store
+receipts or scratch reservation. The shared RRD module owns the upstream grammar and
+rejects selectors that resolve to duplicate entities. It combines the admitted immutable
+layers, enforces row, sample and byte limits, emits Arrow IPC, rejects non-finite selected
+numeric data, and computes result and schema digests.
 
 The runtime has two permits and 96 MiB aggregate scratch at the reviewed maximum. A
 request may select at most 64 entities, 64 components, 10,000 samples, 10,000 rows,
@@ -274,7 +278,7 @@ durable capture bytes are not modified by this browser adapter.
 | `service.rs` | playback plans, sealing, properties publication, and catalog revision |
 | `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
 | `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |
-| `service/projection.rs` | request validation, receipts, concurrency, scratch, and Arrow download |
+| `service/projection.rs` | RRD query preparation, configured limits, receipts, concurrency, scratch, and Arrow download |
 | `blueprint_cache.rs` | server-owned Blueprint validation for the shared RRD cache |
 | `playback.rs` | durable grants, virtual Rerun handlers, scoped Redap, and manifest composition |
 | `live_playback.rs` | bounded reactive Rerun message projection for writing layers |

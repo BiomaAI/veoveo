@@ -9,6 +9,10 @@ pub enum RecordingContractError {
     Cursor,
     Selection,
     Playback,
+    ProjectionBounds,
+    ProjectionSelection,
+    ProjectionSampling,
+    ProjectionMetadata,
 }
 impl fmt::Display for RecordingContractError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -18,6 +22,18 @@ impl fmt::Display for RecordingContractError {
             Self::Cursor => "invalid Recording catalog cursor",
             Self::Selection => "Recording catalog selection requires 1 to 500 recording IDs",
             Self::Playback => "invalid Recording playback manifest",
+            Self::ProjectionBounds => {
+                "Recording projection limits must be positive and within the published bounds"
+            }
+            Self::ProjectionSelection => {
+                "Recording projection selectors must be nonempty, unique and at most 1024 bytes"
+            }
+            Self::ProjectionSampling => {
+                "Recording projection sampling must be ordered, temporal and within maximum_samples"
+            }
+            Self::ProjectionMetadata => {
+                "invalid Recording projection deadline, idempotency key or result metadata"
+            }
         })
     }
 }

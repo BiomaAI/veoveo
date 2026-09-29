@@ -7,10 +7,11 @@ use std::time::Duration;
 
 use anyhow::{Context, Result, ensure};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
-use veoveo_recording_hub::{DatasetName, DatasetRoute, Spooler, SpoolerConfig, run_blocking};
-use veoveo_rrd::projection::{
-    ProjectionQuery, ProjectionSampling, ProjectionSparseFill, write_arrow_projection,
+use veoveo_recording_contract::{
+    RecordingProjectionQueryBuilder, RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
+use veoveo_recording_hub::{DatasetName, DatasetRoute, Spooler, SpoolerConfig, run_blocking};
+use veoveo_rrd::projection::{ArrowProjectionQuery, write_arrow_projection};
 use veoveo_sumo_mcp::{
     driver::{FakeSimDriver, SimDriver},
     recording::RecordingPublisher,
@@ -84,21 +85,24 @@ pub(crate) async fn sumo_push(steps: u32) -> Result<()> {
     let output = temp.path().join("sumo-smoke.arrow");
     let query = write_arrow_projection(
         &layers,
-        &ProjectionQuery {
-            entity_paths: vec!["/world/sumo/vehicle_count".to_owned()],
-            component_ids: vec!["Scalars:scalars".to_owned()],
-            timeline: "tick".to_owned(),
-            sampling: ProjectionSampling::Range {
-                start: 0,
-                end: i64::from(steps),
-            },
-            sparse_fill: ProjectionSparseFill::None,
-            maximum_entities: 1,
-            maximum_columns: 1,
-            maximum_samples: usize::try_from(steps)?.saturating_add(1),
-            maximum_rows: u64::from(steps).saturating_add(1),
-            maximum_bytes: 4 * 1024 * 1024,
-        },
+        &ArrowProjectionQuery::new(
+            RecordingProjectionQueryBuilder {
+                entity_paths: vec!["/world/sumo/vehicle_count".to_owned()],
+                component_ids: vec!["Scalars:scalars".to_owned()],
+                timeline: "tick".to_owned(),
+                sampling: RecordingProjectionSampling::Range {
+                    start: 0,
+                    end: i64::from(steps),
+                },
+                sparse_fill: RecordingProjectionSparseFill::None,
+                maximum_entities: 1,
+                maximum_columns: 1,
+                maximum_samples: usize::try_from(steps)?.saturating_add(1),
+                maximum_rows: u64::from(steps).saturating_add(1),
+                maximum_bytes: 4 * 1024 * 1024,
+            }
+            .build()?,
+        )?,
         &output,
     )?;
     ensure!(

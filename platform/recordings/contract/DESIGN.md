@@ -33,8 +33,8 @@ They share UUID admission mechanics without allowing implicit conversion between
 `resources.rs` builds and admits domain routes
 through the foundational URI library. `cursor.rs` owns public catalog positions;
 the service converts them to Store's query types at the persistence call. `uris.rs`
-declares fixed discovery roots and templates. `catalog.rs` owns grant and projection
-models. Its catalog-request constructor admits 1–500 input Recording IDs and produces
+declares fixed discovery roots and templates. `catalog.rs` owns grants and projection
+result models. Its catalog-request constructor admits 1–500 input Recording IDs and produces
 a sorted unique selection. Dataset membership remains a Store admission check.
 The crate root owns recording views, layer views and sealing. `playback.rs` owns the
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
@@ -51,12 +51,30 @@ authorization belong to the service. Console imports this model through the serv
 contract-only feature and checks that it names the requested Recording before forwarding
 it. The contract requires no runtime or clock source.
 
+`projection/query.rs` owns the checked query and its published limits: 64 entity paths,
+64 component identifiers, 10,000 samples, 10,000 rows and 32 MiB. Selectors are unique,
+nonempty text of at most 1024 bytes without control characters. Sampling requires an
+ordered range or a strictly increasing explicit grid within the requested sample limit.
+Temporal values exclude Rerun's reserved static marker, `i64::MIN`.
+`projection/request.rs` builds a request from the checked query, distinct dataset and
+Recording IDs, a deadline of 1–15,000 ms and bounded metadata. Unit keys must name a
+selected component. Both query and request expose immutable field access; JSON decoding
+runs the same builders and rejects unknown fields. The request wire shape stays flat.
+
+The lightweight query checks bounds and relationships without importing Rerun grammar.
+RRD prepares an `ArrowProjectionQuery` with the pinned upstream entity, component and
+timeline parsers before any source loading. It also rejects distinct spellings that
+resolve to the same entity. The service performs this step before Artifact materialization.
+Authorization, configured lower limits, concurrency and scratch admission belong to the
+service. Coordinate-frame reference interpretation and projection result admission are
+tracked in the foundations plan.
+
 Address decoding rejects alternate spellings, fragments, unsupported or duplicate
 query parameters, malformed IDs and wrong resource parents. Errors omit submitted
 values. An admitted URI grants no access. Service owners check current authorization
 and operational bounds, while SQL selects visible records before limits and decoding.
 Store adapters require native RFC UUIDv7 record keys with the declared table. String
-record keys are not part of the current storage profile. Projection construction and
+record keys are not part of the current storage profile. Projection result construction and
 remaining address-field admission are
 tracked in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 

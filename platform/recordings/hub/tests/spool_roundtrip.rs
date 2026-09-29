@@ -15,12 +15,14 @@ use re_sdk::{
 };
 use re_sdk_types::archetypes::{Scalars, VideoStream};
 use re_sdk_types::components::VideoCodec;
+use veoveo_recording_contract::{
+    RecordingProjectionQueryBuilder, RecordingProjectionSampling, RecordingProjectionSparseFill,
+};
 use veoveo_recording_hub::config::{DatasetName, DatasetRoute, SpoolerConfig};
 use veoveo_recording_hub::spool::{Spooler, run_blocking};
 use veoveo_recording_hub::{RecordingLayerFileScope, collect_recording_layer_files};
 use veoveo_rrd::projection::{
-    ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
-    write_arrow_projection,
+    ArrowProjectionQuery, ArrowProjectionSummary, write_arrow_projection,
 };
 use veoveo_rrd::video_clip::{VideoClipRequest, extract_video_clip, remux_h264_mp4};
 
@@ -75,18 +77,21 @@ fn project_layer_rows(
     let directory = tempfile::tempdir()?;
     write_arrow_projection(
         layers,
-        &ProjectionQuery {
-            entity_paths: vec![entity_path.to_owned()],
-            component_ids: vec!["Scalars:scalars".to_owned()],
-            timeline: timeline.to_owned(),
-            sampling: ProjectionSampling::Range { start, end },
-            sparse_fill: ProjectionSparseFill::None,
-            maximum_entities: 1,
-            maximum_columns: 1,
-            maximum_samples: 10_000,
-            maximum_rows: 10_000,
-            maximum_bytes: 32 * 1024 * 1024,
-        },
+        &ArrowProjectionQuery::new(
+            RecordingProjectionQueryBuilder {
+                entity_paths: vec![entity_path.to_owned()],
+                component_ids: vec!["Scalars:scalars".to_owned()],
+                timeline: timeline.to_owned(),
+                sampling: RecordingProjectionSampling::Range { start, end },
+                sparse_fill: RecordingProjectionSparseFill::None,
+                maximum_entities: 1,
+                maximum_columns: 1,
+                maximum_samples: 10_000,
+                maximum_rows: 10_000,
+                maximum_bytes: 32 * 1024 * 1024,
+            }
+            .build()?,
+        )?,
         &directory.path().join("projection.arrow"),
     )
 }
@@ -283,7 +288,7 @@ async fn direct_spool_preserves_a_distinct_producer_blueprint() {
             dir.path(),
             "/world/value",
             "log_time",
-            i64::MIN,
+            i64::MIN + 1,
             i64::MAX,
             RecordingLayerFileScope::Committed,
         )

@@ -8,6 +8,7 @@ name = "veoveo_rrd"
 path = "src/lib.rs"
 
 [dependencies]
+veoveo-recording-contract.workspace = true
 veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
 anyhow.workspace = true
 hex.workspace = true

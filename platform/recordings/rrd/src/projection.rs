@@ -19,37 +19,23 @@ use re_sdk_types::external::arrow;
 use re_types_core::ComponentIdentifier;
 use sha2::{Digest as _, Sha256};
 
-pub const MAX_PROJECTION_ENTITIES: usize = 64;
-pub const MAX_PROJECTION_COMPONENTS: usize = 64;
-pub const MAX_PROJECTION_SAMPLES: usize = 10_000;
-pub const MAX_PROJECTION_ROWS: u64 = 10_000;
-pub const MAX_PROJECTION_BYTES: u64 = 32 * 1024 * 1024;
+use veoveo_recording_contract::{
+    RecordingProjectionQuery, RecordingProjectionSampling, RecordingProjectionSparseFill,
+};
 
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ProjectionSampling {
-    Range { start: i64, end: i64 },
-    LatestAt { at: i64 },
-    SampleGrid { values: Vec<i64> },
+/// A bounded query whose selectors have been parsed by the pinned Rerun implementation.
+/// Construction performs no file access. Callers prepare this before source materialization.
+#[derive(Clone, Debug)]
+pub struct ArrowProjectionQuery {
+    query: RecordingProjectionQuery,
+    expression: QueryExpression,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ProjectionSparseFill {
-    None,
-    LatestAtGlobal,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct ProjectionQuery {
-    pub entity_paths: Vec<String>,
-    pub component_ids: Vec<String>,
-    pub timeline: String,
-    pub sampling: ProjectionSampling,
-    pub sparse_fill: ProjectionSparseFill,
-    pub maximum_entities: usize,
-    pub maximum_columns: usize,
-    pub maximum_samples: usize,
-    pub maximum_rows: u64,
-    pub maximum_bytes: u64,
+impl ArrowProjectionQuery {
+    pub fn new(query: RecordingProjectionQuery) -> Result<Self> {
+        let expression = query_expression(&query)?;
+        Ok(Self { query, expression })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +49,7 @@ pub struct ArrowProjectionSummary {
 
 pub fn write_arrow_projection(
     layer_paths: &[PathBuf],
-    query: &ProjectionQuery,
+    query: &ArrowProjectionQuery,
     output: &Path,
 ) -> Result<ArrowProjectionSummary> {
     write_arrow_projection_cancelable(layer_paths, query, output, Arc::new(AtomicBool::new(false)))
@@ -71,11 +57,10 @@ pub fn write_arrow_projection(
 
 pub fn write_arrow_projection_cancelable(
     layer_paths: &[PathBuf],
-    query: &ProjectionQuery,
+    query: &ArrowProjectionQuery,
     output: &Path,
     cancelled: Arc<AtomicBool>,
 ) -> Result<ArrowProjectionSummary> {
-    validate_query(query)?;
     ensure!(
         !layer_paths.is_empty(),
         "projection has no immutable RRD layers"
@@ -94,7 +79,7 @@ pub fn write_arrow_projection_cancelable(
 
 fn write_arrow_projection_inner(
     layer_paths: &[PathBuf],
-    query: &ProjectionQuery,
+    query: &ArrowProjectionQuery,
     output: &Path,
     cancelled: Arc<AtomicBool>,
 ) -> Result<ArrowProjectionSummary> {
@@ -103,8 +88,8 @@ fn write_arrow_projection_inner(
         "Arrow projection was cancelled"
     );
     let engine = QueryEngine::from_store(combined_chunk_store(layer_paths, &cancelled)?);
-    let expression = query_expression(query)?;
-    let mut handle = engine.query(expression);
+    let mut handle = engine.query(query.expression.clone());
+    let query = &query.query;
     let schema = handle.schema().clone();
     let schema_sha256 = canonical_schema_sha256(schema.as_ref());
     let file = std::fs::OpenOptions::new()
@@ -128,6 +113,10 @@ fn write_arrow_projection_inner(
             row_count <= query.maximum_rows,
             "Arrow projection exceeds maximum_rows"
         );
+        ensure!(
+            row_count <= u64::try_from(query.maximum_samples)?,
+            "Arrow projection exceeds maximum_samples"
+        );
         for column in batch.columns() {
             ensure_finite(column.as_ref())?;
         }
@@ -145,9 +134,9 @@ fn write_arrow_projection_inner(
     let byte_len = bounded.written;
     let sha256 = hex::encode(bounded.digest.finalize());
     let requested_samples = match &query.sampling {
-        ProjectionSampling::LatestAt { .. } => 1,
-        ProjectionSampling::SampleGrid { values } => u64::try_from(values.len())?,
-        ProjectionSampling::Range { .. } => 0,
+        RecordingProjectionSampling::LatestAt { .. } => 1,
+        RecordingProjectionSampling::SampleGrid { values } => u64::try_from(values.len())?,
+        RecordingProjectionSampling::Range { .. } => 0,
     };
     Ok(ArrowProjectionSummary {
         row_count,
@@ -158,70 +147,13 @@ fn write_arrow_projection_inner(
     })
 }
 
-fn validate_query(query: &ProjectionQuery) -> Result<()> {
-    ensure!(
-        !query.entity_paths.is_empty()
-            && query.entity_paths.len() <= query.maximum_entities
-            && query.maximum_entities <= MAX_PROJECTION_ENTITIES,
-        "projection entity bounds are invalid"
-    );
-    ensure!(
-        !query.component_ids.is_empty()
-            && query.component_ids.len() <= query.maximum_columns
-            && query.maximum_columns <= MAX_PROJECTION_COMPONENTS,
-        "projection component bounds are invalid"
-    );
-    ensure!(
-        (1..=MAX_PROJECTION_ROWS).contains(&query.maximum_rows),
-        "projection maximum_rows is invalid"
-    );
-    ensure!(
-        (1..=MAX_PROJECTION_BYTES).contains(&query.maximum_bytes),
-        "projection maximum_bytes is invalid"
-    );
-    ensure!(
-        (1..=MAX_PROJECTION_SAMPLES).contains(&query.maximum_samples),
-        "projection maximum_samples is invalid"
-    );
-    ensure!(
-        query.entity_paths.iter().collect::<BTreeSet<_>>().len() == query.entity_paths.len(),
-        "projection entity paths must be unique"
-    );
-    ensure!(
-        query.component_ids.iter().collect::<BTreeSet<_>>().len() == query.component_ids.len(),
-        "projection component identifiers must be unique"
-    );
-    match &query.sampling {
-        ProjectionSampling::Range { start, end } => {
-            ensure!(start <= end, "projection range start must not exceed end");
-        }
-        ProjectionSampling::LatestAt { .. } => {
-            ensure!(
-                query.maximum_samples >= 1,
-                "projection latest-at sample bound is invalid"
-            );
-        }
-        ProjectionSampling::SampleGrid { values } => {
-            ensure!(
-                !values.is_empty() && values.len() <= query.maximum_samples,
-                "projection sample grid exceeds maximum_samples"
-            );
-            ensure!(
-                values.windows(2).all(|pair| pair[0] < pair[1]),
-                "projection sample grid must be strictly increasing"
-            );
-        }
-    }
-    Ok(())
-}
-
-fn query_expression(query: &ProjectionQuery) -> Result<QueryExpression> {
+fn query_expression(query: &RecordingProjectionQuery) -> Result<QueryExpression> {
     let components = query
         .component_ids
         .iter()
         .map(|value| {
             ComponentIdentifier::try_new(value.clone())
-                .with_context(|| format!("invalid component identifier `{value}`"))
+                .context("invalid projection component identifier")
         })
         .collect::<Result<BTreeSet<_>>>()?;
     let view_contents = query
@@ -229,16 +161,19 @@ fn query_expression(query: &ProjectionQuery) -> Result<QueryExpression> {
         .iter()
         .map(|value| {
             EntityPath::parse_strict(value)
-                .with_context(|| format!("invalid entity path `{value}`"))
+                .context("invalid projection entity path")
                 .map(|path| (path, Some(components.clone())))
         })
-        .collect::<Result<BTreeMap<_, _>>>()?
-        .into_iter()
-        .collect();
+        .collect::<Result<BTreeMap<_, _>>>()?;
+    ensure!(
+        view_contents.len() == query.entity_paths.len(),
+        "projection selectors resolve to duplicate entity paths"
+    );
+    let view_contents = view_contents.into_iter().collect();
     let timeline = TimelineName::try_new(&query.timeline).context("invalid projection timeline")?;
     let sparse_fill_strategy = match query.sparse_fill {
-        ProjectionSparseFill::None => SparseFillStrategy::None,
-        ProjectionSparseFill::LatestAtGlobal => SparseFillStrategy::LatestAtGlobal,
+        RecordingProjectionSparseFill::None => SparseFillStrategy::None,
+        RecordingProjectionSparseFill::LatestAtGlobal => SparseFillStrategy::LatestAtGlobal,
     };
     let mut expression = QueryExpression {
         view_contents: Some(view_contents),
@@ -247,17 +182,17 @@ fn query_expression(query: &ProjectionQuery) -> Result<QueryExpression> {
         ..Default::default()
     };
     match &query.sampling {
-        ProjectionSampling::Range { start, end } => {
+        RecordingProjectionSampling::Range { start, end } => {
             expression.filtered_index_range = Some(AbsoluteTimeRange::new(
                 TimeInt::new_temporal(*start),
                 TimeInt::new_temporal(*end),
             ));
         }
-        ProjectionSampling::LatestAt { at } => {
+        RecordingProjectionSampling::LatestAt { at } => {
             expression.using_index_values = Some([TimeInt::new_temporal(*at)].into());
             expression.sparse_fill_strategy = SparseFillStrategy::LatestAtGlobal;
         }
-        ProjectionSampling::SampleGrid { values } => {
+        RecordingProjectionSampling::SampleGrid { values } => {
             expression.using_index_values =
                 Some(values.iter().copied().map(TimeInt::new_temporal).collect());
         }
@@ -434,19 +369,25 @@ mod tests {
 
     use super::*;
 
-    fn query(maximum_bytes: u64) -> ProjectionQuery {
-        ProjectionQuery {
+    fn query_builder(
+        maximum_bytes: u64,
+    ) -> veoveo_recording_contract::RecordingProjectionQueryBuilder {
+        veoveo_recording_contract::RecordingProjectionQueryBuilder {
             entity_paths: vec!["/sensor".to_owned()],
             component_ids: vec!["Scalars:scalars".to_owned()],
             timeline: "tick".to_owned(),
-            sampling: ProjectionSampling::Range { start: 0, end: 2 },
-            sparse_fill: ProjectionSparseFill::None,
+            sampling: RecordingProjectionSampling::Range { start: 0, end: 2 },
+            sparse_fill: RecordingProjectionSparseFill::None,
             maximum_entities: 1,
             maximum_columns: 1,
             maximum_samples: 3,
             maximum_rows: 3,
             maximum_bytes,
         }
+    }
+
+    fn query(maximum_bytes: u64) -> ArrowProjectionQuery {
+        ArrowProjectionQuery::new(query_builder(maximum_bytes).build().unwrap()).unwrap()
     }
 
     fn fixture(path: &Path, values: [f64; 3]) {
@@ -460,6 +401,37 @@ mod tests {
         }
         recording.flush_blocking().unwrap();
         drop(recording);
+    }
+
+    #[test]
+    fn preparation_parses_selectors_without_reading_layers() {
+        let mut invalid = query_builder(1024);
+        invalid.entity_paths = vec!["/sensor[0]".into()];
+        // The lightweight contract admits bounded text. The Rerun adapter owns grammar.
+        let bounded = invalid.build().unwrap();
+        assert!(ArrowProjectionQuery::new(bounded).is_err());
+
+        let mut duplicates = query_builder(1024);
+        duplicates.maximum_entities = 2;
+        duplicates.entity_paths = vec!["/sensor".into(), "sensor".into()];
+        assert!(ArrowProjectionQuery::new(duplicates.build().unwrap()).is_err());
+    }
+
+    #[test]
+    fn range_sample_limit_removes_partial_result() {
+        let directory = tempfile::tempdir().unwrap();
+        let layer = directory.path().join("layer.rrd");
+        fixture(&layer, [1.0, 2.0, 3.0]);
+        let output = directory.path().join("limited.arrow");
+        let mut builder = query_builder(1024 * 1024);
+        builder.maximum_samples = 2;
+        let query = ArrowProjectionQuery::new(builder.build().unwrap()).unwrap();
+        let error = write_arrow_projection(&[layer], &query, &output).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "Arrow projection exceeds maximum_samples"
+        );
+        assert!(!output.exists());
     }
 
     #[test]

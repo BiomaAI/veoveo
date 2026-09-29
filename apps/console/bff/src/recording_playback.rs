@@ -11,7 +11,9 @@ use axum::{
     },
     response::{IntoResponse as _, Response},
 };
-use veoveo_recording_mcp::contract::{PlaybackManifest, RecordingId, RecordingProjectionId};
+use veoveo_recording_mcp::contract::{
+    MAX_PROJECTION_BYTES, PlaybackManifest, RecordingId, RecordingProjectionId,
+};
 
 use crate::{
     AppState,
@@ -19,7 +21,6 @@ use crate::{
 };
 
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
-const MAX_PROJECTION_BYTES: u64 = 32 * 1024 * 1024;
 const ARROW_STREAM_CONTENT_TYPE: &str = "application/vnd.apache.arrow.stream";
 const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";

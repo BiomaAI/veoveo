@@ -151,9 +151,15 @@ recording, entity paths, component IDs, timeline, range or sample grid, sparse-f
 policy, idempotency key, units, coordinate-frame references, and every applicable
 bound. Omitted bounds are invalid.
 
+The shared Recording contract builds an immutable query and request. It rejects
+duplicate selectors, unordered sampling, a temporal `i64::MIN`, zero limits and limits
+above the published maxima. Selectors contain at most 1024 bytes each. Unit keys name
+selected components. RRD's upstream parsers admit selector syntax before the service
+loads Artifact bytes; the contract feature itself imports no Rerun implementation.
+
 The service queries the exact admitted RRD layers and writes canonical Arrow IPC to
 managed scratch before response headers. Equal manifest and query inputs produce equal
-bytes. The server checks row count, serialized length, selected numeric finiteness,
+bytes. The server checks sample and row counts, serialized length, selected numeric finiteness,
 schema digest, and payload digest. Cancellation or timeout removes partial and final
 scratch for the failed receipt.
 

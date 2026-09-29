@@ -3,6 +3,8 @@
 mod addresses;
 #[path = "contract/playback.rs"]
 mod playback;
+#[path = "contract/projection.rs"]
+mod projection;
 
 use serde_json::{Value, json};
 use veoveo_recording_contract::{
@@ -70,10 +72,10 @@ fn projection_request_preserves_selectors_bounds_and_sampling() {
     });
     let request: CreateRecordingProjectionRequest = serde_json::from_value(wire.clone()).unwrap();
     assert!(
-        matches!(request.sampling, RecordingProjectionSampling::SampleGrid { ref values } if values == &[2, 4])
+        matches!(request.query.sampling, RecordingProjectionSampling::SampleGrid { ref values } if values == &[2, 4])
     );
     assert!(matches!(
-        request.sparse_fill,
+        request.query.sparse_fill,
         RecordingProjectionSparseFill::LatestAtGlobal
     ));
     assert_eq!(serde_json::to_value(request).unwrap(), wire);

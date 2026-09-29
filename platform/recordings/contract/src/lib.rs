@@ -26,10 +26,17 @@ pub use playback::{
 
 mod catalog;
 pub use catalog::{
-    CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
-    RECORDING_CATALOG_GRANT_SCHEMA, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant,
-    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
-    RecordingProjectionSparseFill,
+    CreateRecordingCatalogGrantRequest, RECORDING_CATALOG_GRANT_SCHEMA,
+    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant, RecordingProjectionHandle,
+    RecordingProjectionResultMetadata,
+};
+mod projection;
+pub use projection::{
+    CreateRecordingProjectionRequest, CreateRecordingProjectionRequestBuilder,
+    MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_DEADLINE_MS,
+    MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS, MAX_PROJECTION_SAMPLES,
+    MAX_PROJECTION_SELECTOR_BYTES, RecordingProjectionQuery, RecordingProjectionQueryBuilder,
+    RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]

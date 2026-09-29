@@ -34,8 +34,13 @@ H.264 access units into MP4. No image is rendered, and no video is decoded or en
 this operation. GPU decode and inference remain the consuming runtime's responsibility.
 
 `recording_layer.rs` normalizes and verifies canonical durable Store IDs.
-`properties_layer.rs` builds deterministic properties layers. `projection/` owns the
-bounded Arrow projection implementation. `video.rs` owns encoded access-unit inspection.
+`properties_layer.rs` builds deterministic properties layers. `projection.rs` owns the
+Arrow implementation. It imports the sealed query and sampling vocabulary from the
+[Recording domain contract](../contract/DESIGN.md). `ArrowProjectionQuery::new` parses
+those selectors with the pinned Rerun types and rejects duplicate resolved entities
+without opening files. Every Arrow writer requires this prepared type. During execution,
+row and sample counts and the byte writer enforce the admitted limits; cancellation or
+failure removes partial output. `video.rs` owns encoded access-unit inspection.
 
 ## Verification
 

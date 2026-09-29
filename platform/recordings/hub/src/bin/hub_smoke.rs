@@ -12,13 +12,15 @@ use clap::{Parser, Subcommand};
 use re_grpc_server::{MemoryLimit, ServerOptions, shutdown};
 use re_sdk::{ApplicationId, RecordingStreamBuilder};
 use re_sdk_types::archetypes::Scalars;
+use veoveo_recording_contract::{
+    RecordingProjectionQueryBuilder, RecordingProjectionSampling, RecordingProjectionSparseFill,
+};
 use veoveo_recording_hub::{
     DatasetName, DatasetRoute, RecordingLayerFileScope, Spooler, SpoolerConfig,
     collect_recording_layer_files, run_blocking,
 };
 use veoveo_rrd::projection::{
-    ArrowProjectionSummary, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
-    write_arrow_projection,
+    ArrowProjectionQuery, ArrowProjectionSummary, write_arrow_projection,
 };
 use veoveo_rrd::segment::inspect_segment;
 
@@ -186,21 +188,24 @@ fn project_rows(root: &Path, maximum_rows: u64) -> Result<ArrowProjectionSummary
     let directory = tempfile::tempdir()?;
     write_arrow_projection(
         &layers,
-        &ProjectionQuery {
-            entity_paths: vec!["/world/smoke".to_owned()],
-            component_ids: vec!["Scalars:scalars".to_owned()],
-            timeline: "tick".to_owned(),
-            sampling: ProjectionSampling::Range {
-                start: 0,
-                end: i64::MAX,
-            },
-            sparse_fill: ProjectionSparseFill::None,
-            maximum_entities: 1,
-            maximum_columns: 1,
-            maximum_samples: 10_000,
-            maximum_rows,
-            maximum_bytes: 32 * 1024 * 1024,
-        },
+        &ArrowProjectionQuery::new(
+            RecordingProjectionQueryBuilder {
+                entity_paths: vec!["/world/smoke".to_owned()],
+                component_ids: vec!["Scalars:scalars".to_owned()],
+                timeline: "tick".to_owned(),
+                sampling: RecordingProjectionSampling::Range {
+                    start: 0,
+                    end: i64::MAX,
+                },
+                sparse_fill: RecordingProjectionSparseFill::None,
+                maximum_entities: 1,
+                maximum_columns: 1,
+                maximum_samples: 10_000,
+                maximum_rows,
+                maximum_bytes: 32 * 1024 * 1024,
+            }
+            .build()?,
+        )?,
         &directory.path().join("projection.arrow"),
     )
 }

@@ -17445,6 +17445,7 @@ dependencies = [
  "tempfile",
  "uuid",
  "veoveo-map-mcp",
+ "veoveo-recording-contract",
 ]
 
 [[package]]

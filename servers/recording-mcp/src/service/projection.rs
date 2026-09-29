@@ -6,9 +6,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use crate::contract::{
-    CreateRecordingProjectionRequest, RECORDING_PROJECTION_HANDLE_SCHEMA,
-    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
-    RecordingProjectionSparseFill,
+    CreateRecordingProjectionRequest, MAX_PROJECTION_DEADLINE_MS,
+    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
+    RecordingProjectionResultMetadata,
 };
 use anyhow::{Context as _, Result, ensure};
 use chrono::{DateTime, Utc};
@@ -22,15 +22,10 @@ use veoveo_platform_store::{
     RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
     RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantId,
 };
-use veoveo_rrd::projection::{
-    MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS,
-    MAX_PROJECTION_SAMPLES, ProjectionQuery, ProjectionSampling, ProjectionSparseFill,
-    write_arrow_projection_cancelable,
-};
+use veoveo_rrd::projection::{ArrowProjectionQuery, write_arrow_projection_cancelable};
 
 use super::{RecordingService, record_uuid};
 
-const MAX_PROJECTION_DEADLINE_MS: u64 = 15_000;
 const MAX_PROJECTION_CONCURRENCY: usize = 2;
 const MAX_PROJECTION_SCRATCH_BYTES: u64 = 96 * 1024 * 1024;
 
@@ -283,7 +278,7 @@ impl RecordingService {
             (1..=runtime.inner.limits.maximum_deadline_ms).contains(&request.deadline_ms),
             "recording projection deadline exceeds the configured maximum"
         );
-        validate_result_metadata_inputs(&request)?;
+        let query = ArrowProjectionQuery::new(request.query.clone())?;
         let dataset_id = RecordingDatasetId::from_uuid(request.dataset_id.as_uuid());
         let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
         let plan = self
@@ -371,12 +366,11 @@ impl RecordingService {
             "recording projection is not retryable"
         );
         let _permit = runtime.try_acquire()?;
-        let reservation = runtime.reserve(projection_id, request.maximum_bytes)?;
+        let reservation = runtime.reserve(projection_id, request.query.maximum_bytes)?;
         self.store
             .begin_recording_projection(&scope, recording_id, projection_id)
             .await?;
         remove_projection_paths(&paths, false)?;
-        let query = projection_query(&request);
         let layer_paths = plan
             .archive_layers
             .iter()
@@ -465,8 +459,8 @@ impl RecordingService {
             result: RecordingProjectionResultMetadata {
                 catalog_revision: plan.catalog_revision,
                 query_digest,
-                timeline: request.timeline.clone(),
-                sample_grid: sample_grid(&request.sampling),
+                timeline: request.query.timeline.clone(),
+                sample_grid: request.query.sampling.sample_grid(),
                 units: request.units.clone(),
                 coordinate_frame_refs: request.coordinate_frame_refs.clone(),
                 omitted_sample_count: summary.omitted_sample_count,
@@ -542,35 +536,6 @@ enum ProjectionTerminal {
     Deadline,
 }
 
-fn projection_query(request: &CreateRecordingProjectionRequest) -> ProjectionQuery {
-    ProjectionQuery {
-        entity_paths: request.entity_paths.clone(),
-        component_ids: request.component_ids.clone(),
-        timeline: request.timeline.clone(),
-        sampling: match &request.sampling {
-            RecordingProjectionSampling::Range { start, end } => ProjectionSampling::Range {
-                start: *start,
-                end: *end,
-            },
-            RecordingProjectionSampling::LatestAt { at } => {
-                ProjectionSampling::LatestAt { at: *at }
-            }
-            RecordingProjectionSampling::SampleGrid { values } => ProjectionSampling::SampleGrid {
-                values: values.clone(),
-            },
-        },
-        sparse_fill: match request.sparse_fill {
-            RecordingProjectionSparseFill::None => ProjectionSparseFill::None,
-            RecordingProjectionSparseFill::LatestAtGlobal => ProjectionSparseFill::LatestAtGlobal,
-        },
-        maximum_entities: request.maximum_entities,
-        maximum_columns: request.maximum_columns,
-        maximum_samples: request.maximum_samples,
-        maximum_rows: request.maximum_rows,
-        maximum_bytes: request.maximum_bytes,
-    }
-}
-
 fn projection_query_digest(request: &CreateRecordingProjectionRequest) -> Result<String> {
     let mut value = serde_json::to_value(request)?;
     value
@@ -589,61 +554,6 @@ fn projection_manifest_digest(plan: &crate::RecordingPlaybackPlan) -> String {
         digest.update(layer.sha256.as_bytes());
     }
     hex::encode(digest.finalize())
-}
-
-fn sample_grid(sampling: &RecordingProjectionSampling) -> Vec<i64> {
-    match sampling {
-        RecordingProjectionSampling::Range { .. } => Vec::new(),
-        RecordingProjectionSampling::LatestAt { at } => vec![*at],
-        RecordingProjectionSampling::SampleGrid { values } => values.clone(),
-    }
-}
-
-fn validate_result_metadata_inputs(request: &CreateRecordingProjectionRequest) -> Result<()> {
-    ensure!(
-        request.maximum_entities <= MAX_PROJECTION_ENTITIES,
-        "maximum_entities is too large"
-    );
-    ensure!(
-        request.maximum_columns <= MAX_PROJECTION_COMPONENTS,
-        "maximum_columns is too large"
-    );
-    ensure!(
-        request.maximum_samples <= MAX_PROJECTION_SAMPLES,
-        "maximum_samples is too large"
-    );
-    ensure!(
-        request.maximum_rows <= MAX_PROJECTION_ROWS,
-        "maximum_rows is too large"
-    );
-    ensure!(
-        request.maximum_bytes <= MAX_PROJECTION_BYTES,
-        "maximum_bytes is too large"
-    );
-    ensure!(
-        request.idempotency_key.len() <= 128 && !request.idempotency_key.is_empty(),
-        "idempotency_key is invalid"
-    );
-    ensure!(
-        request.units.len() <= 64,
-        "projection units exceed the fixed limit"
-    );
-    ensure!(
-        request.coordinate_frame_refs.len() <= 64,
-        "coordinate frame references exceed the fixed limit"
-    );
-    for value in request
-        .units
-        .iter()
-        .flat_map(|(key, value)| [key.as_str(), value.as_str()])
-        .chain(request.coordinate_frame_refs.iter().map(String::as_str))
-    {
-        ensure!(
-            !value.is_empty() && value.len() <= 256,
-            "projection metadata value is invalid"
-        );
-    }
-    Ok(())
 }
 
 fn projection_id(record: &RecordId) -> Result<RecordingProjectionReceiptId> {
