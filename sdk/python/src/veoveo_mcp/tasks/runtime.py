@@ -20,6 +20,8 @@ from .store import (
     StoreError,
     SurrealStore,
     outbox_draft,
+    task_result_from_store,
+    task_result_to_store,
 )
 from .types import (
     EVENT_SCHEMA_VERSION,
@@ -69,18 +71,6 @@ _PAYLOAD_POLL_SECONDS = 0.5
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-def _value_to_open_object(value: Any) -> dict[str, Any]:
-    if isinstance(value, dict):
-        return value
-    return {"value": value}
-
-
-def _open_object_to_value(value: dict[str, Any]) -> Any:
-    if len(value) == 1 and "value" in value:
-        return value["value"]
-    return value
 
 
 def _work_context_record(owner: TaskOwner) -> RecordID:
@@ -698,7 +688,7 @@ class TaskRuntime:
                 "next": next_status.value,
                 "request": envelope,
                 "progress": progress,
-                "result": _value_to_open_object(result) if result is not None else None,
+                "result": task_result_to_store(result),
                 "error": failure.to_json() if failure is not None else None,
                 "cancel_requested_at": (
                     now
@@ -1006,7 +996,7 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         )
     error_value = record.get("error")
     error = (
-        TaskFailure.from_json(_open_object_to_value(error_value))
+        TaskFailure.from_json(error_value)
         if error_value is not None
         else None
     )
@@ -1023,7 +1013,7 @@ def _record_to_snapshot(record: dict[str, Any]) -> TaskSnapshot:
         status=TaskStatus(record["status"]),
         status_message=envelope.get("status_message"),
         progress=record["progress"],
-        result=_open_object_to_value(result_value) if result_value is not None else None,
+        result=task_result_from_store(result_value),
         error=error,
         idempotency_key=record.get("idempotency_key"),
         lease_owner=record.get("lease_owner"),

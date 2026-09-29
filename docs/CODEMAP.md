@@ -1252,7 +1252,7 @@ shape and schema, and this package follows it.
 | `deployment.py`, `pagination.py` | mount identities and cursor pagination |
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
-| `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, outbox, recovery, prune |
+| `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store and event adapters, outbox, recovery, prune |
 | `artifacts.py` | artifact-plane HTTP client, capability redemption, size-capped in-memory reads, and streamed URI/file consumption with cancellation cleanup |
 
 ### `templates/python-mcp`

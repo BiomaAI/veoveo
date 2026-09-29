@@ -15,14 +15,17 @@ import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 from surrealdb import AsyncSurreal, RecordID
+from surrealdb.cbor import CBORSimpleValue
 
 from .types import (
     InvalidRecord,
     PrincipalKind,
     TaskOwner,
+    TaskResult,
     deterministic_enterprise_id,
     deterministic_principal_id,
     deterministic_tenant_id,
@@ -45,6 +48,44 @@ class StoreError(Exception):
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _json_to_surreal(value: Any) -> Any:
+    """Match the Rust Store's JSON null and unsigned-integer representation."""
+    if value is None:
+        # The pinned SDK encodes ordinary None as database NONE.
+        return CBORSimpleValue(22)
+    if isinstance(value, int) and value > 2**63 - 1:
+        return Decimal(value)
+    if isinstance(value, dict):
+        return {key: _json_to_surreal(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_to_surreal(item) for item in value]
+    return value
+
+
+def _json_from_surreal(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, dict):
+        return {key: _json_from_surreal(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_from_surreal(item) for item in value]
+    return value
+
+
+def task_result_to_store(result: TaskResult | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return {"payload": _json_to_surreal(result.payload)}
+
+
+def task_result_from_store(value: Any) -> TaskResult | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {"payload"}:
+        raise InvalidRecord("invalid stored Task result envelope")
+    return TaskResult(_json_from_surreal(value["payload"]))
 
 
 def is_retryable_message(message: str) -> bool:
@@ -82,7 +123,7 @@ def outbox_draft(
         "aggregate_id": aggregate_id,
         "event_type": event_type,
         "schema_version": schema_version,
-        "payload": payload,
+        "payload": _json_to_surreal(payload),
         "occurred_at": now,
         "available_at": now,
     }
@@ -454,7 +495,7 @@ def _outbox_event(row: dict[str, Any]) -> OutboxEvent:
         aggregate_id=row["aggregate_id"],
         event_type=row["event_type"],
         schema_version=row["schema_version"],
-        payload=row["payload"],
+        payload=_json_from_surreal(row["payload"]),
         occurred_at=row["occurred_at"],
         available_at=row["available_at"],
     )

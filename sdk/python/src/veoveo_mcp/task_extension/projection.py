@@ -63,11 +63,8 @@ async def project_snapshot(
     if status == StoreTaskStatus.SUCCEEDED:
         if snapshot.result is None:
             raise InvalidRecord("completed task has no durable result")
-        result = (
-            snapshot.result
-            if isinstance(snapshot.result, dict)
-            else {"value": snapshot.result}
-        )
+        payload = snapshot.result.payload
+        result = payload if isinstance(payload, dict) else {"value": payload}
         return CompletedTask(**metadata, result=result)
     if status == StoreTaskStatus.FAILED:
         failure = snapshot.error

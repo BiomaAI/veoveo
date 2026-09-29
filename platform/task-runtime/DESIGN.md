@@ -5,7 +5,7 @@
 | Boundary | Supported profile |
 |---|---|
 | MCP `2026-07-28`, Tasks SEP-2663 | Official RMCP Task projection; internal recovery classes introduce no new MCP status or method |
-| SurrealDB / SurrealQL `3.2.4` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations |
+| SurrealDB / SurrealQL `3.2.4` | Shared durable Task records, lease compare-and-set, transactional outbox and additive schema migrations; the Python port uses the pinned SurrealDB Python SDK `2.0.0` |
 | Veoveo Work Context | Canonical TaskOwner/InvocationAuthority, tenant and server ownership, retained result pins |
 | Internal recovery-class vocabulary | `resume`, `webhook_wait`, `provider_wait`, `interrupted_indeterminate`; domain-qualified completion semantics |
 | Native Task identity | `veoveo_types::TaskId` carries UUID identity; external runtime lookups require UUIDv7. MCP opaque handles have their own protocol profile. |
@@ -149,8 +149,16 @@ validation rejects missing or additional fields before returning a result.
 Task outbox events use the shared `TASK_EVENT_SCHEMA_VERSION`, currently 3. Snapshot
 JSON omits an absent result and includes a present result even when its value is null.
 Replay deserialization preserves that distinction. The official MCP adapter projects
-object results directly and wraps a scalar as `{"value": scalar}` because the Task
+object results directly and wraps other JSON values as `{"value": payload}` because the Task
 protocol requires an object. That protocol projection does not alter stored results.
+
+The Python SDK represents a present result with `TaskResult`; its payload can be JSON
+null. The Store adapter binds that null with the driver's CBOR null value because the
+pinned driver maps ordinary Python `None` to database `NONE`. Unsigned integers above
+the signed 64-bit range use SurrealDB decimals, matching Rust's Store representation.
+Result reads and event replay restore those decimals to JSON numbers. Both languages
+write the same result envelope and event version. Python's native checks cover stored
+shape, independent-connection reads, replay and official Tasks projection.
 
 Store schema 99 requires an empty Task table and no Task outbox events before installing the result format.
 Stop all Task writers and rebuild the platform database for this coordinated release.

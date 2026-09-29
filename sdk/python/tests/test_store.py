@@ -2,7 +2,16 @@ import asyncio
 
 import pytest
 
-from veoveo_mcp.tasks.store import StoreError, SurrealStore
+from veoveo_mcp.tasks import InvalidRecord
+from veoveo_mcp.tasks.store import StoreError, SurrealStore, task_result_from_store
+
+
+@pytest.mark.parametrize(
+    "value", [{}, {"value": 42}, {"payload": None, "extra": True}, [], 42]
+)
+def test_result_decoder_rejects_noncanonical_envelopes(value):
+    with pytest.raises(InvalidRecord, match="invalid stored Task result envelope"):
+        task_result_from_store(value)
 
 
 class FakeReceiveTask:

@@ -749,6 +749,14 @@ writer and every direct SQL consumer use the same format. Schema 99 requires no 
 rows or Task outbox events. Reference installation requires stopped writers and a
 fresh platform database; no old result conversion or reader is provided.
 
+Python's Task runtime writes the same result envelope and event schema 3. Its
+`TaskResult` type distinguishes absence from a completed JSON null, and the Store
+adapter preserves nested nulls and unsigned 64-bit integers. Native checks qualify
+the stored shape, independent-connection reads, event replay, rejected envelopes and
+official Tasks projection. `cargo xtask enforce python` passes 110 SDK cases,
+15 template cases and eight fork-workload cases. Full Rust workspace and installed
+acceptance remain pending.
+
 Native qualification passes 277 Rust checks across Store, Task runtime, Media, Stream,
 Reason, Map, Optimization and Computers. The Store suite runs with its database gate
 enabled. That qualification also fixed quota checkpoint timestamps when appends reach

@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
+from pydantic import JsonValue
 from surrealdb import RecordID
 
 from ..contract.identity import InvocationAuthority
@@ -21,7 +22,7 @@ from ..contract.identity import InvocationAuthority
 PLATFORM_ID_NAMESPACE = uuid.UUID("7f7b11e2-3b9a-5c7a-9d51-2cf8e1bdfab4")
 INSTALLATION_TENANT = "installation"
 DEFAULT_RETENTION = timedelta(days=7)
-EVENT_SCHEMA_VERSION = 2
+EVENT_SCHEMA_VERSION = 3
 
 
 class TaskStatus(str, Enum):
@@ -271,6 +272,13 @@ class CreateTask:
     retention_pins: frozenset[str] = dataclass_field(default_factory=frozenset)
 
 
+@dataclass(frozen=True)
+class TaskResult:
+    """A present domain result, including a JSON-null payload."""
+
+    payload: JsonValue
+
+
 @dataclass
 class TaskSnapshot:
     task_id: uuid.UUID
@@ -282,7 +290,7 @@ class TaskSnapshot:
     status: TaskStatus
     status_message: str | None
     progress: float
-    result: Any | None
+    result: TaskResult | None
     error: TaskFailure | None
     idempotency_key: str | None
     lease_owner: str | None
@@ -314,7 +322,7 @@ class TaskSnapshot:
             "status": self.status.value,
             "status_message": self.status_message,
             "progress": self.progress,
-            "result": self.result,
+            **({"result": self.result.payload} if self.result is not None else {}),
             "error": self.error.to_json() if self.error is not None else None,
             "idempotency_key": self.idempotency_key,
             "lease_owner": self.lease_owner,
@@ -347,7 +355,7 @@ class TaskSnapshot:
             status=TaskStatus(value["status"]),
             status_message=value.get("status_message"),
             progress=value["progress"],
-            result=value.get("result"),
+            result=TaskResult(value["result"]) if "result" in value else None,
             error=TaskFailure.from_json(error) if error is not None else None,
             idempotency_key=value.get("idempotency_key"),
             lease_owner=value.get("lease_owner"),
@@ -429,13 +437,13 @@ class TaskTransition:
         status: TaskStatus,
         message: str,
         progress: float | None = None,
-        result: Any | None = None,
+        result: JsonValue = None,
         failure: TaskFailure | None = None,
     ) -> None:
         self._status = status
         self._message = message
         self._progress = progress
-        self._result = result
+        self._result = TaskResult(result) if status == TaskStatus.SUCCEEDED else None
         self._failure = failure
 
     @classmethod
@@ -447,7 +455,7 @@ class TaskTransition:
         return cls(TaskStatus.WAITING, message, progress=progress)
 
     @classmethod
-    def succeeded(cls, message: str, result: Any) -> "TaskTransition":
+    def succeeded(cls, message: str, result: JsonValue) -> "TaskTransition":
         return cls(TaskStatus.SUCCEEDED, message, result=result)
 
     @classmethod
@@ -475,7 +483,7 @@ class TaskTransition:
             return 1.0
         return current
 
-    def result(self) -> Any | None:
+    def result(self) -> TaskResult | None:
         return self._result
 
     def failure(self) -> TaskFailure | None:

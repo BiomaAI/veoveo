@@ -6,7 +6,9 @@ cancellation, idempotency, input exchange, recovery, and pruning.
 """
 
 import asyncio
+import json
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -15,6 +17,7 @@ from veoveo_mcp.contract import InvocationAuthority
 from veoveo_mcp.tasks import (
     Conflict,
     CreateTask,
+    InvalidRecord,
     InvalidTransition,
     LeaseHeld,
     PrincipalKind,
@@ -22,11 +25,16 @@ from veoveo_mcp.tasks import (
     TaskFailure,
     TaskInputRequest,
     TaskOwner,
+    TaskResult,
     TaskRuntime,
+    TaskSnapshot,
     TaskStatus,
     TaskTransition,
     new_task_id,
 )
+from veoveo_mcp.task_extension.projection import project_snapshot
+from veoveo_mcp.tasks.runtime import _task_snapshot_from_event
+from veoveo_mcp.tasks.types import task_record
 
 SERVER = "datasheet"
 
@@ -120,7 +128,8 @@ async def test_create_claim_transition_succeed_roundtrip(runtime):
     assert done.status == TaskStatus.SUCCEEDED
     assert done.progress == 1.0
     assert done.lease_owner is None
-    assert done.result == {"content": [], "isError": False}
+    assert done.result is not None
+    assert done.result.payload == {"content": [], "isError": False}
     assert done.completed_at is not None
 
     with pytest.raises(InvalidTransition):
@@ -155,6 +164,72 @@ async def test_outbox_events_stream_snapshots(runtime):
     assert TaskStatus.QUEUED in seen
     assert TaskStatus.RUNNING in seen
     assert seen[-1] == TaskStatus.SUCCEEDED
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        None,
+        {"value": 42},
+        {"payload": None},
+        [None, {"x": None}],
+        [],
+        42,
+        False,
+        {"bounds": [-2**63, 2**63 - 1, 2**63, 2**64 - 1], "fraction": 2.5, "null": None},
+    ],
+)
+async def test_results_preserve_json_shape_through_store_replay_and_mcp(
+    runtime, surreal_platform, payload
+):
+    async with asyncio.timeout(15):
+        start = await runtime.store.latest_available_outbox_sequence()
+        created = (await runtime.create(draft())).snapshot
+        task_id = str(created.task_id)
+        assert created.result is None
+        assert "result" not in created.to_json()
+        assert TaskSnapshot.from_json(created.to_json()).result is None
+        await runtime.claim(task_id, timedelta(seconds=30))
+        done = await runtime.transition(task_id, TaskTransition.succeeded("done", payload))
+        expected = TaskResult(payload)
+        assert done.result == expected
+        assert done.to_json()["result"] == payload
+        assert json.loads(json.dumps(done.to_json()))["result"] == payload
+        assert TaskSnapshot.from_json(done.to_json()).result == expected
+        observer = await TaskRuntime.connect(
+            surreal_platform["endpoint"],
+            surreal_platform["namespace"],
+            surreal_platform["database"],
+            surreal_platform["username"],
+            surreal_platform["password"],
+            SERVER,
+            f"observer-{uuid.uuid4()}",
+        )
+        try:
+            assert (await observer.get(task_id)).result == expected
+        finally:
+            await observer.store.close()
+        stored = await runtime.store.connection.select(task_record(created.task_id))
+        assert len(stored) == 1
+        assert stored[0]["result"] == {"payload": payload}
+
+        events = [
+            event
+            for event in await runtime.store.read_outbox(start, 1000)
+            if event.aggregate_type == "task" and event.aggregate_id == task_id
+        ]
+        assert len(events) == 3
+        assert all(event.schema_version == 3 for event in events)
+        assert "result" not in events[0].payload["snapshot"]
+        assert events[-1].payload["snapshot"]["result"] == payload
+        replay = _task_snapshot_from_event(events[-1])
+        assert replay.result == expected
+        projected = await project_snapshot(runtime, replay)
+        expected_protocol = payload if isinstance(payload, dict) else {"value": payload}
+        assert projected.result == expected_protocol
+        assert projected.model_dump(mode="json")["result"] == projected.result
+        with pytest.raises(InvalidRecord, match="schema version"):
+            _task_snapshot_from_event(replace(events[-1], schema_version=2))
 
 
 async def test_idempotent_create_returns_existing(runtime):
@@ -313,7 +388,6 @@ async def test_snapshot_json_matches_rust_serde_shape(runtime):
         "status",
         "status_message",
         "progress",
-        "result",
         "error",
         "idempotency_key",
         "lease_owner",

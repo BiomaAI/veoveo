@@ -22,6 +22,15 @@ sensitivity labels of the inputs they came from. The Artifact service adds these
 to every output and rejects a scope outside the caller's clearance. Work Context policy
 still chooses the owner and initial grants.
 
+`TaskTransition.succeeded(message, payload)` accepts the domain's JSON result.
+Snapshots expose it as `TaskResult`, whose `payload` may itself be `None` for JSON
+null. `snapshot.result is None` means that the Task has no result. Snapshot JSON omits
+an absent result and includes a completed null, following the shared
+[Task result format](../../platform/task-runtime/DESIGN.md#result-persistence-and-installation).
+The Store adapter preserves nested nulls and unsigned 64-bit integers in results and
+event snapshots. The official Tasks adapter returns object results directly and wraps
+other payloads in a `value` object.
+
 ## Development In A Fork
 
 Python hosted servers import this package from the same checkout through a uv path
