@@ -13,33 +13,21 @@ path = "src/bin/server.rs"
 required-features = ["mcp"]
 
 [[test]]
-name = "coordinate_contract"
-required-features = ["contract"]
-
-[[test]]
-name = "usage_contract"
-required-features = ["contract"]
-
-[[test]]
-name = "world_contract"
+name = "contract"
 required-features = ["contract"]
 
 [features]
 default = ["mcp"]
-contract = [
-    "dep:chrono",
-    "dep:hex",
-    "dep:schemars",
-    "dep:serde",
-    "dep:serde_json",
-    "dep:sha2",
-    "dep:veoveo-artifact-contract",
-    "dep:veoveo-map-mcp",
-    "dep:veoveo-types",
-]
+contract = ["dep:veoveo-frames-contract"]
 runtime = [
     "contract",
     "chrono/clock",
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:veoveo-artifact-contract",
+    "dep:veoveo-map-mcp",
+    "dep:veoveo-types",
     "dep:anyhow",
     "dep:glam",
     "dep:rayon",
@@ -71,6 +59,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-frames-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
@@ -82,7 +71,6 @@ clap = { workspace = true, optional = true }
 dotenvy = { workspace = true, optional = true }
 futures = { workspace = true, optional = true }
 glam = { workspace = true, optional = true }
-hex = { workspace = true, optional = true }
 rayon = { workspace = true, optional = true }
 reqwest = { workspace = true, features = ["rustls-no-provider"], optional = true }
 rustls = { workspace = true, optional = true }
@@ -91,7 +79,6 @@ schemars = { workspace = true, optional = true }
 secrecy = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-sha2 = { workspace = true, optional = true }
 # Match Store's qualified 3.2.4 driver types; upgrade with Store in foundations Phase 4.
 # Upstream stable 3.3.0 verified 2026-09-27; mixing driver versions breaks query bindings.
 surrealdb = { version = "=3.2.4", default-features = false, optional = true }

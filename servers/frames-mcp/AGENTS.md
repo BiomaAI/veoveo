@@ -33,8 +33,7 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
   revision and never follow a mutable world head implicitly.
 - Dynamic transforms carry `FrameStreamUri` and `FrameEntityPath`. Producer libraries
   own their resource routes; Frames validates concrete URI syntax and preserves source
-  spelling without a registry of producer domains. Apply the retained-data preflight
-  before admitting stored dynamic references under a stricter profile.
+  spelling without a registry of producer domains.
 - Keep Frames queries and mutations in the owning runtime with typed IDs through database
   bindings. SQL applies tenant, current labels, and linked-parent checks. World reads
   are shared within the tenant under label clearance; publication requires ownership and current label clearance inside its transaction.
@@ -51,11 +50,13 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
 - `cargo test -p veoveo-frames-mcp --lib state::read_tests` runs isolated SurrealDB
   visibility, parent-integrity, head-consistency, and direct-frame selection cases.
 - Cross-server consumers enable only `contract` with default features disabled.
-- `world_contract` checks metadata identity, tree/root/digest admission, canonical hashing,
+- The [domain owner](../../platform/frames/contract/DESIGN.md) runs `world_contract`, which checks metadata identity, tree/root/digest admission, canonical hashing,
   and the maximum-depth tree without runtime dependencies. Revision content is immutable;
   use `ValidatedWorldTree` and the metadata constructors.
-- `cargo test -p veoveo-frames-mcp --no-default-features --features contract --test coordinate_contract`
-  checks schema compatibility, typed world addresses, and malformed identity admission.
+- `cargo test -p veoveo-frames-contract`
+  checks current schemas, typed world addresses and malformed identity admission.
+- `cargo test -p veoveo-frames-mcp --no-default-features --features contract --test contract`
+  proves the facade exposes the owner types.
 - Docker is required for SurrealDB backed smoke tests (root README, Develop
   And Verify).
 - A plain workspace Rust build; no extra native toolchain beyond the

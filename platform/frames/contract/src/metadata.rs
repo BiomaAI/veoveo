@@ -140,11 +140,11 @@ struct RevisionWire {
 impl FrameWorldRevision {
     /// Only a complete admitted tree can become revision metadata.
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::FrameWorldRevision;
+    /// use veoveo_frames_contract::FrameWorldRevision;
     /// fn corrupt(revision: &mut FrameWorldRevision) { revision.tree().frames.clear(); }
     /// ```
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameWorldRevision, FrameWorldRevisionUri, FrameWorldTree};
+    /// use veoveo_frames_contract::{FrameWorldRevision, FrameWorldRevisionUri, FrameWorldTree};
     /// fn unchecked(uri: FrameWorldRevisionUri, revision: &FrameWorldRevision) {
     ///     FrameWorldRevision::new(uri, 1.try_into().unwrap(), FrameWorldTree { frames: vec![] }, revision.created_at());
     /// }

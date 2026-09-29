@@ -368,6 +368,13 @@ conversion stays in UAV's authenticated adapter; the public model takes foundati
 identities. Schema publication selects the live-view models without adding a UAV
 dependency to MCP core or including vehicle schemas in those published artifacts.
 
+Frames' [domain contract](../platform/frames/contract/DESIGN.md) owns its public spatial
+values and resource builders. The server's isolated `contract` feature re-exports that
+model. Recording projections import the domain crate because Frames runtime depends
+on RRD, which already imports Recording's domain contract. The separation resolves
+this concrete cycle without domain dependencies in MCP core. Revision-scoped frame
+references describe coordinates; their type does not establish resolution or authority.
+
 The domain runtime owns SQL that implements its authorization and persistence rules.
 It uses Store's connection, record primitives and transaction facilities; the shared
 schema catalog stays in Store. Domain driver records and queries belong behind the

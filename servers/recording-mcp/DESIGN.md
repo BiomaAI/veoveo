@@ -88,6 +88,12 @@ committed metadata before advancing state, and constructs the checked result bef
 completing the seal. A sealed retry validates its output before removing local static
 context. The domain imports Artifact types through the lightweight owner contract.
 
+Projection coordinate metadata carries Frames-owned revision-scoped URIs. The domain
+admits at most 64 distinct references and preserves their order in request identity
+and result comparison. These are supplied metadata; projection neither resolves their
+worlds nor transforms coordinates. The Frames contract sits below both runtimes to
+avoid the Frames-to-RRD-to-Recording dependency cycle.
+
 ## MCP Setup And Sealing Permission
 
 `mcp_setup::RecordingContract` implements the shared `McpServerContract` trait with

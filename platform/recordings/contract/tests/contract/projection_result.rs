@@ -7,7 +7,7 @@ use veoveo_recording_contract::{
 
 use super::projection::request_builder;
 
-fn wire(request: &CreateRecordingProjectionRequest) -> Value {
+pub(super) fn wire(request: &CreateRecordingProjectionRequest) -> Value {
     json!({
         "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projection_id": RecordingProjectionId::new(),
         "dataset_id": request.dataset_id, "recording_id": request.recording_id,
@@ -103,7 +103,10 @@ fn result_agreement_rejects_wrong_parents_selection_metadata_and_request_limits(
         ("/result/timeline", json!("other")),
         ("/result/sample_grid", json!([1, 3])),
         ("/result/units", json!({"Scalars:scalars": "seconds"})),
-        ("/result/coordinate_frame_refs", json!(["other-frame"])),
+        (
+            "/result/coordinate_frame_refs",
+            json!([super::frames::frame(1)]),
+        ),
         ("/result/byte_len", json!(1025)),
     ] {
         let mut mismatched = original.clone();

@@ -295,7 +295,15 @@ fn maximum_grid_and_metadata_fit_the_reserved_envelope() {
     wire["timeline"] = json!("x".repeat(1024));
     wire["sampling"] = json!({"kind": "sample_grid", "values": (1..=10000).map(|n| i64::MIN + n).collect::<Vec<_>>()});
     wire["units"] = json!(units);
-    wire["coordinate_frame_refs"] = json!(vec!["\\".repeat(256); 64]);
+    wire["coordinate_frame_refs"] = json!(
+        (0..64)
+            .map(|index| format!(
+                "frames://world/{}/revision/{}/frame/{index:0128}",
+                "w".repeat(128),
+                "r".repeat(128)
+            ))
+            .collect::<Vec<_>>()
+    );
     let request = serde_json::from_value::<CreateRecordingProjectionRequest>(wire).unwrap();
     let id = RecordingProjectionReceiptId::new();
     let paths = initial.paths(id);

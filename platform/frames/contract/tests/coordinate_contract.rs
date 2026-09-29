@@ -13,109 +13,100 @@ fn coordinate_contract_schemas_preserve_published_wire_shapes() {
         };
     }
     check!(
-        veoveo_frames_mcp::contract::CoordinateOperationId,
+        veoveo_frames_contract::CoordinateOperationId,
         "CoordinateOperationId"
     );
     check!(
-        veoveo_frames_mcp::contract::CoordinateOperationKind,
+        veoveo_frames_contract::CoordinateOperationKind,
         "CoordinateOperationKind"
     );
     check!(
-        veoveo_frames_mcp::contract::CoordinateOperationProvenance,
+        veoveo_frames_contract::CoordinateOperationProvenance,
         "CoordinateOperationProvenance"
     );
     check!(
-        veoveo_frames_mcp::contract::CoordinateOperationRef,
+        veoveo_frames_contract::CoordinateOperationRef,
         "CoordinateOperationRef"
     );
+    check!(veoveo_frames_contract::CoordinateSpace, "CoordinateSpace");
+    check!(veoveo_frames_contract::FrameAxes, "FrameAxes");
     check!(
-        veoveo_frames_mcp::contract::CoordinateSpace,
-        "CoordinateSpace"
-    );
-    check!(veoveo_frames_mcp::contract::FrameAxes, "FrameAxes");
-    check!(
-        veoveo_frames_mcp::contract::FrameAxisDirection,
+        veoveo_frames_contract::FrameAxisDirection,
         "FrameAxisDirection"
     );
-    check!(veoveo_frames_mcp::contract::FrameBasis, "FrameBasis");
-    check!(veoveo_frames_mcp::contract::FrameId, "FrameId");
-    check!(veoveo_frames_mcp::contract::FrameNode, "FrameNode");
+    check!(veoveo_frames_contract::FrameBasis, "FrameBasis");
+    check!(veoveo_frames_contract::FrameId, "FrameId");
+    check!(veoveo_frames_contract::FrameNode, "FrameNode");
     check!(
-        veoveo_frames_mcp::contract::FrameParentTransform,
+        veoveo_frames_contract::FrameParentTransform,
         "FrameParentTransform"
     );
-    check!(veoveo_frames_mcp::contract::FrameWorldId, "FrameWorldId");
+    check!(veoveo_frames_contract::FrameWorldId, "FrameWorldId");
     check!(
-        veoveo_frames_mcp::contract::FrameWorldRevision,
+        veoveo_frames_contract::FrameWorldRevision,
         "FrameWorldRevision"
     );
     check!(
-        veoveo_frames_mcp::contract::FrameWorldRevisionId,
+        veoveo_frames_contract::FrameWorldRevisionId,
         "FrameWorldRevisionId"
     );
     check!(
-        veoveo_frames_mcp::contract::FrameWorldRevisionUri,
+        veoveo_frames_contract::FrameWorldRevisionUri,
         "FrameWorldRevisionUri"
     );
+    check!(veoveo_frames_contract::FrameWorldTree, "FrameWorldTree");
+    check!(veoveo_frames_contract::FrameWorldUri, "FrameWorldUri");
+    check!(veoveo_frames_contract::Wgs84Position, "Wgs84Position");
+    check!(veoveo_frames_contract::WorldFrameUri, "WorldFrameUri");
+    check!(veoveo_frames_contract::EcefPosition, "EcefPosition");
     check!(
-        veoveo_frames_mcp::contract::FrameWorldTree,
-        "FrameWorldTree"
-    );
-    check!(veoveo_frames_mcp::contract::FrameWorldUri, "FrameWorldUri");
-    check!(veoveo_frames_mcp::contract::Wgs84Position, "Wgs84Position");
-    check!(veoveo_frames_mcp::contract::WorldFrameUri, "WorldFrameUri");
-    check!(veoveo_frames_mcp::contract::EcefPosition, "EcefPosition");
-    check!(
-        veoveo_frames_mcp::contract::WorldFramePosition,
+        veoveo_frames_contract::WorldFramePosition,
         "WorldFramePosition"
     );
+    check!(veoveo_frames_contract::CoordinatePoint, "CoordinatePoint");
     check!(
-        veoveo_frames_mcp::contract::CoordinatePoint,
-        "CoordinatePoint"
-    );
-    check!(
-        veoveo_frames_mcp::contract::ConvertFrameRequest,
+        veoveo_frames_contract::ConvertFrameRequest,
         "ConvertFrameRequest"
     );
     check!(
-        veoveo_frames_mcp::contract::ConvertFrameOutput,
+        veoveo_frames_contract::ConvertFrameOutput,
         "ConvertFrameOutput"
     );
     check!(
-        veoveo_frames_mcp::contract::FrameSourceReference,
+        veoveo_frames_contract::FrameSourceReference,
         "FrameSourceReference"
     );
     check!(
-        veoveo_frames_mcp::contract::CreateWorldRequest,
+        veoveo_frames_contract::CreateWorldRequest,
         "CreateWorldRequest"
     );
     check!(
-        veoveo_frames_mcp::contract::FrameWorldSummary,
+        veoveo_frames_contract::FrameWorldSummary,
         "FrameWorldSummary"
     );
     check!(
-        veoveo_frames_mcp::contract::CreateWorldOutput,
+        veoveo_frames_contract::CreateWorldOutput,
         "CreateWorldOutput"
     );
     check!(
-        veoveo_frames_mcp::contract::PublishWorldRequest,
+        veoveo_frames_contract::PublishWorldRequest,
         "PublishWorldRequest"
     );
     check!(
-        veoveo_frames_mcp::contract::PublishWorldOutput,
+        veoveo_frames_contract::PublishWorldOutput,
         "PublishWorldOutput"
     );
     check!(
-        veoveo_frames_mcp::contract::BatchTransformRequest,
+        veoveo_frames_contract::BatchTransformRequest,
         "BatchTransformRequest"
     );
     check!(
-        veoveo_frames_mcp::contract::BatchTransformOutput,
+        veoveo_frames_contract::BatchTransformOutput,
         "BatchTransformOutput"
     );
 }
 
-use veoveo_frames_mcp::contract::{
+use veoveo_frames_contract::{
     FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldRevisionUri, FrameWorldUri,
     WorldFrameUri,
 };
@@ -123,7 +114,7 @@ use veoveo_types::{ResourceAddress, ResourceUri};
 
 #[test]
 fn world_catalog_cursors_preserve_typed_positions_and_round_trip() {
-    use veoveo_frames_mcp::contract::{FrameWorldCursor, FrameWorldsUri};
+    use veoveo_frames_contract::{FrameWorldCursor, FrameWorldsUri};
     let root = FrameWorldsUri::new(None);
     assert_eq!(root.as_str(), FrameWorldsUri::ROOT);
     assert_eq!(FrameWorldsUri::parse(root.as_str()).unwrap(), root);
@@ -148,7 +139,7 @@ fn world_catalog_cursors_preserve_typed_positions_and_round_trip() {
 
 #[test]
 fn world_catalog_rejects_wrong_cursor_envelopes_and_ambiguous_uris() {
-    use veoveo_frames_mcp::contract::{FrameWorldCursor, FrameWorldsUri};
+    use veoveo_frames_contract::{FrameWorldCursor, FrameWorldsUri};
     for value in [
         serde_json::json!({"version":2,"collection":"frames://worlds","after":"world"}),
         serde_json::json!({"version":1,"collection":"frames://usage","after":"world"}),
@@ -246,7 +237,7 @@ fn admission_rejects_relative_and_malformed_frame_identities() {
         &"x".repeat(129),
     ] {
         assert!(FrameId::new(invalid).is_err(), "{invalid}");
-        assert!(veoveo_frames_mcp::contract::CoordinateOperationId::new(invalid).is_err());
+        assert!(veoveo_frames_contract::CoordinateOperationId::new(invalid).is_err());
         assert!(FrameWorldId::new(invalid).is_err(), "{invalid}");
         assert!(FrameWorldRevisionId::new(invalid).is_err(), "{invalid}");
         assert!(serde_json::from_value::<FrameWorldId>(serde_json::json!(invalid)).is_err());
@@ -308,7 +299,7 @@ fn address_parsing_rejects_aliases_wrong_routes_and_unexpected_components() {
 
 #[test]
 fn operation_addresses_and_references_keep_their_identity_in_agreement() {
-    use veoveo_frames_mcp::contract::{
+    use veoveo_frames_contract::{
         CoordinateOperationId, CoordinateOperationRef, FrameOperationUri,
     };
     use veoveo_types::ResourceAddress;

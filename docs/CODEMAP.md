@@ -89,6 +89,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/runtimes/simulation/DESIGN.md`](../platform/runtimes/simulation/DESIGN.md) | shared hardware-GPU Isaac Sim and Isaac Lab runtime, pinned dependency profile, and conformance probes |
 | [`platform/runtimes/embedding/DESIGN.md`](../platform/runtimes/embedding/DESIGN.md) | planned shared vLLM embedding runtime, platform-namespace access, `veoveo-embedding-client`, embedding spaces, priorities, and model selection |
 | [`servers/duckdb-mcp/DESIGN.md`](../servers/duckdb-mcp/DESIGN.md) | analytical SQL, Spatial, sandboxing, tasks, and data import/export |
+| [`platform/frames/contract/DESIGN.md`](../platform/frames/contract/DESIGN.md) | lightweight public Frames types and URI builders shared below Frames and Recording runtimes |
 | [`servers/frames-mcp/DESIGN.md`](../servers/frames-mcp/DESIGN.md) | local coordinate frames and transformations |
 | [`mcp/apps-extension/DESIGN.md`](../mcp/apps-extension/DESIGN.md) | the MCP Apps server↔core↔UI contract for domain views and administration, including the reusable structured-resource workbench shell |
 | [`mcp/knowledge-extension/DESIGN.md`](../mcp/knowledge-extension/DESIGN.md) | planned `ai.veoveo/knowledge-source` extension: collection descriptors, read observations, conditional reads, search links, and server rules K01–K10 |
@@ -700,12 +701,12 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/artifact-mcp` | MCP resources, tools, prompts, and subscriptions over the artifact plane |
 | `servers/duckdb-mcp` | arbitrary analytical SQL, ingest/export, and DuckDB Spatial |
 | `servers/frames-mcp` | complete rooted frame worlds, immutable revisions, coordinate conversion, and operation provenance |
-| `servers/frames-mcp/src/contract/` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
-| `servers/frames-mcp/src/contract/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
-| `servers/frames-mcp/src/contract/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
+| `platform/frames/contract/src/` and `servers/frames-mcp/src/contract.rs` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
+| `platform/frames/contract/src/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
+| `platform/frames/contract/src/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
 | `servers/frames-mcp/src/state/worlds.rs`, `state/worlds/`, and `state/records.rs` | typed world mutations, private driver records, transactional owner/label/head checks, immutable publication and replay; Store owns connections and schemas |
-| `servers/frames-mcp/src/contract/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
-| `servers/frames-mcp/src/contract/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
+| `platform/frames/contract/src/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
+| `platform/frames/contract/src/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
 | `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
@@ -1071,6 +1072,7 @@ the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
 owns grants. `views.rs`, `layers.rs` and `sealing.rs` own immutable public metadata
 with checked Artifact references, integrity digests and lifecycle relationships.
+Projection requests and results use the Frames owner’s revision-scoped `WorldFrameUri`.
 `projection/result.rs` owns checked result handles and typed integrity fields.
 `redap.rs` owns public-origin, dataset-entry and segment-address construction and admission,
 with the URL library handling network components and runtime checks against pinned Rerun.

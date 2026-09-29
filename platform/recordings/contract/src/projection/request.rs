@@ -4,6 +4,7 @@ use std::{collections::BTreeMap, ops::Deref};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
+use veoveo_frames_contract::WorldFrameUri;
 
 use super::{
     MAX_PROJECTION_DEADLINE_MS, RecordingProjectionQuery, RecordingProjectionQueryBuilder,
@@ -12,6 +13,13 @@ use super::{
 use crate::{RecordingContractError, RecordingDatasetId, RecordingId};
 
 /// Rust callers supply an admitted query; the wire representation keeps flat fields.
+/// Coordinate-frame references require the Frames owner's immutable revision address.
+/// ```compile_fail
+/// use veoveo_recording_contract::CreateRecordingProjectionRequestBuilder;
+/// fn replace_frames(builder: &mut CreateRecordingProjectionRequestBuilder) {
+///     builder.coordinate_frame_refs = vec!["frames://world/unpinned".to_owned()];
+/// }
+/// ```
 #[derive(Clone, Debug, Serialize)]
 pub struct CreateRecordingProjectionRequestBuilder {
     pub dataset_id: RecordingDatasetId,
@@ -21,7 +29,7 @@ pub struct CreateRecordingProjectionRequestBuilder {
     pub deadline_ms: u64,
     pub idempotency_key: String,
     pub units: BTreeMap<String, String>,
-    pub coordinate_frame_refs: Vec<String>,
+    pub coordinate_frame_refs: Vec<WorldFrameUri>,
 }
 
 impl CreateRecordingProjectionRequestBuilder {
@@ -33,12 +41,11 @@ impl CreateRecordingProjectionRequestBuilder {
                 .units
                 .keys()
                 .all(|key| self.query.component_ids.contains(key))
-            || self.coordinate_frame_refs.len() > 64
+            || !super::valid_frame_references(&self.coordinate_frame_refs)
             || !self
                 .units
                 .iter()
                 .flat_map(|(key, value)| [key, value])
-                .chain(&self.coordinate_frame_refs)
                 .all(|value| valid_text(value, 256))
         {
             return Err(RecordingContractError::ProjectionMetadata);
@@ -92,7 +99,7 @@ struct ProjectionQueryIdentity<'a> {
     query: &'a RecordingProjectionQuery,
     deadline_ms: u64,
     units: &'a BTreeMap<String, String>,
-    coordinate_frame_refs: &'a [String],
+    coordinate_frame_refs: &'a [WorldFrameUri],
 }
 
 impl Deref for CreateRecordingProjectionRequest {
@@ -161,5 +168,6 @@ struct ProjectionRequestWire {
     deadline_ms: u64,
     idempotency_key: String,
     units: BTreeMap<String, String>,
-    coordinate_frame_refs: Vec<String>,
+    #[schemars(length(max = 64))]
+    coordinate_frame_refs: Vec<WorldFrameUri>,
 }

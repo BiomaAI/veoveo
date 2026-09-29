@@ -12,7 +12,7 @@ use veoveo_types::{ResourceUri, ResourceUriError, ResourceUriParts};
 /// the producer still owns route meaning, supported queries, and authorization.
 ///
 /// ```compile_fail
-/// use veoveo_frames_mcp::contract::{FrameEntityPath, FrameParentTransform};
+/// use veoveo_frames_contract::{FrameEntityPath, FrameParentTransform};
 /// let transform = FrameParentTransform::DynamicStream {
 ///     stream_uri: "producer://session/run".to_owned(),
 ///     entity_path: FrameEntityPath::new("vehicle/body").unwrap(),
@@ -90,7 +90,7 @@ impl fmt::Display for FrameStreamUri {
 /// It is not a filesystem path. The producer owns its selector grammar.
 ///
 /// ```compile_fail
-/// use veoveo_frames_mcp::contract::{FrameParentTransform, FrameStreamUri};
+/// use veoveo_frames_contract::{FrameParentTransform, FrameStreamUri};
 /// let transform = FrameParentTransform::DynamicStream {
 ///     stream_uri: FrameStreamUri::parse("producer://session/run").unwrap(),
 ///     entity_path: "vehicle/body".to_owned(),

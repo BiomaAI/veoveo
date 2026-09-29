@@ -45,7 +45,7 @@ pub struct FrameWorldCursor {
 impl FrameWorldCursor {
     /// A cursor is a position; every page rechecks current caller authority.
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameId, FrameWorldCursor};
+    /// use veoveo_frames_contract::{FrameId, FrameWorldCursor};
     /// FrameWorldCursor::new(&FrameId::new("camera").unwrap());
     /// ```
     pub fn new(after: &FrameWorldId) -> Self {

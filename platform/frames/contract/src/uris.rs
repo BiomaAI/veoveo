@@ -119,7 +119,7 @@ pub struct FrameWorldUri {
 
 impl FrameWorldUri {
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameId, FrameWorldUri};
+    /// use veoveo_frames_contract::{FrameId, FrameWorldUri};
     /// FrameWorldUri::new(&FrameId::new("wrong-domain").unwrap());
     /// ```
     pub fn new(world_id: &FrameWorldId) -> Self {
@@ -153,7 +153,7 @@ pub struct FrameWorldRevisionUri {
 
 impl FrameWorldRevisionUri {
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameWorldId, FrameWorldRevisionUri};
+    /// use veoveo_frames_contract::{FrameWorldId, FrameWorldRevisionUri};
     /// let world = FrameWorldId::new("survey").unwrap();
     /// FrameWorldRevisionUri::new(&world, &world);
     /// ```
@@ -198,7 +198,7 @@ pub struct WorldFrameUri {
 
 impl WorldFrameUri {
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameId, FrameWorldId, FrameWorldUri, WorldFrameUri};
+    /// use veoveo_frames_contract::{FrameId, FrameWorldId, FrameWorldUri, WorldFrameUri};
     /// let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
     /// WorldFrameUri::new(&world, &FrameId::new("camera").unwrap());
     /// ```
@@ -248,7 +248,7 @@ impl FrameOperationUri {
     pub const TEMPLATE: &str = "frames://operation/{operation_id}";
 
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameOperationUri, FrameWorldId};
+    /// use veoveo_frames_contract::{FrameOperationUri, FrameWorldId};
     /// FrameOperationUri::new(&FrameWorldId::new("world").unwrap());
     /// ```
     pub fn new(operation_id: &CoordinateOperationId) -> Self {

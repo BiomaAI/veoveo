@@ -174,7 +174,7 @@ fn request_builder_and_flat_decoder_share_query_and_metadata_admission() {
     let mut builder = request_builder();
     builder.deadline_ms = MAX_PROJECTION_DEADLINE_MS;
     builder.idempotency_key = "x".repeat(128);
-    builder.coordinate_frame_refs = vec!["x".repeat(256); 64];
+    builder.coordinate_frame_refs = (0..64).map(super::frames::frame).collect();
     assert!(builder.build().is_ok());
 }
 
@@ -227,7 +227,7 @@ fn query_identity_includes_every_query_input_and_excludes_the_idempotency_key() 
         ("maximum_bytes", json!(2048)),
         ("deadline_ms", json!(2000)),
         ("units", json!({"Scalars:scalars": "metres"})),
-        ("coordinate_frame_refs", json!(["frame"])),
+        ("coordinate_frame_refs", json!([super::frames::frame(0)])),
     ] {
         let mut changed = original.clone();
         changed[field] = value;

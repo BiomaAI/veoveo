@@ -1,0 +1,16 @@
+[package]
+name = "veoveo-frames-contract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Date/time values only, matching the existing qualified Frames profile.
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
+hex.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+veoveo-artifact-contract.workspace = true
+veoveo-map-mcp = { path = "../../../servers/map-mcp", default-features = false, features = ["contract"] }
+veoveo-types.workspace = true

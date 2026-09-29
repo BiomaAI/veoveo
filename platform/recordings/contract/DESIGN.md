@@ -16,7 +16,7 @@
 ## Ownership And Dependencies
 
 This crate owns Recording's public IDs, resource addresses, cursors, sealing scope and data models.
-It depends on foundational types, the lightweight Artifact owner contract, URL component handling, Serde, JSON Schema support,
+It depends on foundational types, the lightweight Artifact and Frames owner contracts, URL component handling, Serde, JSON Schema support,
 UUIDs and clock-free date/time values. It imports no server, Store, async runtime,
 Rerun or GPU library. Its URL dependency uses the workspace's qualified pin.
 
@@ -115,8 +115,12 @@ same relationships. Digests use `Sha256Digest` through RRD, construction and dow
 with bare lowercase hex at the declared wire fields. Byte length is nonzero and expiry
 is a UTC value. The service checks query identity and expiry against the SQL-admitted
 receipt, then verifies payload length and SHA-256 before reuse. The model alone does
-not prove file contents or grant authority. Coordinate-frame reference interpretation
-is tracked in the foundations plan.
+not prove file contents or grant authority. Coordinate-frame references use Frames' `WorldFrameUri`, which requires an immutable
+world revision and frame identity. Requests and results admit at most 64 distinct
+references, preserve caller order and include their URI wire values in query identity.
+They describe caller-supplied coordinate metadata. Projection does not resolve Frames
+resources or perform coordinate conversion; only the owning service can establish
+frame existence, visibility and transformation semantics.
 
 Address decoding rejects alternate spellings, fragments, unsupported or duplicate
 query parameters, malformed IDs and wrong resource parents. Errors omit submitted

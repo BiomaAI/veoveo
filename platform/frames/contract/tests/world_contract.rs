@@ -1,4 +1,4 @@
-use veoveo_frames_mcp::contract::{
+use veoveo_frames_contract::{
     FrameBasis, FrameEntityPath, FrameId, FrameNode, FrameParentTransform, FrameSourceReference,
     FrameStreamUri, FrameWorldId, FrameWorldRevision, FrameWorldRevisionId, FrameWorldRevisionUri,
     FrameWorldSummary, FrameWorldTree, ValidatedWorldTree,
@@ -178,10 +178,10 @@ fn complete_tree_admission_rejects_structural_and_transform_errors() {
     let mut orphan = child("camera", "missing");
     let mut invalid_axes = child("camera", "earth");
     invalid_axes.basis = FrameBasis::Cartesian {
-        axes: veoveo_frames_mcp::contract::FrameAxes {
-            x: veoveo_frames_mcp::contract::FrameAxisDirection::Right,
-            y: veoveo_frames_mcp::contract::FrameAxisDirection::Left,
-            z: veoveo_frames_mcp::contract::FrameAxisDirection::Up,
+        axes: veoveo_frames_contract::FrameAxes {
+            x: veoveo_frames_contract::FrameAxisDirection::Right,
+            y: veoveo_frames_contract::FrameAxisDirection::Left,
+            z: veoveo_frames_contract::FrameAxisDirection::Up,
         },
     };
     let mut bad_rotation = child("camera", "earth");
@@ -374,7 +374,7 @@ fn entity_paths_have_byte_bounds_and_preserve_the_producer_selector() {
 #[test]
 fn existing_uav_dynamic_world_keeps_its_wire_tree() {
     let scenario: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../showcase/uav-sim/scenarios/new-york-aerial.json"
+        "../../../../showcase/uav-sim/scenarios/new-york-aerial.json"
     ))
     .unwrap();
     let wire = scenario["world"]["tree"].clone();

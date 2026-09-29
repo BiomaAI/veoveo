@@ -43,7 +43,7 @@ pub struct FrameUsageCursor {
 impl FrameUsageCursor {
     /// Positions require native Tasks, never frame-world or operation IDs.
     /// ```compile_fail
-    /// use veoveo_frames_mcp::contract::{FrameUsageCursor, FrameWorldId};
+    /// use veoveo_frames_contract::{FrameUsageCursor, FrameWorldId};
     /// FrameUsageCursor::new(FrameWorldId::new("world").unwrap());
     /// ```
     pub fn new(after: TaskId) -> Result<Self, FrameUsageError> {

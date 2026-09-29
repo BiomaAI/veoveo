@@ -33,10 +33,10 @@ mod projection;
 pub use projection::{
     CreateRecordingProjectionRequest, CreateRecordingProjectionRequestBuilder,
     MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_DEADLINE_MS,
-    MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS, MAX_PROJECTION_SAMPLES,
-    MAX_PROJECTION_SELECTOR_BYTES, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
-    RecordingProjectionHandleBuilder, RecordingProjectionHandleSchema, RecordingProjectionQuery,
-    RecordingProjectionQueryBuilder, RecordingProjectionResultMetadata,
+    MAX_PROJECTION_ENTITIES, MAX_PROJECTION_FRAME_REFERENCES, MAX_PROJECTION_ROWS,
+    MAX_PROJECTION_SAMPLES, MAX_PROJECTION_SELECTOR_BYTES, RECORDING_PROJECTION_HANDLE_SCHEMA,
+    RecordingProjectionHandle, RecordingProjectionHandleBuilder, RecordingProjectionHandleSchema,
+    RecordingProjectionQuery, RecordingProjectionQueryBuilder, RecordingProjectionResultMetadata,
     RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
 

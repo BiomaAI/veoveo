@@ -42,8 +42,12 @@ or governed recordings.
 
 ## Public Contract And Dependencies
 
-The library's `contract` feature exposes world IDs, frame trees, resource addresses,
-conversion requests, and operation provenance. Consumers disable default features.
+The library's `contract` feature re-exports the shared
+[Frames domain contract](../../platform/frames/contract/DESIGN.md): world IDs, frame
+trees, resource addresses, conversion requests and operation provenance. Consumers
+disable default features. Recording imports the domain crate directly because Frames
+runtime consumes RRD, which already imports the Recording contract. This dependency
+requirement places the public model below both runtimes.
 The dependency graph contains foundational and Artifact value types, Map's geodetic
 contract, serialization/schema support, and value validation libraries. It excludes
 MCP integration, database clients, async runtimes, provider engines, and GPU libraries.
@@ -63,31 +67,12 @@ They reject credentials, ports, queries, fragments, escaped aliases, extra segme
 and URI spellings that require normalization. Each address implements `ResourceAddress`.
 A typed address grants no authority and does not establish persisted parent membership.
 
-### Frame Identity Admission And Upgrade
+### Frame Identity Admission
 
-Frame, world, revision, and operation IDs admit 1–128 ASCII letters, digits, underscores,
-hyphens, dots, or colons, excluding the complete values `.` and `..`. Those two values
-are relative URL components and cannot identify resources. JSON still carries strings;
-the schemas and all admitted route spellings keep the published 0.1.x representation.
-
-The Frames owner requires a coordinated drain for the stricter identity admission.
-Before upgrading an installation with retained data, decode its world records, complete
-revision trees, operation provenance, and consumer references using the new contract.
-The preflight checks ID/URI agreement, empty or published head consistency, complete-tree
-admission, root membership, and the canonical tree digest. Dynamic stream references
-must pass concrete URI admission, and their entity paths must satisfy the byte and
-control-character limits below. Include pending UAV configuration requests and retained
-conversion source references.
-An invalid retained identity stops the upgrade. Preserve the original data and resolve
-its references under the owning domain's recovery procedure before retrying; do not
-normalize or rewrite IDs during reads. The reference installation is rebuilt empty.
-Mixed old/current producers are unsupported during this transition.
-
-The change performs no persistent format conversion. Rollback restores the previous
-binaries and their unchanged data; values emitted by the current constructors fit the
-previous profile. Contract tests qualify the shared wire shapes, malformed admission,
-parent-specific construction, and independent library consumption. Retained-data and
-installed acceptance remain release gates in the foundations plan.
+The [domain contract](../../platform/frames/contract/DESIGN.md#construction-and-admission)
+defines identifier limits, parent-specific builders and public decoding. Frames rejects
+inconsistent identity, tree, head or digest facts after SQL selects an authorized record.
+Readers do not normalize identities or repair stored metadata.
 
 ## Frame worlds
 
@@ -144,8 +129,7 @@ revision to a positive publication number; an empty world has no head and revisi
 `FrameSourceReference` derives its revision ID from its address. A source reference
 carries a digest claim; resolving and authorizing the referenced revision establishes
 its content. JSON field names and generated schemas preserve the published forms.
-The coordinated preflight above governs stricter decoding; current reads never repair
-inconsistent retained metadata.
+Current reads reject inconsistent metadata without changing stored values.
 
 ## Lifecycle
 
@@ -256,21 +240,6 @@ Task-usage subscriptions may start before the first usage row; admission checks 
 ownership in SQL. Unauthorized and missing Tasks produce the same resource-not-found
 response. Task changes invalidate accepted usage references even when no usage row changed.
 
-### Catalog Upgrade
-
-The Frames owner requires a coordinated drain for the world and usage collections'
-array-to-page changes. Update installed clients to decode `FrameWorldPage` and
-`FrameUsagePage` and follow their typed
-cursor, then replace the drained server and refresh discovery and embedded App caches.
-Mixed array/page servers behind one endpoint are unsupported. This transition changes
-no persisted format. Rollback drains the server and restores the previous server/client
-set with the same data. Native page and cursor cases qualify the new representation;
-installed client acceptance is a release gate in the foundations plan.
-The same drain admits the stricter usage address profile. Generated native Task
-references already use that profile. Retained caller references must parse with
-`FrameTaskUsageUri` before upgrade; rejection requires the caller to resolve the
-correct native Task identity, without rewriting persisted Tasks or usage rows.
-
 ## Operation Authority And Storage
 
 Frames owns operation persistence in `state/operations`; Store provides its client,
@@ -348,7 +317,7 @@ and private driver records in `state/records.rs`. Store supplies the connection 
 schema catalog. The query API accepts Frames IDs and resource addresses;
 conversion to database values happens at bindings. This dependency direction lets
 cross-server consumers use the existing contract feature without introducing a Store
-dependency on the Frames library or a second identity crate.
+dependency on the Frames runtime. The domain crate supplies the same identity types.
 
 World reads select the caller's tenant and require every world label in the caller's
 clearance inside SQL. World visibility is shared within a tenant; publication requires
@@ -379,10 +348,7 @@ installation tenant mapping and tenant-wide read sharing apply; world policy doe
 add a profile or Work Context partition. The internal Store draft API is absent, so
 callers cannot publish an opaque tree or supply its root and hash separately. Stored
 record keys, schemas, event version 1 and wire payloads keep their existing forms.
-The coordinated Frames upgrade requires current publication checks on every writer;
-rolling overlap with writers that bypass current labels is unsupported. Retained-data
-preflight follows the metadata admission section. This change rewrites no stored rows.
-Rollback keeps publication disabled until the required owner and label policy is restored.
+Every writer applies the current publication owner and label checks before changing a world head.
 
 SurrealDB stores:
 
@@ -414,12 +380,8 @@ qualification is tracked in the
 
 ```text
 servers/frames-mcp/src/
-  contract/               public IDs, worlds, addresses, tool and result types
-  contract/usage.rs       checked Task usage addresses, cursors and pages
+  contract.rs             re-exports platform/frames/contract public models
   engine.rs               coordinate conversion
-  contract/tree.rs        complete-tree admission, canonical ordering and hashing
-  contract/streams.rs     concrete producer references and entity selector admission
-  contract/metadata.rs    checked world summaries, revisions and source references
   world.rs                transform resolution
   state.rs                typed world scope and revision adapters
   state/records.rs        private world/revision driver records

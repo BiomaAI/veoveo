@@ -1,5 +1,5 @@
 use serde_json::json;
-use veoveo_frames_mcp::contract::{
+use veoveo_frames_contract::{
     FRAME_USAGE_PAGE_SIZE, FrameTaskUsageUri, FrameUsageCursor, FrameUsageEntry,
     FrameUsageIndexUri, FrameUsagePage, FrameWorldCursor, FrameWorldId,
 };

@@ -16,3 +16,4 @@ url.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-types.workspace = true
 veoveo-artifact-contract.workspace = true
+veoveo-frames-contract.workspace = true

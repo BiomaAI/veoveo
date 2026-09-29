@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, num::NonZeroU64, ops::Deref};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
+use veoveo_frames_contract::WorldFrameUri;
 use veoveo_types::Sha256Digest;
 
 use super::{
@@ -34,7 +35,8 @@ pub struct RecordingProjectionResultMetadata {
     pub timeline: String,
     pub sample_grid: Vec<i64>,
     pub units: BTreeMap<String, String>,
-    pub coordinate_frame_refs: Vec<String>,
+    #[schemars(length(max = 64))]
+    pub coordinate_frame_refs: Vec<WorldFrameUri>,
     pub omitted_sample_count: u64,
     pub row_count: u64,
     #[serde(with = "hex_digest")]
@@ -87,12 +89,11 @@ impl RecordingProjectionHandleBuilder {
             || result.row_count > MAX_PROJECTION_ROWS
             || result.row_count > MAX_PROJECTION_SAMPLES as u64
             || result.units.len() > 64
-            || result.coordinate_frame_refs.len() > 64
+            || !super::valid_frame_references(&result.coordinate_frame_refs)
             || !result
                 .units
                 .iter()
                 .flat_map(|(key, value)| [key, value])
-                .chain(&result.coordinate_frame_refs)
                 .all(|value| valid_text(value, 256))
         {
             return Err(RecordingContractError::ProjectionResult);

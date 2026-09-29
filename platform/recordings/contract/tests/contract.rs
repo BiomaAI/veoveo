@@ -1,6 +1,8 @@
 //! The same contract checks run in an independent consumer without server features.
 #[path = "contract/addresses.rs"]
 mod addresses;
+#[path = "contract/frames.rs"]
+mod frames;
 #[path = "contract/metadata.rs"]
 mod metadata;
 #[path = "contract/playback.rs"]

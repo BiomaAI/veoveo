@@ -121,15 +121,12 @@ mod tests {
 
     #[test]
     fn world_frame_position_round_trips_with_typed_uri() {
-        let revision = crate::contract::FrameWorldRevisionUri::new(
+        let revision = crate::FrameWorldRevisionUri::new(
             &FrameWorldId::new("uav-showcase-new-york").unwrap(),
             &FrameWorldRevisionId::new("revision-1").unwrap(),
         );
         let point = CoordinatePoint::WorldFrame(WorldFramePosition {
-            frame_uri: WorldFrameUri::new(
-                &revision,
-                &crate::contract::FrameId::new("isaac-world").unwrap(),
-            ),
+            frame_uri: WorldFrameUri::new(&revision, &crate::FrameId::new("isaac-world").unwrap()),
             x_m: 1.0,
             y_m: 2.0,
             z_m: 3.0,
