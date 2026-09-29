@@ -26,6 +26,8 @@ contract = [
     "dep:uuid",
     "dep:veoveo-artifact-contract",
     "dep:veoveo-frames-mcp",
+    "dep:veoveo-map-mcp",
+    "dep:veoveo-recording-contract",
     "dep:veoveo-types",
 ]
 runtime = [
@@ -62,6 +64,8 @@ mcp = [
 
 [dependencies]
 veoveo-frames-mcp = { optional = true, path = "../frames-mcp", default-features = false, features = ["contract"] }
+veoveo-map-mcp = { optional = true, path = "../map-mcp", default-features = false, features = ["contract"] }
+veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

@@ -9,6 +9,7 @@ name = "smoke"
 path = "src/bin/smoke.rs"
 
 [dependencies]
+veoveo-map-mcp = { path = "../../servers/map-mcp", default-features = false, features = ["contract"] }
 veoveo-recording-contract.workspace = true
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true

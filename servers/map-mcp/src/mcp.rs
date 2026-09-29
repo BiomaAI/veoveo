@@ -26,19 +26,18 @@ use crate::{
     contract::{
         AcquisitionId, AcquisitionJob, BuildTravelModelRequest, CancelAcquisitionRequest,
         CorridorInspectionOutput, CorridorInspectionRequest, CreateAcquisitionRequest,
-        CreateMobilityProfileRequest, CreateSourceRequest, DatasetReleaseId, DeriveRasterRequest,
+        CreateMobilityProfileRequest, CreateSourceRequest, DeriveRasterRequest,
         DeriveSpatialGeometryRequest, DisableSourceRequest, FacilityId, GeodesicDirectOutput,
         GeodesicDirectRequest, GeodesicInverseOutput, GeodesicInverseRequest,
         InspectLocationOutput, InspectLocationRequest, InspectPositionOutput,
         InspectPositionRequest, ListActiveDatasetReleasesOutput, ListActiveDatasetReleasesRequest,
         LocationId, MapDatasetId, MapRouteHandoff, MapScope, MobilityProfile, MobilityProfileId,
         PrepareRouteHandoffRequest, PublishRestrictionRequest, QuerySourceFeaturesOutput,
-        QuerySourceFeaturesRequest, RasterDerivation, RasterDerivationId, RasterProductId,
-        ReachableArea, ReachableAreaRequest, RegisteredSource, ReleaseMutationRequest,
-        ReleaseMutationResponse, ReplaceSourceRequest, RestrictionMutationOutput, RouteId,
-        RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan, RouteRequest, RouteValidation,
-        SearchLocationsOutput, SearchLocationsRequest, SourceFeatureId, SpatialDerivation,
-        SpatialDerivationId, TransformCrsOutput, TransformCrsRequest, TravelModelRecord,
+        QuerySourceFeaturesRequest, RasterDerivation, ReachableArea, ReachableAreaRequest,
+        RegisteredSource, ReleaseMutationRequest, ReleaseMutationResponse, ReplaceSourceRequest,
+        RestrictionMutationOutput, RouteMatrix, RouteMatrixId, RouteMatrixRequest, RoutePlan,
+        RouteRequest, RouteValidation, SearchLocationsOutput, SearchLocationsRequest,
+        SpatialDerivation, TransformCrsOutput, TransformCrsRequest, TravelModelRecord,
         ValidateGeofenceOutput, ValidateGeofenceRequest, ValidateRouteRequest,
         WithdrawRestrictionRequest,
     },
@@ -1250,8 +1249,8 @@ fn is_subscribable(uri: &str) -> bool {
             | uris::RASTER_DERIVATIONS_URI
             | uris::SPATIAL_DERIVATIONS_URI
     ) || crate::contract::MapMobilityProfileUri::parse(uri).is_ok()
-        || uris::parse_single(uri, "map://restriction/").is_some()
-        || uris::parse_single(uri, "map://route/").is_some()
+        || crate::contract::MapRestrictionUri::parse(uri).is_ok()
+        || crate::contract::MapRouteUri::parse(uri).is_ok()
         || uris::parse_single(uri, "map://dataset/").is_some()
         || is_feature_subscribable(uri)
 }
@@ -1292,6 +1291,20 @@ mod well_known_tests {
         assert!(super::is_subscribable(uris::SPATIAL_DERIVATIONS_URI));
         assert!(!super::is_subscribable("map://spatial-derivations/extra"));
         assert!(!super::is_subscribable(uris::DOCS_URI));
+    }
+
+    #[test]
+    fn subscription_addresses_apply_the_resource_owners_admission() {
+        let route = crate::contract::MapRouteUri::new(crate::contract::RouteId::new());
+        let restriction =
+            crate::contract::MapRestrictionUri::new(crate::contract::RestrictionId::new());
+        for address in [route.as_str(), restriction.as_str()] {
+            assert!(super::is_subscribable(address));
+            assert!(!super::is_subscribable(&format!("{address}?secret=value")));
+            assert!(!super::is_subscribable(&format!("{address}#fragment")));
+        }
+        assert!(!super::is_subscribable("map://route/arbitrary"));
+        assert!(!super::is_subscribable("map://restriction/arbitrary"));
     }
 
     #[test]

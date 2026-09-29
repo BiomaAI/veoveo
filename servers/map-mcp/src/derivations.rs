@@ -8,7 +8,6 @@ use veoveo_types::{PrincipalId, WorkContextId};
 use crate::{
     catalog::{MapAccessContext, MapCatalog},
     contract::{RasterDerivation, RasterDerivationId, SpatialDerivation, SpatialDerivationId},
-    uris,
 };
 mod migration;
 #[cfg(test)]
@@ -179,8 +178,14 @@ impl MapCatalog {
             .into_iter()
             .map(|row| {
                 let resource_uri = match kind {
-                    MapDerivationKind::Raster => uris::raster_derivation_uri(&row.derivation_key),
-                    MapDerivationKind::Spatial => uris::spatial_derivation_uri(&row.derivation_key),
+                    MapDerivationKind::Raster => {
+                        crate::contract::MapRasterDerivationUri::new(row.derivation_key.parse()?)
+                            .to_string()
+                    }
+                    MapDerivationKind::Spatial => {
+                        crate::contract::MapSpatialDerivationUri::new(row.derivation_key.parse()?)
+                            .to_string()
+                    }
                 };
                 Ok(DerivationSummary {
                     derivation_id: row.derivation_key,

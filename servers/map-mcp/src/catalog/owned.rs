@@ -166,7 +166,8 @@ impl MapCatalog {
             |row| &row.route_key,
             |row| {
                 Ok(RouteSummary {
-                    resource_uri: uris::route_uri(&row.route_key),
+                    resource_uri: crate::contract::MapRouteUri::new(row.route_key.parse()?)
+                        .to_string(),
                     route_id: row.route_key.parse()?,
                     status: match row.status {
                         MapRouteState::PlanningAdvisory => RouteStatus::PlanningAdvisory,

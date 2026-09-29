@@ -41,24 +41,22 @@ impl MapMcp {
                 .map_err(internal)?;
             return json_resource(uri, &page).map(Some);
         }
-        if let Some(id) = uris::parse_single(uri, "map://raster-derivation/") {
-            let id = RasterDerivationId::parse(id).map_err(invalid_params)?;
+        if let Ok(address) = crate::contract::MapRasterDerivationUri::parse(uri) {
             let value = self
                 .state
                 .catalog
-                .raster_derivation(scope, &identity.authority.work_context, &id)
+                .raster_derivation(scope, &identity.authority.work_context, address.id())
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| not_found("raster derivation"))?;
             return json_resource(uri, &value).map(Some);
         }
-        if let Some(id) = uris::parse_single(uri, "map://spatial-derivation/") {
+        if let Ok(address) = crate::contract::MapSpatialDerivationUri::parse(uri) {
             spatial_scope(identity, MapDerivationKind::Spatial)?;
-            let id = SpatialDerivationId::parse(id).map_err(invalid_params)?;
             let value = self
                 .state
                 .catalog
-                .spatial_derivation(scope, &identity.authority.work_context, &id)
+                .spatial_derivation(scope, &identity.authority.work_context, address.id())
                 .await
                 .map_err(internal)?
                 .ok_or_else(|| not_found("spatial derivation"))?;

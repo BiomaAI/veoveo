@@ -47,13 +47,14 @@ identities keep the `view://` scheme.
 | [Veoveo Frames contract](../frames-mcp/DESIGN.md) | A composition with local metre coordinates binds one exact world revision, frame URI, transform, and Frames operation input. |
 | PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
 | RFC 3986 and RFC 6570 | The [foundational URI profile](../../platform/types/DESIGN.md) supplies concrete component parsing, encoding and template expansion. View admits its own route shapes and typed parameters. |
+| Map, Frames, Recording and Artifact resource contracts | Governed scene references contain owner-defined URI types. Recording uses `recording://recordings/{id}` with RFC 9562 UUIDv7; Map product IDs require RFC-variant UUIDv5/v7 and source features name their release. |
 
 ## Library Features
 
 The `contract` feature exposes camera and capture types, composition validation,
 resource addresses, `ViewScope` and `ViewTaskKind`. Pure WGS 84 camera resolution
 uses the existing `glam` dependency in this profile. It depends on foundational types
-and the owning Frames and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
+and the owning Map, Frames, Recording and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
 `InvocationAuthority`; the authenticated adapter supplies it from the verified caller.
 Its serialization participates in the stable composition digest.
 
@@ -163,6 +164,14 @@ release identities, a style identity, ordered overlays, exact governed inputs,
 authority, Work Context, algorithm revision, request digest, and composition
 digest. Every governed input carries an exact resource URI, SHA-256 digest,
 license, attribution, and an exact media type when bytes are resolved.
+
+`composition/references.rs` defines the scene's admitted resource variants. Each
+variant contains the owning contract's URI type; the public JSON value is its URI
+string. Parsing delegates to those owners. Map release inputs use `MapReleaseUri`
+directly. Source feature inputs must name a release declared by the composition,
+and Map-presented Artifact references require a declared Map release. A typed URI
+establishes resource shape; it grants no access and proves no claimed digest or license.
+Artifact byte resolution applies the forwarded caller's policy before rendering.
 
 Supported overlay geometry is marker, polyline, explicitly triangulated
 polygon, oriented GLB mesh instance, and bounded label. Positions are WGS 84

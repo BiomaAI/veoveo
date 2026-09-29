@@ -121,13 +121,13 @@ macro_rules! map_id {
     };
 }
 
-map_id!(MapDatasetId, "dataset-");
-map_id!(DatasetReleaseId, "release-");
+map_id!(MapDatasetId, "dataset-", true);
+map_id!(DatasetReleaseId, "release-", true);
 map_id!(MapSourceId, "source-", true);
-map_id!(SourceFeatureId, "source-feature-");
-map_id!(RasterProductId, "raster-");
-map_id!(RasterDerivationId, "raster-derivation-");
-map_id!(SpatialDerivationId, "spatial-derivation-");
+map_id!(SourceFeatureId, "source-feature-", true);
+map_id!(RasterProductId, "raster-", true);
+map_id!(RasterDerivationId, "raster-derivation-", true);
+map_id!(SpatialDerivationId, "spatial-derivation-", true);
 map_id!(SourcePolicyId, "source-policy-");
 map_id!(AcquisitionId, "acquisition-");
 map_id!(OperationalSnapshotId, "snapshot-");
@@ -137,7 +137,7 @@ map_id!(FacilityId, "facility-");
 map_id!(MobilityProfileId, "mobility-", true);
 map_id!(RestrictionId, "restriction-", true);
 map_id!(MapGeofenceId, "geofence-");
-map_id!(RouteId, "route-");
+map_id!(RouteId, "route-", true);
 map_id!(RouteMatrixId, "matrix-");
 map_id!(TravelModelId, "travel-model-", true);
 map_id!(ReachableAreaId, "reachable-area-");

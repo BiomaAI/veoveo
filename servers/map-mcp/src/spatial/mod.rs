@@ -238,7 +238,8 @@ impl SpatialService {
         let derivation_id = SpatialDerivationId::new();
         let derivation = SpatialDerivation {
             schema_version: SPATIAL_DERIVATION_SCHEMA_VERSION,
-            resource_uri: crate::uris::spatial_derivation_uri(derivation_id.as_str()),
+            resource_uri: crate::contract::MapSpatialDerivationUri::new(derivation_id.clone())
+                .to_string(),
             derivation_id,
             operation: request.operation,
             geometries: derived.geometries,

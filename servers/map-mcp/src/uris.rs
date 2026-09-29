@@ -34,13 +34,13 @@ pub const SOURCE_TEMPLATE: &str = crate::contract::MapSourceUri::TEMPLATE;
 pub const ACQUISITION_TEMPLATE: &str = "map://acquisition/{acquisition_id}";
 pub const DATASETS_PAGE_TEMPLATE: &str = "map://datasets{?cursor}";
 pub const DATASET_TEMPLATE: &str = "map://dataset/{dataset_id}{?cursor}";
-pub const RELEASE_TEMPLATE: &str = "map://dataset/{dataset_id}/release/{release_id}";
-pub const SOURCE_FEATURE_TEMPLATE: &str = "map://source-feature/{release_id}/{source_feature_id}";
-pub const RASTER_TEMPLATE: &str = "map://raster/{raster_id}";
+pub const RELEASE_TEMPLATE: &str = crate::contract::MapReleaseUri::TEMPLATE;
+pub const SOURCE_FEATURE_TEMPLATE: &str = crate::contract::MapSourceFeatureUri::TEMPLATE;
+pub const RASTER_TEMPLATE: &str = crate::contract::MapRasterUri::TEMPLATE;
 pub const RASTER_DERIVATIONS_PAGE_TEMPLATE: &str = "map://raster-derivations{?cursor}";
 pub const SPATIAL_DERIVATIONS_PAGE_TEMPLATE: &str = "map://spatial-derivations{?cursor}";
-pub const RASTER_DERIVATION_TEMPLATE: &str = "map://raster-derivation/{raster_derivation_id}";
-pub const SPATIAL_DERIVATION_TEMPLATE: &str = "map://spatial-derivation/{spatial_derivation_id}";
+pub const RASTER_DERIVATION_TEMPLATE: &str = crate::contract::MapRasterDerivationUri::TEMPLATE;
+pub const SPATIAL_DERIVATION_TEMPLATE: &str = crate::contract::MapSpatialDerivationUri::TEMPLATE;
 pub const LOCATION_TEMPLATE: &str = "map://location/{location_id}";
 pub const FACILITY_TEMPLATE: &str = "map://facility/{facility_id}";
 pub const MOBILITY_PROFILE_TEMPLATE: &str = crate::contract::MapMobilityProfileUri::TEMPLATE;
@@ -48,7 +48,7 @@ pub const RESTRICTION_TEMPLATE: &str = crate::contract::MapRestrictionUri::TEMPL
 pub const ROUTES_PAGE_TEMPLATE: &str = "map://routes{?cursor}";
 pub const MATRICES_PAGE_TEMPLATE: &str = "map://matrices{?cursor}";
 pub const ACQUISITIONS_PAGE_TEMPLATE: &str = "map://acquisitions{?cursor}";
-pub const ROUTE_TEMPLATE: &str = "map://route/{route_id}";
+pub const ROUTE_TEMPLATE: &str = crate::contract::MapRouteUri::TEMPLATE;
 pub const MATRIX_TEMPLATE: &str = "map://matrix/{matrix_id}";
 pub const TRAVEL_MODEL_TEMPLATE: &str = "map://travel-model/{travel_model_id}";
 pub const ARTIFACT_TEMPLATE: &str = "map://artifact/{artifact_id}";
@@ -89,36 +89,12 @@ pub fn dataset_uri(id: &str) -> String {
     format!("map://dataset/{id}")
 }
 
-pub fn release_uri(dataset_id: &str, release_id: &str) -> String {
-    format!("map://dataset/{dataset_id}/release/{release_id}")
-}
-
-pub fn source_feature_uri(release_id: &str, feature_id: &str) -> String {
-    format!("map://source-feature/{release_id}/{feature_id}")
-}
-
-pub fn raster_uri(raster_id: &str) -> String {
-    format!("map://raster/{raster_id}")
-}
-
-pub fn raster_derivation_uri(derivation_id: &str) -> String {
-    format!("map://raster-derivation/{derivation_id}")
-}
-
-pub fn spatial_derivation_uri(derivation_id: &str) -> String {
-    format!("map://spatial-derivation/{derivation_id}")
-}
-
 pub fn location_uri(id: &str) -> String {
     format!("map://location/{id}")
 }
 
 pub fn facility_uri(id: &str) -> String {
     format!("map://facility/{id}")
-}
-
-pub fn route_uri(id: &str) -> String {
-    format!("map://route/{id}")
 }
 
 pub fn matrix_uri(id: &str) -> String {
@@ -192,20 +168,6 @@ pub fn parse_doc(uri: &str) -> Option<&str> {
 pub fn parse_single<'a>(uri: &'a str, prefix: &str) -> Option<&'a str> {
     let value = uri.strip_prefix(prefix)?;
     (!value.is_empty() && !value.contains('/')).then_some(value)
-}
-
-pub fn parse_release(uri: &str) -> Option<(&str, &str)> {
-    let suffix = uri.strip_prefix("map://dataset/")?;
-    let (dataset, release) = suffix.split_once("/release/")?;
-    (!dataset.is_empty() && !release.is_empty() && !dataset.contains('/') && !release.contains('/'))
-        .then_some((dataset, release))
-}
-
-pub fn parse_source_feature(uri: &str) -> Option<(&str, &str)> {
-    let suffix = uri.strip_prefix("map://source-feature/")?;
-    let (release, feature) = suffix.split_once('/')?;
-    (!release.is_empty() && !feature.is_empty() && !release.contains('/') && !feature.contains('/'))
-        .then_some((release, feature))
 }
 
 pub fn parse_feature_layer(uri: &str) -> Option<&str> {
@@ -442,10 +404,6 @@ mod tests {
             Some("route-1")
         );
         assert!(parse_single("map://route/route-1/x", "map://route/").is_none());
-        assert_eq!(
-            parse_release("map://dataset/dataset-1/release/release-1"),
-            Some(("dataset-1", "release-1"))
-        );
     }
 
     #[test]

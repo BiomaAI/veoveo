@@ -870,7 +870,8 @@ async fn run_raster_derivation_task(
         format!("created raster derivation {}", derivation.derivation_id),
         &derivation,
         [(
-            crate::uris::raster_derivation_uri(derivation.derivation_id.as_str()),
+            crate::contract::MapRasterDerivationUri::new(derivation.derivation_id.clone())
+                .to_string(),
             "Raster derivation",
         )],
     )?;

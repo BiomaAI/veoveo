@@ -60,6 +60,7 @@ the `map://` scheme.
 | Map mobility-profile resource profile | Map-owned component builders and canonical RFC-variant UUIDv5/v7 IDs. Profile versions are integers in 1..=9223372036854775807. Collections use 100-item pages and version 1 hex-encoded JSON cursors bound to `map://mobility-profiles` and an ID/version position. Exact and collection templates follow RFC 6570. |
 | Map source resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 source IDs, checked public summaries, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://sources`. Exact and collection templates follow RFC 6570. |
 | Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
+| Map product resource profile | Typed dataset release, source feature, raster, raster derivation, spatial derivation and route addresses. IDs require RFC-variant UUIDv5/v7 in lowercase hyphenated spelling; parents are typed components and discovery uses the same RFC 6570 templates. |
 | DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
@@ -102,6 +103,14 @@ database and SQL policy.
 ## Architecture
 
 ### Public Types And Authorization
+
+`contract/product_uri.rs` owns the six exact Map product address families consumed by
+View. Builders require each segment's domain ID, and parsers admit the complete route
+through the foundational URI library. Dataset release and source feature addresses
+retain their typed parent identities. Reads use those identities when calling the
+domain readers; SQL owns tenant, caller and parent selection. Derivation and route
+producers use the same builders as discovery. Their broader result DTO relationship
+checks remain tracked in the foundations plan.
 
 The server's public contract owns `MapScope`, its closed authorization vocabulary.
 Handlers and Tasks require that enum and share one grant check. Configurable

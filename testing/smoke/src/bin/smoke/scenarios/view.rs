@@ -665,7 +665,7 @@ async fn create_composition(
     let governed_inputs = if with_overlays {
         vec![json!({
                 "input_id": "smoke-route",
-                "resource_uri": "map://route/smoke-route",
+                "resource_uri": veoveo_map_mcp::contract::MapRouteUri::new(veoveo_map_mcp::contract::RouteId::from_stable_key(b"view-smoke-route")),
                 "digest_sha256": "0".repeat(64),
                 "license": "CC0-1.0",
                 "attribution": "Veoveo governed overlay smoke fixture"
@@ -743,9 +743,9 @@ async fn create_composition(
             "schema_version": 1,
             "base_layer": base_layer,
             "map_releases": if with_overlays {
-                vec!["map://dataset/smoke/release/r1"]
+                vec![veoveo_map_mcp::contract::MapReleaseUri::new(veoveo_map_mcp::contract::MapDatasetId::from_stable_key(b"view-smoke-dataset"), veoveo_map_mcp::contract::DatasetReleaseId::from_stable_key(b"view-smoke-release"))]
             } else {
-                Vec::<&str>::new()
+                Vec::new()
             },
             "style_id": "smoke:1",
             "governed_inputs": governed_inputs,

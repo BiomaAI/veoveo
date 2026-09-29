@@ -149,7 +149,7 @@ impl RouteService {
         let summary = sum_cost(&planned.legs)?;
         let route_id = RouteId::new();
         let plan = RoutePlan {
-            route_uri: format!("map://route/{route_id}"),
+            route_uri: crate::contract::MapRouteUri::new(route_id.clone()).to_string(),
             route_id,
             status: planned.status,
             mobility_profile_id: request.mobility_profile_id.clone(),

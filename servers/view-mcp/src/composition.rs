@@ -158,7 +158,7 @@ async fn resolve_artifact_input(
         .artifact()
         .ok_or_else(|| anyhow::anyhow!("scene input does not address an Artifact occurrence"))?;
     let object = artifacts
-        .resolve(caller, &artifact_uri)
+        .resolve(caller, artifact_uri)
         .await
         .map_err(|error| anyhow::anyhow!("artifact resolution failed: {error}"))?;
     anyhow::ensure!(

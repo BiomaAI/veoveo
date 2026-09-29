@@ -6,13 +6,15 @@ use std::{
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use veoveo_artifact_contract::parse_artifact_plane_uri;
 use veoveo_frames_mcp::contract::{FrameWorldRevisionUri, WorldFrameUri};
+use veoveo_map_mcp::contract::MapReleaseUri;
 use veoveo_types::InvocationAuthority;
 use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};
 
+mod references;
+pub use references::GovernedResourceUri;
 mod record;
 pub use record::SceneComposition;
 
@@ -183,132 +185,6 @@ impl From<Sha256Digest> for String {
     fn from(value: Sha256Digest) -> Self {
         value.0
     }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-pub struct GovernedResourceUri(String);
-
-impl GovernedResourceUri {
-    pub fn parse(value: impl Into<String>) -> Result<Self, SceneCompositionError> {
-        let value = value.into();
-        let exact_resource = !value.is_empty()
-            && value.len() <= 1_024
-            && !value.contains(['?', '#'])
-            && !value.chars().any(char::is_control)
-            && (parse_artifact_plane_uri(&value).is_some()
-                || [
-                    "map://source-feature/",
-                    "map://raster/",
-                    "map://raster-derivation/",
-                    "map://spatial-derivation/",
-                    "map://route/",
-                    "recording://recording/",
-                    "recording://artifact/",
-                    "frames://operation/",
-                ]
-                .iter()
-                .any(|prefix| {
-                    value
-                        .strip_prefix(prefix)
-                        .is_some_and(valid_resource_suffix)
-                }));
-        exact_resource
-            .then_some(Self(value))
-            .ok_or(SceneCompositionError::InvalidGovernedResourceUri)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn artifact(&self) -> Option<veoveo_artifact_contract::ArtifactUri> {
-        veoveo_artifact_contract::ArtifactUri::parse(&self.0).ok()
-    }
-
-    pub fn is_artifact(&self) -> bool {
-        self.artifact().is_some()
-    }
-}
-
-impl fmt::Display for GovernedResourceUri {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for GovernedResourceUri {
-    type Error = SceneCompositionError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
-impl From<GovernedResourceUri> for String {
-    fn from(value: GovernedResourceUri) -> Self {
-        value.0
-    }
-}
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-pub struct MapReleaseUri(String);
-
-impl MapReleaseUri {
-    pub fn parse(value: impl Into<String>) -> Result<Self, SceneCompositionError> {
-        let value = value.into();
-        let valid = value
-            .strip_prefix("map://dataset/")
-            .and_then(|suffix| suffix.split_once("/release/"))
-            .is_some_and(|(dataset, release)| {
-                valid_uri_segment(dataset) && valid_uri_segment(release)
-            });
-        valid
-            .then_some(Self(value))
-            .ok_or(SceneCompositionError::InvalidMapReleaseUri)
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for MapReleaseUri {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for MapReleaseUri {
-    type Error = SceneCompositionError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
-impl From<MapReleaseUri> for String {
-    fn from(value: MapReleaseUri) -> Self {
-        value.0
-    }
-}
-
-fn valid_uri_segment(value: &str) -> bool {
-    !value.is_empty()
-        && value.len() <= 256
-        && !matches!(value, "." | "..")
-        && !value.contains(['/', '?', '#'])
-        && !value.chars().any(char::is_whitespace)
-        && !value.chars().any(char::is_control)
-}
-
-fn valid_resource_suffix(value: &str) -> bool {
-    !value.is_empty() && value.split('/').all(valid_uri_segment)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -568,10 +444,16 @@ impl CreateSceneCompositionRequest {
         if self
             .governed_inputs
             .iter()
-            .any(|input| input.resource_uri.as_str().starts_with("map://"))
+            .any(|input| input.resource_uri.requires_map_release())
             && self.map_releases.is_empty()
         {
             return Err(SceneCompositionError::MapReleaseRequired);
+        }
+        if self.governed_inputs.iter().any(|input| {
+            matches!(&input.resource_uri, GovernedResourceUri::SourceFeature(uri)
+                if !self.map_releases.iter().any(|release| release.release_id() == uri.release_id()))
+        }) {
+            return Err(SceneCompositionError::MapReleaseMismatch);
         }
         let overlay_ids = unique_ids(
             self.overlays
@@ -820,11 +702,10 @@ fn validate_local_frame(
     let operation = inputs
         .get(&binding.operation_input_id)
         .ok_or(SceneCompositionError::UnknownGovernedInput)?;
-    if !operation
-        .resource_uri
-        .as_str()
-        .starts_with("frames://operation/")
-    {
+    if !matches!(
+        operation.resource_uri,
+        GovernedResourceUri::FrameOperation(_)
+    ) {
         return Err(SceneCompositionError::InvalidLocalFrame);
     }
     Ok(())
@@ -869,10 +750,10 @@ pub enum SceneCompositionError {
     InvalidSha256,
     #[error("input resource must be one Map, Frames, Artifact, or Recording URI")]
     InvalidGovernedResourceUri,
-    #[error("Map release URI must use map://dataset/{{dataset}}/release/{{release}}")]
-    InvalidMapReleaseUri,
     #[error("Map inputs need at least one Map release URI")]
     MapReleaseRequired,
+    #[error("Map source feature must belong to a declared release")]
+    MapReleaseMismatch,
     #[error("unsupported scene-composition schema version")]
     UnsupportedSchemaVersion,
     #[error("a composition can have at most 256 inputs")]
@@ -1075,26 +956,34 @@ mod tests {
 
     #[test]
     fn governed_map_inputs_require_an_immutable_release() {
-        let request = CreateSceneCompositionRequest {
-            schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
-            base_layer: LayerId::new("base").unwrap(),
-            map_releases: BTreeSet::new(),
-            local_frame: None,
-            style_id: SceneStyleId::new("default:1").unwrap(),
-            governed_inputs: vec![input("route", "map://route/route-1", None)],
-            overlays: vec![SceneOverlay {
-                overlay_id: SceneOverlayId::new("route").unwrap(),
-                governed_input_ids: BTreeSet::from([SceneInputId::new("route").unwrap()]),
-                geometry: SceneOverlayGeometrySource::Inline {
-                    geometry: SceneOverlayGeometry::Marker {
-                        position: position(),
+        let request =
+            CreateSceneCompositionRequest {
+                schema_version: SCENE_COMPOSITION_SCHEMA_VERSION,
+                base_layer: LayerId::new("base").unwrap(),
+                map_releases: BTreeSet::new(),
+                local_frame: None,
+                style_id: SceneStyleId::new("default:1").unwrap(),
+                governed_inputs: vec![input(
+                    "route",
+                    veoveo_map_mcp::contract::MapRouteUri::new(
+                        veoveo_map_mcp::contract::RouteId::new(),
+                    )
+                    .as_str(),
+                    None,
+                )],
+                overlays: vec![SceneOverlay {
+                    overlay_id: SceneOverlayId::new("route").unwrap(),
+                    governed_input_ids: BTreeSet::from([SceneInputId::new("route").unwrap()]),
+                    geometry: SceneOverlayGeometrySource::Inline {
+                        geometry: SceneOverlayGeometry::Marker {
+                            position: position(),
+                        },
                     },
-                },
-                style: SceneOverlayStyle::default(),
-                visibility: SceneOverlayVisibility::default(),
-                validity: None,
-            }],
-        };
+                    style: SceneOverlayStyle::default(),
+                    visibility: SceneOverlayVisibility::default(),
+                    validity: None,
+                }],
+            };
         assert_eq!(
             request.validate().unwrap_err(),
             SceneCompositionError::MapReleaseRequired

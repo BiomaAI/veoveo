@@ -45,6 +45,9 @@ Map Explorer App.
 - Source addresses, summaries and pages use the contract types. Tenant selection runs
   in SQL before limits; selected documents must agree with indexed metadata. Public
   summaries omit acquisition endpoints, credentials and publisher key references.
+- Exact release, source feature, raster, derivation and route addresses use
+  `contract/product_uri.rs`. Keep the owner's IDs in builders and readers, and share
+  these types with scene consumers. Dataset and release parent checks belong to SQL.
 - Mobility profiles use typed versions and resource addresses. Catalog SQL selects the
   tenant before its ID/numeric-version keyset and limit. Selected documents must agree
   with indexed identity, family, version and validity; completion binds typed parents.

@@ -383,24 +383,20 @@ impl MapMcp {
                     &crate::contract::SourceSummary::new(&source).map_err(internal)?,
                 );
             }
-            if let Some((dataset, release)) = uris::parse_release(uri) {
-                let dataset_id = MapDatasetId::parse(dataset).map_err(invalid_params)?;
-                let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapReleaseUri::parse(uri) {
                 let release = self
                     .state
                     .catalog
-                    .release_in_dataset(&scope, &dataset_id, &release_id)
+                    .release_in_dataset(&scope, address.dataset_id(), address.release_id())
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| not_found("release"))?;
                 return json_resource(uri, &release);
             }
-            if let Some((release, feature)) = uris::parse_source_feature(uri) {
-                let release_id = DatasetReleaseId::parse(release).map_err(invalid_params)?;
-                let feature_id = SourceFeatureId::parse(feature).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapSourceFeatureUri::parse(uri) {
                 self.state
                     .catalog
-                    .release(&scope, &release_id)
+                    .release(&scope, address.release_id())
                     .await
                     .map_err(internal)?
                     .ok_or_else(|| not_found("dataset release"))?;
@@ -409,7 +405,11 @@ impl MapMcp {
                     &self
                         .state
                         .analytics
-                        .source_feature(&scope.tenant_key(), &release_id, &feature_id)
+                        .source_feature(
+                            &scope.tenant_key(),
+                            address.release_id(),
+                            address.feature_id(),
+                        )
                         .map_err(internal)?
                         .ok_or_else(|| not_found("source feature"))?,
                 );
@@ -438,14 +438,13 @@ impl MapMcp {
                         .ok_or_else(|| not_found("facility"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://raster/") {
-                let id = RasterProductId::parse(value).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapRasterUri::parse(uri) {
                 return json_resource(
                     uri,
                     &self
                         .state
                         .analytics
-                        .raster_product(&scope.tenant_key(), &id)
+                        .raster_product(&scope.tenant_key(), address.id())
                         .map_err(internal)?
                         .ok_or_else(|| not_found("raster product"))?,
                 );
@@ -474,14 +473,13 @@ impl MapMcp {
                         .ok_or_else(|| not_found("restriction"))?,
                 );
             }
-            if let Some(value) = uris::parse_single(uri, "map://route/") {
-                let id = RouteId::parse(value).map_err(invalid_params)?;
+            if let Ok(address) = crate::contract::MapRouteUri::parse(uri) {
                 return json_resource(
                     uri,
                     &self
                         .state
                         .catalog
-                        .route(&scope, &id)
+                        .route(&scope, address.id())
                         .await
                         .map_err(internal)?
                         .ok_or_else(|| not_found("route"))?,

@@ -31,6 +31,9 @@ and attribution.
   Decoding checks repeated identities, camera resolution and composition digests.
   Capture snapshots validate resolved geometry, artifact bytes and request revisions
   before Task claiming; keep snapshot fields private.
+- Governed inputs carry their Map, Frames, Recording or Artifact owner's URI type.
+  Keep the resource variants typed through composition validation. Map source features
+  must belong to a declared release; local coordinates require a Frames operation input.
 - Construct capture outputs through `CapturedFrame::builder` and preview manifests
   through `PreviewSceneRecord::new`. Keep record fields and image bytes immutable;
   derive repeated identities, byte metadata, local transforms and oversize status.

@@ -61,7 +61,7 @@ fn spatial() -> SpatialDerivation {
     let id = SpatialDerivationId::new();
     SpatialDerivation {
         schema_version: SPATIAL_DERIVATION_SCHEMA_VERSION,
-        resource_uri: uris::spatial_derivation_uri(id.as_str()),
+        resource_uri: crate::contract::MapSpatialDerivationUri::new(id.clone()).to_string(),
         derivation_id: id,
         operation: SpatialDerivationOperation::ValidateRoute {
             route: Wgs84LineString {

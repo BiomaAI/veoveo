@@ -789,7 +789,9 @@ deployment details.
 
 View's `contract` feature exposes camera, capture and composition models without its
 runtime. `src/contract/composition.rs` owns typed identities, inputs, Frames bindings,
-overlay geometry, styles, validity and bounds. `src/contract/scopes.rs` owns the three
+overlay geometry, styles, validity and bounds. Its `composition/references.rs` module
+selects governed scene resource variants using the Map, Frames, Recording and Artifact
+owners' URI types. `src/contract/scopes.rs` owns the three
 View permissions; `src/server/auth.rs` shares their guard between requests and Tasks.
 `src/contract/resources.rs` owns typed addresses and tile keys; `src/uris.rs` declares
 fixed roots and templates. `src/server/setup.rs` owns checked MCP setup and static
@@ -922,6 +924,7 @@ admission and recovery synchronize the local worker inventory in
 |---|---|
 | `servers/map-mcp/src/contract/travel_models.rs` | `veoveo.ai/travel-model-artifact/v1` cross-server wire profile, controlled location and vehicle-type IDs, bounds, provenance, and Map record |
 | `servers/map-mcp/src/contract/travel_model_uri.rs` and `travel_model_page.rs` | Map-owned travel-model addresses, canonical UUIDv5/v7 identities, native Task cursors and typed collection pages shared with Optimization through the contract feature |
+| `servers/map-mcp/src/contract/product_uri.rs` | typed dataset release, source feature, raster, derivation and route addresses shared with View; domain ID admission, parent components and discovery templates |
 | `servers/map-mcp/src/travel_models.rs` | completed travel-model exact reads, pages and completion, with owner, context and retained-identity agreement in SQL before limits |
 | `servers/optimization-mcp/tests/map_travel_model.rs` | cross-server artifact wire compatibility and consumption of Map-owned addresses and collection templates |
 | `servers/map-mcp/src/routes/service.rs` | route and Valhalla matrix construction, immutable mobility-profile versions, persisted operational snapshots, unavailable arcs, and the validated `veoveo.ai/map-route-handoff/v1` cross-server handoff |

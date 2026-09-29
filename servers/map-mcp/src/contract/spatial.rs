@@ -419,7 +419,7 @@ impl SpatialDerivation {
     pub fn validate(&self) -> Result<(), SpatialContractError> {
         if self.schema_version != SPATIAL_DERIVATION_SCHEMA_VERSION
             || self.resource_uri
-                != format!("map://spatial-derivation/{}", self.derivation_id.as_str())
+                != super::MapSpatialDerivationUri::new(self.derivation_id.clone()).as_str()
             || self.algorithm_revision != SPATIAL_DERIVATION_ALGORITHM_REVISION
             || self.geometries.is_empty()
             || self

@@ -29,7 +29,7 @@ fn plan(n: usize, release: usize) -> RoutePlan {
     let now = Utc::now();
     RoutePlan {
         route_id: key("route", n).parse().unwrap(),
-        route_uri: uris::route_uri(&key("route", n)),
+        route_uri: crate::contract::MapRouteUri::new(key("route", n).parse().unwrap()).to_string(),
         status: RouteStatus::Unavailable,
         mobility_profile_id: key("mobility", 1).parse().unwrap(),
         mobility_profile_version: crate::contract::MobilityProfileVersion::FIRST,
@@ -163,7 +163,8 @@ async fn qualify() {
                     assert!(wire["items"][0].get("legs").is_none());
                     assert_eq!(
                         wire["items"][0]["resource_uri"],
-                        uris::route_uri(&page.items[0].route_id.to_string())
+                        crate::contract::MapRouteUri::new(page.items[0].route_id.clone())
+                            .to_string()
                     );
                     (
                         page.items
