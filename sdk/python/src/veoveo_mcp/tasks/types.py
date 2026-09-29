@@ -579,6 +579,8 @@ def validate_input_method(method: str) -> None:
 
 
 def new_task_id() -> uuid.UUID:
+    # TODO(foundations): Replace the draft-02 generator with RFC 9562 UUIDv7;
+    # qualify the embedded millisecond timestamp as well as version/variant bits.
     import uuid_extensions
 
     return uuid_extensions.uuid7()

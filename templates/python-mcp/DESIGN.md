@@ -4,8 +4,8 @@ Datasheet profiles tabular datasets and is the canonical template for a Python
 MCP server hosted inside a Veoveo installation. It implements the Python surface
 of the hosted-server contract in
 [`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
-Its [compliance declaration](AGENTS.md#contract-compliance) records installed
-qualification work.
+Its [compliance declaration](AGENTS.md#contract-compliance) lists the implemented
+hosted-server requirements.
 
 ## Standards And Protocols
 
