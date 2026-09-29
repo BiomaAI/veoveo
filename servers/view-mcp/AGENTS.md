@@ -101,7 +101,8 @@ Contract revision: 3
 - C23: met
 - C25: met
 - C26: met
-- C27: met
+- C27: pending — public Task subscriptions use the shared owner-only query; add
+  Work Context SQL selection to match View ownership before qualification
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

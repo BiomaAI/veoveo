@@ -181,6 +181,10 @@ between bounded observations handled by different replicas.
 
 ## Filtered Task Observation
 
+Caller-facing Task collections use `TaskRuntime::for_owner(owner).page(...)`. The
+query applies owner, operation and label predicates in SQL before decoding and the
+page limit. Collection readers advance with the typed Task cursor.
+
 `OwnerTaskQuery::get` takes a native `TaskId` and applies tenant, server, principal,
 profile, optional-tenant spelling, selected operation names and label clearance in SQL. Indexed owner and
 profile fields must agree with the stored owner envelope. Only a selected record

@@ -841,6 +841,19 @@ checks pass. Reference containers remain stopped, with 75 GiB free. Frame and pr
 record admission, owner-typed governed input references, and installed/GPU acceptance
 remain open.
 
+The unused `TaskRuntime::list_for_owner` helper is removed. It decoded an unbounded
+collection before testing label clearance in Rust. All caller-facing collections use
+`for_owner(...).page(...)`, which applies owner, operation and label predicates in SQL
+before decoding and limits. Repository call-site inspection found no callers of the
+removed helper. Seven native SQL collection, ownership and subscription cases pass
+against disposable pinned Store fixtures; every fixture container was removed.
+Strict all-target, all-feature workspace Clippy and four View discovery checks pass.
+The audit also found that View's public Task
+get, update, cancel and subscription methods use the runtime's owner-only selection.
+Add an explicit Work Context query policy and apply it consistently to those methods
+before accepting View's documented ownership scope. Capture snapshot admission already
+checks Work Context, but that does not qualify public Task observation.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1353,7 +1366,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
-| View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked setup supplies fixed discovery. Private composition and view records validate identity, digests and cameras; immutable resolved scenes validate retained geometry and artifact bytes. Capture admission checks request revision and principal/tenant/Work Context before Task claiming | Complete Frame and preview record admission; replace manual governed-input references through the owning contracts; qualify installed consumers and GPU behavior |
+| View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked setup supplies fixed discovery. Private composition and view records validate identity, digests and cameras; immutable resolved scenes validate retained geometry and artifact bytes. Capture admission checks request revision and principal/tenant/Work Context before Task claiming | Apply Work Context SQL selection to public Task reads, mutations and subscriptions; complete Frame and preview record admission; replace manual governed-input references through the owning contracts; qualify installed consumers and GPU behavior |
 | Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |

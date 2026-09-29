@@ -377,32 +377,6 @@ impl TaskRuntime {
         records.into_iter().map(record_to_snapshot).collect()
     }
 
-    pub async fn list_for_owner(&self, owner: &TaskOwner) -> Result<Vec<TaskSnapshot>, TaskError> {
-        let mut response = self
-            .store
-            .client()
-            .query(
-                "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND owner = $owner AND profile = $profile ORDER BY created_at ASC;",
-            )
-            .bind(("server", RecordId::new("mcp_server", self.server.clone())))
-            .bind(("tenant", tenant_record(owner)?))
-            .bind(("owner", owner_record(owner)?))
-            .bind(("profile", RecordId::new("profile", owner.profile.clone())))
-            .await?
-            .check()?;
-        let records: Vec<TaskRecord> = response.take(0)?;
-        records
-            .into_iter()
-            .map(record_to_snapshot)
-            .filter(|snapshot| {
-                snapshot
-                    .as_ref()
-                    .map(|snapshot| snapshot.owner.data_labels.is_subset(&owner.data_labels))
-                    .unwrap_or(true)
-            })
-            .collect()
-    }
-
     pub async fn owner(&self, task_id: &str) -> Result<Option<TaskOwner>, TaskError> {
         Ok(self.get(task_id).await?.map(|snapshot| snapshot.owner))
     }
