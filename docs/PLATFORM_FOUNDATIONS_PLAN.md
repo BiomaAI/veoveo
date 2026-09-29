@@ -1592,8 +1592,12 @@ the cluster stopped; the combined installed pass runs after publication.
 Inspection of an installed Python Task ID found that `uuid_extensions.uuid7` implements
 the draft-02 layout with seconds and fractional seconds. Interpreting its timestamp
 under RFC 9562 yields 2202 for a Task created in 2026. Version and variant checks had
-not exposed this mismatch. Replace the generator in the next SDK batch and qualify
-its millisecond timestamp, ordering and domain consumers through the current hard cut.
+not exposed this mismatch. The SDK now uses the exact `uuid-utils` 1.0.0 pin and its
+standard-library UUID adapter. A 4096-ID check qualifies the RFC millisecond timestamp,
+ordering, uniqueness and native driver value. SDK/template checks pass 193 cases, the
+fork fixture passes eight, and native Datasheet smoke passes with the new generator.
+All three lockfiles replace only the UUID package. Installed consumers will receive
+the hard cut with the combined runtime publication; no historical-format adapter is added.
 
 ## Standards And Protocols
 
@@ -2518,7 +2522,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 3 Python UUIDv7 generation | `sdk/python/src/veoveo_mcp/tasks/types.py` | Replace the draft-02 generator with a maintained RFC 9562 implementation and qualify timestamps and consumers | Installed Task output exposed the timestamp mismatch after the catalog batch; include the correction in the next SDK batch without a historical-format adapter |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
 | Phase 1 reference reset | `examples/bioma/README.md` | Qualify the complete stationary HIL sensor model and simulator timing, then finish composed flight and installed workload acceptance | Revision `481ee4d2` converged and public installation verification passed. Datasheet passes all 26 hosted checks and its public Task/catalog path. UAV landing succeeded, but PX4 refused re-arming; the adapter returned its 409 command deadline. PX4 reports BARO healthy and GYRO/MAG stale. No takeoff retry was issued. Native GPU and PX4 sensor-health checks must cover inertial and magnetic measurements together before another installed run |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |

@@ -23,7 +23,8 @@ dependencies = [
     "cryptography>=43",
     "surrealdb>=1.0.4",
     "starlette>=0.47",
-    "uuid7>=0.1",
+    # RFC 9562 generator; compat returns stdlib UUID on Python 3.12–3.14.
+    "uuid-utils==1.0.0",
 ]
 
 [project.urls]

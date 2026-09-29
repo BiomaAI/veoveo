@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import httpx
 import pytest
-import uuid_extensions
+from uuid_utils.compat import uuid7
 
 from veoveo_mcp.artifacts import (
     ArtifactDenied, ArtifactRepository, ArtifactTooLarge, ArtifactTransport, HttpArtifactPlane,
@@ -50,7 +50,7 @@ class Chunks(httpx.AsyncByteStream):
 
 
 def fixture(chunks, byte_len=None, status=200):
-    artifact = str(uuid_extensions.uuid7())
+    artifact = str(uuid7())
     uri = f"artifact://{artifact}"
     metadata = {
         "artifact_id": artifact, "artifact_uri": uri, "filename": "measurements.csv",

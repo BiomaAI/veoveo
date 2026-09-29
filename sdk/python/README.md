@@ -44,6 +44,11 @@ named `installation`. `in_work_context()` adds agreement among the indexed conte
 both retained authority representations. `of_type(TaskTypeName(...))` and `of_types`
 select validated domain operation names without registering them in MCP core.
 
+`new_task_id()` uses `uuid-utils` 1.0.0's standard-library adapter to return a native
+`uuid.UUID` with the RFC 9562 48-bit Unix millisecond timestamp. The exact pin selects
+the upstream stable release qualified with the Python SDK, template and fork fixture.
+SurrealDB receives native UUID values and Pydantic checks the UUIDv7 contract.
+
 Queries accept UUIDv7 values parsed at the protocol boundary. Pages use a typed
 `TaskPageCursor` containing creation time and Task ID, ordered by both fields, with
 1–1000 items selected after authorization. Every page reapplies caller clearance.

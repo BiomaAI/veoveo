@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
-import uuid_extensions
+from uuid_utils.compat import uuid7
 
 from veoveo_mcp.contract import (
     ArtifactMetadata,
@@ -18,7 +18,7 @@ from veoveo_mcp.contract import (
 
 def test_output_capability_carries_bounded_inherited_labels():
     request = IssueArtifactWriteCapabilityRequest(
-        task_id=str(uuid_extensions.uuid7()),
+        task_id=str(uuid7()),
         expires_at=datetime.now(timezone.utc),
         max_artifact_count=2,
         max_total_bytes=1024,
@@ -69,7 +69,7 @@ def test_usage_report_without_records_has_no_totals():
 
 
 def test_artifact_ids_must_be_uuid_v7():
-    v7 = str(uuid_extensions.uuid7())
+    v7 = str(uuid7())
     metadata = ArtifactMetadata(
         artifact_id=v7,
         byte_len=3,
@@ -105,7 +105,7 @@ def test_put_request_wire_skips_unset_fields_like_rust_serde():
 
 
 def test_capability_secret_is_validated_and_redacted():
-    capability_id = str(uuid_extensions.uuid7())
+    capability_id = str(uuid7())
     issued = IssuedArtifactWriteCapability(
         capability_id=capability_id,
         secret="s" * 32,
