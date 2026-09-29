@@ -34,9 +34,8 @@ use tokio_util::sync::CancellationToken;
 use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    CreateRecordingProjectionRequest, GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier,
-    GatewayInternalTrustBundle, Page, RecordingProjectionHandle, ServerSlug, SubscriptionHub,
-    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
+    GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle, Page,
+    ServerSlug, SubscriptionHub, TelemetryGuard, TokenIssuer, init_server_telemetry, paginate,
 };
 use veoveo_platform_store::{
     PlatformStore, RecordingId, RecordingProjectionReceiptId, StoreConfig, StoreCredentials,
@@ -49,7 +48,10 @@ use veoveo_recording_mcp::live_stream::{
 use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
-    contract::{CreateCatalogGrantRequest, SealRecordingOutput, SealRecordingRequest},
+    contract::{
+        CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
+        RecordingProjectionHandle, SealRecordingOutput, SealRecordingRequest,
+    },
     index,
     playback::{
         PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
@@ -679,7 +681,7 @@ async fn catalog_grant(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
     headers: HeaderMap,
-    Json(request): Json<CreateCatalogGrantRequest>,
+    Json(request): Json<CreateRecordingCatalogGrantRequest>,
 ) -> Response {
     let dataset_uuid = request.dataset_id;
     if dataset_uuid.get_version_num() != 7 {

@@ -1108,7 +1108,11 @@ Store, MCP and Rerun.
 changes notify accepted resource readers without invalidating App discovery.
 
 `contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
-descriptor types. `service.rs` resolves authorized MCP and playback plans and publishes
+descriptor types. `contract/catalog.rs` owns catalog grants and Arrow projection
+requests and handles. The isolated `contract` feature exposes these models without
+MCP, Store, async or Rerun implementations; the gateway's Recording adapter imports
+that profile directly. `runtime`, `mcp` and `redap` enable their service dependencies.
+`service.rs` resolves authorized MCP and playback plans and publishes
 properties layers. `service/projection.rs` owns projection receipts, concurrency,
 scratch, and Arrow downloads. `platform/recordings/reader/src/cache.rs` owns verified
 Artifact-to-PVC materialization and eviction. `blueprint_cache.rs` supplies

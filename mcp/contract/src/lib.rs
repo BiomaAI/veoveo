@@ -24,7 +24,6 @@ pub mod internal_auth;
 pub mod pagination;
 pub mod protocol;
 pub mod provider;
-pub mod recording_catalog;
 pub mod server_contract;
 pub mod subscriptions;
 pub mod tasks;
@@ -138,12 +137,6 @@ pub use protocol::{
     sanitized_request_meta, trace_id_from_traceparent,
 };
 pub use provider::Provider;
-pub use recording_catalog::{
-    CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
-    RECORDING_CATALOG_GRANT_SCHEMA, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant,
-    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
-    RecordingProjectionSparseFill,
-};
 pub use subscriptions::{
     ResourceListObservers, ResourceUpdate, SubscriptionHub, accepted_subscription_filter,
     accepted_task_subscription_filter, listen_resources, receive_resource_list_change,

@@ -41,6 +41,10 @@ health signal.
 
 ## Domain Contract Ownership
 
+Recording's library owns its catalog grants and Arrow projection request/result
+models. The gateway's Recording adapter imports its isolated `contract` feature.
+MCP core owns neither those domain models nor a dependency on the Recording server.
+
 UAV's library owns the `veoveo.ai/live-view/v4` models for logical cameras, encoded
 products and viewer authorizations. Consumers import its `contract` feature with
 default features disabled. The [UAV design](../../servers/uav-sim-mcp/DESIGN.md#library-features)

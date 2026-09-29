@@ -1,4 +1,4 @@
-//! Shared HTTP contracts for governed recording catalogs.
+//! Recording-owned catalog grants and Arrow projection contracts.
 
 use schemars::JsonSchema;
 use std::collections::BTreeMap;

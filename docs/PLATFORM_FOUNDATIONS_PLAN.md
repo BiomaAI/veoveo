@@ -911,6 +911,26 @@ free. Owner-typed governed input references, installed cross-context delivery an
 acceptance remain open. These tests establish metadata and byte agreement, not image
 decoding or GPU rendering.
 
+Recording now exposes an isolated library contract for its public recording and
+playback models, catalog grants and Arrow projection requests and handles. Catalog
+and projection definitions moved from MCP core to `contract/catalog.rs`; the gateway's
+Recording adapter imports that library directly. The declarations and wire schemas
+are unchanged. Core exports and the server's local import aliases are removed.
+Runtime, MCP and Redap features own their optional dependencies, including native
+test fixtures; contract tests do not activate Rerun or database implementations.
+
+The independent Recording contract resolves to 24 packages and passes four request,
+response and schema cases. The same four cases pass in the server's contract profile.
+Runtime-only compilation passes. Native qualification passes 31 library cases,
+including four upstream Rerun read-profile cases, five hosted-adapter cases and one
+isolated SQL catalog case. The shared MCP suite passes 139 cases, and both gateway
+playback cases pass. Strict workspace Clippy, formatting, docs and identifier checks
+pass. Five superseded Recording executables were removed after checking their feature
+fingerprints and replacements, reclaiming 7.45 GiB while preserving build caches.
+Reference containers remain stopped, with 62 GiB free. Recording ID/URI builders and
+View's governed references remain open; the audit found that View's singular Recording
+route does not match the owner's published plural route.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1359,9 +1379,9 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 #### Migration Inventory And Status
 
 All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
-Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason, Stream and View define the
+Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason, Stream, View and Recording define the
 `contract` feature. Independent consumer qualification is recorded in each owning row.
-The other four packages still need feature isolation. Existing libraries remain the
+Artifact, Computers and Speech still need that server library feature. Existing libraries remain the
 default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
@@ -1424,7 +1444,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Replace manual governed-input references through the owning contracts; qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
+| Recording | The isolated library contract owns recording/playback views, catalog grants and Arrow projection DTOs. The gateway imports that contract; MCP core has no catalog grant or projection definitions. Runtime, MCP and Redap dependencies are gated; native catalog, playback and independent-consumer checks pass | Add domain ID/URI builders and checked MCP setup, migrate resource construction and consumers, and qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

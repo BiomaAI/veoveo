@@ -5,17 +5,18 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::contract::{
+    CreateRecordingProjectionRequest, RECORDING_PROJECTION_HANDLE_SCHEMA,
+    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
+    RecordingProjectionSparseFill,
+};
 use anyhow::{Context as _, Result, ensure};
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{
-    CreateRecordingProjectionRequest, GatewayInternalIdentity, PlaneCaller,
-    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
-    RecordingProjectionResultMetadata, RecordingProjectionSampling, RecordingProjectionSparseFill,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
     RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
     RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionState,

@@ -40,8 +40,8 @@ use veoveo_platform_store::{
 use crate::{
     RecordingPlaybackPlan,
     contract::{
-        CatalogReadGrant, PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest,
-        PlaybackMapProvider,
+        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest, PlaybackMapProvider,
+        RecordingCatalogGrant,
     },
 };
 
@@ -210,7 +210,7 @@ impl PlaybackManager {
         &self,
         plans: Vec<RecordingPlaybackPlan>,
         grant: RecordingReadGrantRecord,
-    ) -> Result<CatalogReadGrant> {
+    ) -> Result<RecordingCatalogGrant> {
         ensure!(
             grant.grant_class == RecordingReadGrantClass::CatalogDataset,
             "Catalog SDK access requires a catalog_dataset grant"
@@ -240,8 +240,8 @@ impl PlaybackManager {
         self.ensure_catalog(&plans_ref, &grant).await?;
         let access = self.issue_access(&grant)?;
         self.prune_catalogs();
-        Ok(CatalogReadGrant {
-            schema: veoveo_mcp_contract::RECORDING_CATALOG_GRANT_SCHEMA.to_owned(),
+        Ok(RecordingCatalogGrant {
+            schema: crate::contract::RECORDING_CATALOG_GRANT_SCHEMA.to_owned(),
             grant_id: uuid::Uuid::parse_str(&access.grant_id)?,
             dataset_id: dataset_id.as_uuid(),
             recording_segment_ids: admitted.into_iter().map(RecordingId::as_uuid).collect(),

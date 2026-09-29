@@ -12,9 +12,66 @@ name = "recording-mcp"
 path = "src/bin/server.rs"
 required-features = ["redap"]
 
+[[test]]
+name = "catalog_queries"
+required-features = ["mcp"]
+
+[[test]]
+name = "contract"
+required-features = ["contract"]
+
 [features]
-default = []
+default = ["mcp"]
+contract = [
+    "dep:schemars",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:uuid",
+]
+runtime = [
+    "contract",
+    "dep:veoveo-artifact-contract",
+    "dep:veoveo-types",
+    "dep:anyhow",
+    "dep:bytes",
+    "dep:chrono",
+    "dep:futures",
+    "dep:fs4",
+    "dep:hex",
+    "dep:notify",
+    "dep:re_build_info",
+    "dep:re_chunk",
+    "dep:re_log_encoding",
+    "dep:re_log_types",
+    "dep:rmcp",
+    "dep:sha2",
+    "dep:tokio",
+    "dep:tokio-util",
+    "dep:tracing",
+    "dep:tempfile",
+    "dep:url",
+    "dep:veoveo-artifact-client",
+    "dep:veoveo-mcp-contract",
+    "dep:veoveo-platform-store",
+    "dep:veoveo-recording-hub",
+    "dep:veoveo-rrd",
+    "dep:veoveo-recording-reader",
+    "dep:re_sdk",
+    "dep:re_sdk_types",
+]
+mcp = [
+    "runtime",
+    "dep:axum",
+    "dep:clap",
+    "dep:rustls",
+    "dep:secrecy",
+    "dep:tower-http",
+    "dep:tower",
+    "dep:tracing-subscriber",
+    "dep:veoveo-mcp-apps-extension",
+]
 redap = [
+    "mcp",
     "dep:async-stream",
     "dep:base64",
     "dep:re_auth",
@@ -28,56 +85,53 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
-veoveo-artifact-contract.workspace = true
-veoveo-types.workspace = true
-anyhow.workspace = true
+veoveo-artifact-contract = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
 async-stream = { version = "=0.3.6", optional = true }
-axum.workspace = true
+axum = { workspace = true, optional = true }
 base64 = { workspace = true, optional = true }
-bytes.workspace = true
-chrono.workspace = true
-clap.workspace = true
-futures.workspace = true
-fs4 = "=1.1.0"
-hex.workspace = true
-notify.workspace = true
-re_build_info.workspace = true
+bytes = { workspace = true, optional = true }
+chrono = { workspace = true, optional = true }
+clap = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+fs4 = { version = "=1.1.0", optional = true }
+hex = { workspace = true, optional = true }
+notify = { workspace = true, optional = true }
+re_build_info = { workspace = true, optional = true }
 re_auth = { workspace = true, optional = true }
-re_chunk.workspace = true
-re_log_encoding.workspace = true
-re_log_types.workspace = true
+re_chunk = { workspace = true, optional = true }
+re_log_encoding = { workspace = true, optional = true }
+re_log_types = { workspace = true, optional = true }
 re_protos = { workspace = true, optional = true }
 re_redap_tests = { workspace = true, optional = true }
 re_server = { workspace = true, optional = true }
 re_tuid = { workspace = true, optional = true }
 re_uri = { workspace = true, optional = true }
-rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"] }
-rustls.workspace = true
-schemars.workspace = true
-secrecy.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-sha2.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"] }
-tokio-util = { workspace = true, features = ["io"] }
+rmcp = { workspace = true, features = ["server", "transport-streamable-http-server"], optional = true }
+rustls = { workspace = true, optional = true }
+schemars = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "signal", "fs", "io-util", "sync", "time"], optional = true }
+tokio-util = { workspace = true, features = ["io"], optional = true }
 tonic = { workspace = true, optional = true }
 tonic-web = { workspace = true, optional = true }
-tower-http.workspace = true
-tower.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-tempfile = "=3.27.0"
-url.workspace = true
-uuid = { workspace = true, features = ["serde", "v7"] }
-veoveo-artifact-client = { path = "../../platform/artifacts/client" }
-veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
-veoveo-mcp-contract.workspace = true
-veoveo-platform-store.workspace = true
-veoveo-recording-hub = { path = "../../platform/recordings/hub" }
-veoveo-rrd.workspace = true
-veoveo-recording-reader.workspace = true
-
-[dev-dependencies]
-re_sdk.workspace = true
-re_sdk_types.workspace = true
-tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, optional = true }
+tower = { workspace = true, features = ["util"], optional = true }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+tempfile = { version = "=3.27.0", optional = true }
+url = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["serde", "v7"], optional = true }
+veoveo-artifact-client = { path = "../../platform/artifacts/client", optional = true }
+veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension", optional = true }
+veoveo-mcp-contract = { workspace = true, optional = true }
+veoveo-platform-store = { workspace = true, optional = true }
+veoveo-recording-hub = { path = "../../platform/recordings/hub", optional = true }
+veoveo-rrd = { workspace = true, optional = true }
+veoveo-recording-reader = { workspace = true, optional = true }
+re_sdk = { workspace = true, optional = true }
+re_sdk_types = { workspace = true, optional = true }

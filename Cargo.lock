@@ -17006,6 +17006,7 @@ dependencies = [
  "veoveo-mcp-contract",
  "veoveo-platform-store",
  "veoveo-policy",
+ "veoveo-recording-mcp",
  "veoveo-recording-protocol",
  "veoveo-speech-contract",
  "veoveo-task-runtime",

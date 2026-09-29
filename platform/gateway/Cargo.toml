@@ -57,6 +57,7 @@ veoveo-mcp-apps-extension = { path = "../../mcp/apps-extension" }
 veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
 veoveo-policy = { path = "../policy" }
+veoveo-recording-mcp = { path = "../../servers/recording-mcp", default-features = false, features = ["contract"] }
 veoveo-recording-protocol.workspace = true
 veoveo-task-runtime = { path = "../task-runtime" }
 

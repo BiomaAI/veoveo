@@ -19,6 +19,26 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 | OAuth service authentication and JWT | Gateway internal assertions, short-lived host-limited Redap grants, and separate Artifact-read credentials. |
 | H.264 Annex B and SHA-256 | Decoder-reentrant live continuity and immutable byte identity. |
 
+## Library Features
+
+The library's `contract` feature exposes recording views, playback manifests, catalog
+grants and Arrow projection requests and handles. Consumers enable it with default
+features disabled. It depends on Serde, JSON Schema support, JSON values and UUIDs;
+it excludes MCP, Store, asynchronous runtimes and Rerun implementations.
+
+`contract/catalog.rs` owns the HTTP grant and projection models shared with the
+gateway's Recording adapter. MCP core has no catalog grant or projection model and no
+dependency on this server. The models describe requests and responses; runtime admission checks limits, identities
+and current authorization before an operation.
+
+`runtime` enables Store access, the reader and caches, sealing, projection execution
+and live playback. `mcp` adds discovery and HTTP adapter dependencies and is enabled
+by default. `redap` includes that profile and adds the Rerun catalog service used by
+the binary. `redap-conformance` adds Rerun's read-profile checks. Native test fixtures
+are attached to their runtime feature, so contract tests do not activate Rerun SDKs.
+Resource parsing and stronger domain identities are separate adoption work in the
+[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
 ## Durable Authority
 
 SurrealDB records durable recording datasets, recordings, immutable layer manifests,
@@ -168,6 +188,7 @@ durable capture bytes are not modified by this browser adapter.
 | Path | Responsibility |
 |---|---|
 | `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
+| `contract/catalog.rs` | shared catalog grant and bounded projection wire models, independent of protocol and runtime implementations |
 | `service.rs` | playback plans, sealing, properties publication, and catalog revision |
 | `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
 | `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |

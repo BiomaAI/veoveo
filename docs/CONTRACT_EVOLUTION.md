@@ -353,6 +353,12 @@ Media owns its prediction summaries and generation result DTOs. Protocol utiliti
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.
 
+Recording owns its catalog grants and Arrow projection request/result models in
+the server library's isolated contract feature. The gateway's Recording adapter
+imports that feature directly. MCP core has no catalog grant or projection DTO
+definitions and no dependency on that server. Authorization and execution limits stay
+with the runtime owners.
+
 UAV owns its simulator and live-view v4 model in the server library's isolated
 contract feature. Flight clients consume those types directly. Gateway identity
 conversion stays in UAV's authenticated adapter; the public model takes foundational

@@ -12,6 +12,10 @@ and reactive Rerun live following.
 
 ## Invariants
 
+- Keep public recording, playback, catalog grant and projection models in the
+  library's isolated `contract` feature. Cross-server consumers import it with
+  default features disabled. Runtime admission owns authorization and operational
+  bounds; MCP core must not import or define these Recording models.
 - The canonical resource is `recording://recordings/{recording_uuidv7}`.
 - One durable recording dataset contains one or more recordings. Dataset UUID is the
   Rerun application ID. Recording UUID is the Rerun recording and segment ID.
@@ -39,6 +43,7 @@ and reactive Rerun live following.
 ## Module Boundaries
 
 - `contract.rs` owns recording, layer, seal, and playback-manifest types.
+- `contract/catalog.rs` owns catalog grant and projection types consumed by the gateway.
 - `service.rs` owns playback plans, sealing, and properties publication.
 - `service/index.rs` assembles SQL-authorized catalog pages, direct reads, and completions;
   `index.rs` owns versioned catalog cursors. SQL applies tenant and label predicates before limits.
@@ -52,6 +57,9 @@ and reactive Rerun live following.
 
 ## Build And Test
 
+- `cargo test -p veoveo-recording-mcp --no-default-features --features contract`
+- Prove contract dependency isolation in an independent consumer workspace.
+- `cargo check -p veoveo-recording-mcp --no-default-features --features runtime --lib`
 - `cargo test -p veoveo-recording-mcp --lib`
 - `cargo test -p veoveo-recording-mcp --features redap-conformance official_read_profile`
 - `cargo test -p veoveo-rrd projection`

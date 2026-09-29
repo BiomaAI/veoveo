@@ -1,9 +1,12 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub use veoveo_mcp_contract::{
-    CreateRecordingCatalogGrantRequest as CreateCatalogGrantRequest,
-    RecordingCatalogGrant as CatalogReadGrant,
+mod catalog;
+pub use catalog::{
+    CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
+    RECORDING_CATALOG_GRANT_SCHEMA, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant,
+    RecordingProjectionHandle, RecordingProjectionResultMetadata, RecordingProjectionSampling,
+    RecordingProjectionSparseFill,
 };
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
