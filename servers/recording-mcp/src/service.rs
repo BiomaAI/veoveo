@@ -229,7 +229,7 @@ impl RecordingService {
         grant_class: RecordingReadGrantClass,
         mut recording_ids: Vec<RecordingId>,
         catalog_revision: String,
-        requested_grant: Option<&str>,
+        requested_grant: Option<crate::contract::RecordingReadGrantId>,
     ) -> Result<RecordingReadGrantRecord> {
         recording_ids.sort_unstable();
         recording_ids.dedup();
@@ -238,12 +238,13 @@ impl RecordingService {
             "recording grant must admit at least one recording"
         );
         let platform_identity = self.platform_identity(identity).await?;
-        if let Some(requested_grant) = requested_grant.filter(|value| value.len() <= 128)
-            && let Ok(grant_id) = requested_grant.parse::<RecordingReadGrantId>()
-            && grant_id.as_uuid().get_version_num() == 7
+        if let Some(grant_id) = requested_grant
             && let Some(grant) = self
                 .store
-                .recording_read_grant(platform_identity.tenant_id, grant_id)
+                .recording_read_grant(
+                    platform_identity.tenant_id,
+                    RecordingReadGrantId::from_uuid(grant_id.as_uuid()),
+                )
                 .await?
         {
             let expected_recordings = recording_ids
@@ -405,7 +406,10 @@ impl RecordingService {
                 let path = authorized_live_layer_path(&self.spool_root, relative)?;
                 Ok::<_, anyhow::Error>(PlaybackLiveLayerPlan {
                     descriptor: PlaybackLiveReceiver {
-                        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+                        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
+                            &layer.id,
+                            "recording_layer",
+                        )?)?,
                         layer_name: layer.layer_name.clone(),
                         ordinal,
                         current_byte_len: live_segment_byte_len(&path)?,
@@ -665,8 +669,10 @@ impl RecordingService {
         } else {
             let manifest = RecordingManifest {
                 schema: "veoveo.ai/recording-manifest/v9".to_owned(),
-                dataset_id: dataset_id.to_string(),
-                recording_segment_id: recording_id.to_string(),
+                dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+                recording_segment_id: crate::contract::RecordingId::try_from(
+                    recording_id.as_uuid(),
+                )?,
                 catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),
                 layers: manifest_layers.clone(),
                 blueprint: manifest_blueprint.clone(),
@@ -1077,7 +1083,7 @@ impl RecordingService {
             .await?;
         Ok(RecordingView {
             recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
-            dataset_id: dataset_id.to_string(),
+            dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
             dataset_key: dataset.dataset_key,
             application_id: recording.application_id,
             recording_key: recording.recording_key,
@@ -1177,7 +1183,10 @@ fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
 
 fn layer_view(layer: &RecordingLayerRecord) -> Result<LayerView> {
     Ok(LayerView {
-        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
+            &layer.id,
+            "recording_layer",
+        )?)?,
         layer_name: layer.layer_name.clone(),
         kind: layer_kind(layer.kind).to_owned(),
         ordinal: layer.ordinal,
@@ -1204,7 +1213,10 @@ fn manifest_layer(layer: &RecordingLayerRecord) -> Result<ManifestLayer> {
         .as_ref()
         .context("committed layer has no Artifact occurrence")?;
     Ok(ManifestLayer {
-        layer_id: record_uuid(&layer.id, "recording_layer")?.to_string(),
+        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
+            &layer.id,
+            "recording_layer",
+        )?)?,
         layer_name: layer.layer_name.clone(),
         kind: layer_kind(layer.kind).to_owned(),
         ordinal: layer.ordinal,

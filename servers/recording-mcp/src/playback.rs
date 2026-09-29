@@ -33,7 +33,7 @@ use tokio::sync::Mutex as AsyncMutex;
 use tonic::{Request, Response, Status};
 use url::Url;
 use veoveo_platform_store::{
-    PlatformStore, RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
+    PlatformStore, RecordId, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
     RecordingReadGrantId, RecordingReadGrantRecord, RecordingState,
 };
 
@@ -45,7 +45,7 @@ use crate::{
     },
 };
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
+use crate::contract::PLAYBACK_MANIFEST_SCHEMA;
 pub const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
 const MAX_TOKEN_TTL: Duration = Duration::from_secs(5 * 60);
@@ -103,7 +103,7 @@ struct CatalogLayer {
 struct AuthorizedCatalog {
     handler: Arc<RerunCloudHandler>,
     dataset_id: EntryId,
-    subject: String,
+    grant_id: crate::contract::RecordingReadGrantId,
 }
 
 impl PlaybackManager {
@@ -166,8 +166,10 @@ impl PlaybackManager {
         self.prune_catalogs();
         Ok(PlaybackManifest {
             schema: PLAYBACK_MANIFEST_SCHEMA.to_owned(),
-            dataset_id: plan.dataset_id.to_string(),
-            recording_segment_id: plan.recording_id.to_string(),
+            dataset_id: crate::contract::RecordingDatasetId::try_from(plan.dataset_id.as_uuid())?,
+            recording_segment_id: crate::contract::RecordingId::try_from(
+                plan.recording_id.as_uuid(),
+            )?,
             application_id: plan.application_id,
             recording_key: plan.recording_key,
             state: recording_state(plan.state).to_owned(),
@@ -242,9 +244,12 @@ impl PlaybackManager {
         self.prune_catalogs();
         Ok(RecordingCatalogGrant {
             schema: crate::contract::RECORDING_CATALOG_GRANT_SCHEMA.to_owned(),
-            grant_id: uuid::Uuid::parse_str(&access.grant_id)?,
-            dataset_id: dataset_id.as_uuid(),
-            recording_segment_ids: admitted.into_iter().map(RecordingId::as_uuid).collect(),
+            grant_id: access.grant_id,
+            dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+            recording_segment_ids: admitted
+                .into_iter()
+                .map(|id| crate::contract::RecordingId::try_from(id.as_uuid()))
+                .collect::<Result<_, _>>()?,
             catalog_revision: grant.catalog_revision,
             entry_uri: EntryUri::new(
                 self.inner.public_origin.clone(),
@@ -336,8 +341,10 @@ impl PlaybackManager {
             uri,
             // Rerun displays `EntryId` as mixed-case TUID hex. The public catalog
             // contract keeps the durable UUIDv7 identity instead.
-            dataset_id: plan.dataset_id.to_string(),
-            recording_segment_id: plan.recording_id.to_string(),
+            dataset_id: crate::contract::RecordingDatasetId::try_from(plan.dataset_id.as_uuid())?,
+            recording_segment_id: crate::contract::RecordingId::try_from(
+                plan.recording_id.as_uuid(),
+            )?,
             catalog_revision: catalog.revision.clone(),
             rrd_version: "0.38.1".to_owned(),
             optimization_profile: "object-store".to_owned(),
@@ -365,7 +372,7 @@ impl PlaybackManager {
             .context("issuing recording grant Redap token")?
             .to_string();
         Ok(PlaybackAccess {
-            grant_id: grant_id.to_string(),
+            grant_id: crate::contract::RecordingReadGrantId::try_from(grant_id.as_uuid())?,
             redap_token: token,
             expires_at: grant.expires_at.to_rfc3339(),
         })
@@ -393,14 +400,12 @@ impl PlaybackManager {
             .verify(&token, VerificationOptions::default())
             .map_err(|_| Status::unauthenticated("invalid recording playback token"))?;
         ensure_redap_claims(&claims, &self.inner.allowed_host)?;
-        let subject = claims.sub().to_owned();
-        let grant_id = subject
-            .parse::<RecordingReadGrantId>()
+        let grant_id = crate::contract::RecordingReadGrantId::parse(claims.sub())
             .map_err(|_| Status::unauthenticated("invalid recording grant subject"))?;
         let grant = self
             .inner
             .store
-            .recording_read_grant_by_id(grant_id)
+            .recording_read_grant_by_id(RecordingReadGrantId::from_uuid(grant_id.as_uuid()))
             .await
             .map_err(|_| Status::internal("recording grant store is unavailable"))?
             .ok_or_else(|| Status::unauthenticated("recording grant expired"))?;
@@ -432,7 +437,7 @@ impl PlaybackManager {
         Ok(AuthorizedCatalog {
             handler: catalog.handler.clone(),
             dataset_id: catalog.dataset_id,
-            subject,
+            grant_id,
         })
     }
 
@@ -491,21 +496,9 @@ fn virtual_catalog_key(grant: &RecordingReadGrantRecord) -> VirtualCatalogKey {
 }
 
 fn grant_id_from_record(record: &RecordId) -> Result<RecordingReadGrantId> {
-    ensure!(
-        record.table.as_str() == RecordingReadGrantId::TABLE,
-        "recording grant record has the wrong table"
-    );
-    let raw = match &record.key {
-        RecordIdKey::Uuid(value) => value.to_string(),
-        RecordIdKey::String(value) => value.clone(),
-        other => anyhow::bail!("recording grant key is not a UUID: {other:?}"),
-    };
-    let value = uuid::Uuid::parse_str(&raw)?;
-    ensure!(
-        value.get_version_num() == 7,
-        "recording grant key is not UUIDv7"
-    );
-    Ok(RecordingReadGrantId::from_uuid(value))
+    Ok(RecordingReadGrantId::from_uuid(
+        veoveo_recording_reader::access::record_uuid(record, RecordingReadGrantId::TABLE)?,
+    ))
 }
 
 async fn build_catalog(
@@ -574,8 +567,8 @@ pub fn playback_application_id(dataset_id: RecordingDatasetId) -> Result<String>
 }
 
 fn playback_dataset_id(dataset_id: RecordingDatasetId) -> Result<EntryId> {
-    let dataset_uuid = uuid::Uuid::parse_str(&dataset_id.to_string())
-        .context("recording dataset id is not a UUID")?;
+    let dataset_uuid =
+        crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?.as_uuid();
     Ok(EntryId::from(re_tuid::Tuid::from_bytes(
         *dataset_uuid.as_bytes(),
     )))
@@ -743,7 +736,7 @@ macro_rules! impl_scoped_redap_service {
             ) -> Result<Response<proto::WhoAmIResponse>, Status> {
                 let authorized = self.manager.authorized_catalog(&request).await?;
                 Ok(Response::new(proto::WhoAmIResponse {
-                    user_id: Some(authorized.subject),
+                    user_id: Some(authorized.grant_id.to_string()),
                     can_read: true,
                     can_write: false,
                     capabilities: Some(proto::ServerCapabilities {

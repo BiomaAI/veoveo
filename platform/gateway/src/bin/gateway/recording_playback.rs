@@ -13,7 +13,7 @@ use veoveo_mcp_contract::{
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
 use veoveo_recording_mcp::contract::{
-    CreateRecordingCatalogGrantRequest, RecordingId, RecordingUri,
+    CreateRecordingCatalogGrantRequest, RecordingId, RecordingProjectionId, RecordingUri,
 };
 
 use crate::runtime::{RecordingPlaybackState, current_catalog};
@@ -29,7 +29,7 @@ enum PlaybackSource {
     Manifest,
     LiveRrdStream,
     Blueprint(u64),
-    Projection(String),
+    Projection(RecordingProjectionId),
 }
 
 impl PlaybackSource {
@@ -114,12 +114,9 @@ pub(super) async fn projection_data(
     Path((profile, recording_id, projection_id)): Path<(String, String, String)>,
     Extension(subject): Extension<AuthenticatedSubject>,
 ) -> Response {
-    let Ok(projection_uuid) = uuid::Uuid::parse_str(&projection_id) else {
+    let Ok(projection_id) = RecordingProjectionId::parse(projection_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if projection_uuid.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
     proxy_playback(
         state,
         profile,
@@ -136,24 +133,12 @@ pub(super) async fn catalog_grant(
     Path(profile): Path<String>,
     Extension(subject): Extension<AuthenticatedSubject>,
     headers: HeaderMap,
-    Json(mut request): Json<CreateRecordingCatalogGrantRequest>,
+    Json(request): Json<CreateRecordingCatalogGrantRequest>,
 ) -> Response {
     let started_at = Instant::now();
     let Ok(profile) = GatewayProfileId::new(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if request.dataset_id.get_version_num() != 7
-        || request.recording_ids.is_empty()
-        || request.recording_ids.len() > 500
-        || request
-            .recording_ids
-            .iter()
-            .any(|recording_id| recording_id.get_version_num() != 7)
-    {
-        return StatusCode::BAD_REQUEST.into_response();
-    }
-    request.recording_ids.sort_unstable();
-    request.recording_ids.dedup();
     let Ok(server) = ServerSlug::new(RECORDING_SERVER) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
@@ -162,11 +147,8 @@ pub(super) async fn catalog_grant(
         return StatusCode::NOT_FOUND.into_response();
     };
     let manifest = manifest.clone();
-    for recording_id in &request.recording_ids {
-        let Ok(id) = RecordingId::try_from(*recording_id) else {
-            return StatusCode::BAD_REQUEST.into_response();
-        };
-        let uri = RecordingUri::new(id).as_resource_uri().clone();
+    for recording_id in request.recording_ids() {
+        let uri = RecordingUri::new(*recording_id).as_resource_uri().clone();
         let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
             Ok(value) => value,
             Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -199,7 +181,7 @@ pub(super) async fn catalog_grant(
             latency_ms: u64::try_from(started_at.elapsed().as_millis()).ok(),
             metadata: merge_principal_audit_metadata(
                 BTreeMap::from([
-                    ("dataset_id".to_owned(), request.dataset_id.to_string()),
+                    ("dataset_id".to_owned(), request.dataset_id().to_string()),
                     ("recording_id".to_owned(), recording_id.to_string()),
                     ("grant_class".to_owned(), "catalog_dataset".to_owned()),
                 ]),

@@ -10,9 +10,14 @@ mod ids;
 mod resources;
 mod scopes;
 pub use cursor::{RECORDING_PAGE_SIZE, RecordingCatalogCursor};
-pub use ids::{RecordingContractError, RecordingId};
+pub use ids::{
+    RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
+    RecordingProjectionId, RecordingReadGrantId,
+};
 pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
 pub use scopes::RecordingScope;
+
+pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
 
 mod catalog;
 pub use catalog::{
@@ -31,7 +36,7 @@ pub struct SealRecordingRequest {
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct RecordingView {
     pub recording_id: RecordingId,
-    pub dataset_id: String,
+    pub dataset_id: RecordingDatasetId,
     pub dataset_key: String,
     pub application_id: String,
     pub recording_key: String,
@@ -56,7 +61,7 @@ pub struct RecordingCatalogPage {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct LayerView {
-    pub layer_id: String,
+    pub layer_id: RecordingLayerId,
     pub layer_name: String,
     pub kind: String,
     pub ordinal: Option<i64>,
@@ -79,11 +84,12 @@ pub struct SealRecordingOutput {
     pub blueprint_artifact_uri: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlaybackManifest {
     pub schema: String,
-    pub dataset_id: String,
-    pub recording_segment_id: String,
+    pub dataset_id: RecordingDatasetId,
+    pub recording_segment_id: RecordingId,
     pub application_id: String,
     pub recording_key: String,
     pub state: String,
@@ -96,18 +102,20 @@ pub struct PlaybackManifest {
     pub blueprint: Option<PlaybackBlueprint>,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlaybackAccess {
-    pub grant_id: String,
+    pub grant_id: RecordingReadGrantId,
     pub redap_token: String,
     pub expires_at: String,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlaybackArchive {
     pub uri: String,
-    pub dataset_id: String,
-    pub recording_segment_id: String,
+    pub dataset_id: RecordingDatasetId,
+    pub recording_segment_id: RecordingId,
     pub catalog_revision: String,
     pub rrd_version: String,
     pub optimization_profile: String,
@@ -115,9 +123,10 @@ pub struct PlaybackArchive {
     pub layer_count: usize,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlaybackLiveReceiver {
-    pub layer_id: String,
+    pub layer_id: RecordingLayerId,
     pub layer_name: String,
     pub ordinal: i64,
     pub current_byte_len: u64,
@@ -126,13 +135,14 @@ pub struct PlaybackLiveReceiver {
     pub transport: PlaybackLiveTransport,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum PlaybackLiveTransport {
     RerunRrdChannelV2,
 }
 
-#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct PlaybackBlueprint {
     pub blueprint_id: String,
     pub revision: u64,
@@ -141,7 +151,7 @@ pub struct PlaybackBlueprint {
     pub map_provider: PlaybackMapProvider,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, JsonSchema)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum PlaybackMapProvider {
     None,
@@ -153,8 +163,8 @@ pub enum PlaybackMapProvider {
 #[derive(Clone, Debug, Serialize)]
 pub struct RecordingManifest {
     pub schema: String,
-    pub dataset_id: String,
-    pub recording_segment_id: String,
+    pub dataset_id: RecordingDatasetId,
+    pub recording_segment_id: RecordingId,
     pub catalog_revision: String,
     pub layers: Vec<ManifestLayer>,
     pub blueprint: Option<ManifestBlueprint>,
@@ -173,7 +183,7 @@ pub struct ManifestBlueprint {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ManifestLayer {
-    pub layer_id: String,
+    pub layer_id: RecordingLayerId,
     pub layer_name: String,
     pub kind: String,
     pub ordinal: Option<i64>,

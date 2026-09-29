@@ -45,8 +45,15 @@ are attached to their runtime feature, so contract tests do not activate Rerun S
 The resource adapter dispatches `RecordingResource` in `bin/server/resources.rs`;
 sealing, prompts and subscriptions use the same Recording identity admission. The
 service converts admitted catalog positions to Store types immediately before SQL.
-Authorization, operational bounds and playback/projection relationships belong to
-runtime owners. Dataset/layer identities remain adoption work
+Public catalog, playback, layer and projection models keep distinct owner types for
+Recording, dataset, layer, read-grant and projection IDs. JSON admission requires
+canonical RFC UUIDv7 values; Store conversion requires native UUID keys and the
+declared table. Catalog selection construction checks the 1–500 input limit and
+sorts and deduplicates the Recording IDs before gateway authorization and Store calls.
+Redap token subjects use the same grant ID admission. The optional reusable-grant
+header accepts one canonical ID; malformed or duplicate values fail before catalog work.
+Authorization, dataset membership and operational limits belong to runtime owners.
+Broader playback/projection construction remains adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## MCP Setup And Sealing Permission

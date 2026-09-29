@@ -55,13 +55,14 @@ pub fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {
         record.table.as_str() == table,
         "record has unexpected table"
     );
-    let raw = match &record.key {
-        RecordIdKey::Uuid(value) => value.to_string(),
-        RecordIdKey::String(value) => value.clone(),
-        other => anyhow::bail!("record key is not UUID: {other:?}"),
+    let RecordIdKey::Uuid(value) = &record.key else {
+        anyhow::bail!("record key must be a native UUID");
     };
-    let value = uuid::Uuid::parse_str(&raw)?;
-    ensure!(value.get_version_num() == 7, "record key is not UUIDv7");
+    let value = value.into_inner();
+    ensure!(
+        value.get_version_num() == 7 && value.get_variant() == uuid::Variant::RFC4122,
+        "record key must be an RFC UUIDv7"
+    );
     Ok(value)
 }
 
@@ -69,6 +70,25 @@ pub fn record_uuid(record: &RecordId, table: &str) -> Result<uuid::Uuid> {
 mod tests {
     use super::*;
     use std::fs;
+    #[test]
+    fn record_admission_requires_the_native_key_and_declared_table() {
+        let id = veoveo_platform_store::RecordingId::new();
+        assert_eq!(
+            record_uuid(&id.record_id(), "recording").unwrap(),
+            id.as_uuid()
+        );
+        assert!(record_uuid(&id.record_id(), "recording_layer").is_err());
+        let string_key = RecordId::new("recording", id.to_string());
+        assert!(record_uuid(&string_key, "recording").is_err());
+        for raw in [
+            "01983da0-0000-4000-8000-000000000001",
+            "01983da0-0000-7000-c000-000000000001",
+        ] {
+            let raw = uuid::Uuid::parse_str(raw).unwrap();
+            let record = veoveo_platform_store::RecordingId::from_uuid(raw).record_id();
+            assert!(record_uuid(&record, "recording").is_err());
+        }
+    }
     #[test]
     fn live_layer_path_authorizes_confined_parts_before_rollover() {
         let directory = tempfile::tempdir().unwrap();

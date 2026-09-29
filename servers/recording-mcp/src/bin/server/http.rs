@@ -152,6 +152,22 @@ async fn storage_diagnostics(State(state): State<Arc<AppState>>) -> Response {
     }
 }
 
+fn requested_read_grant(
+    headers: &HeaderMap,
+) -> Result<Option<veoveo_recording_mcp::contract::RecordingReadGrantId>, StatusCode> {
+    let mut values = headers.get_all(RECORDING_GRANT_HEADER).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let value = value.to_str().map_err(|_| StatusCode::BAD_REQUEST)?;
+    veoveo_recording_mcp::contract::RecordingReadGrantId::parse(value)
+        .map(Some)
+        .map_err(|_| StatusCode::BAD_REQUEST)
+}
+
 async fn playback_manifest(
     State(state): State<Arc<AppState>>,
     Extension(identity): Extension<veoveo_mcp_contract::GatewayInternalIdentity>,
@@ -160,6 +176,16 @@ async fn playback_manifest(
 ) -> Response {
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
+    };
+    let requested_grant = match requested_read_grant(&headers) {
+        Ok(grant) => grant,
+        Err(status) => {
+            return (
+                status,
+                "x-veoveo-recording-grant requires one canonical RFC UUIDv7",
+            )
+                .into_response();
+        }
     };
     let artifact_caller = match artifact_caller(identity.clone(), &headers) {
         Ok(caller) => caller,
@@ -186,9 +212,7 @@ async fn playback_manifest(
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
         }
     };
-    let requested_grant = headers
-        .get(RECORDING_GRANT_HEADER)
-        .and_then(|value| value.to_str().ok());
+
     let grant = match state
         .recordings
         .issue_read_grant(
@@ -222,23 +246,23 @@ async fn catalog_grant(
     headers: HeaderMap,
     Json(request): Json<CreateRecordingCatalogGrantRequest>,
 ) -> Response {
-    let dataset_uuid = request.dataset_id;
-    if dataset_uuid.get_version_num() != 7 {
-        return StatusCode::BAD_REQUEST.into_response();
-    }
-    if request.recording_ids.is_empty() || request.recording_ids.len() > 500 {
-        return StatusCode::BAD_REQUEST.into_response();
-    }
-    let mut recording_ids = Vec::with_capacity(request.recording_ids.len());
-    for value in request.recording_ids {
-        if value.get_version_num() != 7 {
-            return StatusCode::BAD_REQUEST.into_response();
+    let requested_grant = match requested_read_grant(&headers) {
+        Ok(grant) => grant,
+        Err(status) => {
+            return (
+                status,
+                "x-veoveo-recording-grant requires one canonical RFC UUIDv7",
+            )
+                .into_response();
         }
-        recording_ids.push(RecordingId::from_uuid(value));
-    }
-    recording_ids.sort_unstable();
-    recording_ids.dedup();
-    let dataset_id = veoveo_platform_store::RecordingDatasetId::from_uuid(dataset_uuid);
+    };
+    let recording_ids = request
+        .recording_ids()
+        .iter()
+        .map(|id| RecordingId::from_uuid(id.as_uuid()))
+        .collect::<Vec<_>>();
+    let dataset_id =
+        veoveo_platform_store::RecordingDatasetId::from_uuid(request.dataset_id().as_uuid());
     let artifact_caller = match artifact_caller(identity.clone(), &headers) {
         Ok(caller) => caller,
         Err(error) => {
@@ -265,9 +289,7 @@ async fn catalog_grant(
         }
     };
     let catalog_revision = veoveo_recording_mcp::service::catalog_set_revision(&plans);
-    let requested_grant = headers
-        .get(RECORDING_GRANT_HEADER)
-        .and_then(|value| value.to_str().ok());
+
     let grant = match state
         .recordings
         .issue_read_grant(
@@ -457,13 +479,12 @@ async fn projection_data(
     let Ok(recording_id) = parse_recording_id(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(projection_uuid) = uuid::Uuid::parse_str(&projection_id) else {
+    let Ok(projection_id) =
+        veoveo_recording_mcp::contract::RecordingProjectionId::parse(&projection_id)
+    else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if projection_uuid.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
-    let projection_id = RecordingProjectionReceiptId::from_uuid(projection_uuid);
+    let projection_id = RecordingProjectionReceiptId::from_uuid(projection_id.as_uuid());
     let download = match state
         .recordings
         .projection_download(&identity, recording_id, projection_id)
@@ -534,4 +555,47 @@ fn rrd_response(body: Body) -> Response {
         header::HeaderValue::from_static("nosniff"),
     );
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{HeaderMap, RECORDING_GRANT_HEADER, StatusCode, requested_read_grant};
+    use axum::http::HeaderValue;
+    use veoveo_recording_mcp::contract::RecordingReadGrantId;
+
+    #[test]
+    fn grant_header_admits_one_typed_canonical_identity() {
+        assert_eq!(requested_read_grant(&HeaderMap::new()).unwrap(), None);
+        let id = RecordingReadGrantId::new();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            RECORDING_GRANT_HEADER,
+            HeaderValue::from_str(&id.to_string()).unwrap(),
+        );
+        assert_eq!(requested_read_grant(&headers).unwrap(), Some(id));
+        headers.append(
+            RECORDING_GRANT_HEADER,
+            HeaderValue::from_str(&id.to_string()).unwrap(),
+        );
+        assert_eq!(requested_read_grant(&headers), Err(StatusCode::BAD_REQUEST));
+    }
+
+    #[test]
+    fn grant_header_rejects_invalid_spelling_version_variant_and_encoding() {
+        for value in [
+            b"".as_slice(),
+            b"private-id",
+            b"01983DA0-0000-7000-8000-000000000001",
+            b"01983da0-0000-4000-8000-000000000001",
+            b"01983da0-0000-7000-c000-000000000001",
+            &[0xff],
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                RECORDING_GRANT_HEADER,
+                HeaderValue::from_bytes(value).unwrap(),
+            );
+            assert_eq!(requested_read_grant(&headers), Err(StatusCode::BAD_REQUEST));
+        }
+    }
 }

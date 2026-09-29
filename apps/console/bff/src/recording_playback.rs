@@ -11,7 +11,9 @@ use axum::{
     },
     response::{IntoResponse as _, Response},
 };
-use serde::{Deserialize, Serialize};
+use veoveo_recording_mcp::contract::{
+    PLAYBACK_MANIFEST_SCHEMA, PlaybackManifest, RecordingId, RecordingProjectionId,
+};
 
 use crate::{
     AppState,
@@ -21,7 +23,6 @@ use crate::{
 const MAX_MANIFEST_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PROJECTION_BYTES: u64 = 32 * 1024 * 1024;
 const ARROW_STREAM_CONTENT_TYPE: &str = "application/vnd.apache.arrow.stream";
-const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
 const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const LIVE_RRD_START_HEADER: &str = "x-veoveo-rerun-live-start";
 const LIVE_RRD_STREAM_CONTENT_TYPE: &str =
@@ -34,88 +35,12 @@ pub(crate) const BLUEPRINT_PATH: &str =
 pub(crate) const PROJECTION_PATH: &str =
     "/console/api/recordings/{recording_id}/projections/{projection_id}/data.arrow";
 
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PlaybackManifest {
-    schema: String,
-    dataset_id: String,
-    recording_segment_id: String,
-    application_id: String,
-    recording_key: String,
-    state: String,
-    started_at: String,
-    ended_at: Option<String>,
-    catalog_revision: String,
-    access: PlaybackAccess,
-    archive: Option<PlaybackArchive>,
-    live: Option<PlaybackLiveLayer>,
-    blueprint: Option<PlaybackBlueprint>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PlaybackAccess {
-    grant_id: String,
-    redap_token: String,
-    expires_at: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PlaybackArchive {
-    uri: String,
-    dataset_id: String,
-    recording_segment_id: String,
-    catalog_revision: String,
-    rrd_version: String,
-    optimization_profile: String,
-    byte_len: u64,
-    layer_count: usize,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PlaybackLiveLayer {
-    layer_id: String,
-    layer_name: String,
-    ordinal: i64,
-    current_byte_len: u64,
-    history_seconds: u64,
-    video_preroll_seconds: u64,
-    transport: PlaybackLiveTransport,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum PlaybackLiveTransport {
-    RerunRrdChannelV2,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
-struct PlaybackBlueprint {
-    blueprint_id: String,
-    revision: u64,
-    sha256: String,
-    byte_len: u64,
-    map_provider: PlaybackMapProvider,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-#[serde(rename_all = "camelCase")]
-enum PlaybackMapProvider {
-    None,
-    OpenStreetMap,
-    Mapbox,
-    Mixed,
-}
-
 pub(crate) async fn manifest(
     State(state): State<AppState>,
     Path(recording_id): Path<String>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+    let Ok(recording_id) = RecordingId::parse(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let session = match upstream_session(&state, &request_headers).await {
@@ -128,11 +53,7 @@ pub(crate) async fn manifest(
     };
     let mut request = state
         .stream_http
-        .get(
-            state
-                .config
-                .recording_playback_url(&recording_id.to_string()),
-        )
+        .get(state.config.recording_playback_url(recording_id))
         .header(HOST, state.config.gateway_host())
         .bearer_auth(&session.session.access_token);
     if let Some(value) = request_headers.get(RECORDING_GRANT_HEADER) {
@@ -175,7 +96,7 @@ pub(crate) async fn live_recording(
     Path(recording_id): Path<String>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+    let Ok(recording_id) = RecordingId::parse(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let session = match upstream_session(&state, &request_headers).await {
@@ -191,11 +112,7 @@ pub(crate) async fn live_recording(
     };
     let upstream = match state
         .live_http
-        .get(
-            state
-                .config
-                .recording_live_rrd_stream_url(&recording_id.to_string()),
-        )
+        .get(state.config.recording_live_rrd_stream_url(recording_id))
         .header(HOST, state.config.gateway_host())
         .header(axum::http::header::ACCEPT, LIVE_RRD_STREAM_CONTENT_TYPE)
         .header(LIVE_RRD_START_HEADER, start)
@@ -258,7 +175,7 @@ pub(crate) async fn blueprint(
     Path((recording_id, revision)): Path<(String, u64)>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+    let Ok(recording_id) = RecordingId::parse(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     if revision == 0 {
@@ -274,11 +191,7 @@ pub(crate) async fn blueprint(
     };
     let upstream = match state
         .live_http
-        .get(
-            state
-                .config
-                .recording_blueprint_url(&recording_id.to_string(), revision),
-        )
+        .get(state.config.recording_blueprint_url(recording_id, revision))
         .header(HOST, state.config.gateway_host())
         .bearer_auth(session.session.access_token)
         .send()
@@ -298,10 +211,10 @@ pub(crate) async fn projection(
     Path((recording_id, projection_id)): Path<(String, String)>,
     request_headers: HeaderMap,
 ) -> Response {
-    let Some(recording_id) = parse_uuid_v7(&recording_id) else {
+    let Ok(recording_id) = RecordingId::parse(&recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Some(projection_id) = parse_uuid_v7(&projection_id) else {
+    let Ok(projection_id) = RecordingProjectionId::parse(&projection_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let session = match upstream_session(&state, &request_headers).await {
@@ -317,7 +230,7 @@ pub(crate) async fn projection(
         .get(
             state
                 .config
-                .recording_projection_url(&recording_id.to_string(), &projection_id.to_string()),
+                .recording_projection_url(recording_id, projection_id),
         )
         .header(HOST, state.config.gateway_host())
         .bearer_auth(session.session.access_token)
@@ -404,12 +317,7 @@ fn binary_rrd_headers(upstream: &HeaderMap, mut headers: HeaderMap) -> HeaderMap
     headers
 }
 
-fn parse_uuid_v7(value: &str) -> Option<uuid::Uuid> {
-    let id = uuid::Uuid::parse_str(value).ok()?;
-    (id.get_version_num() == 7).then_some(id)
-}
-
-fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Result<Vec<u8>> {
+fn validated_manifest_bytes(body: &[u8], recording_id: RecordingId) -> anyhow::Result<Vec<u8>> {
     let manifest = serde_json::from_slice::<PlaybackManifest>(body)
         .context("manifest is not valid playback JSON")?;
     ensure!(
@@ -417,21 +325,18 @@ fn validated_manifest_bytes(body: &[u8], recording_id: uuid::Uuid) -> anyhow::Re
         "manifest schema must be {PLAYBACK_MANIFEST_SCHEMA}"
     );
     ensure!(
-        manifest.recording_segment_id == recording_id.to_string(),
+        manifest.recording_segment_id == recording_id,
         "manifest recording identity does not match its request"
     );
-    let dataset_id =
-        parse_uuid_v7(&manifest.dataset_id).context("manifest dataset identity must be UUIDv7")?;
+    let dataset_id = manifest.dataset_id;
     ensure!(
-        !manifest.catalog_revision.is_empty()
-            && parse_uuid_v7(&manifest.access.grant_id).is_some()
-            && !manifest.access.redap_token.is_empty(),
+        !manifest.catalog_revision.is_empty() && !manifest.access.redap_token.is_empty(),
         "manifest grant or catalog revision is invalid"
     );
     if let Some(archive) = &manifest.archive {
         ensure!(
-            archive.dataset_id == dataset_id.to_string()
-                && archive.recording_segment_id == recording_id.to_string()
+            archive.dataset_id == dataset_id
+                && archive.recording_segment_id == recording_id
                 && archive.catalog_revision == manifest.catalog_revision,
             "manifest archive identity does not match its catalog"
         );
@@ -463,11 +368,11 @@ mod tests {
 
     use super::{
         BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
-        PROJECTION_PATH, blueprint, live_recording, live_rrd_start, live_rrd_stream_headers,
-        manifest, projection, validated_manifest_bytes,
+        PROJECTION_PATH, RecordingId, blueprint, live_recording, live_rrd_start,
+        live_rrd_stream_headers, manifest, projection, validated_manifest_bytes,
     };
 
-    fn manifest_value(recording_id: uuid::Uuid) -> serde_json::Value {
+    fn manifest_value(recording_id: RecordingId) -> serde_json::Value {
         let dataset_id = uuid::Uuid::now_v7();
         json!({
             "schema": PLAYBACK_MANIFEST_SCHEMA,
@@ -507,7 +412,7 @@ mod tests {
 
     #[test]
     fn manifest_v9_is_canonicalized_after_identity_validation() {
-        let recording_id = uuid::Uuid::now_v7();
+        let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
         manifest["live"] = json!({
             "layer_id": uuid::Uuid::now_v7(),
@@ -529,7 +434,7 @@ mod tests {
 
     #[test]
     fn manifest_rejects_an_unknown_live_transport() {
-        let recording_id = uuid::Uuid::now_v7();
+        let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
         manifest["live"] = json!({
             "layer_id": uuid::Uuid::now_v7(),
@@ -617,7 +522,7 @@ mod tests {
 
     #[test]
     fn obsolete_or_cross_recording_manifests_are_rejected() {
-        let recording_id = uuid::Uuid::now_v7();
+        let recording_id = RecordingId::new();
         let mut obsolete = manifest_value(recording_id);
         obsolete["schema"] = json!("veoveo.ai/recording-playback/v8");
         assert!(
@@ -625,7 +530,7 @@ mod tests {
                 .is_err()
         );
 
-        let other_recording_id = uuid::Uuid::now_v7();
+        let other_recording_id = RecordingId::new();
         assert!(
             validated_manifest_bytes(
                 &serde_json::to_vec(&manifest_value(other_recording_id)).unwrap(),
@@ -643,5 +548,38 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn shared_playback_contract_rejects_invalid_identities_and_unknown_fields() {
+        let recording = RecordingId::new();
+        for pointer in [
+            "/dataset_id",
+            "/recording_segment_id",
+            "/access/grant_id",
+            "/archive/dataset_id",
+            "/archive/recording_segment_id",
+        ] {
+            for invalid in [
+                "private-id",
+                "01983da0-0000-4000-8000-000000000001",
+                "01983DA0-0000-7000-8000-000000000001",
+                "01983da0-0000-7000-c000-000000000001",
+            ] {
+                let mut value = manifest_value(recording);
+                *value.pointer_mut(pointer).unwrap() = json!(invalid);
+                assert!(
+                    validated_manifest_bytes(&serde_json::to_vec(&value).unwrap(), recording)
+                        .is_err()
+                );
+            }
+        }
+        for pointer in ["", "/access", "/archive", "/blueprint"] {
+            let mut value = manifest_value(recording);
+            value.pointer_mut(pointer).unwrap()["unknown"] = json!(true);
+            assert!(
+                validated_manifest_bytes(&serde_json::to_vec(&value).unwrap(), recording).is_err()
+            );
+        }
     }
 }

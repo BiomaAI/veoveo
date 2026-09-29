@@ -4,7 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
-| Veoveo recording identity | Typed Store recording IDs; public URI admission belongs to the Recording contract |
+| Veoveo recording identity and RFC 9562 | Typed Store IDs backed by native RFC UUIDv7 record keys; adapters require the declared table. Public URI admission belongs to the Recording contract. |
 | Gateway internal identity | Typed actor, tenant and data-label authority; no retained bearer |
 | Artifact plane | Existing caller or bounded task-read capability, immutable occurrence UUID, expected length and SHA-256 |
 | Rerun RRD | Existing repository profile 0.38.1, canonical dataset/recording Store IDs |

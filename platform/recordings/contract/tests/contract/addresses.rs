@@ -44,6 +44,70 @@ fn identities_require_canonical_rfc_uuid_v7_at_wire_admission() {
 }
 
 #[test]
+fn every_recording_identity_uses_the_same_admission_profile() {
+    macro_rules! qualify {
+        ($id:ty) => {
+            let id = <$id>::parse(ID).unwrap();
+            assert_eq!(<$id>::try_from(id.as_uuid()).unwrap(), id);
+            assert_eq!(serde_json::to_value(id).unwrap(), ID);
+            assert_eq!(serde_json::from_value::<$id>(json!(ID)).unwrap(), id);
+            assert_eq!(<$id>::new().as_uuid().get_version_num(), 7);
+            assert_eq!(
+                serde_json::to_value(schemars::schema_for!($id)).unwrap()["type"],
+                "string"
+            );
+            for invalid in [
+                "private-identity",
+                "00000000-0000-0000-0000-000000000000",
+                "01983da0-0000-4000-8000-000000000001",
+                "01983da0-0000-7000-c000-000000000001",
+                "01983DA0-0000-7000-8000-000000000001",
+                "01983da0000070008000000000000001",
+                "urn:uuid:01983da0-0000-7000-8000-000000000001",
+            ] {
+                let error = <$id>::parse(invalid).unwrap_err();
+                assert!(!error.to_string().contains(invalid));
+                assert!(serde_json::from_value::<$id>(json!(invalid)).is_err());
+            }
+        };
+    }
+    qualify!(RecordingId);
+    qualify!(RecordingDatasetId);
+    qualify!(RecordingLayerId);
+    qualify!(RecordingReadGrantId);
+    qualify!(RecordingProjectionId);
+}
+
+#[test]
+fn catalog_selection_is_bounded_and_canonical_at_construction_and_decoding() {
+    let dataset = RecordingDatasetId::new();
+    let a = RecordingId::parse(ID).unwrap();
+    let b = RecordingId::parse("01983da0-0000-7000-8000-000000000002").unwrap();
+    let request = CreateRecordingCatalogGrantRequest::new(dataset, vec![b, a, b]).unwrap();
+    assert_eq!(request.dataset_id(), dataset);
+    assert_eq!(request.recording_ids(), &[a, b]);
+    let decoded: CreateRecordingCatalogGrantRequest =
+        serde_json::from_value(json!({"dataset_id":dataset, "recording_ids":[b,a,b]})).unwrap();
+    assert_eq!(decoded.recording_ids(), &[a, b]);
+    for count in [0, 501] {
+        assert!(CreateRecordingCatalogGrantRequest::new(dataset, vec![a; count]).is_err());
+        assert!(
+            serde_json::from_value::<CreateRecordingCatalogGrantRequest>(
+                json!({"dataset_id":dataset,"recording_ids":vec![a;count]})
+            )
+            .is_err()
+        );
+    }
+    assert!(CreateRecordingCatalogGrantRequest::new(dataset, vec![a; 500]).is_ok());
+    for value in [
+        json!({"dataset_id":"01983da0-0000-4000-8000-000000000001","recording_ids":[a]}),
+        json!({"dataset_id":dataset,"recording_ids":["01983da0-0000-7000-c000-000000000001"]}),
+    ] {
+        assert!(serde_json::from_value::<CreateRecordingCatalogGrantRequest>(value).is_err());
+    }
+}
+
+#[test]
 fn every_resource_family_round_trips_through_the_public_contract() {
     for resource in [
         RecordingResource::Docs,

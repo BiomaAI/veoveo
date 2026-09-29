@@ -8,6 +8,7 @@ use crate::browser::BrowserApp;
 use anyhow::{Context, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use url::Url;
+use veoveo_recording_mcp::contract::{RecordingId, RecordingProjectionId};
 use veoveo_types::ScopeName;
 
 #[derive(Clone)]
@@ -272,40 +273,42 @@ impl Config {
             .expect("validated profile and typed upload route")
     }
 
-    pub(crate) fn recording_playback_url(&self, recording_id: &str) -> Url {
-        self.gateway_url
-            .join(&format!(
-                "/recordings/{}/{recording_id}/playback",
-                self.profile
-            ))
-            .expect("validated profile and recording id")
+    pub(crate) fn recording_playback_url(&self, recording_id: RecordingId) -> Url {
+        self.recording_url(recording_id, &["playback"])
     }
-
-    pub(crate) fn recording_live_rrd_stream_url(&self, recording_id: &str) -> Url {
-        self.gateway_url
-            .join(&format!(
-                "/recordings/{}/{recording_id}/live/rrd-stream",
-                self.profile
-            ))
-            .expect("validated profile and recording id")
+    pub(crate) fn recording_live_rrd_stream_url(&self, recording_id: RecordingId) -> Url {
+        self.recording_url(recording_id, &["live", "rrd-stream"])
     }
-
-    pub(crate) fn recording_blueprint_url(&self, recording_id: &str, revision: u64) -> Url {
-        self.gateway_url
-            .join(&format!(
-                "/recordings/{}/{recording_id}/blueprints/{revision}/data.rrd",
-                self.profile
-            ))
-            .expect("validated profile and recording/Blueprint ids")
+    pub(crate) fn recording_blueprint_url(&self, recording_id: RecordingId, revision: u64) -> Url {
+        self.recording_url(
+            recording_id,
+            &["blueprints", &revision.to_string(), "data.rrd"],
+        )
     }
-
-    pub(crate) fn recording_projection_url(&self, recording_id: &str, projection_id: &str) -> Url {
-        self.gateway_url
-            .join(&format!(
-                "/recordings/{}/{recording_id}/projections/{projection_id}/data.arrow",
-                self.profile
-            ))
-            .expect("validated profile and recording/projection ids")
+    pub(crate) fn recording_projection_url(
+        &self,
+        recording_id: RecordingId,
+        projection_id: RecordingProjectionId,
+    ) -> Url {
+        self.recording_url(
+            recording_id,
+            &["projections", &projection_id.to_string(), "data.arrow"],
+        )
+    }
+    fn recording_url(&self, recording_id: RecordingId, suffix: &[&str]) -> Url {
+        let mut url = self.gateway_url.clone();
+        url.set_query(None);
+        url.set_fragment(None);
+        url.path_segments_mut()
+            .expect("validated gateway HTTP URL")
+            .clear()
+            .extend([
+                "recordings",
+                self.profile.as_str(),
+                &recording_id.to_string(),
+            ])
+            .extend(suffix.iter().copied());
+        url
     }
 
     pub(crate) fn gateway_host(&self) -> String {
@@ -689,6 +692,39 @@ mod tests {
             config.protected_resource_metadata_url().as_str(),
             "http://mcp-gateway:8788/.well-known/oauth-protected-resource/mcp/admin"
         );
+    }
+
+    #[test]
+    fn recording_routes_use_typed_ids_and_url_components() {
+        let config =
+            Config::for_test(Url::parse("http://[::1]:8788/base?ignored=1#ignored").unwrap());
+        let recording = RecordingId::new();
+        let projection = RecordingProjectionId::new();
+        for (url, suffix) in [
+            (
+                config.recording_playback_url(recording),
+                "playback".to_owned(),
+            ),
+            (
+                config.recording_live_rrd_stream_url(recording),
+                "live/rrd-stream".to_owned(),
+            ),
+            (
+                config.recording_blueprint_url(recording, 3),
+                "blueprints/3/data.rrd".to_owned(),
+            ),
+            (
+                config.recording_projection_url(recording, projection),
+                format!("projections/{projection}/data.arrow"),
+            ),
+        ] {
+            assert_eq!(
+                url.as_str(),
+                format!("http://[::1]:8788/recordings/admin/{recording}/{suffix}")
+            );
+            assert_eq!(url.query(), None);
+            assert_eq!(url.fragment(), None);
+        }
     }
 
     #[test]

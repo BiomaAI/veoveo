@@ -94,7 +94,7 @@ pub fn authorized_live_rrd_stream(
 
             let Some(live) = next else { break; };
             let ordinal = live.descriptor.ordinal;
-            let layer_id = live.descriptor.layer_id.clone();
+            let layer_id = live.descriptor.layer_id;
             let message_start = if first_layer {
                 match start {
                     LiveRrdStart::Bootstrap => LiveMessageStart::Bootstrap,
@@ -235,7 +235,7 @@ mod tests {
         fn layer(ordinal: i64) -> PlaybackLiveLayerPlan {
             PlaybackLiveLayerPlan {
                 descriptor: crate::contract::PlaybackLiveReceiver {
-                    layer_id: uuid::Uuid::now_v7().to_string(),
+                    layer_id: crate::contract::RecordingLayerId::new(),
                     layer_name: format!("capture-{ordinal:020}"),
                     ordinal,
                     current_byte_len: 0,

@@ -47,8 +47,8 @@ fn sealing_permission_is_an_owner_type_with_one_wire_spelling() {
 fn catalog_grant_request_preserves_explicit_recording_selection() {
     let wire = json!({"dataset_id": DATASET, "recording_ids": [RECORDING]});
     let request: CreateRecordingCatalogGrantRequest = serde_json::from_value(wire.clone()).unwrap();
-    assert_eq!(request.dataset_id.to_string(), DATASET);
-    assert_eq!(request.recording_ids[0].to_string(), RECORDING);
+    assert_eq!(request.dataset_id().to_string(), DATASET);
+    assert_eq!(request.recording_ids()[0].to_string(), RECORDING);
     assert_eq!(serde_json::to_value(request).unwrap(), wire);
     let mut extra = wire;
     extra["admit_all"] = json!(true);

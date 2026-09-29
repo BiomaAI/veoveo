@@ -18,7 +18,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
-    RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
+    RecordId, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
     RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
     RecordingProjectionScope, RecordingProjectionState, RecordingReadGrantClass,
     RecordingReadGrantId,
@@ -281,17 +281,12 @@ impl RecordingService {
             .as_ref()
             .context("recording projection runtime is not configured")?;
         ensure!(
-            request.dataset_id.get_version_num() == 7
-                && request.recording_id.get_version_num() == 7,
-            "recording projection identities must be UUIDv7"
-        );
-        ensure!(
             (1..=runtime.inner.limits.maximum_deadline_ms).contains(&request.deadline_ms),
             "recording projection deadline exceeds the configured maximum"
         );
         validate_result_metadata_inputs(&request)?;
-        let dataset_id = RecordingDatasetId::from_uuid(request.dataset_id);
-        let recording_id = RecordingId::from_uuid(request.recording_id);
+        let dataset_id = RecordingDatasetId::from_uuid(request.dataset_id.as_uuid());
+        let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
         let plan = self
             .playback_plan(
                 identity,
@@ -463,7 +458,9 @@ impl RecordingService {
         };
         let handle = RecordingProjectionHandle {
             schema: RECORDING_PROJECTION_HANDLE_SCHEMA.to_owned(),
-            projection_id: projection_id.as_uuid(),
+            projection_id: crate::contract::RecordingProjectionId::try_from(
+                projection_id.as_uuid(),
+            )?,
             dataset_id: request.dataset_id,
             recording_id: request.recording_id,
             result: RecordingProjectionResultMetadata {
@@ -667,21 +664,15 @@ fn validate_result_metadata_inputs(request: &CreateRecordingProjectionRequest) -
 }
 
 fn projection_id(record: &RecordId) -> Result<RecordingProjectionReceiptId> {
-    ensure!(
-        record.table.as_str() == RecordingProjectionReceiptId::TABLE,
-        "projection record has the wrong table"
-    );
-    let raw = match &record.key {
-        RecordIdKey::Uuid(value) => value.to_string(),
-        RecordIdKey::String(value) => value.clone(),
-        other => anyhow::bail!("projection record key is not a UUID: {other:?}"),
-    };
-    let value = uuid::Uuid::parse_str(&raw)?;
-    ensure!(
-        value.get_version_num() == 7,
-        "projection record key is not UUIDv7"
-    );
-    Ok(RecordingProjectionReceiptId::from_uuid(value))
+    Ok(RecordingProjectionReceiptId::from_uuid(record_uuid(
+        record,
+        RecordingProjectionReceiptId::TABLE,
+    )?))
+}
+fn scratch_projection_id(stem: &str) -> Result<RecordingProjectionReceiptId> {
+    Ok(RecordingProjectionReceiptId::from_uuid(
+        crate::contract::RecordingProjectionId::parse(stem)?.as_uuid(),
+    ))
 }
 
 fn write_metadata(path: &Path, handle: &RecordingProjectionHandle) -> Result<()> {
@@ -710,7 +701,7 @@ fn read_handle(
         serde_json::from_slice(&std::fs::read(&paths.final_metadata)?)?;
     ensure!(
         handle.schema == RECORDING_PROJECTION_HANDLE_SCHEMA
-            && handle.projection_id == projection_id(&receipt.id)?.as_uuid()
+            && handle.projection_id.as_uuid() == projection_id(&receipt.id)?.as_uuid()
             && handle.dataset_id == request.dataset_id
             && handle.recording_id == request.recording_id
             && handle.result.catalog_revision == receipt.catalog_revision
@@ -785,7 +776,7 @@ fn cleanup_and_index_scratch(root: &Path, state: &mut ProjectionScratchState) ->
             continue;
         }
         if let Some(stem) = name.strip_suffix(".json") {
-            let Ok(id) = stem.parse::<RecordingProjectionReceiptId>() else {
+            let Ok(id) = scratch_projection_id(stem) else {
                 anyhow::bail!("projection scratch contains unknown file `{name}`");
             };
             let handle = std::fs::read(&path)
@@ -804,7 +795,7 @@ fn cleanup_and_index_scratch(root: &Path, state: &mut ProjectionScratchState) ->
         let Some(stem) = name.strip_suffix(".arrow") else {
             continue;
         };
-        let id = stem.parse::<RecordingProjectionReceiptId>()?;
+        let id = scratch_projection_id(stem)?;
         let keep = metadata
             .get(&id)
             .and_then(|(_, handle)| handle.as_ref().ok())
@@ -812,7 +803,7 @@ fn cleanup_and_index_scratch(root: &Path, state: &mut ProjectionScratchState) ->
                 DateTime::parse_from_rfc3339(&handle.expires_at)
                     .map(|expires_at| expires_at.with_timezone(&Utc) > now)
                     .unwrap_or(false)
-                    && handle.projection_id == id.as_uuid()
+                    && handle.projection_id.as_uuid() == id.as_uuid()
                     && handle.result.byte_len
                         == entry
                             .metadata()

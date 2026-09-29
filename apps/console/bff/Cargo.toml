@@ -10,6 +10,7 @@ path = "src/main.rs"
 [dependencies]
 veoveo-artifact-contract.workspace = true
 veoveo-types.workspace = true
+veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["contract"] }
 veoveo-speech-contract = { path = "../../../servers/speech-mcp/contract" }
 anyhow.workspace = true
 axum = { workspace = true, features = ["ws"] }
