@@ -1,0 +1,176 @@
+{
+  "cameras": [
+    {
+      "codec": "h264",
+      "encoder": "nvidia_nvenc",
+      "entity_path": "/world/uav-sim/uav-showcase/vehicle/uav-1/camera/down",
+      "frame_rate_hz": 2,
+      "frames_observed": 11035,
+      "height": 480,
+      "last_access_unit_bytes": 11960,
+      "last_frame_keyframe": false,
+      "lifecycle": "ready",
+      "render_pose": {
+        "forward_error_degrees": 0.0,
+        "position_error_m": 8.252337573471356e-15,
+        "rendered_forward_enu": {
+          "east": 0.1261623774693042,
+          "north": 0.007748302707261329,
+          "up": -0.9919793436944389
+        },
+        "rendered_position_enu_m": {
+          "east_m": -20.741090045242423,
+          "north_m": -20.663735503464103,
+          "up_m": 0.028675566515350352
+        }
+      },
+      "transport": "rtsp_rtp",
+      "vehicle_id": "uav-1",
+      "width": 640
+    }
+  ],
+  "lifecycle": "running",
+  "live_cameras": [
+    {
+      "cameraId": "follow",
+      "farClipM": 100000.0,
+      "frameRateMillihertz": 16000,
+      "health": "healthy",
+      "heightPx": 720,
+      "lastFrameAt": "2026-09-29T22:11:24.848596Z",
+      "nearClipM": 0.1,
+      "revision": 1,
+      "rig": {
+        "eyeOffsetFluM": {
+          "x": -12.0,
+          "y": 2.0,
+          "z": 4.0
+        },
+        "kind": "follow_entity",
+        "smoothing": {
+          "resetAfterGapMs": 1000,
+          "rotationHalfLifeMs": 120,
+          "teleportDistanceMillimetres": 100000,
+          "translationHalfLifeMs": 150
+        },
+        "targetEntityId": "uav-1",
+        "targetOffsetFluM": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.2
+        }
+      },
+      "sessionId": "uav-showcase",
+      "streamPolicy": "continuous",
+      "verticalFovDegrees": 60.0,
+      "widthPx": 1280
+    }
+  ],
+  "physics_step": 23131,
+  "recordings": [],
+  "session_id": "uav-showcase",
+  "simulation_time_s": 771.0333333333333,
+  "stream_products": [
+    {
+      "activeViewers": 0,
+      "cameraRegions": [
+        {
+          "cameraId": "follow",
+          "heightPx": 720,
+          "widthPx": 1280,
+          "xPx": 0,
+          "yPx": 0
+        }
+      ],
+      "codedHeightPx": 1440,
+      "codedWidthPx": 3840,
+      "connectedViewers": 0,
+      "encodedFrames": 11036,
+      "lastFrameAt": "2026-09-29T22:11:24.848596Z",
+      "lifecycle": "ready",
+      "nvencSessions": 1,
+      "sourceToRenderP95Microseconds": 27239,
+      "sourceToRenderSamples": 256,
+      "streamProductId": "camera-atlas"
+    }
+  ],
+  "tiles": {
+    "event_sequence": 1,
+    "geometries_loaded": 2742,
+    "geometries_rendered": 1144,
+    "ion_asset_id": 2275207,
+    "lifecycle": "ready",
+    "loading_tiles": 0,
+    "materials_loaded": 2742,
+    "provider_generation": 1,
+    "refresh_count": 0,
+    "resident_tiles": 2847,
+    "source": "google_photorealistic_3d_tiles",
+    "visible_tiles": 897
+  },
+  "timing": {
+    "after_step_wall_seconds": 14.807088919798844,
+    "backend_state_wall_seconds": 0.0069161689025349915,
+    "dynamics_update_wall_seconds": 34.99644267029362,
+    "flush_forces_wall_seconds": 0.0,
+    "maximum_native_update_ms": 2801.9510810263455,
+    "maximum_physics_step_ms": 1383.1075620255433,
+    "maximum_render_cycle_ms": 4889.4300829852,
+    "native_rendering_hz": 24,
+    "native_update_wall_seconds": 401.3575669096317,
+    "physics_hz": 30,
+    "physics_steps": 23129,
+    "refresh_states_wall_seconds": 0.0,
+    "render_cycle_wall_seconds": 585.3499280132819,
+    "render_cycles": 11046,
+    "sensor_update_wall_seconds": 39.86934511736035,
+    "state_update_wall_seconds": 54.927496641117614,
+    "vehicle_update_wall_seconds": 158.3955588893732
+  },
+  "updated_at": "2026-09-29T22:11:24.875693Z",
+  "vehicles": [
+    {
+      "attitude_xyzw": {
+        "w": -0.34187906980514526,
+        "x": -0.06071338802576065,
+        "y": 0.018005913123488426,
+        "z": 0.9376078248023988
+      },
+      "battery_percent": 100.0,
+      "collision_count": 0,
+      "enu": {
+        "east_m": -20.279462814331055,
+        "north_m": -20.27737808227539,
+        "up_m": 0.03999999910593033
+      },
+      "flight_state": "landed",
+      "linear_velocity_enu_mps": {
+        "east_m": -1.401298464324817e-45,
+        "north_m": 1.401298464324817e-45,
+        "up_m": 0.0
+      },
+      "ned": {
+        "down_m": -0.03999999910593033,
+        "east_m": -20.279462814331055,
+        "north_m": -20.27737808227539
+      },
+      "px4_connected": true,
+      "vehicle_id": "uav-1",
+      "wgs84": {
+        "ellipsoid_height_m": -16.95993549656123,
+        "latitude_degrees": 40.7578174011686,
+        "longitude_degrees": -73.98574015801108
+      }
+    }
+  ],
+  "world": {
+    "georeference_origin": {
+      "ellipsoid_height_m": -17.0,
+      "latitude_degrees": 40.758,
+      "longitude_degrees": -73.9855
+    },
+    "revision_uri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-01a0eeb9-634b-7f70-9aa2-0a0d2ef38f36",
+    "simulation_frame_uri": "frames://world/uav-showcase-new-york-f75bf0b755676d08/revision/revision-01a0eeb9-634b-7f70-9aa2-0a0d2ef38f36/frame/isaac-world",
+    "spec_sha256": "7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a"
+  }
+}

@@ -14,6 +14,18 @@ pub(crate) struct Args {
 #[derive(Debug, Subcommand)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum SmokeCommand {
+    /// Verify the scenario's current Map route admission without flight commands.
+    UavRouteVerify {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        #[arg(long)]
+        installation: PathBuf,
+    },
     /// Publish the scenario in Frames and write the admitted simulator startup binding.
     UavWorldPublish {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -115,6 +127,7 @@ mod tests {
     #[test]
     fn installed_flight_commands_require_one_target_and_reject_coordinate_overrides() {
         for command in [
+            "uav-route-verify",
             "uav-domain-verify",
             "uav-showcase-up",
             "uav-showcase-verify",

@@ -93,6 +93,15 @@ gap: a running session can still have streaming terrain. Both harness improvemen
 recorded below. Startup MAVLink poll timeouts still need composed timing qualification.
 The reference cluster is stopped after collecting the final sensor, state and runtime
 logs; the new runtime completed this acceptance attempt without container restarts.
+The next harness batch uses UAV-owned simulation state to distinguish declared warmup
+from invalid world identity, failed resources and unsupported encoders. Its one timeout
+includes state reads and waits. Map route requests now use the owner contract; the full
+flight path tests current aviation admission before world/control work, and
+`uav-route-verify` provides the same prerequisite without flight commands. Native checks
+pass 56 flight cases, the dependency-closure check and 113 xtask cases. The reference
+runbook declares the fixture digest, acquisition and activation steps and the required
+Map administrator scope. Installed release preparation and route qualification follow
+before another composed flight pass.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2546,8 +2555,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 1 flight prerequisites | `testing/flight-smoke/src/domain.rs` | Admit the selected Map profile and current aviation release before flight commands; qualify the configured route path before the expensive flight pass | The sensor qualification reached Map route creation after landing and re-arming, then found missing admitted dataset releases. Batch this preflight with release preparation and the readiness wait |
-| Phase 1 installed readiness wait | `testing/flight-smoke/src/domain/world.rs` | Keep the existing deadline while waiting for transient tile and camera warmup; fail immediately on an invalid world or failed runtime | The first acceptance attempt at `f1a55ddc` observed a running session during terrain streaming and exited before any flight command. A later state read reported ready coverage. Batch this harness correction with the next runtime qualification work |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
 | Phase 1 reference reset | `examples/bioma/README.md` | Prepare an admitted current aviation dataset release and finish mission, Stream, Reason and composed timing acceptance | Revision `f1a55ddc` converged. Public installation verification, all 26 Datasheet hosted checks, current RFC UUID timestamps and Task/catalog/usage reads pass. Every installed sensor validator stays healthy after landing; re-arming and takeoff pass. Map then refuses routing because the operator catalog has no datasets or active releases. Postflight landing and cleanup completed; cluster stopped |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |

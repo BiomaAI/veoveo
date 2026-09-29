@@ -176,82 +176,6 @@ pub(super) async fn verify_published_world(
     Ok(published_revision)
 }
 
-pub(super) fn assert_world_ready(
-    state: &Value,
-    revision_uri: &FrameWorldRevisionUri,
-    simulation_frame_uri: &WorldFrameUri,
-) -> Result<()> {
-    ensure!(
-        matches!(
-            json_string(state, "/lifecycle")?,
-            "ready" | "running" | "paused"
-        ),
-        "UAV session is not ready: {state}"
-    );
-    ensure!(
-        json_string(state, "/world/revision_uri")? == revision_uri.as_str()
-            && json_string(state, "/world/simulation_frame_uri")? == simulation_frame_uri.as_str()
-            && json_string(state, "/world/spec_sha256")?.len() == 64,
-        "UAV session uses the wrong immutable Frames world: {state}"
-    );
-    ensure!(
-        json_string(state, "/tiles/source")? == "google_photorealistic_3d_tiles"
-            && state.pointer("/tiles/ion_asset_id").and_then(Value::as_u64)
-                == Some(GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID)
-            && json_string(state, "/tiles/lifecycle")? == "ready"
-            && state
-                .pointer("/tiles/resident_tiles")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0)
-            && state
-                .pointer("/tiles/visible_tiles")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count > 0),
-        "Google Photorealistic 3D Tiles do not cover the current Isaac viewport: {state}"
-    );
-    ensure!(
-        state
-            .pointer("/vehicles/0/px4_connected")
-            .and_then(Value::as_bool)
-            == Some(true),
-        "PX4 is not connected: {state}"
-    );
-    let sensor_camera = state
-        .pointer("/cameras/0")
-        .context("authoritative simulator state omitted its sensor camera")?;
-    ensure!(
-        sensor_camera_is_started(sensor_camera),
-        "Isaac nadir camera is not producing native NVENC access units: {state}"
-    );
-    let live_cameras: Vec<LiveCameraDescriptor> = serde_json::from_value(
-        state
-            .get("live_cameras")
-            .cloned()
-            .context("authoritative simulator state omitted live_cameras")?,
-    )
-    .context("authoritative simulator returned invalid live_cameras")?;
-    ensure!(
-        !live_cameras.is_empty()
-            && live_cameras
-                .iter()
-                .all(|camera| camera.validate().is_ok()
-                    && camera.health == LiveCameraHealth::Healthy),
-        "authoritative simulator cameras are not healthy: {state}"
-    );
-    let products: Vec<LiveStreamProductState> = serde_json::from_value(
-        state
-            .get("stream_products")
-            .cloned()
-            .context("authoritative simulator state omitted stream_products")?,
-    )
-    .context("authoritative simulator returned invalid stream_products")?;
-    ensure!(
-        camera_product_set_matches_contract(&products),
-        "authoritative simulator tiled camera product violates its shared-stream contract: {state}"
-    );
-    Ok(())
-}
-
 pub(super) fn camera_product_set_matches_contract(products: &[LiveStreamProductState]) -> bool {
     if products.is_empty() {
         return false;
@@ -325,25 +249,32 @@ pub(super) async fn wait_for_world_ready(
     simulation_frame_uri: &WorldFrameUri,
     timeout: Duration,
 ) -> Result<Value> {
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let state = simulation_state(operator, scenario).await?;
-        let lifecycle = json_string(&state, "/lifecycle")?;
-        ensure!(
-            lifecycle != "failed",
-            "UAV simulation failed while loading its frame world: {state}"
-        );
-        if matches!(lifecycle, "ready" | "running" | "paused") {
-            // TODO(foundations): Keep waiting within this deadline for transient
-            // tile and camera warmup; a running session alone does not prove readiness.
-            assert_world_ready(&state, revision_uri, simulation_frame_uri)?;
-            return Ok(state);
+    let mut pending = "waiting for the first world observation";
+    let observation = async {
+        loop {
+            let state = simulation_state(operator, scenario).await?;
+            let typed = serde_json::from_value(state.clone())
+                .context("decoding the UAV-owned simulation state")?;
+            match super::readiness::world_readiness(
+                &typed,
+                scenario,
+                revision_uri,
+                simulation_frame_uri,
+            )? {
+                super::readiness::WorldReadiness::Ready => return Ok(state),
+                super::readiness::WorldReadiness::Warming(reason) => {
+                    if pending != reason {
+                        eprintln!("UAV world warmup: {reason}");
+                    }
+                    pending = reason;
+                }
+            }
+            tokio::time::sleep(Duration::from_secs(5)).await;
         }
-        if tokio::time::Instant::now() >= deadline {
-            bail!("UAV frame world was not ready within {timeout:?}; final state: {state}");
-        }
-        tokio::time::sleep(Duration::from_secs(5)).await;
-    }
+    };
+    tokio::time::timeout(timeout, observation)
+        .await
+        .with_context(|| format!("UAV world was not ready within {timeout:?}: {pending}"))?
 }
 
 pub(super) async fn simulation_state(
@@ -501,14 +432,6 @@ pub(super) async fn ensure_operator_control_grant(
         "admin returned a different control grant"
     );
     super::control_grants::find(operator, scenario, &granted.grant_id, &principal_key).await
-}
-
-pub(super) fn map_position(position: &Wgs84Position) -> Value {
-    serde_json::json!({
-        "longitude_deg": position.longitude_degrees,
-        "latitude_deg": position.latitude_degrees,
-        "ellipsoidal_height_m": position.ellipsoid_height_m
-    })
 }
 
 pub(super) fn assert_georeference_origin(

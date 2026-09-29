@@ -9,6 +9,8 @@
 | Flight scenario | Runtime-loaded `veoveo.uav-sim-acceptance/v11` JSON with bounded typed mission, world, video and observation parameters |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
+| Route admission | Map-owned route request, position, policy and result types through its isolated contract feature; a current aviation route Task runs before flight commands |
+| World readiness | UAV-owned simulation, tile and camera state types; the scenario timeout includes reads and warmup waits; invalid bindings, failed resources and unsupported encoders fail immediately |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
 | World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
@@ -17,7 +19,7 @@
 ## Ownership
 
 `cargo xtask smoke` builds this harness and its conformance executable for
-`uav-world-publish`, `uav-domain-verify`, `uav-showcase-up`, and `uav-showcase-verify`. Their command
+`uav-world-publish`, `uav-route-verify`, `uav-domain-verify`, `uav-showcase-up`, and `uav-showcase-verify`. Their command
 arguments and assertions stay in Rust. `main.rs` only installs TLS and dispatches
 parsed commands. `cli.rs` owns those arguments.
 
@@ -38,6 +40,20 @@ including after a database reset.
 
 Scenario and grant decoders admit Map profile references through the same owning type.
 The route request serializes its typed profile ID and version without reparsing text.
+`domain/route.rs` sends the same typed route request for prerequisites and the mission.
+`uav-route-verify` needs only the configured operator and Map endpoint. It tests the
+scenario origin at takeoff altitude and its nearby destination, accepts a usable
+aviation route with release provenance, and issues no flight commands. Map performs
+current tenant, source, release, family and departure-time admission in SQL. The flight
+path repeats the prerequisite before world and control operations, then requests the
+mission route from the observed airborne position. A prerequisite pass does not freeze
+Map policy or make the later route request optional.
+
+`domain/readiness.rs` distinguishes startup from invalid state. Runtime, terrain,
+PX4 connection and camera warmup share the scenario's single timeout. A running
+session can still be loading terrain. The waiter checks world identity and hardware
+contracts during warmup; a failed runtime, degraded terrain or camera, stale operator
+camera, invalid tiled product, or unsupported encoder ends the wait immediately.
 The client imports UAV's public grant and camera-product types. Scenario session and
 vehicle IDs decode through UAV's owning types before any external work.
 The installation target selects every requested scope. Flight admission checks its

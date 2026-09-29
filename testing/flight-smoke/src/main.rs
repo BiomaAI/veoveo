@@ -10,13 +10,27 @@ mod cli;
 mod domain;
 mod support;
 use cli::{Args, SmokeCommand};
-use domain::{uav_showcase_up, uav_showcase_verify, uav_sim_verify, uav_world_publish};
+use domain::{
+    uav_route_verify, uav_showcase_up, uav_showcase_verify, uav_sim_verify, uav_world_publish,
+};
 use support::InstalledTarget;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
+        SmokeCommand::UavRouteVerify {
+            conformance_bin,
+            scenario,
+            installation,
+        } => {
+            uav_route_verify(
+                &conformance_bin,
+                &scenario,
+                &InstalledTarget::load(&installation)?,
+            )
+            .await
+        }
         SmokeCommand::UavWorldPublish {
             conformance_bin,
             scenario,

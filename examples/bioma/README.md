@@ -727,7 +727,17 @@ larger than 8 MiB through DuckDB. It then verifies full, HEAD, and ranged delive
 the installation origin with redirect following disabled, exact content and SHA-256
 checks, and no object-storage address in metadata or response headers.
 
-Then run the full GPU delivery proof:
+Prepare the [aviation release](#prepare-the-aviation-release), then check Map admission
+before the full GPU delivery proof:
+
+~~~bash
+cargo xtask smoke uav-route-verify \
+  --installation examples/bioma/installation-target.json
+~~~
+
+This command creates a Map route Task at the scenario's takeoff altitude. It requires
+the operator credentials and Map, and issues no flight commands. Full acceptance
+rechecks admission before taking control of a vehicle.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through
@@ -765,6 +775,43 @@ the acceptance confirms that concurrent GPU deployments remain available. Its ru
 showcase/uav-sim/scenarios/new-york-aerial.json. The acceptance client creates
 the complete world through Frames MCP and binds the returned immutable revision
 to the simulator before Isaac constructs its stage.
+
+### Prepare the aviation release
+
+The Map bootstrap registers the synthetic showcase source and mobility profile.
+An administrator must acquire and activate its dataset after creating or resetting
+the application store. Use the public Map MCP tools with the installation's
+administrator identity and its declared `map:admin` scope.
+
+Read `map://active-releases` first. Reuse an active release for dataset
+`dataset-019ffdb2-0598-7717-b916-e359c426f8cf` only when its source digest matches
+`27de4541a7ef2f87b6425fa4375c5a246d14fd4c87463afb5bb0fb5760456269`.
+That digest identifies the registered immutable
+[synthetic fixture](../../showcase/uav-sim/map/README.md).
+
+Call `map__start_acquisition` with:
+
+~~~json
+{
+  "source_id": "source-019ffdb2-0596-7c91-ac83-0a45b82d7952",
+  "requested_coverage": {"west": -74.06, "south": 40.68, "east": -73.95, "north": 40.80},
+  "expected_source_digest_sha256": "27de4541a7ef2f87b6425fa4375c5a246d14fd4c87463afb5bb0fb5760456269",
+  "idempotency_key": "new-york-showcase-27de4541a7ef2f87b6425fa4375c5a246d14fd4c87463afb5bb0fb5760456269"
+}
+~~~
+
+Save the returned acquisition identity. Observe its `map://acquisition/{acquisition_id}`
+resource until it reports `succeeded`, with a ten-minute observation deadline. A timeout
+leaves the acquisition unresolved; inspect that identity before another mutation. A
+failed acquisition carries diagnostics and must be resolved before activation.
+
+Read the returned staged release through
+`map://dataset/{dataset_id}/release/{release_id}` and check its source digest.
+Call `map__activate_release` with that release ID, its current `record_version` as
+`expected_record_version`, and the dataset's current active-pointer version as
+`expected_active_pointer_version` (zero when it has no active pointer). Verify the
+active release and run `uav-route-verify`. Synthetic data supplies planning-advisory
+routes for this simulation.
 
 ## Cleanup
 
@@ -820,7 +867,8 @@ old release cannot resume between those updates. The new deployment uses the cur
 Frames publication and keeps the tile cache.
 A reset never reuses a deleted revision from the previous database.
 
-Run GitOps convergence and installed verification against that revision, including
+Prepare the [current aviation release](#prepare-the-aviation-release) and pass
+`uav-route-verify` before the flight gate. Run GitOps convergence and installed verification against that revision, including
 live MCP conformance and composed UAV acceptance, before accepting the reset.
 
 ### Remove the cluster

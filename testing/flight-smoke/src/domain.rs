@@ -23,14 +23,16 @@ use veoveo_stream_mcp::contract::{
 use veoveo_types::ScopeDefinition;
 
 use veoveo_uav_sim_mcp::contract::{
-    LiveCameraDescriptor, LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState,
-    UavScope,
+    LiveCameraHealth, LiveStreamProductLifecycle, LiveStreamProductState, UavScope,
 };
 
 mod artifacts;
 mod client;
 mod control_grants;
+mod readiness;
+mod route;
 mod scenario;
+pub(crate) use route::verify as uav_route_verify;
 mod showcase;
 mod stream;
 mod world;
@@ -90,8 +92,6 @@ async fn uav_sim_verify_with_visual_hold(
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
     preflight_flight_authority(installation)?;
-    // TODO(foundations): Preflight the selected Map profile's active aviation
-    // release and route admission before dispatching any flight command.
     let context = &installation.target.kubernetes.context;
     let namespace = &installation.target.kubernetes.namespace;
 
@@ -128,6 +128,8 @@ async fn uav_sim_verify_with_visual_hold(
     ] {
         contains(&info, tool)?;
     }
+
+    route::preflight(&operator, &scenario).await?;
 
     let binding = ensure_world_configured(&operator, &scenario).await?;
     let revision_uri = binding.revision_uri;
@@ -237,34 +239,15 @@ async fn uav_sim_verify_with_visual_hold(
         let target_position =
             nearby_mission_position(&current_position, scenario.mission.longitude_offset_degrees)?;
         let mobility_profile = &control_grant.map_mobility_profile_uri;
-        let route = operator
-            .task_tool(
-                "map__route",
-                serde_json::json!({
-                    "mobility_profile_id": mobility_profile.id(),
-                    "mobility_profile_version": mobility_profile.version(),
-                    "origin": {
-                        "kind": "position",
-                        "position": map_position(&current_position)
-                    },
-                    "destination": {
-                        "kind": "position",
-                        "position": map_position(&target_position)
-                    },
-                    "waypoints": [],
-                    "departure_time": Utc::now(),
-                    "objective": { "kind": "shortest" },
-                    "constraints": {},
-                    "alternatives": 0,
-                    "data_policy": {
-                        "allow_planning_advisory": true,
-                        "allow_stale_operational_data": false,
-                        "required_map_families": ["aviation"]
-                    }
-                }),
-                Duration::from_secs(scenario.mission.task_timeout_seconds),
-            )
-            .await?;
+        let route = route::plan(
+            &operator,
+            mobility_profile,
+            &current_position,
+            &target_position,
+            Duration::from_secs(scenario.mission.task_timeout_seconds),
+        )
+        .await?;
+        let route = serde_json::to_value(route)?;
         let map_route = operator
             .call_tool(
                 "map__prepare_route_handoff",

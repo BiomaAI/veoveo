@@ -75,7 +75,8 @@
       "operator:use",
       "admin:manage",
       "uav-sim:admin",
-      "time:read"
+      "time:read",
+      "map:admin"
     ]
   }
 }
