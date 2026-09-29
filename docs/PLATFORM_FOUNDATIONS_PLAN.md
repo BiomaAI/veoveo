@@ -11,8 +11,12 @@ Phases 4–9 have not started. The platform and UAV images and charts are publis
 `5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature
 suite passed 2,649. Python passed 156 tests, and documentation and identifier checks
 passed. The old reference node and its five owned volumes have been removed.
-Reference workloads are stopped during the rebuild; fresh installation and installed
-qualification are pending. Publication reused the compiler caches and left about
+The fresh GPU node and Flux sources are available at release inputs `5b900e61`.
+The first install failed when Computers reached its progress deadline: concurrent
+cold image extraction delayed volume provisioning and database startup. Helm completed
+its uninstall, and the root and both releases are suspended during recovery. Prepare
+the consumed images sequentially before resuming GitOps; installed qualification is
+pending. Publication reused the compiler caches and left about
 519 GiB free. Fresh recording and Computers trust is enrolled
 locally; its public key IDs and configuration digests pass Helm and rollout checks.
 The native provider accepts the generated JWT key and signs an extension token;
@@ -1543,6 +1547,13 @@ implementation; this lifecycle correction does not complete that work.
   manifest and layer closure. Old simulation experiments may be removed. This
   resource discipline applies to this plan; it adds no repository-wide development
   rule or background cleanup service.
+- Before a fresh reference bootstrap, prepare the published images in the node cache
+  sequentially before enabling application reconciliation. Include the rendered
+  workload images and the runtime images selected through the installation locks.
+  Confirm every reference in the node's CRI inventory before starting the workloads.
+  Cold image extraction must finish before database provisioning and application
+  startup compete for the same disk. Preserve the failed attempt's diagnostics and
+  clear its owned workloads before retrying.
 - Read `AGENTS.md` and `docs/CODEMAP.md` before each phase.
 - Work on `main` in small commits, one concern each. Run the native checks each commit
   touches, and run `cargo xtask enforce docs` for every documentation change.
@@ -2396,7 +2407,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Install the published platform and UAV locks on the fresh reference node, then qualify the workloads | Native acceptance and image/chart publication at `5df83706` pass. Node and volume cleanup is complete; fresh installation and installed qualification are pending |
+| Phase 1 reference reset | `examples/bioma/README.md` | Prepare the consumed images sequentially, resume GitOps on the fresh reference node, stage the Reason checkpoint, then qualify the workloads | Native acceptance and image/chart publication at `5df83706` pass. The first install at `5b900e61` failed during cold image extraction and database provisioning; Helm uninstall completed and reconciliation is suspended for recovery |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |
