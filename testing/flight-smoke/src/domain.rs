@@ -90,6 +90,8 @@ async fn uav_sim_verify_with_visual_hold(
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
     preflight_flight_authority(installation)?;
+    // TODO(foundations): Preflight the selected Map profile's active aviation
+    // release and route admission before dispatching any flight command.
     let context = &installation.target.kubernetes.context;
     let namespace = &installation.target.kubernetes.namespace;
 

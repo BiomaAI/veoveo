@@ -334,6 +334,8 @@ pub(super) async fn wait_for_world_ready(
             "UAV simulation failed while loading its frame world: {state}"
         );
         if matches!(lifecycle, "ready" | "running" | "paused") {
+            // TODO(foundations): Keep waiting within this deadline for transient
+            // tile and camera warmup; a running session alone does not prove readiness.
             assert_world_ready(&state, revision_uri, simulation_frame_uri)?;
             return Ok(state);
         }
