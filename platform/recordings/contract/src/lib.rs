@@ -8,9 +8,11 @@ use serde::{Deserialize, Serialize};
 mod cursor;
 mod ids;
 mod resources;
+mod scopes;
 pub use cursor::{RECORDING_PAGE_SIZE, RecordingCatalogCursor};
 pub use ids::{RecordingContractError, RecordingId};
 pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
+pub use scopes::RecordingScope;
 
 mod catalog;
 pub use catalog::{

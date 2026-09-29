@@ -1,10 +1,14 @@
-use super::{AppState, SERVER_DOCS, internal, json_resource};
+use super::{
+    mcp::{internal, json_resource},
+    state::AppState,
+};
 use rmcp::{
     ErrorData as McpError,
     model::{ReadResourceResult, ResourceContents},
 };
 use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::RecordingId;
+use veoveo_recording_mcp::admin::SERVER_DOCS;
 use veoveo_recording_mcp::{contract::RecordingResource, uris};
 
 pub(super) async fn read(

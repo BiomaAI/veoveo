@@ -475,6 +475,7 @@ consoleBff:
   oauthScopes:
     - operator:use
     - admin:manage
+    - recording:seal
     - uav-sim:admin
     - uav-sim:stream
     - map:admin

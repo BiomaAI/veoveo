@@ -1061,7 +1061,8 @@ Simulation live-view ownership:
 ### `platform/recordings/contract`
 
 [`DESIGN.md`](../platform/recordings/contract/DESIGN.md) defines Recording’s shared
-IDs, resource addresses, catalog continuations and public models. `ids.rs`,
+IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
+the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
 owns grants and projection models. Hub and Video import this domain crate directly.
 The MCP library exposes the same types through its isolated contract feature.
@@ -1117,7 +1118,8 @@ Store, MCP and Rerun.
 
 ### `servers/recording-mcp`
 
-`src/bin/server.rs` advertises stable discovery roots and templates. Recording content
+`src/mcp_setup.rs` checks the Recording MCP contract and supplies stable discovery
+roots and templates before runtime initialization. Recording content
 changes notify accepted resource readers without invalidating App discovery.
 
 `contract.rs` exposes recording, layer, seal, playback-manifest v9, Blueprint, live,
@@ -1136,9 +1138,10 @@ temporal history, and rewrites messages to the stable playback identity.
 `live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel` and
 distinguishes an empty-channel bootstrap from a current-head transport resume.
 `uris.rs` exposes the shared contract’s typed factories and discovery declarations. `bin/server/resources.rs` dispatches admitted resource variants.
-`bin/server.rs` composes the authenticated manifest,
-framed live route, Redap, projections, MCP transports, storage readiness and diagnostics,
-and Artifact publication.
+`bin/server/mcp.rs` owns protocol handlers and typed subscription admission.
+`bin/server/http.rs` composes the authenticated manifest, framed live route, Redap,
+projections, MCP transport, readiness and diagnostics. `bin/server.rs` initializes
+dependencies, forces checked setup and starts the listener.
 
 ### `servers/stream-mcp`
 

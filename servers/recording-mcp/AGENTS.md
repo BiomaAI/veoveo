@@ -1,7 +1,7 @@
 # Recording MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative hosted-server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2. The complete
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3. The complete
 recording contract is [`docs/RECORDINGS.md`](../../docs/RECORDINGS.md).
 
 ## Purpose
@@ -21,6 +21,10 @@ and reactive Rerun live following.
   through the contract's `RecordingUri` and `RecordingId`; resource adapters and
   consumers reuse `RecordingResource` admission. Public cursors carry the owning
   ID and convert to Store types only at query calls.
+- Sealing requires the domain-owned `RecordingScope::Seal` (`recording:seal`). Gateway
+  policy separately restricts it to the administrator profile and grants.
+- Force checked `mcp_setup::SERVER_SETUP` before opening Store, caches or Redap. Discovery
+  uses its admitted descriptors and templates; listeners accept only catalog and recording contents.
 - One durable recording dataset contains one or more recordings. Dataset UUID is the
   Rerun application ID. Recording UUID is the Rerun recording and segment ID.
 - Committed capture, properties, and derived layers are immutable Artifact occurrences.
@@ -58,7 +62,10 @@ and reactive Rerun live following.
   `blueprint_cache.rs` supplies Blueprint identity validation.
 - `playback.rs` owns durable grants, virtual catalogs, scoped Redap, and manifest assembly.
 - `live_playback.rs` and `live_stream.rs` own the Rerun live adapter and framed transport.
-- `bin/server.rs` owns transport composition, readiness, and diagnostics.
+- `mcp_setup.rs` owns checked protocol configuration, documents, scope inventory and discovery.
+- `bin/server/mcp.rs` owns protocol handlers and subscription admission.
+- `bin/server/http.rs` owns authenticated HTTP routes, readiness and diagnostics.
+- `bin/server.rs` initializes dependencies and starts the listener.
 
 ## Build And Test
 
@@ -78,7 +85,7 @@ browser smoke, a headed browser, and a hardware-backed WebGPU or WebGL context.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -96,7 +103,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — Gateway registration does not state the hosted-server contract revision
+- C17: met — reference, local and catalog-fixture registrations declare revision 3 and static discovery
 - C18: met
 - C19: met
 - C20: met

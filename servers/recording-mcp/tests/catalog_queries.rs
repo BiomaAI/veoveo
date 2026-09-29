@@ -13,7 +13,10 @@ use veoveo_platform_store::{
     RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerCounts,
     RecordingLayerDraft, RecordingReadScope,
 };
-use veoveo_recording_mcp::{RecordingService, contract::RecordingResource};
+use veoveo_recording_mcp::{
+    RecordingService,
+    contract::{RecordingResource, RecordingScope},
+};
 use veoveo_recording_reader::access::record_uuid;
 use veoveo_types::ResourceAddress;
 use veoveo_types::{
@@ -212,6 +215,28 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
                 .await
                 .unwrap()
                 .is_some()
+        );
+
+        // A seal grant does not widen SQL tenant/label visibility or bypass lifecycle checks.
+        let mut sealer = reader.clone();
+        sealer
+            .actor
+            .scopes
+            .insert(veoveo_types::ScopeName::new("admin:manage").unwrap());
+        assert_eq!(
+            service.seal(&sealer, oldest).await.unwrap_err().to_string(),
+            "Missing Recording scope `recording:seal`."
+        );
+        sealer.actor.scopes.insert(RecordingScope::Seal.into());
+        for id in [hidden.unwrap(), foreign_id] {
+            assert_eq!(
+                service.seal(&sealer, id).await.unwrap_err().to_string(),
+                "recording not found"
+            );
+        }
+        assert_eq!(
+            service.seal(&sealer, oldest).await.unwrap_err().to_string(),
+            "recording is not sealable from state live"
         );
 
         let mut visited = Vec::new();

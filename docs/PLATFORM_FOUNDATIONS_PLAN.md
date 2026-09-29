@@ -1064,6 +1064,34 @@ processes. This recovered 20.27 GiB while preserving compiler and Docker caches.
 Reference workloads stay stopped, fixture containers are removed, and 28 GiB is free.
 Installed and GPU acceptance remain pending.
 
+Recording's checked MCP setup now runs before Store, cache and Redap initialization.
+It supplies static discovery and accepts only owned content subscriptions. The binary
+separates protocol handlers from HTTP playback and dependency initialization. The
+Recording contract owns `RecordingScope::Seal` (`recording:seal`); gateway rules keep
+the administrator profile and existing role/principal restrictions, and administrator
+client allowlists plus Console scope requests include the new domain permission. This
+is a coordinated hard cut with fresh tokens; the service accepts no broad-admin alias.
+Reference, local and catalog-fixture registrations declare revision 3 with static
+resource discovery. The reference configuration checksum matches its rendered bundle.
+
+Native qualification passes 50 cases, including the official Redap read profile,
+all four template expansions and tenant/label/lifecycle rejection after scope admission.
+The independent contract consumer passes 12 cases across 59 packages without service
+or GPU dependencies; the MCP facade and runtime-only compilation pass. Six reference
+configuration cases, Helm/GitOps rendering, strict workspace Clippy, formatting,
+document links and identifier checks pass. One native rerun hit Docker's 30-second
+create deadline before SQL. Cleanup removed that owned fixture; the isolated SQL
+rerun passed in 3.65 seconds. The daemon delay is still unexplained.
+
+Forty-eight superseded test executables were removed after checking matching feature
+profiles, newer replacements, source changes where required, file identities and active
+processes. This recovered 19.97 GiB. Compiler caches, BuildKit, registry images and
+volumes are preserved. BuildKit accounts for about 313 GiB and the active registry
+for 68 GiB; Docker's reclaimable estimate does not establish that their contents are
+safe to remove. Reference workloads stay stopped, no fixture containers remain, and
+about 36 GiB is free. Broader Recording DTO relationships and installed acceptance
+remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1102,6 +1130,7 @@ state after this file is gone.
 | vLLM 0.30.0 pooling runner, OpenAI Embeddings API, `Qwen/Qwen3-Embedding-0.6B` | Embedding runtime on a hardware GPU |
 | `veoveo.ai/installation-target/v1` | Installation input for installed smoke scenarios |
 | OCSF 1.9.0, W3C Trace Context, RFC 9162, RFC 8785, S3 Object Lock | Audit record export, correlation, sealing, and write-once retention |
+
 
 ## Working Rules
 
@@ -1578,7 +1607,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Governed references import Map, Frames, Recording and Artifact URI types, and source features must belong to a declared Map release. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package | Strengthen dataset/layer identities and playback/projection relationships; adopt checked MCP setup; qualify installed behavior |
+| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions | Strengthen dataset/layer identities and playback/projection relationships; qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

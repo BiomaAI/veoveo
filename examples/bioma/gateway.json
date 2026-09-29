@@ -659,7 +659,7 @@
         "prompts": true,
         "completions": true,
         "tasks": false,
-        "resources_list_changed": true,
+        "resources_list_changed": false,
         "apps": true
       },
       "tools": [
@@ -681,7 +681,8 @@
         }
       ],
       "metadata": {
-        "raw_ingest": "internal_only"
+        "raw_ingest": "internal_only",
+        "contract_revision": 3
       },
       "resource_projection": "server_owned"
     },
@@ -5146,7 +5147,8 @@
           ],
           "required_scopes": [
             "operator:use",
-            "admin:manage"
+            "admin:manage",
+            "recording:seal"
           ],
           "tenant_ids": [
             "bioma"
@@ -5772,7 +5774,8 @@
           ],
           "required_scopes": [
             "operator:use",
-            "admin:manage"
+            "admin:manage",
+            "recording:seal"
           ],
           "metadata": {}
         },
@@ -6568,7 +6571,8 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "artifact:upload"
+        "artifact:upload",
+        "recording:seal"
       ],
       "metadata": {
         "client_boundary": "admin_console"
@@ -6675,7 +6679,8 @@
         "time:read",
         "time:schedule",
         "time:timeline",
-        "artifact:upload"
+        "artifact:upload",
+        "recording:seal"
       ],
       "metadata": {
         "client_boundary": "admin_service"

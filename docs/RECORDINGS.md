@@ -283,8 +283,9 @@ Run this checklist for every recording schema, protocol, cache, or deployment ch
   name but a zero-byte value passes Kubernetes shape checks and fails both publishers at
   startup with `InvalidKeyFormat`.
 - Obtain a recording-seal admin token from the admin profile's protected-resource
-  metadata. The deployed profile requires `operator:use admin:manage time:read`; a
-  narrower hand-written scope list fails discovery before the tool call.
+  metadata. The profile requires `operator:use admin:manage time:read`; request
+  `recording:seal` as well for the domain operation. Recording checks that typed
+  permission before SQL visibility and lifecycle admission.
 - Seal only after every capture layer is committed. When a producer Blueprint exists,
   require its Artifact URI in the seal result and require archive playback to survive
   removal of both the Hub staging copy and the complete Recording MCP cache.

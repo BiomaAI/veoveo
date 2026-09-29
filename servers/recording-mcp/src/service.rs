@@ -18,11 +18,11 @@ use veoveo_recording_hub::{
     GatewayLayerPublisher, invocation_authority_record, live_segment_byte_len,
 };
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
-use veoveo_types::DataLabelId;
+use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName};
 
 use crate::contract::{
     LayerView, ManifestBlueprint, ManifestLayer, PlaybackLiveReceiver, RecordingManifest,
-    RecordingView, SealRecordingOutput,
+    RecordingScope, RecordingView, SealRecordingOutput,
 };
 use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
@@ -553,7 +553,7 @@ impl RecordingService {
         identity: &GatewayInternalIdentity,
         recording_id: RecordingId,
     ) -> Result<SealRecordingOutput> {
-        ensure_seal_scope(identity)?;
+        ensure_scope(&identity.actor.scopes, RecordingScope::Seal)?;
         let Some((platform_identity, recording)) =
             self.visible_recording(identity, recording_id).await?
         else {
@@ -1150,14 +1150,10 @@ fn recording_static_context_path(
     Ok(dataset_path.join(format!(".recording-{recording_id}.static-context")))
 }
 
-fn ensure_seal_scope(identity: &GatewayInternalIdentity) -> Result<()> {
+fn ensure_scope(grants: &BTreeSet<ScopeName>, required: RecordingScope) -> Result<()> {
     ensure!(
-        identity
-            .actor
-            .scopes
-            .iter()
-            .any(|scope| scope.as_str() == "admin:manage"),
-        "You don't have permission to seal recordings. Missing scope `admin:manage`."
+        grants.contains(required.name()),
+        "Missing Recording scope `{required}`."
     );
     Ok(())
 }
@@ -1326,6 +1322,19 @@ fn layer_state(state: RecordingLayerState) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sealing_requires_its_own_scope_even_for_an_administrator() {
+        let mut grants = BTreeSet::from([
+            ScopeName::new("admin:manage").unwrap(),
+            ScopeName::new("recording:ingest").unwrap(),
+        ]);
+        assert!(ensure_scope(&grants, RecordingScope::Seal).is_err());
+        grants.insert(RecordingScope::Seal.into());
+        ensure_scope(&grants, RecordingScope::Seal).unwrap();
+        grants.remove(RecordingScope::Seal.name());
+        assert!(ensure_scope(&grants, RecordingScope::Seal).is_err());
+    }
 
     #[test]
     fn sealed_static_context_path_is_confined_to_the_spool() {

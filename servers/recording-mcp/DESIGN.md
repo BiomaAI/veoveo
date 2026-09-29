@@ -46,8 +46,34 @@ The resource adapter dispatches `RecordingResource` in `bin/server/resources.rs`
 sealing, prompts and subscriptions use the same Recording identity admission. The
 service converts admitted catalog positions to Store types immediately before SQL.
 Authorization, operational bounds and playback/projection relationships belong to
-runtime owners. Dataset/layer identities and checked MCP setup remain adoption work
+runtime owners. Dataset/layer identities remain adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+
+## MCP Setup And Sealing Permission
+
+`mcp_setup::RecordingContract` implements the shared `McpServerContract` trait with
+Recording's resource and scope types. Startup forces its checked setup before Store,
+cache or Redap initialization. Discovery serves the six admitted resources and four
+parsed templates from that setup. Reference, local and catalog-fixture registrations declare revision 3 and
+static discovery. Subscription admission accepts the catalog root, recording metadata
+and layer addresses; it excludes documents, catalog pages and unrelated Task handles.
+
+The shared Recording contract owns `RecordingScope::Seal`, serialized as
+`recording:seal`. The service checks that typed permission before reading or mutating
+Recording state, then applies the ordinary SQL visibility and lifecycle checks.
+Gateway rules additionally require the administrator profile, `operator:use` and
+`admin:manage`, with their existing role or service-principal constraints. Console's
+configured scope request and the administrator clients' allowlists include the domain
+permission. Possessing a parsed scope value establishes no grant.
+
+The coordinated foundations installation uses this permission as a hard cut. Its
+server, gateway configuration and clients deploy together; callers request a fresh
+token containing `recording:seal`. The service accepts no `admin:manage` alias.
+
+The binary initializes dependencies and starts the listener. `bin/server/mcp.rs` owns
+MCP handlers; `bin/server/http.rs` wires authenticated HTTP and Redap routes and owns
+playback, projection, readiness and storage diagnostics. The shared service enforces
+sealing permission for every adapter.
 
 ## Durable Authority
 

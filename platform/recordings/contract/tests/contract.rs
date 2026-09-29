@@ -13,6 +13,37 @@ const DATASET: &str = "0197f78e-f2f0-7a6e-8a5d-f41c691e4471";
 const RECORDING: &str = "0197f78e-f2f0-7a6e-8a5d-f41c691e4472";
 
 #[test]
+fn sealing_permission_is_an_owner_type_with_one_wire_spelling() {
+    use veoveo_recording_contract::RecordingScope;
+    use veoveo_types::{ScopeDefinition, ScopeName};
+    assert_eq!(
+        serde_json::to_value(RecordingScope::Seal).unwrap(),
+        json!("recording:seal")
+    );
+    assert_eq!(
+        serde_json::from_value::<RecordingScope>(json!("recording:seal")).unwrap(),
+        RecordingScope::Seal
+    );
+    assert_eq!(
+        RecordingScope::try_from(RecordingScope::Seal.name()).unwrap(),
+        RecordingScope::Seal
+    );
+    for value in [
+        "admin:manage",
+        "recording:ingest",
+        "recording:Seal",
+        "recording:seal extra",
+    ] {
+        assert!(serde_json::from_value::<RecordingScope>(json!(value)).is_err());
+    }
+    assert!(ScopeName::new("independent-server:operate").is_ok());
+    assert_eq!(
+        serde_json::to_value(schemars::schema_for!(RecordingScope)).unwrap()["enum"],
+        json!(["recording:seal"])
+    );
+}
+
+#[test]
 fn catalog_grant_request_preserves_explicit_recording_selection() {
     let wire = json!({"dataset_id": DATASET, "recording_ids": [RECORDING]});
     let request: CreateRecordingCatalogGrantRequest = serde_json::from_value(wire.clone()).unwrap();

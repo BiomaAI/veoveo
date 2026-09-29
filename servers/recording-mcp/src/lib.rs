@@ -12,6 +12,8 @@ pub mod contract;
 pub mod live_playback;
 #[cfg(feature = "redap")]
 pub mod live_stream;
+#[cfg(feature = "mcp")]
+pub mod mcp_setup;
 #[cfg(feature = "redap")]
 pub mod playback;
 #[cfg(feature = "runtime")]

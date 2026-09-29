@@ -4,6 +4,7 @@
 
 | Standard or protocol | Supported profile |
 |---|---|
+| RFC 6749 section 3.3 | The closed `RecordingScope` enum defines `recording:seal`; names describe permissions and confer no authority. |
 | RFC 9562 UUIDv7 | Recording identities require the RFC UUID variant and lowercase hyphenated spelling. |
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
@@ -12,7 +13,7 @@
 
 ## Ownership And Dependencies
 
-This crate owns Recording's public IDs, resource addresses, cursors and data models.
+This crate owns Recording's public IDs, resource addresses, cursors, sealing scope and data models.
 It depends on foundational types, Serde, JSON Schema support, UUIDs and clock-free
 date/time values. It imports no server, Store, async runtime, Rerun or GPU library.
 
@@ -25,6 +26,7 @@ separate domain crate. The MCP server's library exposes these same types through
 `contract` feature; it defines no second model. Generic MCP infrastructure imports
 neither the domain crate nor the server's vocabulary.
 
+`scopes.rs` declares the sealing permission used by runtime checks and MCP setup.
 `ids.rs` validates Recording IDs. `resources.rs` builds and admits domain routes
 through the foundational URI library. `cursor.rs` owns public catalog positions;
 the service converts them to Store's query types at the persistence call. `uris.rs`
