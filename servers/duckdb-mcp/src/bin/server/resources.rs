@@ -115,8 +115,7 @@ async fn database_schema_document(
     identity: &veoveo_mcp_contract::GatewayInternalIdentity,
     db_id: &DuckDbDatabaseId,
 ) -> Result<DuckDbDatabaseSchema, McpError> {
-    let database = resolve_readable_database(state, identity, db_id)?;
-    let db_path = std::path::PathBuf::from(database.file_path);
+    let db_path = resolve_readable_database(state, identity, db_id)?;
     let settings = state.engine.clone();
     let columns = tokio::task::spawn_blocking(move || -> anyhow::Result<engine::QueryRows> {
         let conn = engine::open_connection(&db_path, true, &[], &FileExchange::Denied, &settings)?;

@@ -17,7 +17,7 @@ use super::{
     app_state::AppState,
     internal_auth::ForwardedBearer,
     ownership::{caller_from, runtime_owner},
-    parse_task_args, start_duckdb_task,
+    tasks::{parse_task_args, start_duckdb_task},
 };
 
 #[derive(Clone)]

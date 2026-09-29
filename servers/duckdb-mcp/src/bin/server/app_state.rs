@@ -1,9 +1,14 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use tokio::sync::Mutex;
 use veoveo_duckdb_mcp::{artifacts::ArtifactRepository, engine::EngineSettings};
 use veoveo_duckdb_runtime::HttpsSourcePolicy;
 use veoveo_task_runtime::{TaskRuntime, TaskTransition};
+use veoveo_types::TaskId;
 
 #[derive(Debug, Clone)]
 pub(super) struct Caps {
@@ -28,7 +33,7 @@ pub(super) struct AppState {
     pub(super) source_policy: HttpsSourcePolicy,
     pub(super) max_artifact_bytes: u64,
     /// One writer at a time per database file; readers go around this.
-    write_locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+    write_locks: Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>,
 }
 
 impl AppState {
@@ -54,10 +59,10 @@ impl AppState {
         }
     }
 
-    pub(super) async fn write_lock(&self, file_path: &str) -> Arc<Mutex<()>> {
+    pub(super) async fn write_lock(&self, file_path: &Path) -> Arc<Mutex<()>> {
         let mut locks = self.write_locks.lock().await;
         locks
-            .entry(file_path.to_string())
+            .entry(file_path.to_path_buf())
             .or_insert_with(|| Arc::new(Mutex::new(())))
             .clone()
     }
@@ -69,10 +74,10 @@ impl AppState {
     }
 }
 
-pub(super) async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition) {
+pub(super) async fn update_task(state: &AppState, task_id: TaskId, transition: TaskTransition) {
     let transition = if state
         .tasks
-        .is_cancel_requested(task_id)
+        .is_cancel_requested(&task_id.to_string())
         .await
         .unwrap_or(false)
     {
@@ -80,7 +85,11 @@ pub(super) async fn update_task(state: &AppState, task_id: &str, transition: Tas
     } else {
         transition
     };
-    if let Err(error) = state.tasks.transition(task_id, transition).await {
-        tracing::warn!(task_id, "failed to transition durable task: {error}");
+    if let Err(error) = state
+        .tasks
+        .transition(&task_id.to_string(), transition)
+        .await
+    {
+        tracing::warn!(%task_id, "failed to transition durable task: {error}");
     }
 }

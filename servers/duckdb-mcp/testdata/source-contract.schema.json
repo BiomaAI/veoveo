@@ -1819,5 +1819,399 @@
     ],
     "title": "DuckDbTableSchema",
     "type": "object"
+  },
+  "DuckDbArtifactOperation": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "query",
+            "type": "string"
+          },
+          "row_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "row_count"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "export_sql",
+            "type": "string"
+          },
+          "row_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "row_count"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "export_table",
+            "type": "string"
+          },
+          "row_count": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "table",
+          "row_count"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "snapshot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbArtifactOperation"
+  },
+  "DuckDbArtifactOrigin": {
+    "$defs": {
+      "DuckDbArtifactOperation": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "query",
+                "type": "string"
+              },
+              "row_count": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "row_count"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "export_sql",
+                "type": "string"
+              },
+              "row_count": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "row_count"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "export_table",
+                "type": "string"
+              },
+              "row_count": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "table": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "table",
+              "row_count"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "snapshot",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "type": "string"
+      },
+      "TaskId": {
+        "maxLength": 45,
+        "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "Operation facts checked before publication. The Artifact plane owns authority.",
+    "properties": {
+      "db": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "operation": {
+        "$ref": "#/$defs/DuckDbArtifactOperation"
+      },
+      "task_id": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/TaskId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "db",
+      "operation"
+    ],
+    "title": "DuckDbArtifactOrigin",
+    "type": "object"
+  },
+  "DuckDbQueryUsage": {
+    "$defs": {
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "inline",
+            "type": "string"
+          },
+          "rows_returned": {
+            "format": "uint",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kind",
+          "rows_returned",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "kind": {
+            "const": "artifact",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "artifact"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbQueryUsage"
+  },
+  "DuckDbUsageDetails": {
+    "$defs": {
+      "ArtifactId": {
+        "description": "Canonical identity of one logical artifact occurrence. Every put creates a\nfresh UUIDv7 even when its bytes deduplicate to an existing tenant blob.",
+        "type": "string"
+      },
+      "DuckDbDatabaseId": {
+        "description": "Owner-scoped name of a mutable hosted database file.",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "type": "string"
+      },
+      "DuckDbQueryUsage": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "const": "inline",
+                "type": "string"
+              },
+              "rows_returned": {
+                "format": "uint",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "kind",
+              "rows_returned",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "artifact": {
+                "$ref": "#/$defs/ArtifactId"
+              },
+              "kind": {
+                "const": "artifact",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "artifact"
+            ],
+            "type": "object"
+          }
+        ]
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "operation": {
+            "const": "query",
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/$defs/DuckDbQueryUsage"
+          }
+        },
+        "required": [
+          "operation",
+          "result"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "operation": {
+            "const": "execute",
+            "type": "string"
+          },
+          "statements": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "operation",
+          "db",
+          "statements"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "operation": {
+            "const": "ingest",
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "db",
+          "table"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "properties": {
+          "artifact": {
+            "$ref": "#/$defs/ArtifactId"
+          },
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "operation": {
+            "const": "export",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation",
+          "db",
+          "artifact"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbUsageDetails"
   }
 }

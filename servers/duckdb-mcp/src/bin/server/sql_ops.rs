@@ -12,39 +12,27 @@ use std::{
 use anyhow::{Context as _, Result, bail};
 use rmcp::ErrorData as McpError;
 use serde_json::json;
-use veoveo_artifact_contract::{ArtifactMetadata, ArtifactPut, ComplianceMetadata};
 use veoveo_duckdb_mcp::{
     contract::{
-        DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportFormat,
-        DuckDbExportOutput, DuckDbExportRequest, DuckDbExportSelection, DuckDbIngestMode,
-        DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryOutputMode,
-        DuckDbQueryRequest, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
-        duckdb_read_function_sql, duckdb_read_options_sql,
+        DuckDbArtifactOperation, DuckDbArtifactOrigin, DuckDbDatabaseId, DuckDbExecuteOutput,
+        DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
+        DuckDbExportSelection, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
+        DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbSource,
+        duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+        duckdb_read_options_sql,
     },
     engine::{self, AttachSpec, FileExchange},
-    state::TaskOwner,
 };
 use veoveo_duckdb_runtime::{
     AuthorizedArtifact, materialize_authorized_artifact, materialize_https_source,
 };
-use veoveo_mcp_contract::{
-    ArtifactWriteIdempotencyKey, GatewayInternalIdentity, IssuedArtifactWriteCapability,
-    PlaneCaller,
-};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 
 use super::{
     app_state::AppState,
+    artifact_output::{ArtifactWriter, put_op_artifact},
     ownership::{resolve_readable_database, resolve_writable_database},
 };
-
-#[derive(Clone)]
-pub(super) enum ArtifactWriteContext {
-    Caller(Box<PlaneCaller>),
-    Capability {
-        capability: IssuedArtifactWriteCapability,
-        idempotency_key: ArtifactWriteIdempotencyKey,
-    },
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum EngineOperation {
@@ -111,8 +99,8 @@ async fn run_engine_blocking<T: Send + 'static>(
     }
 }
 
-fn require_data_file(db_id: &DuckDbDatabaseId, file_path: &str) -> Result<PathBuf, McpError> {
-    let path = PathBuf::from(file_path);
+fn require_data_file(db_id: &DuckDbDatabaseId, file_path: &Path) -> Result<PathBuf, McpError> {
+    let path = file_path.to_path_buf();
     if path.exists() {
         Ok(path)
     } else {
@@ -134,41 +122,6 @@ async fn cleanup_exchange_dir(dir: &Path) {
     if let Err(err) = tokio::fs::remove_dir_all(dir).await {
         tracing::warn!(dir = %dir.display(), "failed to clean exchange dir: {err}");
     }
-}
-
-pub(super) async fn put_op_artifact(
-    state: &AppState,
-    writer: &ArtifactWriteContext,
-    owner: &TaskOwner,
-    bytes: Vec<u8>,
-    mime_type: &str,
-    filename: String,
-    metadata: serde_json::Value,
-) -> Result<ArtifactMetadata, McpError> {
-    let mut put = ArtifactPut::new(bytes);
-    put.mime_type = Some(mime_type.to_string());
-    put.filename = Some(filename);
-    // Carry the caller's data labels as artifact classification; the plane
-    // stamps tenant + owner itself from the verified identity, and records the
-    // owner Admin grant in the ledger (no local artifact_owner row).
-    put.compliance = ComplianceMetadata {
-        data_labels: owner.data_labels.clone(),
-        ..Default::default()
-    };
-    put.metadata = metadata;
-    let result = match writer {
-        ArtifactWriteContext::Caller(caller) => state.artifacts.put(caller, put).await,
-        ArtifactWriteContext::Capability {
-            capability,
-            idempotency_key,
-        } => {
-            state
-                .artifacts
-                .put_with_capability(capability, idempotency_key.clone(), put)
-                .await
-        }
-    };
-    result.map_err(|err| McpError::internal_error(format!("artifact write failed: {err:#}"), None))
 }
 
 fn export_file_details(format: DuckDbExportFormat) -> (&'static str, &'static str, &'static str) {
@@ -206,18 +159,17 @@ fn validate_embedded_query(conn: &duckdb::Connection, sql: &str) -> Result<()> {
 
 pub(super) async fn query_op(
     state: &Arc<AppState>,
-    artifact_writer: &ArtifactWriteContext,
+    artifact_writer: &ArtifactWriter,
     identity: &GatewayInternalIdentity,
-    owner: &TaskOwner,
     request: DuckDbQueryRequest,
 ) -> Result<DuckDbQueryOutput, McpError> {
     let db = resolve_readable_database(state, identity, &request.db)?;
-    let db_path = require_data_file(&request.db, &db.file_path)?;
+    let db_path = require_data_file(&request.db, &db)?;
 
     let mut attach = Vec::new();
-    let mut seen = BTreeSet::from([request.db.as_str().to_string()]);
+    let mut seen = BTreeSet::from([request.db.clone()]);
     for extra in &request.attach {
-        if !seen.insert(extra.as_str().to_string()) {
+        if !seen.insert(extra.clone()) {
             return Err(McpError::invalid_params(
                 format!("duplicate attached database `{extra}`"),
                 None,
@@ -226,7 +178,7 @@ pub(super) async fn query_op(
         let attached = resolve_readable_database(state, identity, extra)?;
         attach.push(AttachSpec {
             name: extra.as_str().to_string(),
-            path: require_data_file(extra, &attached.file_path)?,
+            path: require_data_file(extra, &attached)?,
         });
     }
 
@@ -313,16 +265,14 @@ pub(super) async fn query_op(
             let artifact = put_op_artifact(
                 state,
                 artifact_writer,
-                owner,
                 bytes,
                 mime_type,
                 format!("{}_query.{extension}", request.db),
-                json!({
-                    "op": "query",
-                    "db": request.db.as_str(),
-                    "row_count": row_count,
-                    "task_id": owner.task_id,
-                }),
+                DuckDbArtifactOrigin::new(
+                    request.db.clone(),
+                    DuckDbArtifactOperation::Query { row_count },
+                )
+                .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
             Ok(DuckDbQueryOutput {
@@ -343,13 +293,13 @@ pub(super) async fn execute_op(
 ) -> Result<DuckDbExecuteOutput, McpError> {
     let (db, created) =
         resolve_writable_database(state, identity, &request.db, request.create_if_missing)?;
-    let db_path = PathBuf::from(&db.file_path);
+    let db_path = db.clone();
     if let Some(parent) = db_path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
             .map_err(|err| McpError::internal_error(err.to_string(), None))?;
     }
-    let lock = state.write_lock(&db.file_path).await;
+    let lock = state.write_lock(&db).await;
     let _guard = lock.lock().await;
     let settings = state.engine.clone();
     let timeout_ms = state.clamp_timeout_ms(request.timeout_ms);
@@ -404,7 +354,7 @@ pub(super) async fn ingest_op(
     }
     let (db, created) =
         resolve_writable_database(state, identity, &request.db, request.create_db_if_missing)?;
-    let db_path = PathBuf::from(&db.file_path);
+    let db_path = db.clone();
     if let Some(parent) = db_path.parent() {
         tokio::fs::create_dir_all(parent)
             .await
@@ -435,7 +385,7 @@ pub(super) async fn ingest_op(
         }
     };
 
-    let lock = state.write_lock(&db.file_path).await;
+    let lock = state.write_lock(&db).await;
     let _guard = lock.lock().await;
     let settings = state.engine.clone();
     let timeout_ms = state.clamp_timeout_ms(None);
@@ -591,9 +541,8 @@ async fn fetch_ingest_uri(
 
 pub(super) async fn export_op(
     state: &Arc<AppState>,
-    artifact_writer: &ArtifactWriteContext,
+    artifact_writer: &ArtifactWriter,
     identity: &GatewayInternalIdentity,
-    owner: &TaskOwner,
     request: DuckDbExportRequest,
 ) -> Result<DuckDbExportOutput, McpError> {
     let (extension, mime_type, copy_options) = export_file_details(request.format);
@@ -606,8 +555,8 @@ pub(super) async fn export_op(
                 ));
             }
             let db = resolve_readable_database(state, identity, &request.db)?;
-            let db_path = require_data_file(&request.db, &db.file_path)?;
-            let lock = state.write_lock(&db.file_path).await;
+            let db_path = require_data_file(&request.db, &db)?;
+            let lock = state.write_lock(&db).await;
             let _guard = lock.lock().await;
             let settings = state.engine.clone();
             let timeout_ms = state.clamp_timeout_ms(None);
@@ -637,16 +586,11 @@ pub(super) async fn export_op(
             let artifact = put_op_artifact(
                 state,
                 artifact_writer,
-                owner,
                 bytes,
                 mime_type,
                 format!("{}_snapshot.{extension}", request.db),
-                json!({
-                    "op": "export",
-                    "db": request.db.as_str(),
-                    "selection": "database",
-                    "task_id": owner.task_id,
-                }),
+                DuckDbArtifactOrigin::new(request.db.clone(), DuckDbArtifactOperation::Snapshot {})
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
             Ok(DuckDbExportOutput {
@@ -674,7 +618,7 @@ pub(super) async fn export_op(
                 DuckDbExportSelection::Database => unreachable!("handled above"),
             };
             let db = resolve_readable_database(state, identity, &request.db)?;
-            let db_path = require_data_file(&request.db, &db.file_path)?;
+            let db_path = require_data_file(&request.db, &db)?;
             let exchange = fresh_exchange_dir(state);
             tokio::fs::create_dir_all(&exchange)
                 .await
@@ -713,25 +657,24 @@ pub(super) async fn export_op(
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?;
             cleanup_exchange_dir(&exchange).await;
-            let selection_label = match selection {
-                DuckDbExportSelection::Table { table } => json!({"table": table}),
-                DuckDbExportSelection::Sql { .. } => json!("sql"),
+            let operation = match selection {
+                DuckDbExportSelection::Table { table } => DuckDbArtifactOperation::ExportTable {
+                    table: table.trim().to_owned(),
+                    row_count: rows_exported,
+                },
+                DuckDbExportSelection::Sql { .. } => DuckDbArtifactOperation::ExportSql {
+                    row_count: rows_exported,
+                },
                 DuckDbExportSelection::Database => unreachable!("handled above"),
             };
             let artifact = put_op_artifact(
                 state,
                 artifact_writer,
-                owner,
                 bytes,
                 mime_type,
                 format!("{}_export.{extension}", request.db),
-                json!({
-                    "op": "export",
-                    "db": request.db.as_str(),
-                    "selection": selection_label,
-                    "row_count": rows_exported,
-                    "task_id": owner.task_id,
-                }),
+                DuckDbArtifactOrigin::new(request.db.clone(), operation)
+                    .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
             Ok(DuckDbExportOutput {

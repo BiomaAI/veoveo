@@ -1,15 +1,14 @@
-use std::collections::BTreeMap;
-
 use rmcp::{
     ErrorData as McpError,
     model::{CallToolResult, ContentBlock, Resource},
 };
 use veoveo_duckdb_mcp::contract::{
     DuckDbExecuteOutput, DuckDbExportOutput, DuckDbIngestOutput, DuckDbQueryOutput,
+    DuckDbUsageDetails,
 };
 use veoveo_mcp_contract::{UsageKind, UsageRecord, now_utc};
 use veoveo_platform_store::{DomainUsageDraft, DomainUsageKind, DomainUsageRecord, OpenObject};
-use veoveo_types::TaskId;
+use veoveo_types::{TaskId, TaskTypeDefinition};
 
 use super::app_state::AppState;
 
@@ -119,26 +118,24 @@ pub(super) fn export_result(output: &DuckDbExportOutput) -> Result<CallToolResul
 
 pub(super) async fn record_op_usage(
     state: &AppState,
-    task_id: &str,
-    op: &'static str,
+    task_id: TaskId,
     quantity: u64,
-    metadata: serde_json::Value,
+    metadata: DuckDbUsageDetails,
 ) -> anyhow::Result<()> {
-    let metadata = match metadata {
-        serde_json::Value::Object(values) => {
-            OpenObject::new(values.into_iter().collect::<BTreeMap<_, _>>())
-        }
-        value => OpenObject::new(BTreeMap::from([("value".to_owned(), value)])),
+    let operation = metadata.operation();
+    let serde_json::Value::Object(values) = serde_json::to_value(metadata)? else {
+        anyhow::bail!("DuckDB usage metadata must serialize as an object");
     };
+    let metadata = OpenObject::new(values.into_iter().collect());
     state
         .tasks
         .platform_store()
         .upsert_domain_usage(DomainUsageDraft {
-            task_id: task_id.parse::<TaskId>()?,
+            task_id,
             server: "duckdb".to_owned(),
             source_id: None,
             provider_job_id: None,
-            model_id: format!("duckdb/{op}"),
+            model_id: format!("duckdb/{}", operation.name()),
             kind: DomainUsageKind::Actual,
             quantity: Some(quantity as f64),
             unit: Some("row".to_owned()),

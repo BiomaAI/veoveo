@@ -1,5 +1,7 @@
 #[path = "contract/catalog.rs"]
 mod catalog;
+#[path = "contract/execution.rs"]
+mod execution;
 #[path = "contract/resources.rs"]
 mod resources;
 use serde_json::{Value, json};
@@ -39,7 +41,11 @@ fn schemas_match_the_declared_contract() {
         DuckDbDatabasePage,
         DuckDbDatabaseSchema,
         DuckDbTableSchema,
-        DuckDbSchemaColumn
+        DuckDbSchemaColumn,
+        DuckDbArtifactOrigin,
+        DuckDbArtifactOperation,
+        DuckDbUsageDetails,
+        DuckDbQueryUsage
     );
 }
 

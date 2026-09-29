@@ -195,7 +195,7 @@ feature depends on foundational values, Serde, Schemars, UUID and Base64 support
 the lightweight Artifact contract. It excludes the DuckDB binding, MCP
 integration, asynchronous runtime, database client and artifact-service client.
 
-The `runtime` feature adds the engine adapter, owner models, Artifact client, usage
+The `runtime` feature adds the engine adapter, filesystem catalog, Artifact client, usage
 reader and Task runtime. The default `mcp` feature adds the hosted binary and its
 protocol and process dependencies. Feature gates apply to dependencies as well as
 modules. `DuckDbResource` owns database, document, Artifact, usage and App addresses
@@ -240,7 +240,8 @@ keeps it distinct from every tenant name. The first 128 digest bits name the dir
 
 Different profiles receive different mutable database workspaces even for the
 same principal. Data labels remain authorization and artifact-classification
-state; they are not part of the physical filename.
+state; they are not part of the physical filename. File resolution and per-file
+writer locks keep `PathBuf` values through the engine adapter.
 
 ### Database Catalog And Schema Reads
 
@@ -769,22 +770,21 @@ byte access and grants.
 
 Resource and template lists use cursor pagination with a page size of 100.
 
-### Usage Catalog Deployment
+### Deployment
 
-The array-to-page usage response requires a coordinated client/server upgrade. Update
-catalog consumers to `DuckDbUsagePage`, follow `next_cursor` through the declared
-template, and invalidate discovery caches that enumerated Task or database resources.
-The shared Workbench already implements this page format. Stop admission of new
-mutating Tasks and allow `execute` and `ingest` to settle before replacing the
-singleton server; its declared recovery classes continue to govern interrupted work.
-Do not overlap array-producing and page-producing service revisions.
+Deploy the server and catalog consumers together. Consumers decode `DuckDbUsagePage`
+and follow `next_cursor` through its declared template; the shared Workbench implements
+this format. Artifact origins use `DuckDbArtifactOrigin`, and stored operation facts
+use `DuckDbUsageDetails`. Stop admission of new mutating Tasks and allow `execute` and
+`ingest` to settle before replacing the singleton server. Its recovery classes govern
+interrupted work in the current format.
 
-Task requests, exact usage report fields, emitted per-Task URIs and stored usage rows
-need no conversion. Hand-written aliases must be refreshed to canonical Task URIs.
-Rollback restores the previous service and catalog clients together against the same
-data. The server provides no array compatibility adapter. Installed acceptance must
-qualify more than 100 visible Tasks among denied rows, exact reads, current authority,
-root/template discovery and Workbench navigation before this cut is accepted.
+The foundations rollout uses a fresh disposable installation and supports no historical
+data conversion or mixed-format service overlap. Recovery checks cover retained
+current-format requests and identities. Installed acceptance must qualify more than
+100 visible Tasks among denied rows, exact reads, current authority, root/template
+discovery and Workbench navigation. The [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
+tracks this qualification and the coordinated reset.
 
 ## Shared Artifact Plane
 
@@ -800,8 +800,8 @@ duckdb://artifact/{artifact_id}   DuckDB presentation identity
 
 The artifact service stamps tenant and owner from the verified identity, records
 the owner grant, applies label clearance, encrypts under tenant scope, and stores
-the bytes. DuckDB attaches the task owner's data labels as artifact compliance
-metadata.
+the bytes. DuckDB attaches the verified execution identity's data labels as
+artifact compliance metadata.
 
 Direct query artifact output writes under the live caller. Task-based query and
 export reserve a bounded write capability while the live caller is present. The
@@ -812,12 +812,31 @@ key.
 Task recovery can therefore complete an authorized read/export without minting
 a background principal or persisting a bearer token.
 
+`DuckDbArtifactOrigin` describes output facts as `{db, operation, task_id?}`.
+The operation is a closed query, table-export, SQL-export or snapshot variant. Row
+counts belong to the variants that know them; table names must be nonempty. Direct
+calls omit `task_id`. The Task association requires a native UUIDv7 and is checked
+again when metadata is decoded. The Artifact plane owns authorization and attribution.
+
+`server/artifact_output.rs` constructs a writer for the verified direct caller or a
+Task-bound capability. Before publication it checks capability/Task agreement,
+operation agreement and any supplied origin Task. The writer supplies the output's
+Task association and labels. Its idempotency key derives from the typed Task and
+operation. The server converts origin metadata to JSON only at the Artifact API.
+
 ## Durable Tasks and Recovery
 
 The shared task runtime stores DuckDB task requests, owners, leases, progress,
 results, cancellation state, retention pins, and usage in SurrealDB. Task ids
 are UUIDv7 values. A task is visible only when principal, profile, tenant, and
 data-label checks match the durable owner record.
+
+`server/tasks.rs` owns parsing, scheduling, heartbeats, recovery and execution.
+Native IDs stay typed through those operations and usage recording. The existing
+TaskRuntime and Artifact-service string interfaces serialize IDs at their call sites.
+`DuckDbUsageDetails` owns each operation's usage facts and derives its model name from
+`DuckDbTaskKind`; database and Artifact IDs retain their owner types. Conversion to
+Store's open metadata occurs immediately before the usage write.
 
 Current task timing is:
 

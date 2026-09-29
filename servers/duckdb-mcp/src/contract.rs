@@ -1,7 +1,9 @@
+mod artifact_origin;
 mod catalog;
 mod resources;
 mod scopes;
 mod task_kind;
+pub use artifact_origin::*;
 pub use catalog::*;
 pub use resources::*;
 pub use scopes::DuckDbScope;
@@ -15,7 +17,9 @@ use veoveo_artifact_contract::ArtifactMetadata;
 mod read_sql;
 mod source;
 mod usage;
+mod usage_metadata;
 pub use usage::*;
+pub use usage_metadata::*;
 
 pub use read_sql::{
     DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,

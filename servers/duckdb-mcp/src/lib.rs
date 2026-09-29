@@ -14,8 +14,6 @@ pub mod contract;
 pub use contract::*;
 #[cfg(feature = "runtime")]
 pub mod engine;
-#[cfg(feature = "runtime")]
-pub mod state;
 #[cfg(feature = "contract")]
 pub mod uris;
 

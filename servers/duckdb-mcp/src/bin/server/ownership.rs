@@ -6,10 +6,7 @@ use std::{
 use chrono::{TimeDelta, Utc};
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
 use sha2::{Digest, Sha256};
-use veoveo_duckdb_mcp::{
-    contract::DuckDbDatabaseId,
-    state::{DatabaseOwner, TaskOwner},
-};
+use veoveo_duckdb_mcp::contract::DuckDbDatabaseId;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalIdentity, GatewayProfileId, JwtId, PlaneCaller,
     Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
@@ -69,44 +66,6 @@ pub(super) fn caller_from(identity: GatewayInternalIdentity, bearer: String) -> 
         identity,
         memberships,
     }
-}
-
-pub(super) fn task_owner_from_identity(
-    task_id: &str,
-    identity: &GatewayInternalIdentity,
-) -> TaskOwner {
-    TaskOwner {
-        task_id: task_id.to_owned(),
-        principal_id: identity.actor.id.clone(),
-        profile: identity.profile.clone(),
-        tenant: identity.actor.tenant.clone(),
-        data_labels: identity.actor.data_labels.clone(),
-    }
-}
-
-pub(super) fn task_owner_from_runtime(
-    task_id: &str,
-    owner: &veoveo_task_runtime::TaskOwner,
-) -> Result<TaskOwner, String> {
-    Ok(TaskOwner {
-        task_id: task_id.to_owned(),
-        principal_id: PrincipalId::new(owner.principal_key.clone())
-            .map_err(|error| error.to_string())?,
-        profile: GatewayProfileId::new(owner.profile.clone()).map_err(|error| error.to_string())?,
-        tenant: owner
-            .tenant_key
-            .clone()
-            .map(TenantId::new)
-            .transpose()
-            .map_err(|error| error.to_string())?,
-        data_labels: owner
-            .data_labels
-            .iter()
-            .cloned()
-            .map(veoveo_types::DataLabelId::new)
-            .collect::<Result<_, _>>()
-            .map_err(|error| error.to_string())?,
-    })
 }
 
 pub(super) fn runtime_owner(identity: &GatewayInternalIdentity) -> veoveo_task_runtime::TaskOwner {
@@ -204,22 +163,6 @@ pub(super) fn database_file_path(
     owner_directory(&state.dirs.database_dir, identity).join(format!("{db_id}.duckdb"))
 }
 
-fn derived_database_owner(
-    state: &AppState,
-    identity: &GatewayInternalIdentity,
-    db_id: DuckDbDatabaseId,
-) -> DatabaseOwner {
-    let file_path = database_file_path(state, identity, &db_id);
-    DatabaseOwner {
-        db_id,
-        principal_id: identity.actor.id.clone(),
-        profile: identity.profile.clone(),
-        tenant: identity.actor.tenant.clone(),
-        data_labels: identity.actor.data_labels.clone(),
-        file_path: file_path.to_string_lossy().into_owned(),
-    }
-}
-
 pub(super) async fn database_page_for_identity(
     database_root: &Path,
     identity: &GatewayInternalIdentity,
@@ -239,10 +182,10 @@ pub(super) fn resolve_readable_database(
     state: &AppState,
     identity: &GatewayInternalIdentity,
     db_id: &DuckDbDatabaseId,
-) -> Result<DatabaseOwner, McpError> {
-    let owner = derived_database_owner(state, identity, db_id.clone());
-    if PathBuf::from(&owner.file_path).is_file() {
-        Ok(owner)
+) -> Result<PathBuf, McpError> {
+    let path = database_file_path(state, identity, db_id);
+    if path.is_file() {
+        Ok(path)
     } else {
         Err(McpError::invalid_params(
             format!("unknown database `{db_id}`"),
@@ -256,72 +199,22 @@ pub(super) fn resolve_writable_database(
     identity: &GatewayInternalIdentity,
     db_id: &DuckDbDatabaseId,
     create_if_missing: bool,
-) -> Result<(DatabaseOwner, bool), McpError> {
-    let owner = derived_database_owner(state, identity, db_id.clone());
-    let exists = PathBuf::from(&owner.file_path).is_file();
+) -> Result<(PathBuf, bool), McpError> {
+    let path = database_file_path(state, identity, db_id);
+    let exists = path.is_file();
     if !exists && !create_if_missing {
         return Err(McpError::invalid_params(
             format!("unknown database `{db_id}`; pass create_if_missing to create it"),
             None,
         ));
     }
-    Ok((owner, !exists))
+    Ok((path, !exists))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{PrincipalAssurance, TokenSubject};
-    use veoveo_types::{
-        AccessSubject, DataLabelId, GroupId, InvocationProvenance, PolicyVersion, RoleId,
-        ScopeName, WorkContextId,
-    };
-    use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
-
-    fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
-        let now = Utc::now();
-        let issuer = TokenIssuer::new("https://idp.example.test").unwrap();
-        let actor = Principal {
-            id: PrincipalId::new(format!("principal-{subject}")).unwrap(),
-            kind: PrincipalKind::User,
-            issuer,
-            subject: TokenSubject::new(subject).unwrap(),
-            tenant: Some(TenantId::new("tenant-a").unwrap()),
-            groups: BTreeSet::<GroupId>::new(),
-            group_roles: BTreeSet::new(),
-            roles: BTreeSet::<RoleId>::new(),
-            scopes: BTreeSet::<ScopeName>::new(),
-            data_labels: BTreeSet::<DataLabelId>::new(),
-            assurances: BTreeSet::<PrincipalAssurance>::new(),
-            authenticated_at: Some(now),
-        };
-        GatewayInternalIdentity {
-            issuer: TokenIssuer::new(GATEWAY_INTERNAL_TOKEN_ISSUER).unwrap(),
-            profile: GatewayProfileId::new(profile).unwrap(),
-            server: ServerSlug::new("duckdb").unwrap(),
-            actor: actor.clone(),
-            authority: InvocationAuthority {
-                work_context: WorkContextId::new("mission").unwrap(),
-                tenant: TenantId::new("tenant-a").unwrap(),
-                membership: WorkContextMembershipLevel::Owner,
-                policy_revision: PolicyVersion::new("r1").unwrap(),
-                output_policy: WorkContextOutputPolicy {
-                    owner: AccessSubject::Principal(actor.id.clone()),
-                    initial_grants: Vec::new(),
-                    classification: None,
-                    data_labels: BTreeSet::new(),
-                },
-                provenance: InvocationProvenance::Direct {
-                    initiator: actor.id,
-                },
-            },
-            request_context: None,
-            jwt_id: JwtId::new(uuid::Uuid::now_v7().to_string()).unwrap(),
-            issued_at: now,
-            not_before: now,
-            expires_at: now + TimeDelta::minutes(5),
-        }
-    }
+    use crate::test_support::identity;
 
     #[test]
     fn owner_storage_key_is_canonical_and_profile_scoped() {

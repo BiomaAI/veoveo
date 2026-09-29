@@ -20,7 +20,7 @@ impl fmt::Display for DuckDbUsageError {
 }
 impl std::error::Error for DuckDbUsageError {}
 
-fn task_identity(id: TaskId) -> Result<TaskId, DuckDbUsageError> {
+pub(super) fn task_identity(id: TaskId) -> Result<TaskId, DuckDbUsageError> {
     (id.as_uuid().get_version_num() == 7 && id.as_uuid().get_variant() == uuid::Variant::RFC4122)
         .then_some(id)
         .ok_or(DuckDbUsageError)
