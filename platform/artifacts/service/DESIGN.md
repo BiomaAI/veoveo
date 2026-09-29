@@ -26,16 +26,16 @@ Resolution and streaming client methods accept the domain's `ArtifactUri`. HTTP 
 decoding validates external addresses before service resolution. The occurrence comes
 from that parsed address; authorization still uses the current caller and ledger.
 Metadata derives its ID from the URI and rejects mismatched pairs on wire decoding.
-The domain's [identity and address compatibility profile](../contract/DESIGN.md#address-and-identity-compatibility)
-declares supported spellings, retained-data checks, and rollback semantics.
+The domain's [identity and address profile](../contract/DESIGN.md#address-and-identity-profile)
+declares supported spellings and identity agreement.
 
 Occurrence publication and repository reads construct Artifact provenance from the
 checked invocation authority. The domain contract preserves the flat metadata wire
 profile while using `InvocationProvenance` internally. Stored authority reconstruction
 rejects contradictory or incomplete attribution before producing metadata; it never
 infers a missing initiator or delegation identity. The model's
-[compatibility profile](../contract/DESIGN.md#attribution-wire-compatibility) specifies
-the supported mode/identity combinations and mixed-version read behavior.
+[attribution wire profile](../contract/DESIGN.md#attribution-wire-profile) specifies
+the supported mode and identity combinations.
 
 ## Blob Backend Profiles
 

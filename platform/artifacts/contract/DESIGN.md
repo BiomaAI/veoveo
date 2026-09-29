@@ -66,41 +66,27 @@ decoding. `TryFrom<Uuid>` checks version and variant when a driver provides a UU
 Optional `download_url` typing and remaining access/service contracts are work in the
 [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
-## Address And Identity Compatibility
+## Address And Identity Profile
 
-The 0.1.x metadata profile keeps its field names and string representations. Generated
-URIs use lowercase hyphenated UUIDs. The parser preserves accepted input spelling,
-including uppercase and simple UUID forms in neutral or presented addresses and
-`urn:uuid:` inside a presentation's path segment. Standalone occurrence IDs also
+Generated URIs use lowercase hyphenated UUIDs. The parser preserves accepted input
+spelling, including uppercase and simple UUID forms in neutral or presented addresses
+and `urn:uuid:` inside a presentation's path segment. Standalone occurrence IDs also
 accept the UUID library's braced and URN spellings. Those spellings are not valid
 neutral URI authorities. Encoded aliases and braced URI templates are rejected.
 
 Readers compare occurrence identities through `artifact_id()` and resource spelling
 through `ArtifactUri` equality. The download client additionally requires the Artifact
-service's canonical neutral metadata address. JSON schemas describe string references;
-domain decoding enforces the route, UUID, and cross-field relationship requirements.
+service's neutral metadata address in its generated spelling. JSON schemas describe
+string references; domain decoding enforces route, UUID and cross-field requirements.
+Malformed input, non-RFC UUID variants and contradictory ID/URI pairs fail admission.
+The private metadata wire type exposes the repeated ID and checks its agreement with
+the parsed URI before constructing the model.
 
-The Artifact owner supports mixed 0.1.x readers and writers for these valid metadata
-forms. No wire conversion or drain is required for service-generated occurrences,
-which already use RFC-variant UUIDv7 identities and the neutral URI builder's spelling.
-The private metadata wire adapter stays for the lifetime of this public profile;
-removing its repeated ID requires a separately versioned metadata protocol.
+## Attribution Wire Profile
 
-The coordinated foundations upgrade rejects previously permissive malformed URI
-input, non-RFC UUID variants, and contradictory ID/URI pairs. Producers must use the
-actual occurrence's returned identity and a supported address form. Before an upgrade
-over retained data, operators must validate stored references with these decoders and
-investigate rejected rows. Do not mint replacement IDs or reinterpret a contradictory
-pair. This change performs no persistent rewrite; repair requires an explicit owner
-decision and recoverable data procedure. Rollback reads unchanged valid records.
-Reference-installation rebuild and installed consumers still require qualification.
-
-## Attribution Wire Compatibility
-
-The Artifact 0.1.x JSON profile carries `producer`, `invocation_mode`, `initiator`,
-`delegation_id`, and `policy_revision` as flat fields. A private wire adapter maps
-that profile to the foundational invocation enum. It is a serialization interface;
-authorization uses the service's verified invocation authority.
+Artifact JSON carries `producer`, `invocation_mode`, `initiator`, `delegation_id` and
+`policy_revision` as flat fields. A private wire type maps those fields to the
+foundational invocation enum. Authorization uses the service's verified invocation authority.
 
 | Mode | Required attribution | Other attribution fields |
 |---|---|---|
@@ -108,26 +94,15 @@ authorization uses the service's verified invocation authority.
 | `delegated` | `initiator`, `delegation_id` | Both identities must be non-null |
 | `automated` | None | `initiator` and `delegation_id` must be omitted or null |
 
-Serialization omits absent fields. Unknown extra JSON fields retain the 0.1.x
-admission behavior. The private wire type uses an optional uninhabited type for
-inapplicable identities, so neither JSON decoding nor the schema admits a value there.
-This also rejects empty objects, which a Serde unit field can otherwise accept inside
-an internally tagged enum.
+Serialization omits absent fields. Decoding ignores unknown extra JSON fields. The
+private wire type uses an optional uninhabited type for inapplicable identities,
+which rejects values including empty objects. Contradictory attribution and incomplete
+delegated or direct claims fail decoding. External producers supply the identities
+their claimed mode requires.
 
-Older and current readers consume the same valid 0.1.x representations. Golden cases
-qualify every mode against the previous schema and the typed decoder. This permits mixed-version
-service/client operation without a drain or wire conversion. Contradictory attribution
-and incomplete delegated/direct claims fail decoding; no default actor or mode repairs
-them. External producers must supply the identities their claimed mode requires.
-
-The Artifact ledger stores invocation authority separately and already rejects those
-invalid combinations while reconstructing `InvocationProvenance`. Metadata is built
-from that checked authority when an occurrence is published or read. This change
-requires no persistent rewrite. Existing records with contradictory authority remain
-corrupt and require operator investigation; changing metadata cannot establish who
-initiated the work. Rollback reads the unchanged valid representation. The Rust library
-uses one internal model, with no old field aliases. The 0.1.x wire adapter stays while
-that public profile is supported; removal requires a versioned metadata protocol.
+The Artifact ledger stores invocation authority separately and validates it while
+reconstructing `InvocationProvenance`. Publication and repository reads build metadata
+from that checked authority. Metadata alone cannot establish who initiated the work.
 
 ## Qualification
 
@@ -136,7 +111,7 @@ UUID admission and canonical serialization, round-trip nested metadata, and reje
 invalid nested identities. URI tests cover independent and standard schemes, accepted
 UUID spellings, version/variant admission, malformed components, input-free errors,
 and metadata identity agreement. Compile-fail cases reject raw or unrelated IDs and
-unvalidated schemes. A previous metadata schema qualifies valid 0.1.x output.
+unvalidated schemes. Generated schemas qualify current metadata output.
 An independently resolved consumer must exclude service and adapter dependencies.
 MCP and service tests qualify authorization and transport behavior separately.
 Attribution checks cover schema/decoder agreement for all mode and identity-presence

@@ -33,10 +33,9 @@ fn invocations() -> [(InvocationProvenance, Value); 3] {
 }
 
 #[test]
-fn typed_invocation_preserves_valid_0_1_metadata() {
-    let previous: Value =
-        serde_json::from_str(include_str!("fixtures/provenance-0.1.json")).unwrap();
-    let previous = jsonschema::validator_for(&previous).unwrap();
+fn typed_invocation_matches_current_wire_profile() {
+    let schema = serde_json::to_value(schemars::schema_for!(ArtifactProvenance)).unwrap();
+    let validator = jsonschema::validator_for(&schema).unwrap();
     for (invocation, mut wire) in invocations() {
         wire["producer"] = json!("issuer#worker");
         wire["policy_revision"] = json!("v1");
@@ -47,19 +46,19 @@ fn typed_invocation_preserves_valid_0_1_metadata() {
         );
         let serialized = serde_json::to_value(&typed).unwrap();
         assert_eq!(serialized, wire);
-        assert!(previous.is_valid(&serialized));
+        assert!(validator.is_valid(&serialized));
         assert_eq!(
             serde_json::from_value::<ArtifactProvenance>(wire.clone()).unwrap(),
             typed
         );
-        // Existing optional fields admit explicit null and omit it on output.
+        // Optional fields admit explicit null and omit it on output.
         if invocation.initiator().is_none() {
             wire["initiator"] = Value::Null;
         }
         if !matches!(invocation, InvocationProvenance::Delegated { .. }) {
             wire["delegation_id"] = Value::Null;
         }
-        assert!(previous.is_valid(&wire));
+        assert!(validator.is_valid(&wire));
         assert_eq!(
             serde_json::from_value::<ArtifactProvenance>(wire).unwrap(),
             typed

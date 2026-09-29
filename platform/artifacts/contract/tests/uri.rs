@@ -153,10 +153,9 @@ fn metadata_identity_is_derived_and_conflicting_wire_identity_is_rejected() {
         encoded["artifact_uri"],
         format!("independent-domain://artifact/{ID}")
     );
-    let old_schema: Value =
-        serde_json::from_str(include_str!("fixtures/metadata-0.1.json")).unwrap();
+    let schema = serde_json::to_value(schemars::schema_for!(ArtifactMetadata)).unwrap();
     assert!(
-        jsonschema::validator_for(&old_schema)
+        jsonschema::validator_for(&schema)
             .unwrap()
             .is_valid(&encoded)
     );

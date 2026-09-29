@@ -1282,6 +1282,13 @@ Compiler and Docker caches are preserved; reference workloads stay stopped with 
 free. Artifact references, remaining digest/DTO relationships, coordinate-frame references
 and installed qualification remain open.
 
+Artifact contract qualification now validates current metadata and attribution against
+the generated schemas. The two historical-schema fixtures and the owning designs'
+mixed-version, retained-data audit and rollback instructions are removed. Fourteen
+native contract cases and four compile-fail examples pass. Native construction,
+identity admission and attribution rules are unchanged; current-format recovery stays
+with the service. This follows the plan's coordinated hard-cut rule.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
