@@ -70,6 +70,7 @@ Component designs live beside the code whose contract they specify:
 | [`mcp/contract/src/agent_management/DESIGN.md`](../mcp/contract/src/agent_management/DESIGN.md) | authoring DTOs, installation model/template validation and generated browser schema |
 | [`apps/workspace/DESIGN.md`](../apps/workspace/DESIGN.md) | daily productivity client: shared-chat presentation, private Activity, live updates and client acceptance |
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
+| [`platform/gateway/DESIGN.md`](../platform/gateway/DESIGN.md) | MCP forwarding, protocol resource projection, App links and preservation of server-owned payloads and extension metadata |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
 | [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
@@ -588,7 +589,7 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 | `control_store.rs` | immutable SurrealDB control revisions and activation |
 | `auth/` | access tokens, OIDC, ID-JAG, client assertions, immutable principals, and independently typed OIDC display labels |
 | `policy.rs` | gateway catalog adapter for the shared evaluator in `platform/policy` |
-| `mcp_support.rs` | MCP URI rewriting, including declared cross-server resource identities |
+| `mcp_support.rs` | MCP resource envelope and App-link projection, declared cross-server protocol links, and preservation of domain payloads and unknown extension metadata |
 | `mcp/authorization.rs` | per-method/profile/server target authorization |
 | `mcp/discovery.rs` | discovery descriptors and upstream resource mappings keyed by caller authority, concurrency limits, per-server failure isolation, and list-change invalidation |
 | `mcp/tools.rs` | aggregated tool list with opt-in compatibility helpers; isolates a failing server by default and fails the whole list for `fail_closed` discovery profiles |

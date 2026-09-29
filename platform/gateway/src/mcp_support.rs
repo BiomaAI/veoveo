@@ -120,11 +120,7 @@ pub(crate) fn project_listed_resource_uri(
 ) -> Result<(), McpError> {
     resource.uri = project_upstream_resource_uri_for_gateway(server, &resource.uri)?.to_string();
     if let Some(meta) = &mut resource.meta {
-        let mut value = Value::Object(meta.0.clone());
-        project_meta_resource_uris(server, &mut value)?;
-        if let Value::Object(projected) = value {
-            meta.0 = projected;
-        }
+        project_app_resource_metadata(server, meta)?;
     }
     Ok(())
 }
@@ -225,11 +221,7 @@ pub(crate) fn project_resource_template_uri(
         };
     }
     if let Some(meta) = &mut template.meta {
-        let mut value = Value::Object(meta.0.clone());
-        project_meta_resource_uris(server, &mut value)?;
-        if let Value::Object(projected) = value {
-            meta.0 = projected;
-        }
+        project_app_resource_metadata(server, meta)?;
     }
     Ok(())
 }
@@ -239,11 +231,7 @@ pub(crate) fn project_tool_resource_metadata(
     tool: &mut Tool,
 ) -> Result<(), McpError> {
     if let Some(meta) = &mut tool.meta {
-        let mut value = Value::Object(meta.0.clone());
-        project_meta_resource_uris(server, &mut value)?;
-        if let Value::Object(projected) = value {
-            meta.0 = projected;
-        }
+        project_app_resource_metadata(server, meta)?;
     }
     Ok(())
 }
@@ -253,25 +241,14 @@ pub(crate) fn project_call_tool_resource_uris(
     result: &mut CallToolResult,
 ) -> Result<(), McpError> {
     if let Some(meta) = &mut result.meta {
-        let mut value = Value::Object(meta.0.clone());
-        project_meta_resource_uris(server, &mut value)?;
-        if let Value::Object(projected) = value {
-            meta.0 = projected;
-        }
-    }
-    if let Some(structured) = &mut result.structured_content {
-        project_meta_resource_uris(server, structured)?;
+        project_app_resource_metadata(server, meta)?;
     }
     for content in &mut result.content {
         match content {
             ContentBlock::Resource(resource) => {
                 project_resource_content_uri(server, &mut resource.resource)?;
                 if let Some(meta) = &mut resource.meta {
-                    let mut value = Value::Object(meta.0.clone());
-                    project_meta_resource_uris(server, &mut value)?;
-                    if let Value::Object(projected) = value {
-                        meta.0 = projected;
-                    }
+                    project_app_resource_metadata(server, meta)?;
                 }
             }
             ContentBlock::ResourceLink(resource) => {
@@ -297,25 +274,23 @@ fn project_resource_content_uri(
     Ok(())
 }
 
-fn project_meta_resource_uris(server: &ServerManifest, value: &mut Value) -> Result<(), McpError> {
-    match value {
-        Value::String(text) if split_resource_uri(text).is_some() => {
-            if let Ok(projected) = project_upstream_resource_uri_for_gateway(server, text) {
-                *text = projected.to_string();
-            }
-        }
-        Value::Array(values) => {
-            for value in values {
-                project_meta_resource_uris(server, value)?;
-            }
-        }
-        Value::Object(object) => {
-            for value in object.values_mut() {
-                project_meta_resource_uris(server, value)?;
-            }
-        }
-        _ => {}
-    }
+/// Only the MCP Apps resource link is a routable address inside extensible metadata.
+/// Domain payloads and other extension fields keep their upstream values.
+fn project_app_resource_metadata(
+    server: &ServerManifest,
+    meta: &mut rmcp::model::MetaObject,
+) -> Result<(), McpError> {
+    let Some(uri) = meta
+        .0
+        .get_mut(veoveo_mcp_apps_extension::UI_META_KEY)
+        .and_then(|ui| ui.get_mut("resourceUri"))
+    else {
+        return Ok(());
+    };
+    let original = uri
+        .as_str()
+        .ok_or_else(|| mcp_internal("MCP Apps resourceUri must be a resource URI string"))?;
+    *uri = Value::String(project_upstream_resource_uri_for_gateway(server, original)?.to_string());
     Ok(())
 }
 
@@ -615,7 +590,7 @@ mod tests {
     }
 
     #[test]
-    fn server_owned_projection_updates_tool_result_structured_resource_uris() {
+    fn server_owned_projection_preserves_tool_result_structured_resource_uris() {
         let server = test_server("charts", "charts", ResourceProjectionMode::ServerOwned);
         let mut result = CallToolResult::success(vec![]);
         result.structured_content = Some(serde_json::json!({
@@ -630,30 +605,79 @@ mod tests {
         let structured = result.structured_content.unwrap();
         assert_eq!(
             structured["resources"][0].as_str(),
-            Some("charts://chart-types")
+            Some("vendor://chart-types")
         );
         assert_eq!(
             structured["resources"][1]["resourceUri"].as_str(),
-            Some("ui://charts/chart-view.html")
+            Some("ui://vendor/chart-view.html")
         );
     }
 
     #[test]
-    fn server_owned_projection_preserves_declared_cross_server_resource_uris() {
-        let mut server = test_server(
+    fn projection_changes_only_protocol_addresses_and_the_app_link() {
+        let server = test_server("frames", "frames", ResourceProjectionMode::ServerOwned);
+        let payload = serde_json::json!({
+            "tree": {
+                "frames": [{"parent_transform": {
+                    "kind": "dynamic_stream",
+                    "stream_uri": "uav-sim://session/showcase",
+                    "entity_path": "/world/vehicle/1"
+                }}]
+            },
+            "independent": "new-producer://session/alpha",
+            "ui": {"resourceUri": "ui://producer/data.html"}
+        });
+        let metadata = serde_json::json!({
+            "ui": {"resourceUri": "ui://vendor/world.html", "visibility": ["app"]},
+            "ai.veoveo/provider-data": {
+                "references": ["uav-sim://session/showcase", "new-producer://session/alpha"],
+                "nested": {"ui": {"resourceUri": "ui://producer/data.html"}}
+            }
+        });
+        let mut result = CallToolResult::success(vec![ContentBlock::ResourceLink(Resource::new(
+            "vendor://world/example",
+            "example",
+        ))]);
+        result.structured_content = Some(payload.clone());
+        result.meta = Some(rmcp::model::MetaObject(
+            metadata.as_object().unwrap().clone(),
+        ));
+        project_call_tool_resource_uris(&server, &mut result).unwrap();
+        assert_eq!(result.structured_content, Some(payload));
+        let meta = result.meta.unwrap();
+        assert_eq!(meta.0["ui"]["resourceUri"], "ui://frames/world.html");
+        assert_eq!(meta.0["ui"]["visibility"], metadata["ui"]["visibility"]);
+        assert_eq!(
+            meta.0["ai.veoveo/provider-data"],
+            metadata["ai.veoveo/provider-data"]
+        );
+        let ContentBlock::ResourceLink(link) = &result.content[0] else {
+            panic!("resource link")
+        };
+        assert_eq!(link.uri, "frames://world/example");
+    }
+
+    #[test]
+    fn malformed_app_resource_link_is_rejected_without_scanning_domain_metadata() {
+        let server = test_server("frames", "frames", ResourceProjectionMode::ServerOwned);
+        let mut result = CallToolResult::success(vec![]);
+        result.meta = Some(rmcp::model::MetaObject::new());
+        result
+            .meta
+            .as_mut()
+            .unwrap()
+            .0
+            .insert("ui".into(), serde_json::json!({"resourceUri": 12}));
+        assert!(project_call_tool_resource_uris(&server, &mut result).is_err());
+    }
+
+    #[test]
+    fn server_owned_projection_preserves_independent_producer_payloads() {
+        let server = test_server(
             "simulation-extension",
             "simulation-extension",
             ResourceProjectionMode::ServerOwned,
         );
-        server
-            .referenced_resource_schemes
-            .insert(ResourceScheme::new("artifact").unwrap());
-        server
-            .referenced_resource_schemes
-            .insert(ResourceScheme::new("frames").unwrap());
-        server
-            .referenced_resource_schemes
-            .insert(ResourceScheme::new("recording").unwrap());
         let mut result = CallToolResult::success(vec![]);
         result.structured_content = Some(serde_json::json!({
             "world": {
@@ -665,7 +689,7 @@ mod tests {
             "recording_uri": "recording://recordings/019f92d9-6837-79f1-82fa-aeea6385108e",
             "scene_asset": "artifact://019fa5c6-5070-7850-a4d0-d22dbbe8f6a1",
             "producer_spiffe_id": "spiffe://veoveo.test/simulation/anonymous",
-            "vendor_resource": "vendor://session/alpha",
+            "vendor_resource": "independent-producer://session/alpha",
             "app_resource": "ui://vendor/live.html"
         }));
 
@@ -694,11 +718,11 @@ mod tests {
         );
         assert_eq!(
             structured["vendor_resource"].as_str(),
-            Some("simulation-extension://session/alpha")
+            Some("independent-producer://session/alpha")
         );
         assert_eq!(
             structured["app_resource"].as_str(),
-            Some("ui://simulation-extension/live.html")
+            Some("ui://vendor/live.html")
         );
     }
 

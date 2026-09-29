@@ -48,7 +48,8 @@ must not claim to have resolved its frame or transformed its coordinates.
 ## Qualification
 
 The owning native tests qualify schemas, address construction, rejected inputs, world
-metadata, tree limits, canonical hashing and current UAV scenario values. Compile-fail
+metadata, tree limits, canonical hashing and current UAV scenario values. The complete
+UAV tree has a pinned digest and passes repeated JSON value and byte round trips. Compile-fail
 examples reject raw or wrong-domain construction. The MCP facade test proves public
 type identity. Independent consumers must resolve without runtime dependencies.
 Installed publication, Task delivery and conversion acceptance belong to the server.

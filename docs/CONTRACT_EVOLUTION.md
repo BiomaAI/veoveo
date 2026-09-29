@@ -375,6 +375,12 @@ on RRD, which already imports Recording's domain contract. The separation resolv
 this concrete cycle without domain dependencies in MCP core. Revision-scoped frame
 references describe coordinates; their type does not establish resolution or authority.
 
+The gateway preserves domain payloads and unknown extension metadata. Its
+[forwarding contract](../platform/gateway/DESIGN.md) projects only explicit protocol
+addresses and the MCP Apps resource link. A new producer's URI vocabulary requires no
+gateway change. Namespace conversion inside a domain value belongs to its adapter,
+which must preserve identity and digest relationships.
+
 The domain runtime owns SQL that implements its authorization and persistence rules.
 It uses Store's connection, record primitives and transaction facilities; the shared
 schema catalog stays in Store. Domain driver records and queries belong behind the

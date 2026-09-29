@@ -533,11 +533,19 @@ SurrealDB's `CONCURRENTLY` index builder before the migration commits
 out the new cleanup worker. Older workers keep working during the upgrade, and a
 rollback leaves the index in place.
 
-The gateway gives each server's Apps and opaque upstream resource schemes their own
-namespace. When a server's typed outputs refer to resources owned by another
-registered server, its manifest declares those schemes in
-`referenced_resource_schemes`. The gateway passes those URIs through unchanged and
-rejects declarations for schemes that no server in the same control plane owns.
+The [gateway forwarding design](../platform/gateway/DESIGN.md) defines resource
+projection. The gateway gives each server's MCP resource addresses and Apps their own namespace.
+Projection applies to protocol resource links, embedded resource envelope addresses,
+discovery entries and the MCP Apps `_meta.ui.resourceUri` field. A manifest's
+`referenced_resource_schemes` preserves protocol links owned by another registered
+server; the control plane checks those declarations against its registry.
+
+Structured tool results, embedded content and other extension metadata preserve their
+upstream values. Their owner defines any nested URI's meaning, including references to
+independent producers and content bound by a digest. A gateway cannot infer routing
+ownership from a string's syntax. Adding a producer therefore needs no gateway vocabulary
+change. An upstream adapter that presents vendor resources under a different scheme
+must produce coherent domain payloads itself.
 
 Refresh-token rotation is a durable compare-and-swap. The winning request stores an
 XChaCha20-Poly1305 envelope holding the successor token, only for the configured short

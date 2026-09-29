@@ -381,6 +381,30 @@ fn existing_uav_dynamic_world_keeps_its_wire_tree() {
     let tree: FrameWorldTree = serde_json::from_value(wire.clone()).unwrap();
     assert_eq!(serde_json::to_value(&tree).unwrap(), wire);
     let admitted = ValidatedWorldTree::new(tree).unwrap();
+    assert_eq!(
+        admitted.spec_digest().hex(),
+        "7941fba19b5edcce73d37e1c1bef82d98f42e9c79b5fdb19671e21d1924e3b8a"
+    );
+    let revision = FrameWorldRevision::new(
+        FrameWorldRevisionUri::new(
+            &FrameWorldId::new("showcase").unwrap(),
+            &FrameWorldRevisionId::new("revision-1").unwrap(),
+        ),
+        1.try_into().unwrap(),
+        admitted.clone(),
+        "2026-01-01T00:00:00Z".parse().unwrap(),
+    );
+    let mut wire = serde_json::to_value(&revision).unwrap();
+    for _ in 0..3 {
+        let bytes = serde_json::to_vec(&wire).unwrap();
+        let decoded: FrameWorldRevision = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(decoded, revision);
+        wire = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            serde_json::from_value::<FrameWorldRevision>(wire.clone()).unwrap(),
+            revision
+        );
+    }
     let dynamic = admitted
         .tree()
         .frames

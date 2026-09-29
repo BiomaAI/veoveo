@@ -27,7 +27,19 @@ installation's expected binding. Both Pod templates change with the binding dige
 while cache claims stay intact. Native qualification passes 263 Rust cases and 115
 Python cases, including both old/new binding mismatches and the client dependency graph.
 Scoped strict Clippy, Helm configuration, formatting, docs and identifier checks pass.
-Installed world publication, deployment and flight acceptance remain pending. The architecture catalog
+The two UAV images and its chart are published at `bbefad48`. Installed publication
+exposed a gateway defect before the installation file changed: recursive URI projection
+replaced a UAV producer URI inside the Frames tree with the Frames scheme, breaking
+its digest. The stored resource and both native feature configurations preserve the
+correct digest. Gateway projection is being restricted to protocol addresses and the
+App link; domain values and unknown extension metadata pass through unchanged. Ten
+forwarding cases pass in the freshly compiled gateway test executable, and ten isolated
+Frames contract cases pass, including the complete scenario digest and repeated JSON
+round trips. Strict library Clippy, formatting, docs and identifier checks pass.
+Publication selects only the gateway: the other changed package inputs
+are contract tests and qualification documentation. The cluster is stopped, with root GitOps and the UAV release suspended and both UAV
+Deployments drained. New image/chart selections await the corrected gateway before
+world publication, deployment and flight acceptance. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
 qualification at `783e447a`. The cluster is stopped during development. Sequential preparation of the consumed
 images resolved the cold-bootstrap I/O
@@ -1537,6 +1549,9 @@ implementation; this lifecycle correction does not complete that work.
   run affected tests together after the batch. Keep one Cargo pipeline and reuse the
   qualified feature configuration where practical. Run broad workspace checks at
   integration milestones or when shared inputs widen the affected dependency set.
+  Select affected crates and targets before adding test-name filters: filters reduce
+  execution but still compile every selected test target. Avoid `--workspace --lib`
+  for a local library correction, and keep each focused harness feature graph stable.
   Publish and perform installed acceptance once per coherent batch, rather than after
   each small edit. A failure or new change justifies repeating only the affected checks.
 - Evaluate contract adequacy during each change. Improve outdated or inexpressive
@@ -2434,7 +2449,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Publish and deploy a current Frames world binding, then finish installed workload acceptance | GitOps convergence, 17 hosted certifications and public installation verification passed at `c5d56238`. The Reason checkpoint is staged and verified. Composed UAV acceptance found a deleted Frames revision in the installation startup input; the typed publication and rollout batch passes 263 Rust and 115 Python cases and awaits installation |
+| Phase 1 reference reset | `examples/bioma/README.md` | Publish and deploy a current Frames world binding, then finish installed workload acceptance | GitOps convergence, 17 hosted certifications and public installation verification passed at `c5d56238`. The Reason checkpoint is staged and verified. Composed UAV acceptance found a deleted Frames revision in the installation startup input; the typed publication and rollout batch passes 263 Rust and 115 Python cases and is published at `bbefad48`. Live publication exposed gateway rewriting of independent producer URIs inside digest-bound domain data; protocol-only projection passes ten forwarding cases and ten Frames contract cases; gateway publication and installed acceptance are next |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |
