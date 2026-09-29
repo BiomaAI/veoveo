@@ -187,7 +187,7 @@ impl ComputersStore {
 struct Event<'a> {
     computer_id: Uuid,
     actor_key: &'a str,
-    authority: &'a veoveo_mcp_contract::InvocationAuthority,
+    authority: &'a veoveo_types::InvocationAuthority,
 }
 
 fn object(value: &impl Serialize) -> Result<OpenObject> {

@@ -1,13 +1,11 @@
 use super::*;
 use std::{collections::BTreeSet, time::Duration};
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskRuntime};
 use veoveo_types::TaskId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn owner(tenant: &str, context: &str, name: &str, profile: &str, labels: &[&str]) -> TaskOwner {
     let principal = PrincipalId::new(name).unwrap();

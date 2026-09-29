@@ -3,14 +3,12 @@ use veoveo_platform_store::task_record_id;
 use veoveo_types::TaskTypeDefinition;
 
 use serde_json::json;
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass};
 use veoveo_types::TaskId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use crate::store_fixture as fixture;
 

@@ -2,6 +2,7 @@ use chrono::{TimeDelta, Utc};
 use serde::Deserialize;
 use veoveo_computers::{ComputerActor, ComputerError};
 use veoveo_mcp_contract::*;
+use veoveo_types::InvocationAuthority;
 use veoveo_types::TenantId;
 
 #[derive(Deserialize)]

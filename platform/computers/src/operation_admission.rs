@@ -327,7 +327,7 @@ struct Event<'a> {
     operation_id: Uuid,
     action: &'a str,
     actor: &'a str,
-    authority: &'a veoveo_mcp_contract::InvocationAuthority,
+    authority: &'a veoveo_types::InvocationAuthority,
     owner: &'a str,
     grant_id: Option<Uuid>,
 }

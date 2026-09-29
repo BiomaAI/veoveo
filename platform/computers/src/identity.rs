@@ -81,7 +81,7 @@ pub(crate) fn can_mutate(caller: &TaskOwner) -> Result<()> {
     if !caller
         .authority
         .membership
-        .allows(veoveo_mcp_contract::WorkContextMembershipLevel::Contributor)
+        .allows(veoveo_types::WorkContextMembershipLevel::Contributor)
     {
         return Err(ComputerError::Forbidden);
     }

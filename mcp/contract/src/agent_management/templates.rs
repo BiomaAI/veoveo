@@ -5,7 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::{AgentModelId, AgentTemplateId};
-use crate::{GatewayProfileId, GatewayToolName, SecretReferenceId, WorkContextMembershipLevel};
+use crate::{GatewayProfileId, GatewayToolName, SecretReferenceId};
+use veoveo_types::WorkContextMembershipLevel;
 use veoveo_types::{ResourceUri, RoleId, ScopeName, Sha256Digest, TenantId, WorkContextId};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

@@ -2,8 +2,9 @@
 use std::collections::BTreeSet;
 
 use surrealdb::types::{RecordId, SurrealValue};
-use veoveo_mcp_contract::{InvocationAuthority, Principal};
+use veoveo_mcp_contract::Principal;
 use veoveo_platform_store::{InvocationMode, PrincipalKind, StoreError};
+use veoveo_types::InvocationAuthority;
 use veoveo_types::InvocationProvenance;
 
 use super::{GatewayState, GatewayTaskRouteRecord};

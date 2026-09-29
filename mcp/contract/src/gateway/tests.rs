@@ -259,14 +259,14 @@ fn default_work_contexts() -> Vec<crate::WorkContextDefinition> {
         tenant: TenantId::new("tenant-a").unwrap(),
         title: "Default work".to_owned(),
         policy_revision: PolicyVersion::new("2026-07-02").unwrap(),
-        output_policy: crate::WorkContextOutputPolicy {
+        output_policy: veoveo_types::WorkContextOutputPolicy {
             owner: veoveo_types::AccessSubject::Group(GroupId::new("operations").unwrap()),
             initial_grants: Vec::new(),
             classification: None,
             data_labels: BTreeSet::new(),
         },
         memberships: vec![crate::WorkContextMembershipRule {
-            level: crate::WorkContextMembershipLevel::Owner,
+            level: veoveo_types::WorkContextMembershipLevel::Owner,
             principals: BTreeSet::new(),
             groups: BTreeSet::new(),
             roles: BTreeSet::from([RoleId::new("operator").unwrap()]),

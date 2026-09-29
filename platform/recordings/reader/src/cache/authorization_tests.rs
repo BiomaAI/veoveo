@@ -10,6 +10,7 @@ use veoveo_mcp_contract::*;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 #[derive(Clone, Copy)]
 enum Reply {

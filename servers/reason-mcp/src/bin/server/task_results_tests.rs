@@ -3,14 +3,12 @@ use std::{collections::BTreeSet, time::Duration};
 use futures::StreamExt;
 use rmcp::model::{DetailedTask, GetTaskParams};
 use serde_json::{Value, json};
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_task_runtime::{CreateTask, PrincipalKind, RecoveryClass, TaskTransition};
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use crate::store_fixture as fixture;
 

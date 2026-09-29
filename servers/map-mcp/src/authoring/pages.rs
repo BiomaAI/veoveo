@@ -1,7 +1,8 @@
 //! Authoring metadata pages preserve SQL visibility and bind optional URI parents.
 use anyhow::{Context, Result};
 use serde::Serialize;
-use veoveo_mcp_contract::{AccessLevel, GatewayInternalIdentity};
+use veoveo_mcp_contract::GatewayInternalIdentity;
+use veoveo_types::AccessLevel;
 
 use super::{
     AuthoringService,

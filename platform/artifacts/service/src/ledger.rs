@@ -11,8 +11,8 @@ use veoveo_mcp_contract::gateway::{
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
     ArtifactAccessRequestState, ArtifactShareLinkId, ArtifactWriteCapabilityId,
-    InvocationAuthority,
 };
+use veoveo_types::InvocationAuthority;
 use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId, WorkContextId};
 
 pub mod read_capability;
@@ -81,7 +81,7 @@ pub struct NewArtifactAccessRequest {
     pub request_id: ArtifactAccessRequestId,
     pub actor: RepositoryActor,
     pub artifact_id: ArtifactId,
-    pub requested_level: veoveo_mcp_contract::AccessLevel,
+    pub requested_level: veoveo_types::AccessLevel,
     pub justification: String,
 }
 

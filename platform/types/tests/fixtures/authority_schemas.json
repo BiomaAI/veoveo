@@ -1,0 +1,436 @@
+{
+  "AccessLevel": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+    "enum": [
+      "read",
+      "write",
+      "admin"
+    ],
+    "title": "AccessLevel",
+    "type": "string"
+  },
+  "InvocationAuthority": {
+    "$defs": {
+      "AccessLevel": {
+        "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+        "enum": [
+          "read",
+          "write",
+          "admin"
+        ],
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "DelegationId": {
+        "description": "Auditable identity of authority delegated by an initiator to another actor.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "InvocationProvenance": {
+        "description": "Provenance retained across synchronous and asynchronous execution.",
+        "oneOf": [
+          {
+            "properties": {
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "mode": {
+                "const": "direct",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "initiator"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "delegation_id": {
+                "$ref": "#/$defs/DelegationId"
+              },
+              "initiator": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "mode": {
+                "const": "delegated",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode",
+              "initiator",
+              "delegation_id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "mode": {
+                "const": "automated",
+                "type": "string"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "PolicyVersion": {
+        "description": "Immutable policy version identifier emitted with decisions and audit records.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "TenantId": {
+        "description": "Tenant, organization, or customer boundary identifier.",
+        "type": "string"
+      },
+      "WorkContextGrant": {
+        "description": "Initial discretionary policy stamped on every output in a Work Context.",
+        "properties": {
+          "level": {
+            "$ref": "#/$defs/AccessLevel"
+          },
+          "subject": {
+            "$ref": "#/$defs/AccessSubject"
+          }
+        },
+        "required": [
+          "subject",
+          "level"
+        ],
+        "type": "object"
+      },
+      "WorkContextId": {
+        "description": "Tenant-local boundary that governs related work and every output it produces.",
+        "type": "string"
+      },
+      "WorkContextMembershipLevel": {
+        "description": "A member's authority inside one Work Context.\n\nOrdering is intentional. It lets an enforcement point compare the current\nmembership with the minimum level required by an operation.",
+        "enum": [
+          "viewer",
+          "contributor",
+          "custodian",
+          "owner"
+        ],
+        "type": "string"
+      },
+      "WorkContextOutputPolicy": {
+        "description": "Immutable output defaults resolved with an invocation.",
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DataLabelId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_labels": {
+            "items": {
+              "$ref": "#/$defs/DataLabelId"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "initial_grants": {
+            "items": {
+              "$ref": "#/$defs/WorkContextGrant"
+            },
+            "type": "array"
+          },
+          "owner": {
+            "$ref": "#/$defs/AccessSubject"
+          }
+        },
+        "required": [
+          "owner"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Gateway-resolved authority signed into every internal service token.",
+    "properties": {
+      "membership": {
+        "$ref": "#/$defs/WorkContextMembershipLevel"
+      },
+      "output_policy": {
+        "$ref": "#/$defs/WorkContextOutputPolicy"
+      },
+      "policy_revision": {
+        "$ref": "#/$defs/PolicyVersion"
+      },
+      "provenance": {
+        "$ref": "#/$defs/InvocationProvenance"
+      },
+      "tenant": {
+        "$ref": "#/$defs/TenantId"
+      },
+      "work_context": {
+        "$ref": "#/$defs/WorkContextId"
+      }
+    },
+    "required": [
+      "work_context",
+      "tenant",
+      "membership",
+      "policy_revision",
+      "output_policy",
+      "provenance"
+    ],
+    "title": "InvocationAuthority",
+    "type": "object"
+  },
+  "WorkContextGrant": {
+    "$defs": {
+      "AccessLevel": {
+        "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+        "enum": [
+          "read",
+          "write",
+          "admin"
+        ],
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Initial discretionary policy stamped on every output in a Work Context.",
+    "properties": {
+      "level": {
+        "$ref": "#/$defs/AccessLevel"
+      },
+      "subject": {
+        "$ref": "#/$defs/AccessSubject"
+      }
+    },
+    "required": [
+      "subject",
+      "level"
+    ],
+    "title": "WorkContextGrant",
+    "type": "object"
+  },
+  "WorkContextMembershipLevel": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "A member's authority inside one Work Context.\n\nOrdering is intentional. It lets an enforcement point compare the current\nmembership with the minimum level required by an operation.",
+    "enum": [
+      "viewer",
+      "contributor",
+      "custodian",
+      "owner"
+    ],
+    "title": "WorkContextMembershipLevel",
+    "type": "string"
+  },
+  "WorkContextOutputPolicy": {
+    "$defs": {
+      "AccessLevel": {
+        "description": "A capability level. Ordered `Read < Write < Admin`, so `min` yields the\nlesser privilege — exactly what capping a group role by a grant level needs.",
+        "enum": [
+          "read",
+          "write",
+          "admin"
+        ],
+        "type": "string"
+      },
+      "AccessSubject": {
+        "description": "A principal or group that can own governed data or receive access.",
+        "oneOf": [
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/PrincipalId"
+              },
+              "kind": {
+                "const": "principal",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/GroupId"
+              },
+              "kind": {
+                "const": "group",
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "DataLabelId": {
+        "description": "Policy data label such as `cui`, `itar`, `pii`, or an IdP-provided clearance label.",
+        "type": "string"
+      },
+      "GroupId": {
+        "description": "Identity-provider group identifier used by gateway policy.",
+        "type": "string"
+      },
+      "PrincipalId": {
+        "description": "Stable authenticated user or service-principal identity.",
+        "type": "string"
+      },
+      "WorkContextGrant": {
+        "description": "Initial discretionary policy stamped on every output in a Work Context.",
+        "properties": {
+          "level": {
+            "$ref": "#/$defs/AccessLevel"
+          },
+          "subject": {
+            "$ref": "#/$defs/AccessSubject"
+          }
+        },
+        "required": [
+          "subject",
+          "level"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Immutable output defaults resolved with an invocation.",
+    "properties": {
+      "classification": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DataLabelId"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "data_labels": {
+        "items": {
+          "$ref": "#/$defs/DataLabelId"
+        },
+        "type": "array",
+        "uniqueItems": true
+      },
+      "initial_grants": {
+        "items": {
+          "$ref": "#/$defs/WorkContextGrant"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "$ref": "#/$defs/AccessSubject"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "title": "WorkContextOutputPolicy",
+    "type": "object"
+  }
+}

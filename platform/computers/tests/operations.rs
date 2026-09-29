@@ -253,12 +253,12 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     let db = TestDb::new().await;
     let store = installed(db.a.clone()).await;
     let mut alice = owner("alice");
-    alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer;
+    alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Viewer;
     assert!(matches!(
         store.reserve(&alice, &request()).await,
         Err(ComputerError::Forbidden)
     ));
-    alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Contributor;
+    alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Contributor;
     let computer = store.reserve(&alice, &request()).await.unwrap();
     let record = surrealdb::types::RecordId::new(
         "computer",
@@ -266,7 +266,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     );
     // Simulated completed provider observation; this fixture tests durable admission.
     db.a.client().query("UPDATE ONLY $computer SET phase = 'stopped', provider_resource_id = 'sandbox-1', process_id = 'run-1', updated_at = time::now();").bind(("computer", record)).await.unwrap().check().unwrap();
-    alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer;
+    alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Viewer;
     assert!(matches!(
         store
             .queue_operation(
@@ -286,7 +286,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
             .active_operation
             .is_none()
     );
-    alice.authority.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Contributor;
+    alice.authority.membership = veoveo_types::WorkContextMembershipLevel::Contributor;
     let operation = store
         .queue_operation(
             support::authenticated(&alice),

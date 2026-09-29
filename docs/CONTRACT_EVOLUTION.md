@@ -330,7 +330,11 @@ The accepted foundation is a small `veoveo-types` crate under `platform/types`, 
 validated names, platform identity and attribution, generic resource URI handling,
 and protocol-independent traits. Identity includes principal, tenant, group, role,
 Work Context and delegation IDs, policy labels and versions, access subjects, and
-invocation provenance. Native Task UUID identity also belongs here, with Store owning
+invocation provenance. Resolved invocation authority, Work Context membership levels,
+output defaults and capability levels also belong here. Domain contracts can retain the
+complete authority value without importing MCP. Configuration, authenticated membership
+matching and access decisions stay with their existing owners; serializing a claimed
+authority does not establish permission. Native Task UUID identity also belongs here, with Store owning
 record conversion and TaskRuntime owning lifecycle and external lookup admission.
 Opaque MCP handles keep their protocol-owned profile. Authentication and authorization stay with their existing
 owners; domain-owned Artifact and coordinate contracts do not belong in this foundation.

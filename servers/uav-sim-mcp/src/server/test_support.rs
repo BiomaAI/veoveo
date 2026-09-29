@@ -1,14 +1,14 @@
 use chrono::{TimeDelta, Utc};
 use std::collections::BTreeSet;
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, GatewayProfileId, InvocationAuthority, JwtId, Principal,
-    PrincipalKind, ServerSlug, TokenIssuer, TokenSubject, WorkContextMembershipLevel,
-    WorkContextOutputPolicy,
+    GatewayInternalIdentity, GatewayProfileId, JwtId, Principal, PrincipalKind, ServerSlug,
+    TokenIssuer, TokenSubject,
 };
 use veoveo_types::{
     AccessSubject, DataLabelId, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 pub(super) fn identity(
     tenant: &str,
     context: &str,

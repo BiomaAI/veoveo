@@ -19,9 +19,6 @@ use std::{
     },
     time::Duration,
 };
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_task_runtime::{
     CreateTask, DurableTaskService, DurableTaskSubscription, PrincipalKind, RecoveryClass,
     TaskOwner, TaskResourceSubscriptions, TaskRuntime, TaskTransition, subscribe_durable_tasks,
@@ -31,6 +28,7 @@ use veoveo_types::{
     ResourceUriBuilder, ResourceUriParts, TaskId, TaskResourceAddress, TenantId, UriSegment,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn owner() -> TaskOwner {
     let principal = PrincipalId::new("resource-observer").unwrap();

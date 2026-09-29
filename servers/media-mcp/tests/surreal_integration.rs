@@ -6,8 +6,7 @@ use chrono::{TimeDelta, Utc};
 use futures::StreamExt;
 use serde_json::json;
 use veoveo_mcp_contract::{
-    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, InvocationAuthority,
-    IssuedArtifactWriteCapability, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
 };
 use veoveo_media_mcp::{
     provider::Prediction,
@@ -21,6 +20,7 @@ use veoveo_types::TaskId;
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn authority() -> InvocationAuthority {
     let principal = PrincipalId::new("https://idp.example.com#alice").unwrap();

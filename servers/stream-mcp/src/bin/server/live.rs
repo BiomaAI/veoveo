@@ -13,7 +13,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::UnixListener;
 use tokio::process::{Child, Command};
 use tokio::sync::Mutex;
-use veoveo_mcp_contract::{SubscriptionHub, WorkContextMembershipLevel};
+use veoveo_mcp_contract::SubscriptionHub;
 use veoveo_stream_mcp::catalog::{
     GStreamerGraphConfig, ModelConfig, PipelineCatalog, PipelineProfileConfig, TrackerConfig,
 };
@@ -24,6 +24,7 @@ use veoveo_stream_mcp::contract::{
 };
 use veoveo_stream_mcp::{executor::validate_frame, uris};
 use veoveo_task_runtime::TaskOwner;
+use veoveo_types::WorkContextMembershipLevel;
 
 use super::recording_output::LiveRecordingOutput;
 
@@ -802,11 +803,11 @@ fn stop_output(session: &LiveSession, state: &LiveSessionState) -> StopLiveSessi
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{InvocationAuthority, WorkContextOutputPolicy};
     use veoveo_task_runtime::PrincipalKind;
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
+    use veoveo_types::{InvocationAuthority, WorkContextOutputPolicy};
 
     fn task_owner(
         principal: &str,

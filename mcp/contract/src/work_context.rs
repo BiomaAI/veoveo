@@ -1,50 +1,19 @@
-//! Canonical authority and output-governance contract for related work.
+//! Work Context configuration and membership matching for protocol callers.
 //!
 //! A Work Context is the business boundary shared by tasks, recordings,
 //! agents, and artifacts. The gateway resolves the caller's membership and
 //! invocation mode, then signs the resulting authority into the internal
 //! token. Hosted services apply that resolved authority to ownership,
-//! provenance, and initial access.
+//! provenance, and initial access. Resolved authority values belong to `veoveo-types`.
 
 use std::collections::BTreeSet;
-use veoveo_types::{AccessSubject, InvocationProvenance};
+use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{AccessLevel, OAuthClientId, Principal};
-use veoveo_types::{
-    DataLabelId, GroupId, PolicyVersion, PrincipalId, RoleId, TenantId, WorkContextId,
-};
-
-/// A member's authority inside one Work Context.
-///
-/// Ordering is intentional. It lets an enforcement point compare the current
-/// membership with the minimum level required by an operation.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum WorkContextMembershipLevel {
-    Viewer,
-    Contributor,
-    Custodian,
-    Owner,
-}
-
-impl WorkContextMembershipLevel {
-    pub fn allows(self, required: Self) -> bool {
-        self >= required
-    }
-
-    pub fn artifact_access(self) -> AccessLevel {
-        match self {
-            Self::Viewer => AccessLevel::Read,
-            Self::Contributor => AccessLevel::Write,
-            Self::Custodian | Self::Owner => AccessLevel::Admin,
-        }
-    }
-}
+use crate::{OAuthClientId, Principal};
+use veoveo_types::{GroupId, PolicyVersion, PrincipalId, RoleId, TenantId, WorkContextId};
 
 /// One neutral membership rule supplied by an enterprise installation.
 ///
@@ -80,25 +49,6 @@ impl WorkContextMembershipRule {
     }
 }
 
-/// Initial discretionary policy stamped on every output in a Work Context.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct WorkContextGrant {
-    pub subject: AccessSubject,
-    pub level: AccessLevel,
-}
-
-/// Immutable output defaults resolved with an invocation.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct WorkContextOutputPolicy {
-    pub owner: AccessSubject,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub initial_grants: Vec<WorkContextGrant>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub classification: Option<DataLabelId>,
-    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
-    pub data_labels: BTreeSet<DataLabelId>,
-}
-
 /// One configured Work Context.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct WorkContextDefinition {
@@ -124,28 +74,11 @@ impl WorkContextDefinition {
     }
 }
 
-/// Gateway-resolved authority signed into every internal service token.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct InvocationAuthority {
-    pub work_context: WorkContextId,
-    pub tenant: TenantId,
-    pub membership: WorkContextMembershipLevel,
-    pub policy_revision: PolicyVersion,
-    pub output_policy: WorkContextOutputPolicy,
-    pub provenance: InvocationProvenance,
-}
-
-impl InvocationAuthority {
-    pub fn artifact_access(&self) -> AccessLevel {
-        self.membership.artifact_access()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{PrincipalAssurance, PrincipalKind, TokenIssuer, TokenSubject};
-    use veoveo_types::ScopeName;
+    use veoveo_types::{AccessSubject, ScopeName};
 
     fn principal() -> Principal {
         Principal {

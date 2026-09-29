@@ -1,7 +1,8 @@
 use axum::http::StatusCode;
-use veoveo_mcp_contract::{WorkContextMembershipLevel, agent_management as wire};
+use veoveo_mcp_contract::agent_management as wire;
 use veoveo_mcp_gateway::managed_agents::runtime_template_revision;
 use veoveo_platform_store::agent_management::{self as domain, instances::*};
+use veoveo_types::WorkContextMembershipLevel;
 
 use super::super::{AgentManagementState, Fault, authority::Admission, projection};
 

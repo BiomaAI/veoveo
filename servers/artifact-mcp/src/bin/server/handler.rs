@@ -31,9 +31,10 @@ use veoveo_artifact_mcp::{
     parse_doc_uri, parse_grants_uri, parse_metadata_uri,
 };
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest,
-    ListArtifactsRequest, Page, PlaneCaller, docs::ServerDocs, paginate,
+    ArtifactPlane, ArtifactPlaneError, CreateArtifactShareLinkRequest, ListArtifactsRequest, Page,
+    PlaneCaller, docs::ServerDocs, paginate,
 };
+use veoveo_types::AccessLevel;
 
 use super::{
     auth,

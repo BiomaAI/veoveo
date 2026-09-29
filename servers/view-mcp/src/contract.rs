@@ -1,3 +1,5 @@
+mod scopes;
+pub use scopes::ViewScope;
 mod task_kind;
 use std::{fmt, str::FromStr};
 pub use task_kind::ViewTaskKind;
@@ -511,12 +513,20 @@ mod tests {
         })
     }
 
-    fn mcp_input_schema<T: JsonSchema + 'static>() -> Value {
-        let schema = rmcp::handler::server::tool::schema_for_type::<T>();
-        let schema = Value::Object(schema.as_ref().clone());
-        jsonschema::meta::validate(&schema)
-            .unwrap_or_else(|error| panic!("invalid generated JSON Schema: {error}"));
-        schema
+    fn input_schemas<T: JsonSchema + 'static>() -> Vec<Value> {
+        let schema = serde_json::to_value(schemars::schema_for!(T)).unwrap();
+        #[cfg(feature = "mcp")]
+        let schemas = {
+            let mcp = rmcp::handler::server::tool::schema_for_type::<T>();
+            vec![schema, Value::Object(mcp.as_ref().clone())]
+        };
+        #[cfg(not(feature = "mcp"))]
+        let schemas = vec![schema];
+        for schema in &schemas {
+            jsonschema::meta::validate(schema)
+                .unwrap_or_else(|error| panic!("invalid generated JSON Schema: {error}"));
+        }
+        schemas
     }
 
     #[test]
@@ -545,21 +555,23 @@ mod tests {
     }
 
     #[test]
-    fn canonical_structured_arguments_validate_against_mcp_schemas() {
-        let create_schema = mcp_input_schema::<CreateViewRequest>();
+    fn structured_arguments_validate_against_enabled_schema_profiles() {
         let create = json!({
             "composition_id": SceneCompositionId::from_stable_key(b"schema-test"),
             "camera": orbit_camera()
         });
-        assert!(jsonschema::is_valid(&create_schema, &create));
+        for schema in input_schemas::<CreateViewRequest>() {
+            assert!(jsonschema::is_valid(&schema, &create));
+        }
 
-        let capture_schema = mcp_input_schema::<CaptureFrameRequest>();
         let capture = json!({
             "view_id": "view-1",
             "expected_revision": 1,
             "scene_time": "2026-07-26T12:00:00Z",
             "policy": capture_policy()
         });
-        assert!(jsonschema::is_valid(&capture_schema, &capture));
+        for schema in input_schemas::<CaptureFrameRequest>() {
+            assert!(jsonschema::is_valid(&schema, &capture));
+        }
     }
 }

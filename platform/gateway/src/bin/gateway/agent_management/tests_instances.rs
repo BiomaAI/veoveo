@@ -81,9 +81,7 @@ async fn approved_image_adoption_preserves_bindings_and_replays_after_template_r
                 template.workload.config_digest =
                     veoveo_types::Sha256Digest::from_hex("d".repeat(64)).unwrap()
             }
-            "authority" => {
-                template.membership = veoveo_mcp_contract::WorkContextMembershipLevel::Viewer
-            }
+            "authority" => template.membership = veoveo_types::WorkContextMembershipLevel::Viewer,
             _ => unreachable!(),
         }
         let revised = install(&mut state, template);

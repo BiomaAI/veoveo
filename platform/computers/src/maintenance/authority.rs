@@ -5,8 +5,8 @@ use std::time::Duration;
 use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayAction, LocalToolName, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-    WorkContextMembershipLevel,
 };
+use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) fn target() -> PolicyTarget {
     PolicyTarget::Tool {

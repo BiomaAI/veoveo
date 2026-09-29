@@ -11,8 +11,9 @@ use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError, ComputersStore, cli_grants::*, session_grants::SessionGrantPolicy,
 };
-use veoveo_mcp_contract::{PolicyEffect, WorkContextMembershipLevel};
+use veoveo_mcp_contract::PolicyEffect;
 use veoveo_platform_store::RecordId;
+use veoveo_types::WorkContextMembershipLevel;
 
 fn request(code: &str) -> veoveo_computers::api::CliPairingInput {
     veoveo_computers::api::CliPairingInput {

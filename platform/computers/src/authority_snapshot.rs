@@ -5,13 +5,13 @@ use chrono::{DateTime, Utc};
 use std::time::Instant;
 use veoveo_mcp_contract::{
     GatewayAction, GatewayControlPlane, PolicyDecision, PolicyTarget, Principal, TraceId,
-    WorkContextMembershipLevel,
 };
 use veoveo_platform_store::{
     EnterpriseRecord, PrincipalKind, PrincipalRecord, RecordId, TenantRecord,
     deterministic_enterprise_id, deterministic_principal_id, deterministic_tenant_id,
 };
 use veoveo_policy::{PolicyCatalog, PolicyCatalogView, PolicyRequest, decide};
+use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) struct AuthoritySnapshot {
     pub accepted: AcceptedAuthority,

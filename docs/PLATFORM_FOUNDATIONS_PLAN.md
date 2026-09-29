@@ -768,11 +768,34 @@ Qualification passes 314 Rust checks, including the explicitly invoked TaskRunti
 Store test, compile-fail examples and thirteen independent-consumer checks. That
 consumer imports twelve domain contracts plus a new local vocabulary; its 128-package
 Linux graph contains no MCP runtime, async runtime, Store or GPU implementation.
-View and SUMO expose their operation enums in their existing libraries; their library
-feature isolation is still open. The pinned SurrealDB 3.2.4 CLI validates fifteen
+View and SUMO expose their operation enums in their existing libraries. View's feature
+isolation is recorded below; SUMO remains open. The pinned SurrealDB 3.2.4 CLI validates fifteen
 expanded current-source SQL forms. Strict all-target, all-feature workspace Clippy
 passes. Installed acceptance remains pending with reference workloads stopped.
 Installed result-format acceptance remains pending while reference workloads are stopped.
+
+View now exposes separate contract, runtime and MCP features. Its contract includes
+camera, capture and composition models, `ViewTaskKind` and the domain-owned `ViewScope`.
+The three permissions share a typed guard between ordinary requests and capture Tasks.
+Resolved invocation authority, membership and capability levels, and output defaults
+now belong to `veoveo-types`. Every Rust consumer imports those values directly.
+MCP retains Work Context configuration and membership matching; authentication and
+policy decisions keep their existing owners. Composition identity retains the complete
+authority value and its serialized bytes.
+
+The foundational, policy and MCP suites pass 223 checks. Five authority schemas,
+serialized composition-authority input and nested identity admission are covered.
+View's independent consumer passes five checks with a 117-package Linux graph free of
+MCP, async, database and GPU implementations. The contract-only profile passes nine
+unit cases and one compile-fail example; the runtime-only build and all 62 native View
+cases pass. Strict all-target, all-feature workspace Clippy passes. Typed View resource builders,
+checked MCP setup, current installed behavior and GPU acceptance remain pending.
+Cleanup removed 22 unlocked, unfinished Rust incremental sessions older than a day,
+reclaiming 0.54 GiB. Another 114 superseded test executables reclaimed 54.17 GiB;
+each had changed source inputs, was older than a day and had a newer executable with
+the same test target and build configuration. All newer executables, service binaries,
+library artifacts and finalized incremental sessions were preserved. Free space after
+cleanup is 76 GiB; reference containers remain stopped.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -1222,9 +1245,9 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 #### Migration Inventory And Status
 
 All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
-Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason and Stream define the
+Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason, Stream and View define the
 `contract` feature. Independent consumer qualification is recorded in each owning row.
-The other five packages still need feature isolation. Existing libraries remain the
+The other four packages still need feature isolation. Existing libraries remain the
 default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
@@ -1232,6 +1255,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
 | Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Time, UAV and Reason consume checked setup; the independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup across the remaining servers and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
+| Resolved invocation authority | Capability and Work Context membership levels, invocation authority and output defaults belong to `veoveo-types`; callers import them directly. Five schemas, serialized authority bytes, nested identity admission and level ordering pass native and independent-consumer checks. MCP retains configuration and membership matching | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
 | Resource templates | `ResourceTemplateUri` uses iri-string 0.7.14 with guards for RFC prefix bounds and dotted variable names; `McpResourceTemplate` prevents descriptor mutation. Time, UAV, Reason and the independent fixture consume checked template declarations. Native and isolated-consumer cases qualify syntax, expansion, existing addresses and error redaction | Extend checked declarations and domain-builder agreement across remaining servers |
 | Gateway completion and audit targets | Completion and template discovery use `PolicyTarget::ResourceTemplate`. Stored policy events require the current v2 marker and typed event; the historical DTO adapter is removed. Native cross-connection reads and invalid-write checks pass | Qualify installed authorization and current-format audit reads; tighten the opaque resource validator after remaining URI families are inventoried |
@@ -1285,7 +1309,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
-| Recording and View | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
+| View | Its isolated contract exposes camera, capture and composition models with complete foundational authority. `ViewScope` and `ViewTaskKind` belong to the server library; ordinary requests and capture Tasks share a typed scope guard. The independent consumer excludes MCP, async, database and GPU implementations; contract-only tests, runtime-only compilation and 62 native cases pass | Migrate resource builders and checked MCP setup, then qualify installed consumers and GPU behavior |
+| Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 
@@ -1389,9 +1414,9 @@ Work:
    Time currently uses a tenant fence because the qualified server is 3.2.4.
    Qualify `FOR UPDATE` on both exact pointer IDs, including absent records, and
    their releases before replacing that fence; preserve the preflight snapshot checks.
-   The 2026-09-27 release check returned `v3.3.0` from the upstream download endpoint,
-   while GitHub's latest-release API returned `v3.2.4` and the `v3.3.0` release page
-   returned 404. Resolve the release artifact and SDK provenance before changing pins.
+   GitHub's latest-release API confirmed [SurrealDB 3.3.0](https://github.com/surrealdb/surrealdb/releases/tag/v3.3.0)
+   on 2026-09-28, published at 11:40:24 UTC. Resolve the image digest and SDK provenance
+   and qualify the release before changing pins.
 2. Add request timing before changing audit. Each request reports policy evaluation,
    audit commit, and upstream time in its trace, and the gateway exports them as
    histograms. Record a baseline for catalog lists, resource reads, and tool calls on the

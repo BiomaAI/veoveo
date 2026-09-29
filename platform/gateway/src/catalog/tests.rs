@@ -16,13 +16,13 @@ use veoveo_mcp_contract::{
     ResourceUriTemplate, SecretLocator, SecretOwner, SecretPurpose, SecretReference,
     SecretReferenceId, SecretSource, TaskExposure, TenantDefinition, TokenIssuer, TokenSubject,
     TraceId, UpstreamEndpoint, UpstreamTransport, UpstreamTransportSecurity, UpstreamUrl,
-    WorkContextDefinition, WorkContextMembershipLevel, WorkContextMembershipRule,
-    WorkContextOutputPolicy,
+    WorkContextDefinition, WorkContextMembershipRule,
 };
 use veoveo_types::{
     AccessSubject, DataLabelId, GroupId, InvocationMode, PrincipalId, ResourceScheme, ResourceUri,
     RoleId, ScopeName, TenantId, WorkContextId,
 };
+use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use super::*;
 use crate::{PolicyRequest, www_authenticate_challenge};

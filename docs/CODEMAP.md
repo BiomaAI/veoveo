@@ -354,7 +354,8 @@ tasks, subscriptions, notifications, and structured content in addition to tools
 ### `platform/types`
 
 The `veoveo-types` crate owns `ScopeName`, `ResourceScheme`, `ResourceUri`, validation
-errors, `Sha256Digest`, platform identity, access subjects, and invocation provenance.
+errors, `Sha256Digest`, platform identity, access subjects, resolved invocation authority
+and output defaults.
 Its public `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits let
 independent libraries supply domain vocabularies and Task-backed resource relationships. Dependencies provide serialization,
 schemas, URL parsing, and percent encoding. Consumers import its types directly. The
@@ -366,6 +367,9 @@ and server library features.
 prefixed SHA-256 representation shared by provenance contracts.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
+`src/authority.rs` owns capability levels, Work Context membership levels, resolved
+invocation authority and output policies. MCP retains Work Context configuration,
+principal membership matching and access decisions.
 `src/task_type.rs` owns validated operation names, the open `TaskTypeDefinition` trait
 and the `declare_task_types!` checked vocabulary declaration. Server contract libraries
 own their enums in `contract/task_kind.rs`; Speech uses its separate contract crate,
@@ -782,9 +786,10 @@ Geospatial work is split across three servers:
 The crate-local design documents own their protocol, administration, persistence, and
 deployment details.
 
-View composition work starts in `src/contract/composition.rs`, which owns
-typed identities, inputs, Frames bindings, overlay geometry, styles,
-validity, and bounds. `src/composition.rs` resolves artifact bytes and
+View's `contract` feature exposes camera, capture and composition models without its
+runtime. `src/contract/composition.rs` owns typed identities, inputs, Frames bindings,
+overlay geometry, styles, validity and bounds. `src/contract/scopes.rs` owns the three
+View permissions; `src/server/auth.rs` shares their guard between requests and Tasks. `src/composition.rs` resolves artifact bytes and
 converts validated overlays into GPU render products. `src/state.rs` owns
 principal and Work Context scoped composition, view, capture snapshot, and
 frame state. `src/mcp.rs` publishes the tools and resources, while

@@ -10,17 +10,17 @@ use parking_lot::RwLock;
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     AuthorizationServerId, DataLabelDefinition, GatewayControlPlane, GatewayProfile,
-    GatewayProfileId, IdentityProvider, IdentityProviderId, InvocationAuthority, OAuthClientId,
-    OAuthClientRegistration, OidcClientRegistrationId, PolicySet, Principal, PrincipalKind,
-    ProtectedResourceName, RecordingIngestResource, RecordingProducerId,
-    RecordingProducerRegistration, ResourceAuthorizationServer, ResourceProjectionMode,
-    SecretReference, SecretReferenceId, ServerManifest, ServerSlug, TenantDefinition, TokenSubject,
-    WorkContextDefinition, WorkContextMembershipLevel,
+    GatewayProfileId, IdentityProvider, IdentityProviderId, OAuthClientId, OAuthClientRegistration,
+    OidcClientRegistrationId, PolicySet, Principal, PrincipalKind, ProtectedResourceName,
+    RecordingIngestResource, RecordingProducerId, RecordingProducerRegistration,
+    ResourceAuthorizationServer, ResourceProjectionMode, SecretReference, SecretReferenceId,
+    ServerManifest, ServerSlug, TenantDefinition, TokenSubject, WorkContextDefinition,
 };
 use veoveo_types::{
     DataLabelId, InvocationMode, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 
 use crate::policy::{exposure_contains, resource_scheme};
 use crate::{AuthenticatedSubject, VerifiedAccessToken};

@@ -9,12 +9,12 @@ use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use surrealdb::types::{RecordId, RecordIdKey};
-use veoveo_mcp_contract::InvocationAuthority;
 use veoveo_platform_store::{
     OpenObject, PrincipalKind, RecoveryClass as StoreRecoveryClass, StoreAuthLevel,
     StoreCredentials, TaskRecord, TaskStatus as StoreTaskStatus, deterministic_principal_id,
     deterministic_tenant_id, deterministic_work_context_id,
 };
+use veoveo_types::InvocationAuthority;
 use veoveo_types::TaskId;
 
 /// Stable internal pin that prevents pruning while another durable owner needs a task result.

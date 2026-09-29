@@ -46,6 +46,25 @@ identities keep the `view://` scheme.
 | [Veoveo Frames contract](../frames-mcp/DESIGN.md) | A composition with local metre coordinates binds one exact world revision, frame URI, transform, and Frames operation input. |
 | PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
 
+## Library Features
+
+The `contract` feature exposes camera and capture types, composition validation,
+`ViewScope` and `ViewTaskKind`. It depends on foundational types and the owning Frames
+and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
+`InvocationAuthority`; the authenticated adapter supplies it from the verified caller.
+Its serialization participates in the stable composition digest.
+
+Consumers select `default-features = false, features = ["contract"]`. This library
+profile requires no MCP transport, database client, async runtime or renderer.
+`runtime` adds scene resolution, state, tile access, URI helpers and the GPU renderer.
+`mcp` adds the authenticated server and its Task adapter; the binary requires that feature.
+The default is `mcp`, including the mandatory GPU runtime.
+
+`ViewScope` owns the read, write and capture spellings. Ordinary requests and capture
+Tasks use the same typed permission guard in `server/auth.rs`. The guard requires the
+individual capability in the authenticated grant set. Unrelated grants remain valid
+and supply no View permission. Discovery uses the same check when exposing the preview App.
+
 ## Boundary
 
 Map owns geographic source truth, immutable releases, derived geometry, and

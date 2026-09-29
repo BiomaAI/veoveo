@@ -9,13 +9,13 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, InvocationAuthority, Principal, PrincipalKind, ServerSlug, TokenIssuer,
-    TokenSubject, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    GatewayProfileId, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use super::*;
 

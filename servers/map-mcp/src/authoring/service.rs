@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
-use veoveo_mcp_contract::{AccessLevel, GatewayInternalIdentity, WorkContextMembershipLevel};
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
     InvocationMode as StoreInvocationMode, MapFeatureCommitDraft, MapFeatureLayerDraft,
@@ -12,6 +12,7 @@ use veoveo_platform_store::{
     MapLayerPublicationDraft, MapStyleRevisionDraft, PlatformStore, WorkContextInitialGrantRecord,
     map_authoring_idempotency_key,
 };
+use veoveo_types::{AccessLevel, WorkContextMembershipLevel};
 use veoveo_types::{AccessSubject, InvocationMode, InvocationProvenance};
 
 use crate::analytics::MapAnalytics;

@@ -5,12 +5,12 @@ use uuid::Uuid;
 use veoveo_mcp_contract::{
     GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, OAuthClientId, PolicySet, TenantDefinition,
-    WorkContextDefinition, WorkContextMembershipLevel, WorkContextMembershipRule,
-    WorkContextOutputPolicy,
+    WorkContextDefinition, WorkContextMembershipRule,
 };
 use veoveo_mcp_gateway::GatewayControlStore;
 use veoveo_platform_store::{StoreConfig, StoreCredentials, deterministic_tenant_id};
 use veoveo_types::{AccessSubject, GroupId, PolicyVersion, PrincipalId, TenantId, WorkContextId};
+use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 #[tokio::test]
 async fn publishes_immutable_revisions_and_moves_active_pointer_atomically() {

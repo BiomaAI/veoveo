@@ -10,7 +10,7 @@ use base64::Engine;
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState,
 };
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, Grant};
+use veoveo_mcp_contract::access::{AccessDecision, Grant};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
     ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
@@ -20,6 +20,7 @@ use veoveo_mcp_contract::{
     PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
     StreamArtifactRequest,
 };
+use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
 
 /// One authorized bulk artifact download.

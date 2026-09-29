@@ -14,8 +14,9 @@ use sse_stream::Sse;
 use thiserror::Error;
 use veoveo_mcp_contract::{
     GatewayInternalTokenIssuer, GatewayProfileId, GatewayRequestContext, InternalTokenError,
-    InvocationAuthority, Principal, ServerSlug,
+    Principal, ServerSlug,
 };
+use veoveo_types::InvocationAuthority;
 
 const INTERNAL_REQUEST_TOKEN_TTL_SECONDS: i64 = 60;
 const ARTIFACT_READ_AUTHORIZATION_HEADER: &str = "x-veoveo-artifact-read-authorization";
@@ -247,12 +248,12 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use veoveo_mcp_contract::{
         GatewayInternalSigningKey, PrincipalKind, TokenIssuer, TokenSubject,
-        WorkContextMembershipLevel, WorkContextOutputPolicy,
     };
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
         WorkContextId,
     };
+    use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
     use super::*;
 

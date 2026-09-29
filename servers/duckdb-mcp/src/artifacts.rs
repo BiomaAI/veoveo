@@ -9,10 +9,11 @@ use anyhow::{Result, anyhow};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactPut};
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactPlane, ArtifactPlaneError, ArtifactWriteIdempotencyKey,
+    ArtifactPlane, ArtifactPlaneError, ArtifactWriteIdempotencyKey,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, PlaneCaller,
     PutArtifactRequest, RedeemArtifactWriteCapabilityRequest,
 };
+use veoveo_types::AccessLevel;
 
 /// The scheme this server presents artifacts under to clients
 /// (`duckdb://artifact/{artifact_id}`). The plane stores the neutral `artifact://`

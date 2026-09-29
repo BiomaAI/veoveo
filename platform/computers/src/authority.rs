@@ -3,10 +3,10 @@ use crate::{ComputerError, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, GatewayProfileId, GatewayRequestContext, InvocationAuthority,
-    Principal,
+    GatewayInternalIdentity, GatewayProfileId, GatewayRequestContext, Principal,
 };
 use veoveo_task_runtime::TaskOwner;
+use veoveo_types::InvocationAuthority;
 
 /// Verified request boundary for accepting new Computer work. Public request bodies
 /// never deserialize this type. Facades construct it only after verifying the JWT.

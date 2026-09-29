@@ -439,7 +439,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
         .get(
             &caller,
             &veoveo_artifact_contract::ArtifactId::parse(exported.artifact_id.to_string()).unwrap(),
-            veoveo_mcp_contract::AccessLevel::Read,
+            veoveo_types::AccessLevel::Read,
         )
         .await
         .unwrap();

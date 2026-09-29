@@ -12,9 +12,10 @@ use rmcp::{
     tool_router,
 };
 use std::sync::Arc;
-use veoveo_mcp_contract::{AccessLevel, ArtifactPlane};
+use veoveo_mcp_contract::ArtifactPlane;
 use veoveo_speech_contract::dictation::{DictationId, DictationSnapshot, StartDictation};
 use veoveo_speech_contract::{TranscribeRequest, TranscriptionOutput};
+use veoveo_types::AccessLevel;
 
 #[derive(Clone)]
 pub(super) struct SpeechMcp {

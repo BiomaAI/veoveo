@@ -2,9 +2,6 @@
 use super::task_results::RUN_COMPLETED;
 use serde_json::{Value, json};
 use std::{collections::BTreeSet, time::Duration};
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_stream_mcp::contract::RunId;
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
@@ -13,6 +10,7 @@ use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 pub(super) fn owner() -> TaskOwner {
     let principal = PrincipalId::new("stream-result-test").unwrap();

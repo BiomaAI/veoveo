@@ -3,10 +3,9 @@ use crate::{ComputerActor, ComputerError, ComputersStore, Result, api::Action};
 use chrono::Utc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId, WorkContextMembershipLevel,
-};
+use veoveo_mcp_contract::{GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_types::ResourceUri;
+use veoveo_types::WorkContextMembershipLevel;
 
 pub struct ControlAuthority {
     snapshot: crate::authority_snapshot::AuthoritySnapshot,

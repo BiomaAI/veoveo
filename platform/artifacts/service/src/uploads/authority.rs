@@ -39,7 +39,7 @@ impl UploadService {
             || !identity
                 .authority
                 .membership
-                .allows(contract::WorkContextMembershipLevel::Contributor)
+                .allows(veoveo_types::WorkContextMembershipLevel::Contributor)
         {
             return Err(denied.into());
         }

@@ -34,6 +34,15 @@ and `InvocationProvenance` describe direct, delegated, or automated attribution.
 It depends on Serde, Schemars, URL, percent encoding, iri-string, and UUID. It contains no protocol transport, asynchronous
 runtime, database client, provider integration, or server vocabulary.
 
+Resolved invocation values also belong here: `InvocationAuthority`,
+`WorkContextMembershipLevel`, `WorkContextOutputPolicy`, `WorkContextGrant` and
+`AccessLevel`. They carry the selected Work Context, membership, output defaults and
+provenance across protocols and domain contracts. Their string enums, field names,
+defaults and order comparisons form one shared model. MCP owns Work Context
+configuration and membership matching against authenticated principals; the gateway
+resolves and signs authority, and existing policy owners enforce it. Possessing or
+deserializing these values establishes no grant.
+
 Identity syntax and attribution establish no authority. Authentication, policy
 evaluation, Work Context membership, and access decisions stay with their existing
 owners. Artifact metadata and coordinate vocabularies have domain owners; their use

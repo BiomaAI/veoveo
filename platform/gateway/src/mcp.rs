@@ -38,9 +38,9 @@ use rmcp::{
 };
 use sha2::{Digest, Sha256};
 use veoveo_mcp_contract::{
-    GatewayInternalTokenIssuer, GatewayProfileId, InvocationAuthority, Principal, ServerSlug,
-    UpstreamTransport,
+    GatewayInternalTokenIssuer, GatewayProfileId, Principal, ServerSlug, UpstreamTransport,
 };
+use veoveo_types::InvocationAuthority;
 
 use crate::{
     AuthenticatedSubject, GatewayCatalogHandle, GatewayState,
@@ -342,14 +342,12 @@ mod tests {
     use std::collections::BTreeSet;
 
     use chrono::Utc;
-    use veoveo_mcp_contract::{
-        PrincipalKind, TokenIssuer, TokenSubject, WorkContextMembershipLevel,
-        WorkContextOutputPolicy,
-    };
+    use veoveo_mcp_contract::{PrincipalKind, TokenIssuer, TokenSubject};
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, RoleId, ScopeName,
         TenantId, WorkContextId,
     };
+    use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
     use super::*;
 

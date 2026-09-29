@@ -9,11 +9,12 @@ use anyhow::{Result, ensure};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::{Mutex, Semaphore, mpsc, oneshot, watch};
 use uuid::Uuid;
-use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind, WorkContextMembershipLevel};
+use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_speech_contract::{
     dictation::{DictationSnapshot, DictationStatus, StartDictation},
     transcript::MAX_DICTATION_SECONDS,
 };
+use veoveo_types::WorkContextMembershipLevel;
 
 pub struct Dictations {
     sessions: Mutex<HashMap<Uuid, Arc<Session>>>,

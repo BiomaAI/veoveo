@@ -10,8 +10,9 @@ use tokio::sync::watch;
 use uuid::Uuid;
 use veoveo_computers::{ComputerError, ComputersStore, api::*};
 use veoveo_computers_mcp::{Application, ApplicationError, CapacityHealth, Templates};
-use veoveo_mcp_contract::{PolicyEffect, WorkContextMembershipLevel};
+use veoveo_mcp_contract::PolicyEffect;
 use veoveo_task_runtime::TaskRuntime;
+use veoveo_types::WorkContextMembershipLevel;
 
 #[path = "support/application.rs"]
 mod app_support;

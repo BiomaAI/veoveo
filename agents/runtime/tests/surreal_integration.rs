@@ -15,9 +15,6 @@ use veoveo_agent_runtime::{
     DEFAULT_CLAIM_LEASE, EpisodeCompletion, InputRequestAnswer, NewAgentTask, NewInputRequest,
     NewWake, OperatorMessageDraft, WakeAckReason, json_object,
 };
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_platform_store::{
     AgentEpisodeState, AgentInputRequestId, AgentInputRequestState, AgentTaskRecord,
     ArtifactGrantSubjectKind, InvocationAuthorityRecord, InvocationMode, OpenObject, PlatformStore,
@@ -28,6 +25,7 @@ use veoveo_task_runtime::{CreateTask, RecoveryClass, TaskOwner, TaskRuntime, Tas
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn agent_authority() -> InvocationAuthority {
     let principal = PrincipalId::new("agent:durability-agent").unwrap();

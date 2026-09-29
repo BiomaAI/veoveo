@@ -8,7 +8,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::parse_artifact_plane_uri;
 use veoveo_frames_mcp::contract::{FrameWorldRevisionUri, WorldFrameUri};
-use veoveo_mcp_contract::InvocationAuthority;
+use veoveo_types::InvocationAuthority;
 use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};

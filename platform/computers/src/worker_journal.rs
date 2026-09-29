@@ -101,7 +101,7 @@ fn operation_event(operation: &Operation, event: &str) -> Result<OutboxDraft> {
         computer_id: Uuid,
         operation_id: Uuid,
         actor: &'a str,
-        authority: &'a veoveo_mcp_contract::InvocationAuthority,
+        authority: &'a veoveo_types::InvocationAuthority,
         owner: &'a str,
         grant_id: Option<Uuid>,
         dispatch_authority: Option<&'a crate::ExecutionDecision>,

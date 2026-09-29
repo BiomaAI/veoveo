@@ -1,5 +1,6 @@
 //! Real ledger, two independent clients and synthetic Ready Computer rows. These
 //! cases establish access authority, not provider attachment or terminal behavior.
+use veoveo_types::WorkContextMembershipLevel;
 mod support;
 use chrono::{TimeDelta, Utc};
 use std::time::Duration;

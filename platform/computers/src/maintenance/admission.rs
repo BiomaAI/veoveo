@@ -50,7 +50,7 @@ struct AdmissionEvent<'a> {
     computer_id: Uuid,
     maintenance_id: Uuid,
     actor: &'a str,
-    authority: &'a veoveo_mcp_contract::InvocationAuthority,
+    authority: &'a veoveo_types::InvocationAuthority,
     target_template_id: &'a str,
 }
 

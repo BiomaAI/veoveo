@@ -2,11 +2,12 @@ use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, bail};
 use chrono::Utc;
-use veoveo_mcp_contract::{AccessLevel, GatewayInternalIdentity};
+use veoveo_mcp_contract::GatewayInternalIdentity;
 use veoveo_platform_store::{
     MapCompositionDraft, MapCompositionRevisionDraft, MapCompositionUpdateDraft,
     MapLayerProductDraft,
 };
+use veoveo_types::AccessLevel;
 
 use crate::{
     catalog::MapAccessContext,

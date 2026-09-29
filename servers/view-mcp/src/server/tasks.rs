@@ -1,4 +1,5 @@
-use crate::contract::ViewTaskKind;
+use super::auth::require_scope;
+use crate::contract::{ViewScope, ViewTaskKind};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use veoveo_types::TaskTypeDefinition;
 
@@ -87,7 +88,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         if ViewTaskKind::from_wire_name(request.name.as_ref()).is_none() {
             return Ok(None);
         }
-        require_scope(&caller.identity, "view:capture")
+        require_scope(&caller.identity, ViewScope::Capture)
             .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?;
         let capture_request: CaptureFrameRequest = serde_json::from_value(
             serde_json::Value::Object(request.arguments.unwrap_or_default()),
@@ -388,26 +389,6 @@ async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition
     if let Err(error) = state.tasks.transition(task_id, transition).await {
         tracing::warn!(task_id, "View task update failed: {error}");
     }
-}
-
-fn require_scope(
-    identity: &GatewayInternalIdentity,
-    required: &str,
-) -> Result<(), rmcp::ErrorData> {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
-        .then_some(())
-        .ok_or_else(|| {
-            rmcp::ErrorData::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
 }
 
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {

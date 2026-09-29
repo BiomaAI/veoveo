@@ -65,20 +65,19 @@ use veoveo_mcp_contract::{
     GatewayJwtRevocation, GatewayJwtRevocationApplyResult, GatewayJwtRevocationPruneResult,
     GatewayJwtRevocationRequest, GatewayProfile, GatewayProfileId, GatewayResourceProjection,
     GatewayResourceSubscription, IdentityProvider, IdentityProviderDeployment,
-    IdentityProviderOidcClientRegistration, IngressDeployment, InvocationAuthority,
-    McpSurfaceCapabilities, OAuthClientRegistration, ObjectStoreDeployment,
-    PlatformStoreDeployment, PolicyDecision, PolicyRule, PolicySet, Principal,
-    PrincipalAuditAttributes, PrincipalKind, ProfileServerExposure, ResourceAuthorizationServer,
-    SecretManagerDeployment, SecretReference, SelfHostedDeploymentPlan,
-    SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris, ServerSlug,
-    ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel, TokenIssuer,
-    TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport, WorkContextMembershipLevel,
-    WorkContextOutputPolicy,
+    IdentityProviderOidcClientRegistration, IngressDeployment, McpSurfaceCapabilities,
+    OAuthClientRegistration, ObjectStoreDeployment, PlatformStoreDeployment, PolicyDecision,
+    PolicyRule, PolicySet, Principal, PrincipalAuditAttributes, PrincipalKind,
+    ProfileServerExposure, ResourceAuthorizationServer, SecretManagerDeployment, SecretReference,
+    SelfHostedDeploymentPlan, SelfHostedDeploymentProfile, ServerManifest, ServerResourceUris,
+    ServerSlug, ServiceToServiceSecurity, TelemetryDeployment, TenantDefinition, TenantModel,
+    TokenIssuer, TokenSubject, UpstreamEndpoint, UsageRecord, UsageReport,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 #[path = "conformance/auth_discovery.rs"]
 mod auth_discovery;
 #[path = "conformance/cli.rs"]

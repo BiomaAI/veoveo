@@ -7,6 +7,7 @@ use chrono::{TimeDelta, Utc};
 use routes::{Operation, Route};
 use veoveo_mcp_contract::*;
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayCatalog};
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 use veoveo_types::{InvocationMode, PrincipalId, ScopeName, TenantId};
 
 fn control() -> GatewayControlPlane {

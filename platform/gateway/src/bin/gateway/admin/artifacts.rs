@@ -10,11 +10,12 @@ use chrono::{TimeDelta, Utc};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    AccessLevel, ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId,
-    CreateArtifactShareLinkRequest, GatewayAction, GatewayProfile, PlaneCaller, PolicyTarget,
-    PutGrantRequest, SetArtifactReleaseStateRequest,
+    ArtifactPlane, ArtifactPlaneError, ArtifactShareLinkId, CreateArtifactShareLinkRequest,
+    GatewayAction, GatewayProfile, PlaneCaller, PolicyTarget, PutGrantRequest,
+    SetArtifactReleaseStateRequest,
 };
 use veoveo_mcp_gateway::AuthenticatedSubject;
+use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, ResourceUri};
 
 use crate::{

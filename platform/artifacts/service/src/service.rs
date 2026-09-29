@@ -13,18 +13,19 @@ use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState,
     ComplianceMetadata,
 };
-use veoveo_mcp_contract::access::{AccessDecision, AccessLevel, AccessRequest, Grant, decide};
+use veoveo_mcp_contract::access::{AccessDecision, AccessRequest, Grant, decide};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
     ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink,
     ArtifactShareLinkId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
     CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
-    InvocationAuthority, IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability,
-    ListArtifactAccessRequests, ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES,
-    PlaneCaller, PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
-    WorkContextMembershipLevel,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
+    ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
+    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
 };
+use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, DataLabelId};
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 
 use crate::ledger::{
     ArtifactAccessRequestCancellation, ArtifactAccessRequestDecisionDraft,
@@ -1263,12 +1264,12 @@ mod tests {
     use veoveo_mcp_contract::internal_auth::GatewayInternalIdentity;
     use veoveo_mcp_contract::{
         ArtifactAccessRequestDecision, ArtifactAccessRequestScope, ArtifactAccessRequestState,
-        ArtifactWriteIdempotencyKey, JwtId, Principal, WorkContextMembershipLevel,
-        WorkContextOutputPolicy,
+        ArtifactWriteIdempotencyKey, JwtId, Principal,
     };
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
+    use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
     use super::*;
     use crate::ledger::testing::InMemoryRepository;

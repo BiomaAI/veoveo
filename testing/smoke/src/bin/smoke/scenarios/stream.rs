@@ -13,8 +13,7 @@ use secrecy::SecretString;
 use serde_json::json;
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalSigningKey, GatewayInternalTokenIssuer,
-    GatewayProfileId, InvocationAuthority, Principal, PrincipalKind, ServerSlug, TokenIssuer,
-    TokenSubject, WorkContextMembershipLevel, WorkContextOutputPolicy,
+    GatewayProfileId, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId, StoreConfig, StoreCredentials, deterministic_tenant_id,
@@ -23,6 +22,7 @@ use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 use super::*;
 

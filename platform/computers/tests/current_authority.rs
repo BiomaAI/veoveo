@@ -1,3 +1,4 @@
+use veoveo_types::WorkContextMembershipLevel;
 mod support;
 use std::time::Duration;
 use support::{TestDb, policy};

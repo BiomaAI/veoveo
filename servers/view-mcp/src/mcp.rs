@@ -1,3 +1,5 @@
+use crate::contract::ViewScope;
+use crate::server::auth::has_scope;
 use std::sync::{Arc, LazyLock};
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -82,7 +84,7 @@ impl ViewMcp {
         Parameters(request): Parameters<CreateSceneCompositionRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "view:write")?;
+        let identity = require_scope(&context, ViewScope::Write)?;
         let caller = plane_caller(&context, identity.clone())?;
         let composition = self
             .state
@@ -115,7 +117,7 @@ impl ViewMcp {
         Parameters(request): Parameters<CreateViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "view:write")?;
+        let identity = require_scope(&context, ViewScope::Write)?;
         let owner = ResourceOwner::from_identity(&identity);
         let view = self
             .state
@@ -145,7 +147,7 @@ impl ViewMcp {
         Parameters(request): Parameters<SetCameraRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "view:write")?;
+        let identity = require_scope(&context, ViewScope::Write)?;
         let owner = ResourceOwner::from_identity(&identity);
         let view = self
             .state
@@ -192,7 +194,7 @@ impl ViewMcp {
         Parameters(request): Parameters<CloseViewRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let identity = require_scope(&context, "view:write")?;
+        let identity = require_scope(&context, ViewScope::Write)?;
         let owner = ResourceOwner::from_identity(&identity);
         let uri = uris::view(&request.view_id);
         let result = self
@@ -339,7 +341,7 @@ impl ServerHandler for ViewMcp {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let identity = require_scope(&context, "view:read")?;
+        let identity = require_scope(&context, ViewScope::Read)?;
         let owner = ResourceOwner::from_identity(&identity);
         let mut resources = well_known_resources();
         resources.extend([
@@ -352,7 +354,7 @@ impl ServerHandler for ViewMcp {
             json_descriptor(uris::VIEWS, "Views", "Owner-scoped camera views."),
             json_descriptor(uris::FRAMES, "Frames", "Owner-scoped captured frames."),
         ]);
-        if identity_has_scope(&identity, "view:capture") {
+        if has_scope(&identity, ViewScope::Capture) {
             resources.push(
                 veoveo_mcp_apps_extension::app_resource(uris::PREVIEW_APP_URI, "view-preview-app")
                     .with_title("Preview")
@@ -444,7 +446,7 @@ impl ServerHandler for ViewMcp {
             // The app is gated like the tools it drives, ahead of the blanket
             // read gate: view:capture holders may lack nothing the app needs.
             if uri == uris::PREVIEW_APP_URI {
-                require_scope(&context, "view:capture")?;
+                require_scope(&context, ViewScope::Capture)?;
                 return Ok(ReadResourceResult::new(vec![
                     veoveo_mcp_apps_extension::app_html_contents(
                         uri,
@@ -452,7 +454,7 @@ impl ServerHandler for ViewMcp {
                     ),
                 ]));
             }
-            let identity = require_scope(&context, "view:read")?;
+            let identity = require_scope(&context, ViewScope::Read)?;
             // Well-known surface (contract C18, C19): readable by any identity
             // that can list resources.
             if uri == uris::DOCS {
@@ -556,7 +558,7 @@ impl ServerHandler for ViewMcp {
         let Reference::Resource(reference) = &request.r#ref else {
             return Ok(CompleteResult::default());
         };
-        let identity = require_scope(&context, "view:read")?;
+        let identity = require_scope(&context, ViewScope::Read)?;
         let owner = ResourceOwner::from_identity(&identity);
         let values: Vec<String> = match (reference.uri.as_str(), request.argument.name.as_str()) {
             (uris::DOC_TEMPLATE, "doc_id") => {
@@ -623,7 +625,7 @@ impl ServerHandler for ViewMcp {
 
     async fn listen(&self, context: SubscriptionContext) -> Result<(), McpError> {
         let request_context = context.request_context().clone();
-        let identity = require_scope(&request_context, "view:read")?;
+        let identity = require_scope(&request_context, ViewScope::Read)?;
         let owner = ResourceOwner::from_identity(&identity);
         for uri in context.accepted().resource_subscriptions.iter().flatten() {
             if !is_subscribable(uri) {
@@ -699,27 +701,11 @@ fn plane_caller(
 
 fn require_scope(
     context: &RequestContext<RoleServer>,
-    required: &str,
+    required: ViewScope,
 ) -> Result<GatewayInternalIdentity, McpError> {
     let identity = internal_identity(context)?;
-    identity_has_scope(&identity, required)
-        .then_some(identity)
-        .ok_or_else(|| {
-            McpError::invalid_request(
-                format!(
-                    "You don't have permission to make this request. Missing scope `{required}`."
-                ),
-                None,
-            )
-        })
-}
-
-fn identity_has_scope(identity: &GatewayInternalIdentity, required: &str) -> bool {
-    identity
-        .actor
-        .scopes
-        .iter()
-        .any(|scope| scope.as_str() == required)
+    crate::server::auth::require_scope(&identity, required)?;
+    Ok(identity)
 }
 
 fn read_error(error: crate::state::ServiceError) -> McpError {

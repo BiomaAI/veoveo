@@ -11,9 +11,6 @@ use veoveo_platform_store::task_record_id;
 use futures::StreamExt;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_platform_store::TaskStatus;
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskError, TaskFailure, TaskInputRequest, TaskOwner,
@@ -22,6 +19,7 @@ use veoveo_task_runtime::{
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 fn authority() -> InvocationAuthority {
     let principal = PrincipalId::new("integration-principal").unwrap();

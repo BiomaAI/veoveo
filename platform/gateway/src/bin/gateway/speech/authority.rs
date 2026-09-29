@@ -53,7 +53,7 @@ async fn admitted(
         if !subject
             .authority
             .membership
-            .allows(contract::WorkContextMembershipLevel::Contributor)
+            .allows(veoveo_types::WorkContextMembershipLevel::Contributor)
             || subject.actor.kind != contract::PrincipalKind::User
             || subject.access_token.session_family.is_none()
         {

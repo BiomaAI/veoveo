@@ -6,9 +6,8 @@ use std::{
 };
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{
-    GatewayInternalIdentity, GatewayProfileId, InvocationAuthority, JwtId, Principal,
-    PrincipalKind, ServerSlug, TokenIssuer, TokenSubject, WorkContextMembershipLevel,
-    WorkContextOutputPolicy,
+    GatewayInternalIdentity, GatewayProfileId, JwtId, Principal, PrincipalKind, ServerSlug,
+    TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
     RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerCounts,
@@ -20,6 +19,7 @@ use veoveo_types::{
     AccessSubject, DataLabelId, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;

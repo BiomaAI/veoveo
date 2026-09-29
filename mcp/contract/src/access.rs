@@ -24,27 +24,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactId;
 
-use crate::work_context::WorkContextMembershipLevel;
-use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId};
-
-/// A capability level. Ordered `Read < Write < Admin`, so `min` yields the
-/// lesser privilege — exactly what capping a group role by a grant level needs.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(rename_all = "snake_case")]
-pub enum AccessLevel {
-    Read,
-    Write,
-    Admin,
-}
-
-impl AccessLevel {
-    /// True when `self` is sufficient for a request that needs `required`.
-    pub fn allows(self, required: AccessLevel) -> bool {
-        self >= required
-    }
-}
+use veoveo_types::WorkContextMembershipLevel;
+use veoveo_types::{AccessLevel, AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId};
 
 /// The role a principal holds *within* a group. It has the same wire values and
 /// ordering as a grant level, but remains a distinct domain type so callers

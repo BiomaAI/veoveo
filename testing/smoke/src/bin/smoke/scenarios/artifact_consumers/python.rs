@@ -1,5 +1,6 @@
 //! Run the installed Python SDK as a real consumer; Rust owns all acceptance assertions.
 use super::*;
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel};
 use veoveo_types::{InvocationProvenance, PrincipalId, TenantId};
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -19,7 +19,8 @@ links. It fronts `artifact-service` and holds no bytes of its own.
 - Byte and grant authority stays with `artifact-service` and the platform
   store. Subscription state is session local and in memory.
 - Occurrence identity and metadata come from `veoveo_artifact_contract`.
-  Access and service request shapes currently come from `veoveo_mcp_contract`;
+  Capability levels and resolved invocation values come from `veoveo_types`.
+  Access decisions and service request shapes come from `veoveo_mcp_contract`;
   tool schemas use the shared `tool` macro with declared output schemas.
 - All six tools are quick metadata actions. A durable operation would require
   the shared task runtime, never a private queue.

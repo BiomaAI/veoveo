@@ -4,9 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    AccessDecision, AccessLevel, AccessRequest, Exposure, GatewayControlPlane, Grant,
-    GroupMembership, GroupRole, OwnedRoutePurpose, ResourceSelector, ServerManifest,
-    WorkContextMembershipLevel,
+    AccessDecision, AccessRequest, Exposure, GatewayControlPlane, Grant, GroupMembership,
+    GroupRole, OwnedRoutePurpose, ResourceSelector, ServerManifest,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{
@@ -14,6 +13,7 @@ use veoveo_platform_store::{
     PrincipalRecord, RecordId, RecordIdKey, RecordingLayerRecord, RecordingRecord, ShareLinkRecord,
     TaskRecord, WakeRecord,
 };
+use veoveo_types::{AccessLevel, WorkContextMembershipLevel};
 use veoveo_types::{
     AccessSubject, DataLabelId, InvocationMode, PrincipalId, TenantId, WorkContextId,
 };

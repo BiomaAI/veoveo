@@ -1,6 +1,7 @@
 //! Router and store acceptance. AuthenticatedSubject is injected as the boundary
 //! fixture; JWT signature/session-family admission has its own gateway tests.
 use crate::test_store as fixture;
+use veoveo_types::InvocationAuthority;
 
 use axum::{
     Extension, Router,

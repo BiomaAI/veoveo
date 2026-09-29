@@ -89,7 +89,7 @@ async fn proxy(
     } else if !subject
         .authority
         .membership
-        .allows(contract::WorkContextMembershipLevel::Contributor)
+        .allows(veoveo_types::WorkContextMembershipLevel::Contributor)
     {
         decision.reason = contract::PolicyReasonCode::MissingRole;
         Some("You need contributor access to upload files here.")

@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 use serde::Serialize;
 use veoveo_mcp_contract::{
-    AccessLevel, GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
+    GatewayControlPlane, GatewayControlPlaneRevision, GatewayControlPlaneRevisionId,
     GatewayControlPlaneRevisionSource, WorkContextDefinition,
 };
 use veoveo_platform_store::{
@@ -14,6 +14,7 @@ use veoveo_platform_store::{
     WorkContextOutputPolicyRecord, WorkContextRecord, deterministic_tenant_id,
     deterministic_work_context_id,
 };
+use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, PrincipalId, TenantId};
 
 const ACTIVE_CONTROL_PLANE_RECORD: &str = "gateway_control_active:current";
@@ -435,16 +436,16 @@ fn work_context_record(
             .iter()
             .map(|rule| WorkContextMembershipRuleRecord {
                 level: match rule.level {
-                    veoveo_mcp_contract::WorkContextMembershipLevel::Viewer => {
+                    veoveo_types::WorkContextMembershipLevel::Viewer => {
                         WorkContextMembershipLevel::Viewer
                     }
-                    veoveo_mcp_contract::WorkContextMembershipLevel::Contributor => {
+                    veoveo_types::WorkContextMembershipLevel::Contributor => {
                         WorkContextMembershipLevel::Contributor
                     }
-                    veoveo_mcp_contract::WorkContextMembershipLevel::Custodian => {
+                    veoveo_types::WorkContextMembershipLevel::Custodian => {
                         WorkContextMembershipLevel::Custodian
                     }
-                    veoveo_mcp_contract::WorkContextMembershipLevel::Owner => {
+                    veoveo_types::WorkContextMembershipLevel::Owner => {
                         WorkContextMembershipLevel::Owner
                     }
                 },
@@ -514,9 +515,10 @@ mod tests {
     use super::*;
     use veoveo_mcp_contract::{
         GatewayAction, OAuthClientId, PolicyEffect, PolicyRule, PolicyRuleId, PolicySet,
-        TenantDefinition, WorkContextGrant, WorkContextMembershipRule, WorkContextOutputPolicy,
+        TenantDefinition, WorkContextMembershipRule,
     };
     use veoveo_types::{GroupId, PolicyVersion, WorkContextId};
+    use veoveo_types::{WorkContextGrant, WorkContextOutputPolicy};
 
     #[test]
     fn revision_source_round_trips_seed_file() {
@@ -566,7 +568,7 @@ mod tests {
                     data_labels: BTreeSet::new(),
                 },
                 memberships: vec![WorkContextMembershipRule {
-                    level: veoveo_mcp_contract::WorkContextMembershipLevel::Contributor,
+                    level: veoveo_types::WorkContextMembershipLevel::Contributor,
                     principals: BTreeSet::new(),
                     groups: BTreeSet::new(),
                     roles: BTreeSet::new(),

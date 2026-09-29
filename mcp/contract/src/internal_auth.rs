@@ -20,10 +20,8 @@ use jsonwebtoken::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    GatewayProfileId, InvocationAuthority, JwtId, Principal, ProtectedResourceId, ServerSlug,
-    TokenIssuer,
-};
+use crate::{GatewayProfileId, JwtId, Principal, ProtectedResourceId, ServerSlug, TokenIssuer};
+use veoveo_types::InvocationAuthority;
 use veoveo_types::{IdentifierError, PrincipalId};
 
 pub const GATEWAY_INTERNAL_TOKEN_ISSUER: &str = "veoveo-internal";
@@ -739,8 +737,8 @@ mod tests {
     }
 
     fn authority() -> InvocationAuthority {
-        use crate::{WorkContextMembershipLevel, WorkContextOutputPolicy};
         use veoveo_types::{AccessSubject, InvocationProvenance, PolicyVersion, WorkContextId};
+        use veoveo_types::{WorkContextMembershipLevel, WorkContextOutputPolicy};
 
         InvocationAuthority {
             work_context: WorkContextId::new("mission").unwrap(),

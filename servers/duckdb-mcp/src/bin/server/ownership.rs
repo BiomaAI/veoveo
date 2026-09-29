@@ -284,14 +284,12 @@ pub(super) fn resolve_writable_database(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::{
-        InvocationAuthority, PrincipalAssurance, TokenSubject, WorkContextMembershipLevel,
-        WorkContextOutputPolicy,
-    };
+    use veoveo_mcp_contract::{PrincipalAssurance, TokenSubject};
     use veoveo_types::{
         AccessSubject, DataLabelId, GroupId, InvocationProvenance, PolicyVersion, RoleId,
         ScopeName, WorkContextId,
     };
+    use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
     fn identity(profile: &str, subject: &str) -> GatewayInternalIdentity {
         let now = Utc::now();

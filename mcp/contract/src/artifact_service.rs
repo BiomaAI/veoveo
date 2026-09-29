@@ -36,11 +36,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::access::{AccessDecision, AccessLevel, Grant, GroupMembership};
+use crate::access::{AccessDecision, Grant, GroupMembership};
 use crate::internal_auth::GatewayInternalIdentity;
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState,
 };
+use veoveo_types::AccessLevel;
 use veoveo_types::{AccessSubject, DataLabelId, PrincipalId, TenantId, WorkContextId};
 
 /// Maximum serialized size of [`PutArtifactRequest`].

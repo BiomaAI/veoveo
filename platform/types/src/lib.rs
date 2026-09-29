@@ -20,6 +20,7 @@
 //! };
 //! ```
 
+mod authority;
 mod digest;
 mod error;
 pub mod identifier_syntax;
@@ -33,6 +34,10 @@ mod scopes;
 mod task;
 mod task_type;
 
+pub use authority::{
+    AccessLevel, InvocationAuthority, WorkContextGrant, WorkContextMembershipLevel,
+    WorkContextOutputPolicy,
+};
 pub use digest::{Sha256Digest, Sha256DigestError};
 pub use error::IdentifierError;
 pub use names::{ResourceScheme, ScopeDefinition, ScopeName};

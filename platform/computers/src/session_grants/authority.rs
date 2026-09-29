@@ -3,11 +3,10 @@ use crate::{
 };
 use surrealdb::types::{SurrealValue, Value};
 use uuid::Uuid;
-use veoveo_mcp_contract::{
-    GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId, WorkContextMembershipLevel,
-};
+use veoveo_mcp_contract::{GatewayAction, PolicyEffect, PolicyTarget, ServerSlug, TraceId};
 use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, deterministic_tenant_id};
 use veoveo_types::ResourceUri;
+use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) fn require_attach(snapshot: &AuthoritySnapshot, computer: Uuid) -> Result<()> {
     snapshot.check_fresh()?;
@@ -78,7 +77,7 @@ pub(crate) fn event(
         computer_id: Uuid,
         grant_id: Uuid,
         actor: &'a veoveo_types::PrincipalId,
-        authority: &'a veoveo_mcp_contract::InvocationAuthority,
+        authority: &'a veoveo_types::InvocationAuthority,
     }
     Ok(OutboxDraft::now(
         Some(

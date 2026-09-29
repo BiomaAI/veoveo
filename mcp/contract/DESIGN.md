@@ -109,8 +109,8 @@ library's public contract with its `contract` feature and default features disab
 
 [CE-13](../../docs/CONTRACT_EVOLUTION.md#ce-13-modular-types-and-server-owned-contracts)
 defines the accepted separation of foundational types from MCP integration. The
-foundational names, platform identity types, access subjects, invocation provenance,
-reference types, and provenance digests live in `veoveo-types`; consumers import
+foundational names, platform identity types, access subjects, resolved invocation
+authority and output defaults, reference types, and provenance digests live in `veoveo-types`; consumers import
 them directly. Authentication and authorization still use the existing Principal,
 Work Context membership, and policy implementations. Domain-owned Artifact identity
 and metadata live in [`veoveo-artifact-contract`](../../platform/artifacts/contract/DESIGN.md).

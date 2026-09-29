@@ -6,9 +6,6 @@ mod owner_query_cases;
 use futures::StreamExt;
 use serde_json::json;
 use std::{collections::BTreeSet, time::Duration};
-use veoveo_mcp_contract::{
-    InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy,
-};
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::{
     CreateTask, PrincipalKind, RecoveryClass, TaskOwner, TaskRuntime, TaskTransition,
@@ -18,6 +15,7 @@ use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TaskId, TenantId,
     WorkContextId,
 };
+use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 fn authority() -> InvocationAuthority {
     let principal = PrincipalId::new("integration-principal").unwrap();
     InvocationAuthority {

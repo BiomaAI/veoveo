@@ -5,20 +5,23 @@ use std::collections::{BTreeMap, BTreeSet};
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
 };
-use veoveo_mcp_contract::access::{AccessLevel, Grant};
+use veoveo_mcp_contract::access::Grant;
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestState, ArtifactShareLinkId, InvocationAuthority, WorkContextGrant,
-    WorkContextMembershipLevel, WorkContextOutputPolicy,
+    ArtifactAccessRequestState, ArtifactShareLinkId,
 };
 use veoveo_platform_store as platform;
 use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};
+use veoveo_types::AccessLevel;
 use veoveo_types::{
     AccessSubject, DataLabelId, DelegationId, GroupId, InvocationProvenance, PolicyVersion,
     PrincipalId, TenantId, WorkContextId,
+};
+use veoveo_types::{
+    InvocationAuthority, WorkContextGrant, WorkContextMembershipLevel, WorkContextOutputPolicy,
 };
 
 use super::{

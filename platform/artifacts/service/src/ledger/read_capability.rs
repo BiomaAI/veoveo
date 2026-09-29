@@ -3,9 +3,9 @@ use chrono::{DateTime, Utc};
 use std::collections::BTreeSet;
 use veoveo_artifact_contract::ArtifactId;
 use veoveo_mcp_contract::{
-    ArtifactReadCapabilityId, ArtifactTaskId, GatewayProfileId, GroupMembership,
-    InvocationAuthority, ServerSlug,
+    ArtifactReadCapabilityId, ArtifactTaskId, GatewayProfileId, GroupMembership, ServerSlug,
 };
+use veoveo_types::InvocationAuthority;
 use veoveo_types::{DataLabelId, PolicyVersion, WorkContextId};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

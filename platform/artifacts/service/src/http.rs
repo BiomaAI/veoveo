@@ -16,7 +16,6 @@ use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
-use veoveo_mcp_contract::access::AccessLevel;
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
     ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
@@ -26,6 +25,7 @@ use veoveo_mcp_contract::{
     PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
     StreamArtifactRequest,
 };
+use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
 
 use crate::PlaneAuthenticator;
@@ -745,13 +745,13 @@ pub(crate) mod tests {
     };
     use veoveo_mcp_contract::{
         AccessDecision, ArtifactPlane, ArtifactWriteCapabilityId, CreateArtifactShareLinkRequest,
-        InvocationAuthority, IssueArtifactWriteCapabilityRequest, PlaneCaller, Principal,
-        PutArtifactRequest, RedeemArtifactWriteCapabilityRequest, WorkContextMembershipLevel,
-        WorkContextOutputPolicy,
+        IssueArtifactWriteCapabilityRequest, PlaneCaller, Principal, PutArtifactRequest,
+        RedeemArtifactWriteCapabilityRequest,
     };
     use veoveo_types::{
         AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, TenantId, WorkContextId,
     };
+    use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextOutputPolicy};
 
     use super::*;
     use crate::ledger::testing::InMemoryRepository;

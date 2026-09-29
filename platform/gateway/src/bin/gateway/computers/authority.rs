@@ -62,7 +62,7 @@ async fn admitted(
             && !subject
                 .authority
                 .membership
-                .allows(contract::WorkContextMembershipLevel::Contributor)
+                .allows(veoveo_types::WorkContextMembershipLevel::Contributor)
         {
             decision.effect = contract::PolicyEffect::Deny;
             decision.reason = contract::PolicyReasonCode::MissingRole;

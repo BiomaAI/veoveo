@@ -37,7 +37,7 @@ pub mod work_context;
 pub mod workspace;
 
 pub use access::{
-    AccessDecision, AccessLevel, AccessRequest, Grant, GroupMembership, GroupRole, decide,
+    AccessDecision, AccessRequest, Grant, GroupMembership, GroupRole, decide,
     grant_level_for_caller, mac_satisfied, role_in_group,
 };
 pub use agents::{
@@ -165,7 +165,4 @@ pub use uri::{
 };
 pub use usage::{UsageKind, UsageRecord, UsageReport};
 pub use waiters::WebhookWaiters;
-pub use work_context::{
-    InvocationAuthority, WorkContextDefinition, WorkContextGrant, WorkContextMembershipLevel,
-    WorkContextMembershipRule, WorkContextOutputPolicy,
-};
+pub use work_context::{WorkContextDefinition, WorkContextMembershipRule};

@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
-use veoveo_mcp_contract::{
-    AccessLevel, InvocationAuthority, WorkContextMembershipLevel as ContractMembership,
-};
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
     InvocationMode as StoreInvocationMode, WorkContextInitialGrantRecord,
     WorkContextMembershipLevel as StoreMembership,
+};
+use veoveo_types::{
+    AccessLevel, InvocationAuthority, WorkContextMembershipLevel as ContractMembership,
 };
 use veoveo_types::{AccessSubject, InvocationProvenance};
 

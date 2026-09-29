@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
 use veoveo_mcp_contract::{
     GatewayAction, LocalToolName, PolicyDecision, PolicyEffect, PolicyTarget, ServerSlug, TraceId,
-    WorkContextMembershipLevel,
 };
 use veoveo_platform_store::RecordId;
+use veoveo_types::WorkContextMembershipLevel;
 
 pub(crate) const AUTHORITY_LIFETIME: Duration = Duration::from_secs(30);
 

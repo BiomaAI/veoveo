@@ -12,6 +12,12 @@ and attribution.
 
 ## Invariants
 
+- Public camera, capture and composition types, plus `ViewScope` and `ViewTaskKind`,
+  belong in the library's `contract` feature. Keep that profile free of MCP transport,
+  async, database and GPU dependencies. Import resolved authority from `veoveo-types`;
+  authentication and current authorization stay in the runtime and adapter.
+- Require `ViewScope` in permission checks. Requests and capture Tasks share
+  `server/auth.rs`; preserve unrelated names in the authenticated grant set.
 - Owns the `view://` URI scheme plus the `ui://view/preview.html` app view.
   Identity: slug `view`, MCP `/view/mcp`. Map owns geographic source truth;
   View derives no routing or search products. It renders exact governed inputs
@@ -44,6 +50,8 @@ and attribution.
 ## Build And Test
 
 - `cargo check -p veoveo-view-mcp`
+- `cargo test -p veoveo-view-mcp --no-default-features --features contract --lib`
+- Prove contract dependency isolation with a separate consumer workspace.
 - `cargo test -p veoveo-view-mcp` (camera, traversal, cache, and decode tests
   run without a GPU)
 - `cargo xtask image build --target view-mcp` followed by `cargo xtask smoke

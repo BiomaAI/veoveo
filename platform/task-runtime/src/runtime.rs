@@ -22,7 +22,6 @@ use surrealdb::types::{RecordId, SurrealValue};
 use tokio::sync::{Mutex, watch};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use veoveo_mcp_contract::{AccessLevel, InvocationAuthority, WorkContextMembershipLevel};
 use veoveo_platform_store::{
     ArtifactGrantSubjectKind, GrantPermission, InvocationAuthorityRecord,
     InvocationMode as StoreInvocationMode, LiveStream, OpenObject, OutboxDraft, OutboxEventRecord,
@@ -32,6 +31,7 @@ use veoveo_platform_store::{
     deterministic_tenant_id, deterministic_work_context_id,
 };
 use veoveo_types::TaskId;
+use veoveo_types::{AccessLevel, InvocationAuthority, WorkContextMembershipLevel};
 use veoveo_types::{AccessSubject, InvocationProvenance};
 
 use crate::types::{
@@ -1372,7 +1372,7 @@ fn task_input_record_to_exchange(record: TaskInputRecord) -> Result<TaskInputExc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use veoveo_mcp_contract::WorkContextOutputPolicy;
+    use veoveo_types::WorkContextOutputPolicy;
     use veoveo_types::{PolicyVersion, PrincipalId, TenantId, WorkContextId};
 
     fn direct_authority(principal: &str, tenant: &str) -> InvocationAuthority {

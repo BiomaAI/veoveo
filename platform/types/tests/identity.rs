@@ -28,8 +28,8 @@ where
 
 #[test]
 fn claim_identities_preserve_external_spelling() {
-    // Claim IDs historically permit whitespace and Unicode without normalization
-    // or a byte limit. The extraction cannot silently tighten persisted values.
+    // Claim IDs admit whitespace and Unicode without normalization or a byte limit.
+    // Domain-specific IDs have their own lexical profiles.
     let long = "subject".repeat(200);
     let accepted = [
         "issuer#subject",
