@@ -556,30 +556,15 @@ impl CreateSceneCompositionRequest {
         if self.schema_version != SCENE_COMPOSITION_SCHEMA_VERSION {
             return Err(SceneCompositionError::UnsupportedSchemaVersion);
         }
-        if self.governed_inputs.len() > MAX_COMPOSITION_INPUTS {
-            return Err(SceneCompositionError::InputLimit);
-        }
         if self.overlays.len() > MAX_COMPOSITION_OVERLAYS {
             return Err(SceneCompositionError::OverlayLimit);
         }
-        let input_ids = unique_ids(
-            self.governed_inputs
-                .iter()
-                .map(|input| input.input_id.clone()),
-            SceneCompositionError::DuplicateInput,
-        )?;
+        let input_ids = validate_governed_inputs(&self.governed_inputs)?;
         let input_by_id = self
             .governed_inputs
             .iter()
             .map(|input| (&input.input_id, input))
             .collect::<BTreeMap<_, _>>();
-        for input in &self.governed_inputs {
-            validate_text(&input.license, 256)?;
-            validate_text(&input.attribution, 1_024)?;
-            if let Some(media_type) = &input.media_type {
-                validate_media_type(media_type)?;
-            }
-        }
         if self
             .governed_inputs
             .iter()
@@ -653,6 +638,26 @@ impl CreateSceneCompositionRequest {
         }
         Ok(())
     }
+}
+
+pub(super) fn validate_governed_inputs(
+    inputs: &[GovernedSceneInput],
+) -> Result<HashSet<SceneInputId>, SceneCompositionError> {
+    if inputs.len() > MAX_COMPOSITION_INPUTS {
+        return Err(SceneCompositionError::InputLimit);
+    }
+    let ids = unique_ids(
+        inputs.iter().map(|input| input.input_id.clone()),
+        SceneCompositionError::DuplicateInput,
+    )?;
+    for input in inputs {
+        validate_text(&input.license, 256)?;
+        validate_text(&input.attribution, 1_024)?;
+        if let Some(media_type) = &input.media_type {
+            validate_media_type(media_type)?;
+        }
+    }
+    Ok(ids)
 }
 
 pub fn validate_artifact_geometry(

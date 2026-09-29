@@ -39,6 +39,7 @@ identities keep the `view://` scheme.
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; `ui://view/preview.html` drives canonical resources, direct view tools, and task-based capture. |
 | OGC 3D Tiles 1.0 and 1.1 | Explicit tile trees, external tilesets, bounding boxes/spheres/regions, transforms, geometric error, and `REPLACE`/`ADD` refinement. Implicit tiling and legacy payloads are rejected. |
 | glTF/GLB 2.0 | Meshes, standard materials and textures, node transforms, and GLB binary content. |
+| PNG and JPEG | `FrameEncoding` selects the image format; frame metadata admits only `image/png` and `image/jpeg`. |
 | Draco glTF geometry compression | Native decode of Draco-compressed GLB geometry. Preview resources preserve the original compressed bytes. |
 | WGS 84 and ECEF | Exact geodetic camera definitions and `f64` planetary transforms resolved into a local east-up-north rendering frame. |
 | HTTPS | External tilesets and content follow configured credential, host, redirect, deadline, and byte policies. API keys never enter MCP requests or resource identities. |
@@ -221,6 +222,24 @@ caller authority. Public Task get, update, cancel and subscription methods share
 query. SQL checks context and tenant agreement before decoding Task rows. Subscription
 updates and reconnect baselines apply the same selection. Native Store cases exercise
 this policy without renderer work; installed qualification is recorded separately.
+
+`CapturedFrame::builder` binds an admitted view, composition, capture policy and scene
+time. It checks parent identity and creation order before accepting a render report.
+The finished record derives repeated resource identities, provenance, byte length and
+output digest. Its private fields prevent replacing metadata independently of bytes.
+`CapturedFrame::from_record` verifies externally obtained bytes against length and digest;
+image decoding belongs to the consumer. Frame decoding checks positive revisions and
+viewport dimensions, supported encoding, finite achieved detail and governed input
+admission. A complete detail report cannot contain pending tiles. Capture timestamps
+are checked against the supplied view revision during construction.
+
+`PreviewSceneRecord::new` derives the camera origin and local transform from the view.
+Decode checks origin agreement and recomputes the local frame, allowing `1e-12` in the
+basis and `0.1 mm` in translation for platform trigonometry differences. Scene tile
+records require finite, invertible affine transforms and derive oversize status from
+the known byte length. The manifest admits at most 256 tiles. Truncation carries a full
+256-tile prefix, and truncated or oversize manifests report partial detail. These
+constructors validate metadata without loading tiles or invoking a renderer.
 
 ## Camera Contract
 

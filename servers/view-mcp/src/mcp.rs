@@ -436,8 +436,8 @@ impl ServerHandler for ViewMcp {
                         .get_frame(&owner, address.id())
                         .map_err(|_| not_found())?;
                     Ok(ReadResourceResult::new(vec![
-                        ResourceContents::blob(BASE64_STANDARD.encode(&frame.bytes), uri)
-                            .with_mime_type(frame.record.mime_type.clone()),
+                        ResourceContents::blob(BASE64_STANDARD.encode(frame.bytes()), uri)
+                            .with_mime_type(frame.record().mime_type()),
                     ]))
                 }
                 ViewResource::PreviewApp => unreachable!("App handled under capture permission"),
@@ -489,7 +489,7 @@ impl ServerHandler for ViewMcp {
                 .views
                 .list_frames(&owner)
                 .into_iter()
-                .map(|frame| frame.frame_id.to_string())
+                .map(|frame| frame.frame_id().to_string())
                 .collect(),
             _ => Vec::new(),
         };
@@ -556,13 +556,13 @@ pub(crate) fn frame_tool_result(
     frame: &crate::contract::CapturedFrame,
 ) -> anyhow::Result<CallToolResult> {
     let mut result = CallToolResult::success(vec![
-        ContentBlock::text(format!("captured {}", frame.record.frame_uri)),
+        ContentBlock::text(format!("captured {}", frame.record().frame_uri())),
         ContentBlock::image(
-            BASE64_STANDARD.encode(&frame.bytes),
-            frame.record.mime_type.clone(),
+            BASE64_STANDARD.encode(frame.bytes()),
+            frame.record().mime_type(),
         ),
     ]);
-    result.structured_content = Some(serde_json::to_value(&frame.record)?);
+    result.structured_content = Some(serde_json::to_value(frame.record())?);
     Ok(result)
 }
 

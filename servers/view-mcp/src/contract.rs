@@ -1,5 +1,11 @@
+mod frame_record;
 #[cfg(test)]
 pub(crate) mod test_support;
+pub use frame_record::{
+    CapturedFrame, FrameCaptureBuilder, FrameRecord, FrameRecordError, FrameRenderReport,
+};
+mod preview_record;
+pub use preview_record::{PreviewSceneError, PreviewSceneRecord, SceneTileRecord};
 mod view_record;
 pub use view_record::{ViewRecord, ViewRecordError};
 mod resources;
@@ -236,6 +242,24 @@ pub struct CapturePolicy {
     pub encoding: FrameEncoding,
 }
 
+impl FrameEncoding {
+    pub const fn mime_type(self) -> &'static str {
+        match self {
+            Self::Png => "image/png",
+            Self::Jpeg => "image/jpeg",
+        }
+    }
+}
+
+// Record admission checks the representable contract shape; runtime configuration
+// supplies the installation's stricter limits before work is dispatched.
+const RECORD_CAPTURE_LIMITS: CaptureLimits = CaptureLimits {
+    max_width_px: u32::MAX,
+    max_height_px: u32::MAX,
+    max_pixels: u64::MAX,
+    max_deadline_ms: u32::MAX,
+};
+
 fn default_deadline_behavior() -> DeadlineBehavior {
     DeadlineBehavior::ReturnBestAvailable
 }
@@ -349,44 +373,6 @@ pub struct CloseViewResult {
     pub closed: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct FrameRecord {
-    pub frame_id: FrameId,
-    pub frame_uri: FrameUri,
-    pub view_id: ViewId,
-    pub view_revision: u64,
-    pub composition_id: SceneCompositionId,
-    pub composition_uri: CompositionUri,
-    pub composition_revision: u64,
-    pub composition_digest_sha256: Sha256Digest,
-    pub style_id: SceneStyleId,
-    pub governed_inputs: Vec<GovernedSceneInput>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub frame_world_revision: Option<veoveo_frames_mcp::contract::FrameWorldRevisionUri>,
-    pub scene_layer: LayerId,
-    pub captured_at: DateTime<Utc>,
-    pub scene_time: DateTime<Utc>,
-    pub resolved_camera: GeodeticCameraPose,
-    pub width_px: u32,
-    pub height_px: u32,
-    pub mime_type: String,
-    pub byte_length: u64,
-    pub detail_complete: bool,
-    pub actual_max_screen_error_px: f32,
-    pub visible_tile_count: u32,
-    pub pending_tile_count: u32,
-    pub rendered_overlay_count: u32,
-    pub overlay_truncated: bool,
-    pub attribution: AttributionSet,
-    pub output_digest_sha256: Sha256Digest,
-}
-
-#[derive(Debug, Clone)]
-pub struct CapturedFrame {
-    pub record: FrameRecord,
-    pub bytes: Vec<u8>,
-}
-
 /// A preview carries the complete render cut requested by its typed scene
 /// policy unless this transport guard is reached.
 pub const SCENE_MAX_TILES: usize = 256;
@@ -394,48 +380,6 @@ pub const SCENE_DEADLINE_MS: u64 = 30_000;
 /// Raw tile ceiling: base64(1.5 MB) plus the JSON envelope stays under the
 /// console host's 2 MiB resource-read cap.
 pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_500_000;
-
-/// One scene tile the preview app fetches via `view://tile/{key}`.
-/// `ecef_from_content` is served verbatim from the tile tree (glTF Y-up to
-/// Z-up already baked in); CESIUM_RTC centers and per-node transforms stay
-/// inside the GLB payload and are the consumer's job, exactly as in the
-/// server-side renderer.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct SceneTileRecord {
-    pub tile_uri: TileUri,
-    /// Column-major, meters (matches glam `to_cols_array` and three.js
-    /// `Matrix4.fromArray`).
-    pub ecef_from_content: [f64; 16],
-    /// Raw GLB length when resident in the byte cache; absent after eviction.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub byte_length: Option<u64>,
-    /// Reads of oversize tiles fail; consumers must skip them.
-    pub oversize: bool,
-}
-
-/// Render-cut manifest for a view's current camera, served through the
-/// parameterized view-scene resource for the preview app's in-browser 3D scene.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct PreviewSceneRecord {
-    pub view_id: ViewId,
-    pub view_revision: u64,
-    pub composition_id: SceneCompositionId,
-    pub composition_digest_sha256: Sha256Digest,
-    pub scene_layer: LayerId,
-    pub resolved_camera: GeodeticCameraPose,
-    pub local_origin: Wgs84Position3d,
-    /// Column-major local frame (+X east, +Y up, -Z north) from ECEF meters,
-    /// anchored at `local_origin` so composed tile transforms stay
-    /// scene-local and f32-safe.
-    pub local_from_ecef: [f64; 16],
-    pub width_px: u32,
-    pub height_px: u32,
-    pub max_screen_error_px: f64,
-    pub detail_complete: bool,
-    pub truncated: bool,
-    pub attribution: AttributionSet,
-    pub tiles: Vec<SceneTileRecord>,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ContractError {

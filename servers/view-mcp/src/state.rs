@@ -30,10 +30,11 @@ use crate::{
     contract::{
         AttributionSet, CaptureFrameRequest, CaptureLimits, CapturedFrame, CloseViewRequest,
         CloseViewResult, ContractError, CreateSceneCompositionRequest, CreateViewRequest,
-        DeadlineBehavior, FrameId, FrameRecord, FrameUri, LayerId, MAX_TILE_RESOURCE_BYTES,
-        PreviewScenePolicy, PreviewSceneRecord, SCENE_DEADLINE_MS, SCENE_MAX_TILES,
-        SceneComposition, SceneCompositionAuthority, SceneCompositionId, SceneTileRecord,
-        SetCameraRequest, Sha256Digest, TileKey, TileUri, ViewId, ViewRecord, ViewRecordError,
+        DeadlineBehavior, FrameId, FrameRecord, FrameRecordError, FrameRenderReport, LayerId,
+        MAX_TILE_RESOURCE_BYTES, PreviewSceneError, PreviewScenePolicy, PreviewSceneRecord,
+        SCENE_DEADLINE_MS, SCENE_MAX_TILES, SceneComposition, SceneCompositionAuthority,
+        SceneCompositionId, SceneTileRecord, SetCameraRequest, TileKey, TileUri, ViewId,
+        ViewRecord, ViewRecordError,
     },
     decode::{CpuTileContent, decode_glb},
     geodesy::{camera_ecef_basis, camera_world_transform, geodetic_to_ecef, world_from_ecef},
@@ -424,7 +425,7 @@ impl ViewService {
             .iter()
             .filter_map(|id| frames.records.get(id))
             .filter(|stored| &stored.owner == owner)
-            .map(|stored| stored.frame.record.clone())
+            .map(|stored| stored.frame.record().clone())
             .collect()
     }
 
@@ -496,41 +497,31 @@ impl ViewService {
                 let tile_key =
                     TileKey::from_bytes(format!("{}\n{location}", view.scene_layer()).as_bytes());
                 let byte_length = source.cached_content_length(&location);
-                let oversize = byte_length.is_some_and(|length| length > MAX_TILE_RESOURCE_BYTES);
+                let tile = SceneTileRecord::new(
+                    TileUri::new(tile_key.clone()),
+                    ecef_from_content,
+                    byte_length,
+                )?;
                 registry.register(
-                    tile_key.clone(),
+                    tile_key,
                     TileTokenEntry {
                         layer: view.scene_layer().clone(),
                         location,
                     },
                 );
-                tiles.push(SceneTileRecord {
-                    tile_uri: TileUri::new(tile_key),
-                    ecef_from_content,
-                    byte_length,
-                    oversize,
-                });
+                tiles.push(tile);
             }
         }
-        Ok(PreviewSceneRecord {
-            view_id: view.view_id().clone(),
-            view_revision: view.revision(),
-            composition_id: view.composition_id().clone(),
-            composition_digest_sha256: view.composition_digest_sha256().clone(),
-            scene_layer: view.scene_layer().clone(),
-            local_origin: resolved.position,
-            local_from_ecef: world_from_ecef(resolved.position).to_cols_array(),
-            resolved_camera: resolved,
-            width_px: policy.width_px,
-            height_px: policy.height_px,
-            max_screen_error_px: f64::from(policy.max_screen_error_px),
-            detail_complete: selection.detail_complete,
+        Ok(PreviewSceneRecord::new(
+            &view,
+            policy,
+            selection.detail_complete,
             truncated,
-            attribution: AttributionSet {
+            AttributionSet {
                 lines: attribution.into_iter().collect(),
             },
             tiles,
-        })
+        )?)
     }
 
     /// Raw draco GLB bytes for a preview-tile token, from the source byte
@@ -720,7 +711,10 @@ impl ViewService {
             .collect::<BTreeSet<_>>();
         let overlay_tiles = composition_render_tiles(composition, scene_time, &resolved)
             .map_err(ServiceError::CompositionResolution)?;
-        let rendered_overlay_count = overlay_tiles.len() as u32;
+        let rendered_overlay_count = overlay_tiles
+            .len()
+            .try_into()
+            .map_err(|_| FrameRecordError::Detail)?;
         tiles.extend(overlay_tiles);
         let rendered = self
             .renderer
@@ -747,44 +741,33 @@ impl ViewService {
         } else {
             f32::MAX
         };
-        let record = FrameRecord {
-            frame_uri: FrameUri::new(frame_id.clone()),
-            frame_id: frame_id.clone(),
-            view_id: view.view_id().clone(),
-            view_revision: view.revision(),
-            composition_id: composition.record().composition_id().clone(),
-            composition_uri: composition.record().composition_uri().clone(),
-            composition_revision: composition.record().revision(),
-            composition_digest_sha256: composition.record().composition_digest_sha256().clone(),
-            style_id: composition.record().style_id().clone(),
-            governed_inputs: composition.record().governed_inputs().to_vec(),
-            frame_world_revision: composition
-                .record()
-                .local_frame()
-                .map(|binding| binding.world_revision.clone()),
-            scene_layer: view.scene_layer().clone(),
-            captured_at: Utc::now(),
-            scene_time,
-            resolved_camera: resolved,
-            width_px: policy.width_px,
-            height_px: policy.height_px,
-            mime_type: rendered.mime_type.to_owned(),
-            byte_length: rendered.bytes.len() as u64,
-            detail_complete: selection.detail_complete,
-            actual_max_screen_error_px: actual_sse,
-            visible_tile_count: selection.render.len() as u32,
-            pending_tile_count: selection.loads.len() as u32,
-            rendered_overlay_count,
-            overlay_truncated: false,
-            attribution: crate::contract::AttributionSet {
-                lines: attribution.into_iter().collect(),
-            },
-            output_digest_sha256: Sha256Digest::from_bytes(&rendered.bytes),
-        };
-        let frame = Arc::new(CapturedFrame {
-            record,
-            bytes: rendered.bytes,
-        });
+        let frame = Arc::new(
+            CapturedFrame::builder(frame_id, view, composition.record(), scene_time, &policy)?
+                .finish(
+                    Utc::now(),
+                    FrameRenderReport {
+                        detail_complete: selection.detail_complete,
+                        actual_max_screen_error_px: actual_sse,
+                        visible_tile_count: selection
+                            .render
+                            .len()
+                            .try_into()
+                            .map_err(|_| FrameRecordError::Detail)?,
+                        pending_tile_count: selection
+                            .loads
+                            .len()
+                            .try_into()
+                            .map_err(|_| FrameRecordError::Detail)?,
+                        rendered_overlay_count,
+                        overlay_truncated: false,
+                        attribution: AttributionSet {
+                            lines: attribution.into_iter().collect(),
+                        },
+                    },
+                    rendered.encoding,
+                    rendered.bytes,
+                )?,
+        );
         self.store_frame(owner.clone(), frame.clone());
         Ok(frame)
     }
@@ -815,11 +798,12 @@ impl ViewService {
 
     fn store_frame(&self, owner: ResourceOwner, frame: Arc<CapturedFrame>) {
         let mut frames = self.frames.lock();
-        frames.bytes = frames.bytes.saturating_add(frame.record.byte_length);
-        frames.order.push_back(frame.record.frame_id.clone());
-        frames
-            .records
-            .insert(frame.record.frame_id.clone(), StoredFrame { owner, frame });
+        frames.bytes = frames.bytes.saturating_add(frame.record().byte_length());
+        frames.order.push_back(frame.record().frame_id().clone());
+        frames.records.insert(
+            frame.record().frame_id().clone(),
+            StoredFrame { owner, frame },
+        );
         while frames.order.len() > self.config.max_frames
             || frames.bytes > self.config.max_frame_bytes
         {
@@ -827,7 +811,9 @@ impl ViewService {
                 break;
             };
             if let Some(old) = frames.records.remove(&oldest) {
-                frames.bytes = frames.bytes.saturating_sub(old.frame.record.byte_length);
+                frames.bytes = frames
+                    .bytes
+                    .saturating_sub(old.frame.record().byte_length());
             }
         }
     }
@@ -1179,6 +1165,10 @@ pub enum ServiceError {
     Contract(#[from] ContractError),
     #[error(transparent)]
     ViewRecord(#[from] ViewRecordError),
+    #[error(transparent)]
+    FrameRecord(#[from] FrameRecordError),
+    #[error(transparent)]
+    PreviewScene(#[from] PreviewSceneError),
     #[error(transparent)]
     Snapshot(#[from] ViewSnapshotError),
     #[error("scene layer `{0}` is not configured")]

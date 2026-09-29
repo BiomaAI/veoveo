@@ -57,6 +57,7 @@ mcp = [
     "dep:tower-http",
     "dep:veoveo-mcp-apps-extension",
     "dep:veoveo-task-runtime",
+    "dep:veoveo-platform-store",
 ]
 
 [dependencies]
@@ -105,9 +106,10 @@ veoveo-artifact-client = { optional = true, path = "../../platform/artifacts/cli
 veoveo-mcp-apps-extension = { optional = true, path = "../../mcp/apps-extension" }
 veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-task-runtime = { optional = true, path = "../../platform/task-runtime" }
+# Native hosted-server fixtures need Store; contract-only tests must not build it.
+veoveo-platform-store = { optional = true, path = "../../platform/store" }
 
 [dev-dependencies]
-veoveo-platform-store = { path = "../../platform/store" }
 approx = "0.5.1"
 jsonschema.workspace = true
 tempfile = "3"

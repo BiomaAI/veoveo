@@ -95,7 +95,7 @@ pub struct RenderFrameRequest {
 #[derive(Debug)]
 pub struct RenderedImage {
     pub bytes: Vec<u8>,
-    pub mime_type: &'static str,
+    pub encoding: FrameEncoding,
 }
 
 enum RenderCommand {
@@ -574,6 +574,8 @@ fn encode_image(
     encoding: FrameEncoding,
     jpeg_quality: u8,
 ) -> Result<RenderedImage, RendererError> {
+    // TODO(GPU): keep RGB conversion and JPEG encoding on CUDA buffers via nvJPEG;
+    // qualify that path before replacing this CPU encoder and GPU readback.
     let dynamic = image
         .try_into_dynamic()
         .map_err(|error| RendererError::ImageConversion(error.to_string()))?
@@ -586,7 +588,7 @@ fn encode_image(
                 .map_err(RendererError::ImageEncoding)?;
             Ok(RenderedImage {
                 bytes,
-                mime_type: "image/png",
+                encoding: FrameEncoding::Png,
             })
         }
         FrameEncoding::Jpeg => {
@@ -597,7 +599,7 @@ fn encode_image(
                 .map_err(RendererError::ImageEncoding)?;
             Ok(RenderedImage {
                 bytes,
-                mime_type: "image/jpeg",
+                encoding: FrameEncoding::Jpeg,
             })
         }
     }

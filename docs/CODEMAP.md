@@ -798,6 +798,8 @@ converts validated overlays into GPU render products. `src/state.rs` owns
 principal, tenant and Work Context scoped composition, view and frame state.
 `src/contract/composition/record.rs` checks immutable scene records;
 `src/contract/view_record.rs` owns camera revision admission and updates.
+`src/contract/frame_record.rs` owns capture output assembly and byte agreement;
+`src/contract/preview_record.rs` checks render-cut metadata and tile transforms.
 `src/state/snapshot.rs` checks capture parents, and `src/composition/validation.rs`
 checks retained geometry and artifact bytes against declared inputs. `src/mcp.rs`
 publishes the tools and resources. `src/server/tasks.rs` persists recoverable captures

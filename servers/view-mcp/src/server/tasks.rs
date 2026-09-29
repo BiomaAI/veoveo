@@ -345,7 +345,7 @@ async fn run_capture_task_inner(
                     &state,
                     &task_id,
                     TaskTransition::Succeeded {
-                        message: format!("captured {}", frame.record.frame_uri),
+                        message: format!("captured {}", frame.record().frame_uri()),
                         result,
                     },
                 )
