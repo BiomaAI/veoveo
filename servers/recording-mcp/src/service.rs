@@ -11,12 +11,9 @@ use veoveo_platform_store::{
     ArtifactId as PlatformArtifactId, PlatformIdentity, PlatformStore, PrincipalKind,
     RecordingBlueprintRecord, RecordingDatasetId, RecordingId, RecordingLayerDraft,
     RecordingLayerId, RecordingLayerKind, RecordingLayerRecord, RecordingLayerState,
-    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingReadGrantId,
-    RecordingReadGrantRecord, RecordingRecord, RecordingSeal, RecordingState,
+    RecordingRecord, RecordingSeal, RecordingState,
 };
-use veoveo_recording_hub::{
-    GatewayLayerPublisher, invocation_authority_record, live_segment_byte_len,
-};
+use veoveo_recording_hub::{GatewayLayerPublisher, live_segment_byte_len};
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName};
 
@@ -26,6 +23,7 @@ use crate::contract::{
 };
 use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
+mod grants;
 mod index;
 mod projection;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
@@ -219,60 +217,6 @@ impl RecordingService {
                     veoveo_mcp_contract::PrincipalKind::Service => PrincipalKind::Service,
                 },
             )
-            .await?)
-    }
-
-    pub async fn issue_read_grant(
-        &self,
-        identity: &GatewayInternalIdentity,
-        dataset_id: RecordingDatasetId,
-        grant_class: RecordingReadGrantClass,
-        mut recording_ids: Vec<RecordingId>,
-        catalog_revision: String,
-        requested_grant: Option<crate::contract::RecordingReadGrantId>,
-    ) -> Result<RecordingReadGrantRecord> {
-        recording_ids.sort_unstable();
-        recording_ids.dedup();
-        ensure!(
-            !recording_ids.is_empty(),
-            "recording grant must admit at least one recording"
-        );
-        let platform_identity = self.platform_identity(identity).await?;
-        if let Some(grant_id) = requested_grant
-            && let Some(grant) = self
-                .store
-                .recording_read_grant(
-                    platform_identity.tenant_id,
-                    RecordingReadGrantId::from_uuid(grant_id.as_uuid()),
-                )
-                .await?
-        {
-            let expected_recordings = recording_ids
-                .iter()
-                .copied()
-                .map(RecordingId::record_id)
-                .collect::<Vec<_>>();
-            if grant.dataset == dataset_id.record_id()
-                && grant.grant_class == grant_class
-                && grant.recordings == expected_recordings
-                && grant.actor == platform_identity.principal_id.record_id()
-                && grant.policy_revision == identity.authority.policy_revision.as_str()
-                && grant.catalog_revision == catalog_revision
-            {
-                return Ok(grant);
-            }
-        }
-        Ok(self
-            .store
-            .create_recording_read_grant(RecordingReadGrantDraft {
-                identity: platform_identity,
-                authority: invocation_authority_record(&identity.authority),
-                dataset_id,
-                grant_class,
-                recording_ids,
-                catalog_revision,
-                expires_at: Utc::now() + VIEWER_GRANT_TTL,
-            })
             .await?)
     }
 

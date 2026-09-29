@@ -2,32 +2,30 @@ use std::collections::BTreeMap;
 use std::path::{Component, Path};
 use std::str::FromStr as _;
 
-use chrono::{DateTime, TimeDelta, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest as _, Sha256};
 use surrealdb::types::{RecordId, RecordIdKey, SurrealValue};
 use uuid::Uuid;
 
 use crate::{
-    ArtifactId, InvocationAuthorityRecord, OpenObject, OutboxDraft, PlatformIdentity,
-    PlatformStore, RecordingDatasetId, RecordingDatasetRecord, RecordingId, RecordingLayerId,
-    RecordingLayerKind, RecordingLayerRecord, RecordingLayerState, RecordingReadGrantClass,
-    RecordingReadGrantId, RecordingReadGrantRecord, RecordingRetentionMode, RecordingState,
-    StoreError, TenantId, deterministic_work_context_id,
+    ArtifactId, OpenObject, OutboxDraft, PlatformIdentity, PlatformStore, RecordingDatasetId,
+    RecordingDatasetRecord, RecordingId, RecordingLayerId, RecordingLayerKind,
+    RecordingLayerRecord, RecordingLayerState, RecordingRetentionMode, RecordingState, StoreError,
+    TenantId,
 };
 
+mod access;
+mod grants;
 mod projections;
-pub use projections::{
-    RecordingProjectionReceiptDraft, RecordingProjectionRequest, RecordingProjectionScope,
-};
+pub use access::RecordingAccessScope;
+pub use grants::{RecordingReadGrantDraft, RecordingReadGrantRequest};
+pub use projections::{RecordingProjectionReceiptDraft, RecordingProjectionRequest};
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_DATASET_KEY_BYTES: usize = 128;
 const MAX_DISPLAY_LABEL_BYTES: usize = 256;
 const MAX_LAYER_NAME_BYTES: usize = 256;
 const MAX_LAYER_LIMIT: u32 = 10_000;
-const MAX_GRANT_RECORDINGS: usize = 500;
-const MAX_GRANT_TTL: TimeDelta = TimeDelta::hours(1);
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct RecordingCatalogCleanup {
@@ -94,17 +92,6 @@ impl RecordingLayerDraft {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct RecordingReadGrantDraft {
-    pub identity: PlatformIdentity,
-    pub authority: InvocationAuthorityRecord,
-    pub dataset_id: RecordingDatasetId,
-    pub grant_class: RecordingReadGrantClass,
-    pub recording_ids: Vec<RecordingId>,
-    pub catalog_revision: String,
-    pub expires_at: DateTime<Utc>,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
 struct RecordingDatasetContent {
     tenant: RecordId,
@@ -139,21 +126,6 @@ struct RecordingLayerContent {
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
     revision: i64,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct RecordingReadGrantContent {
-    tenant: RecordId,
-    dataset: RecordId,
-    grant_class: RecordingReadGrantClass,
-    recordings: Vec<RecordId>,
-    admitted_set_digest: String,
-    actor: RecordId,
-    work_context: RecordId,
-    policy_revision: String,
-    catalog_revision: String,
-    expires_at: DateTime<Utc>,
-    created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, Deserialize, SurrealValue)]
@@ -693,115 +665,6 @@ impl PlatformStore {
         Ok(response.take(0)?)
     }
 
-    pub async fn create_recording_read_grant(
-        &self,
-        mut draft: RecordingReadGrantDraft,
-    ) -> Result<RecordingReadGrantRecord, StoreError> {
-        validate_text("catalog_revision", &draft.catalog_revision, 128)?;
-        let now = Utc::now();
-        if draft.expires_at <= now || draft.expires_at > now + MAX_GRANT_TTL {
-            return Err(StoreError::InvalidRecordingField {
-                field: "grant expires_at",
-                reason: "must be within the next hour",
-            });
-        }
-        draft.recording_ids.sort_unstable();
-        draft.recording_ids.dedup();
-        if draft.recording_ids.is_empty() || draft.recording_ids.len() > MAX_GRANT_RECORDINGS {
-            return Err(StoreError::InvalidRecordingField {
-                field: "grant recordings",
-                reason: "must contain 1..=500 recording UUIDs",
-            });
-        }
-        let dataset = self
-            .recording_dataset(draft.identity.tenant_id, draft.dataset_id)
-            .await?
-            .ok_or(StoreError::RecordingDatasetConflict {
-                dataset_id: draft.dataset_id.to_string(),
-            })?;
-        for recording_id in &draft.recording_ids {
-            let recording = self
-                .recording(draft.identity.tenant_id, *recording_id)
-                .await?
-                .ok_or_else(|| StoreError::RecordingNotFound(recording_id.to_string()))?;
-            if recording.dataset != dataset.id {
-                return Err(StoreError::RecordingReadGrantConflict {
-                    grant_id: "new".to_owned(),
-                });
-            }
-        }
-        let admitted_set_digest =
-            admitted_set_digest(draft.dataset_id, draft.grant_class, &draft.recording_ids);
-        let id = RecordingReadGrantId::new();
-        let work_context = deterministic_work_context_id(
-            &draft.identity.tenant_key,
-            &draft.authority.context_key,
-        )?;
-        let content = RecordingReadGrantContent {
-            tenant: draft.identity.tenant_id.record_id(),
-            dataset: draft.dataset_id.record_id(),
-            grant_class: draft.grant_class,
-            recordings: draft
-                .recording_ids
-                .iter()
-                .copied()
-                .map(RecordingId::record_id)
-                .collect(),
-            admitted_set_digest,
-            actor: draft.identity.principal_id.record_id(),
-            work_context: work_context.record_id(),
-            policy_revision: draft.authority.policy_revision,
-            catalog_revision: draft.catalog_revision,
-            expires_at: draft.expires_at,
-            created_at: now,
-        };
-        self.db
-            .query("CREATE ONLY $grant CONTENT $content RETURN NONE;")
-            .bind(("grant", id.record_id()))
-            .bind(("content", content))
-            .await?
-            .check()?;
-        self.recording_read_grant(draft.identity.tenant_id, id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "recording read grant creation readback",
-            })
-    }
-
-    pub async fn recording_read_grant(
-        &self,
-        tenant_id: TenantId,
-        grant_id: RecordingReadGrantId,
-    ) -> Result<Option<RecordingReadGrantRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM ONLY $grant WHERE tenant = $tenant AND expires_at > time::now();")
-            .bind(("grant", grant_id.record_id()))
-            .bind(("tenant", tenant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
-    /// Resolve an unexpired grant by its cryptographically unguessable UUID.
-    ///
-    /// This service-only lookup exists for Redap bearer redemption, where the
-    /// verified token subject is the durable grant ID and no tenant selector is
-    /// supplied by the client. Callers must still validate the grant class and
-    /// route against the returned record.
-    pub async fn recording_read_grant_by_id(
-        &self,
-        grant_id: RecordingReadGrantId,
-    ) -> Result<Option<RecordingReadGrantRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM ONLY $grant WHERE expires_at > time::now();")
-            .bind(("grant", grant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
-    }
-
     pub async fn cleanup_expired_recording_catalog_authority(
         &self,
         now: DateTime<Utc>,
@@ -1002,20 +865,6 @@ fn validate_sha256(field: &'static str, value: &str) -> Result<(), StoreError> {
     Ok(())
 }
 
-fn admitted_set_digest(
-    dataset_id: RecordingDatasetId,
-    grant_class: RecordingReadGrantClass,
-    recording_ids: &[RecordingId],
-) -> String {
-    let mut digest = Sha256::new();
-    digest.update(dataset_id.as_uuid().as_bytes());
-    digest.update(serde_json::to_vec(&grant_class).expect("closed grant class serializes"));
-    for recording_id in recording_ids {
-        digest.update(recording_id.as_uuid().as_bytes());
-    }
-    hex::encode(digest.finalize())
-}
-
 fn catalog_event(
     identity: &PlatformIdentity,
     aggregate_type: &str,
@@ -1098,6 +947,7 @@ fn typed_uuid_from_record(record: &RecordId, table: &'static str) -> Result<Uuid
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::TimeDelta;
 
     #[test]
     fn capture_names_are_fixed_width_and_ordered() {
@@ -1105,24 +955,6 @@ mod tests {
         let second = capture_layer_name(10).unwrap();
         assert_eq!(first, "capture-00000000000000000002");
         assert!(first < second);
-    }
-
-    #[test]
-    fn admitted_recording_digest_is_order_sensitive_only_before_normalization() {
-        let dataset = RecordingDatasetId::new();
-        let mut recordings = vec![RecordingId::new(), RecordingId::new()];
-        recordings.sort_unstable();
-        let first = admitted_set_digest(
-            dataset,
-            RecordingReadGrantClass::CatalogDataset,
-            &recordings,
-        );
-        let second = admitted_set_digest(
-            dataset,
-            RecordingReadGrantClass::CatalogDataset,
-            &recordings,
-        );
-        assert_eq!(first, second);
     }
 
     #[test]

@@ -25,6 +25,8 @@ use veoveo_types::TaskId;
 
 #[path = "surreal_integration/changefeed.rs"]
 mod changefeed;
+#[path = "../../../testing/fixtures/store.rs"]
+mod fixture;
 #[path = "surreal_integration/map_projection.rs"]
 mod map_projection;
 #[path = "surreal_integration/recording_ingest.rs"]
@@ -1117,28 +1119,16 @@ async fn artifact_plane_counters_and_occurrence_dedup_are_durable() {
 
 #[tokio::test]
 async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
-    if std::env::var("VEOVEO_SURREAL_INTEGRATION").as_deref() != Ok("1") {
-        return;
-    }
-
-    let endpoint =
-        std::env::var("VEOVEO_SURREAL_URL").unwrap_or_else(|_| "ws://127.0.0.1:8000".to_owned());
-    let username = std::env::var("VEOVEO_SURREAL_USER").unwrap_or_else(|_| "root".to_owned());
-    let password = std::env::var("VEOVEO_SURREAL_PASSWORD").unwrap_or_else(|_| "root".to_owned());
-    let database = format!("recording_test_{}", Uuid::now_v7().simple());
-    let store = PlatformStore::connect(
-        StoreConfig::builder(
-            &endpoint,
-            "veoveo_integration",
-            database,
-            StoreCredentials::root(username, SecretString::from(password)),
-        )
-        .migrate_on_connect(true)
-        .build()
-        .unwrap(),
+    let db = fixture::TestDb::new().await;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(90),
+        qualify_recording_catalog(&db.a, &db.b),
     )
     .await
-    .unwrap();
+    .expect("Recording catalog qualification exceeded 90 seconds");
+}
+
+async fn qualify_recording_catalog(store: &PlatformStore, reader: &PlatformStore) {
     let identity = store
         .ensure_identity(
             "tenant-recording",
@@ -1385,22 +1375,7 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
     }));
     assert!(layers.iter().all(|layer| layer.staging_path.is_none()));
 
-    let grant_expires_at = Utc::now() + TimeDelta::minutes(5);
-    let grant = store
-        .create_recording_read_grant(RecordingReadGrantDraft {
-            identity: identity.clone(),
-            authority: artifact_authority(&identity),
-            dataset_id,
-            grant_class: RecordingReadGrantClass::AppProjection,
-            recording_ids: vec![recording_id, recording_id],
-            catalog_revision: "3".into(),
-            expires_at: grant_expires_at,
-        })
-        .await
-        .unwrap();
-    assert_eq!(grant.recordings, vec![recording_id.record_id()]);
-    let grant_id = veoveo_platform_store::RecordingReadGrantId::from_uuid(record_uuid(&grant.id));
-    let scope = veoveo_platform_store::RecordingProjectionScope {
+    let scope = veoveo_platform_store::RecordingAccessScope {
         tenant_id: identity.tenant_id,
         actor_id: identity.principal_id,
         work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations").unwrap(),
@@ -1410,6 +1385,31 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
             .into_iter()
             .collect(),
     };
+    let grant_expires_at = Utc::now() + TimeDelta::minutes(5);
+    let grant_request = veoveo_platform_store::RecordingReadGrantRequest::new(
+        dataset_id,
+        RecordingReadGrantClass::AppProjection,
+        vec![recording_id, recording_id],
+        "3",
+    )
+    .unwrap();
+    let grant = store
+        .create_recording_read_grant(RecordingReadGrantDraft {
+            scope: scope.clone(),
+            request: grant_request.clone(),
+            expires_at: grant_expires_at,
+        })
+        .await
+        .unwrap();
+    assert_eq!(grant.recordings, vec![recording_id.record_id()]);
+    let grant_id = veoveo_platform_store::RecordingReadGrantId::from_uuid(record_uuid(&grant.id));
+    assert_eq!(
+        Some(grant),
+        reader
+            .reusable_recording_read_grant(&scope, &grant_request, grant_id)
+            .await
+            .unwrap()
+    );
     let projection_draft = RecordingProjectionReceiptDraft {
         scope: scope.clone(),
         request: veoveo_platform_store::RecordingProjectionRequest::new(

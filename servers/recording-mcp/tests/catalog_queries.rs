@@ -27,6 +27,8 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextO
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "catalog_queries/grants.rs"]
+mod grants;
 #[path = "catalog_queries/projections.rs"]
 mod projections;
 
@@ -348,6 +350,8 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
                     .is_err()
             );
         }
+
+        grants::qualify(&service, &reader, dataset_id, oldest).await;
 
         let first =
             db.a.open_recording_layer(

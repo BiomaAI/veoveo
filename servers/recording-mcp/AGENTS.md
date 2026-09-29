@@ -57,6 +57,7 @@ and reactive Rerun live following.
   the shared contract owns typed catalog cursors. SQL applies tenant and label predicates before limits.
 - `bin/server/resources.rs` dispatches the admitted resource variants.
 - [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
+- `service/grants.rs` maps authenticated caller authority to Store grant admission and reuse.
 - `service/projection.rs` owns projection receipts and bounded scratch.
 - The shared reader cache owns verified Artifact-to-PVC materialization and eviction;
   `blueprint_cache.rs` supplies Blueprint identity validation.

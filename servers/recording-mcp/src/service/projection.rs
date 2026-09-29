@@ -20,8 +20,7 @@ use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
     RecordId, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
     RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
-    RecordingProjectionScope, RecordingProjectionState, RecordingReadGrantClass,
-    RecordingReadGrantId,
+    RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantId,
 };
 use veoveo_rrd::projection::{
     MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS,
@@ -307,7 +306,7 @@ impl RecordingService {
         let platform_identity = self.platform_identity(identity).await?;
         let query_digest = projection_query_digest(&request)?;
         let manifest_digest = projection_manifest_digest(&plan);
-        let scope = projection_scope(identity, &platform_identity)?;
+        let scope = super::grants::recording_access_scope(identity, &platform_identity)?;
         let request_identity = RecordingProjectionRequest::new(
             dataset_id,
             recording_id,
@@ -506,7 +505,7 @@ impl RecordingService {
             .as_ref()
             .context("recording projection runtime is not configured")?;
         let platform_identity = self.platform_identity(identity).await?;
-        let scope = projection_scope(identity, &platform_identity)?;
+        let scope = super::grants::recording_access_scope(identity, &platform_identity)?;
         let Some(receipt) = self
             .store
             .ready_recording_projection(&scope, recording_id, projection_id)
@@ -536,22 +535,6 @@ impl RecordingService {
             sha256,
         }))
     }
-}
-
-fn projection_scope(
-    identity: &GatewayInternalIdentity,
-    platform_identity: &veoveo_platform_store::PlatformIdentity,
-) -> Result<RecordingProjectionScope> {
-    Ok(RecordingProjectionScope {
-        tenant_id: platform_identity.tenant_id,
-        actor_id: platform_identity.principal_id,
-        work_context_id: veoveo_platform_store::deterministic_work_context_id(
-            &platform_identity.tenant_key,
-            identity.authority.work_context.as_str(),
-        )?,
-        policy_revision: identity.authority.policy_revision.clone(),
-        data_labels: identity.actor.data_labels.clone(),
-    })
 }
 
 enum ProjectionTerminal {

@@ -1,27 +1,17 @@
 //! Recording projection admission and atomic receipt lifecycle.
-use std::{collections::BTreeSet, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
-use veoveo_types::{DataLabelId, PolicyVersion, Sha256Digest};
+use veoveo_types::Sha256Digest;
 
-use super::validate_text;
+use super::{RecordingAccessScope, validate_text};
 use crate::{
-    PlatformStore, PrincipalId, RecordingDatasetId, RecordingId, RecordingProjectionReceiptId,
+    PlatformStore, RecordingDatasetId, RecordingId, RecordingProjectionReceiptId,
     RecordingProjectionReceiptRecord, RecordingProjectionState, RecordingReadGrantClass,
-    RecordingReadGrantId, StoreError, TenantId, WorkContextId, primary_transaction_error,
+    RecordingReadGrantId, StoreError, primary_transaction_error,
 };
-
-/// Supplied by the authenticated service after policy admission.
-#[derive(Clone, Debug)]
-pub struct RecordingProjectionScope {
-    pub tenant_id: TenantId,
-    pub actor_id: PrincipalId,
-    pub work_context_id: WorkContextId,
-    pub policy_revision: PolicyVersion,
-    pub data_labels: BTreeSet<DataLabelId>,
-}
 
 /// A validated idempotency key and the immutable input it identifies.
 #[derive(Clone, Debug)]
@@ -64,31 +54,12 @@ impl RecordingProjectionRequest {
 
 #[derive(Clone, Debug)]
 pub struct RecordingProjectionReceiptDraft {
-    pub scope: RecordingProjectionScope,
+    pub scope: RecordingAccessScope,
     pub request: RecordingProjectionRequest,
     pub grant_id: RecordingReadGrantId,
     pub expires_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Serialize, Deserialize, SurrealValue)]
-struct ScopeBindings {
-    tenant: RecordId,
-    actor: RecordId,
-    context: RecordId,
-    policy: String,
-    labels: Vec<String>,
-}
-impl RecordingProjectionScope {
-    fn bindings(&self) -> ScopeBindings {
-        ScopeBindings {
-            tenant: self.tenant_id.record_id(),
-            actor: self.actor_id.record_id(),
-            context: self.work_context_id.record_id(),
-            policy: self.policy_revision.to_string(),
-            labels: self.data_labels.iter().map(ToString::to_string).collect(),
-        }
-    }
-}
 #[derive(Clone, Serialize, Deserialize, SurrealValue)]
 struct RequestBindings {
     dataset: RecordId,
@@ -124,7 +95,7 @@ const GRANT_ADMITTED: &str = "tenant = $scope.tenant AND actor = $scope.actor
 impl PlatformStore {
     pub async fn ready_recording_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
     ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
@@ -147,7 +118,7 @@ impl PlatformStore {
     /// A mismatched row produces a conflict inside SQL before any receipt is decoded.
     pub async fn recording_projection_by_idempotency_key(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         request: &RecordingProjectionRequest,
     ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
         let mut response = self
@@ -253,7 +224,7 @@ impl PlatformStore {
 
     pub async fn begin_recording_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
@@ -263,7 +234,7 @@ impl PlatformStore {
 
     pub async fn complete_recording_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         result_byte_len: u64,
@@ -288,7 +259,7 @@ impl PlatformStore {
 
     pub async fn fail_recording_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         reason: &str,
@@ -304,7 +275,7 @@ impl PlatformStore {
 
     pub async fn cancel_recording_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         reason: &str,
@@ -320,7 +291,7 @@ impl PlatformStore {
 
     async fn transition_projection(
         &self,
-        scope: &RecordingProjectionScope,
+        scope: &RecordingAccessScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         transition: Transition<'_>,

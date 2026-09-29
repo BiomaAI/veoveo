@@ -7,7 +7,7 @@ use veoveo_types::{DataLabelId, PolicyVersion, Sha256Digest};
 mod fixture;
 
 struct ProjectionFixture {
-    scope: RecordingProjectionScope,
+    scope: RecordingAccessScope,
     dataset: RecordingDatasetId,
     recording: RecordingId,
     grant: RecordingReadGrantId,
@@ -27,7 +27,7 @@ impl ProjectionFixture {
             )
             .await
             .unwrap();
-        let scope = RecordingProjectionScope {
+        let scope = RecordingAccessScope {
             tenant_id: identity.tenant_id,
             actor_id: identity.principal_id,
             work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations")
@@ -75,12 +75,14 @@ impl ProjectionFixture {
         let recording_id = RecordingId::from_uuid(uuid_key(&recording.id));
         let grant = store
             .create_recording_read_grant(RecordingReadGrantDraft {
-                identity,
-                authority,
-                dataset_id,
-                grant_class: RecordingReadGrantClass::AppProjection,
-                recording_ids: vec![recording_id],
-                catalog_revision: "catalog-1".into(),
+                scope: scope.clone(),
+                request: RecordingReadGrantRequest::new(
+                    dataset_id,
+                    RecordingReadGrantClass::AppProjection,
+                    vec![recording_id],
+                    "catalog-1",
+                )
+                .unwrap(),
                 expires_at: Utc::now() + TimeDelta::minutes(10),
             })
             .await

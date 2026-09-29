@@ -53,6 +53,23 @@ sorts and deduplicates the Recording IDs before gateway authorization and Store 
 Redap token subjects use the same grant ID admission. The optional reusable-grant
 header accepts one canonical ID; malformed or duplicate values fail before catalog work.
 Authorization, dataset membership and operational limits belong to runtime owners.
+
+Store grant requests validate the catalog revision and normalize the selected Recording
+IDs. Viewer and projection grants admit one Recording; catalog grants admit up to 500.
+Grant creation checks dataset tenancy and every selected Recording's current dataset,
+tenant and labels in the same transaction as the write. The caller scope carries typed
+tenant, actor, Work Context, policy revision and label clearance and is shared with
+projection admission. It comes from gateway admission, not from request JSON.
+
+A reusable-grant hint must match that scope, the request's class, dataset, complete
+selection, admitted-set digest and catalog revision, and must be unexpired. SQL applies
+those predicates and current parent visibility before decoding a row. A mismatched hint
+may result in a freshly admitted grant; it grants no authority itself. Redap redemption
+first verifies the signed token's issuer, host and read permission, then SQL selects an
+unexpired viewer or catalog grant. Projection grants cannot enter the Redap catalog.
+Redap uses the short-lived grant's recorded authority; its bearer supplies no fresh
+actor label or Work Context assertion.
+
 Broader playback/projection construction remains adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 

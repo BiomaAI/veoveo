@@ -1160,6 +1160,28 @@ containers remain, and about 925 GiB is free. Remaining Recording work includes 
 playback/projection construction and SQL admission for grant reuse and Redap grant classes;
 grant reuse must also bind Work Context. Installed acceptance remains pending.
 
+Recording grant creation now admits dataset tenancy and every selected Recording's
+current parent and label visibility in the write transaction. The checked request owns
+the normalized selection, class and catalog revision; viewer and projection grants
+require one Recording. Grant and projection admission share a typed caller scope.
+Reusable hints match tenant, actor, Work Context, policy, dataset, class, selection,
+digest, revision and expiry in SQL before decoding. Redap selects only unexpired viewer
+or catalog grants after signed-token verification. The service's Rust post-filters and
+unscoped grant lookups are removed.
+
+Fifty native cases pass across Store and Recording, including memory/RocksDB grant
+admission, malformed denied rows, parent and clearance changes, expiry, injected
+transaction rollback, projection races and service Work Context renewal. The catalog
+integration case now uses an owned fixture, a 90-second query deadline and a second
+client for grant readback instead of silently returning without SQL when its environment
+flag is absent.
+Runtime-only compilation, scoped strict Clippy, formatting, document links and identifier
+checks pass. The CLI accepts all three grant statements. One full Recording run hit the
+recurring Docker creation deadline before SQL; daemon events confirmed late creation
+and owned cleanup, and the final run passed. Its cause remains unconfirmed. No fixture
+containers remain, the reference cluster is stopped, and about 923 GiB is free. Broader
+playback/projection DTO construction and installed acceptance remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1675,7 +1697,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Governed references import Map, Frames, Recording and Artifact URI types, and source features must belong to a declared Map release. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions. Public DTOs keep distinct Recording/dataset/layer/grant/projection IDs; catalog selections have a checked constructor, and Console imports shared playback DTOs. Projection reads, reservations and lifecycle transitions select current caller authority, source visibility and grant relationships in SQL before receipt decoding; writes admit and change state in one transaction. Typed requests bind idempotency to context, policy and inputs; native memory/RocksDB races and rollback pass | Complete playback/projection relationships and SQL grant reuse/Redap admission, including Work Context on reuse; qualify installed behavior |
+| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions. Public DTOs keep distinct Recording/dataset/layer/grant/projection IDs; catalog selections have a checked constructor, and Console imports shared playback DTOs. Projection reads, reservations and lifecycle transitions select current caller authority, source visibility and grant relationships in SQL before receipt decoding; writes admit and change state in one transaction. Typed requests bind idempotency to context, policy and inputs; native memory/RocksDB races and rollback pass. Grant creation admits every parent in its transaction; reuse checks current caller authority including Work Context in SQL. Redap grant classes are selected before decoding | Complete playback/projection DTO relationships; qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

@@ -500,7 +500,8 @@ Domain runtimes can own private queries and driver records over these connection
 | `task_result.rs`, `json_value.rs` | checked Task result envelopes and JSON driver conversion that preserves unsigned integer precision, including nested outbox payloads |
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
-| `recording_catalog.rs` | recording datasets and layers, durable read grants, expiry, and cleanup |
+| `recording_catalog.rs` | recording datasets and layers, expiry, and cleanup |
+| `recording_catalog/access.rs` and `recording_catalog/grants.rs` | shared typed caller authority, checked grant selections, transactional creation, SQL reuse and Redap class admission |
 | `recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | bootstrap, runtime user, migration administration |
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
@@ -1134,7 +1135,9 @@ that profile directly. `runtime`, `mcp` and `redap` enable their service depende
 properties layers. `service/projection.rs` owns projection receipts, concurrency,
 scratch, and Arrow downloads. `platform/recordings/reader/src/cache.rs` owns verified
 Artifact-to-PVC materialization and eviction. `blueprint_cache.rs` supplies
-the server-owned Blueprint identity validator. `playback.rs` owns playback grants, dataset-scoped virtual
+the server-owned Blueprint identity validator. `service/grants.rs` maps authenticated
+caller authority to transactional Store grant issuance and SQL reuse. `playback.rs` owns
+Redap token issuance and redemption, dataset-scoped virtual
 Rerun catalogs, finite Blueprint sources, and the scoped read-only Redap service.
 `live_playback.rs` keeps recording-scoped static context across ingest generations, limits
 temporal history, and rewrites messages to the stable playback identity.

@@ -405,18 +405,10 @@ impl PlaybackManager {
         let grant = self
             .inner
             .store
-            .recording_read_grant_by_id(RecordingReadGrantId::from_uuid(grant_id.as_uuid()))
+            .recording_redap_grant(RecordingReadGrantId::from_uuid(grant_id.as_uuid()))
             .await
             .map_err(|_| Status::internal("recording grant store is unavailable"))?
-            .ok_or_else(|| Status::unauthenticated("recording grant expired"))?;
-        if !matches!(
-            grant.grant_class,
-            RecordingReadGrantClass::ViewerSegment | RecordingReadGrantClass::CatalogDataset
-        ) {
-            return Err(Status::permission_denied(
-                "recording grant does not admit Redap access",
-            ));
-        }
+            .ok_or_else(|| Status::unauthenticated("recording grant is not valid for Redap"))?;
         self.prune_catalogs();
         let key = virtual_catalog_key(&grant);
         let slot = self

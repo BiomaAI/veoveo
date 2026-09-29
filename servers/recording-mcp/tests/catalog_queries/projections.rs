@@ -5,10 +5,9 @@ use sha2::{Digest as _, Sha256};
 use std::{collections::BTreeMap, time::Duration};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_platform_store::{
-    RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId,
+    RecordingAccessScope, RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId,
     RecordingProjectionReceiptDraft, RecordingProjectionReceiptId, RecordingProjectionRequest,
-    RecordingProjectionScope, RecordingReadGrantClass, RecordingReadGrantDraft,
-    RecordingReadGrantId,
+    RecordingReadGrantClass, RecordingReadGrantDraft, RecordingReadGrantId,
 };
 use veoveo_recording_mcp::{RecordingService, service::ProjectionRuntimeLimits};
 use veoveo_recording_reader::access::record_uuid;
@@ -51,7 +50,7 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     let caller = identity("projection-query", "reader", &["operations"]);
     let platform = service.platform_identity(&caller).await.unwrap();
     let authority = veoveo_recording_hub::invocation_authority_record(&caller.authority);
-    let scope = RecordingProjectionScope {
+    let scope = RecordingAccessScope {
         tenant_id: platform.tenant_id,
         actor_id: platform.principal_id,
         work_context_id: veoveo_platform_store::deterministic_work_context_id(
@@ -89,12 +88,14 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         RecordingId::from_uuid(record_uuid(&recording.id, RecordingId::TABLE).unwrap());
     let grant =
         db.a.create_recording_read_grant(RecordingReadGrantDraft {
-            identity: platform.clone(),
-            authority,
-            dataset_id,
-            grant_class: RecordingReadGrantClass::AppProjection,
-            recording_ids: vec![recording_id],
-            catalog_revision: "catalog-1".into(),
+            scope: scope.clone(),
+            request: veoveo_platform_store::RecordingReadGrantRequest::new(
+                dataset_id,
+                RecordingReadGrantClass::AppProjection,
+                vec![recording_id],
+                "catalog-1",
+            )
+            .unwrap(),
             expires_at: Utc::now() + TimeDelta::minutes(5),
         })
         .await
