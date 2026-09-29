@@ -61,7 +61,7 @@ the `map://` scheme.
 | Map source resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 source IDs, checked public summaries, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://sources`. Exact and collection templates follow RFC 6570. |
 | Map restriction resource profile | Map-owned component builders, canonical RFC-variant UUIDv5/v7 IDs, 100-item pages and version 1 hex-encoded JSON cursors bound to `map://restrictions`. Exact and collection templates follow RFC 6570. |
 | Map product resource profile | Typed dataset release, source feature, raster, raster derivation, spatial derivation and route addresses. IDs require RFC-variant UUIDv5/v7 in lowercase hyphenated spelling; parents are typed components and discovery uses the same RFC 6570 templates. |
-| DuckDB 1.5.5 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
+| DuckDB 1.5.6 and DuckDB Spatial | Map selects `geometry_always_xy = true`, constructs longitude/latitude as `POINT_2D`, and uses one materialized spherical-distance score per candidate. |
 | [GeoJSON RFC 7946](https://www.rfc-editor.org/rfc/rfc7946.html), OGC JSON-FG 1.0, and [GeoJSON Text Sequences RFC 8142](https://www.rfc-editor.org/rfc/rfc8142.html) | Canonical feature geometry, semantic feature types, valid time, bulk import, and immutable export. |
 | [OGC GeoPackage 1.4](https://www.geopackage.org/spec140/) | Bounded vector-table inspection, selected-table import, and one-table export. Raster tiles, related tables, and non-linear or measured geometry are outside this profile. GDAL 3.13.3 performs full conformance validation and controlled conversion. |
 | OGC CQL2 1.0 | Bounded Basic CQL2-JSON predicates over top-level authored properties. Arbitrary CQL2 and spatial predicates are not claimed. |
@@ -330,12 +330,14 @@ health read `current_setting('geometry_always_xy')` and require `true`.
 
 Selective geometry reads use the existing DuckDB Spatial R-tree indexes on
 boundaries, immutable source features, authored revisions, and authored heads.
-The schema 9 to 10 upgrade drops and recreates those four derived indexes before any
-index is bound. It preserves every base-table row, advances the schema marker in the
-replacement transaction only after all indexes exist, and then eagerly verifies each
-index. An interruption leaves schema 9 in place, making the replacement sequence
-repeatable at the next startup.
-Other obsolete schema markers fail closed with an explicit projection-rebuild error.
+Map admits only schema 11 and eagerly binds and verifies all four indexes before
+serving requests. DuckDB 1.5.6 and its matching Spatial extension replay committed
+current-format WAL after an unclean shutdown. The process-exit regression checks
+mixed geometries, index contents, spatial selection, uncommitted rollback and a
+second reopen after recovery. Historical schema markers fail with an explicit
+projection-rebuild error; startup does not convert or delete them. Operators drain
+Map before changing its engine, preserve a snapshot of the database and WAL together,
+and restore that pair with its matching image if rollback is required.
 The query shape first obtains geometry-only candidates from the indexed base
 table. Tenant, Work Context, release, layer, revision, and exact spatial
 predicates remain on the authoritative outer query. This separation prevents
@@ -499,7 +501,7 @@ silently change an existing layer or product contract.
 | [OpenFreeMap](https://openfreemap.org/quick_start/) hosted MapLibre Style profile | Credential-free MapLibre Style 8 URLs supply vector geographic context for both Console themes. The defaults are OpenFreeMap Positron for light mode and OpenFreeMap Dark for dark mode. Map MCP validates both URLs, requires one exact HTTPS origin, and declares that origin in MCP App CSP metadata. The supported profile requires both style documents, sprites, glyphs, TileJSON, and tiles to remain on that origin; an installation may replace the pair with controlled or self-hosted styles that preserve this boundary. This is a basemap presentation profile, not complete conformance to an external tile-service API. |
 
 The image pins [DuckDB Spatial](https://duckdb.org/docs/stable/core_extensions/spatial/overview)
-to DuckDB 1.5.5. Export verification rejects a generated Parquet file unless
+to DuckDB 1.5.6. Export verification rejects a generated Parquet file unless
 its `geo` metadata declares version `1.0.0`, names `geometry` as the primary
 column, and identifies its encoding as `WKB`. GeoParquet 2.0 is not claimed.
 A future 2.0 path requires an encoder and verifier that both implement its
@@ -1339,30 +1341,6 @@ decoding; it is not an indexed dependency lookup. Each update commits the route'
 invalidated status and complete document together and counts only a new transition.
 Native qualification removes a dependency row and adds an incorrect one, then proves
 that selection still follows the route document.
-
-### Derivation Storage Upgrade
-
-Map owns the local schema 9/10 to 11 transfer adapter. Installations must drain all
-old Map writers before starting the new binary against an existing volume. Schema 9
-first rebuilds its Spatial indexes to schema 10. Before HTTP admission, Map copies
-both derivation tables into Store in key-ordered batches of 16 records, verifies the
-typed document against its tenant, context, creator, and ID, and preserves its JSON.
-An identical Store record permits replay; a conflicting immutable record aborts startup.
-
-The adapter drops both local tables and advances the local marker to 11 in one
-DuckDB transaction after every Store write succeeds. Interruption before that commit
-preserves the old tables and permits restart from the first page. Interruption after
-commit leaves Store as the recovery source. A fresh schema-11 projection has no local
-derivation tables. Runtime reads use Store throughout.
-
-Rollback to an older binary requires restoring the pre-upgrade Store and DuckDB
-snapshots together while writers are drained. An old binary cannot read schema 11;
-changing its marker would discard the only local copy of the transferred records.
-Installations without such snapshots recover forward from Store. The disposable
-reference installation uses its authorized rebuild instead. The adapter supports
-schema 9 and 10 through the platform-foundations installation upgrade; it can retire
-only after all supported installations have reached schema 11 and a published support
-window has ended. Other local formats fail admission with a rebuild diagnostic.
 
 ### Prompts And Completions
 

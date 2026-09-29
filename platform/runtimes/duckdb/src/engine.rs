@@ -794,6 +794,10 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let (path, settings, _) = setup(&dir);
         let conn = open_connection(&path, false, &[], &FileAccess::Denied, &settings).unwrap();
+        let version: String = conn
+            .query_row("SELECT version()", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, "v1.5.6", "qualify the pinned native engine");
         assert!(
             run_query(
                 &conn,

@@ -897,6 +897,8 @@ durable artifact publication. `src/geography.rs` owns direct
 position, location, and corridor inspection plus restriction publication,
 surfaced through tools such as `inspect_position`, while `src/analytics.rs`
 owns the sandboxed DuckDB Spatial engine behind those reads.
+`src/analytics/recovery.rs` qualifies current-schema committed WAL replay after
+process exit, R-tree reads and uncommitted rollback.
 `src/analytics/performance.rs` owns the active-source 10k, 100k, and
 million-feature R-tree plan, correctness, latency, throughput, and storage
 gates.
@@ -910,9 +912,8 @@ provenance, and shared Store persistence.
 
 Map derivation storage lives in `platform/store/src/map_derivations.rs` and
 `platform/store/migrations/0094_map_derivations.surql`. The Map-owned
-`src/derivations.rs` validates domain documents and returns summary pages;
-`src/derivations/migration.rs` transfers local schema-9/10 records before service
-admission. `src/mcp/derivations.rs` owns resource and completion dispatch.
+`src/derivations.rs` validates domain documents and returns summary pages.
+`src/mcp/derivations.rs` owns resource and completion dispatch.
 `src/resource_changes.rs` connects catalog, authoring, derivation, and Task writes to
 each replica's resource hub through the shared Store LIVE/change-feed observer.
 

@@ -11,7 +11,7 @@ use futures::StreamExt;
 use reqwest::redirect::Policy;
 use sha2::{Digest, Sha256};
 
-const DUCKDB_VERSION: &str = "1.5.5";
+const DUCKDB_VERSION: &str = "1.5.6";
 const MAX_ARCHIVE_BYTES: usize = 64 * 1024 * 1024;
 const MAX_EXTENSION_BYTES: u64 = 512 * 1024 * 1024;
 
@@ -27,13 +27,13 @@ impl SpatialArtifact {
         match env::consts::ARCH {
             "x86_64" => Ok(Self {
                 platform: "linux_amd64",
-                archive_sha256: "832edb1b189d53281baf552034028a4dfe317c5381a7e7d2d9de74a4e875572e",
-                extension_sha256: "03cbb687fbb1583af6154266dc17b9c99e11fdcc1cd4a43cec19f38ef272d4de",
+                archive_sha256: "3aa7e084efff1ceb71218b3bf75911a2ff519f9530547be87f6729f3cd7a1b6a",
+                extension_sha256: "bcaa2dd6b967b20985bf34aef3f9f1c04621d81546580cf6ee897c388bdd67c0",
             }),
             "aarch64" => Ok(Self {
                 platform: "linux_arm64",
-                archive_sha256: "ccf86767b4f28471963e0950cb6a9d9bf2e38f6f9a476de32f5b59ffdacfc239",
-                extension_sha256: "b9129a7da7fde8eb7fb951d99a115cbf2e6fa34c8d41671086169174a1f5725d",
+                archive_sha256: "f9a39f333d23571f82ae17b87c65ceeebd06a52629c6535eb2072669012a70c7",
+                extension_sha256: "96b8d4b5d735e9ebe91da7badee4328dfbd07068ce4885d1d9b6de8c22370b14",
             }),
             architecture => {
                 bail!("the native DuckDB smoke does not support architecture `{architecture}`")
@@ -175,25 +175,31 @@ mod tests {
 
     #[test]
     fn image_and_native_smoke_share_spatial_archive_pins() {
-        let dockerfile = fs::read_to_string(
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../servers/duckdb-mcp/Dockerfile"),
-        )
-        .unwrap();
-        assert!(dockerfile.contains("ARG DUCKDB_VERSION=1.5.5"));
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let config = fs::read_to_string(root.join(".cargo/config.toml")).unwrap();
+        assert!(config.contains(&format!("DUCKDB_DOWNLOAD_VERSION = \"{DUCKDB_VERSION}\"")));
+        let dockerfiles = ["map-mcp", "duckdb-mcp"].map(|server| {
+            let dockerfile =
+                fs::read_to_string(root.join(format!("servers/{server}/Dockerfile"))).unwrap();
+            assert!(dockerfile.contains(&format!("ARG DUCKDB_VERSION={DUCKDB_VERSION}")));
+            dockerfile
+        });
         for artifact in [
             SpatialArtifact {
                 platform: "linux_amd64",
-                archive_sha256: "832edb1b189d53281baf552034028a4dfe317c5381a7e7d2d9de74a4e875572e",
-                extension_sha256: "03cbb687fbb1583af6154266dc17b9c99e11fdcc1cd4a43cec19f38ef272d4de",
+                archive_sha256: "3aa7e084efff1ceb71218b3bf75911a2ff519f9530547be87f6729f3cd7a1b6a",
+                extension_sha256: "bcaa2dd6b967b20985bf34aef3f9f1c04621d81546580cf6ee897c388bdd67c0",
             },
             SpatialArtifact {
                 platform: "linux_arm64",
-                archive_sha256: "ccf86767b4f28471963e0950cb6a9d9bf2e38f6f9a476de32f5b59ffdacfc239",
-                extension_sha256: "b9129a7da7fde8eb7fb951d99a115cbf2e6fa34c8d41671086169174a1f5725d",
+                archive_sha256: "f9a39f333d23571f82ae17b87c65ceeebd06a52629c6535eb2072669012a70c7",
+                extension_sha256: "96b8d4b5d735e9ebe91da7badee4328dfbd07068ce4885d1d9b6de8c22370b14",
             },
         ] {
-            assert!(dockerfile.contains(artifact.platform));
-            assert!(dockerfile.contains(artifact.archive_sha256));
+            for dockerfile in &dockerfiles {
+                assert!(dockerfile.contains(artifact.platform));
+                assert!(dockerfile.contains(artifact.archive_sha256));
+            }
         }
     }
 

@@ -66,8 +66,8 @@ engine rather than by narrowing SQL.
 - `cargo clippy -p veoveo-duckdb-mcp --no-default-features --features runtime --all-targets -- -D warnings`
   checks the library independently of the hosted binary.
 - The crate links the DuckDB C library through the pinned `duckdb-rs` fork;
-  expect a long native first build. The fork tracks DuckDB 1.5.5 and removes
-  the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.38.
+  expect a long native first build. The fork links DuckDB 1.5.6 and removes the
+  upstream `comfy-table ~7.1` pin so it composes with Rerun 0.38.
 - Docker is required for SurrealDB backed integration and smoke tests (root
   README, Develop And Verify). Usage tests own a disposable pinned Store and remove
   it on completion.

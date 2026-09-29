@@ -302,6 +302,13 @@ The normal 15% pressure sweep cannot bypass retention. This emergency policy kee
 active compiler caches from becoming an unlimited disk reservation; it does not
 replace installation storage preflight or guarantee space owned by other services.
 
+Analytical images copy `libduckdb.so` from the selected release profile's `deps`
+directory, which the pinned Rust adapter populates during compilation. Packaging
+does not search retained target caches for a library: several engine versions may
+coexist there while only the library used by the current build belongs in the image.
+The [analytical runtime design](../../platform/runtimes/duckdb/DESIGN.md#engine-and-adapter-pins)
+owns the engine and adapter qualification profile.
+
 The gateway has no production DuckDB dependency. Its image declares no analytical
 auxiliary library and copies only its executable. A native regression compares the
 resolved Bake plan with Cargo's production graph. This prevents a stale cache file

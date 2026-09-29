@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.25.0@sha256:0adf442eae370b6087e08edc7c50b552d80ddf261576f4ebd6421006b2461f12
 FROM debian:trixie-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS duckdb-spatial
 ARG TARGETARCH
-ARG DUCKDB_VERSION=1.5.5
+ARG DUCKDB_VERSION=1.5.6
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl gzip \
     && rm -rf /var/lib/apt/lists/*
 RUN set -eux; \
     case "${TARGETARCH}" in \
-      amd64) duckdb_platform=linux_amd64; spatial_sha256=832edb1b189d53281baf552034028a4dfe317c5381a7e7d2d9de74a4e875572e ;; \
-      arm64) duckdb_platform=linux_arm64; spatial_sha256=ccf86767b4f28471963e0950cb6a9d9bf2e38f6f9a476de32f5b59ffdacfc239 ;; \
+      amd64) duckdb_platform=linux_amd64; spatial_sha256=3aa7e084efff1ceb71218b3bf75911a2ff519f9530547be87f6729f3cd7a1b6a ;; \
+      arm64) duckdb_platform=linux_arm64; spatial_sha256=f9a39f333d23571f82ae17b87c65ceeebd06a52629c6535eb2072669012a70c7 ;; \
       *) echo "unsupported DuckDB Spatial architecture: ${TARGETARCH}" >&2; exit 1 ;; \
     esac; \
     mkdir -p /out/extensions; \

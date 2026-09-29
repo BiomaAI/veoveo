@@ -118,8 +118,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 <!-- TODO(foundations): Finish composed flight and installed workload acceptance.
 Sensor health, landing, re-arming, takeoff, Map routing and mission completion pass.
-Live Stream fails because the parsed H.264 access unit has no timestamp. Qualify that
-path with uav-stream-verify before repeating flight, replay and Reason acceptance. -->
+Installed uav-stream-verify passes with RTP-only timestamps. Qualify the DuckDB 1.5.6
+Map restart correction with the current PVC before repeating flight, replay and Reason
+acceptance. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's

@@ -9,7 +9,6 @@ use crate::{
     catalog::{MapAccessContext, MapCatalog},
     contract::{RasterDerivation, RasterDerivationId, SpatialDerivation, SpatialDerivationId},
 };
-mod migration;
 #[cfg(test)]
 mod tests;
 

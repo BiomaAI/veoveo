@@ -5007,7 +5007,7 @@ dependencies = [
 [[package]]
 name = "duckdb"
 version = "1.10505.0"
-source = "git+https://github.com/rozgo/duckdb-rs.git?rev=c6f8276e7fd4b999ca0f74b3834bd7733d36e437#c6f8276e7fd4b999ca0f74b3834bd7733d36e437"
+source = "git+https://github.com/rozgo/duckdb-rs.git?rev=3931d5bdafb490e46114c341aeb1873e910e7880#3931d5bdafb490e46114c341aeb1873e910e7880"
 dependencies = [
  "arrow",
  "cast",
@@ -8687,7 +8687,7 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 [[package]]
 name = "libduckdb-sys"
 version = "1.10505.0"
-source = "git+https://github.com/rozgo/duckdb-rs.git?rev=c6f8276e7fd4b999ca0f74b3834bd7733d36e437#c6f8276e7fd4b999ca0f74b3834bd7733d36e437"
+source = "git+https://github.com/rozgo/duckdb-rs.git?rev=3931d5bdafb490e46114c341aeb1873e910e7880#3931d5bdafb490e46114c341aeb1873e910e7880"
 dependencies = [
  "flate2",
  "pkg-config",

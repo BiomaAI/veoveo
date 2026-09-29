@@ -55,8 +55,8 @@ RUN --mount=type=bind,source=.,target=/src,rw \
         done; \
         if [[ ",${VEOVEO_AUXILIARY}," == *,libduckdb,* ]]; then \
             mkdir -p /out/lib; \
-            library="$(find /target -name libduckdb.so -type f -print -quit)"; \
-            [[ -n "${library}" ]] || { echo "libduckdb.so was requested but not produced" >&2; exit 1; }; \
+            library=/target/release/deps/libduckdb.so; \
+            [[ -f "${library}" ]] || { echo "libduckdb.so was requested but not produced" >&2; exit 1; }; \
             install -m 0755 "${library}" /out/lib/libduckdb.so; \
         fi'
 

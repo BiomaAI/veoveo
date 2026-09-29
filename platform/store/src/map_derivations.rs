@@ -84,31 +84,6 @@ pub struct MapDerivationSummary {
 }
 
 impl PlatformStore {
-    /// Resolve the tenant UUID stored by the schema-10 DuckDB adapter. Runtime
-    /// reads derive the same scope directly from the authenticated tenant key.
-    pub async fn map_derivation_legacy_scope(
-        &self,
-        tenant: TenantId,
-        context: &str,
-    ) -> Result<MapDerivationScope, StoreError> {
-        let mut response = self
-            .client()
-            .query("SELECT VALUE slug FROM ONLY $tenant;")
-            .bind(("tenant", tenant.record_id()))
-            .await?
-            .check()?;
-        let key = response
-            .take::<Option<String>>(0)?
-            .ok_or(StoreError::MissingRecord {
-                operation: "Map derivation migration tenant",
-            })?;
-        let scope = MapDerivationScope::from_keys(&key, context)?;
-        if scope.tenant != tenant {
-            return Err(invalid("tenant", "tenant identity does not match its key"));
-        }
-        Ok(scope)
-    }
-
     pub async fn put_map_derivation(&self, draft: MapDerivationDraft) -> Result<(), StoreError> {
         validate_key(draft.kind, &draft.derivation_key)?;
         if draft.created_by.is_empty() || draft.created_by.len() > 1024 {

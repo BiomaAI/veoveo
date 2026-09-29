@@ -1,17 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use duckdb::params;
-use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{ResourceUpdate, SubscriptionHub};
 use veoveo_platform_store::PrincipalKind;
 
 use super::*;
-use crate::{
-    analytics::{MapAnalytics, MapAnalyticsConfig},
-    contract::*,
-    test_store::TestDb,
-};
+use crate::{contract::*, test_store::TestDb};
 
 async fn map_scope(store: &veoveo_platform_store::PlatformStore, tenant: &str) -> MapAccessContext {
     MapAccessContext {
@@ -250,158 +244,6 @@ async fn qualify_sql_pages() {
     let plan: Vec<serde_json::Value> = plan.take(0).unwrap();
     let plan = serde_json::to_string(&plan).unwrap();
     assert!(plan.contains("map_derivation_scope_key"), "{plan}");
-}
-
-fn analytics(root: &TempDir) -> MapAnalytics {
-    MapAnalytics::open(MapAnalyticsConfig {
-        database_path: root.path().join("map.duckdb"),
-        authoring_task_root: root.path().join("tasks"),
-        spill_dir: root.path().join("spill"),
-        spatial_extension: std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION")
-            .expect("pinned Spatial extension required")
-            .into(),
-        memory_limit: "256MB".into(),
-        threads: 1,
-    })
-    .unwrap()
-}
-fn legacy_insert(
-    analytics: &MapAnalytics,
-    table: &str,
-    scope: &MapAccessContext,
-    context: &str,
-    key: &str,
-    json: &str,
-) {
-    analytics
-        .connection()
-        .unwrap()
-        .execute(
-            &format!("INSERT INTO {table} VALUES (?, ?, ?, ?, ?)"),
-            params![scope.tenant_key(), context, "author", key, json],
-        )
-        .unwrap();
-}
-fn version(analytics: &MapAnalytics) -> i64 {
-    analytics
-        .read_connection()
-        .unwrap()
-        .query_row("SELECT version FROM map_schema", [], |row| row.get(0))
-        .unwrap()
-}
-
-#[tokio::test]
-async fn legacy_transfer_preserves_rows_until_all_records_are_durable_and_resumes() {
-    if std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION").is_none() {
-        return;
-    }
-    tokio::time::timeout(Duration::from_secs(180), qualify_legacy_transfer())
-        .await
-        .expect("Map transfer qualification exceeded 180 seconds");
-}
-
-async fn qualify_legacy_transfer() {
-    let db = TestDb::new().await;
-    let scope = map_scope(&db.a, "transfer").await;
-    let writer = MapCatalog::new(db.a.clone());
-    let reader = MapCatalog::new(db.b.clone());
-    let root = TempDir::new().unwrap();
-    let local = analytics(&root);
-    local.connection().unwrap().execute_batch("CREATE TABLE map_raster_derivation (tenant_key VARCHAR, work_context_key VARCHAR, principal_key VARCHAR, derivation_key VARCHAR, canonical_json VARCHAR); CREATE TABLE map_spatial_derivation (tenant_key VARCHAR, work_context_key VARCHAR, principal_key VARCHAR, derivation_key VARCHAR, canonical_json VARCHAR); UPDATE map_schema SET version = 10;").unwrap();
-    let mut records = Vec::new();
-    // Cross the migration's 16-record page boundary before inducing failure.
-    for n in 0..18 {
-        let value = raster(n);
-        legacy_insert(
-            &local,
-            "map_raster_derivation",
-            &scope,
-            "operations",
-            value.derivation_id.as_str(),
-            &serde_json::to_string(&value).unwrap(),
-        );
-        records.push(value);
-    }
-    let spatial = spatial();
-    let key = spatial.derivation_id.as_str();
-    legacy_insert(
-        &local,
-        "map_spatial_derivation",
-        &scope,
-        "operations",
-        key,
-        "invalid-json",
-    );
-    assert!(writer.migrate_local_derivations(&local).await.is_err());
-    assert_eq!(version(&local), 10);
-    assert_eq!(
-        local
-            .read_connection()
-            .unwrap()
-            .query_row("SELECT count(*) FROM map_raster_derivation", [], |row| row
-                .get::<_, i64>(
-                0
-            ))
-            .unwrap(),
-        18
-    );
-    assert_eq!(
-        reader
-            .raster_derivation(&scope, &context(), &records[17].derivation_id)
-            .await
-            .unwrap(),
-        Some(records[17].clone())
-    );
-    local
-        .connection()
-        .unwrap()
-        .execute(
-            "UPDATE map_spatial_derivation SET canonical_json = ?",
-            params![serde_json::to_string(&spatial).unwrap()],
-        )
-        .unwrap();
-    // Schema 9 rebuilds its R-trees before resuming the same transfer.
-    local
-        .connection()
-        .unwrap()
-        .execute_batch("UPDATE map_schema SET version = 9;")
-        .unwrap();
-    drop(local);
-    let local = analytics(&root);
-    assert_eq!(version(&local), 10);
-    writer.migrate_local_derivations(&local).await.unwrap();
-    assert_eq!(version(&local), 11);
-    for record in records {
-        assert_eq!(
-            reader
-                .raster_derivation(&scope, &context(), &record.derivation_id)
-                .await
-                .unwrap(),
-            Some(record)
-        );
-    }
-    assert_eq!(
-        reader
-            .spatial_derivation(&scope, &context(), &spatial.derivation_id)
-            .await
-            .unwrap(),
-        Some(spatial)
-    );
-    assert!(
-        local
-            .read_connection()
-            .unwrap()
-            .prepare("SELECT * FROM map_raster_derivation")
-            .is_err()
-    );
-    assert!(
-        local
-            .read_connection()
-            .unwrap()
-            .prepare("SELECT * FROM map_spatial_derivation")
-            .is_err()
-    );
-    writer.migrate_local_derivations(&local).await.unwrap();
 }
 
 #[tokio::test]

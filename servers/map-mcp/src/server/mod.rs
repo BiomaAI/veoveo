@@ -97,7 +97,6 @@ async fn serve(args: Args) -> Result<()> {
         threads: args.duckdb_threads,
     })?;
     analytics.verify_spatial()?;
-    catalog.migrate_local_derivations(&analytics).await?;
     let authoring = AuthoringService::new(catalog.store().clone(), analytics.clone());
     authoring.reconcile_projection().await?;
     let authoring_task_root = args.authoring_task_root.canonicalize()?;

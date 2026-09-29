@@ -130,8 +130,24 @@ pass both steady and catch-up cases on the RTX 4090: each sends 180 frames, rece
 runner and model image digests are unchanged. The regression owns its temporary
 container and reuses the compiled model. Helm configuration, documentation and identifier
 checks pass. The platform chart at `33143814` is published and selected by immutable
-digest; installed live Stream qualification is next. This result does not establish
-composed flight acceptance.
+digest. Installed `uav-stream-verify` passes through the public gateway with fresh
+inference and preview data, then stops its owned session. Full GitOps convergence
+exposed a separate Map cold-restart failure: DuckDB Spatial 1.5.5 asserts while replaying
+committed R-tree WAL. The stopped database and WAL were copied without changing the PVC.
+Both base-table and index reads pass on the unchanged copy with DuckDB 1.5.6; all nine
+source features survive. The engine/Spatial upgrade, current-schema crash regression,
+removal of schema-9/10 adapters and deterministic native-library packaging form one
+qualification batch. Its 258 native checks pass across Map, DuckDB, Timeseries and
+the analytical runtime, including both million-feature Spatial gates. The new
+process-exit regression reproduces the installed assertion on 1.5.5 and passes on
+1.5.6 with committed rows, rollback and a second reopen checked. The isolated Store
+fixture's first Docker create exceeded its deadline; its owned container was removed
+and the unchanged test passed on retry. Another 58 checks pass for agent memory and
+smoke contracts, bringing this batch to 316. Image publication is limited to Map,
+DuckDB, Timeseries and the agent kernel. Its task-specific preflight budgets 60 GiB
+of peak growth and keeps 128 GiB free; it passes with 71 GiB beyond that budget.
+The cluster stays stopped through publication. The convergence observer was cancelled; no successful convergence
+receipt or composed flight acceptance is claimed for this deployment.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -1684,7 +1700,11 @@ current RFC millisecond timestamp. No historical-format adapter is added.
 - Batch related implementation work before expensive validation. Use local reads,
   formatting and focused checks to resolve specific uncertainty during development;
   run affected tests together after the batch. Keep one Cargo pipeline and reuse the
-  qualified feature configuration where practical. Run broad workspace checks at
+  qualified feature configuration where practical. Determine the complete affected
+  crate and feature set before the first Cargo invocation; include direct consumers
+  of changed native libraries. Avoid running `check`, `test` and another compilation
+  pass over the same inputs unless the additional check covers a distinct risk.
+  Run broad workspace checks at
   integration milestones or when shared inputs widen the affected dependency set.
   Select affected crates and targets before adding test-name filters: filters reduce
   execution but still compile every selected test target. Avoid `--workspace --lib`
@@ -2586,7 +2606,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Qualify live H.264 timestamps with `uav-stream-verify`, then finish Stream replay, Reason and composed timing acceptance | The current aviation release, route preflight and installed UAV mission pass. Sensor health holds and owned landing/session cleanup completes. Live Stream reports an access unit without a timestamp; replay and Reason were not reached. Its container and node report no OOM kills |
+| Phase 1 reference reset | `examples/bioma/README.md` | Qualify Map recovery with the current PVC, then finish Stream replay, Reason and composed timing acceptance | Installed live Stream now passes after RTP-only timestamping. Map restart exposed a DuckDB 1.5.5 Spatial WAL assertion; the unchanged stopped snapshot recovers all nine source features and index entries on 1.5.6. Engine upgrade qualification is in progress; the cluster is stopped |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

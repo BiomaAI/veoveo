@@ -78,13 +78,13 @@ Map Explorer App.
   owns this check at `servers/optimization-mcp/tests/map_travel_model.rs`.
 - Native builds need a C/C++ toolchain, CMake, pkg-config, SQLite development
   files, and PROJ build dependencies (root README, Develop And Verify). The
-  DuckDB C library links through the pinned 1.5.5 `duckdb-rs` fork, which
+  DuckDB 1.5.6 C library links through the pinned `duckdb-rs` fork, which
   removes the upstream `comfy-table ~7.1` pin so it composes with Rerun 0.38.
 - Docker is required for SurrealDB backed tests and deployment work.
 - The image build verifies the Spatial extension digest and copies native map
   utilities from pinned sources (`servers/map-mcp/Dockerfile`).
 - R-tree plan, correctness, and million-feature performance evidence requires
-  `VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION` to name the exact pinned 1.5.5 Spatial
+  `VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION` to name the exact pinned 1.5.6 Spatial
   extension. A skipped performance test is not acceptance evidence.
 - `npm --prefix servers/map-mcp/app ci && npm --prefix servers/map-mcp/app run build`
   regenerates the self-contained workspace App from exact MapLibre GL JS and
