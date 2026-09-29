@@ -47,6 +47,7 @@ mod tests {
 
     #[test]
     fn outbound_ca_bundle_accepts_multiple_pem_roots() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let first = generate_simple_self_signed(vec!["first.internal".to_owned()]).unwrap();
         let second = generate_simple_self_signed(vec!["second.internal".to_owned()]).unwrap();
         let bundle = format!("{}\n{}", first.cert.pem(), second.cert.pem());

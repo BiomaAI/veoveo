@@ -921,6 +921,7 @@ mod tests {
 
     #[tokio::test]
     async fn artifact_streaming_rejects_redirects_and_never_forwards_location() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/redirect", listener.local_addr().unwrap());
         let server = tokio::spawn(async move {
@@ -956,6 +957,7 @@ mod tests {
 
     #[tokio::test]
     async fn artifact_streaming_forwards_chunks_without_buffering_the_complete_object() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}/artifact", listener.local_addr().unwrap());
         let release_second_chunk = Arc::new(Notify::new());
