@@ -1,8 +1,12 @@
+#[path = "contract/catalog.rs"]
+mod catalog;
+#[path = "contract/resources.rs"]
+mod resources;
 use serde_json::{Value, json};
 use veoveo_duckdb_mcp::contract::*;
 
 #[test]
-fn schemas_match_the_pre_extraction_contract() {
+fn schemas_match_the_declared_contract() {
     let baseline: Value =
         serde_json::from_str(include_str!("../testdata/source-contract.schema.json")).unwrap();
     macro_rules! check {
@@ -27,7 +31,15 @@ fn schemas_match_the_pre_extraction_contract() {
         DuckDbQueryOutput,
         DuckDbExecuteOutput,
         DuckDbIngestOutput,
-        DuckDbExportOutput
+        DuckDbExportOutput,
+        DuckDbDatabaseUri,
+        DuckDbResource,
+        DuckDbDatabaseCursor,
+        DuckDbDatabaseEntry,
+        DuckDbDatabasePage,
+        DuckDbDatabaseSchema,
+        DuckDbTableSchema,
+        DuckDbSchemaColumn
     );
 }
 

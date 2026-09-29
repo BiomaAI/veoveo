@@ -7,11 +7,15 @@ import {chromium} from 'playwright';
 const template = await readFile(new URL('../../../../mcp/apps-extension/src/workbench.html', import.meta.url), 'utf8');
 const taskId = index => `0195dabe-7777-7abc-8def-${index.toString(16).padStart(12, '0')}`;
 const cases = [
+  {domain: 'duckdb-databases', title: 'Workbench', collection: 'duckdb://dbs', label: 'Databases',
+    other: 'duckdb://usage', otherLabel: 'Usage ledger', otherValue: {items: [], limit: 100, next_cursor: null},
+    entry: index => ({db_id: `db_${String(index).padStart(3, '0')}`, db_uri: `duckdb://db/db_${String(index).padStart(3, '0')}`}),
+    cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://dbs', after: 'db_099'})).toString('base64url')},
   {domain: 'time', title: 'Timeline', collection: 'time://events', label: 'Events',
     other: 'time://clock/current', otherLabel: 'Clock', otherValue: {clock: 'current'},
     entry: index => ({event_id: index}), cursor: 'page +two/&?=#'},
   {domain: 'duckdb', title: 'Workbench', collection: 'duckdb://usage', label: 'Usage',
-    other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: [{db_id: 'metrics', db_uri: 'duckdb://db/metrics', owned: true}],
+    other: 'duckdb://dbs', otherLabel: 'Databases', otherValue: {items: [{db_id: 'metrics', db_uri: 'duckdb://db/metrics'}], limit: 100, next_cursor: null},
     entry: index => ({task_id: taskId(index), usage_uri: `duckdb://usage/task/${taskId(index)}`}),
     cursor: Buffer.from(JSON.stringify({version: 1, collection: 'duckdb://usage', after: taskId(99)})).toString('base64url')},
   {domain: 'media-usage', title: 'Studio', collection: 'media://usage', label: 'Usage ledger',
@@ -94,7 +98,7 @@ for (const fixture of cases) {
       release();
       await page.waitForFunction(() => window.latePageReceived);
       assert.equal(await page.locator('#resource-title').textContent(), fixture.otherLabel);
-      assert.equal(await page.locator('#pager').isHidden(), true);
+      assert.equal(await page.locator('#pager').isHidden(), !Array.isArray(fixture.otherValue.items));
       assert.deepEqual(JSON.parse(await page.locator('#payload').textContent()), fixture.otherValue);
       await page.getByRole('button', {name: fixture.label, exact: true}).click();
       await page.waitForFunction(() => !document.querySelector('#pager').hidden && document.querySelector('#page-next').disabled === false && document.querySelector('#status').textContent === 'ready');

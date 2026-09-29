@@ -1004,6 +1004,9 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | database IDs and tool request/result types; isolated contract feature with runtime and hosted MCP feature gates |
 | `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | cross-server tabular source types and read SQL fragments owned by DuckDB; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
 | `servers/duckdb-mcp/src/contract/usage.rs`, `src/usage.rs` | checked usage addresses, collection cursors and pages; TaskRuntime SQL applies current owner policy before grouping and limits |
+| `servers/duckdb-mcp/src/contract/catalog.rs`, `src/contract/resources.rs`, `src/uris.rs` | typed database pages, collection cursors, schema responses and complete resource admission/builders without MCP runtime dependencies |
+| `servers/duckdb-mcp/src/catalog.rs` | owner-directory pagination that retains at most 101 filename candidates and reads no database bytes |
+| `servers/duckdb-mcp/src/bin/server/setup.rs`, `src/bin/server/resources.rs` | checked hosted declarations and exhaustive authenticated resource dispatch |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |
 | `servers/duckdb-mcp/src/bin/server/sql_ops.rs` | direct and task SQL operation contracts and interruption behavior |

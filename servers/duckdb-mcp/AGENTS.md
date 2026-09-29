@@ -1,7 +1,7 @@
 # DuckDB MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -32,7 +32,11 @@ engine rather than by narrowing SQL.
 - The library's `contract` feature owns database IDs, tool DTOs, tabular source
   types, read SQL fragments and typed usage resources. Cross-server consumers use that feature with defaults
   disabled. Keep MCP and engine dependencies outside it; source policy belongs to the
-  materializing server. The remaining database and document URI helpers are runtime concerns.
+  materializing server. Database, document, Artifact and usage routes use the contract-owned
+  `DuckDbResource` admission and typed builders. Never reconstruct a resource with string prefixes.
+- Force `setup::SERVER_SETUP` before Store or engine initialization. The setup owns
+  static discovery; resource reads dispatch admitted variants. Database pagination
+  scans only the directory derived from verified identity, with no schema or file-byte reads.
 - Usage reads use `DuckDbUsage` and TaskRuntime's SQL owner policy before grouping
   and limits. Catalog responses use checked 100-entry pages. Keep the collection
   cursor and Task IDs typed through query binding. Discovery declares roots and
@@ -61,16 +65,17 @@ engine rather than by narrowing SQL.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 Contract-only library consumption, source vocabulary and typed usage resources are implemented.
-Database catalog paging, remaining resource builders and checked MCP setup remain work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+Database catalogs use typed 100-item pages over the authenticated owner directory.
+Checked MCP setup owns startup, discovery, documents and the empty domain-scope vocabulary.
+Installed acceptance remains in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — usage catalogs are SQL-filtered pages and discovery declares roots/templates; the owner database catalog still requires bounded paging
+- C04: met — usage catalogs filter authority in SQL; owner database catalogs return 100-item cursor pages and retain at most 101 filename candidates
 - C05: met
 - C06: met
 - C07: met
@@ -83,7 +88,7 @@ Database catalog paging, remaining resource builders and checked MCP setup remai
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — registration does not state the contract revision
+- C17: met — local and reference registrations declare revision 3
 - C18: met
 - C19: met
 - C20: met

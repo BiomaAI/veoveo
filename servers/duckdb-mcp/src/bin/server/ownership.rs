@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, path::PathBuf};
+use std::{
+    collections::BTreeSet,
+    path::{Path, PathBuf},
+};
 
 use chrono::{TimeDelta, Utc};
 use rmcp::{ErrorData as McpError, RoleServer, service::RequestContext};
@@ -174,25 +177,23 @@ pub(super) fn identity_from_runtime(
 }
 
 fn owner_storage_key(identity: &GatewayInternalIdentity) -> String {
-    let canonical = format!(
-        "{}\0{}\0{}\0{}\0{}",
-        identity.actor.issuer,
-        identity.actor.subject,
-        identity.actor.id,
-        identity
-            .actor
-            .tenant
-            .as_ref()
-            .map(TenantId::as_str)
-            .unwrap_or("installation"),
-        identity.profile,
-    );
-    let digest = hex::encode(Sha256::digest(canonical.as_bytes()));
+    // Serialize the optional tenant as null or a string, without a sentinel that
+    // can collide with an admitted tenant name. Structured fields also preserve
+    // their boundaries independently of the identity providers' string values.
+    let canonical = serde_json::to_vec(&(
+        &identity.actor.issuer,
+        &identity.actor.subject,
+        &identity.actor.id,
+        &identity.actor.tenant,
+        &identity.profile,
+    ))
+    .expect("closed owner identity fields serialize");
+    let digest = hex::encode(Sha256::digest(canonical));
     digest[..32].to_owned()
 }
 
-fn owner_directory(state: &AppState, identity: &GatewayInternalIdentity) -> PathBuf {
-    state.dirs.database_dir.join(owner_storage_key(identity))
+fn owner_directory(database_root: &Path, identity: &GatewayInternalIdentity) -> PathBuf {
+    database_root.join(owner_storage_key(identity))
 }
 
 pub(super) fn database_file_path(
@@ -200,7 +201,7 @@ pub(super) fn database_file_path(
     identity: &GatewayInternalIdentity,
     db_id: &DuckDbDatabaseId,
 ) -> PathBuf {
-    owner_directory(state, identity).join(format!("{db_id}.duckdb"))
+    owner_directory(&state.dirs.database_dir, identity).join(format!("{db_id}.duckdb"))
 }
 
 fn derived_database_owner(
@@ -219,33 +220,19 @@ fn derived_database_owner(
     }
 }
 
-pub(super) fn databases_for_identity(
-    state: &AppState,
+pub(super) async fn database_page_for_identity(
+    database_root: &Path,
     identity: &GatewayInternalIdentity,
-) -> Result<Vec<DatabaseOwner>, McpError> {
-    let directory = owner_directory(state, identity);
-    let entries = match std::fs::read_dir(&directory) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(McpError::internal_error(error.to_string(), None)),
-    };
-    let mut databases = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(|error| McpError::internal_error(error.to_string(), None))?;
-        let path = entry.path();
-        if path.extension().and_then(|value| value.to_str()) != Some("duckdb") {
-            continue;
-        }
-        let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
-            continue;
-        };
-        let Ok(db_id) = DuckDbDatabaseId::new(stem) else {
-            continue;
-        };
-        databases.push(derived_database_owner(state, identity, db_id));
-    }
-    databases.sort_by(|left, right| left.db_id.as_str().cmp(right.db_id.as_str()));
-    Ok(databases)
+    cursor: Option<&veoveo_duckdb_mcp::contract::DuckDbDatabaseCursor>,
+) -> Result<veoveo_duckdb_mcp::contract::DuckDbDatabasePage, McpError> {
+    let directory = owner_directory(database_root, identity);
+    let cursor = cursor.cloned();
+    tokio::task::spawn_blocking(move || {
+        veoveo_duckdb_mcp::catalog::database_page(&directory, cursor.as_ref())
+    })
+    .await
+    .map_err(|_| McpError::internal_error("database catalog worker failed", None))?
+    .map_err(|_| McpError::internal_error("reading owner database catalog failed", None))
 }
 
 pub(super) fn resolve_readable_database(
@@ -355,5 +342,65 @@ mod tests {
         let original = identity("default", "user-a");
         let recovered = identity_from_runtime(&runtime_owner(&original)).unwrap();
         assert_eq!(owner_storage_key(&original), owner_storage_key(&recovered));
+    }
+
+    #[tokio::test]
+    async fn catalog_pages_reselect_the_current_identity_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let original = identity("default", "user-a");
+        let directory = owner_directory(root.path(), &original);
+        std::fs::create_dir(&directory).unwrap();
+        for n in 0..101 {
+            std::fs::write(
+                directory.join(format!("db_{n:03}.duckdb")),
+                b"not a database",
+            )
+            .unwrap();
+        }
+        let first = database_page_for_identity(root.path(), &original, None)
+            .await
+            .unwrap();
+        assert_eq!(first.items().len(), 100);
+        let cursor = first.next_cursor().unwrap();
+
+        let mut identities = Vec::new();
+        let mut changed = original.clone();
+        changed.actor.tenant = None;
+        identities.push(changed);
+        let mut changed = original.clone();
+        changed.actor.tenant = Some(TenantId::new("installation").unwrap());
+        identities.push(changed);
+        let mut changed = original.clone();
+        changed.actor.issuer = TokenIssuer::new("https://other.example.test").unwrap();
+        identities.push(changed);
+        let mut changed = original.clone();
+        changed.actor.subject = TokenSubject::new("another-subject").unwrap();
+        identities.push(changed);
+        let mut changed = original.clone();
+        changed.actor.id = PrincipalId::new("another-principal").unwrap();
+        identities.push(changed);
+        let mut changed = original.clone();
+        changed.profile = GatewayProfileId::new("research").unwrap();
+        identities.push(changed);
+        let mut selected_directories = BTreeSet::from([directory]);
+        for (n, identity) in identities.iter().enumerate() {
+            let directory = owner_directory(root.path(), identity);
+            assert!(selected_directories.insert(directory.clone()));
+            std::fs::create_dir(&directory).unwrap();
+            let name = format!("separate_{n}");
+            std::fs::write(directory.join(format!("{name}.duckdb")), []).unwrap();
+            let page = database_page_for_identity(root.path(), identity, Some(cursor))
+                .await
+                .unwrap();
+            assert_eq!(page.items().len(), 1);
+            assert_eq!(page.items()[0].id().as_str(), name);
+            assert!(page.next_cursor().is_none());
+        }
+        let recovered = identity_from_runtime(&runtime_owner(&original)).unwrap();
+        let last = database_page_for_identity(root.path(), &recovered, Some(cursor))
+            .await
+            .unwrap();
+        assert_eq!(last.items()[0].id().as_str(), "db_100");
+        assert!(last.next_cursor().is_none());
     }
 }

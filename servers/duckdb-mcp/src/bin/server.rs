@@ -21,7 +21,6 @@ use std::{
 use veoveo_types::TaskTypeDefinition;
 
 use axum::{Router, middleware, routing::get};
-use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
 use chrono::{TimeDelta, Utc};
 use clap::Parser;
 use rmcp::tool;
@@ -31,8 +30,7 @@ use rmcp::{
     model::{
         CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskParams, ContentBlock,
         GetTaskParams, GetTaskResult, ListResourceTemplatesResult, ListResourcesResult,
-        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult,
-        Resource, ResourceContents, ResourceTemplate, ServerCapabilities, ServerConfig,
+        ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams, ServerConfig,
         SubscriptionFilter, UpdateTaskParams,
     },
     service::{RequestContext, SubscriptionContext},
@@ -46,20 +44,17 @@ use tower_http::trace::{DefaultMakeSpan, TraceLayer};
 use veoveo_duckdb_mcp::{
     artifacts::ArtifactRepository,
     contract::{
-        DuckDbDatabaseId, DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput,
-        DuckDbExportRequest, DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput,
-        DuckDbQueryRequest, DuckDbTaskUsageUri, DuckDbUsageIndexUri,
+        DuckDbExecuteOutput, DuckDbExecuteRequest, DuckDbExportOutput, DuckDbExportRequest,
+        DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryRequest,
     },
-    engine::{self, EngineSettings, FileExchange, TrustedExtension},
+    engine::{self, EngineSettings, TrustedExtension},
     state::TaskOwner,
     uris,
-    usage::DuckDbUsage,
 };
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, UsageReport, docs::ServerDocs, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskError, TaskFailure, TaskRetentionPin,
@@ -81,6 +76,10 @@ mod internal_auth;
 mod outputs;
 #[path = "server/ownership.rs"]
 mod ownership;
+#[path = "server/resources.rs"]
+mod resources;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/sql_ops.rs"]
 mod sql_ops;
 #[path = "server/task_extension.rs"]
@@ -90,10 +89,9 @@ use app_state::{AppState, Caps, ServerDirs, update_task};
 use config::Args;
 use host::validate_host;
 use internal_auth::{InternalMcpAuthState, authenticate_internal_mcp};
-use outputs::usage_record;
 use ownership::{
-    databases_for_identity, identity_from_runtime, internal_caller, internal_identity,
-    resolve_readable_database, runtime_owner, task_owner_from_identity, task_owner_from_runtime,
+    identity_from_runtime, internal_caller, internal_identity, runtime_owner,
+    task_owner_from_identity, task_owner_from_runtime,
 };
 use sql_ops::ArtifactWriteContext;
 use task_extension::DuckdbTaskService;
@@ -106,11 +104,7 @@ const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "duckdb";
 const LIST_PAGE_SIZE: usize = 100;
 
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `duckdb://docs`, `duckdb://docs/{doc_id}`, `duckdb://contract`,
-/// and the administrative `admin/docs` routes (contract C18-C21).
-static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
+use setup::SERVER_DOCS;
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -278,28 +272,7 @@ impl ServerHandler for DuckdbMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut caps: ServerCapabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_resources()
-            .build();
-        veoveo_mcp_apps_extension::extend_capabilities(&mut caps);
-        caps.extensions.get_or_insert_default().insert(
-            rmcp::model::TASKS_EXTENSION_ID.to_owned(),
-            rmcp::model::JsonObject::new(),
-        );
-        let mut info = ServerConfig::default();
-        info.capabilities = caps;
-        info.server_info = rmcp::model::Implementation::new("duckdb", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Hosted DuckDB server with owner-scoped mutable databases. Workflow: `execute` \
-             with create_if_missing to create a database and tables; `ingest` (as a task) to \
-             load data; `query` for read-only SQL with inline rows or artifact spill; `export` \
-             (as a task) for parquet/csv/snapshot artifacts. Read duckdb://dbs for visible \
-             databases and duckdb://db/{db_id} for a schema summary. SQL runs sandboxed: no \
-             file, network, extension, or settings access."
-                .into(),
-        );
-        info
+        setup::SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -403,7 +376,11 @@ impl ServerHandler for DuckdbMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         internal_identity(&context)?;
-        let mut resources = resource_catalog();
+        let mut resources = setup::SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|r| r.descriptor().clone())
+            .collect::<Vec<_>>();
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
         let page = mcp_page(resources, request.as_ref())?;
         Ok(ListResourcesResult {
@@ -421,7 +398,14 @@ impl ServerHandler for DuckdbMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(resource_templates(), request.as_ref())?;
+        let page = mcp_page(
+            setup::SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|r| r.descriptor().clone())
+                .collect::<Vec<_>>(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -438,305 +422,10 @@ impl ServerHandler for DuckdbMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let identity = internal_identity(&context)?;
-            let uri = request.uri.as_str();
-            // Well-known surface (contract C18, C19): readable by any
-            // authenticated identity, like `list_resources`.
-            if uri == uris::DOCS_URI {
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(
-                        serde_json::to_string(&SERVER_DOCS.iter().collect::<Vec<_>>())
-                            .unwrap_or_default(),
-                        uri,
-                    )
-                    .with_mime_type("application/json"),
-                ]));
-            }
-            if let Some(doc_id) = uris::parse_doc_uri(uri) {
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found(
-                        format!("unknown server document '{doc_id}'"),
-                        None,
-                    )
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                let declaration = SERVER_DOCS.contract_declaration();
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(
-                        serde_json::to_string(declaration).unwrap_or_default(),
-                        uri,
-                    )
-                    .with_mime_type("application/json"),
-                ]));
-            }
-            if uri == uris::WORKBENCH_APP_URI {
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id: "duckdb-workbench",
-                        title: "Workbench",
-                        subtitle: "Run owner-scoped analytical SQL and govern data movement",
-                        empty_message: "No DuckDB databases are visible to this identity.",
-                        resources: &[
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Databases",
-                                uri: uris::DBS_ROOT_URI,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchResource {
-                                label: "Usage",
-                                uri: DuckDbUsageIndexUri::ROOT,
-                            },
-                        ],
-                        tools: &[
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Query",
-                                name: "query",
-                                arguments_json: r#"{"db_id":"","sql":"SELECT 1 AS value"}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Execute",
-                                name: "execute",
-                                arguments_json: r#"{"db_id":"","sql":"CREATE TABLE example(value INTEGER)","create_if_missing":true}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Ingest",
-                                name: "ingest",
-                                arguments_json: "{}",
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Export",
-                                name: "export",
-                                arguments_json: "{}",
-                            },
-                        ],
-                        stream_result: None,
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            if uri == uris::DBS_ROOT_URI {
-                let mut entries = Vec::new();
-                for database in databases_for_identity(&self.state, &identity)? {
-                    entries.push(json!({
-                        "db_id": database.db_id.as_str(),
-                        "db_uri": uris::db_uri(database.db_id.as_str()),
-                        "owned": database.principal_id == identity.actor.id,
-                    }));
-                }
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(
-                        serde_json::to_string(&entries).unwrap_or_default(),
-                        uri,
-                    )
-                    .with_mime_type("application/json"),
-                ]));
-            }
-            if let Ok(index) = DuckDbUsageIndexUri::parse(uri) {
-                let page = DuckDbUsage::new(&self.state.tasks)
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .page(&runtime_owner(&identity), index.cursor())
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(serde_json::to_string(&page).unwrap_or_default(), uri)
-                        .with_mime_type("application/json"),
-                ]));
-            }
-            if let Some(db_id) = uris::parse_db_uri(uri) {
-                let schema = database_schema_document(&self.state, &identity, db_id).await?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(serde_json::to_string(&schema).unwrap_or_default(), uri)
-                        .with_mime_type("application/json"),
-                ]));
-            }
-            if let Ok(usage_uri) = DuckDbTaskUsageUri::parse(uri) {
-                let task_id = usage_uri.task_id();
-                let records = DuckDbUsage::new(&self.state.tasks)
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .task(&runtime_owner(&identity), &usage_uri)
-                    .await
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?
-                    .into_iter()
-                    .map(|record| usage_record(task_id, record))
-                    .collect::<Vec<_>>();
-                if records.is_empty() {
-                    return Err(McpError::resource_not_found(
-                        format!("unknown usage task '{task_id}'"),
-                        None,
-                    ));
-                }
-                let report = UsageReport::new(task_id.to_string(), uri).with_records(records);
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(serde_json::to_string(&report).unwrap_or_default(), uri)
-                        .with_mime_type("application/json"),
-                ]));
-            }
-            if let Some(artifact_id) = uris::parse_artifact_uri(uri) {
-                // The plane enforces access with the caller's identity; a denial
-                // surfaces as an error rather than None.
-                let caller = internal_caller(&context)?;
-                let artifact = self
-                    .state
-                    .artifacts
-                    .get(&caller, &artifact_id)
-                    .await
-                    .map_err(|err| McpError::internal_error(err.to_string(), None))?
-                    .ok_or_else(|| {
-                        McpError::resource_not_found(
-                            format!("unknown artifact '{artifact_id}'"),
-                            None,
-                        )
-                    })?;
-                let blob = BASE64_STANDARD.encode(&artifact.bytes);
-                let mut content = ResourceContents::blob(blob, uri);
-                if let Some(mime_type) = artifact.metadata.mime_type {
-                    content = content.with_mime_type(mime_type);
-                }
-                return Ok(ReadResourceResult::new(vec![content]));
-            }
-            Err(McpError::invalid_params(
-                format!("unknown resource uri: {uri}"),
-                None,
-            ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        resources::read(&self.state, &request.uri, &context)
+            .await
+            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
-}
-
-/// Well-known surface resources (contract C18, C19). `list_resources` serves
-/// these for every authenticated identity and `capability_inventory` declares
-/// them at `duckdb://contract`, so the two cannot diverge.
-fn well_known_resources() -> Vec<Resource> {
-    let mut resources = vec![
-        Resource::new(uris::DOCS_URI, "docs")
-            .with_title("Server documents")
-            .with_description("Index of the crate documents embedded at build time.")
-            .with_mime_type("application/json"),
-    ];
-    for doc in SERVER_DOCS.iter() {
-        resources.push(
-            Resource::new(uris::doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
-        );
-    }
-    resources.push(
-        Resource::new(uris::CONTRACT_URI, "contract")
-            .with_title("Contract declaration")
-            .with_description(
-                "Machine-readable contract revision, compliance, and capability inventory.",
-            )
-            .with_mime_type("application/json"),
-    );
-    resources
-}
-
-/// Discovery declarations do not enumerate database files or Task usage.
-fn resource_catalog() -> Vec<Resource> {
-    let mut resources = well_known_resources();
-    resources.extend([
-        veoveo_mcp_apps_extension::app_resource(uris::WORKBENCH_APP_URI, "workbench")
-            .with_title("Workbench")
-            .with_description("Owner-scoped analytical SQL, ingestion, and export."),
-        Resource::new(uris::DBS_ROOT_URI, "dbs")
-            .with_title("DuckDB databases")
-            .with_description("Databases visible to the caller.")
-            .with_mime_type("application/json"),
-        Resource::new(DuckDbUsageIndexUri::ROOT, "usage")
-            .with_title("DuckDB usage ledger")
-            .with_description("Index of task usage resources.")
-            .with_mime_type("application/json"),
-    ]);
-    resources
-}
-
-/// Templates served by `list_resource_templates` and declared in the
-/// `duckdb://contract` capability inventory.
-fn resource_templates() -> Vec<ResourceTemplate> {
-    vec![
-        ResourceTemplate::new(uris::DOC_TEMPLATE, "doc")
-            .with_title("Server document")
-            .with_description("Embedded crate document body (contract C18).")
-            .with_mime_type("text/markdown"),
-        ResourceTemplate::new(uris::DB_TEMPLATE, "db")
-            .with_title("DuckDB database schema")
-            .with_description("Tables and columns for one visible database.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(uris::ARTIFACT_TEMPLATE, "artifact")
-            .with_title("DuckDB artifact")
-            .with_description(
-                "Server-owned immutable export artifact, addressed by occurrence id.",
-            ),
-        ResourceTemplate::new(DuckDbUsageIndexUri::TEMPLATE, "usage-page")
-            .with_title("DuckDB usage ledger")
-            .with_description("Caller-owned usage Tasks in pages of at most 100.")
-            .with_mime_type("application/json"),
-        ResourceTemplate::new(DuckDbTaskUsageUri::TEMPLATE, "usage")
-            .with_title("DuckDB task usage")
-            .with_description("Usage rows for one task, addressed by task id.")
-            .with_mime_type("application/json"),
-    ]
-}
-
-async fn database_schema_document(
-    state: &Arc<AppState>,
-    identity: &veoveo_mcp_contract::GatewayInternalIdentity,
-    db_id: &str,
-) -> Result<Value, McpError> {
-    let db_id = DuckDbDatabaseId::new(db_id)
-        .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-    let database = resolve_readable_database(state, identity, &db_id)?;
-    let db_path = std::path::PathBuf::from(&database.file_path);
-    if !db_path.exists() {
-        return Ok(json!({ "db_id": db_id.as_str(), "tables": [] }));
-    }
-    let settings = state.engine.clone();
-    let columns = tokio::task::spawn_blocking(move || -> anyhow::Result<engine::QueryRows> {
-        let conn = engine::open_connection(&db_path, true, &[], &FileExchange::Denied, &settings)?;
-        engine::run_query(
-            &conn,
-            "SELECT table_name, column_name, data_type FROM information_schema.columns \
-             WHERE table_schema = 'main' ORDER BY table_name, ordinal_position",
-            100_000,
-            16 * 1024 * 1024,
-        )
-    })
-    .await
-    .map_err(|err| McpError::internal_error(err.to_string(), None))?
-    .map_err(|err| McpError::internal_error(format!("reading schema failed: {err:#}"), None))?;
-
-    let mut tables: Vec<Value> = Vec::new();
-    for row in &columns.rows {
-        let (Some(table), Some(column), Some(data_type)) = (
-            row.first().and_then(Value::as_str),
-            row.get(1).and_then(Value::as_str),
-            row.get(2).and_then(Value::as_str),
-        ) else {
-            continue;
-        };
-        let column_entry = json!({ "name": column, "type": data_type });
-        match tables
-            .iter_mut()
-            .find(|entry| entry["name"].as_str() == Some(table))
-        {
-            Some(entry) => {
-                entry["columns"]
-                    .as_array_mut()
-                    .expect("columns array")
-                    .push(column_entry);
-            }
-            None => tables.push(json!({ "name": table, "columns": [column_entry] })),
-        }
-    }
-    Ok(json!({ "db_id": db_id.as_str(), "tables": tables }))
 }
 
 fn task_recovery_class(args: &TaskArgs) -> RecoveryClass {
@@ -1073,6 +762,7 @@ fn output_db_meta(output: &DuckDbQueryOutput) -> Value {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    LazyLock::force(&setup::SERVER_SETUP);
     install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =
@@ -1220,10 +910,15 @@ mod well_known_tests {
 
     #[test]
     fn discovery_uses_collection_roots_and_typed_usage_templates() {
-        use super::{
-            DuckDbTaskUsageUri, DuckDbUsageIndexUri, resource_catalog, resource_templates,
+        use veoveo_duckdb_mcp::{
+            contract::{DuckDbTaskUsageUri, DuckDbUsageIndexUri},
+            uris,
         };
-        let resources = resource_catalog();
+        let resources = super::setup::SERVER_SETUP
+            .resources()
+            .iter()
+            .map(|r| r.descriptor().clone())
+            .collect::<Vec<_>>();
         assert!(
             resources
                 .iter()
@@ -1232,13 +927,17 @@ mod well_known_tests {
         assert!(
             resources
                 .iter()
-                .any(|resource| resource.uri == super::uris::DBS_ROOT_URI)
+                .any(|resource| resource.uri == uris::DBS_ROOT_URI)
         );
         assert!(resources.iter().all(|resource| {
             !resource.uri.starts_with("duckdb://usage/task/")
                 && !resource.uri.starts_with("duckdb://db/")
         }));
-        let templates = resource_templates();
+        let templates = super::setup::SERVER_SETUP
+            .resource_templates()
+            .iter()
+            .map(|r| r.descriptor().clone())
+            .collect::<Vec<_>>();
         for uri in [DuckDbUsageIndexUri::TEMPLATE, DuckDbTaskUsageUri::TEMPLATE] {
             assert!(
                 templates

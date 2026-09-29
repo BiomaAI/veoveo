@@ -18,15 +18,17 @@
   },
   "DuckDbDatabaseId": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Owner-scoped name of a mutable hosted database file.",
     "title": "DuckDbDatabaseId",
-    "type": "string"
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9_]{0,63}$",
+    "description": "Owner-scoped name of a mutable hosted database file."
   },
   "DuckDbExecuteOutput": {
     "$defs": {
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -60,8 +62,9 @@
   "DuckDbExecuteRequest": {
     "$defs": {
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -410,8 +413,9 @@
         "type": "string"
       },
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       },
       "GroupId": {
         "description": "Identity-provider group identifier used by gateway policy.",
@@ -460,8 +464,9 @@
   "DuckDbExportRequest": {
     "$defs": {
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       },
       "DuckDbExportFormat": {
         "oneOf": [
@@ -638,8 +643,9 @@
   "DuckDbIngestOutput": {
     "$defs": {
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -675,8 +681,9 @@
         "type": "string"
       },
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       },
       "DuckDbFormat": {
         "enum": [
@@ -1304,8 +1311,9 @@
   "DuckDbQueryRequest": {
     "$defs": {
       "DuckDbDatabaseId": {
-        "description": "Owner-scoped name of a mutable hosted database file.",
-        "type": "string"
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "description": "Owner-scoped name of a mutable hosted database file."
       },
       "DuckDbExportFormat": {
         "oneOf": [
@@ -1583,5 +1591,233 @@
       }
     ],
     "title": "DuckDbSource"
+  },
+  "DuckDbDatabaseCursor": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabaseCursor",
+    "type": "string"
+  },
+  "DuckDbDatabaseEntry": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "type": "string",
+        "description": "Owner-scoped name of a mutable hosted database file."
+      },
+      "DuckDbDatabaseUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "db_id": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "db_uri": {
+        "$ref": "#/$defs/DuckDbDatabaseUri"
+      }
+    },
+    "required": [
+      "db_id",
+      "db_uri"
+    ],
+    "title": "DuckDbDatabaseEntry",
+    "type": "object"
+  },
+  "DuckDbDatabasePage": {
+    "$defs": {
+      "DuckDbDatabaseCursor": {
+        "type": "string"
+      },
+      "DuckDbDatabaseEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "db_id": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "db_uri": {
+            "$ref": "#/$defs/DuckDbDatabaseUri"
+          }
+        },
+        "required": [
+          "db_id",
+          "db_uri"
+        ],
+        "type": "object"
+      },
+      "DuckDbDatabaseId": {
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "type": "string",
+        "description": "Owner-scoped name of a mutable hosted database file."
+      },
+      "DuckDbDatabaseUri": {
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "description": "An immutable ascending page from the caller's current database workspace.",
+    "properties": {
+      "items": {
+        "items": {
+          "$ref": "#/$defs/DuckDbDatabaseEntry"
+        },
+        "maxItems": 100,
+        "type": "array"
+      },
+      "limit": {
+        "format": "uint",
+        "maximum": 100,
+        "minimum": 100,
+        "type": "integer"
+      },
+      "next_cursor": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DuckDbDatabaseCursor"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "items",
+      "limit"
+    ],
+    "title": "DuckDbDatabasePage",
+    "type": "object"
+  },
+  "DuckDbDatabaseSchema": {
+    "$defs": {
+      "DuckDbDatabaseId": {
+        "pattern": "^[a-z][a-z0-9_]{0,63}$",
+        "type": "string",
+        "description": "Owner-scoped name of a mutable hosted database file."
+      },
+      "DuckDbSchemaColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object"
+      },
+      "DuckDbTableSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/$defs/DuckDbSchemaColumn"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "columns"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "db_id": {
+        "$ref": "#/$defs/DuckDbDatabaseId"
+      },
+      "tables": {
+        "items": {
+          "$ref": "#/$defs/DuckDbTableSchema"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "db_id",
+      "tables"
+    ],
+    "title": "DuckDbDatabaseSchema",
+    "type": "object"
+  },
+  "DuckDbDatabaseUri": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbDatabaseUri",
+    "type": "string"
+  },
+  "DuckDbResource": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "DuckDbResource",
+    "type": "string"
+  },
+  "DuckDbSchemaColumn": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "type"
+    ],
+    "title": "DuckDbSchemaColumn",
+    "type": "object"
+  },
+  "DuckDbTableSchema": {
+    "$defs": {
+      "DuckDbSchemaColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "additionalProperties": false,
+    "properties": {
+      "columns": {
+        "items": {
+          "$ref": "#/$defs/DuckDbSchemaColumn"
+        },
+        "type": "array"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "columns"
+    ],
+    "title": "DuckDbTableSchema",
+    "type": "object"
   }
 }

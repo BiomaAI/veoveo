@@ -6,6 +6,8 @@
 
 #[cfg(feature = "runtime")]
 pub mod artifacts;
+#[cfg(feature = "runtime")]
+pub mod catalog;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "contract")]
@@ -14,7 +16,7 @@ pub use contract::*;
 pub mod engine;
 #[cfg(feature = "runtime")]
 pub mod state;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 
 #[cfg(feature = "runtime")]

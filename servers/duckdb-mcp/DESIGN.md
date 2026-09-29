@@ -16,9 +16,25 @@ shared artifact plane.
 
 DuckDB is not platform coordination state and is not the canonical live common
 operating picture. SurrealDB owns platform and durable task state. The artifact
-plane owns immutable bytes and sharing. A future map server owns tiles, styles,
+plane owns immutable bytes and sharing. Map owns tiles, styles,
 views, and rendered maps. DuckDB supplies analytical tables and derived spatial
 products to those domains.
+
+## Standards And Protocols
+
+| Standard or protocol | Implemented profile |
+|---|---|
+| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | Version `2026-07-28`, JSON-RPC 2.0 over stateless Streamable HTTP with Discover, tools, resources and templates, structured content and Task subscriptions. Resource subscriptions are excluded. |
+| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://duckdb/workbench.html` Workbench exposes owner-scoped databases, SQL, ingestion, exports, and usage. |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool inputs and structured results. Open-ended DuckDB values remain JSON only where the SQL type system is genuinely dynamic. |
+| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
+| DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |
+| CSV, JSON/NDJSON, and [Apache Parquet](https://parquet.apache.org/docs/) | Governed source materialization and immutable export. Parsing behavior is pinned to the installed DuckDB release and explicit read options. |
+| DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. The generic SQL server explicitly retains native `geometry_always_xy = false` semantics. |
+| [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | SQL can compute MVT geometry and tile blobs. Tile identity, archives, styles, and serving remain Map responsibilities. |
+| HTTPS | Allowlisted external sources are downloaded by the governed materializer. Caller SQL never receives network authority. |
+| RFC 3986, RFC 6570 and Veoveo collection cursors | Typed database, Artifact, document and usage addresses use foundational URI components and templates. Version 1 Base64url cursors bind the collection and typed position; Task addresses require RFC UUIDv7. |
+| OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
 
 ## Status
 
@@ -60,22 +76,6 @@ duckdb__execute
 duckdb__ingest
 duckdb__export
 ```
-
-## Standards And Protocols
-
-| Standard or protocol | Implemented profile |
-|---|---|
-| [Model Context Protocol](https://modelcontextprotocol.io/specification/) | JSON-RPC 2.0 over Streamable HTTP with tools, resources and templates, structured content, notifications, and usage resources. |
-| MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://duckdb/workbench.html` Workbench exposes owner-scoped databases, SQL, ingestion, exports, and usage. |
-| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Canonical tool inputs and structured results. Open-ended DuckDB values remain JSON only where the SQL type system is genuinely dynamic. |
-| MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; query, mutation, ingest, and export select a declared direct or durable execution mode. |
-| DuckDB SQL | The pinned DuckDB dialect is accepted inside the hardened database boundary. Veoveo does not claim a narrower ISO SQL subset or translate SQL through another query language. |
-| CSV, JSON/NDJSON, and [Apache Parquet](https://parquet.apache.org/docs/) | Governed source materialization and immutable export. Parsing behavior is pinned to the installed DuckDB release and explicit read options. |
-| DuckDB Spatial | Locally pinned extension support for OGC-style geometry operations, WGS84/EPSG CRS transformation, GeoJSON, WKB, spatial indexes, and spatial joins. The generic SQL server explicitly retains native `geometry_always_xy = false` semantics. |
-| [Mapbox Vector Tile 2.1](https://github.com/mapbox/vector-tile-spec/tree/master/2.1) | SQL can compute MVT geometry and tile blobs. Tile identity, archives, styles, and serving remain Map responsibilities. |
-| HTTPS | Allowlisted external sources are downloaded by the governed materializer. Caller SQL never receives network authority. |
-| Veoveo usage resource profile | `duckdb://usage` pages with native UUIDv7 Task addresses, foundational URI components and version 1 Base64 cursors. |
-| OAuth bearer and signed JWT identity | The gateway authorizes the public MCP resource; the hosted service verifies its short-lived assertion and caller authority before deriving an owner database. |
 
 ## Goals
 
@@ -198,15 +198,15 @@ integration, asynchronous runtime, database client and artifact-service client.
 The `runtime` feature adds the engine adapter, owner models, Artifact client, usage
 reader and Task runtime. The default `mcp` feature adds the hosted binary and its
 protocol and process dependencies. Feature gates apply to dependencies as well as
-modules. Usage addresses belong to the isolated contract; the remaining database and
-document URI helpers depend on MCP conventions and await typed address adoption.
+modules. `DuckDbResource` owns database, document, Artifact, usage and App addresses
+through foundational URI builders. Contract consumers reuse its parsing and
+serialization without loading the hosted adapter.
 
 The library owns SQL-fragment rendering for its read formats and options. Timeseries
 consumes these functions and source types from DuckDB's `contract` feature. The agent
 kernel imports its SQL quoting helpers through the same feature. MCP core
-contains no DuckDB source vocabulary or re-export. The Rust ownership change preserves
-the tool schemas, serialized source fields and persisted Task request forms, so stored
-requests need no conversion. Each materializing server still enforces its source policy.
+contains no DuckDB source vocabulary or re-export. Each materializing server enforces
+its source policy.
 
 ### Database Identity
 
@@ -232,12 +232,45 @@ owner directory from a SHA-256 digest over:
 - principal issuer
 - principal subject
 - canonical principal id
-- tenant or installation scope
+- optional tenant
 - gateway profile
+
+The digest input is an ordered JSON tuple. An absent tenant encodes as `null`, which
+keeps it distinct from every tenant name. The first 128 digest bits name the directory.
 
 Different profiles receive different mutable database workspaces even for the
 same principal. Data labels remain authorization and artifact-classification
 state; they are not part of the physical filename.
+
+### Database Catalog And Schema Reads
+
+`duckdb://dbs{?cursor}` returns `{items, limit, next_cursor}`. Each item contains one
+`DuckDbDatabaseId` and its matching `DuckDbDatabaseUri`; the immutable page checks
+ascending order, repeated identity and continuation agreement. Pages contain at most
+100 items. A continuation names the last returned database and is valid only for this
+collection and cursor version. JSON decoding applies the same construction checks.
+
+The hosted adapter derives the directory from the verified caller on every request.
+`catalog.rs` scans that directory in a blocking worker and retains the smallest 101
+eligible filenames after the cursor. It returns 100 and uses the extra name to detect
+continuation. Work grows with the number of owner directory entries; retained candidate
+memory is capped. Directory scans exclude symlinks, directories, sidecars and filenames
+outside the database ID profile. They read neither database bytes nor schemas. A cursor
+confers no authority, and changing the caller changes the selected directory. Each page
+observes current files, so callers refresh the first page to see newly created names
+that sort before their position. The Workbench uses the shared cursor controls.
+
+Exact database resources resolve the same owner path and query the main schema.
+`DuckDbDatabaseSchema`, `DuckDbTableSchema` and `DuckDbSchemaColumn` describe the result;
+column order follows DuckDB's ordinal positions. A truncated engine result or malformed
+schema row fails the read. The schema query allows at most 100,000 rows and 8 MiB of
+row data; callers use bounded `information_schema` queries for larger databases.
+
+`server/setup.rs` builds the checked MCP surface before Store access or engine startup.
+It owns static discovery and its templates, configuration, documents and the empty
+`DuckDbScope` vocabulary. Gateway operation policy and owner checks provide authority.
+`server/resources.rs` parses one resource variant before dispatching it and serializes
+known response types. Invalid addresses receive a diagnostic that omits the submitted URI.
 
 ### Shared Data Source
 

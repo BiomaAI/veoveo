@@ -1,4 +1,10 @@
+mod catalog;
+mod resources;
+mod scopes;
 mod task_kind;
+pub use catalog::*;
+pub use resources::*;
+pub use scopes::DuckDbScope;
 use std::fmt;
 pub use task_kind::DuckDbTaskKind;
 
@@ -18,7 +24,7 @@ pub use read_sql::{
 pub use source::{DuckDbFormat, DuckDbReadOptions, DuckDbSource};
 
 /// Owner-scoped name of a mutable hosted database file.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(try_from = "String", into = "String")]
 pub struct DuckDbDatabaseId(String);
 
@@ -36,7 +42,7 @@ impl DuckDbDatabaseId {
         if valid_len && valid_chars && valid_start {
             Ok(Self(value))
         } else {
-            Err(DuckDbDatabaseIdError { value })
+            Err(DuckDbDatabaseIdError)
         }
     }
 
@@ -71,21 +77,32 @@ impl From<DuckDbDatabaseId> for String {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DuckDbDatabaseIdError {
-    pub value: String,
+impl std::str::FromStr for DuckDbDatabaseId {
+    type Err = DuckDbDatabaseIdError;
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        Self::new(value)
+    }
 }
-
-impl fmt::Display for DuckDbDatabaseIdError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "invalid duckdb database id `{}`: expected 1..=64 chars of [a-z0-9_] starting with a letter",
-            self.value
-        )
+impl JsonSchema for DuckDbDatabaseId {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "DuckDbDatabaseId".into()
+    }
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({
+            "type":"string",
+            "description":"Owner-scoped name of a mutable hosted database file.",
+            "pattern":"^[a-z][a-z0-9_]{0,63}$"
+        })
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DuckDbDatabaseIdError;
+impl fmt::Display for DuckDbDatabaseIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("expected a DuckDB database ID of 1..=64 lowercase ASCII letters, digits or underscores, starting with a letter")
+    }
+}
 impl std::error::Error for DuckDbDatabaseIdError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
