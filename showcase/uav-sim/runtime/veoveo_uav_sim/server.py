@@ -4,7 +4,7 @@ import asyncio
 import concurrent.futures
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from aiohttp import web
 
@@ -20,8 +20,7 @@ from .contracts import (
 from .fleet_loop import FleetLoopController
 from .operator_camera_config import live_camera_descriptor
 from .operator_products import OperatorProductCollection, initial_operator_atlas_state
-from .px4 import Px4Commander
-from .recording import RecordingPublisher
+from .px4 import CommandDeadline, Px4Commander
 from .runtime_events import RuntimeEventPublisher
 from .state import RuntimeState, initial_runtime_timing
 from .tile_lifecycle import tile_content_ready
@@ -31,8 +30,12 @@ from .world_config import (
     WorldConfigurationSlot,
 )
 
+if TYPE_CHECKING:
+    from .recording import RecordingPublisher
+
 
 LIVE_STREAM_PROTOCOL = "veoveo.h264.annexb.v1"
+DIRECT_VEHICLE_COMMAND_BUDGET_SECONDS = 75.0
 
 
 def _timestamp() -> str:
@@ -359,17 +362,20 @@ class AdapterApplication:
             resource_uri = f"uav-sim://session/{command.session_id}/world"
         else:
             assert command.vehicle_id is not None
-            self._fleet_loop.take_control((command.vehicle_id,))
+            deadline = CommandDeadline.after(DIRECT_VEHICLE_COMMAND_BUDGET_SECONDS)
+            self._fleet_loop.take_control(
+                (command.vehicle_id,), timeout_seconds=min(30.0, deadline.remaining())
+            )
             commander = self._commander(command.vehicle_id)
             if command.command == "arm":
-                commander.arm()
+                commander.arm(deadline=deadline)
                 detail = "vehicle armed"
             elif command.command == "takeoff":
                 assert command.relative_altitude_m is not None
-                commander.takeoff(command.relative_altitude_m)
+                commander.takeoff(command.relative_altitude_m, deadline=deadline)
                 detail = "vehicle arm and takeoff accepted"
             elif command.command == "land":
-                commander.land()
+                commander.land(deadline=deadline)
                 detail = "vehicle landing accepted"
             else:
                 raise AssertionError("validated command was not handled")

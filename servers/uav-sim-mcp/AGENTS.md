@@ -115,6 +115,18 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 
 - Helm lint and template checks cover `showcase/uav-sim/deploy/helm`; the
   container builds from `servers/uav-sim-mcp/Dockerfile` (needs Docker).
+- The plant's stationary barometer qualification runs separately on NVIDIA CUDA
+  with the Warp version pinned by the simulation runtime lock. It fails when CUDA
+  is unavailable and does not start Isaac or the cluster:
+
+  ```sh
+  PYTHONPATH=showcase/uav-sim/runtime \
+    timeout 120s uv run --with warp-lang==1.16.0 --with numpy==2.3.1 --python 3.12 \
+    python showcase/uav-sim/runtime/tests_gpu/test_plant.py
+  ```
+
+  This checks the CUDA plant kernel, seeded sensor variance and stationary ground
+  truth. Installed acceptance still qualifies PX4 re-arming and composed flight.
 - Live acceptance is a separately invoked, installation-owned billed test. It
   requires `CESIUM_ION_ACCESS_TOKEN`, NVIDIA registry access, a cluster
   granting `nvidia.com/gpu: 1`, and the Isaac Sim and PX4 runtimes. Unit and

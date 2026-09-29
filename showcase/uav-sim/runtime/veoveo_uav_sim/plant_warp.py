@@ -29,6 +29,8 @@ INERTIA_Z = wp.constant(PX4_IRIS_DIAGONAL_INERTIA_KG_M2[2])
 GRAVITY_MPS2 = wp.constant(9.80665)
 LAUNCH_SURFACE_CENTER_UP_M = wp.constant(0.04)
 GROUND_FRICTION_PER_SECOND = wp.constant(8.0)
+BAROMETER_NOISE_STDDEV_HPA = wp.constant(0.01)
+BAROMETER_NOISE_SEED = wp.constant(1234)
 ROTOR_0_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][0])
 ROTOR_0_Y = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][1])
 ROTOR_1_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[1][0])
@@ -52,6 +54,7 @@ def advance_fleet_and_sample_hil(
     body_qd: wp.array(dtype=wp.spatial_vector),
     previous_linear_velocity_enu: wp.array2d(dtype=wp.float32),
     packet: wp.array2d(dtype=wp.float32),
+    physics_step: wp.int32,
     dt: wp.float32,
     origin_latitude_degrees: wp.float32,
     origin_longitude_degrees: wp.float32,
@@ -174,6 +177,10 @@ def advance_fleet_and_sample_hil(
     altitude = origin_altitude_m + up
     temperature_kelvin = wp.max(180.0, 288.15 - 0.0065 * altitude)
     pressure_hpa = 1013.25 / wp.pow(288.15 / temperature_kelvin, 5.2561)
+    # Match PX4's simulated barometer: 1 Pa RMS Gaussian measurement noise.
+    # Each vehicle/step has a reproducible sample; body and GPS truth stay exact.
+    noise_state = wp.rand_init(BAROMETER_NOISE_SEED + vehicle, physics_step)
+    pressure_hpa += BAROMETER_NOISE_STDDEV_HPA * wp.randn(noise_state)
     latitude = origin_latitude_degrees + north / meters_per_degree_latitude
     longitude = origin_longitude_degrees + east / meters_per_degree_longitude
     ground_speed = wp.sqrt(

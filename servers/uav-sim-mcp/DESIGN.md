@@ -631,6 +631,24 @@ bounded physics debt and coalesces missed visual deadlines into one render of th
 authoritative state. RTX, Cesium, NVENC, H.264 delivery, Recording, and Rerun work can reduce
 presentation cadence under load, but none of them changes the simulation clock.
 
+The Warp plant adds seeded Gaussian barometer measurement noise with a standard
+deviation of 1 Pa, matching the pressure-noise term in the pinned
+[PX4 simulator](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_baro_sim/SensorBaroSim.cpp).
+Vehicle identity and physics step select the CUDA random sample. Body position and
+GPS truth remain independent of that measurement. PX4's sensor validator treats a
+long sequence of identical pressure readings as a stuck sensor, including while
+landed. The model supplies measurement variance without disabling that health check.
+
+Direct vehicle commands share a 75-second runtime deadline across fleet takeover,
+commander lock acquisition, mode transition, arming and command acknowledgement.
+Fleet takeover consumes at most 30 seconds of that budget; each MAVLink acknowledgement
+wait consumes at most 15 seconds. The default MCP adapter HTTP timeout is 90 seconds.
+PX4's explicit temporary arming rejection permits another arm attempt within the
+remaining budget. Missing acknowledgements and expired deadlines never trigger a
+command replay. Expiry stops further dispatch and requires observation of vehicle
+state; it does not prove that an already dispatched command failed. The automatic
+fleet startup keeps its separate 120-second arming-readiness allowance.
+
 The RTSP extension performs one NVIDIA NVENC encode and serves the resulting GOP on a
 pod-local loopback transport. The private adapter depacketizes RFC 6184 payloads without
 decoding, copying pixels, or encoding again. It qualifies SPS, PPS, IDR, and predicted

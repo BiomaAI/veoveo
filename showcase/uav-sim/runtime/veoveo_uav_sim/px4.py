@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 from pymavlink import mavutil
@@ -16,6 +18,33 @@ ARM_READINESS_TIMEOUT_SECONDS = 120.0
 ARM_RETRY_INTERVAL_SECONDS = 1.0
 WAYPOINT_HORIZONTAL_TOLERANCE_M = 1.0
 WAYPOINT_VERTICAL_TOLERANCE_M = 0.75
+
+
+@dataclass(frozen=True, slots=True)
+class CommandDeadline:
+    expires_at: float
+
+    def __post_init__(self) -> None:
+        if not math.isfinite(self.expires_at):
+            raise ValueError("command deadline must be finite")
+
+    @classmethod
+    def after(cls, seconds: float) -> CommandDeadline:
+        if not math.isfinite(seconds) or seconds <= 0.0:
+            raise ValueError("command budget must be finite and positive")
+        return cls(time.monotonic() + seconds)
+
+    def remaining(self) -> float:
+        seconds = self.expires_at - time.monotonic()
+        if seconds <= 0.0:
+            raise TimeoutError(
+                "PX4 command deadline expired; inspect vehicle state before "
+                "another mutation"
+            )
+        return seconds
+
+    def capped(self, seconds: float) -> CommandDeadline:
+        return CommandDeadline(min(self.expires_at, time.monotonic() + seconds))
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,16 +146,30 @@ class Px4Commander:
             flight_state = "initializing"
         return Px4Status(self._connected, flight_state, self._battery_percent)
 
-    def arm(self) -> None:
-        with self._lock:
-            self._require_connection()
-            self._arm_locked()
+    @contextmanager
+    def _command_lock(self, deadline: CommandDeadline) -> Iterator[None]:
+        if not self._lock.acquire(timeout=deadline.remaining()):
+            raise TimeoutError(f"PX4 command lock deadline expired for {self.vehicle_id}")
+        try:
+            deadline.remaining()
+            yield
+        finally:
+            self._lock.release()
 
-    def takeoff(self, relative_altitude_m: float) -> None:
-        with self._lock:
+    def arm(self, *, deadline: CommandDeadline | None = None) -> None:
+        deadline = deadline or CommandDeadline.after(150.0)
+        with self._command_lock(deadline):
+            self._require_connection()
+            self._arm_locked(deadline)
+
+    def takeoff(
+        self, relative_altitude_m: float, *, deadline: CommandDeadline | None = None
+    ) -> None:
+        deadline = deadline or CommandDeadline.after(165.0)
+        with self._command_lock(deadline):
             self._require_connection()
             if not self._armed:
-                self._arm_locked()
+                self._arm_locked(deadline)
             target_altitude = (
                 max(self._absolute_altitude_m, self._origin_height_m)
                 + relative_altitude_m
@@ -140,9 +183,10 @@ class Px4Commander:
                 math.nan,
                 math.nan,
                 target_altitude,
+                deadline=deadline,
             )
 
-    def land(self) -> None:
+    def land(self, *, deadline: CommandDeadline | None = None) -> None:
         self._mission_interrupt.set()
         try:
             self._command(
@@ -154,6 +198,7 @@ class Px4Commander:
                 math.nan,
                 math.nan,
                 math.nan,
+                deadline=deadline,
             )
         finally:
             self._mission_interrupt.clear()
@@ -210,12 +255,19 @@ class Px4Commander:
                 self._connection = None
             self._connected = False
 
-    def _command(self, command: int, *parameters: float) -> None:
-        with self._lock:
+    def _command(
+        self, command: int, *parameters: float, deadline: CommandDeadline | None = None
+    ) -> None:
+        deadline = deadline or CommandDeadline.after(15.0)
+        with self._command_lock(deadline):
             self._require_connection()
-            self._send_command_locked(command, *parameters)
+            self._send_command_locked(command, *parameters, deadline=deadline)
 
-    def _send_command_locked(self, command: int, *parameters: float) -> None:
+    def _send_command_locked(
+        self, command: int, *parameters: float, deadline: CommandDeadline | None = None
+    ) -> None:
+        deadline = deadline or CommandDeadline.after(15.0)
+        deadline.remaining()
         values = list(parameters) + [0.0] * (7 - len(parameters))
         self._send_gcs_heartbeat_locked()
         self._connection.mav.command_long_send(
@@ -225,48 +277,49 @@ class Px4Commander:
             0,
             *values[:7],
         )
-        self._await_command_ack_locked(command)
+        self._await_command_ack_locked(command, deadline=deadline)
 
-    def _arm_when_ready_locked(
-        self, timeout_seconds: float = ARM_READINESS_TIMEOUT_SECONDS
-    ) -> None:
-        deadline = time.monotonic() + timeout_seconds
-        while time.monotonic() < deadline:
+    def _arm_when_ready_locked(self, deadline: CommandDeadline) -> None:
+        deadline = deadline.capped(ARM_READINESS_TIMEOUT_SECONDS)
+        while time.monotonic() < deadline.expires_at:
             try:
                 self._send_command_locked(
-                    mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0
+                    mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM, 1.0,
+                    deadline=deadline,
                 )
             except Px4CommandRejected as error:
                 if not error.temporary:
                     raise
-                retry_deadline = min(
-                    deadline, time.monotonic() + ARM_RETRY_INTERVAL_SECONDS
-                )
-                while time.monotonic() < retry_deadline:
+                retry_deadline = deadline.capped(ARM_RETRY_INTERVAL_SECONDS)
+                while time.monotonic() < retry_deadline.expires_at:
                     self._send_gcs_heartbeat_locked_if_due()
                     message = self._connection.recv_match(
                         blocking=True,
-                        timeout=min(1.0, retry_deadline - time.monotonic()),
+                        timeout=min(1.0, retry_deadline.remaining()),
                     )
                     if message is not None:
                         self._consume(message)
                 continue
 
-            report_deadline = min(deadline, time.monotonic() + 15.0)
-            while time.monotonic() < report_deadline:
+            report_deadline = deadline.capped(15.0)
+            while time.monotonic() < report_deadline.expires_at:
+                if self._armed:
+                    return
                 self._send_gcs_heartbeat_locked_if_due()
-                message = self._connection.recv_match(blocking=True, timeout=1.0)
+                message = self._connection.recv_match(
+                    blocking=True, timeout=min(1.0, report_deadline.remaining())
+                )
                 if message is not None:
                     self._consume(message)
                 if self._armed:
                     return
             break
         raise TimeoutError(
-            f"PX4 did not become ready to arm {self.vehicle_id} within "
-            f"{timeout_seconds:g} seconds"
+            f"PX4 did not report armed for {self.vehicle_id} before the command "
+            "deadline; inspect vehicle state before another mutation"
         )
 
-    def _arm_locked(self) -> None:
+    def _arm_locked(self, deadline: CommandDeadline) -> None:
         if (
             self._has_flown
             and self._landed_state == mavutil.mavlink.MAV_LANDED_STATE_ON_GROUND
@@ -282,9 +335,10 @@ class Px4Commander:
                 base_mode,
                 custom_mode,
                 custom_sub_mode,
+                deadline=deadline,
             )
-            self._await_px4_mode_locked(custom_mode, custom_sub_mode)
-        self._arm_when_ready_locked()
+            self._await_px4_mode_locked(custom_mode, custom_sub_mode, deadline)
+        self._arm_when_ready_locked(deadline)
 
     def _send_reposition_locked(self, waypoint: Waypoint) -> None:
         self._send_gcs_heartbeat_locked()
@@ -305,11 +359,15 @@ class Px4Commander:
         )
         self._await_command_ack_locked(mavutil.mavlink.MAV_CMD_DO_REPOSITION)
 
-    def _await_command_ack_locked(self, command: int) -> None:
-        deadline = time.monotonic() + 15.0
-        while time.monotonic() < deadline:
+    def _await_command_ack_locked(
+        self, command: int, *, deadline: CommandDeadline | None = None
+    ) -> None:
+        deadline = (deadline or CommandDeadline.after(15.0)).capped(15.0)
+        while time.monotonic() < deadline.expires_at:
             self._send_gcs_heartbeat_locked_if_due()
-            message = self._connection.recv_match(blocking=True, timeout=1.0)
+            message = self._connection.recv_match(
+                blocking=True, timeout=min(1.0, deadline.remaining())
+            )
             if message is None:
                 continue
             self._consume(message)
@@ -322,16 +380,20 @@ class Px4Commander:
             return
         raise TimeoutError(f"PX4 did not acknowledge MAVLink command {command}")
 
-    def _await_px4_mode_locked(self, custom_mode: int, custom_sub_mode: int) -> None:
-        deadline = time.monotonic() + 15.0
-        while time.monotonic() < deadline:
+    def _await_px4_mode_locked(
+        self, custom_mode: int, custom_sub_mode: int, deadline: CommandDeadline
+    ) -> None:
+        deadline = deadline.capped(15.0)
+        while time.monotonic() < deadline.expires_at:
             if (
                 self._px4_main_mode == custom_mode
                 and self._px4_sub_mode == custom_sub_mode
             ):
                 return
             self._send_gcs_heartbeat_locked_if_due()
-            message = self._connection.recv_match(blocking=True, timeout=1.0)
+            message = self._connection.recv_match(
+                blocking=True, timeout=min(1.0, deadline.remaining())
+            )
             if message is not None:
                 self._consume(message)
         raise TimeoutError(

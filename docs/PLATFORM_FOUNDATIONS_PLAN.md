@@ -44,9 +44,18 @@ takeoff with an adapter command transport error. The simulator did not restart; 
 logs contain PX4 sensor timeouts, stale barometer reports and arming refusals. A later
 state read showed the controlled vehicle in standby. The command outcome was not
 inferred from the transport error, and takeoff was not retried. Sensor timing and command
-deadlines need one runtime qualification batch before another full flight run. The
-cluster is stopped during that development; Rust and BuildKit caches, image layers and
-runtime claims are preserved. The architecture catalog
+deadlines need one runtime qualification batch before another full flight run.
+The runtime batch reproduces the stationary barometer problem: the CUDA plant emitted
+constant pressure, which PX4's equal-value validator marks stale. Seeded 1 Pa RMS
+Gaussian measurement noise now runs in that kernel and preserves body/GPS truth.
+Direct commands share a 75-second deadline across takeover, locks, mode change,
+arming and acknowledgement, inside the default 90-second adapter HTTP timeout.
+Native qualification passes 122 runtime tests and a separate RTX 4090 CUDA plant
+test covering 600 stationary samples for each of four vehicles and exact replay.
+These checks do not establish recovery of PX4 re-arming or the reported transport
+poll timeouts; image publication and installed flight acceptance remain pending.
+The cluster is stopped during that development; Rust and BuildKit caches, image layers
+and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
 qualification at `783e447a`. Sequential preparation of the consumed
 images resolved the cold-bootstrap I/O

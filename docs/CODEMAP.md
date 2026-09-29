@@ -1076,6 +1076,7 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/runtime_events.py` | retained nonblocking adapter-ready edge before world admission and final-ready edge after visual admission |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/tile_lifecycle.py` | reactive, deduplicated provider generation state derived from native Cesium lifecycle events and render coverage observations, including expired provider-session reset |
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
+| `showcase/uav-sim/runtime/tests_gpu/test_plant.py` | hardware CUDA plant qualification for reproducible barometer variance and stationary ground truth |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, authorization, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 
