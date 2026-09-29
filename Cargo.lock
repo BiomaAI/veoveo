@@ -17819,6 +17819,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
+ "veoveo-platform-store",
  "veoveo-task-runtime",
  "veoveo-types",
 ]

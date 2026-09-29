@@ -32,8 +32,7 @@ impl Application {
         let read = async {
             if cancel {
                 veoveo_task_runtime::cancel_durable_task(
-                    &self.tasks,
-                    access.owner()?,
+                    &self.tasks.for_owner(access.owner()?),
                     transfer.to_string(),
                 )
                 .await

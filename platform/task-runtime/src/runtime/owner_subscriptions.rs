@@ -128,7 +128,7 @@ impl OwnerTaskQuery {
     async fn owner_baseline(&self, ids: &[TaskId]) -> Result<TaskUpdateBaseline, TaskError> {
         let mut response = self.bind(self.runtime.store.client().query(format!(
             "RETURN {{ cursor: array::first(({AVAILABLE_OUTBOX_TAIL})), tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}) }};"
-        , self.type_predicate())))?
+        , self.selection_predicate())))?
             .bind(("records", ids.iter().copied().map(task_record_id).collect::<Vec<_>>()))
             .bind(("now", Utc::now())).await?.check()?;
         response
@@ -152,7 +152,7 @@ impl OwnerTaskQuery {
              RETURN {{ cursor: array::last($changes.sequence), full: array::len($changes) = 256,
                 tasks: (SELECT * FROM $records WHERE {VISIBLE_TASK} {}
                     AND <string> record::id(id) IN $changes.aggregate_id) }};",
-                self.type_predicate()
+                self.selection_predicate()
             )))?
             .bind(("cursor", cursor.sequence()))
             .bind(("now", Utc::now()))

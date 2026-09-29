@@ -34,6 +34,8 @@ and attribution.
 - Every view binds one immutable composition. Compositions, views, frames, and
   capture tasks are scoped by principal, tenant and Work Context. Local metre
   positions require one exact Frames revision and operation input.
+  Public Task reads, mutations and subscriptions share the checked context query
+  in `server/tasks.rs`; apply its selection in SQL before decoding.
 - Overlay geometry accepts only bounded typed primitives. Large geometry and
   oriented meshes resolve through the shared artifact plane under the
   forwarded caller token. Executable content, arbitrary URLs, credentials, and
@@ -101,8 +103,8 @@ Contract revision: 3
 - C23: met
 - C25: met
 - C26: met
-- C27: pending — public Task subscriptions use the shared owner-only query; add
-  Work Context SQL selection to match View ownership before qualification
+- C27: pending — public Task subscriptions apply Work Context SQL selection;
+  installed cross-context delivery qualification is pending
 - C28: met
 - C29: met
 - C30: met — the endpoint is stateless; durable and domain state never derives authority from a protocol connection

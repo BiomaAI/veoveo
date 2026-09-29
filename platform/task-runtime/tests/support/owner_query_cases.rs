@@ -1,9 +1,6 @@
 use super::*;
 use veoveo_types::TaskTypeName;
 
-#[path = "../../../../testing/fixtures/connection_switch.rs"]
-mod connection_switch;
-
 const SELECTED: TaskTypeName = TaskTypeName::from_static("selected");
 const ALSO_SELECTED: TaskTypeName = TaskTypeName::from_static("also-selected");
 

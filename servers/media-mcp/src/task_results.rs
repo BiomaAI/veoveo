@@ -33,7 +33,7 @@ pub async fn get_task(
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
     MediaReads::new(runtime).map_err(internal)?;
-    let task = veoveo_task_runtime::get_durable_task(runtime, owner, request).await?;
+    let task = veoveo_task_runtime::get_durable_task(&runtime.for_owner(owner), request).await?;
     validate_completed(runtime, owner, task.task)
         .await
         .map(GetTaskResult::new)

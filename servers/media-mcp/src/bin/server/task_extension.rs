@@ -115,8 +115,7 @@ impl veoveo_task_runtime::DurableTaskService for MediaTaskExtension {
         request: rmcp::model::UpdateTaskParams,
     ) -> Result<(), rmcp::ErrorData> {
         veoveo_task_runtime::update_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             request,
         )
         .await

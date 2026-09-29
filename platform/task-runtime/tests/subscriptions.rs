@@ -1,4 +1,8 @@
 //! Disposable real-store acceptance, never environment-gated.
+#[path = "../../../testing/fixtures/connection_switch.rs"]
+mod connection_switch;
+#[path = "support/context_query_cases.rs"]
+mod context_query_cases;
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
 #[path = "support/owner_query_cases.rs"]

@@ -101,7 +101,11 @@ impl DurableTaskService for DuckdbTaskService {
         caller: &Self::Caller,
         request: GetTaskParams,
     ) -> Result<GetTaskResult, McpError> {
-        get_durable_task(&self.state.tasks, &runtime_owner(&caller.identity), request).await
+        get_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     async fn update_task(
@@ -109,11 +113,19 @@ impl DurableTaskService for DuckdbTaskService {
         caller: &Self::Caller,
         request: UpdateTaskParams,
     ) -> Result<(), McpError> {
-        update_durable_task(&self.state.tasks, &runtime_owner(&caller.identity), request).await
+        update_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            request,
+        )
+        .await
     }
 
     async fn cancel_task(&self, caller: &Self::Caller, task_id: String) -> Result<(), McpError> {
-        cancel_durable_task(&self.state.tasks, &runtime_owner(&caller.identity), task_id).await
+        cancel_durable_task(
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            task_id,
+        )
+        .await
     }
 
     async fn subscribe_tasks(

@@ -127,8 +127,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         request: rmcp::model::GetTaskParams,
     ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
         veoveo_task_runtime::get_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             request,
         )
         .await
@@ -140,8 +139,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         request: rmcp::model::UpdateTaskParams,
     ) -> Result<(), rmcp::ErrorData> {
         veoveo_task_runtime::update_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             request,
         )
         .await
@@ -153,8 +151,7 @@ impl veoveo_task_runtime::DurableTaskService for TimeTaskExtension {
         task_id: String,
     ) -> Result<(), rmcp::ErrorData> {
         veoveo_task_runtime::cancel_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
             task_id,
         )
         .await

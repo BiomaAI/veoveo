@@ -186,21 +186,26 @@ impl ServerHandler for Domain {
         request: GetTaskParams,
         _: RequestContext<RoleServer>,
     ) -> Result<GetTaskResult, ErrorData> {
-        veoveo_task_runtime::get_durable_task(&self.runtime, &self.owner, request).await
+        veoveo_task_runtime::get_durable_task(&self.runtime.for_owner(&self.owner), request).await
     }
     async fn update_task(
         &self,
         request: UpdateTaskParams,
         _: RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        veoveo_task_runtime::update_durable_task(&self.runtime, &self.owner, request).await
+        veoveo_task_runtime::update_durable_task(&self.runtime.for_owner(&self.owner), request)
+            .await
     }
     async fn cancel_task(
         &self,
         request: CancelTaskParams,
         _: RequestContext<RoleServer>,
     ) -> Result<(), ErrorData> {
-        veoveo_task_runtime::cancel_durable_task(&self.runtime, &self.owner, request.task_id).await
+        veoveo_task_runtime::cancel_durable_task(
+            &self.runtime.for_owner(&self.owner),
+            request.task_id,
+        )
+        .await
     }
     fn accepted_subscription_filter(
         &self,

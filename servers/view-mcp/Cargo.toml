@@ -107,6 +107,7 @@ veoveo-mcp-contract = { workspace = true, optional = true }
 veoveo-task-runtime = { optional = true, path = "../../platform/task-runtime" }
 
 [dev-dependencies]
+veoveo-platform-store = { path = "../../platform/store" }
 approx = "0.5.1"
 jsonschema.workspace = true
 tempfile = "3"

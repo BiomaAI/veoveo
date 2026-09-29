@@ -77,7 +77,7 @@ impl DurableTaskService for SpeechTasks {
         request: GetTaskParams,
     ) -> Result<GetTaskResult, McpError> {
         self.0.authorize(caller, &request.task_id, true).await?;
-        get_durable_task(&self.0.tasks, &owner(&caller.identity), request).await
+        get_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), request).await
     }
     async fn update_task(
         &self,
@@ -85,11 +85,11 @@ impl DurableTaskService for SpeechTasks {
         request: UpdateTaskParams,
     ) -> Result<(), McpError> {
         self.0.authorize(caller, &request.task_id, false).await?;
-        update_durable_task(&self.0.tasks, &owner(&caller.identity), request).await
+        update_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), request).await
     }
     async fn cancel_task(&self, caller: &PlaneCaller, task_id: String) -> Result<(), McpError> {
         self.0.authorize(caller, &task_id, false).await?;
-        cancel_durable_task(&self.0.tasks, &owner(&caller.identity), task_id).await
+        cancel_durable_task(&self.0.tasks.for_owner(&owner(&caller.identity)), task_id).await
     }
     async fn subscribe_tasks(
         &self,

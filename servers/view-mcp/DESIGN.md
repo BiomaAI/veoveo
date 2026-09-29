@@ -216,9 +216,11 @@ Work Context and current capture limits. Composition creation and capture can us
 different invocation policy revisions within that ownership scope. Direct snapshot
 capture also checks ownership before loading a layer or submitting renderer work.
 These checks validate content consistency; the authenticated Task runtime supplies
-caller authority. Public Task get, update, cancel and subscription methods currently
-use the shared owner-only query. They need explicit Work Context selection to match
-View ownership; C27 records the unqualified subscription policy.
+caller authority. Public Task get, update, cancel and subscription methods share
+`server/tasks.rs::task_query`, which adds checked Work Context selection to the owner
+query. SQL checks context and tenant agreement before decoding Task rows. Subscription
+updates and reconnect baselines apply the same selection. Native Store cases exercise
+this policy without renderer work; installed qualification is recorded separately.
 
 ## Camera Contract
 

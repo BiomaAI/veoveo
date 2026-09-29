@@ -1,19 +1,20 @@
-//! One owner and operation selection shared by reads, pages and subscriptions.
+//! One owner, context and operation selection shared by reads, pages and subscriptions.
 use std::collections::BTreeSet;
 
 use surrealdb::{Connection, method::Query};
 use veoveo_types::TaskTypeName;
 
-use super::{TaskRuntime, owner_reads::OwnerScope};
+use super::{TaskRuntime, context_scope::ContextScope, owner_reads::OwnerScope};
 use crate::{TaskError, TaskOwner};
 
-/// A current-owner Task query. Domains restrict operations before any records decode.
+/// A current-owner Task query. Domains restrict context and operations before decoding.
 /// The default selects all operation types hosted by this runtime's server.
 #[derive(Clone)]
 pub struct OwnerTaskQuery {
     pub(crate) runtime: TaskRuntime,
     pub(super) owner: TaskOwner,
     task_types: Option<BTreeSet<TaskTypeName>>,
+    context: Option<ContextScope>,
 }
 
 impl TaskRuntime {
@@ -22,11 +23,19 @@ impl TaskRuntime {
             runtime: self.clone(),
             owner: owner.clone(),
             task_types: None,
+            context: None,
         }
     }
 }
 
 impl OwnerTaskQuery {
+    /// Require agreement with this caller's tenant and Work Context in SQL.
+    /// Invocation admission supplies membership and permission; this adds row selection.
+    pub fn in_work_context(mut self) -> Result<Self, TaskError> {
+        self.context = Some(ContextScope::new(&self.owner)?);
+        Ok(self)
+    }
+
     /// Select one declared or validated operation type.
     /// ```compile_fail
     /// use veoveo_task_runtime::{TaskRuntime, TaskOwner};
@@ -53,25 +62,35 @@ impl OwnerTaskQuery {
         Ok(self)
     }
 
-    pub(super) fn type_predicate(&self) -> &'static str {
-        if self.task_types.is_some() {
+    pub(super) fn selection_predicate(&self) -> String {
+        let operations = if self.task_types.is_some() {
             "AND task_type IN $task_types"
         } else {
             ""
-        }
+        };
+        let context = if self.context.is_some() {
+            ContextScope::TASK_PREDICATE
+        } else {
+            ""
+        };
+        format!("{operations} {context}")
     }
 
     pub(super) fn bind<'a, C: Connection>(
         &self,
         query: Query<'a, C>,
     ) -> Result<Query<'a, C>, TaskError> {
-        Ok(OwnerScope::new(&self.runtime, &self.owner)?
+        let query = OwnerScope::new(&self.runtime, &self.owner)?
             .bind(query)
             .bind((
                 "task_types",
                 self.task_types
                     .as_ref()
                     .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>()),
-            )))
+            ));
+        Ok(match &self.context {
+            Some(context) => context.bind(query),
+            None => query,
+        })
     }
 }

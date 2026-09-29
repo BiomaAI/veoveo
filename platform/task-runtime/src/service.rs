@@ -13,7 +13,7 @@ use rmcp::{
 };
 use veoveo_mcp_contract::{ResourceListObservers, SubscriptionHub};
 
-use crate::{TaskError, TaskOwner, TaskRetentionPin, TaskRuntime, TaskSnapshot, project_snapshot};
+use crate::{OwnerTaskQuery, TaskError, TaskRetentionPin, TaskSnapshot, project_snapshot};
 
 /// Repository-owned metadata used only to retain internal evidence longer than wire TTL.
 pub const TASK_RETENTION_PIN_META_KEY: &str = "ai.veoveo/task-retention-pin";
@@ -170,39 +170,34 @@ pub async fn authorized_snapshot(
 }
 
 pub async fn get_durable_task(
-    runtime: &TaskRuntime,
-    owner: &TaskOwner,
+    query: &OwnerTaskQuery,
     request: GetTaskParams,
 ) -> Result<GetTaskResult, McpError> {
-    let snapshot = authorized_snapshot(&runtime.for_owner(owner), &request.task_id).await?;
-    project_snapshot(runtime, snapshot)
+    let snapshot = authorized_snapshot(query, &request.task_id).await?;
+    project_snapshot(&query.runtime, snapshot)
         .await
         .map(GetTaskResult::new)
         .map_err(task_error)
 }
 
 pub async fn update_durable_task(
-    runtime: &TaskRuntime,
-    owner: &TaskOwner,
+    query: &OwnerTaskQuery,
     request: UpdateTaskParams,
 ) -> Result<(), McpError> {
-    authorized_snapshot(&runtime.for_owner(owner), &request.task_id).await?;
+    authorized_snapshot(query, &request.task_id).await?;
     let task_id = request.task_id.clone();
     let responses = durable_input_responses(request)?;
-    runtime
+    query
+        .runtime
         .submit_input_responses(&task_id, responses)
         .await
         .map_err(task_error)?;
     Ok(())
 }
 
-pub async fn cancel_durable_task(
-    runtime: &TaskRuntime,
-    owner: &TaskOwner,
-    task_id: String,
-) -> Result<(), McpError> {
-    authorized_snapshot(&runtime.for_owner(owner), &task_id).await?;
-    runtime.cancel(&task_id).await.map_err(task_error)?;
+pub async fn cancel_durable_task(query: &OwnerTaskQuery, task_id: String) -> Result<(), McpError> {
+    authorized_snapshot(query, &task_id).await?;
+    query.runtime.cancel(&task_id).await.map_err(task_error)?;
     Ok(())
 }
 

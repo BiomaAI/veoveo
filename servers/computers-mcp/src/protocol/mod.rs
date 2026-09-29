@@ -105,8 +105,7 @@ impl ServerHandler for ComputersMcp {
         let access = self.task_access(&context, &request.task_id, false).await?;
         access
             .run(veoveo_task_runtime::get_durable_task(
-                &self.app.tasks,
-                &access.owner,
+                &self.app.tasks.for_owner(&access.owner),
                 request,
             ))
             .await
@@ -119,8 +118,7 @@ impl ServerHandler for ComputersMcp {
         let access = self.task_access(&context, &request.task_id, false).await?;
         access
             .run(veoveo_task_runtime::update_durable_task(
-                &self.app.tasks,
-                &access.owner,
+                &self.app.tasks.for_owner(&access.owner),
                 request,
             ))
             .await
@@ -133,8 +131,7 @@ impl ServerHandler for ComputersMcp {
         let access = self.task_access(&context, &request.task_id, true).await?;
         access
             .run(veoveo_task_runtime::cancel_durable_task(
-                &self.app.tasks,
-                &access.owner,
+                &self.app.tasks.for_owner(&access.owner),
                 request.task_id,
             ))
             .await

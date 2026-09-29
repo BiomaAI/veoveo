@@ -65,7 +65,7 @@ impl OwnerTaskQuery {
         let mut response = self
             .bind(self.runtime.store.client().query(format!(
                 "SELECT * FROM task WHERE id = $task AND {VISIBLE_TASK} {} LIMIT 1;",
-                self.type_predicate()
+                self.selection_predicate()
             )))?
             .bind(("task", task_record_id(task)))
             .await?

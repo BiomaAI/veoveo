@@ -27,11 +27,14 @@ observation-lease receipt in the same database transaction.
 `provider_resume` composes explicit domain recovery with a Task status transition.
 `admission` composes a domain admission with the exact queued, unclaimed Task.
 `runtime/owner_query` owns `OwnerTaskQuery`, built by `TaskRuntime::for_owner`.
-The builder holds the current owner and an optional selection of 1–32 validated
-`TaskTypeName` values. Omitting that selection admits every operation hosted by the
+The builder holds the current owner, an optional checked Work Context selection,
+and an optional selection of 1–32 validated `TaskTypeName` values. Omitting the
+operation selection admits every operation hosted by the
 runtime server; an empty explicit selection is an error. `get`, `page` and `subscribe`
 apply the same selection in SQL before decoding. Subscription updates and Store
 reconnect baselines preserve it. Shared code contains no server operation variants.
+`runtime/context_scope` owns the Work Context predicates and typed scalar bindings
+shared by Task observation and linked usage reads.
 `runtime/owner_reads` owns SQL Task-owner selection and bindings;
 `runtime/owner_subscriptions` delivers the selected current state to public listeners.
 `resource_subscriptions` maps that authorized Task stream to requested Task status
@@ -185,15 +188,23 @@ Caller-facing Task collections use `TaskRuntime::for_owner(owner).page(...)`. Th
 query applies owner, operation and label predicates in SQL before decoding and the
 page limit. Collection readers advance with the typed Task cursor.
 
+Domains that scope Tasks by Work Context call `in_work_context()` on their owner
+query. Construction rejects a caller whose owner tenant disagrees with invocation
+authority. SQL requires the indexed Work Context, authority context key, and stored
+request authority to agree with the caller's tenant and context. Values use driver
+bindings; predicate composition accepts only repository-owned fragments. This
+selection adds no membership or permission grant. Invocation admission supplies those.
+
 `OwnerTaskQuery::get` takes a native `TaskId` and applies tenant, server, principal,
-profile, optional-tenant spelling, selected operation names and label clearance in SQL. Indexed owner and
-profile fields must agree with the stored owner envelope. Only a selected record
-is decoded. Missing and denied Tasks have the same public response. The shared hosted
-helpers use this query for Task get, update and cancellation admission. Trusted internal `get`
+profile, optional-tenant spelling, selected operation names and label clearance in SQL.
+Indexed owner and profile fields must agree with the stored owner envelope. Only a
+selected record is decoded. Missing and denied Tasks have the same public response. The shared hosted
+helpers accept this same query for Task get, update and cancellation admission,
+preserving domain selection through the protocol adapter. Trusted internal `get`
 also applies its server predicate in SQL, without adding caller authorization.
 
 `OwnerTaskQuery::subscribe` admits up to 256 typed Task IDs in one SQL baseline and
-reapplies the same current-owner and operation predicates during delivery. The shared hosted
+reapplies the same owner, context and operation predicates during delivery. The shared hosted
 helper uses this stream. Outbox pages select only event sequence and Task identity;
 the database then selects current visible Tasks. Historical event payloads never
 supply public results or authorization. Pages advance past denied events without
@@ -207,6 +218,11 @@ under current SQL owner predicates and advances to the current event tail withou
 rewinding its cursor. This restores current state even when event history expired
 during the gap. Denied rows remain outside decoding. The 15-second recovery timer
 checks retained activity but does not emit unchanged state on an idle connection.
+
+`tests/support/context_query_cases.rs` exercises mismatched indexed and envelope
+contexts with malformed payloads, page limits, protocol mutation admission, and
+notification recovery after events expire. Each case uses disposable Store clients
+and a 60-second deadline, extended to 90 seconds for connection fault injection.
 
 The change preserves Task storage and MCP wire models. Replace hosted replicas
 together to establish the SQL selection guarantee across an installation. Preflight

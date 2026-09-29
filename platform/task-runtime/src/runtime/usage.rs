@@ -1,13 +1,12 @@
 //! Usage visibility follows the linked Task's current owner and the caller's clearance.
 use super::{
     TaskRuntime,
+    context_scope::ContextScope,
     owner_reads::{OwnerScope, VISIBLE_TASK},
 };
 use crate::types::{TaskError, TaskOwner, task_id_from_record};
 use surrealdb::{Connection, method::Query};
-use veoveo_platform_store::{
-    DomainUsageRecord, RecordId, deterministic_work_context_id, task_record_id,
-};
+use veoveo_platform_store::{DomainUsageRecord, RecordId, task_record_id};
 use veoveo_types::TaskId;
 
 const VISIBLE_USAGE: &str = "server = $server AND tenant = $tenant
@@ -38,24 +37,14 @@ impl<'a> TaskUsageAccess<'a> {
     fn usage_predicate(self) -> &'static str {
         match self {
             Self::Owner(_) => "",
-            Self::WorkContext(_) => {
-                "AND task.work_context = $work_context
-                AND task.authority.context_key = $work_context_key
-                AND task.request.owner.authority.work_context = $work_context_key
-                AND task.request.owner.authority.tenant = $authority_tenant"
-            }
+            Self::WorkContext(_) => ContextScope::USAGE_PREDICATE,
         }
     }
 
     fn task_predicate(self) -> &'static str {
         match self {
             Self::Owner(_) => "",
-            Self::WorkContext(_) => {
-                "AND work_context = $work_context
-                AND authority.context_key = $work_context_key
-                AND request.owner.authority.work_context = $work_context_key
-                AND request.owner.authority.tenant = $authority_tenant"
-            }
+            Self::WorkContext(_) => ContextScope::TASK_PREDICATE,
         }
     }
 }
@@ -65,22 +54,11 @@ struct UsageScope {
     context: Option<ContextScope>,
 }
 
-struct ContextScope {
-    record: RecordId,
-    key: veoveo_types::WorkContextId,
-    tenant: veoveo_types::TenantId,
-}
-
 impl UsageScope {
     fn bind<C: Connection>(self, query: Query<'_, C>) -> Query<'_, C> {
-        // Scalar bindings let the planner use the server/task compound index;
-        // object-property parameters are not folded into index constraints in 3.2.4.
         let query = self.owner.bind(query);
         match self.context {
-            Some(context) => query
-                .bind(("work_context", context.record))
-                .bind(("work_context_key", context.key.to_string()))
-                .bind(("authority_tenant", context.tenant.to_string())),
+            Some(context) => context.bind(query),
             None => query,
         }
     }
@@ -89,22 +67,7 @@ impl UsageScope {
         let owner = access.owner();
         let context = match access {
             TaskUsageAccess::Owner(_) => None,
-            TaskUsageAccess::WorkContext(_) => {
-                if owner.authority.tenant.as_str() != owner.tenant_key() {
-                    return Err(TaskError::InvalidAuthority(
-                        "task owner and Work Context belong to different tenants".into(),
-                    ));
-                }
-                Some(ContextScope {
-                    record: deterministic_work_context_id(
-                        owner.tenant_key(),
-                        owner.authority.work_context.as_str(),
-                    )?
-                    .record_id(),
-                    key: owner.authority.work_context.clone(),
-                    tenant: owner.authority.tenant.clone(),
-                })
-            }
+            TaskUsageAccess::WorkContext(_) => Some(ContextScope::new(owner)?),
         };
         Ok(Self {
             owner: OwnerScope::new(runtime, owner)?,

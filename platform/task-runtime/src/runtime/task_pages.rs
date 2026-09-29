@@ -5,7 +5,7 @@ use veoveo_platform_store::task_record_id;
 
 impl OwnerTaskQuery {
     /// Apply the same authority as `TaskOwner::allows` before the database limit.
-    /// Domains that further restrict Work Context must use their narrower query.
+    /// `in_work_context` adds this caller's context policy before the limit.
     /// The cursor is a position, never an authorization grant or a snapshot lease.
     pub async fn page(
         &self,
@@ -21,7 +21,7 @@ impl OwnerTaskQuery {
             ""
         };
         let mut query = self.bind(self.runtime.store.client().query(format!(
-            "SELECT * FROM task WHERE {VISIBLE_TASK} {} {position} ORDER BY created_at ASC, id ASC LIMIT $limit;", self.type_predicate()
+            "SELECT * FROM task WHERE {VISIBLE_TASK} {} {position} ORDER BY created_at ASC, id ASC LIMIT $limit;", self.selection_predicate()
         )))?.bind(("limit", limit + 1));
         if let Some(after) = after {
             query = query

@@ -1,3 +1,4 @@
+mod context_scope;
 mod owner_query;
 mod owner_reads;
 mod owner_subscriptions;

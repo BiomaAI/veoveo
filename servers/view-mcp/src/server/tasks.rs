@@ -116,8 +116,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         request: rmcp::model::GetTaskParams,
     ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
         veoveo_task_runtime::get_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &task_query(&self.state.tasks, &caller.identity)?,
             request,
         )
         .await
@@ -129,8 +128,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         request: rmcp::model::UpdateTaskParams,
     ) -> Result<(), rmcp::ErrorData> {
         veoveo_task_runtime::update_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &task_query(&self.state.tasks, &caller.identity)?,
             request,
         )
         .await
@@ -142,8 +140,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         task_id: String,
     ) -> Result<(), rmcp::ErrorData> {
         veoveo_task_runtime::cancel_durable_task(
-            &self.state.tasks,
-            &runtime_owner(&caller.identity),
+            &task_query(&self.state.tasks, &caller.identity)?,
             task_id,
         )
         .await
@@ -155,7 +152,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         task_ids: Vec<String>,
     ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
         veoveo_task_runtime::subscribe_durable_tasks(
-            &self.state.tasks.for_owner(&runtime_owner(&caller.identity)),
+            &task_query(&self.state.tasks, &caller.identity)?,
             task_ids,
         )
         .await
@@ -378,6 +375,16 @@ async fn update_task(state: &AppState, task_id: &str, transition: TaskTransition
     }
 }
 
+fn task_query(
+    runtime: &veoveo_task_runtime::TaskRuntime,
+    identity: &GatewayInternalIdentity,
+) -> Result<veoveo_task_runtime::OwnerTaskQuery, rmcp::ErrorData> {
+    runtime
+        .for_owner(&runtime_owner(identity))
+        .in_work_context()
+        .map_err(|_| rmcp::ErrorData::invalid_request("invalid View Task authority", None))
+}
+
 fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
     TaskOwner {
         principal_key: identity.actor.id.to_string(),
@@ -398,3 +405,7 @@ fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
         authority: identity.authority.clone(),
     }
 }
+
+#[cfg(test)]
+#[path = "tasks/access_tests.rs"]
+mod access_tests;

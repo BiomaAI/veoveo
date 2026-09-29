@@ -556,7 +556,8 @@ observation lease and cancellation epoch in one transaction.
 | `runtime.rs` | create/idempotency, update, cancel, finish, subscriptions and prune |
 | `admission.rs`, `tests/admission.rs` | shared queued-Task transaction guard and native qualification; domains supply their own admission SQL and retain ownership of resource policy |
 | `runtime/task_pages.rs` | caller-owned collection pages with Store authorization filters, creation-time and Task-ID cursors |
-| `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/operation query builder and shared SQL selection for exact reads, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
+| `runtime/owner_query.rs`, `runtime/owner_reads.rs` and `runtime/owner_subscriptions.rs` | typed owner/context/operation query builder and shared SQL selection for exact reads, collection pages and public Task delivery; current-state projection from payload-free outbox hints |
+| `runtime/context_scope.rs` | checked Work Context predicates and bindings shared by Task observation and linked usage reads |
 | `runtime/usage.rs` | caller-owned usage reads and Task-ID pages; SQL checks both usage and linked Task metadata before grouping and limits under an explicit owner or Work Context policy; Task existence admission before the first usage row |
 | `leases.rs` | distinct execution/observation claims and lease renewal |
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |
@@ -799,7 +800,9 @@ principal, tenant and Work Context scoped composition, view and frame state.
 `src/contract/view_record.rs` owns camera revision admission and updates.
 `src/state/snapshot.rs` checks capture parents, and `src/composition/validation.rs`
 checks retained geometry and artifact bytes against declared inputs. `src/mcp.rs`
-publishes the tools and resources. `src/server/tasks.rs` persists recoverable captures;
+publishes the tools and resources. `src/server/tasks.rs` persists recoverable captures
+and selects the caller's Work Context for public Tasks;
+`src/server/tasks/access_tests.rs` qualifies that selection against an isolated Store.
 `src/server/tasks/request.rs` binds saved requests to their snapshot and Task owner.
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
