@@ -276,13 +276,11 @@ class TaskRuntime:
     async def get(self, task_id: str) -> TaskSnapshot | None:
         parsed = parse_task_id(task_id)
         rows = await self.store.query(
-            "SELECT * FROM ONLY $task;", {"task": task_record(parsed)}
+            "SELECT * FROM $task WHERE server = $server;",
+            {"task": task_record(parsed), "server": server_record(self.server)},
         )
-        record = rows[0]
-        if record is None:
-            return None
-        snapshot = _record_to_snapshot(record)
-        return snapshot if snapshot.server == self.server else None
+        records = rows[0] or []
+        return _record_to_snapshot(records[0]) if records else None
 
     async def list(self) -> list[TaskSnapshot]:
         rows = await self.store.query(
@@ -294,20 +292,23 @@ class TaskRuntime:
     async def list_for_owner(self, owner: TaskOwner) -> list[TaskSnapshot]:
         rows = await self.store.query(
             "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND "
-            "owner = $owner AND profile = $profile ORDER BY created_at ASC;",
+            "owner = $owner AND profile = $profile AND "
+            "request.owner.principal_key = $principal_key AND "
+            "request.owner.profile = $profile_key AND "
+            "(request.owner.tenant_key ?? NONE) = $tenant_key AND "
+            "request.owner.data_labels ALLINSIDE $labels ORDER BY created_at ASC;",
             {
                 "server": server_record(self.server),
                 "tenant": owner.tenant_record(),
                 "owner": owner.principal_record(),
                 "profile": profile_record(owner.profile),
+                "principal_key": owner.principal_key,
+                "profile_key": owner.profile,
+                "tenant_key": owner.tenant_key,
+                "labels": sorted(owner.data_labels),
             },
         )
-        snapshots = [_record_to_snapshot(record) for record in rows[0] or []]
-        return [
-            snapshot
-            for snapshot in snapshots
-            if snapshot.owner.data_labels.issubset(owner.data_labels)
-        ]
+        return [_record_to_snapshot(record) for record in rows[0] or []]
 
     async def owner(self, task_id: str) -> TaskOwner | None:
         snapshot = await self.get(task_id)

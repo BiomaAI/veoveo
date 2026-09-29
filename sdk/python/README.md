@@ -31,6 +31,12 @@ The Store adapter preserves nested nulls and unsigned 64-bit integers in results
 event snapshots. The official Tasks adapter returns object results directly and wraps
 other payloads in a `value` object.
 
+`TaskRuntime.list_for_owner` applies tenant, principal, profile and label clearance
+in SQL before decoding Task contents. Indexed identity must agree with the saved
+owner, and an absent tenant stays distinct from a tenant named `installation`.
+Each call uses the supplied owner's current clearance. `TaskRuntime.get` is a trusted
+server read: it selects the server in SQL and supplies no caller authorization.
+
 ## Development In A Fork
 
 Python hosted servers import this package from the same checkout through a uv path

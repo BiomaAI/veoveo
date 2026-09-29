@@ -1,9 +1,11 @@
 # Datasheet MCP Server Design
 
 Datasheet profiles tabular datasets and is the canonical template for a Python
-MCP server hosted inside a Veoveo installation. Every obligation of the
-hosted-server contract in [`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md),
-revision 3, has a running Python reference implementation here.
+MCP server hosted inside a Veoveo installation. It implements the Python surface
+of the hosted-server contract in
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
+Its [compliance declaration](AGENTS.md#contract-compliance) records the remaining
+collection, subscription, registration, and installed qualification work.
 
 ## Standards And Protocols
 

@@ -12,6 +12,8 @@ from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from pydantic import ValidationError
+from surrealdb import RecordID
 
 from veoveo_mcp.contract import InvocationAuthority
 from veoveo_mcp.tasks import (
@@ -34,7 +36,7 @@ from veoveo_mcp.tasks import (
 )
 from veoveo_mcp.task_extension.projection import project_snapshot
 from veoveo_mcp.tasks.runtime import _task_snapshot_from_event
-from veoveo_mcp.tasks.types import task_record
+from veoveo_mcp.tasks.types import profile_record, server_record, task_record
 
 SERVER = "datasheet"
 
@@ -406,3 +408,115 @@ async def test_snapshot_json_matches_rust_serde_shape(runtime):
     assert payload["recovery_class"] == "resume"
     assert payload["owner"]["principal_kind"] == "service"
     assert payload["created_at"].endswith("Z")
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    [
+        "owner = $different_owner",
+        "tenant = $different_tenant",
+        "profile = $different_profile",
+        "server = $different_server",
+        "request.owner.principal_key = 'someone-else'",
+        "request.owner.profile = 'other-profile'",
+        "request.owner.tenant_key = 'other-tenant'",
+        "request.owner.data_labels = ['restricted']",
+        "request.owner.data_labels = NONE",
+        "request.owner.data_labels = 'restricted'",
+        "request.owner = {}",
+    ],
+)
+async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
+    async with asyncio.timeout(15):
+        caller = owner(f"sql-owner-{uuid.uuid4()}")
+        created = (await runtime.create(draft(owner=caller))).snapshot
+        other = owner(f"other-{uuid.uuid4()}")
+        await runtime.store.query(
+            f"UPDATE $task SET {assignment}, request.owner.authority = {{}};",
+            {
+                "task": task_record(created.task_id),
+                "different_owner": other.principal_record(),
+                "different_tenant": RecordID("tenant", uuid.uuid4()),
+                "different_profile": profile_record("other-profile"),
+                "different_server": server_record("other-server"),
+            },
+        )
+        assert await runtime.list_for_owner(caller) == []
+        # The denied body really is malformed; selection must precede decoding.
+        raw = await runtime.store.connection.select(task_record(created.task_id))
+        assert raw[0]["request"]["owner"]["authority"] == {}
+
+
+async def test_owner_sql_rechecks_clearance_through_independent_connection(
+    runtime, surreal_platform
+):
+    async with asyncio.timeout(15):
+        caller = replace(
+            owner(f"clearance-{uuid.uuid4()}"), data_labels=frozenset({"a", "b"})
+        )
+        tasks = {}
+        for labels in [
+            frozenset(), frozenset({"a"}), frozenset({"b"}), frozenset({"a", "b"})
+        ]:
+            created = await runtime.create(draft(owner=replace(caller, data_labels=labels)))
+            tasks[labels] = created.snapshot.task_id
+        observer = await TaskRuntime.connect(
+            surreal_platform["endpoint"],
+            surreal_platform["namespace"],
+            surreal_platform["database"],
+            surreal_platform["username"],
+            surreal_platform["password"],
+            SERVER,
+            f"reader-{uuid.uuid4()}",
+        )
+        try:
+            for clearance in [frozenset({"a"}), frozenset(), frozenset({"a", "b"})]:
+                rows = await observer.list_for_owner(replace(caller, data_labels=clearance))
+                assert {row.task_id for row in rows} == {
+                    task for labels, task in tasks.items() if labels.issubset(clearance)
+                }
+            changed = tasks[frozenset({"a"})]
+            await runtime.store.query(
+                "UPDATE $task SET request.owner.data_labels = ['restricted'];",
+                {"task": task_record(changed)},
+            )
+            current = await observer.list_for_owner(caller)
+            assert changed not in {row.task_id for row in current}
+            await runtime.store.query(
+                "UPDATE $task SET request.owner.authority = {};",
+                {"task": task_record(changed)},
+            )
+            # A revoked row stays outside decoding; an admitted malformed row fails.
+            current = await observer.list_for_owner(caller)
+            assert changed not in {row.task_id for row in current}
+            with pytest.raises(ValidationError):
+                await observer.list_for_owner(
+                    replace(caller, data_labels=caller.data_labels | {"restricted"})
+                )
+        finally:
+            await observer.store.close()
+
+
+async def test_owner_sql_distinguishes_absent_and_named_installation_tenants(runtime):
+    async with asyncio.timeout(15):
+        seed = owner(f"optional-tenant-{uuid.uuid4()}")
+        authority = seed.authority.model_copy(update={"tenant": "installation"})
+        absent = replace(seed, tenant_key=None, authority=authority)
+        named = replace(seed, tenant_key="installation", authority=authority)
+        absent_task = (await runtime.create(draft(owner=absent))).snapshot.task_id
+        named_task = (await runtime.create(draft(owner=named))).snapshot.task_id
+        assert {row.task_id for row in await runtime.list_for_owner(absent)} == {absent_task}
+        assert {row.task_id for row in await runtime.list_for_owner(named)} == {named_task}
+
+
+async def test_trusted_get_rejects_foreign_server_before_decoding(runtime):
+    async with asyncio.timeout(15):
+        created = (await runtime.create(draft())).snapshot
+        await runtime.store.query(
+            "UPDATE $task SET server = $server, request.owner.authority = {};",
+            {"task": task_record(created.task_id), "server": server_record("other-server")},
+        )
+        assert await runtime.get(str(created.task_id)) is None
+        foreign = TaskRuntime(runtime.store, "other-server", "read-only-observer")
+        with pytest.raises(ValidationError):
+            await foreign.get(str(created.task_id))

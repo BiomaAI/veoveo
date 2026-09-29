@@ -54,7 +54,7 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: met
+- C04: pending — report and usage catalogs need SQL-selected pages; discovery still scans Task-backed instances
 - C05: met
 - C06: met
 - C07: met
@@ -77,7 +77,7 @@ Contract revision: 3
 - C24: met
 - C25: met
 - C26: met
-- C27: met
+- C27: pending — Task subscription admission and delivery must select current authorized Task state in SQL before decoding
 - C28: met
 - C29: met
 - C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state
