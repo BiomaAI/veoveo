@@ -520,3 +520,56 @@ async def test_trusted_get_rejects_foreign_server_before_decoding(runtime):
         foreign = TaskRuntime(runtime.store, "other-server", "read-only-observer")
         with pytest.raises(ValidationError):
             await foreign.get(str(created.task_id))
+
+
+async def test_live_wake_survives_idle_deadlines_and_closes_on_cancel(
+    runtime, surreal_platform
+):
+    writer = await TaskRuntime.connect(
+        surreal_platform["endpoint"],
+        surreal_platform["namespace"],
+        surreal_platform["database"],
+        surreal_platform["username"],
+        surreal_platform["password"],
+        SERVER,
+        "independent-live-writer",
+    )
+    wake = None
+    pending = None
+    try:
+        async with asyncio.timeout(15):
+            wake = await runtime.store.outbox_wake()
+            for _ in range(3):
+                await wake.wait(0.01)
+            for _ in range(2):
+                pending = asyncio.create_task(wake.wait(5))
+                await asyncio.sleep(0.01)
+                assert not pending.done(), "idle deadline closed the LIVE reader"
+                await writer.create(draft(owner=owner("idle-live-writer")))
+                await asyncio.wait_for(pending, 2)
+                pending = None
+                await wake.wait(0.01)
+
+            async def consume():
+                try:
+                    await wake.wait(5)
+                finally:
+                    await wake.close()
+
+            pending = asyncio.create_task(consume())
+            await asyncio.sleep(0.01)
+            assert not pending.done()
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(pending, 2)
+            pending = None
+            assert not runtime.store._db.live_queues
+    finally:
+        if pending is not None:
+            pending.cancel()
+            await asyncio.wait_for(
+                asyncio.gather(pending, return_exceptions=True), 2
+            )
+        if wake is not None:
+            await asyncio.wait_for(wake.close(), 11)
+        await asyncio.wait_for(writer.store.close(), 5)

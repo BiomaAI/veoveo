@@ -1477,6 +1477,14 @@ aliases, reject unsupported value shapes and NUL, and render SQL without late va
 Timeseries consumes the same option contract. DuckDB still owns SQL grammar and
 reader-specific option meaning; the service's configured limits bound execution.
 
+Python Task change streams now keep one pending LIVE read across idle deadlines.
+Cancellation closes the reader and removes the server subscription; transport errors
+reach the consumer, and a terminated source requires a new subscription. The native
+SurrealDB regression receives two writes from an independent connection after repeated
+idle deadlines and verifies cancellation cleanup. It fails against the previous reader.
+Caller-authorized current-state subscription reads and reconnect baselines still need
+implementation; this lifecycle correction does not complete that work.
+
 ## Standards And Protocols
 
 | Standard or protocol | Role in this plan |

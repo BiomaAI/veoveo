@@ -37,6 +37,10 @@ owner, and an absent tenant stays distinct from a tenant named `installation`.
 Each call uses the supplied owner's current clearance. `TaskRuntime.get` is a trusted
 server read: it selects the server in SQL and supplies no caller authorization.
 
+Task change streams keep their LIVE reader open across idle deadlines. Cancellation
+closes the reader and removes its server subscription. A terminated source or transport
+error reaches the consumer, which must establish a new subscription before continuing.
+
 ## Development In A Fork
 
 Python hosted servers import this package from the same checkout through a uv path

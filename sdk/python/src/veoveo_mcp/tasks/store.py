@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -459,24 +459,56 @@ class SurrealStore:
 
 
 class OutboxWake:
-    """LIVE-query wake signal over the outbox; latency only, never correctness."""
+    """One owned LIVE reader; idle deadlines leave its next event pending."""
 
-    def __init__(self, db: Any, live_id: Any, stream: AsyncIterator[Any]) -> None:
+    def __init__(
+        self, db: Any, live_id: Any, stream: AsyncGenerator[Any, None]
+    ) -> None:
         self._db = db
         self._live_id = live_id
         self._stream = stream
+        self._pending: asyncio.Future[Any] | None = None
+        self._closed = False
 
     async def wait(self, timeout_seconds: float) -> None:
+        if self._closed:
+            raise StoreError("LIVE query wake is closed")
+        if self._pending is None:
+            self._pending = asyncio.ensure_future(anext(self._stream))
+        pending = self._pending
         try:
-            await asyncio.wait_for(anext(self._stream), timeout=timeout_seconds)
-        except (TimeoutError, StopAsyncIteration):
-            pass
+            ready, _ = await asyncio.wait({pending}, timeout=timeout_seconds)
+            if ready:
+                pending.result()
+        except StopAsyncIteration as error:
+            raise StoreError(
+                "LIVE query stream ended; reconnect and renew the subscription",
+                retryable=True,
+            ) from error
+        finally:
+            if pending.done():
+                self._pending = None
 
     async def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        pending, self._pending = self._pending, None
         try:
-            await self._db.kill(self._live_id)
+            async with asyncio.timeout(5):
+                if pending is not None:
+                    pending.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await pending
+                await self._stream.aclose()
         except Exception:  # noqa: BLE001 — teardown only
             pass
+        finally:
+            try:
+                async with asyncio.timeout(5):
+                    await self._db.kill(self._live_id)
+            except Exception:  # noqa: BLE001 — teardown only
+                pass
 
 
 def _record_key(record: Any) -> str:
