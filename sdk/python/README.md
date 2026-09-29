@@ -5,6 +5,11 @@ installation. It provides the hosted-server contract, internal
 identity verification, task-extension transport, durable task runtime, artifact
 client, schema helpers, pagination, host validation, and the telemetry boundary.
 
+Task creation reuses principals by tenant, kind, issuer and subject. Display names
+are presentation metadata. Identity discovery creates missing records and checks
+existing identities inside one transaction, preserving existing names and security
+fields, including a concurrent disablement.
+
 A verified internal identity may carry a `GatewayRequestContext`. It records the source
 principal and the signed access-token metadata so they survive delegated calls. The
 session family it holds is only an identifier; the context never contains a bearer
@@ -45,6 +50,12 @@ Queries accept UUIDv7 values parsed at the protocol boundary. Pages use a typed
 Cancellation and input responses recheck the same query inside their mutation
 transaction, including after a concurrent policy change. `TaskRuntime.get` and
 `live_updates` are trusted worker APIs and supply no caller authorization.
+
+`query.usage()` preserves the owner query's operation and optional Work Context
+selection for domain usage. Its `get` returns typed `UsageRecord` values; `page`
+groups authorized rows by their linked Task and returns UUIDs plus a typed continuation.
+The usage row's server and tenant must agree with the selected parent. `complete`
+filters a Task-ID prefix in SQL before grouping and selecting up to 100 results.
 
 Owner subscriptions admit at most 256 requested Tasks. They select current authorized
 rows for notifications, using outbox identities as wake metadata without decoding old

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import uuid
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
@@ -23,13 +24,11 @@ from surrealdb.cbor import CBORSimpleValue
 
 from .types import (
     InvalidRecord,
-    PrincipalKind,
     TaskOwner,
     TaskResult,
     deterministic_enterprise_id,
     deterministic_principal_id,
     deterministic_tenant_id,
-    parse_task_id,
     server_record,
 )
 
@@ -251,76 +250,51 @@ class SurrealStore:
             "principal", deterministic_principal_id(tenant_key, owner.principal_key)
         )
         now = _now()
-        existing = await self.query(
-            "SELECT * FROM ONLY $enterprise; SELECT * FROM ONLY $tenant; "
-            "SELECT * FROM ONLY $principal;",
-            {
-                "enterprise": enterprise_id,
-                "tenant": tenant_id,
-                "principal": principal_id,
-            },
-        )
-        existing_enterprise, existing_tenant, existing_principal = existing
-        if existing_tenant is not None and (
-            _record_key(existing_tenant["enterprise"]) != _record_key(enterprise_id)
-            or existing_tenant["slug"] != tenant_key
-        ):
-            raise StoreError(f"conflicting identity for tenant `{tenant_key}`")
-        if existing_principal is not None and (
-            _record_key(existing_principal["tenant"]) != _record_key(tenant_id)
-            or existing_principal["display_name"] != owner.principal_key
-            or existing_principal["issuer"] != owner.issuer
-            or existing_principal["subject"] != owner.subject
-            or existing_principal["kind"] != owner.principal_kind.value
-        ):
-            raise StoreError(
-                f"conflicting identity for principal `{owner.principal_key}`"
-            )
-
-        enterprise = existing_enterprise or {
-            "id": enterprise_id,
-            "slug": "installation",
-            "name": "Veoveo installation",
-            "enabled": True,
-            "created_at": now,
-        }
-        enterprise["updated_at"] = now
-        tenant = existing_tenant or {
-            "id": tenant_id,
-            "enterprise": enterprise_id,
-            "slug": tenant_key,
-            "name": tenant_key,
-            "classification_ceiling": "installation_policy",
-            "enabled": True,
-            "created_at": now,
-        }
-        tenant["updated_at"] = now
-        principal = existing_principal or {
-            "id": principal_id,
-            "tenant": tenant_id,
-            "kind": owner.principal_kind.value,
-            "issuer": owner.issuer,
-            "subject": owner.subject,
-            "email": None,
-            "claims_hash": "",
-            "enabled": True,
-            "created_at": now,
-        }
-        principal["display_name"] = owner.principal_key
-        principal["updated_at"] = now
+        # Match the Store's identity fields; display names are presentation metadata.
+        segments = [part.strip() for part in re.split(r"[#/]", owner.subject) if part.strip()]
+        display_name = segments[-1][:128] if segments else "Principal"
         await self.query(
-            "BEGIN TRANSACTION; "
-            "UPSERT ONLY $enterprise CONTENT $enterprise_content RETURN NONE; "
-            "UPSERT ONLY $tenant CONTENT $tenant_content RETURN NONE; "
-            "UPSERT ONLY $principal CONTENT $principal_content RETURN NONE; "
-            "COMMIT TRANSACTION;",
+            """BEGIN TRANSACTION;
+            LET $current_enterprise = SELECT * FROM ONLY $enterprise;
+            IF $current_enterprise = NONE {
+                CREATE ONLY $enterprise CONTENT $enterprise_content RETURN NONE;
+            };
+            LET $current_tenant = SELECT * FROM ONLY $tenant;
+            IF $current_tenant = NONE {
+                CREATE ONLY $tenant CONTENT $tenant_content RETURN NONE;
+            } ELSE IF $current_tenant.enterprise != $enterprise
+                OR $current_tenant.slug != $tenant_content.slug {
+                THROW 'identity_tenant_conflict';
+            };
+            LET $current_principal = SELECT * FROM ONLY $principal;
+            IF $current_principal = NONE {
+                CREATE ONLY $principal CONTENT $principal_content RETURN NONE;
+            } ELSE IF $current_principal.tenant != $tenant
+                OR $current_principal.kind != $principal_content.kind
+                OR $current_principal.issuer != $principal_content.issuer
+                OR $current_principal.subject != $principal_content.subject {
+                THROW 'identity_principal_conflict';
+            };
+            COMMIT TRANSACTION;""",
             {
                 "enterprise": enterprise_id,
-                "enterprise_content": enterprise,
+                "enterprise_content": {
+                    "id": enterprise_id, "slug": "installation", "name": "Veoveo installation",
+                    "enabled": True, "created_at": now, "updated_at": now,
+                },
                 "tenant": tenant_id,
-                "tenant_content": tenant,
+                "tenant_content": {
+                    "id": tenant_id, "enterprise": enterprise_id, "slug": tenant_key,
+                    "name": tenant_key, "classification_ceiling": "installation_policy",
+                    "enabled": True, "created_at": now, "updated_at": now,
+                },
                 "principal": principal_id,
-                "principal_content": principal,
+                "principal_content": {
+                    "id": principal_id, "tenant": tenant_id, "kind": owner.principal_kind.value,
+                    "issuer": owner.issuer, "subject": owner.subject, "display_name": display_name,
+                    "email": None, "claims_hash": "", "enabled": True,
+                    "created_at": now, "updated_at": now,
+                },
             },
         )
 
@@ -385,13 +359,12 @@ class SurrealStore:
         recorded_at: datetime | None = None,
     ) -> None:
         task_rows = await self.query(
-            "SELECT * FROM ONLY $task;", {"task": RecordID("task", task_id)}
+            "SELECT tenant FROM $task WHERE server = $server LIMIT 1;",
+            {"task": RecordID("task", task_id), "server": server_record(server)},
         )
-        task = task_rows[0]
-        if task is None:
-            raise StoreError(f"task `{task_id}` was not found")
-        if _record_key(task["server"]) != server:
-            raise StoreError(f"task `{task_id}` does not belong to server `{server}`")
+        if not task_rows[0]:
+            raise StoreError(f"task `{task_id}` was not found for server `{server}`")
+        task = task_rows[0][0]
         usage_key = "|".join(
             [
                 server,
@@ -438,24 +411,6 @@ class SurrealStore:
             "CREATE outbox_event CONTENT $outbox RETURN NONE; COMMIT TRANSACTION;",
             {"usage": usage_id, "content": content, "outbox": event},
         )
-
-    async def domain_usage_for_task(
-        self, server: str, task_id: uuid.UUID
-    ) -> list[dict[str, Any]]:
-        rows = await self.query(
-            "SELECT * FROM domain_usage WHERE server = $server AND task = $task "
-            "ORDER BY recorded_at ASC, id ASC;",
-            {"server": server_record(server), "task": RecordID("task", task_id)},
-        )
-        return rows[0] or []
-
-    async def domain_usage_task_ids(self, server: str) -> list[uuid.UUID]:
-        rows = await self.query(
-            "SELECT VALUE task FROM domain_usage WHERE server = $server "
-            "GROUP BY task ORDER BY task ASC;",
-            {"server": server_record(server)},
-        )
-        return [parse_task_id(_record_key(record)) for record in rows[0] or []]
 
 
 class OutboxWake:

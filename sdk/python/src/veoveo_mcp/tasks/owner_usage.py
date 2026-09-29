@@ -1,0 +1,80 @@
+"""SQL-selected usage tied to the current owner of its linked Task."""
+
+from __future__ import annotations
+
+import uuid
+from dataclasses import dataclass
+
+from surrealdb import RecordID
+
+from ..contract.usage import UsageRecord
+from .owner_query import OwnerTaskQuery, native_task_id
+from .types import InvalidRecord, TaskError, task_record
+
+
+@dataclass(frozen=True)
+class TaskUsagePage:
+    task_ids: tuple[uuid.UUID, ...]
+    next_task_id: uuid.UUID | None
+
+
+@dataclass(frozen=True)
+class TaskUsageCompletion:
+    task_ids: tuple[uuid.UUID, ...]
+    has_more: bool
+
+
+def _task_id(record: RecordID) -> uuid.UUID:
+    if not isinstance(record, RecordID) or record.table_name != "task":
+        raise InvalidRecord("usage parent must be a Task record")
+    return native_task_id(record.id)
+
+
+@dataclass(frozen=True)
+class OwnerTaskUsageQuery:
+    query: OwnerTaskQuery
+
+    def _predicate(self) -> str:
+        return "server = $server AND tenant = $tenant AND " + self.query.predicate(linked_task=True)
+
+    async def page(self, after: uuid.UUID | None = None, limit: int = 100) -> TaskUsagePage:
+        if type(limit) is not int or not 1 <= limit <= 1000:
+            raise TaskError("usage page size must be 1–1000")
+        position = "AND task > $after AND task != $after" if after is not None else ""
+        rows = await self.query.runtime.store.query(
+            f"SELECT VALUE task FROM domain_usage WHERE {self._predicate()} {position} "
+            "GROUP BY task ORDER BY task ASC LIMIT $limit;",
+            {**self.query.bindings(), "limit": limit + 1,
+             "after": task_record(native_task_id(after)) if after is not None else None},
+        )
+        records = rows[0] or []
+        ids = tuple(_task_id(record) for record in records[:limit])
+        return TaskUsagePage(ids, ids[-1] if len(records) > limit else None)
+
+    async def get(self, task_id: uuid.UUID) -> tuple[UsageRecord, ...]:
+        task = task_record(native_task_id(task_id))
+        rows = await self.query.runtime.store.query(
+            f"SELECT * FROM domain_usage WHERE {self._predicate()} "
+            "AND task = $task ORDER BY recorded_at ASC, id ASC;",
+            {**self.query.bindings(), "task": task},
+        )
+        return tuple(UsageRecord(
+            task_id=str(_task_id(record["task"])), model_id=record["model_id"],
+            kind=record["kind"], source_id=record.get("source_id"),
+            provider_job_id=record.get("provider_job_id"),
+            quantity=record.get("quantity"), unit=record.get("unit"),
+            amount=record.get("amount"), currency=record.get("currency"),
+            recorded_at=record["recorded_at"], metadata=record.get("metadata"),
+        ) for record in rows[0] or [])
+
+    async def complete(self, prefix: str) -> TaskUsageCompletion:
+        if len(prefix) > 36:
+            return TaskUsageCompletion((), False)
+        rows = await self.query.runtime.store.query(
+            f"SELECT VALUE task FROM domain_usage WHERE {self._predicate()} "
+            "AND string::starts_with(<string> record::id(task), $prefix) "
+            "GROUP BY task ORDER BY task ASC LIMIT 101;",
+            {**self.query.bindings(), "prefix": prefix},
+        )
+        records = rows[0] or []
+        return TaskUsageCompletion(tuple(_task_id(record) for record in records[:100]), len(records) > 100)

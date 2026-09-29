@@ -12,7 +12,6 @@ from veoveo_mcp.contract.identity import GatewayInternalIdentity, PlaneCaller
 from veoveo_mcp.internal_auth import BEARER_SCOPE_KEY, IDENTITY_SCOPE_KEY
 from veoveo_mcp.tasks import PrincipalKind, TaskOwner
 
-from .app_state import AppState
 
 
 GATEWAY_ROUTING_REQUIRED = "This server only accepts requests routed through the Veoveo gateway."
@@ -57,23 +56,3 @@ def runtime_owner(identity: GatewayInternalIdentity) -> TaskOwner:
         authority=identity.authority,
         data_labels=frozenset(actor.data_labels),
     )
-
-
-def task_owner_allows(owner: TaskOwner, identity: GatewayInternalIdentity) -> bool:
-    caller = runtime_owner(identity)
-    return owner.allows(
-        caller.principal_key,
-        caller.profile,
-        caller.tenant_key,
-        caller.data_labels,
-    )
-
-
-async def require_task_owner(
-    state: AppState, identity: GatewayInternalIdentity, task_id: str
-) -> None:
-    owner = await state.tasks.owner(task_id)
-    if owner is None:
-        raise _invalid("task ownership record missing")
-    if not task_owner_allows(owner, identity):
-        raise _invalid("datasheet task policy denied request")

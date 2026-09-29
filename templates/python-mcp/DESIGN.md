@@ -4,8 +4,8 @@ Datasheet profiles tabular datasets and is the canonical template for a Python
 MCP server hosted inside a Veoveo installation. It implements the Python surface
 of the hosted-server contract in
 [`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
-Its [compliance declaration](AGENTS.md#contract-compliance) records the remaining
-collection, subscription, registration, and installed qualification work.
+Its [compliance declaration](AGENTS.md#contract-compliance) records installed
+qualification work.
 
 ## Standards And Protocols
 
@@ -17,6 +17,7 @@ collection, subscription, registration, and installed qualification work.
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | The server-owned `ui://datasheet/workbench.html` Workbench previews and profiles inline CSV or governed artifacts. |
 | CSV and Apache Parquet | Dataset inputs resolved from shared-plane artifacts or bounded inline CSV |
 | `datasheet://` URI scheme | Canonical resource identities for reports, usage, artifacts, and documents |
+| Datasheet catalog cursor version 1 | Collection-bound JSON encoded as unpadded base64url, carried in the URI's `cursor` query parameter |
 
 ## Domain
 
@@ -37,11 +38,29 @@ large-file acceptance does not certify pandas at that scale.
 
 | Resource | Content |
 |---|---|
-| `datasheet://reports` | Profile tasks visible to the caller |
-| `datasheet://usage` and `datasheet://usage/task/{task_id}` | Per-task domain usage |
+| `datasheet://reports{?cursor}` | Caller-visible profile Tasks, ordered by creation time and Task ID |
+| `datasheet://usage{?cursor}` and `datasheet://usage/task/{task_id}` | Usage catalog ordered by Task ID, and per-task domain usage |
 | `datasheet://artifact/{artifact_id}` | Shared-plane immutable artifacts |
 | `datasheet://docs` and `datasheet://docs/{doc_id}` | Embedded server documents |
 | `datasheet://contract` | Machine-readable contract declaration |
+
+Report and usage catalogs return an object with `items`, `limit: 100`, `next_cursor`
+and `next_uri`. A final page has null continuation fields. The server builds each
+continuation from the last item of a full page after selecting one lookahead row.
+`ReportCursor` carries creation time and UUIDv7 Task ID; `UsageCursor` carries the
+Task ID. Each rejects the other collection, unknown versions, extra or duplicate
+fields and malformed encodings. A cursor is a position, never an authorization grant.
+
+The owner query admits Tasks before SQL ordering and limits. Usage selection applies
+that policy to the linked Task and checks the usage row's server and tenant before
+grouping, limiting or decoding. Exact usage reads and Task-ID completion use the same
+selection. Completion filters the prefix in SQL and returns at most 100 values, with
+`hasMore` derived from one lookahead row.
+
+`uris.py` parses addresses into resource variants and builds their components through
+the standard URI library. Resource discovery lists roots and templates without reading
+stored Tasks. The Workbench requests report pages through the returned `next_uri` when
+the caller selects More reports.
 
 ## Task Admission
 
@@ -57,9 +76,6 @@ coalesce to current authorized state and do not decode retained outbox snapshots
 Subscriptions accept up to 256 Task IDs and reconcile current state every 15 seconds
 to cover event-retention gaps. A disconnected source ends the stream; a new request
 admits its IDs again. The SDK owns reader cleanup through acknowledgement and delivery.
-
-Report and usage catalogs still require SQL-selected pagination. Their remaining work
-is declared in the [compliance table](AGENTS.md#contract-compliance).
 
 ## Well-Known Surface
 

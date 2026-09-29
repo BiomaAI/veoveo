@@ -37,6 +37,9 @@ every change here must keep the template a complete, working reference.
 - Public Task handlers use `TaskRuntime.for_owner` with this server's typed operation
   selection. Parse Task handles once, then pass UUIDs through queries, mutations and
   subscriptions. Keep trusted worker reads out of caller authorization paths.
+- Report and usage catalogs use the owner query's SQL-selected pages. Resource
+  discovery lists roots and templates without scanning stored Tasks. Build addresses
+  with `uris.py` and retain the distinct report and usage cursor types internally.
 
 ## Build And Test
 
@@ -57,7 +60,7 @@ Contract revision: 3
 - C01: met
 - C02: met
 - C03: met
-- C04: pending — report and usage catalogs need SQL-selected pages; discovery still scans Task-backed instances
+- C04: met — report and usage catalogs use SQL-selected pages; discovery lists roots and templates
 - C05: met
 - C06: met
 - C07: met
@@ -70,7 +73,7 @@ Contract revision: 3
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — the gateway catalog entry's metadata does not state the contract revision
+- C17: met — local and reference gateway registrations declare contract revision 3
 - C18: met
 - C19: met
 - C20: met

@@ -370,10 +370,10 @@ async def test_domain_usage_rows_are_recorded_and_queryable(runtime):
         unit="column",
         recorded_at=datetime.now(timezone.utc),
     )
-    rows = await runtime.store.domain_usage_for_task(SERVER, task_id)
+    rows = await runtime.for_owner(owner()).usage().get(task_id)
     assert len(rows) == 1
-    assert rows[0]["model_id"] == "datasheet/profile"
-    ids = await runtime.store.domain_usage_task_ids(SERVER)
+    assert rows[0].model_id == "datasheet/profile"
+    ids = (await runtime.for_owner(owner()).usage().page(limit=1000)).task_ids
     assert task_id in ids
 
 
@@ -441,7 +441,7 @@ async def test_owner_sql_excludes_denied_malformed_rows(runtime, assignment):
                 "different_server": server_record("other-server"),
             },
         )
-        assert await runtime.list_for_owner(caller) == []
+        assert (await runtime.for_owner(caller).page(limit=1000)).items == ()
         # The denied body really is malformed; selection must precede decoding.
         raw = await runtime.store.connection.select(task_record(created.task_id))
         assert raw[0]["request"]["owner"]["authority"] == {}
@@ -471,7 +471,7 @@ async def test_owner_sql_rechecks_clearance_through_independent_connection(
         )
         try:
             for clearance in [frozenset({"a"}), frozenset(), frozenset({"a", "b"})]:
-                rows = await observer.list_for_owner(replace(caller, data_labels=clearance))
+                rows = (await observer.for_owner(replace(caller, data_labels=clearance)).page(limit=1000)).items
                 assert {row.task_id for row in rows} == {
                     task for labels, task in tasks.items() if labels.issubset(clearance)
                 }
@@ -480,19 +480,19 @@ async def test_owner_sql_rechecks_clearance_through_independent_connection(
                 "UPDATE $task SET request.owner.data_labels = ['restricted'];",
                 {"task": task_record(changed)},
             )
-            current = await observer.list_for_owner(caller)
+            current = (await observer.for_owner(caller).page(limit=1000)).items
             assert changed not in {row.task_id for row in current}
             await runtime.store.query(
                 "UPDATE $task SET request.owner.authority = {};",
                 {"task": task_record(changed)},
             )
             # A revoked row stays outside decoding; an admitted malformed row fails.
-            current = await observer.list_for_owner(caller)
+            current = (await observer.for_owner(caller).page(limit=1000)).items
             assert changed not in {row.task_id for row in current}
             with pytest.raises(ValidationError):
-                await observer.list_for_owner(
+                await observer.for_owner(
                     replace(caller, data_labels=caller.data_labels | {"restricted"})
-                )
+                ).page(limit=1000)
         finally:
             await observer.store.close()
 
@@ -505,8 +505,8 @@ async def test_owner_sql_distinguishes_absent_and_named_installation_tenants(run
         named = replace(seed, tenant_key="installation", authority=authority)
         absent_task = (await runtime.create(draft(owner=absent))).snapshot.task_id
         named_task = (await runtime.create(draft(owner=named))).snapshot.task_id
-        assert {row.task_id for row in await runtime.list_for_owner(absent)} == {absent_task}
-        assert {row.task_id for row in await runtime.list_for_owner(named)} == {named_task}
+        assert {row.task_id for row in (await runtime.for_owner(absent).page(limit=1000)).items} == {absent_task}
+        assert {row.task_id for row in (await runtime.for_owner(named).page(limit=1000)).items} == {named_task}
 
 
 async def test_trusted_get_rejects_foreign_server_before_decoding(runtime):

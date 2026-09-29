@@ -1260,6 +1260,7 @@ shape and schema, and this package follows it.
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store and event adapters, outbox, recovery, prune |
 | `tasks/owner_query.py`, `tasks/owner_subscriptions.py` | Python current-owner Task selection, typed operation/page inputs, transactional caller mutations and request-owned current-state notifications |
+| `tasks/owner_usage.py` | SQL-selected usage point reads, grouped Task pages and prefix completion under the current parent Task's owner policy |
 | `artifacts.py` | artifact-plane HTTP client, capability redemption, size-capped in-memory reads, and streamed URI/file consumption with cancellation cleanup |
 
 ### `templates/python-mcp`
@@ -1268,6 +1269,9 @@ The template for new Python servers, shipped as the working
 `datasheet` dataset-profiling server. `contract.py` and `engine.py` own the
 domain; `server/` mirrors the Rust per-server module split (config, ownership,
 official Tasks adapter, durable task, MCP surface, composition).
+`catalog.py` owns typed report and usage pages and collection-bound cursors;
+`uris.py` owns resource variants and URI builders. The headless behavioral harness
+`apps/console/web/tests/datasheet-pagination.test.mjs` checks Workbench page navigation.
 
 ## Agents
 

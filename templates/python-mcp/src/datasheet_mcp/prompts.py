@@ -5,6 +5,7 @@ from __future__ import annotations
 import mcp.types as types
 
 from . import uris
+from veoveo_mcp.tasks import parse_task_id
 
 PROFILE_PROMPT = "datasheet-profile-dataset"
 REVIEW_PROMPT = "datasheet-report-review"
@@ -67,7 +68,7 @@ def get_prompt(name: str, arguments: dict[str, str] | None) -> types.GetPromptRe
             ],
         )
     if name == REVIEW_PROMPT:
-        task_id = arguments.get("task_id", "<task id>")
+        task_id = parse_task_id(arguments.get("task_id", ""))
         text = (
             f"Review datasheet profile task `{task_id}`.\n\n"
             f"Read `{uris.usage_task_uri(task_id)}` for recorded usage and the "

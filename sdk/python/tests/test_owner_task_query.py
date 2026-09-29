@@ -30,6 +30,7 @@ async def runtime(surreal_platform):
             await instance.store.query(
                 "LET $ids = SELECT VALUE <string> record::id(id) FROM task WHERE server = $server; "
                 "DELETE outbox_event WHERE aggregate_type = 'task' AND aggregate_id IN $ids; "
+                "DELETE domain_usage WHERE task.server = $server; "
                 "DELETE task_input WHERE task.server = $server; DELETE task WHERE server = $server;",
                 {"server": server_record(instance.server)},
             )

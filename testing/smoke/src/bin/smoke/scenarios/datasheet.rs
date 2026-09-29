@@ -101,6 +101,8 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
         "prompt `datasheet-profile-dataset`",
         "prompt `datasheet-report-review`",
         "template: datasheet://usage/task/{task_id}",
+        "template: datasheet://reports{?cursor}",
+        "template: datasheet://usage{?cursor}",
         "template: datasheet://artifact/{artifact_id}",
     ] {
         contains(&info, expected)?;
@@ -326,7 +328,7 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     contains(&completion, &task_id)?;
 
     let post_run_resources = run_datasheet_mcp(conformance, &mcp_url, ["resources".into()])?;
-    contains(
+    not_contains(
         &post_run_resources,
         &format!("datasheet://usage/task/{task_id}"),
     )?;
@@ -339,6 +341,17 @@ pub(crate) async fn datasheet_mcp(conformance: &Path, artifact_service: &Path) -
     )?;
     contains(&reports, &task_id)?;
     contains(&reports, "\"status\": \"succeeded\"")?;
+    contains(&reports, "\"limit\": 100")?;
+    contains(&reports, "\"next_uri\": null")?;
+
+    let usage_catalog = run_datasheet_mcp(
+        conformance,
+        &mcp_url,
+        ["resource".into(), "datasheet://usage".into()],
+    )?;
+    contains(&usage_catalog, &task_id)?;
+    contains(&usage_catalog, "\"limit\": 100")?;
+    contains(&usage_catalog, "\"next_cursor\": null")?;
 
     datasheet_child.stop();
     cleanup.remove_on_drop();

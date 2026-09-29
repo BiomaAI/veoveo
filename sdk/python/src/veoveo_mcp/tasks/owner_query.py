@@ -17,14 +17,15 @@ from .types import (
 
 if TYPE_CHECKING:
     from .owner_subscriptions import OwnerTaskSubscription
+    from .owner_usage import OwnerTaskUsageQuery
     from .runtime import TaskRuntime
 
 
-VISIBLE_TASK = """server = $server AND tenant = $tenant AND owner = $owner
-    AND profile = $profile AND request.owner.principal_key = $principal_key
-    AND request.owner.profile = $profile_key
-    AND (request.owner.tenant_key ?? NONE) = $tenant_key
-    AND request.owner.data_labels ALLINSIDE $labels"""
+_VISIBLE_TASK = """{p}server = $server AND {p}tenant = $tenant AND {p}owner = $owner
+    AND {p}profile = $profile AND {p}request.owner.principal_key = $principal_key
+    AND {p}request.owner.profile = $profile_key
+    AND ({p}request.owner.tenant_key ?? NONE) = $tenant_key
+    AND {p}request.owner.data_labels ALLINSIDE $labels"""
 
 
 def native_task_id(value: uuid.UUID) -> uuid.UUID:
@@ -70,15 +71,16 @@ class OwnerTaskQuery:
             raise TaskError("Task operation selection requires 1–32 typed names")
         return replace(self, _task_types=frozenset(kinds))
 
-    def predicate(self) -> str:
-        selection = VISIBLE_TASK
+    def predicate(self, *, linked_task: bool = False) -> str:
+        prefix = "task." if linked_task else ""
+        selection = _VISIBLE_TASK.format(p=prefix)
         if self._task_types is not None:
-            selection += " AND task_type IN $task_types"
+            selection += f" AND {prefix}task_type IN $task_types"
         if self._context:
-            selection += """ AND work_context = $work_context
-                AND authority.context_key = $work_context_key
-                AND request.owner.authority.work_context = $work_context_key
-                AND request.owner.authority.tenant = $authority_tenant"""
+            selection += f""" AND {prefix}work_context = $work_context
+                AND {prefix}authority.context_key = $work_context_key
+                AND {prefix}request.owner.authority.work_context = $work_context_key
+                AND {prefix}request.owner.authority.tenant = $authority_tenant"""
         return selection
 
     def bindings(self) -> dict[str, Any]:
@@ -154,6 +156,11 @@ class OwnerTaskQuery:
         from .owner_subscriptions import subscribe
 
         return await subscribe(self, ids)
+
+    def usage(self) -> OwnerTaskUsageQuery:
+        from .owner_usage import OwnerTaskUsageQuery
+
+        return OwnerTaskUsageQuery(self)
 
     async def cancel(self, task_id: uuid.UUID) -> TaskSnapshot:
         return await self.runtime.cancel(str(native_task_id(task_id)), owner_query=self)

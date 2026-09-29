@@ -17,10 +17,10 @@ from mcp.server.caching import CacheHint
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
-from veoveo_mcp.contract import UsageKind, UsageRecord, UsageReport
+from veoveo_mcp.contract import UsageReport
 from veoveo_mcp.pagination import PaginationError, paginate
 from veoveo_mcp.schema import mcp_input_schema
-from veoveo_mcp.tasks import parse_task_id
+from veoveo_mcp.tasks import TaskError
 
 from .. import engine, prompts, uris
 from ..app import APP_HTML
@@ -39,11 +39,10 @@ from .ownership import (
     caller_from_scope,
     identity_from_scope,
     request_scope,
-    require_task_owner,
     runtime_owner,
-    task_owner_allows,
 )
-from .profile_task import SERVER_SLUG
+from .profile_task import TASK_TYPE
+from ..catalog import PAGE_SIZE, ReportCursor, ReportEntry, ReportPage, UsageCursor, UsageEntry, UsagePage
 
 Context = ServerRequestContext[Any, Any]
 
@@ -167,7 +166,7 @@ def build_mcp_server(state: AppState) -> Server:
     async def list_resources(
         ctx: Context, params: types.PaginatedRequestParams | None
     ) -> types.ListResourcesResult:
-        identity = identity_from_scope(request_scope(ctx))
+        identity_from_scope(request_scope(ctx))
         resources = [
             types.Resource(
                 uri=uris.WORKBENCH_APP_URI,
@@ -221,18 +220,6 @@ def build_mcp_server(state: AppState) -> Server:
                 mime_type="application/json",
             )
         )
-        for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
-            owner = await state.tasks.owner(str(task_id))
-            if owner is None or not task_owner_allows(owner, identity):
-                continue
-            resources.append(
-                types.Resource(
-                    uri=uris.usage_task_uri(str(task_id)),
-                    name=f"usage for task {task_id}",
-                    description="Usage rows for one datasheet task.",
-                    mime_type="application/json",
-                )
-            )
         resources.sort(key=lambda resource: resource.uri)
         cursor = params.cursor if params is not None else None
         try:
@@ -248,6 +235,16 @@ def build_mcp_server(state: AppState) -> Server:
     ) -> types.ListResourceTemplatesResult:
         return types.ListResourceTemplatesResult(
             resource_templates=[
+                types.ResourceTemplate(
+                    uri_template=uris.REPORTS_TEMPLATE, name="report-pages",
+                    title="Profile report pages", mime_type="application/json",
+                    description="Read the next_uri returned by the report catalog.",
+                ),
+                types.ResourceTemplate(
+                    uri_template=uris.USAGE_TEMPLATE, name="usage-pages",
+                    title="Usage catalog pages", mime_type="application/json",
+                    description="Read the next_uri returned by the usage catalog.",
+                ),
                 types.ResourceTemplate(
                     uri_template=uris.USAGE_TASK_TEMPLATE,
                     name="usage",
@@ -287,8 +284,12 @@ def build_mcp_server(state: AppState) -> Server:
                     )
                 ]
             )
-        doc_id = uris.parse_doc_uri(text)
-        if doc_id is not None:
+        try:
+            resource = uris.parse_resource_uri(text)
+        except (ValueError, TaskError) as error:
+            raise _invalid(str(error)) from error
+        if isinstance(resource, uris.DocumentResource):
+            doc_id = resource.document_id
             doc = SERVER_DOCS.doc(doc_id)
             if doc is None:
                 raise _invalid(f"unknown server document `{doc_id}`")
@@ -299,47 +300,35 @@ def build_mcp_server(state: AppState) -> Server:
                     )
                 ]
             )
-        if text == uris.REPORTS_URI:
-            snapshots = await state.tasks.list_for_owner(runtime_owner(identity))
-            reports = [
-                {
-                    "task_id": str(snapshot.task_id),
-                    "task_type": snapshot.task_type,
-                    "status": snapshot.status.value,
-                    "usage_uri": uris.usage_task_uri(str(snapshot.task_id)),
-                    "created_at": snapshot.created_at.isoformat(),
-                }
-                for snapshot in snapshots
-            ]
-            return _json_result(text, reports)
-        if text == uris.USAGE_ROOT_URI:
-            entries = []
-            for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
-                owner = await state.tasks.owner(str(task_id))
-                if owner is not None and task_owner_allows(owner, identity):
-                    entries.append(
-                        {
-                            "task_id": str(task_id),
-                            "usage_uri": uris.usage_task_uri(str(task_id)),
-                        }
-                    )
-            return _json_result(text, entries)
-        task_id = uris.parse_usage_task_uri(text)
-        if task_id is not None:
-            await require_task_owner(state, identity, task_id)
-            records = await state.tasks.store.domain_usage_for_task(
-                SERVER_SLUG, parse_task_id(task_id)
+        query = state.tasks.for_owner(runtime_owner(identity)).of_type(TASK_TYPE)
+        if isinstance(resource, uris.ReportCatalogResource):
+            page = await query.page(resource.after.position() if resource.after else None, PAGE_SIZE)
+            response = ReportPage(
+                items=tuple(ReportEntry(
+                    task_id=snapshot.task_id, task_type=snapshot.task_type,
+                    status=snapshot.status, created_at=snapshot.created_at,
+                ) for snapshot in page.items),
+                next_cursor=ReportCursor(
+                    task_id=page.next_cursor.task_id, created_at=page.next_cursor.created_at,
+                ) if page.next_cursor else None,
             )
+            return _json_result(text, response.model_dump(mode="json"))
+        if isinstance(resource, uris.UsageCatalogResource):
+            page = await query.usage().page(resource.after.task_id if resource.after else None, PAGE_SIZE)
+            response = UsagePage(
+                items=tuple(UsageEntry(task_id=task) for task in page.task_ids),
+                next_cursor=UsageCursor(task_id=page.next_task_id) if page.next_task_id else None,
+            )
+            return _json_result(text, response.model_dump(mode="json"))
+        if isinstance(resource, uris.TaskUsageResource):
+            task_id = resource.task_id
+            records = await query.usage().get(task_id)
             if not records:
                 raise _invalid(f"unknown usage task `{task_id}`")
-            report = UsageReport.build(
-                task_id,
-                uris.usage_task_uri(task_id),
-                [_usage_record(task_id, record) for record in records],
-            )
+            report = UsageReport.build(str(task_id), uris.usage_task_uri(task_id), list(records))
             return _json_result(text, report.wire())
-        artifact_id = uris.parse_artifact_uri(text)
-        if artifact_id is not None:
+        if isinstance(resource, uris.ArtifactResource):
+            artifact_id = resource.artifact_id
             caller = caller_from_scope(request_scope(ctx))
             artifact = await state.artifacts.get(
                 caller, artifact_id, max_bytes=state.max_artifact_bytes,
@@ -368,18 +357,12 @@ def build_mcp_server(state: AppState) -> Server:
             and argument.name == "task_id"
         ):
             identity = identity_from_scope(request_scope(ctx))
-            values = []
-            for task_id in await state.tasks.store.domain_usage_task_ids(SERVER_SLUG):
-                owner = await state.tasks.owner(str(task_id))
-                if owner is None or not task_owner_allows(owner, identity):
-                    continue
-                if str(task_id).startswith(argument.value):
-                    values.append(str(task_id))
-            total = len(values)
-            values = values[:100]
+            completion = await state.tasks.for_owner(runtime_owner(identity)).of_type(TASK_TYPE).usage().complete(argument.value)
+            values = [str(task_id) for task_id in completion.task_ids]
             return types.CompleteResult(
                 completion=types.Completion(
-                    values=values, total=total, has_more=len(values) < total
+                    values=values, total=None if completion.has_more else len(values),
+                    has_more=completion.has_more,
                 )
             )
         return types.CompleteResult(
@@ -396,7 +379,7 @@ def build_mcp_server(state: AppState) -> Server:
     ) -> types.GetPromptResult:
         try:
             return prompts.get_prompt(params.name, params.arguments)
-        except ValueError as error:
+        except (ValueError, TaskError) as error:
             raise _invalid(str(error)) from error
 
     server = Server(
@@ -449,21 +432,4 @@ def _json_result(uri: str, value: Any) -> types.ReadResourceResult:
                 uri=uri, text=json.dumps(value), mime_type="application/json"
             )
         ]
-    )
-
-
-def _usage_record(task_id: str, record: dict[str, Any]) -> UsageRecord:
-    metadata = record.get("metadata") or {}
-    return UsageRecord(
-        task_id=task_id,
-        source_id=record.get("source_id"),
-        provider_job_id=record.get("provider_job_id"),
-        model_id=record["model_id"],
-        kind=UsageKind(record["kind"]),
-        quantity=record.get("quantity"),
-        unit=record.get("unit"),
-        amount=record.get("amount"),
-        currency=record.get("currency"),
-        recorded_at=record["recorded_at"],
-        metadata=metadata,
     )

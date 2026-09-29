@@ -7,6 +7,7 @@ the Rust workspace define the schema this package reads and writes.
 from .runtime import TaskRuntime
 from .owner_query import OwnerTaskQuery, TaskPage, TaskPageCursor
 from .owner_subscriptions import OwnerTaskSubscription
+from .owner_usage import OwnerTaskUsageQuery, TaskUsageCompletion, TaskUsagePage
 from .store import OutboxEvent, OutboxWake, StoreError, SurrealStore, outbox_draft
 from .types import (
     ClaimedTask,
@@ -47,6 +48,9 @@ __all__ = [
     "TaskRuntime",
     "OwnerTaskQuery",
     "OwnerTaskSubscription",
+    "OwnerTaskUsageQuery",
+    "TaskUsageCompletion",
+    "TaskUsagePage",
     "TaskPage",
     "TaskPageCursor",
     "TaskTypeName",

@@ -14,7 +14,7 @@ from typing import Any, AsyncIterator
 
 from surrealdb import RecordID
 
-from .owner_query import OwnerTaskQuery, VISIBLE_TASK
+from .owner_query import OwnerTaskQuery
 
 from .store import (
     MAX_TRANSACTION_ATTEMPTS,
@@ -288,14 +288,6 @@ class TaskRuntime:
         rows = await self.store.query(
             "SELECT * FROM task WHERE server = $server ORDER BY created_at ASC;",
             {"server": server_record(self.server)},
-        )
-        return [_record_to_snapshot(record) for record in rows[0] or []]
-
-    async def list_for_owner(self, owner: TaskOwner) -> list[TaskSnapshot]:
-        query = self.for_owner(owner)
-        rows = await self.store.query(
-            f"SELECT * FROM task WHERE {VISIBLE_TASK} ORDER BY created_at ASC;",
-            query.bindings(),
         )
         return [_record_to_snapshot(record) for record in rows[0] or []]
 
