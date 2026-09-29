@@ -1,9 +1,14 @@
 //! Recording-owned catalog grants.
 
+use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
+use std::ops::Deref;
 
-use crate::{RecordingContractError, RecordingDatasetId, RecordingId, RecordingReadGrantId};
-use serde::{Deserialize, Serialize};
+use crate::{
+    RecordingCatalogUri, RecordingContractError, RecordingDatasetId, RecordingId,
+    RecordingReadGrantId,
+};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const RECORDING_CATALOG_GRANT_SCHEMA: &str = "veoveo.ai/recording-catalog-grant/v1";
 
@@ -56,15 +61,69 @@ impl TryFrom<CatalogGrantRequestWire> for CreateRecordingCatalogGrantRequest {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
+pub enum RecordingCatalogGrantSchema {
+    #[serde(rename = "veoveo.ai/recording-catalog-grant/v1")]
+    V1,
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RecordingCatalogGrant {
-    pub schema: String,
+#[schemars(rename = "RecordingCatalogGrant")]
+pub struct RecordingCatalogGrantBuilder {
+    pub schema: RecordingCatalogGrantSchema,
     pub grant_id: RecordingReadGrantId,
     pub dataset_id: RecordingDatasetId,
     pub recording_segment_ids: Vec<RecordingId>,
     pub catalog_revision: String,
-    pub entry_uri: String,
+    pub entry_uri: RecordingCatalogUri,
     pub redap_token: String,
-    pub expires_at: String,
+    #[schemars(with = "String")]
+    pub expires_at: DateTime<Utc>,
+}
+
+impl RecordingCatalogGrantBuilder {
+    pub fn build(self) -> Result<RecordingCatalogGrant, RecordingContractError> {
+        let text = |value: &str| !value.trim().is_empty() && !value.chars().any(char::is_control);
+        if self.entry_uri.dataset_id() != self.dataset_id
+            || !(1..=500).contains(&self.recording_segment_ids.len())
+            || !self
+                .recording_segment_ids
+                .windows(2)
+                .all(|ids| ids[0] < ids[1])
+            || !text(&self.catalog_revision)
+            || self.catalog_revision.len() > 128
+            || !text(&self.redap_token)
+        {
+            return Err(RecordingContractError::CatalogGrant);
+        }
+        Ok(RecordingCatalogGrant(self))
+    }
+}
+
+/// An admitted catalog response. Authorization and token verification belong to the service.
+/// ```compile_fail
+/// use veoveo_recording_contract::{RecordingCatalogGrant, RecordingDatasetId};
+/// fn change_parent(grant: &mut RecordingCatalogGrant) {
+///     grant.dataset_id = RecordingDatasetId::new();
+/// }
+/// ```
+#[derive(Clone, Debug, Serialize, JsonSchema)]
+#[serde(transparent)]
+#[schemars(with = "RecordingCatalogGrantBuilder")]
+pub struct RecordingCatalogGrant(RecordingCatalogGrantBuilder);
+
+impl Deref for RecordingCatalogGrant {
+    type Target = RecordingCatalogGrantBuilder;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for RecordingCatalogGrant {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        RecordingCatalogGrantBuilder::deserialize(deserializer)?
+            .build()
+            .map_err(serde::de::Error::custom)
+    }
 }

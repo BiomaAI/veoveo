@@ -1069,6 +1069,8 @@ IDs, resource addresses, catalog continuations and public models. `scopes.rs` ow
 the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
 owns grants. `projection/result.rs` owns checked result handles and typed integrity fields.
+`redap.rs` owns public-origin, dataset-entry and segment-address construction and admission,
+with the URL library handling network components and runtime checks against pinned Rerun.
 `projection/query.rs` and `projection/request.rs`
 own checked projection construction and shared bounds; RRD admits the selectors through
 its upstream grammar before loading sources. Its `src/playback.rs` owns sealed manifest construction,

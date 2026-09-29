@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 mod cursor;
 mod hex_digest;
 mod ids;
+mod redap;
 mod resources;
 mod scopes;
 pub use cursor::{RECORDING_PAGE_SIZE, RecordingCatalogCursor};
@@ -15,6 +16,7 @@ pub use ids::{
     RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
     RecordingProjectionId, RecordingReadGrantId,
 };
+pub use redap::{PlaybackArchiveUri, RecordingCatalogUri, RecordingRedapOrigin};
 pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
 pub use scopes::RecordingScope;
 
@@ -28,6 +30,7 @@ pub use playback::{
 mod catalog;
 pub use catalog::{
     CreateRecordingCatalogGrantRequest, RECORDING_CATALOG_GRANT_SCHEMA, RecordingCatalogGrant,
+    RecordingCatalogGrantBuilder, RecordingCatalogGrantSchema,
 };
 mod projection;
 pub use projection::{

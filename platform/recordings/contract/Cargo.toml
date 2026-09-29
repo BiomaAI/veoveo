@@ -10,5 +10,8 @@ hex.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# URL 2.5.8 is the latest stable upstream release (checked 2026-09-29).
+# Use its component setters for the Recording-owned Redap address profile.
+url.workspace = true
 uuid = { workspace = true, features = ["serde", "v7"] }
 veoveo-types.workspace = true

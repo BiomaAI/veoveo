@@ -1,12 +1,14 @@
 use serde_json::{Value, json};
 use veoveo_recording_contract::{
-    PLAYBACK_MANIFEST_SCHEMA, PlaybackManifest, PlaybackManifestBuilder, PlaybackManifestSchema,
-    RecordingDatasetId, RecordingId, RecordingLayerId, RecordingReadGrantId, RecordingState,
+    PLAYBACK_MANIFEST_SCHEMA, PlaybackArchiveUri, PlaybackManifest, PlaybackManifestBuilder,
+    PlaybackManifestSchema, RecordingDatasetId, RecordingId, RecordingLayerId,
+    RecordingReadGrantId, RecordingRedapOrigin, RecordingState,
 };
 
 fn manifest() -> Value {
     let dataset = RecordingDatasetId::new();
     let recording = RecordingId::new();
+    let origin = RecordingRedapOrigin::from_http("https://archive.example").unwrap();
     json!({
         "schema": PLAYBACK_MANIFEST_SCHEMA, "dataset_id": dataset,
         "recording_segment_id": recording, "application_id": "producer",
@@ -15,7 +17,7 @@ fn manifest() -> Value {
         "catalog_revision": "r1",
         "access": { "grant_id": RecordingReadGrantId::new(), "redap_token": "opaque-token",
             "expires_at": "2026-09-29T00:05:00Z" },
-        "archive": { "uri": "rerun://archive.example/dataset/entry", "dataset_id": dataset,
+        "archive": { "uri": PlaybackArchiveUri::new(&origin, dataset, recording), "dataset_id": dataset,
             "recording_segment_id": recording, "catalog_revision": "r1", "rrd_version": "0.38.1",
             "optimization_profile": "object-store", "byte_len": 128, "layer_count": 1 },
         "live": null,
@@ -56,6 +58,10 @@ fn checked_playback_construction_and_json_share_the_wire_model() {
 #[test]
 fn manifest_admission_rejects_wrong_parents_shapes_and_values() {
     let wire = manifest();
+    let origin = RecordingRedapOrigin::from_http("https://archive.example").unwrap();
+    let dataset: RecordingDatasetId = serde_json::from_value(wire["dataset_id"].clone()).unwrap();
+    let recording: RecordingId =
+        serde_json::from_value(wire["recording_segment_id"].clone()).unwrap();
     for (pointer, invalid) in [
         ("/schema", json!("veoveo.ai/recording-playback/v8")),
         ("/state", json!("recording")),
@@ -69,6 +75,23 @@ fn manifest_admission_rejects_wrong_parents_shapes_and_values() {
         ("/archive/dataset_id", json!(RecordingDatasetId::new())),
         ("/archive/recording_segment_id", json!(RecordingId::new())),
         ("/archive/catalog_revision", json!("different")),
+        ("/archive/uri", json!("")),
+        (
+            "/archive/uri",
+            json!(PlaybackArchiveUri::new(
+                &origin,
+                RecordingDatasetId::new(),
+                recording
+            )),
+        ),
+        (
+            "/archive/uri",
+            json!(PlaybackArchiveUri::new(
+                &origin,
+                dataset,
+                RecordingId::new()
+            )),
+        ),
         ("/archive/layer_count", json!(0)),
         ("/archive/byte_len", json!(0)),
         ("/blueprint/blueprint_id", json!("")),

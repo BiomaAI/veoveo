@@ -7,6 +7,7 @@
 | RFC 6749 section 3.3 | The closed `RecordingScope` enum defines `recording:seal`; names describe permissions and confer no authority. |
 | RFC 9562 UUIDv7 | Recording, dataset, layer, read-grant and projection identities require the RFC UUID variant and lowercase hyphenated spelling. |
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
+| WHATWG URL, URL 2.5.8 and Rerun 0.38.1 Redap addresses | URL parsing and setters implement the public-origin, dataset-entry and single-segment address profile. Runtime tests compare the profile with pinned Rerun builders and parsers. This is a selected Redap address profile, not a general Rerun URI implementation. |
 | RFC 3339 and SHA-256 | Playback and projection expiry timestamps decode to UTC values; Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
@@ -15,8 +16,9 @@
 ## Ownership And Dependencies
 
 This crate owns Recording's public IDs, resource addresses, cursors, sealing scope and data models.
-It depends on foundational types, Serde, JSON Schema support, UUIDs and clock-free
-date/time values. It imports no server, Store, async runtime, Rerun or GPU library.
+It depends on foundational types, URL component handling, Serde, JSON Schema support,
+UUIDs and clock-free date/time values. It imports no server, Store, async runtime,
+Rerun or GPU library. Its URL dependency uses the workspace's qualified pin.
 
 Hub produces the same Recording identity that playback, analysis, UAV and acceptance
 clients consume.
@@ -33,14 +35,36 @@ They share UUID admission mechanics without allowing implicit conversion between
 `resources.rs` builds and admits domain routes
 through the foundational URI library. `cursor.rs` owns public catalog positions;
 the service converts them to Store's query types at the persistence call. `uris.rs`
-declares fixed discovery roots and templates. `catalog.rs` owns grants. Its catalog-request constructor admits 1–500 input Recording IDs and produces
-a sorted unique selection. Dataset membership remains a Store admission check.
+declares fixed discovery roots and templates. `catalog.rs` owns grants. Its catalog-request
+constructor admits 1–500 input Recording IDs and produces a sorted unique selection.
+The response builder and JSON decoder admit that same selection shape, a closed schema
+version, UTC expiry, revision and token text, and entry-URI/dataset agreement. The sealed
+response exposes immutable field access. Dataset membership and token validity remain
+service and Store admission checks.
 The crate root owns recording views, layer views and sealing. `playback.rs` owns the
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
 fields. `PlaybackManifestBuilder::build` checks the archive's dataset, Recording and
 catalog revision against the manifest. It admits one playback plane according to the
 lifecycle, checks capture layer names against their ordinals and rejects reversed
 capture timestamps. Blueprint revision and byte length are nonzero types.
+
+`redap.rs` owns `RecordingRedapOrigin`, `RecordingCatalogUri` and `PlaybackArchiveUri`.
+Constructors require distinct dataset and Recording IDs. The URL library encodes the
+network host, port, path and query components. The profile uses `rerun` for HTTPS and
+`rerun+http` for HTTP, always with an explicit nonzero port. Catalog entries select
+`/entry/{TUID}`; playback selects `/dataset/{TUID}?segment_id={RecordingId}`. The TUID
+uses the dataset UUID's bytes with Rerun's uppercase-high/lowercase-low hexadecimal
+spelling. Playback admission checks both decoded URI identities against the manifest.
+Readers reject credentials, unspecified IP hosts, fragments, extra selectors, aliases
+and noncanonical spellings. These network addresses are separate from MCP resource
+addresses, whose foundational authority profile excludes ports.
+
+Rerun 0.38.1's address parser rewrites the HTTP(S) default port on `localhost` and
+loopback IPs to its Redap default, even when the address supplies port 80 or 443
+explicitly. Recording rejects those scheme/host/port combinations with a configuration
+diagnostic. Local installations use explicit nondefault ports; public hosts support
+the HTTP(S) defaults. The runtime regression qualifies the parser behavior. Remove
+this restriction when a qualified Rerun pin preserves both entry and dataset destinations.
 
 `PlaybackManifest` is sealed and exposes immutable field access. JSON decoding runs
 the same builder checks, including unknown-field rejection. The Blueprint digest uses

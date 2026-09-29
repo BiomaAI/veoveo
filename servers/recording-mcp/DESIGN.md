@@ -72,8 +72,11 @@ actor label or Work Context assertion.
 
 Manifest assembly uses the domain's checked builder. Console decodes the same sealed
 model, while the server validates the selected grant and prepares only its admitted
-catalog. Rerun's typed origin stores the URL library's host and explicit or default port;
-its dataset URI builder owns Redap address serialization, including IPv6.
+catalog. The domain's origin and URI builders use URL host, port, path and query setters,
+including IPv6. Catalog response construction checks the typed entry URI against the
+dataset, admits a sorted unique selection and exposes typed UTC expiry. Playback
+construction checks the archive URI's dataset and Recording identities against the
+manifest. Runtime qualification compares both address families with Rerun 0.38.1.
 Remaining address-field admission is adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 

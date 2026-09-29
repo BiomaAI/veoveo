@@ -27,7 +27,6 @@ use re_protos::{
     headers::RerunHeadersInjectorExt as _,
 };
 use re_server::{RerunCloudHandler, RerunCloudHandlerBuilder};
-use re_uri::{DatasetResource, DatasetUri, EntryUri, Fragment, Origin};
 use tokio::sync::Mutex as AsyncMutex;
 use tonic::{Request, Response, Status};
 use url::Url;
@@ -39,9 +38,10 @@ use veoveo_platform_store::{
 use crate::{
     RecordingPlaybackPlan,
     contract::{
-        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest,
+        PlaybackAccess, PlaybackArchive, PlaybackArchiveUri, PlaybackBlueprint, PlaybackManifest,
         PlaybackManifestBuilder, PlaybackManifestSchema, PlaybackMapProvider,
-        RecordingCatalogGrant,
+        RecordingCatalogGrant, RecordingCatalogGrantBuilder, RecordingCatalogGrantSchema,
+        RecordingCatalogUri, RecordingRedapOrigin,
     },
 };
 
@@ -63,7 +63,7 @@ pub struct PlaybackManager {
 struct PlaybackManagerInner {
     provider: RedapProvider,
     store: PlatformStore,
-    public_origin: Origin,
+    public_origin: RecordingRedapOrigin,
     allowed_host: String,
     catalogs: Mutex<HashMap<VirtualCatalogKey, Arc<CatalogSlot>>>,
 }
@@ -117,7 +117,8 @@ impl PlaybackManager {
             .context("RECORDING_PLAYBACK_TOKEN_KEY must be canonical base64")?;
         let public_url = Url::parse(public_base_url)
             .context("RECORDING_PLAYBACK_PUBLIC_URL must be an absolute URL")?;
-        let public_origin = playback_origin(&public_url)?;
+        let public_origin = RecordingRedapOrigin::from_http(public_base_url)
+            .context("RECORDING_PLAYBACK_PUBLIC_URL must be an HTTP(S) origin with a reachable host and port")?;
         Ok(Self {
             inner: Arc::new(PlaybackManagerInner {
                 provider,
@@ -230,23 +231,22 @@ impl PlaybackManager {
         self.ensure_catalog(&plans_ref, &grant).await?;
         let access = self.issue_access(&grant)?;
         self.prune_catalogs();
-        Ok(RecordingCatalogGrant {
-            schema: crate::contract::RECORDING_CATALOG_GRANT_SCHEMA.to_owned(),
+        let dataset_id = crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?;
+        RecordingCatalogGrantBuilder {
+            schema: RecordingCatalogGrantSchema::V1,
             grant_id: access.grant_id,
-            dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+            dataset_id,
             recording_segment_ids: admitted
                 .into_iter()
                 .map(|id| crate::contract::RecordingId::try_from(id.as_uuid()))
                 .collect::<Result<_, _>>()?,
             catalog_revision: grant.catalog_revision,
-            entry_uri: EntryUri::new(
-                self.inner.public_origin.clone(),
-                playback_dataset_id(dataset_id)?,
-            )
-            .to_string(),
+            entry_uri: RecordingCatalogUri::new(&self.inner.public_origin, dataset_id),
             redap_token: access.redap_token,
-            expires_at: access.expires_at.to_rfc3339(),
-        })
+            expires_at: access.expires_at,
+        }
+        .build()
+        .context("constructing the Recording catalog grant")
     }
 
     async fn ensure_catalog(
@@ -317,14 +317,13 @@ impl PlaybackManager {
                 Some(build_catalog(plans, expected_recordings, revision.clone(), byte_len).await?);
         }
         let catalog = state.as_ref().expect("catalog was initialized");
-        let uri = DatasetUri {
-            origin: self.inner.public_origin.clone(),
-            dataset_id: catalog.dataset_id.id,
-            resource: DatasetResource::Segments,
-            segment_id: Some(plan.recording_id.to_string().into()),
-            fragment: Fragment::default(),
-        }
-        .to_string();
+        let uri = PlaybackArchiveUri::new(
+            &self.inner.public_origin,
+            crate::contract::RecordingDatasetId::try_from(uuid::Uuid::from_bytes(
+                catalog.dataset_id.id.as_bytes(),
+            ))?,
+            crate::contract::RecordingId::try_from(plan.recording_id.as_uuid())?,
+        );
         Ok(PlaybackArchive {
             uri,
             // Rerun displays `EntryId` as mixed-case TUID hex. The public catalog
@@ -438,30 +437,6 @@ impl PlaybackManager {
             catalogs.remove(&oldest);
         }
     }
-}
-
-fn playback_origin(public_url: &Url) -> Result<Origin> {
-    ensure!(
-        matches!(public_url.scheme(), "http" | "https")
-            && public_url.host().is_some()
-            && public_url.username().is_empty()
-            && public_url.password().is_none()
-            && matches!(public_url.path(), "" | "/")
-            && public_url.query().is_none()
-            && public_url.fragment().is_none(),
-        "RECORDING_PLAYBACK_PUBLIC_URL must be an http(s) origin without credentials, a path, query, or fragment"
-    );
-    Ok(Origin {
-        scheme: if public_url.scheme() == "https" {
-            re_uri::Scheme::RerunHttps
-        } else {
-            re_uri::Scheme::RerunHttp
-        },
-        host: public_url.host().expect("validated origin host").to_owned(),
-        port: public_url
-            .port_or_known_default()
-            .expect("validated HTTP scheme"),
-    })
 }
 
 fn catalog_slot_is_idle(slot: &CatalogSlot, now: DateTime<Utc>) -> bool {
@@ -824,14 +799,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn redap_origin_uses_url_host_components_and_default_ports() {
+    fn owner_addresses_match_pinned_rerun_builders_and_parsers() {
+        use re_uri::{DatasetResource, DatasetUri, EntryUri, Fragment, Origin};
         for (http, expected) in [
             ("https://example.com/", "rerun://example.com:443"),
             ("http://127.0.0.1:8080/", "rerun+http://127.0.0.1:8080"),
             ("https://[::1]:8443/", "rerun://[::1]:8443"),
+            ("http://localhost:8080/", "rerun+http://localhost:8080"),
+            (
+                "https://xn--bcher-kva.example/",
+                "rerun://xn--bcher-kva.example:443",
+            ),
         ] {
-            let origin = playback_origin(&Url::parse(http).unwrap()).unwrap();
-            assert_eq!(origin.to_string(), expected);
+            let origin = RecordingRedapOrigin::from_http(http).unwrap();
+            assert_eq!(origin.as_str(), expected);
+            let upstream: Origin = expected.parse().unwrap();
+            // Include letters in each half to qualify TUID's mixed-case spelling.
+            let dataset =
+                crate::contract::RecordingDatasetId::parse("019abcde-abcd-7abc-8abc-abcdefabcdef")
+                    .unwrap();
+            let recording = crate::contract::RecordingId::new();
+            let entry_id =
+                playback_dataset_id(RecordingDatasetId::from_uuid(dataset.as_uuid())).unwrap();
+            let entry = RecordingCatalogUri::new(&origin, dataset);
+            assert_eq!(
+                entry.as_str(),
+                EntryUri::new(upstream.clone(), entry_id).to_string()
+            );
+            assert_eq!(
+                entry.as_str().parse::<EntryUri>().unwrap(),
+                EntryUri::new(upstream.clone(), entry_id)
+            );
+            let archive = PlaybackArchiveUri::new(&origin, dataset, recording);
+            let expected = DatasetUri {
+                origin: upstream,
+                dataset_id: entry_id.id,
+                resource: DatasetResource::Segments,
+                segment_id: Some(recording.to_string().into()),
+                fragment: Fragment::default(),
+            };
+            assert_eq!(archive.as_str(), expected.to_string());
+            assert_eq!(archive.as_str().parse::<DatasetUri>().unwrap(), expected);
         }
         for invalid in [
             "ftp://example.com/",
@@ -840,7 +848,36 @@ mod tests {
             "https://example.com/?q=1",
             "https://example.com/#fragment",
         ] {
-            assert!(playback_origin(&Url::parse(invalid).unwrap()).is_err());
+            assert!(RecordingRedapOrigin::from_http(invalid).is_err());
+        }
+    }
+
+    #[test]
+    fn pinned_rerun_loopback_default_port_rewrite_is_excluded_from_public_origins() {
+        use re_uri::{DatasetResource, DatasetUri, EntryUri, Fragment, Origin};
+        let dataset = RecordingDatasetId::new();
+        let entry_id = playback_dataset_id(dataset).unwrap();
+        for (scheme, http, port) in [("rerun+http", "http", 80), ("rerun", "https", 443)] {
+            for host in ["localhost", "127.0.0.1", "127.0.0.2", "[::1]"] {
+                let origin: Origin = format!("{scheme}://{host}:{port}").parse().unwrap();
+                assert_eq!(origin.port, port);
+                let entry = EntryUri::new(origin.clone(), entry_id);
+                let parsed: EntryUri = entry.to_string().parse().unwrap();
+                assert_eq!(parsed.origin.port, re_uri::DEFAULT_REDAP_PORT);
+                assert_ne!(parsed.origin.port, port);
+                let archive = DatasetUri {
+                    origin,
+                    dataset_id: entry_id.id,
+                    resource: DatasetResource::Segments,
+                    segment_id: Some(crate::contract::RecordingId::new().to_string().into()),
+                    fragment: Fragment::default(),
+                };
+                let parsed: DatasetUri = archive.to_string().parse().unwrap();
+                assert_eq!(parsed.origin.port, re_uri::DEFAULT_REDAP_PORT);
+                assert!(
+                    RecordingRedapOrigin::from_http(&format!("{http}://{host}:{port}")).is_err()
+                );
+            }
         }
     }
 

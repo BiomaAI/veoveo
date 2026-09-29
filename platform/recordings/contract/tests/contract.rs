@@ -7,6 +7,8 @@ mod playback;
 mod projection;
 #[path = "contract/projection_result.rs"]
 mod projection_result;
+#[path = "contract/redap.rs"]
+mod redap;
 
 use serde_json::{Value, json};
 use veoveo_recording_contract::{
@@ -97,7 +99,9 @@ fn response_models_preserve_grant_and_projection_wire_shapes() {
     let grant = json!({
         "schema": RECORDING_CATALOG_GRANT_SCHEMA, "grant_id": DATASET,
         "dataset_id": DATASET, "recording_segment_ids": [RECORDING],
-        "catalog_revision": "catalog-1", "entry_uri": "rerun+http://localhost/dataset",
+        "catalog_revision": "catalog-1", "entry_uri": veoveo_recording_contract::RecordingCatalogUri::new(
+            &veoveo_recording_contract::RecordingRedapOrigin::from_http("http://localhost:8080").unwrap(),
+            DATASET.parse().unwrap()),
         "redap_token": "fixture-grant", "expires_at": "2026-09-28T12:00:00Z"
     });
     assert_eq!(

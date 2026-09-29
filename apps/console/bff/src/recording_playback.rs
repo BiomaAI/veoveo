@@ -334,7 +334,9 @@ mod tests {
         routing::get,
     };
     use serde_json::json;
-    use veoveo_recording_mcp::contract::PLAYBACK_MANIFEST_SCHEMA;
+    use veoveo_recording_mcp::contract::{
+        PLAYBACK_MANIFEST_SCHEMA, PlaybackArchiveUri, RecordingDatasetId, RecordingRedapOrigin,
+    };
 
     use super::{
         BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PROJECTION_PATH, RecordingId,
@@ -343,7 +345,8 @@ mod tests {
     };
 
     fn manifest_value(recording_id: RecordingId) -> serde_json::Value {
-        let dataset_id = uuid::Uuid::now_v7();
+        let dataset_id = RecordingDatasetId::new();
+        let origin = RecordingRedapOrigin::from_http("https://veoveo.example").unwrap();
         json!({
             "schema": PLAYBACK_MANIFEST_SCHEMA,
             "dataset_id": dataset_id,
@@ -360,7 +363,7 @@ mod tests {
                 "expires_at": "2026-07-28T20:05:00Z"
             },
             "archive": {
-                "uri": "rerun+https://veoveo.example/dataset/01900000-0000-7000-8000-000000000001?segment_id=01900000-0000-7000-8000-000000000002",
+                "uri": PlaybackArchiveUri::new(&origin, dataset_id, recording_id),
                 "dataset_id": dataset_id,
                 "recording_segment_id": recording_id,
                 "catalog_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

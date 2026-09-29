@@ -9,6 +9,9 @@ pub enum RecordingContractError {
     Cursor,
     Selection,
     Playback,
+    RedapAddress,
+    RedapLoopbackPort,
+    CatalogGrant,
     ProjectionBounds,
     ProjectionSelection,
     ProjectionSampling,
@@ -23,6 +26,9 @@ impl fmt::Display for RecordingContractError {
             Self::Cursor => "invalid Recording catalog cursor",
             Self::Selection => "Recording catalog selection requires 1 to 500 recording IDs",
             Self::Playback => "invalid Recording playback manifest",
+            Self::RedapAddress => "invalid Recording Redap address or HTTP(S) origin",
+            Self::RedapLoopbackPort => "Rerun 0.38.1 rewrites loopback HTTP(S) default ports; configure an explicit nondefault port or a public host",
+            Self::CatalogGrant => "invalid Recording catalog grant or dataset relationship",
             Self::ProjectionBounds => {
                 "Recording projection limits must be positive and within the published bounds"
             }

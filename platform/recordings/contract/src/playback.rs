@@ -7,7 +7,7 @@ use serde::{Deserialize, Deserializer, Serialize};
 use veoveo_types::Sha256Digest;
 
 use crate::{
-    RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
+    PlaybackArchiveUri, RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
     RecordingReadGrantId, hex_digest,
 };
 
@@ -82,7 +82,8 @@ impl PlaybackManifestBuilder {
             valid &= archive.dataset_id == self.dataset_id
                 && archive.recording_segment_id == self.recording_segment_id
                 && archive.catalog_revision == self.catalog_revision
-                && !archive.uri.trim().is_empty()
+                && archive.uri.dataset_id() == self.dataset_id
+                && archive.uri.recording_id() == self.recording_segment_id
                 && text(&archive.rrd_version, 128)
                 && text(&archive.optimization_profile, 128)
                 && archive.layer_count > 0
@@ -141,7 +142,7 @@ pub struct PlaybackAccess {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct PlaybackArchive {
-    pub uri: String,
+    pub uri: PlaybackArchiveUri,
     pub dataset_id: RecordingDatasetId,
     pub recording_segment_id: RecordingId,
     pub catalog_revision: String,
