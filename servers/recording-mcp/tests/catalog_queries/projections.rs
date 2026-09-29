@@ -6,8 +6,9 @@ use std::{collections::BTreeMap, time::Duration};
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_platform_store::{
     RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId,
-    RecordingProjectionReceiptDraft, RecordingProjectionReceiptId, RecordingReadGrantClass,
-    RecordingReadGrantDraft, RecordingReadGrantId,
+    RecordingProjectionReceiptDraft, RecordingProjectionReceiptId, RecordingProjectionRequest,
+    RecordingProjectionScope, RecordingReadGrantClass, RecordingReadGrantDraft,
+    RecordingReadGrantId,
 };
 use veoveo_recording_mcp::{RecordingService, service::ProjectionRuntimeLimits};
 use veoveo_recording_reader::access::record_uuid;
@@ -50,6 +51,17 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     let caller = identity("projection-query", "reader", &["operations"]);
     let platform = service.platform_identity(&caller).await.unwrap();
     let authority = veoveo_recording_hub::invocation_authority_record(&caller.authority);
+    let scope = RecordingProjectionScope {
+        tenant_id: platform.tenant_id,
+        actor_id: platform.principal_id,
+        work_context_id: veoveo_platform_store::deterministic_work_context_id(
+            &platform.tenant_key,
+            caller.authority.work_context.as_str(),
+        )
+        .unwrap(),
+        policy_revision: caller.authority.policy_revision.clone(),
+        data_labels: caller.actor.data_labels.clone(),
+    };
     let dataset =
         db.a.ensure_recording_dataset(RecordingDatasetDraft::installation_default(
             platform.clone(),
@@ -92,11 +104,16 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     );
     let reserved =
         db.a.reserve_recording_projection(RecordingProjectionReceiptDraft {
-            identity: platform.clone(),
+            scope: scope.clone(),
+            request: RecordingProjectionRequest::new(
+                dataset_id,
+                recording_id,
+                "download",
+                veoveo_types::Sha256Digest::from_hex("a".repeat(64)).unwrap(),
+                veoveo_types::Sha256Digest::from_hex("b".repeat(64)).unwrap(),
+            )
+            .unwrap(),
             grant_id,
-            caller_idempotency_key: "download".into(),
-            manifest_digest: "a".repeat(64),
-            query_digest: "b".repeat(64),
             expires_at: Utc::now() + TimeDelta::minutes(3),
         })
         .await
@@ -111,7 +128,7 @@ async fn assert_download_admission(db: &fixture::TestDb) {
             .unwrap()
             .is_none()
     );
-    db.a.begin_recording_projection(&platform, projection_id)
+    db.a.begin_recording_projection(&scope, recording_id, projection_id)
         .await
         .unwrap();
     assert!(
@@ -125,9 +142,15 @@ async fn assert_download_admission(db: &fixture::TestDb) {
     let bytes = b"projection download integrity fixture";
     let digest = hex::encode(Sha256::digest(bytes));
     let baseline =
-        db.a.complete_recording_projection(&platform, projection_id, bytes.len() as i64, &digest)
-            .await
-            .unwrap();
+        db.a.complete_recording_projection(
+            &scope,
+            recording_id,
+            projection_id,
+            bytes.len() as u64,
+            &veoveo_types::Sha256Digest::from_hex(&digest).unwrap(),
+        )
+        .await
+        .unwrap();
     let path = scratch
         .path()
         .join("cache/projections")

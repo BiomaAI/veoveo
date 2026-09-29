@@ -1400,12 +1400,27 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
         .unwrap();
     assert_eq!(grant.recordings, vec![recording_id.record_id()]);
     let grant_id = veoveo_platform_store::RecordingReadGrantId::from_uuid(record_uuid(&grant.id));
+    let scope = veoveo_platform_store::RecordingProjectionScope {
+        tenant_id: identity.tenant_id,
+        actor_id: identity.principal_id,
+        work_context_id: deterministic_work_context_id(&identity.tenant_key, "operations").unwrap(),
+        policy_revision: veoveo_types::PolicyVersion::new("r1").unwrap(),
+        data_labels: ["operations", "restricted"]
+            .map(|label| veoveo_types::DataLabelId::new(label).unwrap())
+            .into_iter()
+            .collect(),
+    };
     let projection_draft = RecordingProjectionReceiptDraft {
-        identity: identity.clone(),
+        scope: scope.clone(),
+        request: veoveo_platform_store::RecordingProjectionRequest::new(
+            dataset_id,
+            recording_id,
+            "projection-1",
+            veoveo_types::Sha256Digest::from_hex("1".repeat(64)).unwrap(),
+            veoveo_types::Sha256Digest::from_hex("2".repeat(64)).unwrap(),
+        )
+        .unwrap(),
         grant_id,
-        caller_idempotency_key: "projection-1".into(),
-        manifest_digest: "1".repeat(64),
-        query_digest: "2".repeat(64),
         expires_at: Utc::now() + TimeDelta::minutes(1),
     };
     let projection = store
@@ -1421,7 +1436,7 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
         veoveo_platform_store::RecordingProjectionReceiptId::from_uuid(record_uuid(&projection.id));
     assert_eq!(
         store
-            .begin_recording_projection(&identity, projection_id)
+            .begin_recording_projection(&scope, recording_id, projection_id)
             .await
             .unwrap()
             .state,
@@ -1429,7 +1444,13 @@ async fn recording_catalog_commits_layers_and_governed_authority_atomically() {
     );
     assert_eq!(
         store
-            .complete_recording_projection(&identity, projection_id, 512, &"3".repeat(64))
+            .complete_recording_projection(
+                &scope,
+                recording_id,
+                projection_id,
+                512,
+                &veoveo_types::Sha256Digest::from_hex("3".repeat(64)).unwrap()
+            )
             .await
             .unwrap()
             .state,

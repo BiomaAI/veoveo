@@ -139,6 +139,8 @@ pub enum StoreError {
     RecordingReadGrantConflict { grant_id: String },
     #[error("recording projection `{projection_id}` conflicts with its durable request")]
     RecordingProjectionConflict { projection_id: String },
+    #[error("recording projection idempotency key conflicts with its authority or request")]
+    RecordingProjectionRequestConflict,
     #[error("invalid recording ingest field {field}: {reason}")]
     InvalidRecordingIngestField {
         field: &'static str,

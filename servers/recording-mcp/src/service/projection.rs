@@ -18,9 +18,9 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
-    RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReadScope,
-    RecordingProjectionReceiptDraft, RecordingProjectionReceiptId,
-    RecordingProjectionReceiptRecord, RecordingProjectionState, RecordingReadGrantClass,
+    RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
+    RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
+    RecordingProjectionScope, RecordingProjectionState, RecordingReadGrantClass,
     RecordingReadGrantId,
 };
 use veoveo_rrd::projection::{
@@ -312,20 +312,19 @@ impl RecordingService {
         let platform_identity = self.platform_identity(identity).await?;
         let query_digest = projection_query_digest(&request)?;
         let manifest_digest = projection_manifest_digest(&plan);
+        let scope = projection_scope(identity, &platform_identity)?;
+        let request_identity = RecordingProjectionRequest::new(
+            dataset_id,
+            recording_id,
+            request.idempotency_key.clone(),
+            veoveo_types::Sha256Digest::from_hex(&manifest_digest)?,
+            veoveo_types::Sha256Digest::from_hex(&query_digest)?,
+        )?;
         let existing = self
             .store
-            .recording_projection_by_idempotency_key(
-                platform_identity.tenant_id,
-                platform_identity.principal_id,
-                &request.idempotency_key,
-            )
+            .recording_projection_by_idempotency_key(&scope, &request_identity)
             .await?;
         let receipt = if let Some(existing) = existing {
-            ensure!(
-                existing.manifest_digest == manifest_digest
-                    && existing.query_digest == query_digest,
-                "recording projection idempotency key conflicts with another request"
-            );
             existing
         } else {
             let grant = self
@@ -344,11 +343,9 @@ impl RecordingService {
             )?);
             self.store
                 .reserve_recording_projection(RecordingProjectionReceiptDraft {
-                    identity: platform_identity.clone(),
+                    scope: scope.clone(),
+                    request: request_identity,
                     grant_id,
-                    caller_idempotency_key: request.idempotency_key.clone(),
-                    manifest_digest: manifest_digest.clone(),
-                    query_digest: query_digest.clone(),
                     expires_at: grant.expires_at,
                 })
                 .await?
@@ -365,10 +362,11 @@ impl RecordingService {
             let handle = read_handle(&paths, &receipt, &request, false)?;
             self.store
                 .complete_recording_projection(
-                    &platform_identity,
+                    &scope,
+                    recording_id,
                     projection_id,
-                    i64::try_from(handle.result.byte_len)?,
-                    &handle.result.payload_sha256,
+                    handle.result.byte_len,
+                    &veoveo_types::Sha256Digest::from_hex(&handle.result.payload_sha256)?,
                 )
                 .await?;
             return Ok(handle);
@@ -381,7 +379,7 @@ impl RecordingService {
         let _permit = runtime.try_acquire()?;
         let reservation = runtime.reserve(projection_id, request.maximum_bytes)?;
         self.store
-            .begin_recording_projection(&platform_identity, projection_id)
+            .begin_recording_projection(&scope, recording_id, projection_id)
             .await?;
         remove_projection_paths(&paths, false)?;
         let query = projection_query(&request);
@@ -419,14 +417,20 @@ impl RecordingService {
             match terminal {
                 ProjectionTerminal::Cancelled => {
                     self.store
-                        .cancel_recording_projection(&platform_identity, projection_id, "cancelled")
+                        .cancel_recording_projection(
+                            &scope,
+                            recording_id,
+                            projection_id,
+                            "cancelled",
+                        )
                         .await?;
                     anyhow::bail!("recording projection was cancelled");
                 }
                 ProjectionTerminal::Deadline => {
                     self.store
                         .fail_recording_projection(
-                            &platform_identity,
+                            &scope,
+                            recording_id,
                             projection_id,
                             "deadline_exceeded",
                         )
@@ -441,7 +445,8 @@ impl RecordingService {
                 remove_projection_paths(&paths, true)?;
                 self.store
                     .fail_recording_projection(
-                        &platform_identity,
+                        &scope,
+                        recording_id,
                         projection_id,
                         "materialization_failed",
                     )
@@ -451,7 +456,7 @@ impl RecordingService {
             Err(error) => {
                 remove_projection_paths(&paths, true)?;
                 self.store
-                    .fail_recording_projection(&platform_identity, projection_id, "worker_failed")
+                    .fail_recording_projection(&scope, recording_id, projection_id, "worker_failed")
                     .await?;
                 return Err(error.into());
             }
@@ -483,10 +488,11 @@ impl RecordingService {
         reservation.commit(handle.result.byte_len)?;
         self.store
             .complete_recording_projection(
-                &platform_identity,
+                &scope,
+                recording_id,
                 projection_id,
-                i64::try_from(handle.result.byte_len)?,
-                &handle.result.payload_sha256,
+                handle.result.byte_len,
+                &veoveo_types::Sha256Digest::from_hex(&handle.result.payload_sha256)?,
             )
             .await?;
         Ok(handle)
@@ -503,16 +509,7 @@ impl RecordingService {
             .as_ref()
             .context("recording projection runtime is not configured")?;
         let platform_identity = self.platform_identity(identity).await?;
-        let scope = RecordingProjectionReadScope {
-            tenant_id: platform_identity.tenant_id,
-            actor_id: platform_identity.principal_id,
-            work_context_id: veoveo_platform_store::deterministic_work_context_id(
-                &platform_identity.tenant_key,
-                identity.authority.work_context.as_str(),
-            )?,
-            policy_revision: identity.authority.policy_revision.clone(),
-            data_labels: identity.actor.data_labels.clone(),
-        };
+        let scope = projection_scope(identity, &platform_identity)?;
         let Some(receipt) = self
             .store
             .ready_recording_projection(&scope, recording_id, projection_id)
@@ -542,6 +539,22 @@ impl RecordingService {
             sha256,
         }))
     }
+}
+
+fn projection_scope(
+    identity: &GatewayInternalIdentity,
+    platform_identity: &veoveo_platform_store::PlatformIdentity,
+) -> Result<RecordingProjectionScope> {
+    Ok(RecordingProjectionScope {
+        tenant_id: platform_identity.tenant_id,
+        actor_id: platform_identity.principal_id,
+        work_context_id: veoveo_platform_store::deterministic_work_context_id(
+            &platform_identity.tenant_key,
+            identity.authority.work_context.as_str(),
+        )?,
+        policy_revision: identity.authority.policy_revision.clone(),
+        data_labels: identity.actor.data_labels.clone(),
+    })
 }
 
 enum ProjectionTerminal {

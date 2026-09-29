@@ -501,7 +501,7 @@ Domain runtimes can own private queries and driver records over these connection
 | `ids.rs`, `table.rs` | domain-specific record IDs and table identities |
 | [`workspace/`](../platform/store/src/workspace/DESIGN.md) | shared-chat persistence: transactional membership and invitations, immutable messages, committed event order, and replay; clients and agent execution both read and write through it |
 | `recording_catalog.rs` | recording datasets and layers, durable read grants, expiry, and cleanup |
-| `recording_catalog/projections.rs` | projection receipt lifecycle and typed SQL download admission over caller authority, source visibility and grant relationships |
+| `recording_catalog/projections.rs` | typed projection requests, transactional reservation and state transitions, and SQL download admission over caller authority, source visibility and grant relationships |
 | `administration.rs` | bootstrap, runtime user, migration administration |
 | `identity.rs`, `identity/ensure.surql` | tenant/principal/group resolution; transactional identity creation and presentation-only principal updates that preserve current disablement and security fields |
 | `gateway_runtime.rs` | control revisions, auth state, refresh/JWT runtime records |

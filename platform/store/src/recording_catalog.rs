@@ -17,7 +17,9 @@ use crate::{
 };
 
 mod projections;
-pub use projections::{RecordingProjectionReadScope, RecordingProjectionReceiptDraft};
+pub use projections::{
+    RecordingProjectionReceiptDraft, RecordingProjectionRequest, RecordingProjectionScope,
+};
 
 const EVENT_SCHEMA_VERSION: i64 = 1;
 const MAX_DATASET_KEY_BYTES: usize = 128;

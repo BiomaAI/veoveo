@@ -193,14 +193,26 @@ request may select at most 64 entities, 64 components, 10,000 samples, 10,000 ro
 validation failure, or worker failure removes partial output and releases its reservation.
 
 Receipts persist the actor, one-recording projection grant, idempotency key, manifest
-digest, query digest, result identity, state, and expiry. Reusing a key for a different
-request conflicts. Download admission uses a typed Store scope with the current tenant,
-actor, Work Context, policy revision and data-label clearance. SQL selects a ready,
-unexpired receipt for exactly the requested Recording. The same query checks current
-Recording visibility, its dataset, and the matching unexpired App projection grant,
-including its actor, context, policy, dataset, recording set and catalog revision.
-Denied rows never reach Rust decoding or scratch access. An admitted download rechecks
-the file length and SHA-256 before streaming.
+digest, query digest, result identity, state, and expiry. The typed Store request requires
+dataset and Recording IDs, two SHA-256 digests, and an admitted idempotency key. A key
+belongs to one tenant and actor; while its receipt exists, reuse requires the original
+Work Context, policy revision, dataset, Recording, and input digests. SQL reports a
+conflict before decoding a mismatched receipt.
+
+Reservation and every state transition apply the caller's typed scope inside the same
+transaction as the write. SQL checks current Recording labels, its dataset, and the
+matching unexpired App projection grant, including actor, context, policy, dataset,
+recording set and catalog revision. Reservation takes its catalog revision from the
+admitted grant and requires the receipt to expire no later than that grant. Transitions
+enforce the predecessor state; repeating a terminal transition requires the same result
+length and digest or the same failure reason. Conflicting concurrent transitions cannot
+both commit. Store retries a reported transaction conflict at most seven times and
+resolves a concurrent unique-key insertion through admitted lookup. A transport error
+returns to the caller without redispatching the mutation.
+
+Download admission applies the same scope and relationships to a ready, unexpired
+receipt for exactly the requested Recording. Denied rows never reach Rust decoding or
+scratch access. An admitted download rechecks the file length and SHA-256 before streaming.
 
 The Gateway and Console BFF keep authorization and routes outside the opaque App frame.
 The Console host extension `veoveo/recordings/projection-stream` accepts only the exact

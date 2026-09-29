@@ -1,22 +1,21 @@
-//! Recording projection receipt lifecycle and SQL download admission.
-use std::collections::BTreeSet;
+//! Recording projection admission and atomic receipt lifecycle.
+use std::{collections::BTreeSet, time::Duration};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use surrealdb::types::{RecordId, SurrealValue};
-use veoveo_types::{DataLabelId, PolicyVersion};
+use veoveo_types::{DataLabelId, PolicyVersion, Sha256Digest};
 
-use super::{typed_uuid_from_record, validate_sha256, validate_text};
+use super::validate_text;
 use crate::{
-    PlatformIdentity, PlatformStore, PrincipalId, RecordingId, RecordingProjectionReceiptId,
+    PlatformStore, PrincipalId, RecordingDatasetId, RecordingId, RecordingProjectionReceiptId,
     RecordingProjectionReceiptRecord, RecordingProjectionState, RecordingReadGrantClass,
-    RecordingReadGrantId, StoreError, TenantId, WorkContextId,
+    RecordingReadGrantId, StoreError, TenantId, WorkContextId, primary_transaction_error,
 };
 
-/// Current caller authority for redeeming one ready projection.
-/// Identifiers remain typed until the query's driver bindings.
+/// Supplied by the authenticated service after policy admission.
 #[derive(Clone, Debug)]
-pub struct RecordingProjectionReadScope {
+pub struct RecordingProjectionScope {
     pub tenant_id: TenantId,
     pub actor_id: PrincipalId,
     pub work_context_id: WorkContextId,
@@ -24,76 +23,119 @@ pub struct RecordingProjectionReadScope {
     pub data_labels: BTreeSet<DataLabelId>,
 }
 
+/// A validated idempotency key and the immutable input it identifies.
+#[derive(Clone, Debug)]
+pub struct RecordingProjectionRequest {
+    dataset_id: RecordingDatasetId,
+    recording_id: RecordingId,
+    caller_idempotency_key: String,
+    manifest_digest: Sha256Digest,
+    query_digest: Sha256Digest,
+}
+
+impl RecordingProjectionRequest {
+    pub fn new(
+        dataset_id: RecordingDatasetId,
+        recording_id: RecordingId,
+        caller_idempotency_key: impl Into<String>,
+        manifest_digest: Sha256Digest,
+        query_digest: Sha256Digest,
+    ) -> Result<Self, StoreError> {
+        let caller_idempotency_key = caller_idempotency_key.into();
+        validate_text("projection idempotency key", &caller_idempotency_key, 128)?;
+        Ok(Self {
+            dataset_id,
+            recording_id,
+            caller_idempotency_key,
+            manifest_digest,
+            query_digest,
+        })
+    }
+
+    fn bindings(&self) -> RequestBindings {
+        RequestBindings {
+            dataset: self.dataset_id.record_id(),
+            key: self.caller_idempotency_key.clone(),
+            manifest: self.manifest_digest.hex().to_owned(),
+            query: self.query_digest.hex().to_owned(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct RecordingProjectionReceiptDraft {
-    pub identity: PlatformIdentity,
+    pub scope: RecordingProjectionScope,
+    pub request: RecordingProjectionRequest,
     pub grant_id: RecordingReadGrantId,
-    pub caller_idempotency_key: String,
-    pub manifest_digest: String,
-    pub query_digest: String,
     pub expires_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, SurrealValue)]
-struct RecordingProjectionReceiptContent {
+#[derive(Clone, Serialize, Deserialize, SurrealValue)]
+struct ScopeBindings {
     tenant: RecordId,
-    grant: RecordId,
-    dataset: RecordId,
-    recordings: Vec<RecordId>,
     actor: RecordId,
-    work_context: RecordId,
-    policy_revision: String,
-    catalog_revision: String,
-    caller_idempotency_key: String,
-    manifest_digest: String,
-    query_digest: String,
-    state: RecordingProjectionState,
-    result_byte_len: Option<i64>,
-    result_sha256: Option<String>,
-    failure_reason: Option<String>,
-    expires_at: DateTime<Utc>,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
+    context: RecordId,
+    policy: String,
+    labels: Vec<String>,
+}
+impl RecordingProjectionScope {
+    fn bindings(&self) -> ScopeBindings {
+        ScopeBindings {
+            tenant: self.tenant_id.record_id(),
+            actor: self.actor_id.record_id(),
+            context: self.work_context_id.record_id(),
+            policy: self.policy_revision.to_string(),
+            labels: self.data_labels.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+#[derive(Clone, Serialize, Deserialize, SurrealValue)]
+struct RequestBindings {
+    dataset: RecordId,
+    key: String,
+    manifest: String,
+    query: String,
 }
 
+// Only repository-owned clauses enter SQL text. All caller values use driver bindings.
+const ADMITTED: &str = "tenant = $scope.tenant AND actor = $scope.actor
+    AND work_context = $scope.context AND policy_revision = $scope.policy
+    AND recordings = [$recording] AND expires_at > time::now()
+    AND $recording.tenant = $scope.tenant AND $scope.labels CONTAINSALL $recording.labels
+    AND dataset = $recording.dataset AND dataset.tenant = $scope.tenant
+    AND grant.tenant = $scope.tenant AND grant.actor = $scope.actor
+    AND grant.work_context = $scope.context AND grant.policy_revision = $scope.policy
+    AND grant.grant_class = $grant_class AND grant.dataset = dataset
+    AND grant.recordings = recordings AND grant.catalog_revision = catalog_revision
+    AND grant.expires_at >= expires_at AND grant.expires_at > time::now()";
+const REQUEST_MATCH: &str = "dataset = $request.dataset AND manifest_digest = $request.manifest
+    AND query_digest = $request.query";
+const EXISTING_ID: &str = "(SELECT VALUE id FROM recording_projection_receipt
+    WHERE tenant = $scope.tenant AND actor = $scope.actor
+      AND caller_idempotency_key = $request.key LIMIT 1)[0]";
+const GRANT_ADMITTED: &str = "tenant = $scope.tenant AND actor = $scope.actor
+    AND work_context = $scope.context AND policy_revision = $scope.policy
+    AND grant_class = $grant_class AND recordings = [$recording]
+    AND dataset = $request.dataset AND dataset = $recording.dataset
+    AND dataset.tenant = $scope.tenant AND $recording.tenant = $scope.tenant
+    AND $scope.labels CONTAINSALL $recording.labels
+    AND expires_at >= $expires AND $expires > time::now()";
+
 impl PlatformStore {
-    /// Admit the receipt and its source/grant relationships before Rust decoding.
     pub async fn ready_recording_projection(
         &self,
-        scope: &RecordingProjectionReadScope,
+        scope: &RecordingProjectionScope,
         recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
     ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
         let mut response = self
             .db
-            .query(
-                "SELECT * FROM ONLY $projection
-             WHERE tenant = $tenant AND actor = $actor
-               AND work_context = $work_context AND policy_revision = $policy_revision
-               AND recordings = [$recording] AND state = $ready
-               AND expires_at > time::now()
-               AND $recording.tenant = $tenant AND $clearance CONTAINSALL $recording.labels
-               AND dataset = $recording.dataset AND dataset.tenant = $tenant
-               AND grant.tenant = $tenant AND grant.actor = $actor
-               AND grant.work_context = $work_context AND grant.policy_revision = $policy_revision
-               AND grant.grant_class = $grant_class AND grant.dataset = dataset
-               AND grant.recordings = recordings AND grant.catalog_revision = catalog_revision
-               AND grant.expires_at >= expires_at AND grant.expires_at > time::now();",
-            )
+            .query(format!(
+                "SELECT * FROM ONLY $projection WHERE {ADMITTED} AND state = $ready;"
+            ))
             .bind(("projection", projection_id.record_id()))
             .bind(("recording", recording_id.record_id()))
-            .bind(("tenant", scope.tenant_id.record_id()))
-            .bind(("actor", scope.actor_id.record_id()))
-            .bind(("work_context", scope.work_context_id.record_id()))
-            .bind(("policy_revision", scope.policy_revision.to_string()))
-            .bind((
-                "clearance",
-                scope
-                    .data_labels
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>(),
-            ))
+            .bind(("scope", scope.bindings()))
             .bind(("ready", RecordingProjectionState::Ready))
             .bind(("grant_class", RecordingReadGrantClass::AppProjection))
             .await?
@@ -101,311 +143,320 @@ impl PlatformStore {
         Ok(response.take(0)?)
     }
 
+    /// An existing actor-owned key binds the original context, policy and input.
+    /// A mismatched row produces a conflict inside SQL before any receipt is decoded.
+    pub async fn recording_projection_by_idempotency_key(
+        &self,
+        scope: &RecordingProjectionScope,
+        request: &RecordingProjectionRequest,
+    ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
+        let mut response = self
+            .db
+            .query(format!(
+                "BEGIN TRANSACTION;
+             LET $existing = {EXISTING_ID};
+             LET $result = IF $existing != NONE {{
+                 LET $row = (SELECT * FROM ONLY $existing WHERE {ADMITTED} AND {REQUEST_MATCH});
+                 IF $row = NONE {{ THROW 'recording_projection_request_conflict'; }};
+                 $row
+             }} ELSE {{ NONE }};
+             RETURN $result;
+             COMMIT TRANSACTION;"
+            ))
+            .bind(("scope", scope.bindings()))
+            .bind(("recording", request.recording_id.record_id()))
+            .bind(("request", request.bindings()))
+            .bind(("grant_class", RecordingReadGrantClass::AppProjection))
+            .await?;
+        if let Some(error) = primary_transaction_error(response.take_errors()) {
+            return Err(request_error(error));
+        }
+        Ok(response.take(3)?)
+    }
+
     pub async fn reserve_recording_projection(
         &self,
         draft: RecordingProjectionReceiptDraft,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        validate_text(
-            "projection idempotency key",
-            &draft.caller_idempotency_key,
-            128,
-        )?;
-        validate_sha256("manifest_digest", &draft.manifest_digest)?;
-        validate_sha256("query_digest", &draft.query_digest)?;
-        let grant = self
-            .recording_read_grant(draft.identity.tenant_id, draft.grant_id)
-            .await?
-            .ok_or(StoreError::RecordingReadGrantConflict {
-                grant_id: draft.grant_id.to_string(),
-            })?;
-        if grant.actor != draft.identity.principal_id.record_id()
-            || grant.grant_class != RecordingReadGrantClass::AppProjection
-            || draft.expires_at > grant.expires_at
-            || draft.expires_at <= Utc::now()
-        {
-            return Err(StoreError::RecordingReadGrantConflict {
-                grant_id: draft.grant_id.to_string(),
-            });
-        }
-        if let Some(existing) = self
-            .recording_projection_by_idempotency_key(
-                draft.identity.tenant_id,
-                draft.identity.principal_id,
-                &draft.caller_idempotency_key,
-            )
-            .await?
-        {
-            if existing.manifest_digest == draft.manifest_digest
-                && existing.query_digest == draft.query_digest
-            {
-                return Ok(existing);
-            }
-            return Err(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id_from_record(&existing.id)?.to_string(),
-            });
-        }
         let id = RecordingProjectionReceiptId::new();
-        let now = Utc::now();
-        let content = RecordingProjectionReceiptContent {
-            tenant: draft.identity.tenant_id.record_id(),
-            grant: draft.grant_id.record_id(),
-            dataset: grant.dataset,
-            recordings: grant.recordings,
-            actor: grant.actor,
-            work_context: grant.work_context,
-            policy_revision: grant.policy_revision,
-            catalog_revision: grant.catalog_revision,
-            caller_idempotency_key: draft.caller_idempotency_key.clone(),
-            manifest_digest: draft.manifest_digest.clone(),
-            query_digest: draft.query_digest.clone(),
-            state: RecordingProjectionState::Reserved,
-            result_byte_len: None,
-            result_sha256: None,
-            failure_reason: None,
-            expires_at: draft.expires_at,
-            created_at: now,
-            updated_at: now,
-        };
-        let result = self
-            .db
-            .query("CREATE ONLY $projection CONTENT $content RETURN NONE;")
-            .bind(("projection", id.record_id()))
-            .bind(("content", content))
-            .await
-            .and_then(|response| response.check());
-        if let Err(error) = result {
-            if let Some(existing) = self
-                .recording_projection_by_idempotency_key(
-                    draft.identity.tenant_id,
-                    draft.identity.principal_id,
-                    &draft.caller_idempotency_key,
-                )
-                .await?
+        let sql = format!(
+            "BEGIN TRANSACTION;
+             LET $existing = {EXISTING_ID};
+             LET $result = IF $existing != NONE {{
+                 LET $row = (SELECT * FROM ONLY $existing WHERE {ADMITTED} AND {REQUEST_MATCH});
+                 IF $row = NONE {{ THROW 'recording_projection_request_conflict'; }};
+                 $row
+             }} ELSE {{
+                 LET $admitted = (SELECT * FROM ONLY $grant WHERE {GRANT_ADMITTED});
+                 IF $admitted = NONE {{ THROW 'recording_projection_grant_conflict'; }};
+                 CREATE ONLY $projection SET
+                     tenant = $scope.tenant, actor = $scope.actor,
+                     work_context = $scope.context, policy_revision = $scope.policy,
+                     grant = $grant, dataset = $request.dataset, recordings = [$recording],
+                     catalog_revision = $admitted.catalog_revision,
+                     caller_idempotency_key = $request.key,
+                     manifest_digest = $request.manifest, query_digest = $request.query,
+                     state = $reserved, expires_at = $expires,
+                     created_at = time::now(), updated_at = time::now()
+             }};
+             RETURN $result;
+             COMMIT TRANSACTION;"
+        );
+        for attempt in 0..8 {
+            let mut response = self
+                .db
+                .query(sql.clone())
+                .bind(("projection", id.record_id()))
+                .bind(("scope", draft.scope.bindings()))
+                .bind(("request", draft.request.bindings()))
+                .bind(("recording", draft.request.recording_id.record_id()))
+                .bind(("grant", draft.grant_id.record_id()))
+                .bind(("expires", draft.expires_at))
+                .bind(("reserved", RecordingProjectionState::Reserved))
+                .bind(("grant_class", RecordingReadGrantClass::AppProjection))
+                .await?;
+            let Some(error) = primary_transaction_error(response.take_errors()) else {
+                return response
+                    .take::<Option<RecordingProjectionReceiptRecord>>(3)?
+                    .ok_or(StoreError::MissingRecord {
+                        operation: "recording projection reservation",
+                    });
+            };
+            if retryable(&error) && attempt < 7 {
+                retry_delay(attempt).await;
+                continue;
+            }
+            if error.is_thrown()
+                && error
+                    .message()
+                    .contains("recording_projection_grant_conflict")
             {
-                if existing.manifest_digest == draft.manifest_digest
-                    && existing.query_digest == draft.query_digest
-                {
-                    return Ok(existing);
-                }
-                return Err(StoreError::RecordingProjectionConflict {
-                    projection_id: projection_id_from_record(&existing.id)?.to_string(),
+                return Err(StoreError::RecordingReadGrantConflict {
+                    grant_id: draft.grant_id.to_string(),
                 });
             }
-            return Err(error.into());
+            // A concurrent insertion may have won the unique key. Read the admitted
+            // winner; a transport failure never triggers another mutation here.
+            if error
+                .message()
+                .contains("recording_projection_idempotency_unique")
+                && let Some(winner) = self
+                    .recording_projection_by_idempotency_key(&draft.scope, &draft.request)
+                    .await?
+            {
+                return Ok(winner);
+            }
+            return Err(request_error(error));
         }
-        self.recording_projection_receipt(draft.identity.tenant_id, id)
-            .await?
-            .ok_or(StoreError::MissingRecord {
-                operation: "recording projection reservation readback",
-            })
-    }
-
-    pub async fn recording_projection_receipt(
-        &self,
-        tenant_id: TenantId,
-        projection_id: RecordingProjectionReceiptId,
-    ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM ONLY $projection WHERE tenant = $tenant AND expires_at > time::now();")
-            .bind(("projection", projection_id.record_id()))
-            .bind(("tenant", tenant_id.record_id()))
-            .await?
-            .check()?;
-        Ok(response.take(0)?)
+        unreachable!("bounded transaction retry")
     }
 
     pub async fn begin_recording_projection(
         &self,
-        identity: &PlatformIdentity,
+        scope: &RecordingProjectionScope,
+        recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        let existing = self
-            .recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            })?;
-        ensure_projection_actor(&existing, identity, projection_id)?;
-        if existing.state == RecordingProjectionState::Materializing {
-            return Ok(existing);
-        }
-        if existing.state != RecordingProjectionState::Reserved {
-            return Err(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            });
-        }
-        self.db
-            .query("LET $current = (SELECT * FROM ONLY $projection); IF $current.state != 'reserved' { THROW 'recording_projection_state_conflict'; }; UPDATE ONLY $projection SET state = 'materializing', updated_at = time::now() RETURN NONE;")
-            .bind(("projection", projection_id.record_id()))
-            .await?
-            .check()?;
-        self.recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            })
+        self.transition_projection(scope, recording_id, projection_id, Transition::Begin)
+            .await
     }
 
     pub async fn complete_recording_projection(
         &self,
-        identity: &PlatformIdentity,
+        scope: &RecordingProjectionScope,
+        recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
-        result_byte_len: i64,
-        result_sha256: &str,
+        result_byte_len: u64,
+        result_sha256: &Sha256Digest,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        if result_byte_len < 0 {
-            return Err(StoreError::InvalidRecordingField {
+        let byte_len =
+            i64::try_from(result_byte_len).map_err(|_| StoreError::InvalidRecordingField {
                 field: "projection result_byte_len",
-                reason: "must be non-negative",
-            });
-        }
-        validate_sha256("projection result_sha256", result_sha256)?;
-        let existing = self
-            .recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
+                reason: "must fit a signed 64-bit byte count",
             })?;
-        ensure_projection_actor(&existing, identity, projection_id)?;
-        if existing.state == RecordingProjectionState::Ready
-            && existing.result_byte_len == Some(result_byte_len)
-            && existing.result_sha256.as_deref() == Some(result_sha256)
-        {
-            return Ok(existing);
-        }
-        if existing.state != RecordingProjectionState::Materializing {
-            return Err(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            });
-        }
-        self.db
-            .query("LET $current = (SELECT * FROM ONLY $projection); IF $current.state != 'materializing' { THROW 'recording_projection_state_conflict'; }; UPDATE ONLY $projection SET state = 'ready', result_byte_len = $byte_len, result_sha256 = $sha256, failure_reason = NONE, updated_at = time::now() RETURN NONE;")
-            .bind(("projection", projection_id.record_id()))
-            .bind(("byte_len", result_byte_len))
-            .bind(("sha256", result_sha256.to_owned()))
-            .await?
-            .check()?;
-        self.recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            })
+        self.transition_projection(
+            scope,
+            recording_id,
+            projection_id,
+            Transition::Complete {
+                byte_len,
+                digest: result_sha256,
+            },
+        )
+        .await
     }
 
     pub async fn fail_recording_projection(
         &self,
-        identity: &PlatformIdentity,
+        scope: &RecordingProjectionScope,
+        recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         reason: &str,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        self.finish_recording_projection(
-            identity,
+        self.transition_projection(
+            scope,
+            recording_id,
             projection_id,
-            RecordingProjectionState::Failed,
-            reason,
+            Transition::Failed(reason),
         )
         .await
     }
 
     pub async fn cancel_recording_projection(
         &self,
-        identity: &PlatformIdentity,
+        scope: &RecordingProjectionScope,
+        recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
         reason: &str,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        self.finish_recording_projection(
-            identity,
+        self.transition_projection(
+            scope,
+            recording_id,
             projection_id,
-            RecordingProjectionState::Cancelled,
-            reason,
+            Transition::Cancelled(reason),
         )
         .await
     }
 
-    async fn finish_recording_projection(
+    async fn transition_projection(
         &self,
-        identity: &PlatformIdentity,
+        scope: &RecordingProjectionScope,
+        recording_id: RecordingId,
         projection_id: RecordingProjectionReceiptId,
-        target: RecordingProjectionState,
-        reason: &str,
+        transition: Transition<'_>,
     ) -> Result<RecordingProjectionReceiptRecord, StoreError> {
-        validate_text("projection failure_reason", reason, 2_048)?;
-        if !matches!(
-            target,
-            RecordingProjectionState::Failed | RecordingProjectionState::Cancelled
-        ) {
-            return Err(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            });
+        let (target, predecessors, repeat_matches, assignment) = match transition {
+            Transition::Begin => (
+                RecordingProjectionState::Materializing,
+                vec![RecordingProjectionState::Reserved],
+                "true",
+                "state = $target",
+            ),
+            Transition::Complete { .. } => (
+                RecordingProjectionState::Ready,
+                vec![RecordingProjectionState::Materializing],
+                "result_byte_len = $bytes AND result_sha256 = $digest",
+                "state = $target, result_byte_len = $bytes, result_sha256 = $digest, failure_reason = NONE",
+            ),
+            Transition::Failed(_) | Transition::Cancelled(_) => {
+                validate_text(
+                    "projection failure_reason",
+                    transition.reason().expect("terminal transition"),
+                    2048,
+                )?;
+                (
+                    if matches!(transition, Transition::Failed(_)) {
+                        RecordingProjectionState::Failed
+                    } else {
+                        RecordingProjectionState::Cancelled
+                    },
+                    vec![
+                        RecordingProjectionState::Reserved,
+                        RecordingProjectionState::Materializing,
+                    ],
+                    "failure_reason = $reason",
+                    "state = $target, failure_reason = $reason",
+                )
+            }
+        };
+        let sql = format!(
+            "BEGIN TRANSACTION;
+             LET $current = (SELECT * FROM ONLY $projection WHERE {ADMITTED}
+                 AND (state IN $predecessors OR (state = $target AND {repeat_matches})));
+             IF $current = NONE {{ THROW 'recording_projection_transition_conflict'; }};
+             IF $current.state != $target {{
+                 UPDATE ONLY $projection SET {assignment}, updated_at = time::now() RETURN NONE;
+             }};
+             RETURN (SELECT * FROM ONLY $projection);
+             COMMIT TRANSACTION;"
+        );
+        for attempt in 0..8 {
+            let mut response = self
+                .db
+                .query(sql.clone())
+                .bind(("projection", projection_id.record_id()))
+                .bind(("recording", recording_id.record_id()))
+                .bind(("scope", scope.bindings()))
+                .bind(("grant_class", RecordingReadGrantClass::AppProjection))
+                .bind(("target", target))
+                .bind(("predecessors", predecessors.clone()))
+                .bind(("bytes", transition.byte_len()))
+                .bind(("digest", transition.digest().map(|v| v.hex().to_owned())))
+                .bind(("reason", transition.reason().map(ToOwned::to_owned)))
+                .await?;
+            let Some(error) = primary_transaction_error(response.take_errors()) else {
+                return response
+                    .take::<Option<RecordingProjectionReceiptRecord>>(4)?
+                    .ok_or(StoreError::MissingRecord {
+                        operation: "recording projection transition",
+                    });
+            };
+            if retryable(&error) && attempt < 7 {
+                retry_delay(attempt).await;
+                continue;
+            }
+            if error.is_thrown()
+                && error
+                    .message()
+                    .contains("recording_projection_transition_conflict")
+            {
+                return Err(StoreError::RecordingProjectionConflict {
+                    projection_id: projection_id.to_string(),
+                });
+            }
+            return Err(error.into());
         }
-        let existing = self
-            .recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            })?;
-        ensure_projection_actor(&existing, identity, projection_id)?;
-        if existing.state == target && existing.failure_reason.as_deref() == Some(reason) {
-            return Ok(existing);
-        }
-        if !matches!(
-            existing.state,
-            RecordingProjectionState::Reserved | RecordingProjectionState::Materializing
-        ) {
-            return Err(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            });
-        }
-        self.db
-            .query("LET $current = (SELECT * FROM ONLY $projection); IF $current.state NOT IN ['reserved', 'materializing'] { THROW 'recording_projection_state_conflict'; }; UPDATE ONLY $projection SET state = $state, failure_reason = $reason, updated_at = time::now() RETURN NONE;")
-            .bind(("projection", projection_id.record_id()))
-            .bind(("state", target))
-            .bind(("reason", reason.to_owned()))
-            .await?
-            .check()?;
-        self.recording_projection_receipt(identity.tenant_id, projection_id)
-            .await?
-            .ok_or(StoreError::RecordingProjectionConflict {
-                projection_id: projection_id.to_string(),
-            })
-    }
-
-    pub async fn recording_projection_by_idempotency_key(
-        &self,
-        tenant_id: TenantId,
-        actor_id: crate::PrincipalId,
-        idempotency_key: &str,
-    ) -> Result<Option<RecordingProjectionReceiptRecord>, StoreError> {
-        let mut response = self
-            .db
-            .query("SELECT * FROM recording_projection_receipt WHERE tenant = $tenant AND actor = $actor AND caller_idempotency_key = $key AND expires_at > time::now() LIMIT 1;")
-            .bind(("tenant", tenant_id.record_id()))
-            .bind(("actor", actor_id.record_id()))
-            .bind(("key", idempotency_key.to_owned()))
-            .await?
-            .check()?;
-        let records: Vec<RecordingProjectionReceiptRecord> = response.take(0)?;
-        Ok(records.into_iter().next())
+        unreachable!("bounded transaction retry")
     }
 }
 
-fn ensure_projection_actor(
-    receipt: &RecordingProjectionReceiptRecord,
-    identity: &PlatformIdentity,
-    projection_id: RecordingProjectionReceiptId,
-) -> Result<(), StoreError> {
-    if receipt.actor != identity.principal_id.record_id() {
-        return Err(StoreError::RecordingProjectionConflict {
-            projection_id: projection_id.to_string(),
-        });
-    }
-    Ok(())
+#[derive(Clone, Copy)]
+enum Transition<'a> {
+    Begin,
+    Complete {
+        byte_len: i64,
+        digest: &'a Sha256Digest,
+    },
+    Failed(&'a str),
+    Cancelled(&'a str),
 }
-
-fn projection_id_from_record(
-    record: &RecordId,
-) -> Result<RecordingProjectionReceiptId, StoreError> {
-    typed_uuid_from_record(record, RecordingProjectionReceiptId::TABLE)
-        .map(RecordingProjectionReceiptId::from_uuid)
+impl<'a> Transition<'a> {
+    fn reason(self) -> Option<&'a str> {
+        match self {
+            Self::Failed(v) | Self::Cancelled(v) => Some(v),
+            _ => None,
+        }
+    }
+    fn byte_len(self) -> Option<i64> {
+        match self {
+            Self::Complete { byte_len, .. } => Some(byte_len),
+            _ => None,
+        }
+    }
+    fn digest(self) -> Option<&'a Sha256Digest> {
+        match self {
+            Self::Complete { digest, .. } => Some(digest),
+            _ => None,
+        }
+    }
+}
+fn retryable(error: &surrealdb::Error) -> bool {
+    matches!(
+        error.query_details(),
+        Some(surrealdb::types::QueryError::TransactionConflict)
+    )
+}
+async fn retry_delay(attempt: u32) {
+    tokio::time::sleep(Duration::from_millis(1 << attempt)).await;
+}
+fn request_error(error: surrealdb::Error) -> StoreError {
+    if error.is_thrown()
+        && error
+            .message()
+            .contains("recording_projection_request_conflict")
+    {
+        StoreError::RecordingProjectionRequestConflict
+    } else {
+        error.into()
+    }
 }

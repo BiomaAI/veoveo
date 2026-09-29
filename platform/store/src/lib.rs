@@ -105,8 +105,8 @@ pub use recording_blueprints::{
 };
 pub use recording_catalog::{
     RecordingCatalogCleanup, RecordingDatasetDraft, RecordingLayerDraft,
-    RecordingProjectionReadScope, RecordingProjectionReceiptDraft, RecordingReadGrantDraft,
-    capture_layer_name,
+    RecordingProjectionReceiptDraft, RecordingProjectionRequest, RecordingProjectionScope,
+    RecordingReadGrantDraft, capture_layer_name,
 };
 pub use recording_ingest::{
     RecordingIngestAppendOutcome, RecordingIngestBatchDraft, RecordingIngestQuotaCheckpoint,
