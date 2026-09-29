@@ -24,10 +24,8 @@ fn warm_flight_dispatch_stays_under_two_seconds() {
             .args(["xtask", "smoke", "uav-showcase-up", "--scenario"])
             .arg(&missing)
             .args([
-                "--context",
-                "veoveo-dispatch-no-cluster",
-                "--public-base-url",
-                "https://dispatch.invalid",
+                "--installation",
+                "testing/fixtures/fork-installation/installation-target.json",
             ]);
         // A Cargo test receives package-scoped environment variables. Forwarding
         // them would measure build-script invalidation caused by the test itself.
@@ -54,7 +52,7 @@ fn warm_flight_dispatch_stays_under_two_seconds() {
     }
     let receipt = serde_json::json!({
         "schema": "veoveo.ai/flight-dispatch-timing/v1",
-        "command": "cargo xtask smoke uav-showcase-up --scenario <absent> --context veoveo-dispatch-no-cluster --public-base-url https://dispatch.invalid",
+        "command": "cargo xtask smoke uav-showcase-up --scenario <absent> --installation testing/fixtures/fork-installation/installation-target.json",
         "warmSeconds": timings,
         "assertion": "typed scenario rejection before Kubernetes or authentication",
         "gpuWorkflowVerified": false,

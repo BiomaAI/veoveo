@@ -79,7 +79,7 @@ pub(crate) async fn recording_fixture_finish(
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     let store = recording_store(&environment).await?;
-    let tenant = deterministic_tenant_id(installation.tenant.as_str())?;
+    let tenant = deterministic_tenant_id(installation.operator.tenant.as_str())?;
     for stream_id in stream_ids {
         let stream_id = veoveo_platform_store::RecordingIngestStreamId::from_uuid(*stream_id);
         let stream = store

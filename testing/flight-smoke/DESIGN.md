@@ -4,6 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
+| Installation input | Required `--installation` file using `veoveo.ai/installation-target/v1`; identities and endpoints validated against its control-plane document |
 | MCP and authentication | Repository conformance CLI over public HTTPS, the hosted MCP 2026-07-28 profile, OAuth token exchange, exact Work Context and profile scopes |
 | Flight scenario | Runtime-loaded `veoveo.uav-sim-acceptance/v11` JSON with bounded typed mission, world, video and observation parameters |
 | Stream live sessions | Server-owned live-session types imported through the Stream library's isolated `contract` feature |
@@ -29,8 +30,21 @@ Scenario and grant decoders admit Map profile references through the same owning
 The route request serializes its typed profile ID and version without reparsing text.
 The client imports UAV's public grant and camera-product types. Scenario session and
 vehicle IDs decode through UAV's owning types before any external work.
-UAV scope names for operator and administrator token requests come from `UavScope`
-in that same contract library and convert to text at the token-exchange adapter.
+The installation target selects every requested scope. Flight admission checks its
+UAV requirements using `UavScope` from the owning library; it never adds scopes to a
+request. The shared loader resolves client and profile IDs, principal, tenant, Work
+Contexts, issuer and token endpoint from the selected control plane before execution.
+Cluster checks use the target's context and namespace. Artifact assertions compare
+provenance and output ownership with that resolved identity and its output policy.
+
+Flight verification requires an explicit `administrator` client selection and an
+operator `comparisonContext` for artifact isolation. Operator credentials use
+`VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_SERVICE_CLIENT_KEY_ID`.
+Administrator credentials use `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
+`VEOVEO_ADMIN_SERVICE_CLIENT_KEY_ID`. Token exchange maps the selected credentials
+only into its child process. Private keys and issued tokens stay outside target files.
+`uav-showcase-up` needs only the operator because it does not administer grants or
+run artifact isolation acceptance.
 
 Browser attachment, GPU rejection and visual assertions have one source owner in
 `testing/browser-smoke/src/browser.rs`. Both focused clients compile that source.

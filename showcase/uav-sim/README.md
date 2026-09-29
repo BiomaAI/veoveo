@@ -363,16 +363,14 @@ That functional test is separate from the live-view performance commands below.
 
 ```sh
 cargo xtask smoke uav-showcase-up \
-  --context <kube-context> \
-  --public-base-url https://installation.example
+  --installation <installation-target.json>
 
 cargo xtask smoke uav-showcase-browser-verify \
-  --public-base-url https://installation.example \
+  --installation <installation-target.json> \
   --chrome-cdp-url http://127.0.0.1:9222
 
 cargo xtask smoke uav-showcase-live-restart-verify \
-  --context <kube-context> \
-  --public-base-url https://installation.example \
+  --installation <installation-target.json> \
   --chrome-cdp-url http://127.0.0.1:9222
 ```
 

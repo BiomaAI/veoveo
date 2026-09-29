@@ -5,12 +5,13 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use super::InstalledTarget;
 use super::{
     FocusedScenario, OperatorClient, PRIMARY_CAMERA_ID,
     browser::{
         ConsoleLiveRestartEvidence, capture_console_live_app_restart, preflight_console_live_app,
     },
-    gateway_token, git_revision, json_string, simulation_state,
+    git_revision, json_string, simulation_state,
 };
 
 #[derive(Debug, Serialize)]
@@ -129,9 +130,7 @@ impl UavWorkload {
 pub(super) struct RestartVerification<'a> {
     pub(super) conformance: &'a Path,
     pub(super) scenario_path: &'a Path,
-    pub(super) context: &'a str,
-    pub(super) namespace: &'a str,
-    pub(super) public_base_url: &'a str,
+    pub(super) installation: &'a InstalledTarget,
     pub(super) chrome_cdp_url: &'a str,
     pub(super) restart_timeout: Duration,
     pub(super) evidence_root: &'a Path,
@@ -141,13 +140,14 @@ pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -
     let RestartVerification {
         conformance,
         scenario_path,
-        context,
-        namespace,
-        public_base_url,
+        installation,
         chrome_cdp_url,
         restart_timeout,
         evidence_root,
     } = config;
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
+    let public_base_url = installation.public_base();
     ensure!(
         conformance.is_file(),
         "required binary does not exist: {}",
@@ -177,10 +177,10 @@ pub(super) async fn verify_live_view_restarts(config: RestartVerification<'_>) -
         Duration::from_secs(scenario.view.timeout_seconds),
     )
     .await?;
-    let token = gateway_token(conformance, public_base_url).await?;
+    let token = installation.token(conformance).await?;
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
         token: &token,
     };
     let initial_state = simulation_state(&operator, &scenario.session_id).await?;

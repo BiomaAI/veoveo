@@ -299,11 +299,11 @@ The focused browser pass never starts, stops, pauses, or commands the simulator:
 
 ```bash
 cargo xtask smoke uav-showcase-browser-verify \
-  --public-base-url https://installation.example \
+  --installation <installation-target.json> \
   --chrome-cdp-url http://127.0.0.1:9222
 
 cargo xtask smoke uav-recording-browser-verify \
-  --public-base-url https://installation.example \
+  --installation <installation-target.json> \
   --chrome-cdp-url http://127.0.0.1:9222
 ```
 

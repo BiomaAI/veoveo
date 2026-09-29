@@ -73,23 +73,20 @@ struct VisualCaptureSignals {
 pub(crate) async fn uav_showcase_verify(
     conformance: &Path,
     scenario_path: &Path,
-    context: &str,
-    namespace: &str,
-    public_base_url: &str,
+    installation: &InstalledTarget,
     chrome_cdp_url: &str,
     evidence_root: &Path,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
-    let public_base_url = public_base_url.trim_end_matches('/');
-    ensure!(
-        url::Url::parse(public_base_url)?.scheme() == "https",
-        "composed UAV showcase acceptance requires public HTTPS"
-    );
+    preflight_flight_authority(installation)?;
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
+    let public_base_url = installation.public_base();
     assert_showcase_gpu_workloads(context, namespace)?;
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
     };
     let info = operator
         .conformance(&["info"], Duration::from_secs(60))
@@ -151,8 +148,7 @@ pub(crate) async fn uav_showcase_verify(
     let domain = uav_sim_verify_with_visual_hold(
         conformance,
         scenario_path,
-        context,
-        public_base_url,
+        installation,
         Some(UavVisualHolds {
             stream_capture_complete: hold_live_stream,
             moving_recording_capture_complete: hold_landing,
@@ -204,21 +200,17 @@ pub(crate) async fn uav_showcase_verify(
 pub(crate) async fn uav_showcase_up(
     conformance: &Path,
     scenario_path: &Path,
-    context: &str,
-    namespace: &str,
-    public_base_url: &str,
+    installation: &InstalledTarget,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
-    let public_base_url = public_base_url.trim_end_matches('/');
-    ensure!(
-        url::Url::parse(public_base_url)?.scheme() == "https",
-        "composed UAV showcase activation requires public HTTPS"
-    );
+    installation.operator.validate_credentials()?;
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
     assert_showcase_gpu_workloads(context, namespace)?;
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
     };
     ensure_world_configured(&operator, &scenario).await?;
     let camera_products = wait_for_live_products(

@@ -41,31 +41,37 @@ pub(crate) use showcase::{uav_showcase_up, uav_showcase_verify};
 use stream::*;
 use world::*;
 
-const NAMESPACE: &str = "veoveo";
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
-fn operator_profile_scopes() -> [&'static str; 10] {
-    [
-        "operator:use",
-        UavScope::Read.name().as_str(),
-        UavScope::Control.name().as_str(),
-        UavScope::Stream.name().as_str(),
-        "view:read",
-        "view:write",
-        "view:capture",
-        "map:dataset:read",
-        "map:route",
-        "time:read",
-    ]
+fn preflight_flight_authority(installation: &InstalledTarget) -> Result<()> {
+    installation.operator.validate_credentials()?;
+    installation.administrator()?.validate_credentials()?;
+    ensure!(
+        installation.operator.comparison_context.is_some(),
+        "flight artifact isolation requires operator.comparisonContext"
+    );
+    for scope in [UavScope::Read, UavScope::Control, UavScope::Stream] {
+        ensure!(
+            installation.operator.scopes.contains(scope.name()),
+            "installation operator.scopes must include {scope}"
+        );
+    }
+    ensure!(
+        installation
+            .administrator()?
+            .scopes
+            .contains(UavScope::Admin.name()),
+        "installation administrator.scopes must include {}",
+        UavScope::Admin
+    );
+    Ok(())
 }
 
 pub(crate) async fn uav_sim_verify(
     conformance: &Path,
     scenario_path: &Path,
-    context: &str,
-    public_base_url: &str,
+    installation: &InstalledTarget,
 ) -> Result<()> {
-    uav_sim_verify_with_visual_hold(conformance, scenario_path, context, public_base_url, None)
-        .await
+    uav_sim_verify_with_visual_hold(conformance, scenario_path, installation, None).await
 }
 
 struct UavVisualHolds {
@@ -76,18 +82,14 @@ struct UavVisualHolds {
 async fn uav_sim_verify_with_visual_hold(
     conformance: &Path,
     scenario_path: &Path,
-    context: &str,
-    public_base_url: &str,
+    installation: &InstalledTarget,
     visual_holds: Option<UavVisualHolds>,
 ) -> Result<()> {
     let scenario = UavAcceptanceScenario::load(scenario_path)?;
     assert_executable(conformance)?;
-    let public_base_url = public_base_url.trim_end_matches('/');
-    let public = url::Url::parse(public_base_url).context("parsing public installation URL")?;
-    ensure!(
-        public.scheme() == "https",
-        "UAV live acceptance requires public HTTPS"
-    );
+    preflight_flight_authority(installation)?;
+    let context = &installation.target.kubernetes.context;
+    let namespace = &installation.target.kubernetes.namespace;
 
     run_checked(
         Path::new("kubectl"),
@@ -95,11 +97,11 @@ async fn uav_sim_verify_with_visual_hold(
         [],
     )
     .context("UAV live acceptance requires its Kubernetes cluster")?;
-    assert_concurrent_gpu_workloads(context)?;
+    assert_concurrent_gpu_workloads(context, namespace)?;
 
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
     };
     let info = operator
         .conformance(&["info"], Duration::from_secs(60))
@@ -429,7 +431,7 @@ async fn uav_sim_verify_with_visual_hold(
             "Stream replay result artifact identity must be UUIDv7"
         );
         let stream_results =
-            download_governed_json_artifact(conformance, public_base_url, &governed_artifact_id)
+            download_governed_json_artifact(conformance, installation, &governed_artifact_id)
                 .await?;
         ensure!(
             stream_results == canonical_results,
@@ -474,8 +476,7 @@ async fn uav_sim_verify_with_visual_hold(
             "Reason result artifact identity must be UUIDv7"
         );
         let reason_results =
-            download_governed_json_artifact(conformance, public_base_url, &reason_artifact_id)
-                .await?;
+            download_governed_json_artifact(conformance, installation, &reason_artifact_id).await?;
         assert_live_recording_snapshot(&reason_results, "Reason")?;
 
         if let Some(captured) = moving_recording_capture.take() {
@@ -516,8 +517,8 @@ async fn uav_sim_verify_with_visual_hold(
             );
         }
     };
-    assert_concurrent_gpu_workloads(context)?;
-    assert_governed_artifact_access(conformance, public_base_url, &governed_artifact_id).await?;
+    assert_concurrent_gpu_workloads(context, namespace)?;
+    assert_governed_artifact_access(conformance, installation, &governed_artifact_id).await?;
 
     println!(
         "UAV domain acceptance ok: Google Photorealistic 3D Tiles were resident in Isaac, the \
@@ -530,7 +531,7 @@ async fn uav_sim_verify_with_visual_hold(
     Ok(())
 }
 
-fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
+fn assert_concurrent_gpu_workloads(context: &str, namespace: &str) -> Result<()> {
     for deployment in ["uav-sim", "view-mcp", "stream-mcp", "reason-mcp"] {
         run_checked(
             Path::new("kubectl"),
@@ -538,7 +539,7 @@ fn assert_concurrent_gpu_workloads(context: &str) -> Result<()> {
                 "--context".into(),
                 context.into(),
                 "-n".into(),
-                NAMESPACE.into(),
+                namespace.into(),
                 "rollout".into(),
                 "status".into(),
                 format!("deployment/{deployment}").into(),

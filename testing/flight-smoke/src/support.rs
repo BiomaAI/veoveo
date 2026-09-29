@@ -7,15 +7,19 @@ use std::{
     process::{Child, Command, Output, Stdio},
 };
 
+#[allow(dead_code)]
 #[path = "../../smoke/src/bin/smoke/support/gateway_auth/context.rs"]
 mod auth;
 #[path = "../../smoke/src/bin/smoke/support/gpu.rs"]
 mod gpu;
 #[allow(dead_code)]
+#[path = "../../smoke/src/bin/smoke/support/installation.rs"]
+mod installation;
+#[allow(dead_code)]
 #[path = "../../smoke/src/bin/smoke/support/process.rs"]
 mod process;
-pub(crate) use auth::gateway_token_for_context;
 pub(crate) use gpu::{NvidiaGpuUuid, parse_single_nvidia_smi_gpu};
+pub(crate) use installation::InstalledTarget;
 pub(crate) use process::{assert_executable, run_checked};
 
 pub(crate) fn contains(haystack: &str, needle: &str) -> Result<()> {

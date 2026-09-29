@@ -115,7 +115,7 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-<!-- TODO(foundations): Publish the remaining certification corrections, then finish
+<!-- TODO(foundations): Install the published certification corrections, then finish
 live certification and workload acceptance. Fresh GitOps convergence and
 installation-verify passed; 14 of 17 hosted servers passed live certification. -->
 
@@ -727,18 +727,20 @@ checks, and no object-storage address in metadata or response headers.
 
 Then run the full GPU delivery proof:
 
+Flight verification also requires the administrator client's private key through
+`VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through
+`VEOVEO_ADMIN_SERVICE_CLIENT_KEY_ID`. The target file selects `admin-service` and its
+admitted scopes separately from the operator.
+
 ~~~bash
 VEOVEO_CUOPT_EXECUTOR_IMAGE=veoveo/cuopt-executor:0.1.0 \
   cargo xtask smoke agent-pilot
 cargo xtask smoke uav-showcase-up \
-  --context k3d-veoveo-bioma \
-  --public-base-url https://veoveo.bioma.ai
+  --installation examples/bioma/installation-target.json
 cargo xtask smoke uav-domain-verify \
-  --context k3d-veoveo-bioma \
-  --public-base-url https://veoveo.bioma.ai
+  --installation examples/bioma/installation-target.json
 cargo xtask smoke uav-showcase-verify \
-  --context k3d-veoveo-bioma \
-  --public-base-url https://veoveo.bioma.ai \
+  --installation examples/bioma/installation-target.json \
   --chrome-cdp-url http://127.0.0.1:9222
 ~~~
 

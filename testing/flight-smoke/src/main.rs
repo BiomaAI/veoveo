@@ -11,6 +11,7 @@ mod domain;
 mod support;
 use cli::{Args, SmokeCommand};
 use domain::{uav_showcase_up, uav_showcase_verify, uav_sim_verify};
+use support::InstalledTarget;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -19,40 +20,38 @@ async fn main() -> Result<()> {
         SmokeCommand::UavDomainVerify {
             conformance_bin,
             scenario,
-            context,
-            public_base_url,
-        } => uav_sim_verify(&conformance_bin, &scenario, &context, &public_base_url).await,
+            installation,
+        } => {
+            uav_sim_verify(
+                &conformance_bin,
+                &scenario,
+                &InstalledTarget::load(&installation)?,
+            )
+            .await
+        }
         SmokeCommand::UavShowcaseUp {
             conformance_bin,
             scenario,
-            context,
-            namespace,
-            public_base_url,
+            installation,
         } => {
             uav_showcase_up(
                 &conformance_bin,
                 &scenario,
-                &context,
-                &namespace,
-                &public_base_url,
+                &InstalledTarget::load(&installation)?,
             )
             .await
         }
         SmokeCommand::UavShowcaseVerify {
             conformance_bin,
             scenario,
-            context,
-            namespace,
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
         } => {
             uav_showcase_verify(
                 &conformance_bin,
                 &scenario,
-                &context,
-                &namespace,
-                &public_base_url,
+                &InstalledTarget::load(&installation)?,
                 &chrome_cdp_url,
                 &evidence_root,
             )

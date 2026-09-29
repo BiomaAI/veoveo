@@ -92,10 +92,6 @@ pub(crate) fn gateway_token_for_profile(
     run_checked(conformance, all_args, [])
 }
 
-#[path = "gateway_auth/context.rs"]
-mod context;
-pub(crate) use context::gateway_token_for_context;
-
 pub(crate) fn run_gateway_json(
     gateway: &Path,
     command: &str,

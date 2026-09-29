@@ -46,6 +46,7 @@ fn focused_clients_exclude_service_implementations() {
                         name,
                         "veoveo-flight-smoke"
                             | "veoveo-browser-smoke"
+                            | "veoveo-deploy-contract"
                             | "veoveo-mcp-contract"
                             | "veoveo-mcp-conformance"
                             | "veoveo-mcp-apps-extension"

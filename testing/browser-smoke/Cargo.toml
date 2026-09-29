@@ -8,6 +8,7 @@ name = "browser-smoke"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-deploy-contract.workspace = true
 veoveo-recording-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }
@@ -27,3 +28,4 @@ tokio = { workspace = true, features = ["full"] }
 tokio-tungstenite.workspace = true
 url.workspace = true
 uuid.workspace = true
+veoveo-mcp-contract.workspace = true

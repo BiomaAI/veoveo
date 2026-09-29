@@ -15,7 +15,7 @@
 | `veoveo.ai/atomic-deployment-unit/v3` | repository-owned SHA-256 identity over typed source, installation snapshot, target, input closure, and sorted rendered object digests |
 | `veoveo.ai/atomic-deployment-content/v3` | repository-owned SHA-256 identity of the same deployable contents with source and installation revisions excluded; used only after exact lock validation |
 | `veoveo.ai/source-chart-content/v1` | SHA-256 over sorted chart-relative file paths, Git executable modes, and exact file bytes in a verified source checkout; commit metadata and archive export attributes do not enter this identity |
-| `veoveo.ai/installation-target/v1` | installation-owned input for installed smoke scenarios: cluster context, namespace, local and public origins, expected deployments, GPU minimum, operator profile and scopes, and the control-plane document path |
+| `veoveo.ai/installation-target/v1` | installation-owned input for installed smoke scenarios: cluster context, namespace, local and public origins, expected deployments, GPU minimum, operator and optional administrator identities and scopes, and the control-plane document path |
 | Docker Buildx Bake | one exact multi-target platform build plus source-owned workload groups |
 | Kubernetes/K3s v1.36.2 and Helm v4.3.0 | qualified DRA destination and ordered release inputs; process execution remains outside this crate |
 | Kubernetes core `v1`, apps `v1`, and batch `v1` | Secret references in Pods and pod templates, including environment variables, image pulls, and volume projections |
@@ -430,11 +430,13 @@ defaults, so every installed scenario requires `--installation <file>`. The refe
 | `operator.profile`, `operator.scopes` | Gateway resource profile and complete requested scopes; the harness adds no scopes |
 | `operator.workContext` | Work Context in the service client's configured tenant |
 | `operator.comparisonContext` | Optional distinct Work Context in that tenant; required for artifact isolation acceptance |
+| `administrator` | Optional machine client selection with the same fields as `operator`; required by scenarios that administer control grants or inspect ownership |
 | `recordingCatalog` | Optional native SDK endpoint and explicit container hostname overrides; required for `recording-catalog-sdk` |
 | `artifactConsumer` | Optional internal signing Secret name, installed Python deployment, and Artifact service origin; required for `artifact-upload-consumers` |
 
-Scenarios read the access-token key ID, the identity provider's authorization
-endpoint, and the tenant from the control-plane document. The target does not repeat
+Scenarios resolve typed client and profile IDs, access-token key IDs, token endpoints,
+service principals, invocation modes, tenants, Work Contexts and output policies from
+the control-plane document. The identity provider supplies its authorization endpoint. The target does not repeat
 them. Decoding rejects unknown fields and any other `schema` value. The loader checks
 that the profile's protected resource matches the public origin, the client admits its
 resource and requested scopes, and both selected Work Contexts belong to its tenant.
@@ -453,6 +455,12 @@ local ingress while the machine OAuth and grant requests use the public HTTPS or
 fixture. The harness sends short-lived signed read identities to Python over stdin and
 redacts them from failure output. Public upload acceptance obtains its identity through
 the registered OAuth client.
+
+Operator token requests use `VEOVEO_SERVICE_CLIENT_PRIVATE_KEY_FILE` and
+`VEOVEO_SERVICE_CLIENT_KEY_ID`. Administrator requests require the separate
+`VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and `VEOVEO_ADMIN_SERVICE_CLIENT_KEY_ID`.
+The shared exchange helper selects credentials in the child process environment;
+it never changes process-global credentials or substitutes the operator key.
 
 The contract crate owns decoding and schema generation. The smoke harness owns loading
 the referenced control plane and executing HTTP, Kubernetes, and SDK checks. Installed

@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) struct OperatorClient<'a> {
     pub(super) conformance: &'a Path,
-    pub(super) base: &'a str,
+    pub(super) installation: &'a InstalledTarget,
 }
 
 impl OperatorClient<'_> {
@@ -11,11 +11,10 @@ impl OperatorClient<'_> {
         operation: &[&str],
         timeout: Duration,
     ) -> Result<String> {
-        let token = gateway_token(self.conformance, self.base).await?;
+        let token = self.installation.token(self.conformance).await?;
         gateway_conformance(
             self.conformance,
-            self.base,
-            "operator",
+            &self.installation.operator.resource,
             &token,
             operation,
             timeout,
@@ -82,30 +81,16 @@ impl OperatorClient<'_> {
             .with_context(|| format!("resource {uri} returned invalid JSON"))
     }
 }
-pub(super) async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
-    gateway_token_for_context(
-        conformance,
-        base,
-        "operator-service",
-        "operator",
-        &operator_profile_scopes(),
-        "operations",
-    )
-    .await
-}
-
 pub(super) async fn gateway_conformance(
     conformance: &Path,
-    base: &str,
-    profile: &str,
+    resource: &veoveo_mcp_contract::ProtectedResourceId,
     token: &str,
     operation: &[&str],
     timeout: Duration,
 ) -> Result<String> {
-    let url = format!("{base}/mcp/{profile}");
     let mut command = tokio::process::Command::new(conformance);
     command
-        .args(["--url", &url, "--scheme", "uav-sim"])
+        .args(["--url", resource.as_str(), "--scheme", "uav-sim"])
         .args(operation)
         .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
         .env("MCP_BEARER_TOKEN", token)

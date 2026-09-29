@@ -368,8 +368,8 @@ mod tests {
     fn smoke_arguments_remain_lossless_os_strings() {
         let arguments = [
             OsString::from("uav-showcase-verify"),
-            OsString::from("--public-base-url"),
-            OsString::from("https://installation.example"),
+            OsString::from("--installation"),
+            OsString::from("installation/target.json"),
         ];
         let forwarded = arguments
             .iter()
@@ -379,8 +379,8 @@ mod tests {
             forwarded,
             vec![
                 OsStr::new("uav-showcase-verify"),
-                OsStr::new("--public-base-url"),
-                OsStr::new("https://installation.example")
+                OsStr::new("--installation"),
+                OsStr::new("installation/target.json")
             ]
         );
     }

@@ -48,7 +48,7 @@ pub(crate) async fn installation_verify(
     wait_for_health(&client, public_base_url, None, 150).await?;
     verify_public_console(
         public_base_url,
-        &installation.identity_authorization_endpoint,
+        &installation.operator.identity_authorization_endpoint,
     )
     .await?;
 
@@ -69,7 +69,7 @@ pub(crate) async fn installation_verify(
             .is_some_and(|keys| {
                 keys.iter().any(|key| {
                     key.get("kid").and_then(Value::as_str)
-                        == Some(installation.access_token_key_id.as_str())
+                        == Some(installation.operator.access_token_key_id.as_str())
                 })
             }),
         "public endpoint did not expose the installation authorization-server key"

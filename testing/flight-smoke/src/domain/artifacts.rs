@@ -4,23 +4,21 @@ use super::*;
 // Recording implementation here would defeat the external-client build boundary.
 pub(super) async fn assert_governed_artifact_access(
     conformance: &Path,
-    base: &str,
+    installation: &InstalledTarget,
     artifact_id: &str,
 ) -> Result<()> {
-    let admin_token = gateway_token_for_context(
-        conformance,
-        base,
-        "admin-service",
-        "admin",
-        &["operator:use", "admin:manage"],
-        "operations",
-    )
-    .await?;
+    let administrator = installation.administrator()?;
+    let admin_token = administrator.token(conformance).await?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .build()?;
     let snapshot: Value = client
-        .get(format!("{base}/admin/admin/console/snapshot"))
+        .get(installation.public_url(&[
+            "admin",
+            administrator.profile.as_str(),
+            "console",
+            "snapshot",
+        ])?)
         .bearer_auth(&admin_token)
         .send()
         .await
@@ -43,24 +41,23 @@ pub(super) async fn assert_governed_artifact_access(
         artifact
             .pointer("/provenance/workContext")
             .and_then(Value::as_str)
-            == Some("operations")
+            == Some(installation.operator.work_context.id.as_str())
             && artifact
                 .pointer("/provenance/producer")
                 .and_then(Value::as_str)
-                .is_some_and(|producer| producer.ends_with("#operator-service"))
-            && artifact
-                .pointer("/provenance/invocationMode")
-                .and_then(Value::as_str)
-                == Some("automated")
+                == Some(installation.operator.principal.as_str())
+            && artifact.pointer("/provenance/invocationMode")
+                == Some(&serde_json::to_value(
+                    installation.operator.invocation_mode
+                )?)
             && artifact
                 .pointer("/provenance/policyRevision")
                 .and_then(Value::as_str)
                 .is_some_and(|revision| !revision.is_empty())
-            && artifact
-                .pointer("/outputOwner/kind")
-                .and_then(Value::as_str)
-                == Some("group")
-            && artifact.pointer("/outputOwner/id").and_then(Value::as_str) == Some("operations")
+            && artifact.get("outputOwner")
+                == Some(&serde_json::to_value(
+                    &installation.operator.work_context.output_policy.owner
+                )?)
             && artifact
                 .pointer("/effectiveAccess/read")
                 .and_then(Value::as_bool)
@@ -68,22 +65,24 @@ pub(super) async fn assert_governed_artifact_access(
         "governed artifact provenance or effective access is incomplete: {artifact}"
     );
 
-    let download_url = format!("{base}/artifacts/operator/{artifact_id}/download");
-    let preview_json = download_governed_json_artifact(conformance, base, artifact_id).await?;
+    let download_url =
+        installation.public_url(&["artifacts", installation.profile(), artifact_id, "download"])?;
+    let preview_json =
+        download_governed_json_artifact(conformance, installation, artifact_id).await?;
     ensure!(
         preview_json.is_object(),
         "authorized governed artifact preview did not contain a JSON object"
     );
 
-    let independent_token = gateway_token_for_context(
-        conformance,
-        base,
-        "operator-service",
-        "operator",
-        &operator_profile_scopes(),
-        "independent-review",
-    )
-    .await?;
+    let comparison = installation
+        .operator
+        .comparison_context
+        .as_ref()
+        .context("artifact isolation requires operator.comparisonContext")?;
+    let independent_token = installation
+        .operator
+        .token_for_context(conformance, comparison)
+        .await?;
     let no_redirect = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .redirect(reqwest::redirect::Policy::none())
@@ -104,14 +103,19 @@ pub(super) async fn assert_governed_artifact_access(
 
 pub(super) async fn download_governed_json_artifact(
     conformance: &Path,
-    base: &str,
+    installation: &InstalledTarget,
     artifact_id: &str,
 ) -> Result<Value> {
-    let token = gateway_token(conformance, base).await?;
+    let token = installation.token(conformance).await?;
     let response = reqwest::Client::builder()
         .timeout(Duration::from_secs(60))
         .build()?
-        .get(format!("{base}/artifacts/operator/{artifact_id}/download"))
+        .get(installation.public_url(&[
+            "artifacts",
+            installation.profile(),
+            artifact_id,
+            "download",
+        ])?)
         .bearer_auth(token)
         .send()
         .await

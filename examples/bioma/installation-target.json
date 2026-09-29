@@ -41,6 +41,7 @@
     "comparisonContext": "independent-review",
     "scopes": [
       "operator:use",
+      "uav-sim:read",
       "uav-sim:control",
       "uav-sim:stream",
       "view:read",
@@ -65,5 +66,15 @@
     "internalSigningSecret": "veoveo-installation-secrets",
     "pythonDeployment": "datasheet-mcp",
     "artifactServiceUrl": "http://artifact-service:8790"
+  },
+  "administrator": {
+    "clientId": "admin-service",
+    "profile": "admin",
+    "workContext": "operations",
+    "scopes": [
+      "operator:use",
+      "admin:manage",
+      "uav-sim:admin"
+    ]
   }
 }

@@ -374,7 +374,7 @@ pub(crate) async fn wait_for_recording_source(
     queue_dir: &Path,
 ) -> Result<RecordingId> {
     let store = recording_store(environment).await?;
-    let tenant_id = deterministic_tenant_id(installation.tenant.as_str())?;
+    let tenant_id = deterministic_tenant_id(installation.operator.tenant.as_str())?;
     for _ in 0..80 {
         if let Some(recording) = store
             .recording_by_key(tenant_id, "veoveo-video-test", recording_key)
@@ -597,8 +597,8 @@ pub(crate) async fn issue_internal_token(
     environment: &BTreeMap<String, String>,
     installation: &InstalledTarget,
 ) -> Result<String> {
-    let tenant = installation.tenant.as_str();
-    let work_context = installation.work_context.id.as_str();
+    let tenant = installation.operator.tenant.as_str();
+    let work_context = installation.operator.work_context.id.as_str();
     let context = recording_store(environment)
         .await?
         .artifact_read_context_version(tenant, work_context)

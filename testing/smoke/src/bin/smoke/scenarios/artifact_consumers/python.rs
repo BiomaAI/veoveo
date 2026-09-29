@@ -94,12 +94,12 @@ pub(super) async fn consume(
     );
     let foreign_tenant = TenantId::new(format!("artifact-consumer-{}", uuid::Uuid::new_v4()))?;
     ensure!(
-        foreign_tenant != installation.tenant,
+        foreign_tenant != installation.operator.tenant,
         "foreign fixture tenant collided"
     );
     let input = Input {
         artifact_service_url: consumer.artifact_service_url.as_str(),
-        caller: fixture_caller(&issuer, installation, installation.tenant.clone())?,
+        caller: fixture_caller(&issuer, installation, installation.operator.tenant.clone())?,
         foreign: fixture_caller(&issuer, installation, foreign_tenant)?,
         large,
         csv,
@@ -160,11 +160,11 @@ fn fixture_caller(
         authenticated_at: Some(chrono::Utc::now()),
     };
     let authority = InvocationAuthority {
-        work_context: installation.work_context.id.clone(),
+        work_context: installation.operator.work_context.id.clone(),
         tenant,
         membership: WorkContextMembershipLevel::Viewer,
-        policy_revision: installation.work_context.policy_revision.clone(),
-        output_policy: installation.work_context.output_policy.clone(),
+        policy_revision: installation.operator.work_context.policy_revision.clone(),
+        output_policy: installation.operator.work_context.output_policy.clone(),
         provenance: InvocationProvenance::Automated,
     };
     let token = issuer.issue(

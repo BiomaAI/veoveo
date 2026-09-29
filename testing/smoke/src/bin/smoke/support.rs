@@ -1,3 +1,5 @@
+#[path = "support/gateway_auth/context.rs"]
+mod auth;
 use super::*;
 
 #[path = "support/assertions.rs"]
@@ -15,6 +17,10 @@ mod gpu;
 #[path = "support/http.rs"]
 mod http;
 #[path = "support/installation.rs"]
+#[allow(
+    dead_code,
+    reason = "This module is also compiled by the focused flight and browser clients"
+)]
 mod installation;
 #[path = "support/mcp.rs"]
 mod mcp;

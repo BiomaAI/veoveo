@@ -42,7 +42,10 @@ pub struct InstallationTarget {
     /// Required allocatable NVIDIA GPU resources across the cluster.
     pub minimum_gpu_shares: u32,
     /// Installation-selected OAuth client, resource profile and scopes.
-    pub operator: InstallationOperator,
+    pub operator: InstallationClient,
+    /// Optional administrator for scenarios that create grants or inspect ownership.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub administrator: Option<InstallationClient>,
     /// Native Catalog SDK routing, required only by its installed scenario.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recording_catalog: Option<InstallationRecordingCatalog>,
@@ -78,7 +81,7 @@ pub struct InstallationKubernetesTarget {
 /// Machine identity and contexts admitted by the installation's control plane.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct InstallationOperator {
+pub struct InstallationClient {
     /// OAuth client registration; its private key stays in the caller's environment.
     pub client_id: String,
     /// Gateway profile to exercise.
@@ -170,29 +173,9 @@ impl InstallationTarget {
                 "expectedDeployments contains an invalid or repeated name"
             );
         }
-        for (field, value) in [
-            ("operator.clientId", &self.operator.client_id),
-            ("operator.profile", &self.operator.profile),
-            ("operator.workContext", &self.operator.work_context),
-        ] {
-            ensure!(identifier(value), "{field} must be a nonempty identifier");
-        }
-        ensure!(
-            !self.operator.scopes.is_empty(),
-            "operator.scopes must not be empty"
-        );
-        let mut scopes = BTreeSet::new();
-        for scope in &self.operator.scopes {
-            ensure!(
-                oauth_scope(scope) && scopes.insert(scope),
-                "operator.scopes contains an invalid or repeated scope"
-            );
-        }
-        if let Some(context) = &self.operator.comparison_context {
-            ensure!(
-                identifier(context) && context != &self.operator.work_context,
-                "operator.comparisonContext must be a distinct nonempty identifier"
-            );
+        self.operator.validate("operator")?;
+        if let Some(administrator) = &self.administrator {
+            administrator.validate("administrator")?;
         }
         if let Some(catalog) = &self.recording_catalog {
             catalog.validate()?;
@@ -212,6 +195,36 @@ impl InstallationTarget {
                 consumer.artifact_service_url.scheme(),
                 "artifactConsumer.artifactServiceUrl",
             )?;
+        }
+        Ok(())
+    }
+}
+
+impl InstallationClient {
+    fn validate(&self, role: &str) -> Result<()> {
+        for (field, value) in [
+            ("clientId", &self.client_id),
+            ("profile", &self.profile),
+            ("workContext", &self.work_context),
+        ] {
+            ensure!(
+                identifier(value),
+                "{role}.{field} must be a nonempty identifier"
+            );
+        }
+        ensure!(!self.scopes.is_empty(), "{role}.scopes must not be empty");
+        let mut scopes = BTreeSet::new();
+        for scope in &self.scopes {
+            ensure!(
+                oauth_scope(scope) && scopes.insert(scope),
+                "{role}.scopes contains an invalid or repeated scope"
+            );
+        }
+        if let Some(context) = &self.comparison_context {
+            ensure!(
+                identifier(context) && context != &self.work_context,
+                "{role}.comparisonContext must be a distinct nonempty identifier"
+            );
         }
         Ok(())
     }
@@ -420,5 +433,21 @@ mod tests {
         value["recordingCatalog"]["redapUrl"] = json!("rerun+https://catalog.example.test");
         value["recordingCatalog"]["hostMappings"] = json!([]);
         decode(&value).unwrap();
+    }
+    #[test]
+    fn administrator_obeys_the_same_closed_selection_rules() {
+        let mut value = target();
+        value["administrator"] = value["operator"].clone();
+        decode(&value).unwrap();
+        for (field, invalid) in [
+            ("clientId", json!("")),
+            ("scopes", json!(["a", "a"])),
+            ("comparisonContext", json!("inspection")),
+            ("unknown", json!(true)),
+        ] {
+            let mut invalid_target = value.clone();
+            invalid_target["administrator"][field] = invalid;
+            assert!(decode(&invalid_target).is_err(), "{field}");
+        }
     }
 }

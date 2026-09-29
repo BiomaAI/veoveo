@@ -482,20 +482,9 @@ pub(super) async fn ensure_operator_control_grant(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
 ) -> Result<veoveo_uav_sim_mcp::contract::VehicleControlGrant> {
-    let principal_key = format!("{}/oauth#operator-service", operator.base);
-    let admin_token = gateway_token_for_context(
-        operator.conformance,
-        operator.base,
-        "admin-service",
-        "admin",
-        &[
-            "operator:use",
-            "admin:manage",
-            UavScope::Admin.name().as_str(),
-        ],
-        "operations",
-    )
-    .await?;
+    let principal_key = operator.installation.operator.principal.to_string();
+    let administrator = operator.installation.administrator()?;
+    let admin_token = administrator.token(operator.conformance).await?;
     use veoveo_uav_sim_mcp::contract::{
         ControlGrantId, GrantVehicleControlRequest, VehicleControlGrant, VehicleControlPermission,
     };
@@ -518,8 +507,7 @@ pub(super) async fn ensure_operator_control_grant(
     let arguments = serde_json::to_string(&request)?;
     let granted = gateway_conformance(
         operator.conformance,
-        operator.base,
-        "admin",
+        &administrator.resource,
         &admin_token,
         &[
             "call",

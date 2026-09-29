@@ -24,12 +24,9 @@ pub(crate) enum SmokeCommand {
             default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
         )]
         scenario: PathBuf,
-        /// Kubernetes context containing the UAV showcase.
+        /// Installation-owned cluster, OAuth identity, scopes, and public origin.
         #[arg(long)]
-        context: String,
-        /// Public installation base URL used for OAuth and MCP.
-        #[arg(long)]
-        public_base_url: String,
+        installation: PathBuf,
     },
     /// Converge the always-on UAV loop and its simulator-hosted operator cameras.
     UavShowcaseUp {
@@ -40,15 +37,9 @@ pub(crate) enum SmokeCommand {
             default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
         )]
         scenario: PathBuf,
-        /// Kubernetes context containing the composed showcase.
+        /// Installation-owned cluster, OAuth identity, scopes, and public origin.
         #[arg(long)]
-        context: String,
-        /// Namespace containing the platform and showcase releases.
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        /// Public installation base URL used by MCP.
-        #[arg(long)]
-        public_base_url: String,
+        installation: PathBuf,
     },
     /// Run UAV flight and prove its authoritative live camera in the real Console.
     UavShowcaseVerify {
@@ -59,15 +50,9 @@ pub(crate) enum SmokeCommand {
             default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
         )]
         scenario: PathBuf,
-        /// Kubernetes context containing the composed showcase.
+        /// Installation-owned cluster, OAuth identity, scopes, and public origin.
         #[arg(long)]
-        context: String,
-        /// Namespace containing the platform and showcase releases.
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        /// Public installation base URL used by MCP and the authenticated Console.
-        #[arg(long)]
-        public_base_url: String,
+        installation: PathBuf,
         /// HTTP discovery or direct ws:// browser endpoint for headed hardware-backed Chrome.
         #[arg(long, default_value = "http://127.0.0.1:9222")]
         chrome_cdp_url: String,
@@ -75,4 +60,37 @@ pub(crate) enum SmokeCommand {
         #[arg(long, default_value = "output/acceptance/uav")]
         evidence_root: PathBuf,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installed_flight_commands_require_one_target_and_reject_coordinate_overrides() {
+        for command in [
+            "uav-domain-verify",
+            "uav-showcase-up",
+            "uav-showcase-verify",
+        ] {
+            assert!(Args::try_parse_from(["flight-smoke", command]).is_err());
+            assert!(
+                Args::try_parse_from(["flight-smoke", command, "--installation", "fork.json"])
+                    .is_ok()
+            );
+            for flag in ["--context", "--namespace", "--public-base-url"] {
+                assert!(
+                    Args::try_parse_from([
+                        "flight-smoke",
+                        command,
+                        "--installation",
+                        "fork.json",
+                        flag,
+                        "override"
+                    ])
+                    .is_err()
+                );
+            }
+        }
+    }
 }

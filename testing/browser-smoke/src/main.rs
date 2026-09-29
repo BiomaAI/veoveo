@@ -1,20 +1,25 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::Path,
     process::{Command, Stdio},
     time::Duration,
 };
 
 use anyhow::{Context, Result, bail, ensure};
 use chrono::Utc;
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use veoveo_recording_contract::RecordingId;
 
 #[allow(dead_code)]
 mod browser;
+mod cli;
+mod support;
+use support::InstalledTarget;
 mod restart;
+
+use cli::{Args, SmokeCommand};
 
 use browser::{
     ConsoleAgentInstructionEvidence, ConsoleAppExpectation, ConsoleAppSettledState,
@@ -158,22 +163,6 @@ const FIRST_PARTY_CONSOLE_APPS: [ConsoleAppExpectation; 16] = [
         required_selector: Some("#gl"),
     },
 ];
-fn operator_profile_scopes() -> [&'static str; 10] {
-    use veoveo_types::ScopeDefinition;
-    use veoveo_uav_sim_mcp::contract::UavScope;
-    [
-        "operator:use",
-        UavScope::Read.name().as_str(),
-        UavScope::Control.name().as_str(),
-        UavScope::Stream.name().as_str(),
-        "view:read",
-        "view:write",
-        "view:capture",
-        "map:dataset:read",
-        "map:route",
-        "time:read",
-    ]
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum FocusedUavAppHostPreflight {
@@ -193,212 +182,6 @@ impl FocusedUavAppHostPreflight {
 #[cfg(test)]
 fn focused_uav_app_host_preflights() -> [&'static str; 2] {
     FOCUSED_UAV_APP_HOST_PREFLIGHTS.map(FocusedUavAppHostPreflight::label)
-}
-
-#[derive(Debug, Parser)]
-#[command(
-    name = "browser-smoke",
-    about = "Focused headed-browser acceptance against a running VeoVeo installation"
-)]
-struct Args {
-    #[command(subcommand)]
-    command: SmokeCommand,
-}
-
-#[derive(Debug, Subcommand)]
-// These are deliberately full, stable xtask dispatch names in a focused UAV
-// browser binary; the shared prefix is part of the CLI rather than Rust type noise.
-#[allow(clippy::enum_variant_names)]
-enum SmokeCommand {
-    /// Upload Markdown in Workspace and verify its governed download and restored receipt.
-    WorkspaceMarkdownVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/workspace-markdown")]
-        evidence_root: PathBuf,
-    },
-    /// Exercise deployed private dictation and recording Tasks with actual CUDA inference.
-    SpeechWorkspaceVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/speech")]
-        evidence_root: PathBuf,
-        #[arg(long, default_value = "servers/speech-mcp/testdata/english.wav")]
-        audio_fixture: PathBuf,
-    },
-    /// Render the generated Map workspace App with a hardware GPU and bounded fixture bridge.
-    MapWorkspaceBrowserVerify {
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "servers/map-mcp/assets/workspace-app.html")]
-        app_html: PathBuf,
-        #[arg(long, default_value = "output/acceptance/map-workspace")]
-        evidence_root: PathBuf,
-        #[arg(long, default_value_t = 60)]
-        timeout_seconds: u64,
-    },
-    /// Interact with the deployed Map workspace through the authenticated public Console.
-    MapWorkspaceLiveBrowserVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "VeoVeo Map live acceptance")]
-        composition_title: String,
-        #[arg(long, default_value = "VeoVeo GeoPackage live acceptance")]
-        layer_title: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/map-workspace-live")]
-        evidence_root: PathBuf,
-        #[arg(long, default_value_t = 120)]
-        timeout_seconds: u64,
-    },
-    /// Verify the Console and standalone UAV App hosts without opening live products.
-    UavAppHostsBrowserVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value_t = 180)]
-        timeout_seconds: u64,
-    },
-    /// Verify the complete grouped first-party App catalog and render every expected App.
-    ConsoleAppsBrowserVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/console-apps")]
-        evidence_root: PathBuf,
-        #[arg(long, default_value_t = 300)]
-        timeout_seconds: u64,
-    },
-    /// Verify public Console upload selection, durable resume, and a real large transfer.
-    ConsoleArtifactUploadVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/artifact-upload")]
-        evidence_root: PathBuf,
-        #[arg(long, default_value_t = 10 * 1024 * 1024 * 1024)]
-        bytes: u64,
-        #[arg(long, default_value_t = 5400)]
-        timeout_seconds: u64,
-        #[arg(long)]
-        preflight_only: bool,
-    },
-    /// Resume an existing public upload acceptance fixture without retransmitting saved parts.
-    ConsoleArtifactUploadResume {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long)]
-        evidence_directory: PathBuf,
-        #[arg(long, default_value_t = 5400)]
-        timeout_seconds: u64,
-    },
-    /// Verify upload keyboard, clipboard, filtering, narrow recovery, and cancellation.
-    ConsoleArtifactUploadUxVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long)]
-        completed_evidence: PathBuf,
-        #[arg(long, default_value = "output/acceptance/artifact-upload")]
-        evidence_root: PathBuf,
-    },
-    /// Repeat headed Console acceptance without restarting or commanding the simulation.
-    UavShowcaseBrowserVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/uav-browser")]
-        evidence_root: PathBuf,
-    },
-    /// Send one UAV App instruction and prove its durable pilot reply through Console.
-    UavAgentInstructionBrowserVerify {
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long)]
-        agent_id: String,
-        #[arg(long)]
-        message: String,
-        #[arg(long, default_value_t = 300)]
-        timeout_seconds: u64,
-        #[arg(
-            long,
-            default_value = "output/acceptance/uav-agent-instruction-browser"
-        )]
-        evidence_root: PathBuf,
-    },
-    /// Keep a headed live view mounted while restarting the MCP and simulator containers.
-    UavShowcaseLiveRestartVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        #[arg(long)]
-        context: String,
-        #[arg(long, default_value = "veoveo")]
-        namespace: String,
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value_t = 1_800)]
-        restart_timeout_seconds: u64,
-        #[arg(long, default_value = "output/acceptance/uav-live-restart")]
-        evidence_root: PathBuf,
-    },
-    /// Verify only governed live Recording playback against the running source.
-    UavRecordingBrowserVerify {
-        #[arg(long, default_value = "target/debug/conformance")]
-        conformance_bin: PathBuf,
-        #[arg(
-            long,
-            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
-        )]
-        scenario: PathBuf,
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(long, default_value = "output/acceptance/uav-recording-browser")]
-        evidence_root: PathBuf,
-    },
-    /// Verify one governed sealed Recording through the lazy Redap archive path.
-    UavRecordingArchiveBrowserVerify {
-        #[arg(long)]
-        recording_id: RecordingId,
-        #[arg(long)]
-        public_base_url: String,
-        #[arg(long, default_value = "http://127.0.0.1:9222")]
-        chrome_cdp_url: String,
-        #[arg(
-            long,
-            default_value = "output/acceptance/uav-recording-archive-browser"
-        )]
-        evidence_root: PathBuf,
-    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -551,13 +334,20 @@ struct LiveViewPerformanceEvidence {
 
 struct OperatorClient<'a> {
     conformance: &'a Path,
-    base: &'a str,
+    installation: &'a InstalledTarget,
     token: &'a str,
 }
 
 impl OperatorClient<'_> {
     async fn conformance(&self, operation: &[&str], timeout: Duration) -> Result<String> {
-        gateway_conformance(self.conformance, self.base, self.token, operation, timeout).await
+        gateway_conformance(
+            self.conformance,
+            self.installation,
+            self.token,
+            operation,
+            timeout,
+        )
+        .await
     }
 
     async fn call_tool(&self, tool: &str, arguments: Value) -> Result<Value> {
@@ -577,25 +367,27 @@ async fn main() -> Result<()> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     match Args::parse().command {
         SmokeCommand::WorkspaceMarkdownVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             browser::artifact_upload::workspace::verify(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_root,
             )
             .await
         }
         SmokeCommand::SpeechWorkspaceVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
             audio_fixture,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             browser::speech::verify(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_root,
                 &audio_fixture,
@@ -617,15 +409,16 @@ async fn main() -> Result<()> {
             .await
         }
         SmokeCommand::MapWorkspaceLiveBrowserVerify {
-            public_base_url,
+            installation,
             composition_title,
             layer_title,
             chrome_cdp_url,
             evidence_root,
             timeout_seconds,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_live_map_workspace(
-                &public_base_url,
+                installation.public_base(),
                 &composition_title,
                 &layer_title,
                 &chrome_cdp_url,
@@ -635,25 +428,27 @@ async fn main() -> Result<()> {
             .await
         }
         SmokeCommand::UavAppHostsBrowserVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             timeout_seconds,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_uav_app_hosts(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 Duration::from_secs(timeout_seconds),
             )
             .await
         }
         SmokeCommand::ConsoleAppsBrowserVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
             timeout_seconds,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_console_apps(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_root,
                 Duration::from_secs(timeout_seconds),
@@ -661,15 +456,16 @@ async fn main() -> Result<()> {
             .await
         }
         SmokeCommand::ConsoleArtifactUploadVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
             bytes,
             timeout_seconds,
             preflight_only,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             browser::artifact_upload::verify(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_root,
                 bytes,
@@ -679,13 +475,14 @@ async fn main() -> Result<()> {
             .await
         }
         SmokeCommand::ConsoleArtifactUploadUxVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             completed_evidence,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             browser::artifact_upload::ux::verify(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &completed_evidence,
                 &evidence_root,
@@ -693,13 +490,14 @@ async fn main() -> Result<()> {
             .await
         }
         SmokeCommand::ConsoleArtifactUploadResume {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_directory,
             timeout_seconds,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             browser::artifact_upload::resume::verify_resume(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_directory,
                 Duration::from_secs(timeout_seconds),
@@ -709,29 +507,31 @@ async fn main() -> Result<()> {
         SmokeCommand::UavShowcaseBrowserVerify {
             conformance_bin,
             scenario,
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_running_showcase(
                 &conformance_bin,
                 &scenario,
-                &public_base_url,
+                &installation,
                 &chrome_cdp_url,
                 &evidence_root,
             )
             .await
         }
         SmokeCommand::UavAgentInstructionBrowserVerify {
-            public_base_url,
+            installation,
             chrome_cdp_url,
             agent_id,
             message,
             timeout_seconds,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_uav_agent_instruction(
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &agent_id,
                 &message,
@@ -743,19 +543,16 @@ async fn main() -> Result<()> {
         SmokeCommand::UavShowcaseLiveRestartVerify {
             conformance_bin,
             scenario,
-            context,
-            namespace,
-            public_base_url,
+            installation,
             chrome_cdp_url,
             restart_timeout_seconds,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_live_view_restarts(RestartVerification {
                 conformance: &conformance_bin,
                 scenario_path: &scenario,
-                context: &context,
-                namespace: &namespace,
-                public_base_url: &public_base_url,
+                installation: &installation,
                 chrome_cdp_url: &chrome_cdp_url,
                 restart_timeout: Duration::from_secs(restart_timeout_seconds),
                 evidence_root: &evidence_root,
@@ -765,14 +562,15 @@ async fn main() -> Result<()> {
         SmokeCommand::UavRecordingBrowserVerify {
             conformance_bin,
             scenario,
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_running_recording(
                 &conformance_bin,
                 &scenario,
-                &public_base_url,
+                &installation,
                 &chrome_cdp_url,
                 &evidence_root,
             )
@@ -780,13 +578,14 @@ async fn main() -> Result<()> {
         }
         SmokeCommand::UavRecordingArchiveBrowserVerify {
             recording_id,
-            public_base_url,
+            installation,
             chrome_cdp_url,
             evidence_root,
         } => {
+            let installation = InstalledTarget::load(&installation)?;
             verify_recording_archive(
                 recording_id,
-                &public_base_url,
+                installation.public_base(),
                 &chrome_cdp_url,
                 &evidence_root,
             )
@@ -1054,7 +853,7 @@ async fn verify_recording_archive(
 async fn verify_running_recording(
     conformance: &Path,
     scenario_path: &Path,
-    public_base_url: &str,
+    installation: &InstalledTarget,
     chrome_cdp_url: &str,
     evidence_root: &Path,
 ) -> Result<()> {
@@ -1068,15 +867,15 @@ async fn verify_running_recording(
             .with_context(|| format!("reading scenario {}", scenario_path.display()))?,
     )
     .with_context(|| format!("decoding scenario {}", scenario_path.display()))?;
-    let public_base_url = public_base_url.trim_end_matches('/');
+    let public_base_url = installation.public_base();
     ensure!(
         url::Url::parse(public_base_url)?.scheme() == "https",
         "focused browser acceptance requires public HTTPS"
     );
-    let token = gateway_token(conformance, public_base_url).await?;
+    let token = installation.token(conformance).await?;
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
         token: &token,
     };
     let initial_state = simulation_state(&operator, &scenario.session_id).await?;
@@ -1144,7 +943,7 @@ async fn verify_running_recording(
 async fn verify_running_showcase(
     conformance: &Path,
     scenario_path: &Path,
-    public_base_url: &str,
+    installation: &InstalledTarget,
     chrome_cdp_url: &str,
     evidence_root: &Path,
 ) -> Result<()> {
@@ -1158,17 +957,17 @@ async fn verify_running_showcase(
             .with_context(|| format!("reading scenario {}", scenario_path.display()))?,
     )
     .with_context(|| format!("decoding scenario {}", scenario_path.display()))?;
-    let public_base_url = public_base_url.trim_end_matches('/');
+    let public_base_url = installation.public_base();
     ensure!(
         url::Url::parse(public_base_url)?.scheme() == "https",
         "focused browser acceptance requires public HTTPS"
     );
     let timeout = Duration::from_secs(scenario.view.timeout_seconds);
     preflight_focused_uav_app_hosts(chrome_cdp_url, public_base_url, timeout).await?;
-    let token = gateway_token(conformance, public_base_url).await?;
+    let token = installation.token(conformance).await?;
     let operator = OperatorClient {
         conformance,
-        base: public_base_url,
+        installation,
         token: &token,
     };
     let initial_state = simulation_state(&operator, &scenario.session_id).await?;
@@ -1601,56 +1400,21 @@ async fn simulation_state(operator: &OperatorClient<'_>, session_id: &str) -> Re
     Err(last_error.context("UAV state read exhausted its retry budget")?)
 }
 
-async fn gateway_token(conformance: &Path, base: &str) -> Result<String> {
-    let token_url = format!("{base}/oauth/token");
-    let resource = format!("{base}/mcp/operator");
-    let mut command = tokio::process::Command::new(conformance);
-    command
-        .args([
-            "gateway-token-exchange",
-            "--token-url",
-            &token_url,
-            "--client-id",
-            "operator-service",
-            "--audience",
-            &token_url,
-            "--resource",
-            &resource,
-            "--work-context",
-            "operations",
-        ])
-        .args(
-            operator_profile_scopes()
-                .iter()
-                .flat_map(|scope| ["--scope", *scope]),
-        )
-        .kill_on_drop(true)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let output = tokio::time::timeout(Duration::from_secs(60), command.output())
-        .await
-        .context("gateway token exchange timed out")??;
-    ensure!(
-        output.status.success(),
-        "gateway token exchange failed: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let token = String::from_utf8(output.stdout)?.trim().to_owned();
-    ensure!(!token.is_empty(), "gateway returned an empty access token");
-    Ok(token)
-}
-
 async fn gateway_conformance(
     conformance: &Path,
-    base: &str,
+    installation: &InstalledTarget,
     token: &str,
     operation: &[&str],
     timeout: Duration,
 ) -> Result<String> {
-    let url = format!("{base}/mcp/operator");
     let mut command = tokio::process::Command::new(conformance);
     command
-        .args(["--url", &url, "--scheme", "uav-sim"])
+        .args([
+            "--url",
+            installation.operator.resource.as_str(),
+            "--scheme",
+            "uav-sim",
+        ])
         .args(operation)
         .env_remove("VEOVEO_INTERNAL_SIGNING_KEY_DER_B64")
         .env("MCP_BEARER_TOKEN", token)
