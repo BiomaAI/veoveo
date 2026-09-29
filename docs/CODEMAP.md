@@ -563,7 +563,7 @@ observation lease and cancellation epoch in one transaction.
 | `provider_transaction.rs` | fences domain journal writes with the current Task observation lease in one transaction; cancellation prevents new dispatch |
 | `recovery.rs` | restart profiles; uncertain provider outcomes and cancellations stay pending |
 | `mcp.rs` | conversion from stored state into official RMCP Task and DetailedTask types |
-| `service.rs` | protocol-neutral service that RMCP handlers call |
+| `service.rs` | RMCP service helpers, native handle admission, authorized snapshot streams and shared Task projection; domains validate their own payloads before projection |
 | `resource_subscriptions.rs` | one authorized Task watch for typed Task-backed resource invalidations and explicitly requested Task status; domains own address-to-Task relationships |
 | `lib.rs` | focused public API |
 
@@ -806,6 +806,8 @@ publishes the tools and resources. `src/server/tasks.rs` persists recoverable ca
 and selects the caller's Work Context for public Tasks;
 `src/server/tasks/access_tests.rs` qualifies that selection against an isolated Store.
 `src/server/tasks/request.rs` binds saved requests to their snapshot and Task owner.
+`src/server/tasks/results.rs` validates current completions before Task reads and
+subscription projection; `src/server/tasks/test_support.rs` owns their isolated fixtures.
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and

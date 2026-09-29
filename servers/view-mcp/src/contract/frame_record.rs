@@ -3,6 +3,7 @@ use super::*;
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 
 /// Immutable metadata for one admitted view/composition capture.
 ///
@@ -199,6 +200,17 @@ impl FrameCaptureBuilder<'_> {
         if encoding != self.policy.encoding {
             return Err(FrameRecordError::Encoding);
         }
+        let attribution = report
+            .attribution
+            .lines
+            .into_iter()
+            .chain(
+                self.composition
+                    .governed_inputs()
+                    .iter()
+                    .map(|input| input.attribution.clone()),
+            )
+            .collect::<BTreeSet<_>>();
         let record = FrameRecord::try_from(FrameRecordWire {
             frame_uri: FrameUri::new(self.frame_id.clone()),
             frame_id: self.frame_id,
@@ -228,7 +240,9 @@ impl FrameCaptureBuilder<'_> {
             pending_tile_count: report.pending_tile_count,
             rendered_overlay_count: report.rendered_overlay_count,
             overlay_truncated: report.overlay_truncated,
-            attribution: report.attribution,
+            attribution: AttributionSet {
+                lines: attribution.into_iter().collect(),
+            },
             output_digest_sha256: Sha256Digest::from_bytes(&bytes),
         })?;
         Ok(CapturedFrame { record, bytes })
@@ -267,6 +281,21 @@ impl TryFrom<FrameRecordWire> for FrameRecord {
         {
             return Err(FrameRecordError::Detail);
         }
+        if value
+            .attribution
+            .lines
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+            || value.governed_inputs.iter().any(|input| {
+                value
+                    .attribution
+                    .lines
+                    .binary_search(&input.attribution)
+                    .is_err()
+            })
+        {
+            return Err(FrameRecordError::Attribution);
+        }
         Ok(Self(value))
     }
 }
@@ -291,6 +320,8 @@ pub enum FrameRecordError {
     Detail,
     #[error("frame governed inputs must be ordered by identity")]
     InputOrder,
+    #[error("frame attribution must be ordered, unique and include every governed input")]
+    Attribution,
     #[error(transparent)]
     Contract(#[from] ContractError),
     #[error(transparent)]

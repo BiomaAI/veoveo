@@ -223,10 +223,22 @@ query. SQL checks context and tenant agreement before decoding Task rows. Subscr
 updates and reconnect baselines apply the same selection. Native Store cases exercise
 this policy without renderer work; installed qualification is recorded separately.
 
+The query also selects the declared capture operation. `server/tasks/results.rs`
+checks each completed snapshot before public Task projection. It admits the saved
+request and owner, decodes the frame and image payload, and rebuilds the completion
+through the capture constructor and shared result formatter. The stored result must
+equal that reconstruction, including parents, scene time, viewport, byte digest and
+MIME type. Reads and subscription baselines, updates and reconnects use this check.
+Failures report a static validation category without copying retained payloads into
+diagnostics. The check verifies payload identity; it does not decode an image or prove
+GPU execution.
+
 `CapturedFrame::builder` binds an admitted view, composition, capture policy and scene
 time. It checks parent identity and creation order before accepting a render report.
 The finished record derives repeated resource identities, provenance, byte length and
 output digest. Its private fields prevent replacing metadata independently of bytes.
+The builder merges governed-input attribution into the render report and orders the
+unique lines. Decode rejects missing required attribution and inconsistent ordering.
 `CapturedFrame::from_record` verifies externally obtained bytes against length and digest;
 image decoding belongs to the consumer. Frame decoding checks positive revisions and
 viewport dimensions, supported encoding, finite achieved detail and governed input

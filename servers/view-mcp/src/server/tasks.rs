@@ -35,6 +35,7 @@ pub(crate) struct AuthenticatedCaller {
 }
 
 mod request;
+mod results;
 use request::ViewCaptureTaskRequest;
 
 impl ViewTaskExtension {
@@ -115,11 +116,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         caller: &Self::Caller,
         request: rmcp::model::GetTaskParams,
     ) -> Result<rmcp::model::GetTaskResult, rmcp::ErrorData> {
-        veoveo_task_runtime::get_durable_task(
-            &task_query(&self.state.tasks, &caller.identity)?,
-            request,
-        )
-        .await
+        results::get_task(&self.state.tasks, &caller.identity, request).await
     }
 
     async fn update_task(
@@ -151,11 +148,7 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         caller: &Self::Caller,
         task_ids: Vec<String>,
     ) -> Result<veoveo_task_runtime::DurableTaskSubscription, rmcp::ErrorData> {
-        veoveo_task_runtime::subscribe_durable_tasks(
-            &task_query(&self.state.tasks, &caller.identity)?,
-            task_ids,
-        )
-        .await
+        results::subscribe_tasks(&self.state.tasks, &caller.identity, task_ids).await
     }
 }
 
@@ -381,6 +374,7 @@ fn task_query(
 ) -> Result<veoveo_task_runtime::OwnerTaskQuery, rmcp::ErrorData> {
     runtime
         .for_owner(&runtime_owner(identity))
+        .of_type(ViewTaskKind::CaptureFrame.name())
         .in_work_context()
         .map_err(|_| rmcp::ErrorData::invalid_request("invalid View Task authority", None))
 }
@@ -409,3 +403,7 @@ fn runtime_owner(identity: &GatewayInternalIdentity) -> TaskOwner {
 #[cfg(test)]
 #[path = "tasks/access_tests.rs"]
 mod access_tests;
+
+#[cfg(test)]
+#[path = "tasks/test_support.rs"]
+mod test_support;

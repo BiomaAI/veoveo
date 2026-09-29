@@ -205,17 +205,7 @@ pub async fn subscribe_durable_tasks(
     query: &crate::OwnerTaskQuery,
     task_ids: Vec<String>,
 ) -> Result<DurableTaskSubscription, McpError> {
-    if task_ids.len() > 256 {
-        return Err(McpError::invalid_params(
-            "at most 256 Task IDs per subscription",
-            None,
-        ));
-    }
-    let ids = task_ids
-        .iter()
-        .filter_map(|id| crate::types::parse_task_id(id).ok())
-        .collect::<Vec<_>>();
-    let subscription = query.subscribe(&ids).await.map_err(task_error)?;
+    let subscription = subscribe_authorized_snapshots(query, task_ids).await?;
     let runtime = query.runtime.clone();
     let stream = subscription.updates.then(move |update| {
         let runtime = runtime.clone();
@@ -233,6 +223,26 @@ pub async fn subscribe_durable_tasks(
             .collect(),
         updates: Box::pin(stream),
     })
+}
+
+/// Admit native MCP handles and stream current SQL-authorized snapshots.
+/// Domains validate their retained payloads before calling `project_snapshot`.
+/// Operation and Work Context selection follow the supplied query on every update.
+pub async fn subscribe_authorized_snapshots(
+    query: &crate::OwnerTaskQuery,
+    task_ids: Vec<String>,
+) -> Result<crate::OwnerTaskSubscription, McpError> {
+    if task_ids.len() > 256 {
+        return Err(McpError::invalid_params(
+            "at most 256 Task IDs per subscription",
+            None,
+        ));
+    }
+    let ids = task_ids
+        .iter()
+        .filter_map(|id| crate::types::parse_task_id(id).ok())
+        .collect::<Vec<_>>();
+    query.subscribe(&ids).await.map_err(task_error)
 }
 
 fn subscription_send_error(error: SubscriptionSendError) -> McpError {

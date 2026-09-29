@@ -34,6 +34,9 @@ and attribution.
 - Construct capture outputs through `CapturedFrame::builder` and preview manifests
   through `PreviewSceneRecord::new`. Keep record fields and image bytes immutable;
   derive repeated identities, byte metadata, local transforms and oversize status.
+- Public Task delivery validates completed capture payloads in `server/tasks/results.rs`
+  after SQL selection and before projection. Use the same capture builder and formatter
+  as the writer; preserve governed attribution and keep diagnostics free of payload data.
 - Every view binds one immutable composition. Compositions, views, frames, and
   capture tasks are scoped by principal, tenant and Work Context. Local metre
   positions require one exact Frames revision and operation input.

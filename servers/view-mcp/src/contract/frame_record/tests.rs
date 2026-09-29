@@ -245,3 +245,33 @@ fn frame_admission_rejects_nonfinite_and_inconsistent_render_reports() {
         .is_ok()
     );
 }
+
+#[test]
+fn frame_builder_preserves_governed_attribution_and_orders_rendered_lines() {
+    let mut detail = report();
+    detail.attribution.lines = vec!["Z".into(), "A".into(), "A".into()];
+    let output = CapturedFrame::builder(
+        FrameId::new("f").unwrap(),
+        &view(),
+        &composition(),
+        now(),
+        &policy(),
+    )
+    .unwrap()
+    .finish(now(), detail, FrameEncoding::Jpeg, vec![1])
+    .unwrap();
+    assert_eq!(
+        output.record().attribution().lines,
+        vec!["A", "Fixture", "Z"]
+    );
+    let valid = serde_json::to_value(output.record()).unwrap();
+    for lines in [
+        json!(["A", "Z"]),
+        json!(["Fixture", "A"]),
+        json!(["Fixture", "Fixture"]),
+    ] {
+        let mut wire = valid.clone();
+        wire["attribution"]["lines"] = lines;
+        assert!(serde_json::from_value::<FrameRecord>(wire).is_err());
+    }
+}

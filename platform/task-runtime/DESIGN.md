@@ -212,6 +212,12 @@ decoding their payloads. Intermediate states may coalesce because Tasks subscrip
 observe current state; callers that require every durable transition use the trusted
 internal event APIs. This API does not replace `tasks/get` as the correctness path.
 
+`subscribe_authorized_snapshots` applies the hosted protocol's 256-handle admission
+and returns the selected snapshot stream before MCP projection. Domains use it with
+`authorized_snapshot` to validate retained requests and results under one SQL selection.
+`subscribe_durable_tasks` composes that same stream with the shared projection. Domain
+validators belong to the owning server; the runtime imports no domain result model.
+
 The shared wake source tracks connection generations separately from write activity.
 On a new LIVE connection, each public listener rereads its admitted Task identities
 under current SQL owner predicates and advances to the current event tail without

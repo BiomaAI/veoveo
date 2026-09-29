@@ -1,33 +1,10 @@
 use super::*;
-use serde_json::json;
 use veoveo_task_runtime::{
     TaskRuntime, cancel_durable_task, get_durable_task, subscribe_durable_tasks,
 };
 use veoveo_types::{TenantId, WorkContextId};
 
-#[path = "../../../../../testing/fixtures/store.rs"]
-mod fixture;
-
-fn identity() -> GatewayInternalIdentity {
-    let fixtures: Vec<serde_json::Value> = serde_json::from_str(include_str!(
-        "../../../../../testing/fixtures/gateway-request-context.json"
-    ))
-    .unwrap();
-    let mut wire = fixtures[0].clone();
-    wire["request_context"] = serde_json::Value::Null;
-    for (field, value) in [
-        ("issuer", json!("https://issuer.test")),
-        ("profile", json!("operator")),
-        ("server", json!("view")),
-        ("jwt_id", json!("view-task-selection-test")),
-        ("issued_at", json!("2026-09-28T00:00:00Z")),
-        ("not_before", json!("2026-09-28T00:00:00Z")),
-        ("expires_at", json!("2026-09-28T01:00:00Z")),
-    ] {
-        wire[field] = value;
-    }
-    serde_json::from_value(wire).unwrap()
-}
+use super::test_support::{fixture, identity};
 
 #[tokio::test]
 async fn view_task_selection_uses_the_authenticated_work_context() {
@@ -47,7 +24,7 @@ async fn view_task_selection_uses_the_authenticated_work_context() {
                         owner: runtime_owner(identity),
                         server: SERVER_SLUG.into(),
                         task_type: ViewTaskKind::CaptureFrame.name(),
-                        request: json!({"fixture": true}),
+                        request: serde_json::json!({"fixture": true}),
                         recovery_class: RecoveryClass::Resume,
                         idempotency_key: None,
                         ttl_ms: Some(60_000),

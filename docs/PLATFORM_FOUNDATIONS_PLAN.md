@@ -890,6 +890,27 @@ references remain work. `renderer.rs::encode_image` has a `TODO(GPU)` for its ex
 CPU RGB conversion/JPEG encoding and GPU readback; qualify CUDA/nvJPEG before counting
 that encoding path as GPU acceptance.
 
+View now validates completed capture results after SQL selection and before public
+Task reads or subscription projection. The validator checks the saved capture owner
+and rebuilds the result through the same checked constructor and formatter as the
+writer. Metadata, image bytes, MIME type and presentation must agree with that result.
+The frame builder always includes governed-input attribution and orders unique lines;
+decoding rejects missing attribution. A shared snapshot-subscription helper preserves
+native handle admission without making Task runtime depend on View models or adding
+a second database read. View Task queries also select the capture operation.
+
+Qualification passes 103 native View cases and thirteen shared Task/usage cases,
+including corrupted completions, malformed rows excluded by SQL, cross-replica reads
+and reconnect after Task events have been deleted. Four fixture query forms pass the
+pinned 3.2.4 CLI validator. The contract profile passes 39 cases and nine compile-fail
+examples; the independent 118-package consumer passes twenty cases without service
+dependencies. Runtime-only compilation, thirteen default-feature View/Task compile-fail
+examples, strict workspace Clippy, formatting, docs and identifier checks pass.
+Fixture containers are removed and reference workloads remain stopped, with 68 GiB
+free. Owner-typed governed input references, installed cross-context delivery and GPU
+acceptance remain open. These tests establish metadata and byte agreement, not image
+decoding or GPU rendering.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1402,7 +1423,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
-| View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked setup supplies fixed discovery. Private composition, view, frame and preview records validate identity, geometry, cameras and output byte agreement. Capture admission checks request revision and principal/tenant/Work Context before Task claiming. Public Task operations and subscription delivery apply Work Context SQL selection | Validate completed capture payloads on public Task reads and notifications; replace manual governed-input references through the owning contracts; qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
+| View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Replace manual governed-input references through the owning contracts; qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
 | Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
