@@ -176,7 +176,9 @@ The [shared reader cache](../../platform/recordings/reader/DESIGN.md) owns Artif
 download, uses a partial file, verifies length and SHA-256, checks the canonical RRD Store
 ID, and atomically installs the result. Capture and properties layers bind the durable
 dataset and recording UUIDs. Blueprints bind the application ID, Blueprint ID, and exact
-message count. The cache key includes occurrence UUID and digest. Pinned entries cannot
+message count. Playback plans and Blueprint validation carry `Sha256Digest`; Store
+text is checked before cache or staging-file access. The cache key includes occurrence
+UUID and the bare hexadecimal digest. Pinned entries cannot
 be evicted. Least-recently-used unpinned entries are removed until both the managed
 ceiling and physical free-space floor are safe.
 

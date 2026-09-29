@@ -43,7 +43,7 @@ pub(super) async fn publish_analysis(
         compliance.clone(),
         artifact_metadata(StreamArtifactProvenance::Results {
             run_id: task_id,
-            recording_id: products.source.recording_id.to_string(),
+            recording_id: products.source.source_snapshot.recording_id,
             pipeline_id: products.results.pipeline_id.clone(),
             model_id: products.results.model_id.clone(),
             source_snapshot_sha256: source_snapshot_sha256.clone(),
@@ -61,7 +61,7 @@ pub(super) async fn publish_analysis(
         compliance.clone(),
         artifact_metadata(StreamArtifactProvenance::AnnotationLayer {
             run_id: task_id,
-            recording_id: products.source.recording_id.to_string(),
+            recording_id: products.source.source_snapshot.recording_id,
             results_artifact_uri: results_artifact.artifact_uri.clone(),
             source_snapshot_sha256: source_snapshot_sha256.clone(),
         })?,
@@ -80,7 +80,7 @@ pub(super) async fn publish_analysis(
                 compliance,
                 artifact_metadata(StreamArtifactProvenance::SourceClip {
                     run_id: task_id,
-                    recording_id: products.source.recording_id.to_string(),
+                    recording_id: products.source.source_snapshot.recording_id,
                     entity_path: products.results.entity_path.clone(),
                     timeline: products.results.timeline.clone(),
                     decode_start_index: products.source.clip.decode_start_index,
@@ -130,26 +130,29 @@ enum StreamArtifactProvenance {
     #[serde(rename = "stream_results")]
     Results {
         run_id: RunId,
-        recording_id: String,
+        recording_id: veoveo_recording_mcp::contract::RecordingId,
         pipeline_id: PipelineId,
         model_id: ModelId,
-        source_snapshot_sha256: String,
+        #[serde(with = "veoveo_types::sha256_hex")]
+        source_snapshot_sha256: veoveo_types::Sha256Digest,
     },
     #[serde(rename = "stream_annotation_layer")]
     AnnotationLayer {
         run_id: RunId,
-        recording_id: String,
+        recording_id: veoveo_recording_mcp::contract::RecordingId,
         results_artifact_uri: veoveo_artifact_contract::ArtifactUri,
-        source_snapshot_sha256: String,
+        #[serde(with = "veoveo_types::sha256_hex")]
+        source_snapshot_sha256: veoveo_types::Sha256Digest,
     },
     #[serde(rename = "stream_source_clip")]
     SourceClip {
         run_id: RunId,
-        recording_id: String,
+        recording_id: veoveo_recording_mcp::contract::RecordingId,
         entity_path: String,
         timeline: String,
         decode_start_index: i64,
-        source_snapshot_sha256: String,
+        #[serde(with = "veoveo_types::sha256_hex")]
+        source_snapshot_sha256: veoveo_types::Sha256Digest,
     },
 }
 
@@ -235,11 +238,11 @@ mod tests {
 
     #[test]
     fn artifact_descriptors_reference_bounded_snapshot_digests() {
-        let digest = "a".repeat(64);
+        let digest = veoveo_types::Sha256Digest::from_bytes([0xaa; 32]);
         let variants = [
             artifact_metadata(StreamArtifactProvenance::Results {
                 run_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
-                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".parse().unwrap(),
                 pipeline_id: "uav-primary-detection".parse().unwrap(),
                 model_id: "primary-detector".parse().unwrap(),
                 source_snapshot_sha256: digest.clone(),
@@ -247,7 +250,7 @@ mod tests {
             .unwrap(),
             artifact_metadata(StreamArtifactProvenance::AnnotationLayer {
                 run_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
-                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".parse().unwrap(),
                 results_artifact_uri: "stream://artifact/019fa7ee-4191-73e1-b084-2341d4900a07"
                     .parse()
                     .unwrap(),
@@ -256,7 +259,7 @@ mod tests {
             .unwrap(),
             artifact_metadata(StreamArtifactProvenance::SourceClip {
                 run_id: "019fa7ee-4191-73e1-b084-2341d4900a06".parse().unwrap(),
-                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".to_owned(),
+                recording_id: "019fa7e9-d7c6-7fe1-bdff-0a5313586c3c".parse().unwrap(),
                 entity_path: "/uav/camera/primary".to_owned(),
                 timeline: "simulation_time".to_owned(),
                 decode_start_index: 41_296_000_000,
@@ -266,6 +269,10 @@ mod tests {
         ];
 
         for metadata in variants {
+            assert_eq!(
+                metadata["provenance"]["source_snapshot_sha256"],
+                "a".repeat(64)
+            );
             let request = PutArtifactRequest {
                 mime_type: Some("application/octet-stream".to_owned()),
                 filename: Some("artifact.bin".to_owned()),

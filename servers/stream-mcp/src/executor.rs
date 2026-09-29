@@ -88,6 +88,10 @@ impl StreamExecutor {
     }
 
     pub async fn analyze(&self, analysis: StreamAnalysisRequest<'_>) -> Result<AnalysisResults> {
+        ensure!(
+            analysis.source_snapshot.recording_id == analysis.video.recording_uri.id(),
+            "source snapshot does not match the selected recording"
+        );
         let work = tempfile::Builder::new()
             .prefix("veoveo-stream-recording-runner-")
             .tempdir()
@@ -372,9 +376,7 @@ mod tests {
         use std::os::unix::fs::PermissionsExt as _;
 
         use crate::catalog::{GStreamerGraphConfig, PipelineProfileConfig};
-        use crate::contract::{
-            ModelFormat, PerceptionOperation, RecordingSourceSnapshot, VideoTimelineKind,
-        };
+        use crate::contract::{ModelFormat, PerceptionOperation, VideoTimelineKind};
 
         let workspace = tempfile::tempdir().unwrap();
         let runner = workspace.path().join("runner.sh");
@@ -431,12 +433,22 @@ mod tests {
             format: ModelFormat::TensorRtEngine,
             model_path: "/models/detector.engine".into(),
         };
-        let source_snapshot = RecordingSourceSnapshot {
-            recording_id: "01983da0-0000-7000-8000-000000000000".to_owned(),
-            dataset_id: "01983da0-0000-7000-8000-000000000010".to_owned(),
+        let source_snapshot = veoveo_recording_video::contract::RecordingSourceSnapshotBuilder {
+            recording_id: "01983da0-0000-7000-8000-000000000000".parse().unwrap(),
+            dataset_id: "01983da0-0000-7000-8000-000000000010".parse().unwrap(),
             captured_at: chrono::Utc::now(),
-            sources: Vec::new(),
-        };
+            sources: vec![veoveo_recording_video::contract::RecordingSourceIdentityBuilder {
+                layer_id: "01983da0-0000-7000-8000-000000000020".parse().unwrap(),
+                layer_name: "camera".into(),
+                layer_ordinal: Some(0),
+                kind: veoveo_recording_video::contract::RecordingSourceIdentityKind::CommittedLayer,
+                part_sequence: None,
+                byte_len: 100.try_into().unwrap(),
+                sha256: veoveo_types::Sha256Digest::from_bytes([0xaa; 32]),
+            }.build().unwrap()],
+        }
+        .build()
+        .unwrap();
         let results = executor
             .analyze(StreamAnalysisRequest {
                 task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
@@ -456,7 +468,7 @@ mod tests {
         assert_eq!(results.frames[0].index, 120);
         assert_eq!(results.source_snapshot, source_snapshot);
         let request: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(captured).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(&captured).unwrap()).unwrap();
         assert_eq!(request["decode_start_index"], 100);
         assert_eq!(request["input_width"], 32);
         assert_eq!(request["input_height"], 32);
@@ -470,6 +482,35 @@ mod tests {
         assert_eq!(
             request["pipeline"]["profile"]["inference_config_path"],
             "/etc/stream/detect.txt"
+        );
+        std::fs::remove_file(&captured).unwrap();
+        let mut wrong_video = video.clone();
+        wrong_video.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000099"
+            .parse()
+            .unwrap();
+        let error = executor
+            .analyze(StreamAnalysisRequest {
+                task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
+                input_mp4: &input,
+                decode_start_index: 100,
+                input_width: 32,
+                input_height: 32,
+                timeline_kind: VideoTimelineKind::DurationNanoseconds,
+                video: &wrong_video,
+                source_snapshot: &source_snapshot,
+                pipeline: &pipeline,
+                model: &model,
+                sampling: SamplingPolicy::EveryFrame,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "source snapshot does not match the selected recording"
+        );
+        assert!(
+            !captured.exists(),
+            "mismatched source must not dispatch the runner"
         );
     }
 }

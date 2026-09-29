@@ -17405,7 +17405,6 @@ dependencies = [
  "chrono",
  "fs4",
  "futures",
- "hex",
  "rustls",
  "serde",
  "sha2 0.11.0",
@@ -17426,7 +17425,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
- "hex",
  "schemars 1.2.2",
  "serde",
  "serde_json",
@@ -17437,6 +17435,7 @@ dependencies = [
  "veoveo-recording-contract",
  "veoveo-recording-reader",
  "veoveo-rrd",
+ "veoveo-types",
 ]
 
 [[package]]

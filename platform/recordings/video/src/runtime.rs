@@ -5,12 +5,14 @@ use std::sync::Arc;
 use anyhow::{Context, Result, bail, ensure};
 use veoveo_mcp_contract::ArtifactReadAuthority;
 use veoveo_platform_store::RecordingId;
-use veoveo_recording_reader::{RecordingReadAuthority, RecordingReadSnapshot, RecordingReader};
+use veoveo_recording_reader::{RecordingReadAuthority, RecordingReader};
 use veoveo_rrd::video_clip::{
     EncodedVideoClip, VideoClipRequest, VideoIndexKind, extract_video_clip, remux_h264_mp4,
 };
 
-use crate::contract::{RecordingVideoSelection, VideoTimelineKind, validate_video_selection};
+use crate::contract::{
+    RecordingSourceSnapshot, RecordingVideoSelection, VideoTimelineKind, validate_video_selection,
+};
 
 mod source_snapshot;
 
@@ -53,7 +55,7 @@ pub struct MaterializedVideo {
     pub recording_key: String,
     pub classification: String,
     pub labels: Vec<String>,
-    pub source_snapshot: RecordingReadSnapshot,
+    pub source_snapshot: RecordingSourceSnapshot,
     pub clip: EncodedVideoClip,
     pub mp4: Vec<u8>,
 }
@@ -77,6 +79,11 @@ pub async fn materialize_video(
         )
         .await?
         .context("recording not found")?;
+    let source_snapshot = RecordingSourceSnapshot::try_from(&materialized.snapshot)?;
+    ensure!(
+        source_snapshot.recording_id == selection.recording_uri.id(),
+        "recording snapshot does not match the selected recording"
+    );
     let plan = &materialized.plan;
     let application_id = plan.application_id.clone();
     let recording_key = plan.recording_key.clone();
@@ -92,7 +99,7 @@ pub async fn materialize_video(
         max_samples: limits.max_samples,
         max_encoded_bytes: limits.max_encoded_bytes,
     };
-    let (source_snapshot, clip, mp4) = tokio::task::spawn_blocking(move || {
+    let (clip, mp4) = tokio::task::spawn_blocking(move || {
         let source_bytes =
             materialized
                 .snapshot
@@ -114,7 +121,7 @@ pub async fn materialize_video(
         );
         let clip = extract_video_clip(materialized.paths(), &request)?;
         let mp4 = remux_h264_mp4(&clip)?;
-        Ok::<_, anyhow::Error>((materialized.snapshot.clone(), clip, mp4))
+        Ok::<_, anyhow::Error>((clip, mp4))
     })
     .await
     .context("video materialization worker panicked")??;

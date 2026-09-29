@@ -1,4 +1,5 @@
 //! Bounded, verified local materialization of immutable Artifact-backed RRD layers.
+use veoveo_types::Sha256Digest;
 
 use std::collections::HashMap;
 use std::fmt;
@@ -102,8 +103,14 @@ impl fmt::Debug for CachedLayer {
 /// Trusted in-process identity validator for a cached RRD kind.
 /// Implementations must verify the complete expected length and SHA-256 as well as
 /// their domain identity. They run for downloads and every cache hit.
+/// ```compile_fail
+/// use veoveo_recording_reader::cache::RrdIdentityValidator;
+/// fn verify(validator: &dyn RrdIdentityValidator, path: &std::path::Path) {
+///     validator.validate(path, 1, "unvalidated digest").unwrap();
+/// }
+/// ```
 pub trait RrdIdentityValidator: Send + Sync {
-    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()>;
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &Sha256Digest) -> Result<()>;
 }
 
 struct RecordingLayerIdentity {
@@ -112,14 +119,14 @@ struct RecordingLayerIdentity {
 }
 
 impl RrdIdentityValidator for RecordingLayerIdentity {
-    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &Sha256Digest) -> Result<()> {
         let inspected = veoveo_rrd::recording_layer::inspect_canonical_recording_layer(
             path,
             self.dataset_id,
             self.recording_id,
         )?;
         ensure!(
-            inspected.byte_len == byte_len && inspected.sha256 == sha256,
+            inspected.byte_len == byte_len && inspected.sha256 == sha256.hex(),
             "cached layer identity mismatch"
         );
         Ok(())
@@ -232,7 +239,7 @@ impl LayerCache {
         authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
-        expected_sha256: &str,
+        expected_sha256: &Sha256Digest,
         dataset_id: uuid::Uuid,
         recording_id: uuid::Uuid,
     ) -> Result<CachedLayer> {
@@ -254,20 +261,16 @@ impl LayerCache {
         authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
-        expected_sha256: &str,
+        expected_sha256: &Sha256Digest,
         validation: Arc<dyn RrdIdentityValidator>,
     ) -> Result<CachedLayer> {
         ensure!(expected_byte_len > 0, "recording layer must not be empty");
-        ensure!(
-            valid_sha256(expected_sha256),
-            "recording layer digest is invalid"
-        );
         ensure!(
             expected_byte_len <= self.inner.limits.managed_bytes,
             "recording layer exceeds the managed cache ceiling"
         );
         let _materialization = self.inner.materialization.lock().await;
-        let key = format!("{artifact_id}-{expected_sha256}.rrd");
+        let key = format!("{artifact_id}-{}.rrd", expected_sha256.hex());
         let present = self
             .inner
             .state
@@ -384,7 +387,7 @@ impl LayerCache {
         &self,
         key: &str,
         byte_len: u64,
-        sha256: &str,
+        sha256: &Sha256Digest,
         validation: &Arc<dyn RrdIdentityValidator>,
     ) -> Result<Option<CachedLayer>> {
         let path = {
@@ -488,7 +491,7 @@ impl LayerCache {
         authority: ArtifactReadAuthority<'_>,
         artifact_id: ArtifactId,
         expected_byte_len: u64,
-        expected_sha256: &str,
+        expected_sha256: &Sha256Digest,
         validation: Arc<dyn RrdIdentityValidator>,
         partial: &Path,
         final_path: &Path,
@@ -524,7 +527,8 @@ impl LayerCache {
             file.write_all(&chunk).await?;
         }
         ensure!(
-            written == expected_byte_len && hex::encode(digest.finalize()) == expected_sha256,
+            written == expected_byte_len
+                && Sha256Digest::from_bytes(digest.finalize().into()) == *expected_sha256,
             "recording layer download failed digest or length verification"
         );
         file.sync_all().await?;
@@ -549,7 +553,7 @@ impl LayerCache {
 fn validate_file(
     path: &Path,
     byte_len: u64,
-    sha256: &str,
+    sha256: &Sha256Digest,
     validation: &Arc<dyn RrdIdentityValidator>,
 ) -> Result<()> {
     ensure!(
@@ -567,14 +571,7 @@ fn valid_cache_key_filename(name: &str) -> bool {
     let Some(digest) = digest_rrd.strip_suffix(".rrd") else {
         return false;
     };
-    ArtifactId::parse(artifact).is_ok() && valid_sha256(digest)
-}
-
-fn valid_sha256(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    ArtifactId::parse(artifact).is_ok() && Sha256Digest::from_hex(digest).is_ok()
 }
 
 fn sync_directory(path: &Path) -> Result<()> {
@@ -630,11 +627,12 @@ mod tests {
         use std::sync::atomic::{AtomicUsize, Ordering};
         struct FixtureIdentity(Arc<AtomicUsize>);
         impl RrdIdentityValidator for FixtureIdentity {
-            fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+            fn validate(&self, path: &Path, byte_len: u64, sha256: &Sha256Digest) -> Result<()> {
                 self.0.fetch_add(1, Ordering::SeqCst);
                 let bytes = fs::read(path)?;
                 ensure!(
-                    bytes.len() as u64 == byte_len && hex::encode(Sha256::digest(&bytes)) == sha256,
+                    bytes.len() as u64 == byte_len
+                        && Sha256Digest::from_bytes(Sha256::digest(&bytes).into()) == *sha256,
                     "fixture byte identity mismatch"
                 );
                 Ok(())
@@ -646,8 +644,8 @@ mod tests {
             .unwrap();
         runtime.block_on(async {
             let directory = tempfile::tempdir().unwrap();
-            let digest = hex::encode(Sha256::digest(b"valid"));
-            let key = format!("{}-{digest}.rrd", uuid::Uuid::now_v7());
+            let digest = Sha256Digest::from_bytes(Sha256::digest(b"valid").into());
+            let key = format!("{}-{}.rrd", uuid::Uuid::now_v7(), digest.hex());
             let path = directory.path().join(&key);
             fs::write(&path, b"valid").unwrap();
             let cache = cache(directory.path().to_owned()).unwrap();

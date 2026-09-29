@@ -15,7 +15,7 @@ use veoveo_platform_store::{
 };
 use veoveo_recording_hub::{GatewayLayerPublisher, live_segment_byte_len};
 use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
-use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName};
+use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName, Sha256Digest};
 
 use crate::contract::{
     LayerView, PlaybackLiveReceiver, RecordingManifest, RecordingManifestBuilder,
@@ -80,7 +80,7 @@ pub struct PlaybackArchiveLayerPlan {
     pub kind: RecordingLayerKind,
     pub ordinal: Option<i64>,
     pub byte_len: u64,
-    pub sha256: String,
+    pub sha256: Sha256Digest,
     pub cached: CachedLayer,
 }
 
@@ -95,7 +95,7 @@ pub struct PlaybackBlueprintPlan {
     pub blueprint_id: String,
     pub revision: u64,
     pub byte_len: u64,
-    pub sha256: String,
+    pub sha256: Sha256Digest,
     pub path: PathBuf,
     pub cached: Option<CachedLayer>,
     pub map_provider: veoveo_recording_hub::BlueprintMapProviderSelection,
@@ -307,10 +307,12 @@ impl RecordingService {
                 )?;
                 let byte_len = u64::try_from(layer.byte_len)
                     .context("committed recording layer has negative byte length")?;
-                let sha256 = layer
-                    .sha256
-                    .clone()
-                    .context("committed recording layer has no digest")?;
+                let sha256 = Sha256Digest::from_hex(
+                    layer
+                        .sha256
+                        .as_ref()
+                        .context("committed recording layer has no digest")?,
+                )?;
                 let cached = cache
                     .materialize(
                         veoveo_mcp_contract::ArtifactReadAuthority::Caller(artifact_caller),
@@ -403,6 +405,7 @@ impl RecordingService {
         blueprint: RecordingBlueprintRecord,
         artifact_caller: Option<&PlaneCaller>,
     ) -> Result<Option<PlaybackBlueprintPlan>> {
+        let sha256 = Sha256Digest::from_hex(&blueprint.sha256)?;
         let byte_len =
             u64::try_from(blueprint.byte_len).context("Blueprint byte length is negative")?;
         let message_count = u64::try_from(blueprint.message_count)
@@ -422,7 +425,7 @@ impl RecordingService {
                         record_uuid(artifact, "artifact_occurrence")?.to_string(),
                     )?,
                     byte_len,
-                    &blueprint.sha256,
+                    &sha256,
                     std::sync::Arc::new(crate::blueprint_cache::BlueprintIdentity {
                         application_id: recording.application_id.clone(),
                         blueprint_id: blueprint.blueprint_id.clone(),
@@ -441,7 +444,7 @@ impl RecordingService {
         let bytes = std::fs::read(&path)?;
         ensure!(
             bytes.len() as i64 == blueprint.byte_len
-                && hex::encode(Sha256::digest(&bytes)) == blueprint.sha256,
+                && Sha256Digest::from_bytes(Sha256::digest(&bytes).into()) == sha256,
             "playback Blueprint no longer matches its governed publication"
         );
         let validated = veoveo_recording_hub::validate_blueprint_rrd(
@@ -458,7 +461,7 @@ impl RecordingService {
             revision: u64::try_from(blueprint.revision)
                 .context("Blueprint revision is negative")?,
             byte_len,
-            sha256: blueprint.sha256,
+            sha256,
             path,
             cached,
             map_provider: validated.map_provider,

@@ -13,7 +13,7 @@
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
 | Rust extension interfaces | Public `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
 | Task operation names | Veoveo names contain 1–128 ASCII bytes: a lowercase initial letter followed by lowercase letters, digits, dots, underscores or hyphens. Validation establishes syntax, not implementation or authority. |
-| SHA-256 provenance strings | `sha256:` followed by 64 lowercase hexadecimal digits; the value validates a supplied digest and performs no hashing |
+| SHA-256 provenance strings | `Sha256Digest` serializes as `sha256:` followed by 64 lowercase hexadecimal digits. Explicit `sha256_hex` Serde adapters serve fields whose owner declares bare lowercase hex. The type validates supplied digests and performs no hashing. |
 | Native Task UUIDs, RFC 9562 | `TaskId` generates UUIDv7 and preserves the UUID parser and Serde profile from `uuid` 1.25.0; parsing does not establish a version, Task existence, or authority |
 
 ## Ownership And Dependencies
@@ -184,7 +184,11 @@ shared with identifier validation in higher layers.
 
 `Sha256Digest` preserves the canonical prefixed spelling and emits the corresponding
 JSON Schema pattern. Its `from_hex` constructor accepts the unprefixed lowercase
-digest produced by hashing libraries; serialization includes the `sha256:` prefix.
+digest produced by hashing libraries; default serialization includes the `sha256:` prefix.
+The `sha256_hex` module supplies required and optional Serde field adapters for
+contracts that declare 64 lowercase hex digits without a prefix. These adapters reject
+prefixed or uppercase input; they do not guess a format. Such fields declare their
+bare-hex JSON Schema alongside the adapter.
 
 ## Resource Templates
 

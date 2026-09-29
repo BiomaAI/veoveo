@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 
 mod source_snapshot;
 pub use source_snapshot::{
-    RecordingSourceIdentity, RecordingSourceIdentityKind, RecordingSourceSnapshot,
+    RecordingSourceError, RecordingSourceIdentity, RecordingSourceIdentityBuilder,
+    RecordingSourceIdentityKind, RecordingSourceSnapshot, RecordingSourceSnapshotBuilder,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]

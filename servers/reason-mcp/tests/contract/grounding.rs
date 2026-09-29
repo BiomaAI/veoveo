@@ -99,6 +99,10 @@ fn grounding_cannot_accept_a_partial_or_malformed_stream_document() {
     }
     for (path, value) in [
         ("/schema", json!("unsupported/v2")),
+        (
+            "/source_snapshot/recording_id",
+            json!("01983da0-0000-7000-8000-000000000001"),
+        ),
         ("/frames/1/index", json!(0)),
         ("/frames/1/detections/0/label", json!(" ")),
         ("/frames/1/detections/0/confidence", json!(1.5)),

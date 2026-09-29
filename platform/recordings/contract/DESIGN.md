@@ -51,7 +51,7 @@ under different URI spellings. Blueprint revision, byte length and message count
 nonzero. Recording imports `ArtifactUri` from its domain owner; MCP core gains no
 domain dependency. JSON decoding runs the same constructors, while immutable field
 access prevents later mutation from bypassing them. Wire digests use bare lowercase
-hexadecimal. Catalog views check normalized labels, time ordering, layer counts and
+hexadecimal through `veoveo_types::sha256_hex`. Catalog views check normalized labels, time ordering, layer counts and
 sealed publication requirements. These models validate supplied facts; the service
 verifies occurrence bytes and access.
 

@@ -2,7 +2,6 @@
 use crate::{
     RecordingContractError, RecordingLayerId,
     checked::{checked_model, text},
-    hex_digest,
 };
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::num::NonZeroU64;
 use veoveo_artifact_contract::ArtifactUri;
 use veoveo_types::Sha256Digest;
+use veoveo_types::sha256_hex;
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, Eq, PartialEq)]
 #[serde(rename_all = "snake_case")]
@@ -50,12 +50,12 @@ pub struct LayerViewBuilder {
     pub state: RecordingLayerState,
     pub byte_len: u64,
     pub message_count: u64,
-    #[serde(default, with = "hex_digest::optional")]
+    #[serde(default, with = "sha256_hex::optional")]
     #[schemars(with = "Option<String>")]
     pub sha256: Option<Sha256Digest>,
     pub artifact_uri: Option<ArtifactUri>,
     pub rrd_version: Option<String>,
-    #[serde(default, with = "hex_digest::optional")]
+    #[serde(default, with = "sha256_hex::optional")]
     #[schemars(with = "Option<String>")]
     pub schema_digest: Option<Sha256Digest>,
     #[schemars(with = "String")]
@@ -104,12 +104,12 @@ pub struct ManifestLayerBuilder {
     pub kind: RecordingLayerKind,
     pub ordinal: Option<u64>,
     pub byte_len: NonZeroU64,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub sha256: Sha256Digest,
     pub artifact_uri: ArtifactUri,
     pub rrd_version: String,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub schema_digest: Sha256Digest,
 }

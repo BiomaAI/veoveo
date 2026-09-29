@@ -1,4 +1,5 @@
 //! Projection result shape and agreement with the request that produced it.
+use veoveo_types::sha256_hex;
 
 use std::{collections::BTreeMap, num::NonZeroU64, ops::Deref};
 
@@ -12,9 +13,7 @@ use super::{
     CreateRecordingProjectionRequest, MAX_PROJECTION_BYTES, MAX_PROJECTION_ROWS,
     MAX_PROJECTION_SAMPLES, MAX_PROJECTION_SELECTOR_BYTES, query::valid_text,
 };
-use crate::{
-    RecordingContractError, RecordingDatasetId, RecordingId, RecordingProjectionId, hex_digest,
-};
+use crate::{RecordingContractError, RecordingDatasetId, RecordingId, RecordingProjectionId};
 
 pub const RECORDING_PROJECTION_HANDLE_SCHEMA: &str = "veoveo.ai/recording-projection-handle/v1";
 
@@ -29,7 +28,7 @@ pub enum RecordingProjectionHandleSchema {
 #[serde(deny_unknown_fields)]
 pub struct RecordingProjectionResultMetadata {
     pub catalog_revision: String,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub query_digest: Sha256Digest,
     pub timeline: String,
@@ -39,11 +38,11 @@ pub struct RecordingProjectionResultMetadata {
     pub coordinate_frame_refs: Vec<WorldFrameUri>,
     pub omitted_sample_count: u64,
     pub row_count: u64,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub arrow_schema_sha256: Sha256Digest,
     pub byte_len: NonZeroU64,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub payload_sha256: Sha256Digest,
 }

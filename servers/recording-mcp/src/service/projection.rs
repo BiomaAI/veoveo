@@ -377,7 +377,7 @@ fn projection_manifest_digest(plan: &crate::RecordingPlaybackPlan) -> Sha256Dige
     digest.update(plan.recording_id.as_uuid().as_bytes());
     for layer in &plan.archive_layers {
         digest.update(layer.layer_id.as_uuid().as_bytes());
-        digest.update(layer.sha256.as_bytes());
+        digest.update(layer.sha256.hex().as_bytes());
     }
     Sha256Digest::from_bytes(digest.finalize().into())
 }

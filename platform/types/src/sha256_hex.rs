@@ -1,7 +1,7 @@
-//! Bare lowercase hexadecimal at Recording fields; foundational digests internally.
+//! Serde adapters for wire fields that declare bare lowercase SHA-256 hexadecimal.
 
+use crate::Sha256Digest;
 use serde::{Deserialize, Deserializer, Serializer};
-use veoveo_types::Sha256Digest;
 
 pub fn serialize<S: Serializer>(digest: &Sha256Digest, serializer: S) -> Result<S::Ok, S::Error> {
     serializer.serialize_str(digest.hex())

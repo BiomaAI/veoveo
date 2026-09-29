@@ -3,7 +3,6 @@
 pub mod uris;
 
 mod cursor;
-mod hex_digest;
 mod ids;
 mod redap;
 mod resources;

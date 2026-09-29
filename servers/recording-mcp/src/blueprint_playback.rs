@@ -1,4 +1,5 @@
 //! Finite, recording-scoped delivery of a producer-authored Rerun Blueprint.
+use veoveo_types::Sha256Digest;
 
 use std::{io::Cursor, path::Path};
 
@@ -15,13 +16,13 @@ pub fn recording_scoped_blueprint(
     application_id: &str,
     expected_blueprint_id: &str,
     expected_byte_len: u64,
-    expected_sha256: &str,
+    expected_sha256: &Sha256Digest,
 ) -> Result<Vec<u8>> {
     let bytes = std::fs::read(path)
         .with_context(|| format!("reading playback Blueprint {}", path.display()))?;
     ensure!(
         bytes.len() as u64 == expected_byte_len
-            && hex::encode(Sha256::digest(&bytes)) == expected_sha256,
+            && Sha256Digest::from_bytes(Sha256::digest(&bytes).into()) == *expected_sha256,
         "playback Blueprint bytes no longer match their governed publication"
     );
     let decoder = Decoder::<LogMsg>::decode_eager(Cursor::new(bytes))
@@ -100,7 +101,7 @@ mod tests {
             "governed-playback",
             &blueprint_id,
             bytes.len() as u64,
-            &hex::encode(Sha256::digest(&bytes)),
+            &Sha256Digest::from_bytes(Sha256::digest(&bytes).into()),
         )
         .unwrap();
         let decoded = Decoder::<LogMsg>::decode_eager(Cursor::new(rewritten))

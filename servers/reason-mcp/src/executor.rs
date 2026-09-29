@@ -92,6 +92,10 @@ impl ReasonExecutor {
     }
 
     pub async fn analyze(&self, analysis: ReasonAnalysisRequest<'_>) -> Result<ReasoningResults> {
+        ensure!(
+            analysis.source_snapshot.recording_id == analysis.video.recording_uri.id(),
+            "source snapshot does not match the selected recording"
+        );
         let work = tempfile::Builder::new()
             .prefix("veoveo-reason-runner-")
             .tempdir()
@@ -383,12 +387,22 @@ mod tests {
     }
 
     fn source_snapshot() -> RecordingSourceSnapshot {
-        RecordingSourceSnapshot {
-            recording_id: "01983da0-0000-7000-8000-000000000000".to_owned(),
-            dataset_id: "01983da0-0000-7000-8000-000000000010".to_owned(),
+        veoveo_recording_video::contract::RecordingSourceSnapshotBuilder {
+            recording_id: "01983da0-0000-7000-8000-000000000000".parse().unwrap(),
+            dataset_id: "01983da0-0000-7000-8000-000000000010".parse().unwrap(),
             captured_at: chrono::Utc::now(),
-            sources: Vec::new(),
+            sources: vec![veoveo_recording_video::contract::RecordingSourceIdentityBuilder {
+                layer_id: "01983da0-0000-7000-8000-000000000020".parse().unwrap(),
+                layer_name: "camera".into(),
+                layer_ordinal: Some(0),
+                kind: veoveo_recording_video::contract::RecordingSourceIdentityKind::CommittedLayer,
+                part_sequence: None,
+                byte_len: 100.try_into().unwrap(),
+                sha256: veoveo_types::Sha256Digest::from_bytes([0xaa; 32]),
+            }.build().unwrap()],
         }
+        .build()
+        .unwrap()
     }
 
     fn model() -> ModelConfig {
@@ -526,7 +540,7 @@ mod tests {
         assert_eq!(results.model_digest.as_deref(), Some("sha256:test"));
         assert_eq!(results.confidence_basis, ConfidenceBasis::ModelReported);
         let request: serde_json::Value =
-            serde_json::from_slice(&std::fs::read(captured).unwrap()).unwrap();
+            serde_json::from_slice(&std::fs::read(&captured).unwrap()).unwrap();
         assert_eq!(request["decode_start_index"], 100);
         assert_eq!(request["requested_range"]["start"], 120);
         assert_eq!(request["pipeline"]["observation"]["width"], 640);
@@ -536,5 +550,37 @@ mod tests {
         assert_eq!(request["model"]["engine"]["max_model_len"], 8_192);
         assert_eq!(request["decode"]["mode"], "greedy");
         assert_eq!(request["max_response_bytes"], 1_000_000);
+        std::fs::remove_file(&captured).unwrap();
+        let mut wrong_video = video.clone();
+        wrong_video.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000099"
+            .parse()
+            .unwrap();
+        let error = executor
+            .analyze(ReasonAnalysisRequest {
+                task_id: "01983da0-0000-7000-8000-000000000001".parse().unwrap(),
+                input_mp4: &input,
+                decode_start_index: 100,
+                input_width: 1920,
+                input_height: 1080,
+                timeline_kind: VideoTimelineKind::DurationNanoseconds,
+                video: &wrong_video,
+                source_snapshot: &source_snapshot,
+                pipeline: &pipeline(),
+                model: &model(),
+                task: &task,
+                sampling: ObservationSampling::default(),
+                decode: DecodePolicy::Greedy,
+                grounding: None,
+            })
+            .await
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "source snapshot does not match the selected recording"
+        );
+        assert!(
+            !captured.exists(),
+            "mismatched source must not dispatch the runner"
+        );
     }
 }

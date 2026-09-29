@@ -6,7 +6,7 @@
 |---|---|
 | Veoveo recording identity and RFC 9562 | Typed Store IDs backed by native RFC UUIDv7 record keys; adapters require the declared table. Public URI admission belongs to the Recording contract. |
 | Gateway internal identity | Typed actor, tenant and data-label authority; no retained bearer |
-| Artifact plane | Existing caller or bounded task-read capability, immutable occurrence UUID, expected length and SHA-256 |
+| Artifact plane | Existing caller or bounded task-read capability, immutable occurrence UUID, expected length and typed SHA-256; snapshot fields and cache filenames use bare lowercase hexadecimal |
 | Rerun RRD | Existing repository profile 0.38.1, canonical dataset/recording Store IDs |
 | Local filesystem | Confined complete live parts and a bounded, verified, pinned Artifact cache |
 | `RrdIdentityValidator` | Trusted internal Rust extension for server-owned RRD kinds; no public wire protocol |
@@ -49,6 +49,10 @@ unavailable authority rejects reuse before local byte validation or pinning. The
 returned occurrence ID, canonical URI, and byte length must match the requested layer.
 Successful hits then run the identity validator again without downloading bytes.
 Cache misses retain the download client's authorization path.
+Cache APIs, validators, read plans and snapshots carry `Sha256Digest`. Store and RRD
+inspection adapters admit text before those values enter the reader. Cache filenames
+serialize the digest as bare lowercase hex; captured snapshot fields use the shared
+`veoveo_types::sha256_hex` adapter.
 The default recording-layer validator binds both canonical
 Store UUIDs, length and SHA-256. Recording MCP supplies its Blueprint validator from
 `blueprint_cache.rs`, which binds application, Blueprint ID and message count with the

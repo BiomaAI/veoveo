@@ -365,7 +365,8 @@ schemas, URL parsing, and percent encoding. Consumers import its types directly.
 tracks concrete/template reference separation, URI builder adoption, MCP integration traits,
 and server library features.
 `src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
-prefixed SHA-256 representation shared by provenance contracts.
+prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`
+owns explicit required/optional field serialization for declared bare-hex profiles.
 `src/identity.rs` owns distinct principal, tenant, group, role, Work Context, delegation,
 data-label, and policy-version types. `src/provenance.rs` owns invocation attribution.
 `src/authority.rs` owns capability levels, Work Context membership levels, resolved
@@ -1126,11 +1127,11 @@ quarantine and restart recovery.
 ### `platform/recordings/video`
 
 `src/contract.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
-selection contract; `contract/source_snapshot.rs` owns public source identities and
-their digest. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
+selection contract; `contract/source_snapshot.rs` owns checked source identity and
+snapshot builders with typed Recording IDs and integrity digests. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
 MP4 remux. Selection decoding uses the Recording owner’s contract-only `RecordingUri`.
-`runtime/source_snapshot.rs` maps private reader
-identities without exposing source paths. Contract-only consumers exclude the reader,
+`runtime/source_snapshot.rs` admits private reader facts into the public snapshot
+before extraction, without exposing source paths. Contract-only consumers exclude the reader,
 Store, MCP and Rerun.
 
 ### `servers/recording-mcp`

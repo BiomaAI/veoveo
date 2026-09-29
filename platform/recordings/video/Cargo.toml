@@ -17,7 +17,7 @@ contract = [
     "dep:veoveo-recording-contract",
     "dep:anyhow",
     "dep:chrono",
-    "dep:hex",
+    "dep:veoveo-types",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
@@ -36,7 +36,7 @@ runtime = [
 anyhow = { workspace = true, optional = true }
 # Match the qualified workspace release; public snapshots need date/time values only.
 chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"], optional = true }
-hex = { workspace = true, optional = true }
+veoveo-types = { workspace = true, optional = true }
 schemars = { workspace = true, features = ["chrono04"], optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }

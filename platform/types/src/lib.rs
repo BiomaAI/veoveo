@@ -31,6 +31,7 @@ mod resource;
 mod resource_components;
 mod resource_template;
 mod scopes;
+pub mod sha256_hex;
 mod task;
 mod task_type;
 

@@ -7,7 +7,7 @@ use veoveo_mcp_contract::{
 
 struct NoValidation;
 impl RrdIdentityValidator for NoValidation {
-    fn validate(&self, _: &Path, _: u64, _: &str) -> Result<()> {
+    fn validate(&self, _: &Path, _: u64, _: &Sha256Digest) -> Result<()> {
         anyhow::bail!("partial download must not reach RRD validation")
     }
 }
@@ -73,7 +73,7 @@ async fn cancelled_download_releases_disk_reservation_and_partial_file() {
                 },
                 id,
                 5,
-                &hex::encode(Sha256::digest(b"valid")),
+                &Sha256Digest::from_bytes(Sha256::digest(b"valid").into()),
                 Arc::new(NoValidation),
             )
             .await

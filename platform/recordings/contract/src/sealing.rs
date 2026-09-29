@@ -2,7 +2,6 @@
 use crate::{
     ManifestLayer, RecordingContractError, RecordingDatasetId, RecordingId,
     checked::{checked_model, text},
-    hex_digest,
 };
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -10,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeSet, num::NonZeroU64};
 use veoveo_artifact_contract::ArtifactUri;
 use veoveo_types::Sha256Digest;
+use veoveo_types::sha256_hex;
 
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -103,7 +103,7 @@ pub struct ManifestBlueprint {
     pub revision: NonZeroU64,
     pub byte_len: NonZeroU64,
     pub message_count: NonZeroU64,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub sha256: Sha256Digest,
     pub artifact_uri: ArtifactUri,

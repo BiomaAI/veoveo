@@ -3,6 +3,7 @@ use anyhow::{Result, ensure};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use veoveo_recording_reader::cache::RrdIdentityValidator;
+use veoveo_types::Sha256Digest;
 
 pub(crate) struct BlueprintIdentity {
     pub application_id: String,
@@ -11,14 +12,15 @@ pub(crate) struct BlueprintIdentity {
 }
 
 impl RrdIdentityValidator for BlueprintIdentity {
-    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &Sha256Digest) -> Result<()> {
         ensure!(
             self.message_count > 0,
             "recording Blueprint must not be empty"
         );
         let bytes = std::fs::read(path)?;
         ensure!(
-            bytes.len() as u64 == byte_len && hex::encode(Sha256::digest(&bytes)) == sha256,
+            bytes.len() as u64 == byte_len
+                && Sha256Digest::from_bytes(Sha256::digest(&bytes).into()) == *sha256,
             "cached Blueprint digest or length mismatch"
         );
         let blueprint = veoveo_recording_hub::validate_blueprint_rrd(
@@ -70,7 +72,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("blueprint.rrd");
         std::fs::write(&path, &bytes).unwrap();
-        let digest = hex::encode(Sha256::digest(&bytes));
+        let digest = Sha256Digest::from_bytes(Sha256::digest(&bytes).into());
         let validation = BlueprintIdentity {
             application_id: "cache-blueprint-app".to_owned(),
             blueprint_id: blueprint_id.clone(),

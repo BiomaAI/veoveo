@@ -146,11 +146,12 @@ impl Drop for ArtifactEndpoint {
 struct FixtureIdentity(Arc<AtomicUsize>);
 
 impl RrdIdentityValidator for FixtureIdentity {
-    fn validate(&self, path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
+    fn validate(&self, path: &Path, byte_len: u64, sha256: &Sha256Digest) -> Result<()> {
         self.0.fetch_add(1, Ordering::SeqCst);
         let bytes = std::fs::read(path)?;
         ensure!(
-            bytes.len() as u64 == byte_len && hex::encode(Sha256::digest(&bytes)) == sha256,
+            bytes.len() as u64 == byte_len
+                && Sha256Digest::from_bytes(Sha256::digest(&bytes).into()) == *sha256,
             "fixture byte identity mismatch"
         );
         Ok(())
@@ -167,8 +168,10 @@ fn warm_cache_requires_current_artifact_read_permission_and_exact_metadata() {
     runtime.block_on(async {
         let directory = tempfile::tempdir().unwrap();
         let artifact_id = ArtifactId::new();
-        let digest = hex::encode(Sha256::digest(b"valid"));
-        let path = directory.path().join(format!("{artifact_id}-{digest}.rrd"));
+        let digest = Sha256Digest::from_bytes(Sha256::digest(b"valid").into());
+        let path = directory
+            .path()
+            .join(format!("{artifact_id}-{}.rrd", digest.hex()));
         std::fs::write(&path, b"valid").unwrap();
         let mut endpoint = ArtifactEndpoint::start(artifact_id);
         let cache = LayerCache::new(
@@ -286,9 +289,9 @@ async fn task_capability_reauthorizes_a_reopened_cache_and_rejects_revoked_or_wr
     let _ = rustls::crypto::ring::default_provider().install_default();
     let directory = tempfile::tempdir().unwrap();
     let id = ArtifactId::new();
-    let digest = hex::encode(Sha256::digest(b"valid"));
+    let digest = Sha256Digest::from_bytes(Sha256::digest(b"valid").into());
     std::fs::write(
-        directory.path().join(format!("{id}-{digest}.rrd")),
+        directory.path().join(format!("{id}-{}.rrd", digest.hex())),
         b"valid",
     )
     .unwrap();

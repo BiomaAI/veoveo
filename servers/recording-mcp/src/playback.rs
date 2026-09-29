@@ -97,7 +97,7 @@ struct CatalogLayer {
     kind: crate::contract::RecordingLayerKind,
     ordinal: Option<i64>,
     byte_len: u64,
-    sha256: String,
+    sha256: veoveo_types::Sha256Digest,
 }
 
 #[derive(Clone)]
@@ -167,7 +167,7 @@ impl PlaybackManager {
                     Ok(PlaybackBlueprint {
                         blueprint_id: blueprint.blueprint_id,
                         revision: blueprint.revision.try_into()?,
-                        sha256: veoveo_types::Sha256Digest::from_hex(blueprint.sha256)?,
+                        sha256: blueprint.sha256,
                         byte_len: blueprint.byte_len.try_into()?,
                         map_provider: match blueprint.map_provider {
                             veoveo_recording_hub::BlueprintMapProviderSelection::None => {

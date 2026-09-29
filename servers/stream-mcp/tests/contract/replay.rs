@@ -33,6 +33,11 @@ fn replay_profile_and_intrinsic_checks_are_owned_by_the_contract() {
 #[test]
 fn replay_validation_rejects_inconsistent_frames_and_detection_values() {
     let mut invalid = results();
+    invalid.recording_uri = "recording://recordings/01983da0-0000-7000-8000-000000000001"
+        .parse()
+        .unwrap();
+    assert_eq!(invalid.validate(), Err(StreamResultsError::SourceRecording));
+    let mut invalid = results();
     invalid.processed_frames = 0;
     assert_eq!(invalid.validate(), Err(StreamResultsError::FrameCount));
     let mut invalid = results();

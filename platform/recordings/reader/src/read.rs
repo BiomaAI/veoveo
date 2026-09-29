@@ -15,7 +15,7 @@ use veoveo_rrd::ingest_parts::{
     ingest_part_paths, ingest_part_sequence, ingest_segment_parts_directory,
 };
 use veoveo_rrd::segment::inspect_segment;
-use veoveo_types::{DataLabelId, PrincipalId, TenantId};
+use veoveo_types::{DataLabelId, PrincipalId, Sha256Digest, TenantId};
 
 use super::{MAX_LAYERS, RecordingReader};
 use crate::access::{authorized_live_layer_path, record_uuid};
@@ -74,7 +74,7 @@ pub struct RecordingReadLayer {
     pub ordinal: Option<i64>,
     pub state: RecordingLayerState,
     pub byte_len: u64,
-    pub sha256: Option<String>,
+    pub sha256: Option<Sha256Digest>,
     pub started_at: Option<DateTime<Utc>>,
     pub ended_at: Option<DateTime<Utc>>,
     pub path: PathBuf,
@@ -111,7 +111,8 @@ pub struct RecordingReadSource {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub part_sequence: Option<u64>,
     pub byte_len: u64,
-    pub sha256: String,
+    #[serde(with = "veoveo_types::sha256_hex")]
+    pub sha256: Sha256Digest,
     #[serde(skip)]
     pub path: PathBuf,
 }
@@ -197,7 +198,7 @@ impl RecordingReadPlan {
                             kind: RecordingReadSourceKind::LiveIngestPart,
                             part_sequence: Some(sequence),
                             byte_len: inspection.byte_len,
-                            sha256: inspection.sha256,
+                            sha256: Sha256Digest::from_hex(inspection.sha256)?,
                             path,
                         });
                     }
@@ -272,7 +273,7 @@ impl RecordingReadPlan {
             let copied_inspection = inspect_segment(&destination)?;
             ensure!(
                 copied_inspection.byte_len == source.byte_len
-                    && copied_inspection.sha256 == source.sha256,
+                    && copied_inspection.sha256 == source.sha256.hex(),
                 "copied live ingest part does not match its captured identity"
             );
             paths.push(destination);
@@ -397,7 +398,7 @@ impl RecordingReader {
         let mut layers = Vec::with_capacity(catalog_layers.len());
         for layer in catalog_layers {
             let layer_id = RecordingLayerId::from_uuid(record_uuid(&layer.id, "recording_layer")?);
-            let (path, cached) = match layer.state {
+            let (path, cached, sha256) = match layer.state {
                 RecordingLayerState::Committed => {
                     let artifact_id = veoveo_artifact_contract::ArtifactId::parse(
                         record_uuid(
@@ -411,21 +412,23 @@ impl RecordingReader {
                     )?;
                     let byte_len = u64::try_from(layer.byte_len)
                         .context("committed layer has negative byte length")?;
-                    let sha256 = layer
-                        .sha256
-                        .as_deref()
-                        .context("committed layer has no digest")?;
+                    let digest = Sha256Digest::from_hex(
+                        layer
+                            .sha256
+                            .as_ref()
+                            .context("committed layer has no digest")?,
+                    )?;
                     let cached = cache
                         .materialize(
                             credential,
                             artifact_id,
                             byte_len,
-                            sha256,
+                            &digest,
                             dataset_uuid,
                             recording_uuid,
                         )
                         .await?;
-                    (cached.path().to_path_buf(), Some(cached))
+                    (cached.path().to_path_buf(), Some(cached), Some(digest))
                 }
                 RecordingLayerState::Writing => {
                     let relative = layer
@@ -435,6 +438,11 @@ impl RecordingReader {
                     (
                         authorized_live_layer_path(&self.spool_root, relative)?,
                         None,
+                        layer
+                            .sha256
+                            .as_ref()
+                            .map(Sha256Digest::from_hex)
+                            .transpose()?,
                     )
                 }
                 RecordingLayerState::Staged | RecordingLayerState::Failed => continue,
@@ -447,7 +455,7 @@ impl RecordingReader {
                 state: layer.state,
                 byte_len: u64::try_from(layer.byte_len)
                     .context("recording layer byte length is negative")?,
-                sha256: layer.sha256,
+                sha256,
                 started_at: layer.start_time,
                 ended_at: layer.end_time,
                 path,
@@ -493,7 +501,7 @@ mod tests {
                 ordinal: Some(0),
                 state: RecordingLayerState::Committed,
                 byte_len: 18,
-                sha256: Some("0".repeat(64)),
+                sha256: Some(Sha256Digest::from_bytes([0; 32])),
                 started_at: None,
                 ended_at: None,
                 path,

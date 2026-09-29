@@ -15,6 +15,7 @@ pub enum StreamResultsSchema {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StreamResultsError {
     Selection,
+    SourceRecording,
     FrameCount,
     FrameOrder,
     FrameRange,
@@ -27,6 +28,7 @@ impl fmt::Display for StreamResultsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Selection => "invalid Stream replay selection",
+            Self::SourceRecording => "Stream source snapshot must match the selected recording",
             Self::FrameCount => "Stream processed frame count is smaller than returned frames",
             Self::FrameOrder => "Stream result frames must be strictly ordered",
             Self::FrameRange => "Stream result frame is outside the requested range",
@@ -53,6 +55,9 @@ impl AnalysisResults {
             range: self.requested_range,
         })
         .map_err(|_| StreamResultsError::Selection)?;
+        if self.source_snapshot.recording_id != self.recording_uri.id() {
+            return Err(StreamResultsError::SourceRecording);
+        }
         if self.processed_frames < self.frames.len() as u64 {
             return Err(StreamResultsError::FrameCount);
         }

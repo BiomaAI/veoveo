@@ -1,5 +1,6 @@
 //! Playback manifest admission shared by the producer and browser edge.
 use std::{fmt, num::NonZeroU64, ops::Deref};
+use veoveo_types::sha256_hex;
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
@@ -8,7 +9,7 @@ use veoveo_types::Sha256Digest;
 
 use crate::{
     PlaybackArchiveUri, RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
-    RecordingReadGrantId, hex_digest,
+    RecordingReadGrantId,
 };
 
 pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
@@ -175,7 +176,7 @@ pub enum PlaybackLiveTransport {
 pub struct PlaybackBlueprint {
     pub blueprint_id: String,
     pub revision: NonZeroU64,
-    #[serde(with = "hex_digest")]
+    #[serde(with = "sha256_hex")]
     #[schemars(with = "String", regex(pattern = "^[0-9a-f]{64}$"))]
     pub sha256: Sha256Digest,
     pub byte_len: NonZeroU64,

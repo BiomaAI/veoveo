@@ -76,7 +76,11 @@ The `runtime` feature adds catalog loading, artifact access, runner execution,
 response validation and Rerun annotations. The `mcp` feature adds the hosted server,
 HTTP authentication, Tasks and App integration. Defaults enable `mcp`, and the binary
 requires it. Feature selection preserves the JSON fields, schema names and retained
-source-snapshot digest. Runtime source access still requires current authorization.
+source-snapshot digest. The Video owner supplies immutable source builders with typed
+Recording IDs and SHA-256 values. The executor requires the snapshot to match the
+selected Recording before dispatch. Artifact descriptors carry the typed Recording
+identity and serialize their digest as bare lowercase hex.
+Runtime source access still requires current authorization.
 The `uris` module is available through `contract`. Its builders require the ID type
 for each route. `ReasonResource` implements the foundational `ResourceAddress` trait
 and parses the supported routes before dispatch. `ReasonScope` implements

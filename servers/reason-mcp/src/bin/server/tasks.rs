@@ -22,7 +22,7 @@ use veoveo_reason_mcp::{
         validate_decode, validate_reasoning_task, validate_sampling,
     },
 };
-use veoveo_recording_video::contract::{RecordingSourceSnapshot, validate_video_selection};
+use veoveo_recording_video::contract::validate_video_selection;
 use veoveo_recording_video::runtime::{materialize_video, timeline_kind};
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
@@ -364,7 +364,6 @@ async fn run_task_inner(
         Ok(kind) => kind,
         Err(error) => fail!(format!("{error:#}")),
     };
-    let source_snapshot = RecordingSourceSnapshot::from(&source.source_snapshot);
     let execute = state
         .executor
         .analyze(veoveo_reason_mcp::executor::ReasonAnalysisRequest {
@@ -375,7 +374,7 @@ async fn run_task_inner(
             input_height: source.clip.height,
             timeline_kind,
             video: &input.video,
-            source_snapshot: &source_snapshot,
+            source_snapshot: &source.source_snapshot,
             pipeline: &pipeline,
             model: &model,
             task: &input.task,
