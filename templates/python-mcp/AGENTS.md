@@ -34,6 +34,9 @@ every change here must keep the template a complete, working reference.
   internal-auth middleware.
 - Tool inputs are published as complete, bounded JSON Schema 2020-12 documents
   with `mcp_input_schema`; local references and composition remain intact.
+- Public Task handlers use `TaskRuntime.for_owner` with this server's typed operation
+  selection. Parse Task handles once, then pass UUIDs through queries, mutations and
+  subscriptions. Keep trusted worker reads out of caller authorization paths.
 
 ## Build And Test
 
@@ -77,7 +80,7 @@ Contract revision: 3
 - C24: met
 - C25: met
 - C26: met
-- C27: pending — Task subscription admission and delivery must select current authorized Task state in SQL before decoding
+- C27: met — Task subscriptions select current owner-authorized state in SQL and close their LIVE reader with the request
 - C28: met
 - C29: met
 - C30: met — the server is stateless at the MCP boundary and retains only explicit durable domain state

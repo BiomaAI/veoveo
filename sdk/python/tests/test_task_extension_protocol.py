@@ -153,3 +153,39 @@ async def test_task_subscription_uses_the_request_scoped_channel():
     )
     assert update["method"] == "notifications/tasks"
     assert update["params"]["taskId"] == "provider/opaque-task"
+
+
+@pytest.mark.parametrize("fail_after", [0, 1])
+async def test_subscription_closes_reader_when_acknowledgement_or_delivery_fails(fail_after):
+    class Updates:
+        closed = False
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            return working()
+
+        async def aclose(self):
+            self.closed = True
+
+    updates = Updates()
+
+    class Handler(FakeHandler):
+        async def subscribe_tasks(self, _caller, _ctx, task_ids):
+            return TaskSubscription(list(task_ids), updates)
+
+    extension = TasksExtension(Handler())
+    ctx = context()
+
+    async def send(_notification, related_request_id=None):
+        if len(ctx.session.sent) == fail_after:
+            raise ConnectionError("client disconnected")
+        ctx.session.sent.append((_notification, related_request_id))
+
+    ctx.session.send_notification = send
+    with pytest.raises(ConnectionError):
+        await extension.listen(ctx, SimpleNamespace(
+            notifications=SimpleNamespace(task_ids=["provider/opaque-task"]),
+        ))
+    assert updates.closed

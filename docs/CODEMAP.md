@@ -1259,6 +1259,7 @@ shape and schema, and this package follows it.
 | `schema.py` | self-contained JSON Schema 2020-12 generation for MCP tool inputs |
 | `task_extension/` | typed official Tasks SDK-hook adapter, models, and projection |
 | `tasks/` | durable SurrealDB task runtime port: leases, CAS transitions, typed result presence, JSON-preserving Store and event adapters, outbox, recovery, prune |
+| `tasks/owner_query.py`, `tasks/owner_subscriptions.py` | Python current-owner Task selection, typed operation/page inputs, transactional caller mutations and request-owned current-state notifications |
 | `artifacts.py` | artifact-plane HTTP client, capability redemption, size-capped in-memory reads, and streamed URI/file consumption with cancellation cleanup |
 
 ### `templates/python-mcp`

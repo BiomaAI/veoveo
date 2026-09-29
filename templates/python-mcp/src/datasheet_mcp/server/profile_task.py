@@ -28,6 +28,7 @@ from veoveo_mcp.tasks import (
     RecoveryClass,
     TaskSnapshot,
     TaskTransition,
+    TaskTypeName,
     new_task_id,
 )
 
@@ -37,7 +38,7 @@ from .app_state import AppState, update_task
 from .ownership import runtime_owner
 
 SERVER_SLUG = "datasheet"
-TASK_TYPE = "profile_dataset"
+TASK_TYPE = TaskTypeName("profile_dataset")
 MODEL_ID = "datasheet/profile"
 MCP_TASK_POLL_INTERVAL_MS = 1_000
 MCP_TASK_TTL_MS = 7 * 24 * 60 * 60 * 1_000
@@ -106,7 +107,7 @@ async def start_profile_task(
             task_id=task_id,
             owner=runtime_owner(identity),
             server=SERVER_SLUG,
-            task_type=TASK_TYPE,
+            task_type=TASK_TYPE.value,
             request=request_payload,
             recovery_class=RecoveryClass.RESUME,
             idempotency_key=None,
@@ -131,7 +132,7 @@ async def resume_profile_tasks(state: AppState) -> int:
     recovery = await state.tasks.recover()
     resumed = 0
     for snapshot in recovery.resumable:
-        if snapshot.task_type != TASK_TYPE:
+        if snapshot.task_type != TASK_TYPE.value:
             continue
         try:
             await schedule_profile_task(state, snapshot)

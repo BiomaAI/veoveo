@@ -62,7 +62,13 @@ class TaskExtensionHandler(Protocol):
 @dataclass
 class TaskSubscription:
     accepted_task_ids: list[str]
-    updates: AsyncIterator[DetailedTask]
+    updates: TaskNotificationStream
+
+
+class TaskNotificationStream(Protocol):
+    def __aiter__(self) -> AsyncIterator[DetailedTask]: ...
+    async def __anext__(self) -> DetailedTask: ...
+    async def aclose(self) -> None: ...
 
 
 class TasksExtension(Extension):
@@ -132,27 +138,30 @@ class TasksExtension(Extension):
         subscription = await self.handler.subscribe_tasks(
             self.handler.authenticate(ctx), ctx, requested
         )
-        meta = {SUBSCRIPTION_ID_META_KEY: ctx.request_id}
-        accepted = types.SubscriptionFilter.model_validate(
-            {"taskIds": subscription.accepted_task_ids}
-        )
-        await ctx.session.send_notification(
-            types.SubscriptionsAcknowledgedNotification(
-                params=types.SubscriptionsAcknowledgedNotificationParams(
-                    meta=meta,
-                    notifications=accepted,
-                )
-            ),
-            related_request_id=ctx.request_id,
-        )
-        async for task in subscription.updates:
+        try:
+            meta = {SUBSCRIPTION_ID_META_KEY: ctx.request_id}
+            accepted = types.SubscriptionFilter.model_validate(
+                {"taskIds": subscription.accepted_task_ids}
+            )
             await ctx.session.send_notification(
-                TaskStatusNotification(
-                    params=TaskStatusNotificationParams(meta=meta, task=task)
+                types.SubscriptionsAcknowledgedNotification(
+                    params=types.SubscriptionsAcknowledgedNotificationParams(
+                        meta=meta,
+                        notifications=accepted,
+                    )
                 ),
                 related_request_id=ctx.request_id,
             )
-        return types.SubscriptionsListenResult(meta=meta)
+            async for task in subscription.updates:
+                await ctx.session.send_notification(
+                    TaskStatusNotification(
+                        params=TaskStatusNotificationParams(meta=meta, task=task)
+                    ),
+                    related_request_id=ctx.request_id,
+                )
+            return types.SubscriptionsListenResult(meta=meta)
+        finally:
+            await subscription.updates.aclose()
 
 
 def bind_tasks_extension(server: Server, extension: TasksExtension) -> None:

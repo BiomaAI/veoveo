@@ -8,6 +8,7 @@ these records regardless of which language wrote them.
 from __future__ import annotations
 
 import hashlib
+import re
 import uuid
 from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timedelta, timezone
@@ -51,6 +52,17 @@ class PrincipalKind(str, Enum):
 
 class TaskError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class TaskTypeName:
+    value: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.value, str) or re.fullmatch(
+            r"[a-z][a-z0-9._-]{0,127}", self.value
+        ) is None:
+            raise TaskError("invalid Task operation name")
 
 
 class TaskNotFound(TaskError):

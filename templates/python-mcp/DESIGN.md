@@ -43,6 +43,24 @@ large-file acceptance does not certify pandas at that scale.
 | `datasheet://docs` and `datasheet://docs/{doc_id}` | Embedded server documents |
 | `datasheet://contract` | Machine-readable contract declaration |
 
+## Task Admission
+
+The Tasks adapter composes the SDK's `OwnerTaskQuery` with Datasheet's typed
+`profile_dataset` operation name. Exact reads and subscription admission select the
+current owner, tenant, profile and label clearance in SQL before decoding. Datasheet
+allows its caller's Tasks across Work Contexts; the query does not add context equality.
+Domains that require that restriction opt into `in_work_context()` in the SDK.
+
+Cancellation and input-response transactions repeat the owner and operation predicates.
+Waiting-task projections read pending input through the same query. Notifications
+coalesce to current authorized state and do not decode retained outbox snapshots.
+Subscriptions accept up to 256 Task IDs and reconcile current state every 15 seconds
+to cover event-retention gaps. A disconnected source ends the stream; a new request
+admits its IDs again. The SDK owns reader cleanup through acknowledgement and delivery.
+
+Report and usage catalogs still require SQL-selected pagination. Their remaining work
+is declared in the [compliance table](AGENTS.md#contract-compliance).
+
 ## Well-Known Surface
 
 The server serves its document index at `datasheet://docs`, the `agents` and

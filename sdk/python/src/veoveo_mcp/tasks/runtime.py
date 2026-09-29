@@ -14,6 +14,8 @@ from typing import Any, AsyncIterator
 
 from surrealdb import RecordID
 
+from .owner_query import OwnerTaskQuery, VISIBLE_TASK
+
 from .store import (
     MAX_TRANSACTION_ATTEMPTS,
     OutboxEvent,
@@ -290,25 +292,15 @@ class TaskRuntime:
         return [_record_to_snapshot(record) for record in rows[0] or []]
 
     async def list_for_owner(self, owner: TaskOwner) -> list[TaskSnapshot]:
+        query = self.for_owner(owner)
         rows = await self.store.query(
-            "SELECT * FROM task WHERE server = $server AND tenant = $tenant AND "
-            "owner = $owner AND profile = $profile AND "
-            "request.owner.principal_key = $principal_key AND "
-            "request.owner.profile = $profile_key AND "
-            "(request.owner.tenant_key ?? NONE) = $tenant_key AND "
-            "request.owner.data_labels ALLINSIDE $labels ORDER BY created_at ASC;",
-            {
-                "server": server_record(self.server),
-                "tenant": owner.tenant_record(),
-                "owner": owner.principal_record(),
-                "profile": profile_record(owner.profile),
-                "principal_key": owner.principal_key,
-                "profile_key": owner.profile,
-                "tenant_key": owner.tenant_key,
-                "labels": sorted(owner.data_labels),
-            },
+            f"SELECT * FROM task WHERE {VISIBLE_TASK} ORDER BY created_at ASC;",
+            query.bindings(),
         )
         return [_record_to_snapshot(record) for record in rows[0] or []]
+
+    def for_owner(self, owner: TaskOwner) -> OwnerTaskQuery:
+        return OwnerTaskQuery(self, owner)
 
     async def owner(self, task_id: str) -> TaskOwner | None:
         snapshot = await self.get(task_id)
@@ -411,7 +403,7 @@ class TaskRuntime:
             raise InvalidRecord("task input readback is missing")
         return exchange
 
-    async def outstanding_inputs(self, task_id: str) -> dict[str, TaskInputRequest]:
+    async def outstanding_inputs(self, task_id: str | uuid.UUID) -> dict[str, TaskInputRequest]:
         parsed = parse_task_id(task_id)
         if await self.get(str(parsed)) is None:
             raise TaskNotFound(str(parsed))
@@ -427,9 +419,13 @@ class TaskRuntime:
         return outstanding
 
     async def submit_input_responses(
-        self, task_id: str, responses: dict[str, dict[str, Any]]
+        self, task_id: str, responses: dict[str, dict[str, Any]],
+        *, owner_query: OwnerTaskQuery | None = None,
     ) -> TaskInputSubmission:
-        current = await self.get(task_id)
+        current = (
+            await self.get(task_id) if owner_query is None
+            else await owner_query.get(parse_task_id(task_id))
+        )
         if current is None:
             raise TaskNotFound(task_id)
         if current.is_terminal() or current.status == TaskStatus.CANCEL_REQUESTED:
@@ -450,7 +446,9 @@ class TaskRuntime:
                         "AND response = NONE RETURN AFTER); IF $updated != NONE { LET "
                         "$task_updated = (UPDATE ONLY $task SET updated_at = $now "
                         "WHERE server = $server AND status IN ['queued', 'running', "
-                        "'waiting'] RETURN AFTER); IF $task_updated = NONE { THROW "
+                        "'waiting'] "
+                        + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
+                        + "RETURN AFTER); IF $task_updated = NONE { THROW "
                         "'task cannot accept input'; }; CREATE outbox_event CONTENT "
                         "$event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
                         {
@@ -460,6 +458,7 @@ class TaskRuntime:
                             "task": task_record(current.task_id),
                             "server": server_record(self.server),
                             "event": event,
+                            **(owner_query.bindings() if owner_query is not None else {}),
                         },
                     )
                     accepted = results[3]
@@ -630,12 +629,16 @@ class TaskRuntime:
         return await self.transition_if_current(current, transition)
 
     async def transition_if_current(
-        self, current: TaskSnapshot, transition: TaskTransition
+        self, current: TaskSnapshot, transition: TaskTransition,
+        *, owner_query: OwnerTaskQuery | None = None,
     ) -> TaskSnapshot:
         task_id = str(current.task_id)
         if current.server != self.server:
             raise WrongServer(task_id)
-        durable = await self.get(task_id)
+        durable = (
+            await self.get(task_id) if owner_query is None
+            else await owner_query.get(current.task_id)
+        )
         if durable is None:
             raise TaskNotFound(task_id)
         if durable.status != current.status or durable.updated_at != current.updated_at:
@@ -682,7 +685,9 @@ class TaskRuntime:
             "tenant = $tenant AND owner = $owner AND ($control_transition OR "
             "(lease_owner = $worker AND lease_expires_at > $now) OR "
             "($expired_cancellation AND (lease_expires_at = NONE OR lease_expires_at "
-            "<= $now))) RETURN AFTER); IF $updated != NONE { CREATE outbox_event "
+            "<= $now))) "
+            + (f"AND {owner_query.predicate()} " if owner_query is not None else "")
+            + "RETURN AFTER); IF $updated != NONE { CREATE outbox_event "
             "CONTENT $event RETURN NONE; }; RETURN $updated; COMMIT TRANSACTION;",
             {
                 "task": task_record(current.task_id),
@@ -708,6 +713,7 @@ class TaskRuntime:
                 "control_transition": control_transition,
                 "expired_cancellation": expired_cancellation,
                 "event": event,
+                **(owner_query.bindings() if owner_query is not None else {}),
             },
         )
         updated = results[3]
@@ -716,9 +722,14 @@ class TaskRuntime:
         self._note_change()
         return _record_to_snapshot(updated)
 
-    async def cancel(self, task_id: str) -> TaskSnapshot:
+    async def cancel(
+        self, task_id: str, *, owner_query: OwnerTaskQuery | None = None
+    ) -> TaskSnapshot:
         while True:
-            current = await self.get(task_id)
+            current = (
+                await self.get(task_id) if owner_query is None
+                else await owner_query.get(parse_task_id(task_id))
+            )
             if current is None:
                 raise TaskNotFound(task_id)
             if current.is_terminal():
@@ -728,7 +739,7 @@ class TaskRuntime:
             else:
                 try:
                     requested = await self.transition_if_current(
-                        current, TaskTransition.cancel_requested()
+                        current, TaskTransition.cancel_requested(), owner_query=owner_query
                     )
                 except Conflict:
                     continue
@@ -738,7 +749,7 @@ class TaskRuntime:
             if requested.lease_owner is None:
                 try:
                     return await self.transition_if_current(
-                        requested, TaskTransition.cancelled()
+                        requested, TaskTransition.cancelled(), owner_query=owner_query
                     )
                 except Conflict:
                     continue

@@ -25,12 +25,13 @@ from veoveo_mcp.task_extension import (
     project_snapshot,
     task_seed,
 )
-from veoveo_mcp.tasks import TaskError, TaskSnapshot
+from veoveo_mcp.tasks import OwnerTaskQuery, TaskError, TaskNotFound, TaskSnapshot, parse_task_id
+from veoveo_mcp.task_extension.projection import ProjectedTaskUpdates
 
 from ..contract import ProfileDatasetRequest
 from .app_state import AppState
 from .ownership import GATEWAY_ROUTING_REQUIRED, request_scope, runtime_owner
-from .profile_task import ProfileTaskError, start_profile_task
+from .profile_task import TASK_TYPE, ProfileTaskError, start_profile_task
 
 Context = ServerRequestContext[Any, Any]
 _retention_pin = TypeAdapter(TaskRetentionPin)
@@ -54,6 +55,9 @@ class DatasheetTaskExtension:
     def __init__(self, state: AppState) -> None:
         self.state = state
 
+    def _query(self, caller: AuthenticatedCaller) -> OwnerTaskQuery:
+        return self.state.tasks.for_owner(runtime_owner(caller.identity)).of_type(TASK_TYPE)
+
     def authenticate(self, ctx: Context) -> AuthenticatedCaller:
         scope = request_scope(ctx)
         identity = scope.get(IDENTITY_SCOPE_KEY)
@@ -71,20 +75,12 @@ class DatasheetTaskExtension:
         self, caller: AuthenticatedCaller, task_id: str
     ) -> TaskSnapshot:
         try:
-            snapshot = await self.state.tasks.get(task_id)
+            snapshot = await self._query(caller).get(parse_task_id(task_id))
         except TaskError as error:
             raise _internal(str(error)) from error
         if snapshot is None:
             raise _invalid("unknown task id")
-        owner = runtime_owner(caller.identity)
-        if snapshot.owner.allows(
-            owner.principal_key,
-            owner.profile,
-            owner.tenant_key,
-            owner.data_labels,
-        ):
-            return snapshot
-        raise _invalid("unknown task id")
+        return snapshot
 
     async def start_tool_task(
         self,
@@ -114,7 +110,7 @@ class DatasheetTaskExtension:
     ) -> GetTaskResult:
         snapshot = await self._authorized_snapshot(caller, request.task_id)
         try:
-            task = await project_snapshot(self.state.tasks, snapshot)
+            task = await project_snapshot(self._query(caller), snapshot)
         except TaskError as error:
             raise _internal(str(error)) from error
         return GetTaskResult(task=task)
@@ -122,11 +118,12 @@ class DatasheetTaskExtension:
     async def update_task(
         self, caller: AuthenticatedCaller, _ctx: Context, request: UpdateTaskParams
     ) -> AcknowledgeTaskResult:
-        await self._authorized_snapshot(caller, request.task_id)
         try:
-            await self.state.tasks.submit_input_responses(
-                request.task_id, request.input_responses
+            await self._query(caller).submit_input_responses(
+                parse_task_id(request.task_id), request.input_responses
             )
+        except TaskNotFound as error:
+            raise _invalid("unknown task id") from error
         except TaskError as error:
             raise _internal(str(error)) from error
         return AcknowledgeTaskResult()
@@ -134,9 +131,10 @@ class DatasheetTaskExtension:
     async def cancel_task(
         self, caller: AuthenticatedCaller, _ctx: Context, request: CancelTaskParams
     ) -> AcknowledgeTaskResult:
-        await self._authorized_snapshot(caller, request.task_id)
         try:
-            await self.state.tasks.cancel(request.task_id)
+            await self._query(caller).cancel(parse_task_id(request.task_id))
+        except TaskNotFound as error:
+            raise _invalid("unknown task id") from error
         except TaskError as error:
             raise _internal(str(error)) from error
         return AcknowledgeTaskResult()
@@ -144,32 +142,21 @@ class DatasheetTaskExtension:
     async def subscribe_tasks(
         self, caller: AuthenticatedCaller, _ctx: Context, task_ids: Sequence[str]
     ) -> TaskSubscription:
-        accepted: list[str] = []
+        if len(task_ids) > 256:
+            raise _invalid("Task subscription accepts at most 256 identities")
+        ids = []
         for task_id in task_ids:
             try:
-                await self._authorized_snapshot(caller, task_id)
-            except MCPError:
+                ids.append(parse_task_id(task_id))
+            except TaskError:
                 continue
-            accepted.append(task_id)
-        accepted_keys = set(accepted)
-        caller_owner = runtime_owner(caller.identity)
+        query = self._query(caller)
         try:
-            updates = await self.state.tasks.live_updates()
+            subscription = await query.subscribe(ids)
         except TaskError as error:
             raise _internal(str(error)) from error
 
-        async def stream():
-            async for update in updates:
-                snapshot = update.snapshot
-                if str(snapshot.task_id) not in accepted_keys:
-                    continue
-                if not snapshot.owner.allows(
-                    caller_owner.principal_key,
-                    caller_owner.profile,
-                    caller_owner.tenant_key,
-                    caller_owner.data_labels,
-                ):
-                    continue
-                yield await project_snapshot(self.state.tasks, snapshot)
-
-        return TaskSubscription(accepted_task_ids=accepted, updates=stream())
+        return TaskSubscription(
+            accepted_task_ids=[str(task_id) for task_id in subscription.accepted_task_ids],
+            updates=ProjectedTaskUpdates(query, subscription.updates),
+        )

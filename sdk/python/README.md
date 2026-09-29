@@ -31,15 +31,29 @@ The Store adapter preserves nested nulls and unsigned 64-bit integers in results
 event snapshots. The official Tasks adapter returns object results directly and wraps
 other payloads in a `value` object.
 
-`TaskRuntime.list_for_owner` applies tenant, principal, profile and label clearance
-in SQL before decoding Task contents. Indexed identity must agree with the saved
-owner, and an absent tenant stays distinct from a tenant named `installation`.
-Each call uses the supplied owner's current clearance. `TaskRuntime.get` is a trusted
-server read: it selects the server in SQL and supplies no caller authorization.
+Public Task handlers use `runtime.for_owner(caller)` to construct an `OwnerTaskQuery`.
+Its `get`, `page`, `subscribe`, outstanding-input reads and mutations apply tenant,
+principal, profile and label clearance in SQL before decoding Task contents. Indexed
+identity must agree with the saved owner. An absent tenant stays distinct from a tenant
+named `installation`. `in_work_context()` adds agreement among the indexed context and
+both retained authority representations. `of_type(TaskTypeName(...))` and `of_types`
+select validated domain operation names without registering them in MCP core.
 
-Task change streams keep their LIVE reader open across idle deadlines. Cancellation
-closes the reader and removes its server subscription. A terminated source or transport
-error reaches the consumer, which must establish a new subscription before continuing.
+Queries accept UUIDv7 values parsed at the protocol boundary. Pages use a typed
+`TaskPageCursor` containing creation time and Task ID, ordered by both fields, with
+1–1000 items selected after authorization. Every page reapplies caller clearance.
+Cancellation and input responses recheck the same query inside their mutation
+transaction, including after a concurrent policy change. `TaskRuntime.get` and
+`live_updates` are trusted worker APIs and supply no caller authorization.
+
+Owner subscriptions admit at most 256 requested Tasks. They select current authorized
+rows for notifications, using outbox identities as wake metadata without decoding old
+event snapshots. Intermediate states may coalesce. A 15-second current-state check
+recovers retained-event gaps. LIVE readers survive idle deadlines and close on
+cancellation, acknowledgement failure or notification delivery failure, including
+before the first iteration. A terminated source reaches the consumer; a replacement
+subscription admits its IDs again and reads a fresh baseline. Call `updates.aclose()`
+when consuming the reader outside the SDK's request-scoped Tasks adapter.
 
 ## Development In A Fork
 

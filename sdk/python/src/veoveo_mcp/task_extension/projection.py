@@ -6,8 +6,13 @@ runtime is the source of truth, the extension is transport only.
 
 from __future__ import annotations
 
-from ..tasks.runtime import TaskRuntime
-from ..tasks.types import InvalidRecord, TaskSnapshot, TaskStatus as StoreTaskStatus
+import uuid
+from collections.abc import AsyncIterator
+from typing import Protocol
+
+from ..tasks.types import (
+    InvalidRecord, TaskInputRequest, TaskSnapshot, TaskUpdate, TaskStatus as StoreTaskStatus,
+)
 from .models import (
     CancelledTask,
     CompletedTask,
@@ -16,7 +21,33 @@ from .models import (
     Task,
     TaskStatus,
     WorkingTask,
+    DetailedTask,
 )
+
+
+class TaskInputReader(Protocol):
+    async def outstanding_inputs(self, task_id: uuid.UUID) -> dict[str, TaskInputRequest]: ...
+
+
+class SnapshotUpdates(Protocol):
+    def __aiter__(self) -> AsyncIterator[TaskUpdate]: ...
+    async def __anext__(self) -> TaskUpdate: ...
+    async def aclose(self) -> None: ...
+
+
+class ProjectedTaskUpdates:
+    def __init__(self, reader: TaskInputReader, updates: SnapshotUpdates) -> None:
+        self._reader = reader
+        self._updates = updates
+
+    def __aiter__(self) -> ProjectedTaskUpdates:
+        return self
+
+    async def __anext__(self) -> DetailedTask:
+        return await project_snapshot(self._reader, (await anext(self._updates)).snapshot)
+
+    async def aclose(self) -> None:
+        await self._updates.aclose()
 
 
 def task_seed(snapshot: TaskSnapshot) -> Task:
@@ -32,7 +63,7 @@ def task_seed(snapshot: TaskSnapshot) -> Task:
 
 
 async def project_snapshot(
-    runtime: TaskRuntime, snapshot: TaskSnapshot
+    runtime: TaskInputReader, snapshot: TaskSnapshot
 ) -> WorkingTask | InputRequiredTask | CompletedTask | FailedTask | CancelledTask:
     metadata = {
         "task_id": str(snapshot.task_id),
@@ -50,7 +81,7 @@ async def project_snapshot(
     ):
         return WorkingTask(**metadata)
     if status == StoreTaskStatus.WAITING:
-        requests = await runtime.outstanding_inputs(str(snapshot.task_id))
+        requests = await runtime.outstanding_inputs(snapshot.task_id)
         if not requests:
             return WorkingTask(**metadata)
         return InputRequiredTask(
