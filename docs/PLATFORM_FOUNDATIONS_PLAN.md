@@ -77,7 +77,9 @@ truth. A native pinned PX4 process consumes the CUDA plant through the productio
 bridge; all five gyro, accel, mag and barometer validators report OK at 15 and 30 seconds,
 with no failsafe or IMU data gaps. This avoids a full installation cycle to discover each
 stationary sensor defect. The batch also fixes mission admission's missing arming
-deadline. Composed rendering, timing and flight still require installed qualification.
+deadline. Composed rendering, timing and flight still require installed qualification. The
+combined UUID/sensor images at `cede5aa2` published in 126 seconds, reusing the simulator
+dependency image. The reference locks select both digests for one installed pass.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
