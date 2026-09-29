@@ -128,8 +128,10 @@ reference and example graphs now select RTP-only timestamping through
 pass both steady and catch-up cases on the RTX 4090: each sends 180 frames, receives
 180 unique preview timestamps and completes 177 NVDEC/TensorRT results. The native
 runner and model image digests are unchanged. The regression owns its temporary
-container and reuses the compiled model. Chart publication and installed live Stream
-qualification are next; this result does not establish composed flight acceptance.
+container and reuses the compiled model. Helm configuration, documentation and identifier
+checks pass. The platform chart at `33143814` is published and selected by immutable
+digest; installed live Stream qualification is next. This result does not establish
+composed flight acceptance.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
