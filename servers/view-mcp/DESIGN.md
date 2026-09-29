@@ -45,18 +45,19 @@ identities keep the `view://` scheme.
 | [Veoveo shared artifact plane](../../platform/artifacts/service) | Exact governed overlay geometry and oriented GLB mesh inputs are resolved under the caller's forwarded gateway authority. |
 | [Veoveo Frames contract](../frames-mcp/DESIGN.md) | A composition with local metre coordinates binds one exact world revision, frame URI, transform, and Frames operation input. |
 | PNG and JPEG | Bounded captured-frame encodings returned as MCP image content and governed frame resources. |
+| RFC 3986 and RFC 6570 | The [foundational URI profile](../../platform/types/DESIGN.md) supplies concrete component parsing, encoding and template expansion. View admits its own route shapes and typed parameters. |
 
 ## Library Features
 
 The `contract` feature exposes camera and capture types, composition validation,
-`ViewScope` and `ViewTaskKind`. It depends on foundational types and the owning Frames
-and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
+resource addresses, `ViewScope` and `ViewTaskKind`. It depends on foundational types
+and the owning Frames and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
 `InvocationAuthority`; the authenticated adapter supplies it from the verified caller.
 Its serialization participates in the stable composition digest.
 
 Consumers select `default-features = false, features = ["contract"]`. This library
 profile requires no MCP transport, database client, async runtime or renderer.
-`runtime` adds scene resolution, state, tile access, URI helpers and the GPU renderer.
+`runtime` adds scene resolution, state, tile access and the GPU renderer.
 `mcp` adds the authenticated server and its Task adapter; the binary requires that feature.
 The default is `mcp`, including the mandatory GPU runtime.
 
@@ -64,6 +65,28 @@ The default is `mcp`, including the mandatory GPU runtime.
 Tasks use the same typed permission guard in `server/auth.rs`. The guard requires the
 individual capability in the authenticated grant set. Unrelated grants remain valid
 and supply no View permission. Discovery uses the same check when exposing the preview App.
+
+## Resource Addresses And Discovery
+
+`ViewResource` owns the `view://` routes and the preview App address. Individual
+`ViewUri`, `CompositionUri`, `FrameUri`, `LayerUri` and `TileUri` values require their
+domain IDs. Public records carry these types and serialize them as URI strings.
+`TileKey` stays typed through the in-process registry and byte lookup. Documents use
+the closed `ViewDocument` vocabulary. An address establishes neither ownership nor a grant.
+
+`ViewSceneUri::new` checks positive viewport dimensions and finite screen error in
+the supported range before constructing an address. Runtime reads also apply the
+installation's capture limits. The shared builder handles all component encoding.
+Parsing rejects credentials, fragments, unsupported or repeated query parameters,
+wrong parents and noncanonical spellings. Scene query parameters use the order and
+number spelling produced by the builder, which matches the discovery template.
+
+`server/setup.rs` implements `McpServerContract` and checks documents, descriptors,
+scope membership and all seven templates before Store access or renderer startup.
+Discovery serves fixed collection roots, documents and the permitted preview App;
+resource reads enumerate caller-owned state. Mutations invalidate resource contents.
+Subscriptions accept the mutable composition, view and frame collections, individual
+views and explicit Task handles. The gateway registrations declare this discovery profile.
 
 ## Boundary
 
@@ -232,7 +255,7 @@ SHA-256 digest.
 
 ### Resources
 
-Root resources are:
+Domain collection resources are:
 
 ```text
 view://layers
@@ -241,7 +264,7 @@ view://views
 view://frames
 ```
 
-Resource templates are:
+Domain resource templates are:
 
 ```text
 view://layer/{layer_id}
@@ -253,10 +276,11 @@ view://tile/{tile_key}
 ```
 
 Compositions, views, and frames are principal and Work Context scoped.
-Composition records are immutable. Resource lists are paginated. The server
-emits list-change notifications after composition or view creation and close,
-root-resource updates after captures, and view-resource updates after camera
-replacement.
+Composition records are immutable. Discovery pages the
+[fixed declarations](#resource-addresses-and-discovery). The server invalidates the
+corresponding collection resource after composition creation, view creation or
+closure, and capture. Camera replacement and closure also invalidate the individual
+view resource.
 
 Completion applies to visible view ids, frame ids, and configured layer ids.
 No prompt belongs in the initial capture-only domain.

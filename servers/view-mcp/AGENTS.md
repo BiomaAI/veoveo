@@ -1,7 +1,7 @@
 # View MCP Server — Agent Manual
 
 Delta over the repository root `AGENTS.md`. The normative server contract is
-[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 2.
+[`mcp/contract/DESIGN.md`](../../mcp/contract/DESIGN.md), revision 3.
 
 ## Purpose
 
@@ -12,12 +12,17 @@ and attribution.
 
 ## Invariants
 
-- Public camera, capture and composition types, plus `ViewScope` and `ViewTaskKind`,
-  belong in the library's `contract` feature. Keep that profile free of MCP transport,
+- Public camera, capture, composition and resource types, `ViewScope` and
+  `ViewTaskKind` belong in the library's `contract` feature. Keep that profile free of MCP transport,
   async, database and GPU dependencies. Import resolved authority from `veoveo-types`;
   authentication and current authorization stay in the runtime and adapter.
 - Require `ViewScope` in permission checks. Requests and capture Tasks share
   `server/auth.rs`; preserve unrelated names in the authenticated grant set.
+- Construct and parse View addresses through `ViewResource` and its domain-specific
+  URI types. Keep tile keys typed through the registry. Scene URI construction checks
+  numeric admission; runtime limits still apply at read time.
+- `server/setup.rs` owns fixed discovery declarations. Force checked setup before
+  opening dependencies; scene changes invalidate resource contents.
 - Owns the `view://` URI scheme plus the `ui://view/preview.html` app view.
   Identity: slug `view`, MCP `/view/mcp`. Map owns geographic source truth;
   View derives no routing or search products. It renders exact governed inputs
@@ -65,7 +70,7 @@ and attribution.
 
 ## Contract Compliance
 
-Contract revision: 2
+Contract revision: 3
 
 - C01: met
 - C02: met
@@ -83,7 +88,7 @@ Contract revision: 2
 - C14: met
 - C15: met
 - C16: met
-- C17: pending — gateway registration does not state the contract revision
+- C17: met — both gateway registrations declare revision 3
 - C18: met
 - C19: met
 - C20: met

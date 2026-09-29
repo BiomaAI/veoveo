@@ -2,6 +2,7 @@ mod admin;
 pub(crate) mod auth;
 mod config;
 mod host;
+pub(crate) mod setup;
 pub(crate) mod tasks;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -48,6 +49,7 @@ pub async fn run() -> Result<()> {
         init_server_telemetry("veoveo-view-mcp", "info,veoveo_view_mcp=debug")?;
     let args = Args::parse();
     args.validate()?;
+    std::sync::LazyLock::force(&setup::SERVER_SETUP);
     let public_deployment = args.public_deployment()?;
     let public_endpoint = public_deployment.server(SERVER_SLUG)?;
     let verifier = GatewayInternalTokenVerifier::new(

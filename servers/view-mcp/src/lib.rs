@@ -18,7 +18,7 @@ pub mod source;
 pub mod state;
 #[cfg(feature = "runtime")]
 pub mod tiles;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 
 #[cfg(feature = "mcp")]

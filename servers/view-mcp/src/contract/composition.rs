@@ -552,7 +552,7 @@ pub struct SceneCompositionAuthority {
 pub struct SceneComposition {
     pub schema_version: u64,
     pub composition_id: SceneCompositionId,
-    pub composition_uri: String,
+    pub composition_uri: super::CompositionUri,
     pub revision: u64,
     pub base_layer: LayerId,
     pub map_releases: BTreeSet<MapReleaseUri>,

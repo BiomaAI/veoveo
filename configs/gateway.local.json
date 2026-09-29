@@ -498,7 +498,7 @@
         "prompts": false,
         "completions": true,
         "tasks": true,
-        "resources_list_changed": true,
+        "resources_list_changed": false,
         "apps": true
       },
       "tools": [
@@ -512,7 +512,8 @@
         "operator:use"
       ],
       "metadata": {
-        "renderer": "headless_nvidia_vulkan"
+        "renderer": "headless_nvidia_vulkan",
+        "contract_revision": 3
       },
       "resource_projection": "server_owned"
     },

@@ -22,7 +22,6 @@ use crate::{
     decode::{CpuMaterial, CpuPrimitive, CpuSampler, CpuTileContent, decode_glb},
     geodesy::{camera_ecef_basis, camera_world_transform, geodetic_to_ecef, world_from_ecef},
     renderer::RenderTile,
-    uris,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,7 +140,7 @@ pub async fn resolve_scene_composition(
         crate::contract::SceneCompositionId::from_stable_key(stable_key.as_bytes());
     let mut record = SceneComposition {
         schema_version: request.schema_version,
-        composition_uri: uris::composition(&composition_id),
+        composition_uri: crate::contract::CompositionUri::new(composition_id.clone()),
         composition_id,
         revision: 1,
         base_layer: request.base_layer,

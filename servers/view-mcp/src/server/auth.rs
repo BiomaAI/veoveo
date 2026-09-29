@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
 };
 use veoveo_mcp_contract::{GatewayInternalIdentity, GatewayInternalTokenVerifier};
+#[cfg(test)]
 use veoveo_types::ScopeDefinition;
 
 #[derive(Clone)]
@@ -48,7 +49,7 @@ fn bearer_token(header: &str) -> Option<&str> {
 }
 
 pub(crate) fn has_scope(identity: &GatewayInternalIdentity, required: ViewScope) -> bool {
-    identity.actor.scopes.contains(required.name())
+    super::setup::SERVER_SETUP.has_scope(&identity.actor.scopes, required)
 }
 
 pub(crate) fn require_scope(

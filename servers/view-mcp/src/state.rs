@@ -30,10 +30,10 @@ use crate::{
     contract::{
         AttributionSet, CaptureFrameRequest, CaptureLimits, CapturedFrame, CloseViewRequest,
         CloseViewResult, ContractError, CreateSceneCompositionRequest, CreateViewRequest,
-        DeadlineBehavior, FrameId, FrameRecord, LayerId, MAX_TILE_RESOURCE_BYTES,
+        DeadlineBehavior, FrameId, FrameRecord, FrameUri, LayerId, MAX_TILE_RESOURCE_BYTES,
         PreviewScenePolicy, PreviewSceneRecord, SCENE_DEADLINE_MS, SCENE_MAX_TILES,
         SceneComposition, SceneCompositionAuthority, SceneCompositionId, SceneTileRecord,
-        SetCameraRequest, Sha256Digest, ViewId, ViewRecord,
+        SetCameraRequest, Sha256Digest, TileKey, TileUri, ViewId, ViewRecord, ViewUri,
     },
     decode::{CpuTileContent, decode_glb},
     geodesy::{
@@ -45,7 +45,6 @@ use crate::{
     tiles::traversal::{
         Selection, SelectionHistory, SelectionParams, TileReadiness, TileTree, select,
     },
-    uris,
 };
 
 #[derive(Debug, Clone)]
@@ -83,8 +82,8 @@ const MAX_TILE_TOKENS: usize = 8_192;
 
 #[derive(Default)]
 struct TileTokenRegistry {
-    entries: HashMap<String, TileTokenEntry>,
-    order: VecDeque<String>,
+    entries: HashMap<TileKey, TileTokenEntry>,
+    order: VecDeque<TileKey>,
 }
 
 #[derive(Clone)]
@@ -94,7 +93,7 @@ struct TileTokenEntry {
 }
 
 impl TileTokenRegistry {
-    fn register(&mut self, key: String, entry: TileTokenEntry) {
+    fn register(&mut self, key: TileKey, entry: TileTokenEntry) {
         if self.entries.insert(key.clone(), entry).is_none() {
             self.order.push_back(key);
             while self.order.len() > MAX_TILE_TOKENS {
@@ -106,7 +105,7 @@ impl TileTokenRegistry {
         }
     }
 
-    fn get(&self, key: &str) -> Option<TileTokenEntry> {
+    fn get(&self, key: &TileKey) -> Option<TileTokenEntry> {
         self.entries.get(key).cloned()
     }
 }
@@ -326,7 +325,7 @@ impl ViewService {
         let now = Utc::now();
         let view_id = ViewId::new(Uuid::now_v7().simple().to_string())?;
         let record = ViewRecord {
-            view_uri: uris::view(&view_id),
+            view_uri: ViewUri::new(view_id.clone()),
             view_id: view_id.clone(),
             composition_id: composition.composition_id,
             composition_uri: composition.composition_uri,
@@ -512,7 +511,8 @@ impl ViewService {
             let mut registry = self.tiles.lock();
             for (location, ecef_from_content) in manifest.into_iter().take(SCENE_MAX_TILES) {
                 let location = credential_free_location(&location);
-                let tile_key = sha256_hex(format!("{}\n{location}", view.scene_layer).as_bytes());
+                let tile_key =
+                    TileKey::from_bytes(format!("{}\n{location}", view.scene_layer).as_bytes());
                 let byte_length = source.cached_content_length(&location);
                 let oversize = byte_length.is_some_and(|length| length > MAX_TILE_RESOURCE_BYTES);
                 registry.register(
@@ -523,7 +523,7 @@ impl ViewService {
                     },
                 );
                 tiles.push(SceneTileRecord {
-                    tile_uri: uris::tile(&tile_key),
+                    tile_uri: TileUri::new(tile_key),
                     ecef_from_content,
                     byte_length,
                     oversize,
@@ -555,7 +555,7 @@ impl ViewService {
     /// cache or a refetch under the source's own credential and host rules.
     pub async fn read_tile_bytes(
         &self,
-        tile_key: &str,
+        tile_key: &TileKey,
         cancellation: CancellationToken,
     ) -> Result<(Arc<Vec<u8>>, &'static str), ServiceError> {
         let entry = self
@@ -756,7 +756,7 @@ impl ViewService {
             f32::MAX
         };
         let record = FrameRecord {
-            frame_uri: uris::frame(&frame_id),
+            frame_uri: FrameUri::new(frame_id.clone()),
             frame_id: frame_id.clone(),
             view_id: view.view_id.clone(),
             view_revision: view.revision,
@@ -1287,19 +1287,29 @@ mod tests {
     fn tile_token_registry_evicts_oldest_beyond_the_cap() {
         let mut registry = TileTokenRegistry::default();
         for index in 0..=MAX_TILE_TOKENS {
-            registry.register(format!("key-{index}"), token_entry("loc"));
+            registry.register(
+                TileKey::from_bytes(index.to_string().as_bytes()),
+                token_entry("loc"),
+            );
         }
-        assert!(registry.get("key-0").is_none());
-        assert!(registry.get(&format!("key-{MAX_TILE_TOKENS}")).is_some());
+        assert!(registry.get(&TileKey::from_bytes(b"0")).is_none());
+        assert!(
+            registry
+                .get(&TileKey::from_bytes(MAX_TILE_TOKENS.to_string().as_bytes()))
+                .is_some()
+        );
         assert_eq!(registry.entries.len(), MAX_TILE_TOKENS);
     }
 
     #[test]
     fn tile_token_reregistration_does_not_duplicate_order() {
         let mut registry = TileTokenRegistry::default();
-        registry.register("key".to_owned(), token_entry("a"));
-        registry.register("key".to_owned(), token_entry("b"));
+        registry.register(TileKey::from_bytes(b"key"), token_entry("a"));
+        registry.register(TileKey::from_bytes(b"key"), token_entry("b"));
         assert_eq!(registry.order.len(), 1);
-        assert_eq!(registry.get("key").unwrap().location, "b");
+        assert_eq!(
+            registry.get(&TileKey::from_bytes(b"key")).unwrap().location,
+            "b"
+        );
     }
 }

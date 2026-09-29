@@ -1,3 +1,5 @@
+mod resources;
+pub use resources::*;
 mod scopes;
 pub use scopes::ViewScope;
 mod task_kind;
@@ -14,6 +16,7 @@ pub use composition::*;
 
 fn validate_id(value: &str) -> Result<(), ContractError> {
     if value.is_empty()
+        || matches!(value, "." | "..")
         || value.len() > 128
         || !value
             .bytes()
@@ -339,9 +342,9 @@ pub struct CloseViewRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct ViewRecord {
     pub view_id: ViewId,
-    pub view_uri: String,
+    pub view_uri: ViewUri,
     pub composition_id: SceneCompositionId,
-    pub composition_uri: String,
+    pub composition_uri: CompositionUri,
     pub composition_digest_sha256: Sha256Digest,
     pub scene_layer: LayerId,
     pub revision: u64,
@@ -360,11 +363,11 @@ pub struct CloseViewResult {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct FrameRecord {
     pub frame_id: FrameId,
-    pub frame_uri: String,
+    pub frame_uri: FrameUri,
     pub view_id: ViewId,
     pub view_revision: u64,
     pub composition_id: SceneCompositionId,
-    pub composition_uri: String,
+    pub composition_uri: CompositionUri,
     pub composition_revision: u64,
     pub composition_digest_sha256: Sha256Digest,
     pub style_id: SceneStyleId,
@@ -410,7 +413,7 @@ pub const MAX_TILE_RESOURCE_BYTES: u64 = 1_500_000;
 /// server-side renderer.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct SceneTileRecord {
-    pub tile_uri: String,
+    pub tile_uri: TileUri,
     /// Column-major, meters (matches glam `to_cols_array` and three.js
     /// `Matrix4.fromArray`).
     pub ecef_from_content: [f64; 16],
@@ -475,8 +478,6 @@ pub enum ContractError {
     },
     #[error("maximum screen error must be between 0.25 and 256 pixels")]
     InvalidScreenError,
-    #[error("preview scene resource URI is invalid; read it again from the view scene resource")]
-    InvalidPreviewSceneUri,
     #[error("capture deadline must be between 1 and {max_deadline_ms} milliseconds")]
     InvalidDeadline { max_deadline_ms: u32 },
 }

@@ -789,7 +789,10 @@ deployment details.
 View's `contract` feature exposes camera, capture and composition models without its
 runtime. `src/contract/composition.rs` owns typed identities, inputs, Frames bindings,
 overlay geometry, styles, validity and bounds. `src/contract/scopes.rs` owns the three
-View permissions; `src/server/auth.rs` shares their guard between requests and Tasks. `src/composition.rs` resolves artifact bytes and
+View permissions; `src/server/auth.rs` shares their guard between requests and Tasks.
+`src/contract/resources.rs` owns typed addresses and tile keys; `src/uris.rs` declares
+fixed roots and templates. `src/server/setup.rs` owns checked MCP setup and static
+discovery. `src/composition.rs` resolves artifact bytes and
 converts validated overlays into GPU render products. `src/state.rs` owns
 principal and Work Context scoped composition, view, capture snapshot, and
 frame state. `src/mcp.rs` publishes the tools and resources, while

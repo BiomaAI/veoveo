@@ -788,14 +788,34 @@ serialized composition-authority input and nested identity admission are covered
 View's independent consumer passes five checks with a 117-package Linux graph free of
 MCP, async, database and GPU implementations. The contract-only profile passes nine
 unit cases and one compile-fail example; the runtime-only build and all 62 native View
-cases pass. Strict all-target, all-feature workspace Clippy passes. Typed View resource builders,
-checked MCP setup, current installed behavior and GPU acceptance remain pending.
+cases pass. Strict all-target, all-feature workspace Clippy passes. View resource
+builders and checked setup are recorded below; installed behavior and GPU acceptance remain pending.
 Cleanup removed 22 unlocked, unfinished Rust incremental sessions older than a day,
 reclaiming 0.54 GiB. Another 114 superseded test executables reclaimed 54.17 GiB;
 each had changed source inputs, was older than a day and had a newer executable with
 the same test target and build configuration. All newer executables, service binaries,
 library artifacts and finalized incremental sessions were preserved. Free space after
 cleanup is 76 GiB; reference containers remain stopped.
+
+View now owns concrete addresses through `ViewResource` and distinct layer, composition,
+view, frame, scene and tile URI types. Records and manifests carry those types, while
+the tile registry keeps `TileKey` through lookup. The shared parser and builder handle
+components; domain admission rejects wrong routes, relative IDs, unsupported or repeated
+parameters and noncanonical spellings. Scene construction checks numeric inputs before
+the runtime applies installation limits. Public URI fields keep their string wire shape.
+
+Checked MCP setup validates fixed discovery before Store access or renderer startup.
+The nine declarations cover roots, documents and the permission-gated preview App.
+Seven templates agree with typed builders. Scene mutations invalidate contents;
+subscriptions admit mutable resources and explicit Task handles. Both gateway
+registrations declare revision 3 and omit resource-list changes. The frame template
+leaves media type to the PNG or JPEG response.
+
+Qualification passes 15 contract cases, three compile-fail examples and 68 native View
+cases. Runtime-only compilation and strict all-target, all-feature workspace Clippy
+pass. The independent 117-package consumer runs eleven checks without MCP, async,
+database or GPU implementations. View's broader record relationship validation and
+owner-typed governed input references remain open, along with installed and GPU acceptance.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -1309,7 +1329,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
-| View | Its isolated contract exposes camera, capture and composition models with complete foundational authority. `ViewScope` and `ViewTaskKind` belong to the server library; ordinary requests and capture Tasks share a typed scope guard. The independent consumer excludes MCP, async, database and GPU implementations; contract-only tests, runtime-only compilation and 62 native cases pass | Migrate resource builders and checked MCP setup, then qualify installed consumers and GPU behavior |
+| View | Its isolated contract owns public scene types, scopes, Task kinds, concrete resource variants and typed URI constructors. Tile keys stay typed through the registry. Checked MCP setup supplies fixed discovery and typed permission membership; seven templates match builders, both gateway registrations declare revision 3, and native and independent-consumer checks pass | Check repeated identities and parents across public records; replace manual governed-input reference handling through the owning contracts; qualify installed consumers and GPU behavior |
 | Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |

@@ -14,7 +14,7 @@ use axum::{
     routing::get,
 };
 
-use crate::mcp::SERVER_DOCS;
+use super::setup::SERVER_DOCS;
 
 pub(super) fn router() -> Router {
     Router::new()
