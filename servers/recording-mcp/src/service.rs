@@ -18,12 +18,15 @@ use veoveo_rrd::properties_layer::{RecordingProperties, build_properties_layer};
 use veoveo_types::{DataLabelId, ScopeDefinition, ScopeName};
 
 use crate::contract::{
-    LayerView, ManifestBlueprint, ManifestLayer, PlaybackLiveReceiver, RecordingManifest,
-    RecordingScope, RecordingView, SealRecordingOutput,
+    LayerView, PlaybackLiveReceiver, RecordingManifest, RecordingManifestBuilder,
+    RecordingManifestSchema, RecordingScope, RecordingView, SealRecordingOutput,
+    SealRecordingOutputBuilder,
 };
 use veoveo_recording_reader::cache::{CachedLayer, LayerCache, LayerCacheLimits, LayerCacheStats};
 
 mod grants;
+mod views;
+use views::{artifact_reference, artifact_uri, layer_view, manifest_blueprint, manifest_layer};
 mod index;
 mod projection;
 pub use projection::{ProjectionDownload, ProjectionRuntimeLimits, ProjectionRuntimeStats};
@@ -517,8 +520,9 @@ impl RecordingService {
                 .recording_dataset(platform_identity.tenant_id, dataset_id)
                 .await?
                 .context("sealed recording dataset is missing")?;
+            let output = self.sealed_output(&platform_identity, recording).await?;
             self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
-            return self.sealed_output(&platform_identity, recording).await;
+            return Ok(output);
         }
         ensure!(
             matches!(
@@ -539,6 +543,9 @@ impl RecordingService {
                 .all(|layer| layer.state == RecordingLayerState::Committed),
             "recording contains a non-committed layer"
         );
+        for layer in &layers {
+            manifest_layer(layer)?;
+        }
         if recording.state != RecordingState::Sealing {
             self.store
                 .begin_recording_seal(&platform_identity, recording_id, None)
@@ -585,43 +592,26 @@ impl RecordingService {
             .store
             .current_recording_blueprint(platform_identity.tenant_id, recording_id)
             .await?
-            .map(|blueprint| {
-                let artifact = blueprint
-                    .artifact
-                    .as_ref()
-                    .context("recording Blueprint has not been published")?;
-                Ok::<_, anyhow::Error>(ManifestBlueprint {
-                    blueprint_id: blueprint.blueprint_id,
-                    revision: blueprint.revision,
-                    byte_len: blueprint.byte_len,
-                    message_count: blueprint.message_count,
-                    sha256: blueprint.sha256,
-                    artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
-                        artifact,
-                        "artifact_occurrence",
-                    )?)),
-                })
-            })
+            .map(manifest_blueprint)
             .transpose()?;
         let current = self
             .store
             .recording(platform_identity.tenant_id, recording_id)
             .await?
             .context("recording disappeared while sealing")?;
+        let manifest = RecordingManifestBuilder {
+            schema: RecordingManifestSchema::V9,
+            dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
+            recording_segment_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
+            catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),
+            layers: manifest_layers.clone(),
+            blueprint: manifest_blueprint.clone(),
+            sealed_at,
+        }
+        .build()?;
         let manifest_artifact_id = if let Some(record) = current.manifest_artifact {
             PlatformArtifactId::from_uuid(record_uuid(&record, "artifact_occurrence")?)
         } else {
-            let manifest = RecordingManifest {
-                schema: "veoveo.ai/recording-manifest/v9".to_owned(),
-                dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
-                recording_segment_id: crate::contract::RecordingId::try_from(
-                    recording_id.as_uuid(),
-                )?,
-                catalog_revision: catalog_revision(dataset.revision, current.revision, &layers),
-                layers: manifest_layers.clone(),
-                blueprint: manifest_blueprint.clone(),
-                sealed_at: sealed_at.to_rfc3339(),
-            };
             let metadata = self
                 .publish_manifest(&recording, dataset_id, recording_id, &manifest)
                 .await?;
@@ -631,6 +621,16 @@ impl RecordingService {
                 .await?;
             artifact_id
         };
+        let output = SealRecordingOutputBuilder {
+            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
+            manifest_artifact_uri: artifact_uri(manifest_artifact_id)?,
+            layer_artifact_uris: manifest_layers
+                .into_iter()
+                .map(|layer| layer.artifact_uri.clone())
+                .collect(),
+            blueprint_artifact_uri: manifest_blueprint.map(|blueprint| blueprint.artifact_uri),
+        }
+        .build()?;
         self.store
             .complete_recording_seal(RecordingSeal {
                 identity: platform_identity.clone(),
@@ -641,15 +641,7 @@ impl RecordingService {
             })
             .await?;
         self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
-        Ok(SealRecordingOutput {
-            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
-            manifest_artifact_uri: artifact_uri(manifest_artifact_id),
-            layer_artifact_uris: manifest_layers
-                .into_iter()
-                .map(|layer| layer.artifact_uri)
-                .collect(),
-            blueprint_artifact_uri: manifest_blueprint.map(|blueprint| blueprint.artifact_uri),
-        })
+        Ok(output)
     }
 
     async fn ensure_properties_layer(
@@ -972,81 +964,27 @@ impl RecordingService {
             .await?;
         let layer_artifact_uris = layers
             .iter()
-            .map(|layer| {
-                let artifact = layer
+            .map(|layer| manifest_layer(layer).map(|layer| layer.artifact_uri.clone()))
+            .collect::<Result<Vec<_>>>()?;
+        let blueprint_artifact_uri = self
+            .store
+            .current_recording_blueprint(identity.tenant_id, recording_id)
+            .await?
+            .map(|blueprint| {
+                let artifact = blueprint
                     .artifact
                     .as_ref()
-                    .context("committed layer has no artifact")?;
-                Ok(artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
-                    artifact,
-                    "artifact_occurrence",
-                )?)))
+                    .context("sealed recording Blueprint has no artifact")?;
+                artifact_reference(artifact)
             })
-            .collect::<Result<Vec<_>>>()?;
-        let blueprint_artifact_uri =
-            self.store
-                .current_recording_blueprint(identity.tenant_id, recording_id)
-                .await?
-                .map(|blueprint| {
-                    let artifact = blueprint
-                        .artifact
-                        .as_ref()
-                        .context("sealed recording Blueprint has no artifact")?;
-                    Ok::<_, anyhow::Error>(artifact_uri(PlatformArtifactId::from_uuid(
-                        record_uuid(artifact, "artifact_occurrence")?,
-                    )))
-                })
-                .transpose()?;
-        Ok(SealRecordingOutput {
+            .transpose()?;
+        Ok(SealRecordingOutputBuilder {
             recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
-            manifest_artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
-                manifest,
-                "artifact_occurrence",
-            )?)),
+            manifest_artifact_uri: artifact_reference(manifest)?,
             layer_artifact_uris,
             blueprint_artifact_uri,
-        })
-    }
-
-    async fn view(
-        &self,
-        tenant_id: veoveo_platform_store::TenantId,
-        recording: RecordingRecord,
-    ) -> Result<RecordingView> {
-        let recording_id = RecordingId::from_uuid(record_uuid(&recording.id, "recording")?);
-        let dataset_id =
-            RecordingDatasetId::from_uuid(record_uuid(&recording.dataset, "recording_dataset")?);
-        let dataset = self
-            .store
-            .recording_dataset(tenant_id, dataset_id)
-            .await?
-            .context("recording dataset is missing")?;
-        let counts = self
-            .store
-            .recording_layer_counts(tenant_id, recording_id)
-            .await?;
-        Ok(RecordingView {
-            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
-            dataset_id: crate::contract::RecordingDatasetId::try_from(dataset_id.as_uuid())?,
-            dataset_key: dataset.dataset_key,
-            application_id: recording.application_id,
-            recording_key: recording.recording_key,
-            state: recording_state(recording.state),
-            classification: recording.classification,
-            labels: recording.labels,
-            started_at: recording.started_at.to_rfc3339(),
-            last_data_at: recording.last_data_at.to_rfc3339(),
-            ended_at: recording.ended_at.map(|value| value.to_rfc3339()),
-            sealed_at: recording.sealed_at.map(|value| value.to_rfc3339()),
-            manifest_artifact_uri: recording.manifest_artifact.map(|record| {
-                artifact_uri(PlatformArtifactId::from_uuid(
-                    record_uuid(&record, "artifact_occurrence")
-                        .expect("validated platform artifact record"),
-                ))
-            }),
-            layer_count: counts.total,
-            committed_layer_count: counts.committed,
-        })
+        }
+        .build()?)
     }
 
     fn archive_path(&self, relative: &str) -> Result<PathBuf> {
@@ -1125,59 +1063,6 @@ fn artifact_classification(value: &str) -> Result<Option<DataLabelId>> {
     }
 }
 
-fn layer_view(layer: &RecordingLayerRecord) -> Result<LayerView> {
-    Ok(LayerView {
-        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
-            &layer.id,
-            "recording_layer",
-        )?)?,
-        layer_name: layer.layer_name.clone(),
-        kind: layer_kind(layer.kind).to_owned(),
-        ordinal: layer.ordinal,
-        state: layer_state(layer.state).to_owned(),
-        byte_len: layer.byte_len,
-        message_count: layer.message_count,
-        sha256: layer.sha256.clone(),
-        artifact_uri: layer.artifact.as_ref().map(|artifact| {
-            artifact_uri(PlatformArtifactId::from_uuid(
-                record_uuid(artifact, "artifact_occurrence")
-                    .expect("validated platform artifact record"),
-            ))
-        }),
-        rrd_version: layer.rrd_version.clone(),
-        schema_digest: layer.schema_digest.clone(),
-        created_at: layer.created_at.to_rfc3339(),
-        updated_at: layer.updated_at.to_rfc3339(),
-    })
-}
-
-fn manifest_layer(layer: &RecordingLayerRecord) -> Result<ManifestLayer> {
-    let artifact = layer
-        .artifact
-        .as_ref()
-        .context("committed layer has no Artifact occurrence")?;
-    Ok(ManifestLayer {
-        layer_id: crate::contract::RecordingLayerId::try_from(record_uuid(
-            &layer.id,
-            "recording_layer",
-        )?)?,
-        layer_name: layer.layer_name.clone(),
-        kind: layer_kind(layer.kind).to_owned(),
-        ordinal: layer.ordinal,
-        byte_len: layer.byte_len,
-        sha256: layer
-            .sha256
-            .clone()
-            .context("committed layer has no digest")?,
-        artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
-            artifact,
-            "artifact_occurrence",
-        )?)),
-        rrd_version: layer.rrd_version.clone(),
-        schema_digest: layer.schema_digest.clone(),
-    })
-}
-
 fn catalog_revision(
     dataset_revision: i64,
     recording_revision: i64,
@@ -1235,10 +1120,6 @@ fn source_layer_manifest_digest(
     hex::encode(digest.finalize())
 }
 
-fn artifact_uri(id: PlatformArtifactId) -> String {
-    format!("artifact://{id}")
-}
-
 pub(super) fn recording_state(state: RecordingState) -> crate::contract::RecordingState {
     use crate::contract::RecordingState as Public;
     match state {
@@ -1251,11 +1132,12 @@ pub(super) fn recording_state(state: RecordingState) -> crate::contract::Recordi
     }
 }
 
-fn layer_kind(kind: RecordingLayerKind) -> &'static str {
+pub(super) fn layer_kind(kind: RecordingLayerKind) -> crate::contract::RecordingLayerKind {
+    use crate::contract::RecordingLayerKind as Public;
     match kind {
-        RecordingLayerKind::Capture => "capture",
-        RecordingLayerKind::Properties => "properties",
-        RecordingLayerKind::Derived => "derived",
+        RecordingLayerKind::Capture => Public::Capture,
+        RecordingLayerKind::Properties => Public::Properties,
+        RecordingLayerKind::Derived => Public::Derived,
     }
 }
 
@@ -1264,15 +1146,6 @@ fn layer_kind_order(kind: RecordingLayerKind) -> u8 {
         RecordingLayerKind::Properties => 0,
         RecordingLayerKind::Capture => 1,
         RecordingLayerKind::Derived => 2,
-    }
-}
-
-fn layer_state(state: RecordingLayerState) -> &'static str {
-    match state {
-        RecordingLayerState::Writing => "writing",
-        RecordingLayerState::Staged => "staged",
-        RecordingLayerState::Committed => "committed",
-        RecordingLayerState::Failed => "failed",
     }
 }
 

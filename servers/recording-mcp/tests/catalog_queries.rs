@@ -29,6 +29,8 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextO
 mod fixture;
 #[path = "catalog_queries/grants.rs"]
 mod grants;
+#[path = "catalog_queries/metadata.rs"]
+mod metadata;
 #[path = "catalog_queries/projections.rs"]
 mod projections;
 
@@ -407,6 +409,7 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             .unwrap()
             .unwrap();
         assert_eq!((view.layer_count, view.committed_layer_count), (2, 1));
+        metadata::qualify(&db, &service, &peer, &reader, dataset_id, spool.path()).await;
     })
     .await
     .expect("Recording catalog qualification exceeded 90 seconds");

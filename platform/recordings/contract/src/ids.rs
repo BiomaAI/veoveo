@@ -12,6 +12,9 @@ pub enum RecordingContractError {
     RedapAddress,
     RedapLoopbackPort,
     CatalogGrant,
+    Layer,
+    CatalogView,
+    Seal,
     ProjectionBounds,
     ProjectionSelection,
     ProjectionSampling,
@@ -28,6 +31,9 @@ impl fmt::Display for RecordingContractError {
             Self::Playback => "invalid Recording playback manifest",
             Self::RedapAddress => "invalid Recording Redap address or HTTP(S) origin",
             Self::RedapLoopbackPort => "Rerun 0.38.1 rewrites loopback HTTP(S) default ports; configure an explicit nondefault port or a public host",
+            Self::Layer => "invalid Recording layer identity, lifecycle or integrity metadata",
+            Self::CatalogView => "invalid Recording catalog view or lifecycle relationships",
+            Self::Seal => "invalid Recording seal metadata or repeated Artifact occurrence",
             Self::CatalogGrant => "invalid Recording catalog grant or dataset relationship",
             Self::ProjectionBounds => {
                 "Recording projection limits must be positive and within the published bounds"

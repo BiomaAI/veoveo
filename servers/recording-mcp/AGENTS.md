@@ -53,6 +53,8 @@ and reactive Rerun live following.
 - `contract.rs` exposes the shared Recording domain models; `uris.rs` exposes their
   builders and declarations. Hub and Video import the domain crate directly.
 - `service.rs` owns playback plans, sealing, and properties publication.
+- `service/views.rs` admits Store references and integrity metadata into the domain
+  builders after SQL visibility selection; persisted keys must never enter `expect()`.
 - `service/index.rs` assembles SQL-authorized catalog pages, direct reads, and completions;
   the shared contract owns typed catalog cursors. SQL applies tenant and label predicates before limits.
 - `bin/server/resources.rs` dispatches the admitted resource variants.

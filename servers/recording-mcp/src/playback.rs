@@ -94,7 +94,7 @@ struct DerivedCatalog {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct CatalogLayer {
     layer_id: String,
-    kind: String,
+    kind: crate::contract::RecordingLayerKind,
     ordinal: Option<i64>,
     byte_len: u64,
     sha256: String,
@@ -290,7 +290,7 @@ impl PlaybackManager {
                             layer.layer_name.clone(),
                             CatalogLayer {
                                 layer_id: layer.layer_id.to_string(),
-                                kind: recording_layer_kind(layer.kind).to_owned(),
+                                kind: crate::service::layer_kind(layer.kind),
                                 ordinal: layer.ordinal,
                                 byte_len: layer.byte_len,
                                 sha256: layer.sha256.clone(),
@@ -613,14 +613,6 @@ async fn register_layers(
         );
     }
     Ok(())
-}
-
-fn recording_layer_kind(kind: veoveo_platform_store::RecordingLayerKind) -> &'static str {
-    match kind {
-        veoveo_platform_store::RecordingLayerKind::Capture => "capture",
-        veoveo_platform_store::RecordingLayerKind::Properties => "properties",
-        veoveo_platform_store::RecordingLayerKind::Derived => "derived",
-    }
 }
 
 fn ensure_redap_claims(claims: &Claims, allowed_host: &str) -> Result<(), Status> {

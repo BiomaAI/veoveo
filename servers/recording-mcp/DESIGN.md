@@ -80,6 +80,14 @@ manifest. Runtime qualification compares both address families with Rerun 0.38.1
 Remaining address-field admission is adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
+`service/views.rs` converts SQL-admitted rows into checked catalog, layer and manifest
+models. Artifact record references require the expected table and native RFC UUIDv7
+key; malformed references return errors without panicking. Digests, layer names and
+lifecycle facts pass the domain builders before public output. Seal admission checks
+committed metadata before advancing state, and constructs the checked result before
+completing the seal. A sealed retry validates its output before removing local static
+context. The domain imports Artifact types through the lightweight owner contract.
+
 ## MCP Setup And Sealing Permission
 
 `mcp_setup::RecordingContract` implements the shared `McpServerContract` trait with

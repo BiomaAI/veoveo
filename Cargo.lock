@@ -17221,6 +17221,7 @@ dependencies = [
  "serde_json",
  "url",
  "uuid",
+ "veoveo-artifact-contract",
  "veoveo-types",
 ]
 

@@ -719,6 +719,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/reason-mcp` | local recorded-video reasoning, grounding, and Rerun annotations |
 | `servers/reason-mcp/src/bin/server/index.rs` | Store-backed analysis pages, versioned cursors and bounded identity completions |
 | `servers/recording-mcp` | recording catalog, queries, subscriptions, and sealing |
+| `servers/recording-mcp/src/service/views.rs` | fallible Store-to-domain catalog, layer and seal metadata admission using Artifact owner types |
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
@@ -1068,7 +1069,9 @@ Simulation live-view ownership:
 IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
 the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
-owns grants. `projection/result.rs` owns checked result handles and typed integrity fields.
+owns grants. `views.rs`, `layers.rs` and `sealing.rs` own immutable public metadata
+with checked Artifact references, integrity digests and lifecycle relationships.
+`projection/result.rs` owns checked result handles and typed integrity fields.
 `redap.rs` owns public-origin, dataset-entry and segment-address construction and admission,
 with the URL library handling network components and runtime checks against pinned Rerun.
 `projection/query.rs` and `projection/request.rs`

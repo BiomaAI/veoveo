@@ -8,7 +8,7 @@
 | RFC 9562 UUIDv7 | Recording, dataset, layer, read-grant and projection identities require the RFC UUID variant and lowercase hyphenated spelling. |
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
 | WHATWG URL, URL 2.5.8 and Rerun 0.38.1 Redap addresses | URL parsing and setters implement the public-origin, dataset-entry and single-segment address profile. Runtime tests compare the profile with pinned Rerun builders and parsers. This is a selected Redap address profile, not a general Rerun URI implementation. |
-| RFC 3339 and SHA-256 | Playback and projection expiry timestamps decode to UTC values; Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
+| RFC 3339 and SHA-256 | Catalog, layer, seal and playback timestamps decode to UTC values; layer, Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
@@ -16,7 +16,7 @@
 ## Ownership And Dependencies
 
 This crate owns Recording's public IDs, resource addresses, cursors, sealing scope and data models.
-It depends on foundational types, URL component handling, Serde, JSON Schema support,
+It depends on foundational types, the lightweight Artifact owner contract, URL component handling, Serde, JSON Schema support,
 UUIDs and clock-free date/time values. It imports no server, Store, async runtime,
 Rerun or GPU library. Its URL dependency uses the workspace's qualified pin.
 
@@ -41,7 +41,21 @@ The response builder and JSON decoder admit that same selection shape, a closed 
 version, UTC expiry, revision and token text, and entry-URI/dataset agreement. The sealed
 response exposes immutable field access. Dataset membership and token validity remain
 service and Store admission checks.
-The crate root owns recording views, layer views and sealing. `playback.rs` owns the
+`views.rs` owns checked catalog views. `layers.rs` defines closed kind and lifecycle
+enums and checked layer facts. Staged and committed layers require positive byte and
+message counts, RRD version and typed integrity digests; committed layers also require
+an Artifact occurrence. Capture names must match their ordinals.
+`sealing.rs` owns immutable seal results and manifest v9. Builders reject repeated
+layer IDs, names or Artifact occurrences, including references to the same occurrence
+under different URI spellings. Blueprint revision, byte length and message count are
+nonzero. Recording imports `ArtifactUri` from its domain owner; MCP core gains no
+domain dependency. JSON decoding runs the same constructors, while immutable field
+access prevents later mutation from bypassing them. Wire digests use bare lowercase
+hexadecimal. Catalog views check normalized labels, time ordering, layer counts and
+sealed publication requirements. These models validate supplied facts; the service
+verifies occurrence bytes and access.
+
+`playback.rs` owns the
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
 fields. `PlaybackManifestBuilder::build` checks the archive's dataset, Recording and
 catalog revision against the manifest. It admits one playback plane according to the
