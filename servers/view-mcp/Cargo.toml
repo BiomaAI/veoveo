@@ -16,6 +16,7 @@ required-features = ["mcp"]
 default = ["mcp"]
 contract = [
     "dep:chrono",
+    "dep:glam",
     "dep:hex",
     "dep:schemars",
     "dep:serde",
@@ -34,7 +35,6 @@ runtime = [
     "dep:bevy",
     "dep:draco-gltf",
     "dep:futures",
-    "dep:glam",
     "dep:gltf",
     "dep:image",
     "dep:parking_lot",
@@ -92,7 +92,7 @@ rustls = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 secrecy = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true, features = ["float_roundtrip"] }
 sha2 = { workspace = true, optional = true }
 thiserror = { workspace = true, optional = true }
 tokio = { optional = true, workspace = true, features = ["full"] }

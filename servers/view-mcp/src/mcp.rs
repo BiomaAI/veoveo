@@ -89,7 +89,7 @@ impl ViewMcp {
             .notify_resource_updated(uris::COMPOSITIONS)
             .await;
         structured_result(
-            format!("created {}", composition.composition_uri),
+            format!("created {}", composition.composition_uri()),
             &composition,
         )
     }
@@ -117,7 +117,7 @@ impl ViewMcp {
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        structured_result(format!("created {}", view.view_uri), &view)
+        structured_result(format!("created {}", view.view_uri()), &view)
     }
 
     #[tool(
@@ -141,13 +141,13 @@ impl ViewMcp {
             .map_err(invalid_params)?;
         self.state
             .subscriptions
-            .notify_resource_updated(view.view_uri.to_string())
+            .notify_resource_updated(view.view_uri().to_string())
             .await;
         self.state
             .subscriptions
             .notify_resource_updated(uris::VIEWS)
             .await;
-        structured_result(format!("updated {}", view.view_uri), &view)
+        structured_result(format!("updated {}", view.view_uri()), &view)
     }
 
     #[tool(
@@ -474,7 +474,7 @@ impl ServerHandler for ViewMcp {
                 .list_views(&owner)
                 .await
                 .into_iter()
-                .map(|view| view.view_id.to_string())
+                .map(|view| view.view_id().to_string())
                 .collect(),
             (uris::COMPOSITION_TEMPLATE, "composition_id") => self
                 .state
@@ -482,7 +482,7 @@ impl ServerHandler for ViewMcp {
                 .list_scene_compositions(&owner)
                 .await
                 .into_iter()
-                .map(|composition| composition.composition_id.to_string())
+                .map(|composition| composition.composition_id().to_string())
                 .collect(),
             (uris::FRAME_TEMPLATE, "frame_id") => self
                 .state

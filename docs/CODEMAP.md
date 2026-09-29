@@ -794,9 +794,13 @@ View permissions; `src/server/auth.rs` shares their guard between requests and T
 fixed roots and templates. `src/server/setup.rs` owns checked MCP setup and static
 discovery. `src/composition.rs` resolves artifact bytes and
 converts validated overlays into GPU render products. `src/state.rs` owns
-principal and Work Context scoped composition, view, capture snapshot, and
-frame state. `src/mcp.rs` publishes the tools and resources, while
-`src/server/tasks.rs` persists recoverable capture snapshots.
+principal, tenant and Work Context scoped composition, view and frame state.
+`src/contract/composition/record.rs` checks immutable scene records;
+`src/contract/view_record.rs` owns camera revision admission and updates.
+`src/state/snapshot.rs` checks capture parents, and `src/composition/validation.rs`
+checks retained geometry and artifact bytes against declared inputs. `src/mcp.rs`
+publishes the tools and resources. `src/server/tasks.rs` persists recoverable captures;
+`src/server/tasks/request.rs` binds saved requests to their snapshot and Task owner.
 
 Map authoring is split by responsibility. `src/contract/features.rs` owns feature wire
 types and bounds, while `src/contract/compositions.rs` owns publication products and

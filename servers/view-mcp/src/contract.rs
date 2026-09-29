@@ -1,3 +1,7 @@
+#[cfg(test)]
+pub(crate) mod test_support;
+mod view_record;
+pub use view_record::{ViewRecord, ViewRecordError};
 mod resources;
 pub use resources::*;
 mod scopes;
@@ -337,21 +341,6 @@ pub struct CaptureFrameRequest {
 pub struct CloseViewRequest {
     pub view_id: ViewId,
     pub expected_revision: u64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-pub struct ViewRecord {
-    pub view_id: ViewId,
-    pub view_uri: ViewUri,
-    pub composition_id: SceneCompositionId,
-    pub composition_uri: CompositionUri,
-    pub composition_digest_sha256: Sha256Digest,
-    pub scene_layer: LayerId,
-    pub revision: u64,
-    pub camera: CameraDefinition,
-    pub resolved_camera: GeodeticCameraPose,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

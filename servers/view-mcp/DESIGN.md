@@ -50,7 +50,8 @@ identities keep the `view://` scheme.
 ## Library Features
 
 The `contract` feature exposes camera and capture types, composition validation,
-resource addresses, `ViewScope` and `ViewTaskKind`. It depends on foundational types
+resource addresses, `ViewScope` and `ViewTaskKind`. Pure WGS 84 camera resolution
+uses the existing `glam` dependency in this profile. It depends on foundational types
 and the owning Frames and Artifact contracts. `SceneCompositionAuthority` keeps the complete foundational
 `InvocationAuthority`; the authenticated adapter supplies it from the verified caller.
 Its serialization participates in the stable composition digest.
@@ -183,6 +184,40 @@ forwarded caller token, validates their declared media type and SHA-256 digest,
 and snapshots them into the recoverable capture task. No composition accepts
 executable content, credentials, arbitrary URLs, or an ungoverned mesh.
 
+## Record Admission
+
+`SceneComposition::new` validates the request, sorts governed inputs by identity, and
+computes its request digest, authority-bound identity and composition digest. Private
+fields prevent mutation after construction. Decoding reconstructs the same record and
+rejects disagreeing URIs, revisions, algorithm versions, digests or contents. The JSON
+parser uses float round trips because coordinates participate in content identity.
+Creation time is excluded from that identity.
+
+`ViewRecord::new` derives the composition parent and resolves the supplied camera rig.
+Its addresses derive from the stored IDs. Camera replacement validates the entire
+replacement and checked revision increment before mutation. Creation and update times
+follow composition creation and camera revision order. Decoding checks both addresses,
+a positive revision, timestamps and the resolved pose. Explicit poses agree exactly;
+look-at and orbit resolution allow `1e-7` degrees and `0.1` millimetres of height
+variation across math implementations, then preserve the saved pose for replay.
+
+`ViewCaptureSnapshot` freezes a view with its resolved composition. Admission verifies
+the composition parent, layer and digest. Its immutable `ResolvedSceneComposition`
+checks overlay metadata and geometry against the declared inline input or artifact
+bytes at construction and decoding. Ordinary captures reuse that checked value.
+Artifact admission checks declared media type, digest and the per-artifact and
+aggregate byte limits. Unreferenced bytes
+are rejected. Resolved local geometry requires a Frames binding, including geometry
+loaded from an artifact. The Frames owner parses revision and frame relationships.
+
+Capture Task decoding requires the request's view ID and revision to match the
+snapshot. Before Task creation or lease claiming, the adapter checks principal, tenant,
+Work Context and current capture limits. Composition creation and capture can use
+different invocation policy revisions within that ownership scope. Direct snapshot
+capture also checks ownership before loading a layer or submitting renderer work.
+These checks validate content consistency; the authenticated Task runtime supplies
+caller authority.
+
 ## Camera Contract
 
 An exact geodetic pose is the canonical camera state. Target-based rigs are
@@ -217,8 +252,7 @@ viewport, and achieved detail.
 
 ## Views And Concurrency
 
-A view is principal and Work Context scoped logical state, not a Bevy window
-or renderer process. It binds one immutable composition and survives an MCP
+A view is logical state scoped by principal, tenant and Work Context. It binds one immutable composition and survives an MCP
 transport reconnect until explicit close. Camera replacement uses an expected
 revision. A capture snapshots one camera revision, the resolved composition,
 exact artifact bytes, and one scene time. Later camera or external artifact

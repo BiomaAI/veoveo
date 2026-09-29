@@ -27,8 +27,12 @@ and attribution.
   Identity: slug `view`, MCP `/view/mcp`. Map owns geographic source truth;
   View derives no routing or search products. It renders exact governed inputs
   through bounded declarative overlays and preserves their identities.
+- Build immutable composition and view records through their checked constructors.
+  Decoding checks repeated identities, camera resolution and composition digests.
+  Capture snapshots validate resolved geometry, artifact bytes and request revisions
+  before Task claiming; keep snapshot fields private.
 - Every view binds one immutable composition. Compositions, views, frames, and
-  capture tasks are scoped by principal and Work Context. Local metre
+  capture tasks are scoped by principal, tenant and Work Context. Local metre
   positions require one exact Frames revision and operation input.
 - Overlay geometry accepts only bounded typed primitives. Large geometry and
   oriented meshes resolve through the shared artifact plane under the

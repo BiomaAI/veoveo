@@ -6,7 +6,7 @@ pub mod composition;
 pub mod contract;
 #[cfg(feature = "runtime")]
 pub mod decode;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod geodesy;
 #[cfg(feature = "runtime")]
 pub mod renderer;

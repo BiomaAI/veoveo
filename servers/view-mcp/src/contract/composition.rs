@@ -13,6 +13,9 @@ use veoveo_types::PrincipalId;
 
 use super::{HeadingPitchRoll, LayerId, Wgs84Position3d};
 
+mod record;
+pub use record::SceneComposition;
+
 pub const SCENE_COMPOSITION_SCHEMA_VERSION: u64 = 1;
 pub const SCENE_COMPOSITION_ALGORITHM_REVISION: &str = "view-scene-composition-v1";
 pub const OVERLAY_ARTIFACT_MIME_TYPE: &str = "application/vnd.veoveo.view-overlay-geometry+json";
@@ -548,26 +551,6 @@ pub struct SceneCompositionAuthority {
     pub invocation: InvocationAuthority,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct SceneComposition {
-    pub schema_version: u64,
-    pub composition_id: SceneCompositionId,
-    pub composition_uri: super::CompositionUri,
-    pub revision: u64,
-    pub base_layer: LayerId,
-    pub map_releases: BTreeSet<MapReleaseUri>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub local_frame: Option<LocalFrameBinding>,
-    pub style_id: SceneStyleId,
-    pub governed_inputs: Vec<GovernedSceneInput>,
-    pub overlays: Vec<SceneOverlay>,
-    pub algorithm_revision: String,
-    pub request_digest_sha256: Sha256Digest,
-    pub composition_digest_sha256: Sha256Digest,
-    pub authority: SceneCompositionAuthority,
-    pub created_at: DateTime<Utc>,
-}
-
 impl CreateSceneCompositionRequest {
     pub fn validate(&self) -> Result<(), SceneCompositionError> {
         if self.schema_version != SCENE_COMPOSITION_SCHEMA_VERSION {
@@ -817,10 +800,7 @@ fn validate_local_frame(
     binding: &LocalFrameBinding,
     inputs: &BTreeMap<&SceneInputId, &GovernedSceneInput>,
 ) -> Result<(), SceneCompositionError> {
-    if !binding
-        .frame_uri
-        .as_str()
-        .starts_with(&format!("{}/frame/", binding.world_revision))
+    if binding.frame_uri.revision_uri() != binding.world_revision
         || !binding
             .ecef_from_frame
             .iter()
@@ -874,6 +854,8 @@ fn validate_media_type(value: &str) -> Result<(), SceneCompositionError> {
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SceneCompositionError {
+    #[error("scene composition identities, revisions, contents, or digests disagree")]
+    RecordMismatch,
     #[error("{0} is invalid; use 1 to 128 ASCII letters, digits, `.`, `_`, `-`, or `:`")]
     InvalidIdentifier(&'static str),
     #[error("scene composition id is invalid; use an id returned by `create_scene_composition`")]

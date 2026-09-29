@@ -22,7 +22,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
-use veoveo_types::{PrincipalId, WorkContextId};
+use veoveo_types::{PrincipalId, TenantId, WorkContextId};
 
 use crate::{
     cache::WeightedLru,
@@ -33,13 +33,10 @@ use crate::{
         DeadlineBehavior, FrameId, FrameRecord, FrameUri, LayerId, MAX_TILE_RESOURCE_BYTES,
         PreviewScenePolicy, PreviewSceneRecord, SCENE_DEADLINE_MS, SCENE_MAX_TILES,
         SceneComposition, SceneCompositionAuthority, SceneCompositionId, SceneTileRecord,
-        SetCameraRequest, Sha256Digest, TileKey, TileUri, ViewId, ViewRecord, ViewUri,
+        SetCameraRequest, Sha256Digest, TileKey, TileUri, ViewId, ViewRecord, ViewRecordError,
     },
     decode::{CpuTileContent, decode_glb},
-    geodesy::{
-        camera_ecef_basis, camera_world_transform, geodetic_to_ecef, resolve_camera,
-        world_from_ecef,
-    },
+    geodesy::{camera_ecef_basis, camera_world_transform, geodetic_to_ecef, world_from_ecef},
     renderer::{RenderFrameRequest, RenderTile, RendererError, RendererHandle},
     source::{LayerCatalog, SourceError, TileSource, credential_free_location, looks_like_tileset},
     tiles::traversal::{
@@ -125,6 +122,7 @@ struct InternalComposition {
 pub struct ResourceOwner {
     pub principal_id: PrincipalId,
     pub work_context: WorkContextId,
+    pub tenant: TenantId,
 }
 
 impl ResourceOwner {
@@ -132,22 +130,25 @@ impl ResourceOwner {
         Self {
             principal_id: identity.actor.id.clone(),
             work_context: identity.authority.work_context.clone(),
+            tenant: identity.authority.tenant.clone(),
         }
     }
 
     pub fn subscription_principal(&self) -> PrincipalId {
-        let digest =
-            Sha256::digest(format!("{}\n{}", self.principal_id, self.work_context).as_bytes());
+        let digest = Sha256::digest(
+            format!(
+                "{}\n{}\n{}",
+                self.principal_id, self.tenant, self.work_context
+            )
+            .as_bytes(),
+        );
         PrincipalId::new(format!("view-subscription:{}", hex::encode(digest)))
             .expect("sha256 subscription principal is a valid claim")
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ViewCaptureSnapshot {
-    pub view: ViewRecord,
-    pub composition: ResolvedSceneComposition,
-}
+mod snapshot;
+pub use snapshot::{ViewCaptureSnapshot, ViewSnapshotError};
 
 struct FrameStore {
     records: HashMap<FrameId, StoredFrame>,
@@ -248,9 +249,9 @@ impl ViewService {
         .await
         .map_err(ServiceError::CompositionResolution)?;
         let mut compositions = self.compositions.write().await;
-        if let Some(existing) = compositions.get(&resolved.record.composition_id) {
+        if let Some(existing) = compositions.get(resolved.record().composition_id()) {
             require_composition_owner(existing, &owner)?;
-            return Ok(existing.resolved.record.clone());
+            return Ok(existing.resolved.record().clone());
         }
         if compositions.len() >= self.config.max_compositions {
             return Err(ServiceError::CompositionLimit);
@@ -263,9 +264,9 @@ impl ViewService {
         {
             return Err(ServiceError::OwnerCompositionLimit);
         }
-        let record = resolved.record.clone();
+        let record = resolved.record().clone();
         compositions.insert(
-            record.composition_id.clone(),
+            record.composition_id().clone(),
             InternalComposition {
                 owner,
                 resolved: Arc::new(resolved),
@@ -284,7 +285,7 @@ impl ViewService {
             .get(composition_id)
             .ok_or(ServiceError::CompositionNotFound)?;
         require_composition_owner(composition, owner)?;
-        Ok(composition.resolved.record.clone())
+        Ok(composition.resolved.record().clone())
     }
 
     pub async fn list_scene_compositions(&self, owner: &ResourceOwner) -> Vec<SceneComposition> {
@@ -292,9 +293,9 @@ impl ViewService {
         let mut records = compositions
             .values()
             .filter(|composition| &composition.owner == owner)
-            .map(|composition| composition.resolved.record.clone())
+            .map(|composition| composition.resolved.record().clone())
             .collect::<Vec<_>>();
-        records.sort_by(|left, right| left.composition_id.cmp(&right.composition_id));
+        records.sort_by(|left, right| left.composition_id().cmp(right.composition_id()));
         records
     }
 
@@ -309,10 +310,8 @@ impl ViewService {
                 .get(&request.composition_id)
                 .ok_or(ServiceError::CompositionNotFound)?;
             require_composition_owner(composition, owner)?;
-            composition.resolved.record.clone()
+            composition.resolved.record().clone()
         };
-        let camera = request.camera.validate()?;
-        let resolved_camera = resolve_camera(&camera)?;
         let mut views = self.views.write().await;
         if views.len() >= self.config.max_views {
             return Err(ServiceError::ViewLimit);
@@ -324,19 +323,7 @@ impl ViewService {
         }
         let now = Utc::now();
         let view_id = ViewId::new(Uuid::now_v7().simple().to_string())?;
-        let record = ViewRecord {
-            view_uri: ViewUri::new(view_id.clone()),
-            view_id: view_id.clone(),
-            composition_id: composition.composition_id,
-            composition_uri: composition.composition_uri,
-            composition_digest_sha256: composition.composition_digest_sha256,
-            scene_layer: composition.base_layer,
-            revision: 1,
-            camera,
-            resolved_camera,
-            created_at: now,
-            updated_at: now,
-        };
+        let record = ViewRecord::new(view_id.clone(), &composition, request.camera, now)?;
         views.insert(
             view_id,
             InternalView {
@@ -353,23 +340,18 @@ impl ViewService {
         owner: &ResourceOwner,
         request: SetCameraRequest,
     ) -> Result<ViewRecord, ServiceError> {
-        let camera = request.camera.validate()?;
-        let resolved_camera = resolve_camera(&camera)?;
         let mut views = self.views.write().await;
         let view = views
             .get_mut(&request.view_id)
             .ok_or(ServiceError::ViewNotFound)?;
         require_owner(view, owner)?;
-        if view.record.revision != request.expected_revision {
+        if view.record.revision() != request.expected_revision {
             return Err(ServiceError::RevisionConflict {
                 expected: request.expected_revision,
-                actual: view.record.revision,
+                actual: view.record.revision(),
             });
         }
-        view.record.revision += 1;
-        view.record.camera = camera;
-        view.record.resolved_camera = resolved_camera;
-        view.record.updated_at = Utc::now();
+        view.record.replace_camera(request.camera, Utc::now())?;
         Ok(view.record.clone())
     }
 
@@ -383,10 +365,10 @@ impl ViewService {
             .get(&request.view_id)
             .ok_or(ServiceError::ViewNotFound)?;
         require_owner(view, owner)?;
-        if view.record.revision != request.expected_revision {
+        if view.record.revision() != request.expected_revision {
             return Err(ServiceError::RevisionConflict {
                 expected: request.expected_revision,
-                actual: view.record.revision,
+                actual: view.record.revision(),
             });
         }
         let view = views.remove(&request.view_id).expect("view checked above");
@@ -415,7 +397,7 @@ impl ViewService {
             .filter(|view| &view.owner == owner)
             .map(|view| view.record.clone())
             .collect();
-        result.sort_by_key(|view| view.created_at);
+        result.sort_by_key(|view| view.created_at());
         result
     }
 
@@ -458,9 +440,9 @@ impl ViewService {
     ) -> Result<PreviewSceneRecord, ServiceError> {
         policy.validate(&self.config.capture_limits)?;
         let view = self.get_view(owner, view_id).await?;
-        let runtime = self.layer_runtime(&view.scene_layer).await?;
+        let runtime = self.layer_runtime(view.scene_layer()).await?;
         let deadline = Instant::now() + Duration::from_millis(SCENE_DEADLINE_MS);
-        let resolved = view.resolved_camera.clone();
+        let resolved = view.resolved_camera().clone();
         let (selection, render_tiles, manifest) = {
             let mut runtime = tokio::select! {
                 () = cancellation.cancelled() => return Err(ServiceError::Cancelled),
@@ -490,18 +472,18 @@ impl ViewService {
         }
         let source = self
             .catalog
-            .get(&view.scene_layer)
-            .ok_or_else(|| ServiceError::LayerNotFound(view.scene_layer.clone()))?;
+            .get(view.scene_layer())
+            .ok_or_else(|| ServiceError::LayerNotFound(view.scene_layer().clone()))?;
         let mut attribution = render_tiles
             .iter()
             .flat_map(|tile| tile.content.attribution.iter().cloned())
             .collect::<BTreeSet<_>>();
         let composition = self
-            .get_scene_composition(owner, &view.composition_id)
+            .get_scene_composition(owner, view.composition_id())
             .await?;
         attribution.extend(
             composition
-                .governed_inputs
+                .governed_inputs()
                 .iter()
                 .map(|input| input.attribution.clone()),
         );
@@ -512,13 +494,13 @@ impl ViewService {
             for (location, ecef_from_content) in manifest.into_iter().take(SCENE_MAX_TILES) {
                 let location = credential_free_location(&location);
                 let tile_key =
-                    TileKey::from_bytes(format!("{}\n{location}", view.scene_layer).as_bytes());
+                    TileKey::from_bytes(format!("{}\n{location}", view.scene_layer()).as_bytes());
                 let byte_length = source.cached_content_length(&location);
                 let oversize = byte_length.is_some_and(|length| length > MAX_TILE_RESOURCE_BYTES);
                 registry.register(
                     tile_key.clone(),
                     TileTokenEntry {
-                        layer: view.scene_layer.clone(),
+                        layer: view.scene_layer().clone(),
                         location,
                     },
                 );
@@ -531,11 +513,11 @@ impl ViewService {
             }
         }
         Ok(PreviewSceneRecord {
-            view_id: view.view_id,
-            view_revision: view.revision,
-            composition_id: view.composition_id,
-            composition_digest_sha256: view.composition_digest_sha256,
-            scene_layer: view.scene_layer,
+            view_id: view.view_id().clone(),
+            view_revision: view.revision(),
+            composition_id: view.composition_id().clone(),
+            composition_digest_sha256: view.composition_digest_sha256().clone(),
+            scene_layer: view.scene_layer().clone(),
             local_origin: resolved.position,
             local_from_ecef: world_from_ecef(resolved.position).to_cols_array(),
             resolved_camera: resolved,
@@ -592,6 +574,18 @@ impl ViewService {
         .await
     }
 
+    pub fn validate_capture_snapshot(
+        &self,
+        owner: &ResourceOwner,
+        snapshot: &ViewCaptureSnapshot,
+        request: &CaptureFrameRequest,
+    ) -> Result<(), ServiceError> {
+        snapshot.require_owner(owner)?;
+        snapshot.require_request(request)?;
+        request.policy.validate(&self.config.capture_limits)?;
+        Ok(())
+    }
+
     pub async fn capture_snapshot(
         &self,
         owner: &ResourceOwner,
@@ -603,24 +597,21 @@ impl ViewService {
             .get(&request.view_id)
             .ok_or(ServiceError::ViewNotFound)?;
         require_owner(view, owner)?;
-        if view.record.revision != request.expected_revision {
+        if view.record.revision() != request.expected_revision {
             return Err(ServiceError::RevisionConflict {
                 expected: request.expected_revision,
-                actual: view.record.revision,
+                actual: view.record.revision(),
             });
         }
         let composition = {
             let compositions = self.compositions.read().await;
             let composition = compositions
-                .get(&view.record.composition_id)
+                .get(view.record.composition_id())
                 .ok_or(ServiceError::CompositionNotFound)?;
             require_composition_owner(composition, owner)?;
             composition.resolved.as_ref().clone()
         };
-        Ok(ViewCaptureSnapshot {
-            view: view.record.clone(),
-            composition,
-        })
+        Ok(ViewCaptureSnapshot::new(view.record.clone(), composition)?)
     }
 
     pub async fn capture_recoverable_frame(
@@ -657,11 +648,12 @@ impl ViewService {
         permit_detached_snapshot: bool,
     ) -> Result<Arc<CapturedFrame>, ServiceError> {
         policy.validate(&self.config.capture_limits)?;
-        let view = &snapshot.view;
-        let composition = &snapshot.composition;
+        snapshot.require_owner(owner)?;
+        let view = snapshot.view();
+        let composition = snapshot.composition();
         let close_token = {
             let views = self.views.read().await;
-            match views.get(&view.view_id) {
+            match views.get(view.view_id()) {
                 Some(current) => {
                     require_owner(current, owner)?;
                     Some(current.close_token.clone())
@@ -686,9 +678,9 @@ impl ViewService {
             })
         });
 
-        let runtime = self.layer_runtime(&view.scene_layer).await?;
+        let runtime = self.layer_runtime(view.scene_layer()).await?;
         let deadline = Instant::now() + Duration::from_millis(u64::from(policy.deadline_ms));
-        let resolved = view.resolved_camera.clone();
+        let resolved = view.resolved_camera().clone();
         let (selection, mut tiles) = {
             let mut runtime = tokio::select! {
                 () = combined.cancelled() => return Err(ServiceError::Cancelled),
@@ -720,8 +712,8 @@ impl ViewService {
             .flat_map(|tile| tile.content.attribution.iter().cloned())
             .chain(
                 composition
-                    .record
-                    .governed_inputs
+                    .record()
+                    .governed_inputs()
                     .iter()
                     .map(|input| input.attribution.clone()),
             )
@@ -758,20 +750,19 @@ impl ViewService {
         let record = FrameRecord {
             frame_uri: FrameUri::new(frame_id.clone()),
             frame_id: frame_id.clone(),
-            view_id: view.view_id.clone(),
-            view_revision: view.revision,
-            composition_id: composition.record.composition_id.clone(),
-            composition_uri: composition.record.composition_uri.clone(),
-            composition_revision: composition.record.revision,
-            composition_digest_sha256: composition.record.composition_digest_sha256.clone(),
-            style_id: composition.record.style_id.clone(),
-            governed_inputs: composition.record.governed_inputs.clone(),
+            view_id: view.view_id().clone(),
+            view_revision: view.revision(),
+            composition_id: composition.record().composition_id().clone(),
+            composition_uri: composition.record().composition_uri().clone(),
+            composition_revision: composition.record().revision(),
+            composition_digest_sha256: composition.record().composition_digest_sha256().clone(),
+            style_id: composition.record().style_id().clone(),
+            governed_inputs: composition.record().governed_inputs().to_vec(),
             frame_world_revision: composition
-                .record
-                .local_frame
-                .as_ref()
+                .record()
+                .local_frame()
                 .map(|binding| binding.world_revision.clone()),
-            scene_layer: view.scene_layer.clone(),
+            scene_layer: view.scene_layer().clone(),
             captured_at: Utc::now(),
             scene_time,
             resolved_camera: resolved,
@@ -1186,6 +1177,10 @@ fn require_composition_owner(
 pub enum ServiceError {
     #[error(transparent)]
     Contract(#[from] ContractError),
+    #[error(transparent)]
+    ViewRecord(#[from] ViewRecordError),
+    #[error(transparent)]
+    Snapshot(#[from] ViewSnapshotError),
     #[error("scene layer `{0}` is not configured")]
     LayerNotFound(LayerId),
     #[error("view was not found")]
@@ -1240,6 +1235,7 @@ mod tests {
     use crate::contract::{
         CameraDefinition, GeodeticCameraPose, HeadingPitchRoll, Wgs84Position3d,
     };
+    use crate::geodesy::resolve_camera;
 
     fn camera() -> CameraDefinition {
         CameraDefinition::Pose(GeodeticCameraPose {

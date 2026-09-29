@@ -1,7 +1,11 @@
+#[cfg(test)]
+pub(crate) mod test_support;
+mod validation;
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
+use validation::ResolvedSceneCompositionWire;
 
 use anyhow::Context as _;
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64_STANDARD};
@@ -15,20 +19,27 @@ use crate::{
     contract::{
         CreateSceneCompositionRequest, GLB_MIME_TYPE, GovernedSceneInput,
         MAX_COMPOSITION_ARTIFACT_BYTES, MAX_OVERLAY_ARTIFACT_BYTES, OVERLAY_ARTIFACT_MIME_TYPE,
-        OverlayColor, SCENE_COMPOSITION_ALGORITHM_REVISION, SceneComposition,
-        SceneCompositionAuthority, SceneInputId, SceneOverlay, SceneOverlayGeometry,
-        SceneOverlayGeometrySource, ScenePosition, Sha256Digest, validate_artifact_geometry,
+        OverlayColor, SceneComposition, SceneCompositionAuthority, SceneInputId, SceneOverlay,
+        SceneOverlayGeometry, SceneOverlayGeometrySource, ScenePosition, Sha256Digest,
+        validate_artifact_geometry,
     },
     decode::{CpuMaterial, CpuPrimitive, CpuSampler, CpuTileContent, decode_glb},
     geodesy::{camera_ecef_basis, camera_world_transform, geodetic_to_ecef, world_from_ecef},
     renderer::RenderTile,
 };
 
+/// A composition whose declared inputs and retained render data have passed admission.
+///
+/// ```compile_fail
+/// use veoveo_view_mcp::composition::ResolvedSceneComposition;
+/// fn change_bytes(scene: &mut ResolvedSceneComposition) { scene.artifact_bytes.clear(); }
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(try_from = "ResolvedSceneCompositionWire")]
 pub struct ResolvedSceneComposition {
-    pub record: SceneComposition,
-    pub resolved_overlays: Vec<ResolvedSceneOverlay>,
-    pub artifact_bytes: BTreeMap<SceneInputId, ResolvedArtifactBytes>,
+    record: SceneComposition,
+    resolved_overlays: Vec<ResolvedSceneOverlay>,
+    artifact_bytes: BTreeMap<SceneInputId, ResolvedArtifactBytes>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +66,11 @@ impl<'de> Deserialize<'de> for ResolvedArtifactBytes {
         D: Deserializer<'de>,
     {
         let encoded = String::deserialize(deserializer)?;
+        if encoded.len() as u64 > MAX_OVERLAY_ARTIFACT_BYTES.div_ceil(3) * 4 {
+            return Err(D::Error::custom(
+                "resolved overlay artifact exceeds its encoded byte limit",
+            ));
+        }
         let bytes = BASE64_STANDARD.decode(encoded).map_err(D::Error::custom)?;
         if bytes.len() as u64 > MAX_OVERLAY_ARTIFACT_BYTES {
             return Err(D::Error::custom(
@@ -114,15 +130,8 @@ pub async fn resolve_scene_composition(
             let input = input_by_id
                 .get(mesh_input_id)
                 .context("validated mesh input is absent")?;
-            let bytes = resolve_artifact_input(
-                input,
-                GLB_MIME_TYPE,
-                artifacts,
-                caller,
-                &mut artifact_bytes,
-            )
-            .await?;
-            decode_glb(&bytes).context("validating governed GLB overlay")?;
+            resolve_artifact_input(input, GLB_MIME_TYPE, artifacts, caller, &mut artifact_bytes)
+                .await?;
         }
         resolved_overlays.push(ResolvedSceneOverlay {
             overlay: overlay.clone(),
@@ -130,38 +139,8 @@ pub async fn resolve_scene_composition(
         });
     }
 
-    let request_digest = digest_json(&request)?;
-    let authority_digest = digest_json(&authority)?;
-    let stable_key = format!(
-        "{}:{}:{}",
-        SCENE_COMPOSITION_ALGORITHM_REVISION, authority_digest, request_digest
-    );
-    let composition_id =
-        crate::contract::SceneCompositionId::from_stable_key(stable_key.as_bytes());
-    let mut record = SceneComposition {
-        schema_version: request.schema_version,
-        composition_uri: crate::contract::CompositionUri::new(composition_id.clone()),
-        composition_id,
-        revision: 1,
-        base_layer: request.base_layer,
-        map_releases: request.map_releases,
-        local_frame: request.local_frame,
-        style_id: request.style_id,
-        governed_inputs: request.governed_inputs,
-        overlays: request.overlays,
-        algorithm_revision: SCENE_COMPOSITION_ALGORITHM_REVISION.to_owned(),
-        request_digest_sha256: request_digest,
-        composition_digest_sha256: Sha256Digest::parse("0".repeat(64))
-            .expect("zero digest is structurally valid"),
-        authority,
-        created_at,
-    };
-    record.composition_digest_sha256 = composition_digest(&record)?;
-    Ok(ResolvedSceneComposition {
-        record,
-        resolved_overlays,
-        artifact_bytes,
-    })
+    let record = SceneComposition::new(request, authority, created_at)?;
+    ResolvedSceneComposition::new(record, resolved_overlays, artifact_bytes)
 }
 
 async fn resolve_artifact_input(
@@ -215,20 +194,6 @@ async fn resolve_artifact_input(
         ResolvedArtifactBytes(object.bytes.clone()),
     );
     Ok(object.bytes)
-}
-
-fn composition_digest(record: &SceneComposition) -> anyhow::Result<Sha256Digest> {
-    let mut value = serde_json::to_value(record)?;
-    let object = value
-        .as_object_mut()
-        .context("scene composition did not serialize as an object")?;
-    object.remove("composition_digest_sha256");
-    object.remove("created_at");
-    digest_json(&value)
-}
-
-fn digest_json(value: &impl Serialize) -> anyhow::Result<Sha256Digest> {
-    Ok(Sha256Digest::from_bytes(&serde_json::to_vec(value)?))
 }
 
 pub fn composition_render_tiles(
@@ -323,7 +288,7 @@ fn render_overlay(
         ),
     };
     let cache_material = serde_json::to_vec(&(
-        &composition.record.composition_digest_sha256,
+        composition.record.composition_digest_sha256(),
         &resolved.overlay.overlay_id,
         &resolved.overlay.style,
         camera,
@@ -344,8 +309,7 @@ fn position_ecef(
         ScenePosition::LocalMeters { xyz_meters } => {
             let binding = composition
                 .record
-                .local_frame
-                .as_ref()
+                .local_frame()
                 .context("validated local frame binding is absent")?;
             let transform = DMat4::from_cols_array(&binding.ecef_from_frame);
             Ok(transform.transform_point3(DVec3::from_array(xyz_meters)))
@@ -553,8 +517,7 @@ fn mesh_transform(
         ScenePosition::LocalMeters { xyz_meters } => {
             let binding = composition
                 .record
-                .local_frame
-                .as_ref()
+                .local_frame()
                 .context("validated local frame binding is absent")?;
             let ecef_from_frame = DMat4::from_cols_array(&binding.ecef_from_frame);
             Ok(ecef_from_frame
@@ -617,7 +580,7 @@ pub fn composition_attribution(
 ) -> BTreeSet<String> {
     let input_by_id = composition
         .record
-        .governed_inputs
+        .governed_inputs()
         .iter()
         .map(|input| (&input.input_id, input))
         .collect::<BTreeMap<_, _>>();

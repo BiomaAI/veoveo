@@ -3,21 +3,19 @@ use crate::contract::{ViewScope, ViewTaskKind};
 use std::{collections::BTreeSet, sync::Arc, time::Duration};
 use veoveo_types::TaskTypeDefinition;
 
-use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PrincipalKind};
 use veoveo_task_runtime::{
     CreateTask, RecoveryClass, TaskError, TaskFailure, TaskOwner, TaskRetentionPin, TaskSnapshot,
     TaskTransition,
 };
-use veoveo_types::PrincipalId;
 use veoveo_types::TaskId;
 
 use crate::{
     contract::CaptureFrameRequest,
     mcp::frame_tool_result,
     server::{AppState, SERVER_SLUG, auth::ForwardedBearer},
-    state::{ResourceOwner, ViewCaptureSnapshot},
+    state::ResourceOwner,
     uris,
 };
 
@@ -36,11 +34,8 @@ pub(crate) struct AuthenticatedCaller {
     identity: GatewayInternalIdentity,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-struct ViewCaptureTaskRequest {
-    request: CaptureFrameRequest,
-    view_snapshot: ViewCaptureSnapshot,
-}
+mod request;
+use request::ViewCaptureTaskRequest;
 
 impl ViewTaskExtension {
     pub(crate) fn new(state: Arc<AppState>) -> Self {
@@ -104,10 +99,8 @@ impl veoveo_task_runtime::DurableTaskService for ViewTaskExtension {
         let snapshot = start_capture_task(
             self.state.clone(),
             caller.identity.clone(),
-            ViewCaptureTaskRequest {
-                request: capture_request,
-                view_snapshot,
-            },
+            ViewCaptureTaskRequest::new(capture_request, view_snapshot)
+                .map_err(|error| rmcp::ErrorData::invalid_params(error.to_string(), None))?,
             veoveo_task_runtime::retention_pins(request.meta.as_ref())?,
         )
         .await
@@ -196,11 +189,18 @@ async fn start_capture_task(
     request: ViewCaptureTaskRequest,
     retention_pins: BTreeSet<TaskRetentionPin>,
 ) -> anyhow::Result<TaskSnapshot> {
+    let owner = runtime_owner(&identity);
+    let resource_owner = request.validate_owner(&owner)?;
+    state.views.validate_capture_snapshot(
+        &resource_owner,
+        request.snapshot(),
+        request.request(),
+    )?;
     let created = state
         .tasks
         .create(CreateTask {
             task_id: TaskId::new(),
-            owner: runtime_owner(&identity),
+            owner,
             server: SERVER_SLUG.to_owned(),
             task_type: ViewTaskKind::CaptureFrame.name(),
             request: serde_json::to_value(&request)?,
@@ -220,9 +220,12 @@ async fn schedule_capture_task(
     request: ViewCaptureTaskRequest,
     recovered: bool,
 ) -> anyhow::Result<TaskSnapshot> {
+    let owner = request.validate_owner(&snapshot.owner)?;
+    state
+        .views
+        .validate_capture_snapshot(&owner, request.snapshot(), request.request())?;
     let task_id = snapshot.task_id.to_string();
     let claimed = state.tasks.claim(&task_id, TASK_LEASE_DURATION).await?;
-    let owner = snapshot.owner.clone();
     let cancellation = CancellationToken::new();
     let join = tokio::spawn(run_capture_task(
         state.clone(),
@@ -242,7 +245,7 @@ async fn schedule_capture_task(
 async fn run_capture_task(
     state: Arc<AppState>,
     task_id: String,
-    owner: TaskOwner,
+    owner: ResourceOwner,
     request: ViewCaptureTaskRequest,
     recovered: bool,
     cancellation: CancellationToken,
@@ -276,7 +279,7 @@ async fn run_capture_task(
 async fn run_capture_task_inner(
     state: Arc<AppState>,
     task_id: String,
-    owner: TaskOwner,
+    owner: ResourceOwner,
     request: ViewCaptureTaskRequest,
     recovered: bool,
     cancellation: CancellationToken,
@@ -303,31 +306,15 @@ async fn run_capture_task_inner(
             }
         }
     };
-    let resource_owner = match PrincipalId::new(owner.principal_key.clone()) {
-        Ok(principal_id) => ResourceOwner {
-            principal_id,
-            work_context: owner.authority.work_context.clone(),
-        },
-        Err(error) => {
-            drop(permit);
-            fail_task(
-                &state,
-                &task_id,
-                "invalid_task_owner",
-                format!("stored task principal is invalid: {error}"),
-            )
-            .await;
-            return;
-        }
-    };
+    let (request, view_snapshot) = request.into_parts();
     let result = if recovered {
         state
             .views
             .capture_recoverable_frame(
-                &resource_owner,
-                request.view_snapshot,
-                request.request.scene_time,
-                request.request.policy,
+                &owner,
+                view_snapshot,
+                request.scene_time,
+                request.policy,
                 cancellation.clone(),
             )
             .await
@@ -335,10 +322,10 @@ async fn run_capture_task_inner(
         state
             .views
             .capture_live_snapshot_frame(
-                &resource_owner,
-                request.view_snapshot,
-                request.request.scene_time,
-                request.request.policy,
+                &owner,
+                view_snapshot,
+                request.scene_time,
+                request.policy,
                 cancellation.clone(),
             )
             .await

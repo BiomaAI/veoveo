@@ -817,6 +817,30 @@ pass. The independent 117-package consumer runs eleven checks without MCP, async
 database or GPU implementations. View's broader record relationship validation and
 owner-typed governed input references remain open, along with installed and GPU acceptance.
 
+View composition and view records now have private fields and checked constructors.
+Composition decoding validates its request, authority-bound identity, URI, revision and
+both digests. View creation resolves its camera rig, derives its parent and resource
+addresses, and validates camera updates before changing the revision. Checked revision
+increments reject overflow. The contract profile now includes pure WGS 84 camera math;
+JSON float round trips preserve coordinates used in content identity.
+
+Resolved compositions validate overlay metadata, geometry and retained artifact bytes
+on construction and decoding. Captures reuse that immutable checked value. Admission
+checks declared media type, digest, byte limits and Frames bindings for local geometry;
+unreferenced retained bytes are rejected. Capture snapshots check composition parents,
+layers and digests. Saved Task requests must name the snapshot's view and revision.
+Before Task creation or lease claiming, the adapter checks principal, tenant, Work
+Context and capture limits. Direct snapshot capture checks ownership before layer or
+renderer work. Captures may use a different invocation policy revision from composition
+creation within that ownership scope. No historical readers or conversion paths were added.
+
+Record and recovery qualification passes 27 contract tests, 87 native View tests and
+six compile-fail checks. The independent 118-package consumer passes twelve checks;
+runtime-only compilation, strict workspace Clippy, formatting, docs and identifier
+checks pass. Reference containers remain stopped, with 75 GiB free. Frame and preview
+record admission, owner-typed governed input references, and installed/GPU acceptance
+remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1329,7 +1353,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
-| View | Its isolated contract owns public scene types, scopes, Task kinds, concrete resource variants and typed URI constructors. Tile keys stay typed through the registry. Checked MCP setup supplies fixed discovery and typed permission membership; seven templates match builders, both gateway registrations declare revision 3, and native and independent-consumer checks pass | Check repeated identities and parents across public records; replace manual governed-input reference handling through the owning contracts; qualify installed consumers and GPU behavior |
+| View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked setup supplies fixed discovery. Private composition and view records validate identity, digests and cameras; immutable resolved scenes validate retained geometry and artifact bytes. Capture admission checks request revision and principal/tenant/Work Context before Task claiming | Complete Frame and preview record admission; replace manual governed-input references through the owning contracts; qualify installed consumers and GPU behavior |
 | Recording | Existing contract modules have no isolated server library feature | Audit module dependencies, add feature gates, and migrate domain scopes and resource construction |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
