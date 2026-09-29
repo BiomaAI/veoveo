@@ -1334,6 +1334,8 @@ keeps its existing Map geodetic value dependency and introduces no service or de
 Independent Frames and Recording consumers resolve 103 and 104 packages respectively,
 without MCP integration, Store, Rerun, async or GPU runtimes. The existing schema fixture
 and domain assertions moved with their owner; a facade test proves public type identity.
+The focused flight and browser client graph check admits this extracted contract by
+name. All three graph selections pass without Store, Rerun, DuckDB or server runtimes.
 
 Recording projection requests and results carry `WorldFrameUri` values. They admit at
 most 64 distinct immutable-revision references, preserve caller order and keep URI wire
