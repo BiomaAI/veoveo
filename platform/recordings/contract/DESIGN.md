@@ -7,7 +7,7 @@
 | RFC 6749 section 3.3 | The closed `RecordingScope` enum defines `recording:seal`; names describe permissions and confer no authority. |
 | RFC 9562 UUIDv7 | Recording, dataset, layer, read-grant and projection identities require the RFC UUID variant and lowercase hyphenated spelling. |
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
-| RFC 3339 and SHA-256 | Playback timestamps decode to UTC values; Blueprint digests use the foundational digest type and lowercase 64-character hex on the wire. |
+| RFC 3339 and SHA-256 | Playback and projection expiry timestamps decode to UTC values; Blueprint and projection digests use the foundational digest type and lowercase 64-character hex on the wire. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
@@ -33,8 +33,7 @@ They share UUID admission mechanics without allowing implicit conversion between
 `resources.rs` builds and admits domain routes
 through the foundational URI library. `cursor.rs` owns public catalog positions;
 the service converts them to Store's query types at the persistence call. `uris.rs`
-declares fixed discovery roots and templates. `catalog.rs` owns grants and projection
-result models. Its catalog-request constructor admits 1–500 input Recording IDs and produces
+declares fixed discovery roots and templates. `catalog.rs` owns grants. Its catalog-request constructor admits 1–500 input Recording IDs and produces
 a sorted unique selection. Dataset membership remains a Store admission check.
 The crate root owns recording views, layer views and sealing. `playback.rs` owns the
 closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
@@ -60,22 +59,33 @@ Temporal values exclude Rerun's reserved static marker, `i64::MIN`.
 Recording IDs, a deadline of 1–15,000 ms and bounded metadata. Unit keys must name a
 selected component. Both query and request expose immutable field access; JSON decoding
 runs the same builders and rejects unknown fields. The request wire shape stays flat.
+`query_identity` supplies typed serialization inputs in the owner's field order, excluding
+the caller's idempotency key. Exhaustive field binding requires an explicit identity
+decision when the request gains a field. The service hashes those inputs without
+editing an untyped JSON object.
 
 The lightweight query checks bounds and relationships without importing Rerun grammar.
 RRD prepares an `ArrowProjectionQuery` with the pinned upstream entity, component and
 timeline parsers before any source loading. It also rejects distinct spellings that
 resolve to the same entity. The service performs this step before Artifact materialization.
 Authorization, configured lower limits, concurrency and scratch admission belong to the
-service. Coordinate-frame reference interpretation and projection result admission are
-tracked in the foundations plan.
+service. `projection/result.rs` owns the sealed result handle and its builder. It checks
+sample-grid ordering, row/omission totals, output bounds and metadata shape on JSON
+admission. `build_for` also checks the requested parents, timeline, grid, units, frame
+references and limits; a consumer with the request uses `validate_request` for those
+same relationships. Digests use `Sha256Digest` through RRD, construction and download,
+with bare lowercase hex at the declared wire fields. Byte length is nonzero and expiry
+is a UTC value. The service checks query identity and expiry against the SQL-admitted
+receipt, then verifies payload length and SHA-256 before reuse. The model alone does
+not prove file contents or grant authority. Coordinate-frame reference interpretation
+is tracked in the foundations plan.
 
 Address decoding rejects alternate spellings, fragments, unsupported or duplicate
 query parameters, malformed IDs and wrong resource parents. Errors omit submitted
 values. An admitted URI grants no access. Service owners check current authorization
 and operational bounds, while SQL selects visible records before limits and decoding.
 Store adapters require native RFC UUIDv7 record keys with the declared table. String
-record keys are not part of the current storage profile. Projection result construction and
-remaining address-field admission are
+record keys are not part of the current storage profile. Remaining address-field admission is
 tracked in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Qualification

@@ -19,7 +19,8 @@
 ## Ownership And Dependencies
 
 `veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
-`Sha256Digest`, and `Sha256DigestError`. `ResourceUriParts`, `ResourceUriBuilder`,
+`Sha256Digest`, and `Sha256DigestError`. A digest can be constructed from a checked
+32-byte SHA-256 output without parsing text; the type performs no hashing. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
 `ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
 `expand_scalars` accepts a standard string map for scalar variables and delegates to

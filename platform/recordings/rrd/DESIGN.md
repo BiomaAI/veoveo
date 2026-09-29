@@ -40,7 +40,8 @@ Arrow implementation. It imports the sealed query and sampling vocabulary from t
 those selectors with the pinned Rerun types and rejects duplicate resolved entities
 without opening files. Every Arrow writer requires this prepared type. During execution,
 row and sample counts and the byte writer enforce the admitted limits; cancellation or
-failure removes partial output. `video.rs` owns encoded access-unit inspection.
+failure removes partial output. Its summary carries typed SHA-256 values and a nonzero
+byte length into the Recording result builder. `video.rs` owns encoded access-unit inspection.
 
 ## Verification
 

@@ -59,6 +59,42 @@ impl CreateRecordingProjectionRequestBuilder {
 #[schemars(with = "ProjectionRequestWire")]
 pub struct CreateRecordingProjectionRequest(CreateRecordingProjectionRequestBuilder);
 
+impl CreateRecordingProjectionRequest {
+    /// Deterministic identity input, excluding only the caller's idempotency key.
+    /// The owner defines its field order; this is not a general JSON canonicalization profile.
+    pub fn query_identity(&self) -> impl Serialize + '_ {
+        // Exhaustive destructuring makes a new request field require an identity decision.
+        let CreateRecordingProjectionRequestBuilder {
+            dataset_id,
+            recording_id,
+            query,
+            deadline_ms,
+            idempotency_key: _,
+            units,
+            coordinate_frame_refs,
+        } = &self.0;
+        ProjectionQueryIdentity {
+            dataset_id,
+            recording_id,
+            query,
+            deadline_ms: *deadline_ms,
+            units,
+            coordinate_frame_refs,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ProjectionQueryIdentity<'a> {
+    dataset_id: &'a RecordingDatasetId,
+    recording_id: &'a RecordingId,
+    #[serde(flatten)]
+    query: &'a RecordingProjectionQuery,
+    deadline_ms: u64,
+    units: &'a BTreeMap<String, String>,
+    coordinate_frame_refs: &'a [String],
+}
+
 impl Deref for CreateRecordingProjectionRequest {
     type Target = CreateRecordingProjectionRequestBuilder;
     fn deref(&self) -> &Self::Target {

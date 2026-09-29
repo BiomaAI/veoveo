@@ -164,7 +164,7 @@ async fn assert_download_admission(db: &fixture::TestDb) {
         .unwrap();
     assert_eq!(download.path, path);
     assert_eq!(download.byte_len, bytes.len() as u64);
-    assert_eq!(download.sha256, digest);
+    assert_eq!(download.sha256.hex(), digest);
     assert!(
         service
             .projection_download(&caller, RecordingId::new(), projection_id)

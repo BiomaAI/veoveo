@@ -530,7 +530,7 @@ async fn projection_data(
     );
     headers.insert(
         header::HeaderName::from_static("x-veoveo-payload-sha256"),
-        header::HeaderValue::from_str(&download.sha256)
+        header::HeaderValue::from_str(download.sha256.hex())
             .expect("SHA-256 hex is a valid header value"),
     );
     response

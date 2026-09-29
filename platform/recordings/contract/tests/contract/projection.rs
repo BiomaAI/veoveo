@@ -22,7 +22,7 @@ fn query_builder() -> RecordingProjectionQueryBuilder {
     }
 }
 
-fn request_builder() -> CreateRecordingProjectionRequestBuilder {
+pub(super) fn request_builder() -> CreateRecordingProjectionRequestBuilder {
     CreateRecordingProjectionRequestBuilder {
         dataset_id: RecordingDatasetId::new(),
         recording_id: RecordingId::new(),
@@ -194,5 +194,48 @@ fn public_schema_advertises_numeric_bounds_and_closed_flat_shape() {
     ] {
         assert_eq!(schema["properties"][field]["minimum"], json!(1));
         assert_eq!(schema["properties"][field]["maximum"], json!(maximum));
+    }
+}
+
+#[test]
+fn query_identity_includes_every_query_input_and_excludes_the_idempotency_key() {
+    let mut builder = request_builder();
+    builder.units.clear();
+    let request = builder.build().unwrap();
+    let original = serde_json::to_value(&request).unwrap();
+    let identity = serde_json::to_vec(&request.query_identity()).unwrap();
+    let mut another_key = original.clone();
+    another_key["idempotency_key"] = json!("another-key");
+    let another_key =
+        serde_json::from_value::<CreateRecordingProjectionRequest>(another_key).unwrap();
+    assert_eq!(
+        serde_json::to_vec(&another_key.query_identity()).unwrap(),
+        identity
+    );
+    for (field, value) in [
+        ("dataset_id", json!(RecordingDatasetId::new())),
+        ("recording_id", json!(RecordingId::new())),
+        ("entity_paths", json!(["/other"])),
+        ("component_ids", json!(["other"])),
+        ("timeline", json!("other")),
+        ("sampling", json!({"kind": "latest_at", "at": 3})),
+        ("sparse_fill", json!("none")),
+        ("maximum_entities", json!(2)),
+        ("maximum_columns", json!(2)),
+        ("maximum_samples", json!(3)),
+        ("maximum_rows", json!(3)),
+        ("maximum_bytes", json!(2048)),
+        ("deadline_ms", json!(2000)),
+        ("units", json!({"Scalars:scalars": "metres"})),
+        ("coordinate_frame_refs", json!(["frame"])),
+    ] {
+        let mut changed = original.clone();
+        changed[field] = value;
+        let changed = serde_json::from_value::<CreateRecordingProjectionRequest>(changed).unwrap();
+        assert_ne!(
+            serde_json::to_vec(&changed.query_identity()).unwrap(),
+            identity,
+            "{field}"
+        );
     }
 }

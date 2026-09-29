@@ -13,6 +13,7 @@ pub enum RecordingContractError {
     ProjectionSelection,
     ProjectionSampling,
     ProjectionMetadata,
+    ProjectionResult,
 }
 impl fmt::Display for RecordingContractError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -34,6 +35,7 @@ impl fmt::Display for RecordingContractError {
             Self::ProjectionMetadata => {
                 "invalid Recording projection deadline, idempotency key or result metadata"
             }
+            Self::ProjectionResult => "Recording projection result has invalid bounds, sample counts or request relationships",
         })
     }
 }

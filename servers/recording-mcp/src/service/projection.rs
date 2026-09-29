@@ -1,20 +1,14 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::io::{Read as _, Write as _};
-use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::contract::{
-    CreateRecordingProjectionRequest, MAX_PROJECTION_DEADLINE_MS,
-    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
-    RecordingProjectionResultMetadata,
+    CreateRecordingProjectionRequest, RecordingProjectionHandle, RecordingProjectionHandleBuilder,
+    RecordingProjectionHandleSchema, RecordingProjectionResultMetadata,
 };
 use anyhow::{Context as _, Result, ensure};
 use chrono::{DateTime, Utc};
-use serde::Serialize;
 use sha2::{Digest as _, Sha256};
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
@@ -22,230 +16,25 @@ use veoveo_platform_store::{
     RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionRequest,
     RecordingProjectionState, RecordingReadGrantClass, RecordingReadGrantId,
 };
-use veoveo_rrd::projection::{ArrowProjectionQuery, write_arrow_projection_cancelable};
+use veoveo_rrd::projection::{
+    ArrowProjectionQuery, ArrowProjectionSummary, write_arrow_projection_cancelable,
+};
+use veoveo_types::Sha256Digest;
 
 use super::{RecordingService, record_uuid};
 
-const MAX_PROJECTION_CONCURRENCY: usize = 2;
-const MAX_PROJECTION_SCRATCH_BYTES: u64 = 96 * 1024 * 1024;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct ProjectionRuntimeLimits {
-    pub aggregate_scratch_bytes: u64,
-    pub minimum_free_bytes: u64,
-    pub concurrent_projections: usize,
-    pub maximum_deadline_ms: u64,
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectionRuntimeStats {
-    pub managed_bytes: u64,
-    pub minimum_free_bytes: u64,
-    pub available_bytes: u64,
-    pub committed_bytes: u64,
-    pub reserved_bytes: u64,
-    pub files: usize,
-    pub headroom_rejections: u64,
-    pub concurrency_rejections: u64,
-}
-
-#[derive(Clone)]
-pub(super) struct ProjectionRuntime {
-    inner: Arc<ProjectionRuntimeInner>,
-}
-
-struct ProjectionRuntimeInner {
-    root: PathBuf,
-    limits: ProjectionRuntimeLimits,
-    state: Mutex<ProjectionScratchState>,
-    permits: Arc<Semaphore>,
-}
-
-#[derive(Default)]
-struct ProjectionScratchState {
-    files: HashMap<RecordingProjectionReceiptId, u64>,
-    reserved_bytes: u64,
-    headroom_rejections: u64,
-    concurrency_rejections: u64,
-}
-
-struct ProjectionReservation {
-    runtime: ProjectionRuntime,
-    projection_id: RecordingProjectionReceiptId,
-    reserved_bytes: u64,
-    settled: bool,
-}
+mod scratch;
+pub(super) use scratch::ProjectionRuntime;
+use scratch::{
+    MAX_METADATA_BYTES, ProjectionPaths, read_metadata, remove_projection_paths, verify_file,
+    write_metadata,
+};
+pub use scratch::{ProjectionRuntimeLimits, ProjectionRuntimeStats};
 
 pub struct ProjectionDownload {
     pub path: PathBuf,
     pub byte_len: u64,
-    pub sha256: String,
-}
-
-impl ProjectionRuntime {
-    pub(super) fn new(root: PathBuf, limits: ProjectionRuntimeLimits) -> Result<Self> {
-        ensure!(
-            root.is_absolute(),
-            "projection scratch root must be absolute"
-        );
-        ensure!(
-            (1..=MAX_PROJECTION_SCRATCH_BYTES).contains(&limits.aggregate_scratch_bytes),
-            "projection aggregate scratch limit exceeds the reviewed maximum"
-        );
-        ensure!(
-            limits.minimum_free_bytes > 0,
-            "projection minimum free bytes must be positive"
-        );
-        ensure!(
-            (1..=MAX_PROJECTION_CONCURRENCY).contains(&limits.concurrent_projections),
-            "projection concurrency exceeds the reviewed maximum"
-        );
-        ensure!(
-            (1..=MAX_PROJECTION_DEADLINE_MS).contains(&limits.maximum_deadline_ms),
-            "projection deadline exceeds the reviewed maximum"
-        );
-        std::fs::create_dir_all(&root)?;
-        let root = root.canonicalize()?;
-        let mut state = ProjectionScratchState::default();
-        cleanup_and_index_scratch(&root, &mut state)?;
-        ensure!(
-            state.files.values().sum::<u64>() <= limits.aggregate_scratch_bytes,
-            "existing projection scratch exceeds its managed ceiling"
-        );
-        Ok(Self {
-            inner: Arc::new(ProjectionRuntimeInner {
-                root,
-                limits,
-                state: Mutex::new(state),
-                permits: Arc::new(Semaphore::new(limits.concurrent_projections)),
-            }),
-        })
-    }
-
-    fn try_acquire(&self) -> Result<OwnedSemaphorePermit> {
-        match self.inner.permits.clone().try_acquire_owned() {
-            Ok(permit) => Ok(permit),
-            Err(_) => {
-                if let Ok(mut state) = self.inner.state.lock() {
-                    state.concurrency_rejections = state.concurrency_rejections.saturating_add(1);
-                }
-                anyhow::bail!("recording projection concurrency limit reached")
-            }
-        }
-    }
-
-    fn reserve(
-        &self,
-        projection_id: RecordingProjectionReceiptId,
-        byte_len: u64,
-    ) -> Result<ProjectionReservation> {
-        let mut state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("projection scratch state is poisoned"))?;
-        ensure!(
-            !state.files.contains_key(&projection_id),
-            "projection result already exists"
-        );
-        let committed = state.files.values().sum::<u64>();
-        let available = fs4::available_space(&self.inner.root)?;
-        let managed = committed
-            .checked_add(state.reserved_bytes)
-            .and_then(|value| value.checked_add(byte_len));
-        if !managed.is_some_and(|value| value <= self.inner.limits.aggregate_scratch_bytes)
-            || available < byte_len.saturating_add(self.inner.limits.minimum_free_bytes)
-        {
-            state.headroom_rejections = state.headroom_rejections.saturating_add(1);
-            anyhow::bail!("recording projection scratch has insufficient headroom");
-        }
-        state.reserved_bytes = state.reserved_bytes.saturating_add(byte_len);
-        Ok(ProjectionReservation {
-            runtime: self.clone(),
-            projection_id,
-            reserved_bytes: byte_len,
-            settled: false,
-        })
-    }
-
-    fn paths(&self, projection_id: RecordingProjectionReceiptId) -> ProjectionPaths {
-        let stem = projection_id.to_string();
-        ProjectionPaths {
-            partial_arrow: self.inner.root.join(format!("{stem}.arrow.partial")),
-            final_arrow: self.inner.root.join(format!("{stem}.arrow")),
-            partial_metadata: self.inner.root.join(format!("{stem}.json.partial")),
-            final_metadata: self.inner.root.join(format!("{stem}.json")),
-        }
-    }
-
-    fn stats(&self) -> Result<ProjectionRuntimeStats> {
-        let state = self
-            .inner
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("projection scratch state is poisoned"))?;
-        Ok(ProjectionRuntimeStats {
-            managed_bytes: self.inner.limits.aggregate_scratch_bytes,
-            minimum_free_bytes: self.inner.limits.minimum_free_bytes,
-            available_bytes: fs4::available_space(&self.inner.root)?,
-            committed_bytes: state.files.values().sum(),
-            reserved_bytes: state.reserved_bytes,
-            files: state.files.len(),
-            headroom_rejections: state.headroom_rejections,
-            concurrency_rejections: state.concurrency_rejections,
-        })
-    }
-
-    fn readiness(&self) -> Result<()> {
-        let stats = self.stats()?;
-        ensure!(
-            stats.committed_bytes.saturating_add(stats.reserved_bytes) <= stats.managed_bytes,
-            "recording projection scratch exceeds its managed ceiling"
-        );
-        ensure!(
-            stats.available_bytes >= stats.minimum_free_bytes,
-            "recording projection scratch is below its minimum free-space headroom"
-        );
-        Ok(())
-    }
-}
-
-impl ProjectionReservation {
-    fn commit(mut self, actual_bytes: u64) -> Result<()> {
-        ensure!(
-            actual_bytes <= self.reserved_bytes,
-            "projection exceeded its reservation"
-        );
-        let mut state = self
-            .runtime
-            .inner
-            .state
-            .lock()
-            .map_err(|_| anyhow::anyhow!("projection scratch state is poisoned"))?;
-        state.reserved_bytes = state.reserved_bytes.saturating_sub(self.reserved_bytes);
-        state.files.insert(self.projection_id, actual_bytes);
-        self.settled = true;
-        Ok(())
-    }
-}
-
-impl Drop for ProjectionReservation {
-    fn drop(&mut self) {
-        if self.settled {
-            return;
-        }
-        if let Ok(mut state) = self.runtime.inner.state.lock() {
-            state.reserved_bytes = state.reserved_bytes.saturating_sub(self.reserved_bytes);
-        }
-    }
-}
-
-struct ProjectionPaths {
-    partial_arrow: PathBuf,
-    final_arrow: PathBuf,
-    partial_metadata: PathBuf,
-    final_metadata: PathBuf,
+    pub sha256: Sha256Digest,
 }
 
 impl RecordingService {
@@ -275,10 +64,11 @@ impl RecordingService {
             .as_ref()
             .context("recording projection runtime is not configured")?;
         ensure!(
-            (1..=runtime.inner.limits.maximum_deadline_ms).contains(&request.deadline_ms),
+            (1..=runtime.maximum_deadline_ms()).contains(&request.deadline_ms),
             "recording projection deadline exceeds the configured maximum"
         );
         let query = ArrowProjectionQuery::new(request.query.clone())?;
+        let _permit = runtime.try_acquire()?;
         let dataset_id = RecordingDatasetId::from_uuid(request.dataset_id.as_uuid());
         let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
         let plan = self
@@ -306,8 +96,8 @@ impl RecordingService {
             dataset_id,
             recording_id,
             request.idempotency_key.clone(),
-            veoveo_types::Sha256Digest::from_hex(&manifest_digest)?,
-            veoveo_types::Sha256Digest::from_hex(&query_digest)?,
+            manifest_digest,
+            query_digest.clone(),
         )?;
         let existing = self
             .store
@@ -342,20 +132,20 @@ impl RecordingService {
         let projection_id = projection_id(&receipt.id)?;
         let paths = runtime.paths(projection_id);
         if receipt.state == RecordingProjectionState::Ready {
-            return read_handle(&paths, &receipt, &request, true);
+            return read_handle(&paths, &receipt, &request, HandleReadMode::Ready);
         }
         if receipt.state == RecordingProjectionState::Materializing
             && paths.final_arrow.is_file()
             && paths.final_metadata.is_file()
         {
-            let handle = read_handle(&paths, &receipt, &request, false)?;
+            let handle = read_handle(&paths, &receipt, &request, HandleReadMode::Recovering)?;
             self.store
                 .complete_recording_projection(
                     &scope,
                     recording_id,
                     projection_id,
-                    handle.result.byte_len,
-                    &veoveo_types::Sha256Digest::from_hex(&handle.result.payload_sha256)?,
+                    handle.result.byte_len.get(),
+                    &handle.result.payload_sha256,
                 )
                 .await?;
             return Ok(handle);
@@ -365,8 +155,10 @@ impl RecordingService {
                 || receipt.state == RecordingProjectionState::Materializing,
             "recording projection is not retryable"
         );
-        let _permit = runtime.try_acquire()?;
-        let reservation = runtime.reserve(projection_id, request.query.maximum_bytes)?;
+        let reservation = runtime.reserve(
+            projection_id,
+            request.query.maximum_bytes + MAX_METADATA_BYTES,
+        )?;
         self.store
             .begin_recording_projection(&scope, recording_id, projection_id)
             .await?;
@@ -449,40 +241,44 @@ impl RecordingService {
                 return Err(error.into());
             }
         };
-        let handle = RecordingProjectionHandle {
-            schema: RECORDING_PROJECTION_HANDLE_SCHEMA.to_owned(),
-            projection_id: crate::contract::RecordingProjectionId::try_from(
-                projection_id.as_uuid(),
-            )?,
-            dataset_id: request.dataset_id,
-            recording_id: request.recording_id,
-            result: RecordingProjectionResultMetadata {
-                catalog_revision: plan.catalog_revision,
-                query_digest,
-                timeline: request.query.timeline.clone(),
-                sample_grid: request.query.sampling.sample_grid(),
-                units: request.units.clone(),
-                coordinate_frame_refs: request.coordinate_frame_refs.clone(),
-                omitted_sample_count: summary.omitted_sample_count,
-                row_count: summary.row_count,
-                arrow_schema_sha256: summary.schema_sha256,
-                byte_len: summary.byte_len,
-                payload_sha256: summary.sha256,
-            },
-            expires_at: receipt.expires_at.to_rfc3339(),
+        let handle = projection_handle(
+            &request,
+            projection_id,
+            plan.catalog_revision,
+            query_digest,
+            receipt.expires_at,
+            summary,
+        );
+        let handle = match handle {
+            Ok(handle) => handle,
+            Err(error) => {
+                remove_projection_paths(&paths, true)?;
+                self.store
+                    .fail_recording_projection(
+                        &scope,
+                        recording_id,
+                        projection_id,
+                        "invalid_result",
+                    )
+                    .await?;
+                return Err(error);
+            }
         };
         write_metadata(&paths.partial_metadata, &handle)?;
         std::fs::rename(&paths.partial_arrow, &paths.final_arrow)?;
         std::fs::rename(&paths.partial_metadata, &paths.final_metadata)?;
-        sync_directory(&runtime.inner.root)?;
-        reservation.commit(handle.result.byte_len)?;
+        runtime.sync()?;
+        reservation.commit(
+            handle.result.byte_len.get() + paths.final_metadata.metadata()?.len(),
+            handle.expires_at,
+        )?;
         self.store
             .complete_recording_projection(
                 &scope,
                 recording_id,
                 projection_id,
-                handle.result.byte_len,
-                &veoveo_types::Sha256Digest::from_hex(&handle.result.payload_sha256)?,
+                handle.result.byte_len.get(),
+                &handle.result.payload_sha256,
             )
             .await?;
         Ok(handle)
@@ -512,10 +308,12 @@ impl RecordingService {
                 .result_byte_len
                 .context("ready projection has no length")?,
         )?;
-        let sha256 = receipt
-            .result_sha256
-            .clone()
-            .context("ready projection has no digest")?;
+        let sha256 = Sha256Digest::from_hex(
+            receipt
+                .result_sha256
+                .as_ref()
+                .context("ready projection has no digest")?,
+        )?;
         let path = runtime.paths(projection_id).final_arrow;
         let validation_path = path.clone();
         let expected_sha256 = sha256.clone();
@@ -531,21 +329,49 @@ impl RecordingService {
     }
 }
 
+fn projection_handle(
+    request: &CreateRecordingProjectionRequest,
+    projection_id: RecordingProjectionReceiptId,
+    catalog_revision: String,
+    query_digest: Sha256Digest,
+    expires_at: DateTime<Utc>,
+    summary: ArrowProjectionSummary,
+) -> Result<RecordingProjectionHandle> {
+    Ok(RecordingProjectionHandleBuilder {
+        schema: RecordingProjectionHandleSchema::V1,
+        projection_id: crate::contract::RecordingProjectionId::try_from(projection_id.as_uuid())?,
+        dataset_id: request.dataset_id,
+        recording_id: request.recording_id,
+        result: RecordingProjectionResultMetadata {
+            catalog_revision,
+            query_digest,
+            timeline: request.query.timeline.clone(),
+            sample_grid: request.query.sampling.sample_grid(),
+            units: request.units.clone(),
+            coordinate_frame_refs: request.coordinate_frame_refs.clone(),
+            omitted_sample_count: summary.omitted_sample_count,
+            row_count: summary.row_count,
+            arrow_schema_sha256: summary.schema_sha256,
+            byte_len: summary.byte_len,
+            payload_sha256: summary.sha256,
+        },
+        expires_at,
+    }
+    .build_for(request)?)
+}
+
 enum ProjectionTerminal {
     Cancelled,
     Deadline,
 }
 
-fn projection_query_digest(request: &CreateRecordingProjectionRequest) -> Result<String> {
-    let mut value = serde_json::to_value(request)?;
-    value
-        .as_object_mut()
-        .context("projection request is not an object")?
-        .remove("idempotency_key");
-    Ok(hex::encode(Sha256::digest(serde_json::to_vec(&value)?)))
+fn projection_query_digest(request: &CreateRecordingProjectionRequest) -> Result<Sha256Digest> {
+    Ok(Sha256Digest::from_bytes(
+        Sha256::digest(serde_json::to_vec(&request.query_identity())?).into(),
+    ))
 }
 
-fn projection_manifest_digest(plan: &crate::RecordingPlaybackPlan) -> String {
+fn projection_manifest_digest(plan: &crate::RecordingPlaybackPlan) -> Sha256Digest {
     let mut digest = Sha256::new();
     digest.update(plan.dataset_id.as_uuid().as_bytes());
     digest.update(plan.recording_id.as_uuid().as_bytes());
@@ -553,7 +379,7 @@ fn projection_manifest_digest(plan: &crate::RecordingPlaybackPlan) -> String {
         digest.update(layer.layer_id.as_uuid().as_bytes());
         digest.update(layer.sha256.as_bytes());
     }
-    hex::encode(digest.finalize())
+    Sha256Digest::from_bytes(digest.finalize().into())
 }
 
 fn projection_id(record: &RecordId) -> Result<RecordingProjectionReceiptId> {
@@ -562,223 +388,50 @@ fn projection_id(record: &RecordId) -> Result<RecordingProjectionReceiptId> {
         RecordingProjectionReceiptId::TABLE,
     )?))
 }
-fn scratch_projection_id(stem: &str) -> Result<RecordingProjectionReceiptId> {
-    Ok(RecordingProjectionReceiptId::from_uuid(
-        crate::contract::RecordingProjectionId::parse(stem)?.as_uuid(),
-    ))
-}
-
-fn write_metadata(path: &Path, handle: &RecordingProjectionHandle) -> Result<()> {
-    let mut file = std::fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(path)?;
-    file.write_all(&serde_json::to_vec(handle)?)?;
-    file.sync_all()?;
-    Ok(())
+enum HandleReadMode {
+    Ready,
+    Recovering,
 }
 
 fn read_handle(
     paths: &ProjectionPaths,
     receipt: &RecordingProjectionReceiptRecord,
     request: &CreateRecordingProjectionRequest,
-    require_ready_receipt: bool,
+    mode: HandleReadMode,
 ) -> Result<RecordingProjectionHandle> {
-    if require_ready_receipt {
-        ensure!(
-            receipt.state == RecordingProjectionState::Ready,
-            "projection is not ready"
-        );
-    }
-    let handle: RecordingProjectionHandle =
-        serde_json::from_slice(&std::fs::read(&paths.final_metadata)?)?;
+    let expected = match mode {
+        HandleReadMode::Ready => RecordingProjectionState::Ready,
+        HandleReadMode::Recovering => RecordingProjectionState::Materializing,
+    };
     ensure!(
-        handle.schema == RECORDING_PROJECTION_HANDLE_SCHEMA
-            && handle.projection_id.as_uuid() == projection_id(&receipt.id)?.as_uuid()
-            && handle.dataset_id == request.dataset_id
-            && handle.recording_id == request.recording_id
+        receipt.state == expected,
+        "projection receipt has an unexpected state"
+    );
+    let handle = read_metadata(&paths.final_metadata)?;
+    handle.validate_request(request)?;
+    ensure!(
+        handle.projection_id.as_uuid() == projection_id(&receipt.id)?.as_uuid()
             && handle.result.catalog_revision == receipt.catalog_revision
-            && handle.result.query_digest == receipt.query_digest,
+            && handle.result.query_digest == Sha256Digest::from_hex(&receipt.query_digest)?
+            && handle.result.query_digest == projection_query_digest(request)?
+            && handle.expires_at == receipt.expires_at,
         "projection metadata does not match its receipt"
     );
     verify_file(
         &paths.final_arrow,
-        handle.result.byte_len,
+        handle.result.byte_len.get(),
         &handle.result.payload_sha256,
     )?;
-    if require_ready_receipt {
+    if matches!(mode, HandleReadMode::Ready) {
         ensure!(
-            receipt.result_byte_len == Some(i64::try_from(handle.result.byte_len)?)
-                && receipt.result_sha256.as_deref() == Some(&handle.result.payload_sha256),
+            receipt.result_byte_len == Some(i64::try_from(handle.result.byte_len.get())?)
+                && receipt.result_sha256.as_deref() == Some(handle.result.payload_sha256.hex()),
             "projection result does not match its ready receipt"
         );
     }
     Ok(handle)
 }
 
-fn verify_file(path: &Path, byte_len: u64, sha256: &str) -> Result<()> {
-    let mut file = File::open(path)?;
-    ensure!(
-        file.metadata()?.len() == byte_len,
-        "projection file length mismatch"
-    );
-    let mut digest = Sha256::new();
-    let mut buffer = [0_u8; 64 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
-        }
-        digest.update(&buffer[..read]);
-    }
-    ensure!(
-        hex::encode(digest.finalize()) == sha256,
-        "projection file digest mismatch"
-    );
-    Ok(())
-}
-
-fn remove_projection_paths(paths: &ProjectionPaths, include_final: bool) -> Result<()> {
-    for path in [&paths.partial_arrow, &paths.partial_metadata]
-        .into_iter()
-        .chain(include_final.then_some(&paths.final_arrow))
-        .chain(include_final.then_some(&paths.final_metadata))
-    {
-        match std::fs::remove_file(path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.into()),
-        }
-    }
-    Ok(())
-}
-
-fn cleanup_and_index_scratch(root: &Path, state: &mut ProjectionScratchState) -> Result<()> {
-    let now = Utc::now();
-    let mut metadata = HashMap::new();
-    for entry in std::fs::read_dir(root)? {
-        let entry = entry?;
-        ensure!(
-            entry.file_type()?.is_file(),
-            "projection scratch contains a non-file entry"
-        );
-        let path = entry.path();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if name.ends_with(".partial") {
-            std::fs::remove_file(path)?;
-            continue;
-        }
-        if let Some(stem) = name.strip_suffix(".json") {
-            let Ok(id) = scratch_projection_id(stem) else {
-                anyhow::bail!("projection scratch contains unknown file `{name}`");
-            };
-            let handle = std::fs::read(&path)
-                .map_err(serde_json::Error::io)
-                .and_then(|bytes| serde_json::from_slice::<RecordingProjectionHandle>(&bytes));
-            metadata.insert(id, (path, handle));
-            continue;
-        }
-        if !name.ends_with(".arrow") {
-            anyhow::bail!("projection scratch contains unknown file `{name}`");
-        }
-    }
-    for entry in std::fs::read_dir(root)? {
-        let entry = entry?;
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let Some(stem) = name.strip_suffix(".arrow") else {
-            continue;
-        };
-        let id = scratch_projection_id(stem)?;
-        let keep = metadata
-            .get(&id)
-            .and_then(|(_, handle)| handle.as_ref().ok())
-            .is_some_and(|handle| {
-                DateTime::parse_from_rfc3339(&handle.expires_at)
-                    .map(|expires_at| expires_at.with_timezone(&Utc) > now)
-                    .unwrap_or(false)
-                    && handle.projection_id.as_uuid() == id.as_uuid()
-                    && handle.result.byte_len
-                        == entry
-                            .metadata()
-                            .map(|value| value.len())
-                            .unwrap_or_default()
-            });
-        if keep {
-            state.files.insert(id, entry.metadata()?.len());
-        } else {
-            std::fs::remove_file(entry.path())?;
-            if let Some((path, _)) = metadata.remove(&id) {
-                let _ = std::fs::remove_file(path);
-            }
-        }
-    }
-    for (_, (path, _)) in metadata {
-        std::fs::remove_file(path)?;
-    }
-    sync_directory(root)?;
-    Ok(())
-}
-
-fn sync_directory(path: &Path) -> Result<()> {
-    File::open(path)?.sync_all()?;
-    Ok(())
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn runtime(root: PathBuf, bytes: u64) -> ProjectionRuntime {
-        ProjectionRuntime::new(
-            root,
-            ProjectionRuntimeLimits {
-                aggregate_scratch_bytes: bytes,
-                minimum_free_bytes: 1,
-                concurrent_projections: 1,
-                maximum_deadline_ms: 1_000,
-            },
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn reservations_and_concurrency_fail_before_work_starts() {
-        let directory = tempfile::tempdir().unwrap();
-        let runtime = runtime(directory.path().to_path_buf(), 100);
-        let first_id = RecordingProjectionReceiptId::new();
-        let first = runtime.reserve(first_id, 80).unwrap();
-        assert!(
-            runtime
-                .reserve(RecordingProjectionReceiptId::new(), 21)
-                .is_err()
-        );
-        assert_eq!(runtime.stats().unwrap().headroom_rejections, 1);
-        drop(first);
-        assert_eq!(runtime.stats().unwrap().reserved_bytes, 0);
-
-        let permit = runtime.try_acquire().unwrap();
-        assert!(runtime.try_acquire().is_err());
-        assert_eq!(runtime.stats().unwrap().concurrency_rejections, 1);
-        drop(permit);
-        let _permit = runtime.try_acquire().unwrap();
-    }
-
-    #[test]
-    fn startup_removes_partial_and_invalid_projection_pairs() {
-        let directory = tempfile::tempdir().unwrap();
-        let partial = directory.path().join("orphan.arrow.partial");
-        std::fs::write(&partial, b"partial").unwrap();
-        let projection_id = RecordingProjectionReceiptId::new();
-        let arrow = directory.path().join(format!("{projection_id}.arrow"));
-        let metadata = directory.path().join(format!("{projection_id}.json"));
-        std::fs::write(&arrow, b"arrow").unwrap();
-        std::fs::write(&metadata, b"not-json").unwrap();
-
-        let runtime = runtime(directory.path().to_path_buf(), 1024);
-        assert!(!partial.exists());
-        assert!(!arrow.exists());
-        assert!(!metadata.exists());
-        assert_eq!(runtime.stats().unwrap().files, 0);
-        runtime.readiness().unwrap();
-    }
-}
+#[path = "projection/tests.rs"]
+mod tests;

@@ -1068,7 +1068,8 @@ Simulation live-view ownership:
 IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
 the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
-owns grants and projection result models. `projection/query.rs` and `projection/request.rs`
+owns grants. `projection/result.rs` owns checked result handles and typed integrity fields.
+`projection/query.rs` and `projection/request.rs`
 own checked projection construction and shared bounds; RRD admits the selectors through
 its upstream grammar before loading sources. Its `src/playback.rs` owns sealed manifest construction,
 lifecycle and nested-field admission shared with Console. Hub and Video import this domain crate directly.
@@ -1137,8 +1138,9 @@ catalog grant and Arrow projection models from the shared domain crate. The isol
 MCP, Store, async or Rerun implementations; the gateway's Recording adapter imports
 that profile directly. `runtime`, `mcp` and `redap` enable their service dependencies.
 `service.rs` resolves authorized MCP and playback plans and publishes
-properties layers. `service/projection.rs` owns projection receipts, concurrency,
-scratch, and Arrow downloads. `platform/recordings/reader/src/cache.rs` owns verified
+properties layers. `service/projection.rs` owns projection receipts, result construction
+and Arrow downloads. `service/projection/scratch.rs` owns concurrency, scratch accounting,
+bounded metadata and restart integrity. `platform/recordings/reader/src/cache.rs` owns verified
 Artifact-to-PVC materialization and eviction. `blueprint_cache.rs` supplies
 the server-owned Blueprint identity validator. `service/grants.rs` maps authenticated
 caller authority to transactional Store grant issuance and SQL reuse. `playback.rs` owns

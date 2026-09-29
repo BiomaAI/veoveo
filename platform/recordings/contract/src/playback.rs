@@ -7,7 +7,8 @@ use serde::{Deserialize, Deserializer, Serialize};
 use veoveo_types::Sha256Digest;
 
 use crate::{
-    RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId, RecordingReadGrantId,
+    RecordingContractError, RecordingDatasetId, RecordingId, RecordingLayerId,
+    RecordingReadGrantId, hex_digest,
 };
 
 pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
@@ -178,22 +179,6 @@ pub struct PlaybackBlueprint {
     pub sha256: Sha256Digest,
     pub byte_len: NonZeroU64,
     pub map_provider: PlaybackMapProvider,
-}
-
-// This field's wire profile is bare lowercase hex; internal code keeps the foundational digest.
-mod hex_digest {
-    use super::*;
-    pub fn serialize<S: serde::Serializer>(
-        digest: &Sha256Digest,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(digest.hex())
-    }
-    pub fn deserialize<'de, D: Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Sha256Digest, D::Error> {
-        Sha256Digest::from_hex(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
-    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]

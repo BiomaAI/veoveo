@@ -2,6 +2,7 @@
 
 mod query;
 mod request;
+mod result;
 
 pub use query::{
     MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_DEADLINE_MS,
@@ -10,3 +11,8 @@ pub use query::{
     RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
 pub use request::{CreateRecordingProjectionRequest, CreateRecordingProjectionRequestBuilder};
+pub use result::{
+    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
+    RecordingProjectionHandleBuilder, RecordingProjectionHandleSchema,
+    RecordingProjectionResultMetadata,
+};

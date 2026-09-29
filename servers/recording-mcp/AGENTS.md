@@ -58,7 +58,8 @@ and reactive Rerun live following.
 - `bin/server/resources.rs` dispatches the admitted resource variants.
 - [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
 - `service/grants.rs` maps authenticated caller authority to Store grant admission and reuse.
-- `service/projection.rs` owns projection receipts and bounded scratch.
+- `service/projection.rs` owns projection receipts and checked result construction.
+- `service/projection/scratch.rs` owns concurrency, Arrow/metadata accounting and restart integrity.
 - The shared reader cache owns verified Artifact-to-PVC materialization and eviction;
   `blueprint_cache.rs` supplies Blueprint identity validation.
 - `playback.rs` owns durable grants, virtual catalogs, scoped Redap, and manifest assembly.

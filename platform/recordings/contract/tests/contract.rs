@@ -5,6 +5,8 @@ mod addresses;
 mod playback;
 #[path = "contract/projection.rs"]
 mod projection;
+#[path = "contract/projection_result.rs"]
+mod projection_result;
 
 use serde_json::{Value, json};
 use veoveo_recording_contract::{
@@ -108,11 +110,11 @@ fn response_models_preserve_grant_and_projection_wire_shapes() {
     let projection = json!({
         "schema": RECORDING_PROJECTION_HANDLE_SCHEMA, "projection_id": DATASET,
         "dataset_id": DATASET, "recording_id": RECORDING,
-        "result": {"catalog_revision": "catalog-1", "query_digest": "query-1",
+        "result": {"catalog_revision": "catalog-1", "query_digest": "a".repeat(64),
             "timeline": "tick", "sample_grid": [2, 4], "units": {},
             "coordinate_frame_refs": [], "omitted_sample_count": 0, "row_count": 2,
-            "arrow_schema_sha256": "schema-digest", "byte_len": 100,
-            "payload_sha256": "payload-digest"},
+            "arrow_schema_sha256": "b".repeat(64), "byte_len": 100,
+            "payload_sha256": "c".repeat(64)},
         "expires_at": "2026-09-28T12:00:00Z"
     });
     assert_eq!(

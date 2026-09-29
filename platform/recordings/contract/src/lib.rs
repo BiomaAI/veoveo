@@ -6,6 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 mod cursor;
+mod hex_digest;
 mod ids;
 mod resources;
 mod scopes;
@@ -26,16 +27,16 @@ pub use playback::{
 
 mod catalog;
 pub use catalog::{
-    CreateRecordingCatalogGrantRequest, RECORDING_CATALOG_GRANT_SCHEMA,
-    RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingCatalogGrant, RecordingProjectionHandle,
-    RecordingProjectionResultMetadata,
+    CreateRecordingCatalogGrantRequest, RECORDING_CATALOG_GRANT_SCHEMA, RecordingCatalogGrant,
 };
 mod projection;
 pub use projection::{
     CreateRecordingProjectionRequest, CreateRecordingProjectionRequestBuilder,
     MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_DEADLINE_MS,
     MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS, MAX_PROJECTION_SAMPLES,
-    MAX_PROJECTION_SELECTOR_BYTES, RecordingProjectionQuery, RecordingProjectionQueryBuilder,
+    MAX_PROJECTION_SELECTOR_BYTES, RECORDING_PROJECTION_HANDLE_SCHEMA, RecordingProjectionHandle,
+    RecordingProjectionHandleBuilder, RecordingProjectionHandleSchema, RecordingProjectionQuery,
+    RecordingProjectionQueryBuilder, RecordingProjectionResultMetadata,
     RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
 

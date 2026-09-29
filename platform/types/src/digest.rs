@@ -12,6 +12,17 @@ const SHA256_HEX_LENGTH: usize = 64;
 pub struct Sha256Digest(String);
 
 impl Sha256Digest {
+    /// Preserve the fixed-size output of a SHA-256 implementation without reparsing text.
+    pub fn from_bytes(bytes: [u8; 32]) -> Self {
+        use fmt::Write as _;
+        let mut value = String::with_capacity(SHA256_PREFIX.len() + SHA256_HEX_LENGTH);
+        value.push_str(SHA256_PREFIX);
+        for byte in bytes {
+            write!(value, "{byte:02x}").expect("writing to a String is infallible");
+        }
+        Self(value)
+    }
+
     pub fn parse(value: impl Into<String>) -> Result<Self, Sha256DigestError> {
         let value = value.into();
         let Some(hex) = value.strip_prefix(SHA256_PREFIX) else {

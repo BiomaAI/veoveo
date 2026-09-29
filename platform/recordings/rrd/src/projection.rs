@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
 use std::io::{self, Write};
+use std::num::NonZeroU64;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc,
@@ -22,6 +23,7 @@ use sha2::{Digest as _, Sha256};
 use veoveo_recording_contract::{
     RecordingProjectionQuery, RecordingProjectionSampling, RecordingProjectionSparseFill,
 };
+use veoveo_types::Sha256Digest;
 
 /// A bounded query whose selectors have been parsed by the pinned Rerun implementation.
 /// Construction performs no file access. Callers prepare this before source materialization.
@@ -42,9 +44,9 @@ impl ArrowProjectionQuery {
 pub struct ArrowProjectionSummary {
     pub row_count: u64,
     pub omitted_sample_count: u64,
-    pub schema_sha256: String,
-    pub byte_len: u64,
-    pub sha256: String,
+    pub schema_sha256: Sha256Digest,
+    pub byte_len: NonZeroU64,
+    pub sha256: Sha256Digest,
 }
 
 pub fn write_arrow_projection(
@@ -131,8 +133,8 @@ fn write_arrow_projection_inner(
         .into_inner()
         .context("closing Arrow projection stream")?;
     bounded.file.sync_all()?;
-    let byte_len = bounded.written;
-    let sha256 = hex::encode(bounded.digest.finalize());
+    let byte_len = NonZeroU64::new(bounded.written).context("Arrow projection is empty")?;
+    let sha256 = Sha256Digest::from_bytes(bounded.digest.finalize().into());
     let requested_samples = match &query.sampling {
         RecordingProjectionSampling::LatestAt { .. } => 1,
         RecordingProjectionSampling::SampleGrid { values } => u64::try_from(values.len())?,
@@ -246,12 +248,12 @@ fn combined_chunk_store(
     Ok(ChunkStoreHandle::new(store))
 }
 
-fn canonical_schema_sha256(schema: &arrow::datatypes::Schema) -> String {
+fn canonical_schema_sha256(schema: &arrow::datatypes::Schema) -> Sha256Digest {
     let bytes = arrow::ipc::convert::IpcSchemaEncoder::new()
         .schema_to_fb(schema)
         .finished_data()
         .to_vec();
-    hex::encode(Sha256::digest(bytes))
+    Sha256Digest::from_bytes(Sha256::digest(bytes).into())
 }
 
 fn ensure_finite(array: &dyn arrow::array::Array) -> Result<()> {
