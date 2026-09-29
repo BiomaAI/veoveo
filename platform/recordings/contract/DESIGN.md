@@ -7,6 +7,7 @@
 | RFC 6749 section 3.3 | The closed `RecordingScope` enum defines `recording:seal`; names describe permissions and confer no authority. |
 | RFC 9562 UUIDv7 | Recording, dataset, layer, read-grant and projection identities require the RFC UUID variant and lowercase hyphenated spelling. |
 | RFC 3986 and RFC 6570 | Foundational component parsing/building and discovery templates for Recording resources. The domain fixes each route and its parameter types. |
+| RFC 3339 and SHA-256 | Playback timestamps decode to UTC values; Blueprint digests use the foundational digest type and lowercase 64-character hex on the wire. |
 | JSON and JSON Schema Draft 2020-12 | Public Recording views, seal requests/results, playback manifest v9, catalog grants and Arrow projection models. |
 | Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, at most 2048 input bytes, with a timestamp and Recording ID. |
 | Veoveo Recording resources | `recording://recordings/{UUIDv7}`, its `layers` child, the catalog, well-known documents and the Recording Explorer address. These are domain declarations; the crate implements no MCP transport. |
@@ -35,17 +36,28 @@ the service converts them to Store's query types at the persistence call. `uris.
 declares fixed discovery roots and templates. `catalog.rs` owns grant and projection
 models. Its catalog-request constructor admits 1–500 input Recording IDs and produces
 a sorted unique selection. Dataset membership remains a Store admission check.
-The crate root owns recording views, layer views, sealing and playback models.
-Console imports playback models through the server's contract-only library feature;
-it checks the requested Recording and related archive fields before forwarding a manifest.
+The crate root owns recording views, layer views and sealing. `playback.rs` owns the
+closed Recording lifecycle, manifest schema, typed timestamps and Blueprint integrity
+fields. `PlaybackManifestBuilder::build` checks the archive's dataset, Recording and
+catalog revision against the manifest. It admits one playback plane according to the
+lifecycle, checks capture layer names against their ordinals and rejects reversed
+capture timestamps. Blueprint revision and byte length are nonzero types.
+
+`PlaybackManifest` is sealed and exposes immutable field access. JSON decoding runs
+the same builder checks, including unknown-field rejection. The Blueprint digest uses
+`Sha256Digest` internally with the field's lowercase hex wire profile. The model checks
+shape and relationships; token signatures, expiry against the current clock and source
+authorization belong to the service. Console imports this model through the server's
+contract-only feature and checks that it names the requested Recording before forwarding
+it. The contract requires no runtime or clock source.
 
 Address decoding rejects alternate spellings, fragments, unsupported or duplicate
 query parameters, malformed IDs and wrong resource parents. Errors omit submitted
 values. An admitted URI grants no access. Service owners check current authorization
 and operational bounds, while SQL selects visible records before limits and decoding.
 Store adapters require native RFC UUIDv7 record keys with the declared table. String
-record keys are not part of the current storage profile. Broader playback/projection
-field relationships are
+record keys are not part of the current storage profile. Projection construction and
+remaining address-field admission are
 tracked in the [foundations plan](../../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Qualification

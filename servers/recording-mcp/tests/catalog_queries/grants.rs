@@ -10,6 +10,8 @@ pub(super) async fn qualify(
     dataset: RecordingDatasetId,
     recording: RecordingId,
 ) {
+    #[cfg(feature = "redap")]
+    qualify_live_manifest(service, caller, recording).await;
     let class = RecordingReadGrantClass::ViewerSegment;
     let grant = service
         .issue_read_grant(
@@ -89,4 +91,50 @@ pub(super) async fn qualify(
             .await
             .is_err()
     );
+}
+
+#[cfg(feature = "redap")]
+async fn qualify_live_manifest(
+    service: &RecordingService,
+    caller: &GatewayInternalIdentity,
+    recording: RecordingId,
+) {
+    use base64::Engine as _;
+    use veoveo_recording_mcp::{playback::PlaybackManager, service::PlaybackArchiveSelection};
+    let plan = service
+        .playback_plan(
+            caller,
+            None,
+            recording,
+            PlaybackArchiveSelection::SealedViewer,
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    let grant = service
+        .issue_read_grant(
+            caller,
+            plan.dataset_id,
+            RecordingReadGrantClass::ViewerSegment,
+            vec![recording],
+            plan.catalog_revision.clone(),
+            None,
+        )
+        .await
+        .unwrap();
+    let key = base64::engine::general_purpose::STANDARD.encode([7_u8; 32]);
+    let manager =
+        PlaybackManager::new(&key, "https://[::1]:8443", service.platform_store().clone()).unwrap();
+    let manifest = manager.prepare_manifest(plan, grant).await.unwrap();
+    assert_eq!(
+        manifest.state,
+        veoveo_recording_mcp::contract::RecordingState::Live
+    );
+    assert_eq!(manifest.recording_segment_id.as_uuid(), recording.as_uuid());
+    assert!(manifest.archive.is_none());
+    assert!(manifest.live.is_none());
+    let wire = serde_json::to_vec(&manifest).unwrap();
+    let admitted: veoveo_recording_mcp::contract::PlaybackManifest =
+        serde_json::from_slice(&wire).unwrap();
+    assert_eq!(admitted.recording_segment_id, manifest.recording_segment_id);
 }

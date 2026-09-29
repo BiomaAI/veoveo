@@ -51,9 +51,10 @@ profile. Responses settle refreshed cookies even when the requested operation fa
 
 Recording routes use the Recording server library's isolated contract feature for
 identity admission and playback DTOs. URL path construction accepts typed Recording
-and projection IDs and delegates component encoding to `url`. Manifest validation
-checks the requested Recording, archive parents and catalog revision before forwarding;
-the shared decoder rejects malformed identities and unknown fields.
+and projection IDs and delegates component encoding to `url`. The shared manifest
+decoder checks archive parents, catalog revision, lifecycle, timestamps and Blueprint
+integrity fields and rejects malformed identities and unknown fields. The route then
+checks the requested Recording before forwarding the admitted model.
 
 The Workspace API and asset contracts are owned by
 [`src/workspace/DESIGN.md`](src/workspace/DESIGN.md). Console bootstrap, Computers,

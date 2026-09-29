@@ -1066,7 +1066,8 @@ Simulation live-view ownership:
 IDs, resource addresses, catalog continuations and public models. `scopes.rs` owns
 the typed sealing permission shared by runtime admission and MCP setup. `ids.rs`,
 `resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
-owns grants and projection models. Hub and Video import this domain crate directly.
+owns grants and projection models. Its `src/playback.rs` owns sealed manifest construction,
+lifecycle and nested-field admission shared with Console. Hub and Video import this domain crate directly.
 The MCP library exposes the same types through its isolated contract feature. Console's
 browser edge imports its playback DTOs and distinct Recording/dataset/layer/grant/projection
 identities; catalog request construction owns bounded, sorted Recording selections.

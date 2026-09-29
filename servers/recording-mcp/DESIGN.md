@@ -70,7 +70,11 @@ unexpired viewer or catalog grant. Projection grants cannot enter the Redap cata
 Redap uses the short-lived grant's recorded authority; its bearer supplies no fresh
 actor label or Work Context assertion.
 
-Broader playback/projection construction remains adoption work
+Manifest assembly uses the domain's checked builder. Console decodes the same sealed
+model, while the server validates the selected grant and prepares only its admitted
+catalog. Rerun's typed origin stores the URL library's host and explicit or default port;
+its dataset URI builder owns Redap address serialization, including IPv6.
+Projection construction and remaining address-field admission remain adoption work
 in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## MCP Setup And Sealing Permission

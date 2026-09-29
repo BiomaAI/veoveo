@@ -1,6 +1,8 @@
 //! The same contract checks run in an independent consumer without server features.
 #[path = "contract/addresses.rs"]
 mod addresses;
+#[path = "contract/playback.rs"]
+mod playback;
 
 use serde_json::{Value, json};
 use veoveo_recording_contract::{

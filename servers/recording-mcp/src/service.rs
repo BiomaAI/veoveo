@@ -1031,7 +1031,7 @@ impl RecordingService {
             dataset_key: dataset.dataset_key,
             application_id: recording.application_id,
             recording_key: recording.recording_key,
-            state: recording_state(recording.state).to_owned(),
+            state: recording_state(recording.state),
             classification: recording.classification,
             labels: recording.labels,
             started_at: recording.started_at.to_rfc3339(),
@@ -1239,14 +1239,15 @@ fn artifact_uri(id: PlatformArtifactId) -> String {
     format!("artifact://{id}")
 }
 
-fn recording_state(state: RecordingState) -> &'static str {
+pub(super) fn recording_state(state: RecordingState) -> crate::contract::RecordingState {
+    use crate::contract::RecordingState as Public;
     match state {
-        RecordingState::Live => "live",
-        RecordingState::Ready => "ready",
-        RecordingState::Sealing => "sealing",
-        RecordingState::Sealed => "sealed",
-        RecordingState::Interrupted => "interrupted",
-        RecordingState::Failed => "failed",
+        RecordingState::Live => Public::Live,
+        RecordingState::Ready => Public::Ready,
+        RecordingState::Sealing => Public::Sealing,
+        RecordingState::Sealed => Public::Sealed,
+        RecordingState::Interrupted => Public::Interrupted,
+        RecordingState::Failed => Public::Failed,
     }
 }
 

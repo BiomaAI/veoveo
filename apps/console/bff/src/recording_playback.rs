@@ -11,9 +11,7 @@ use axum::{
     },
     response::{IntoResponse as _, Response},
 };
-use veoveo_recording_mcp::contract::{
-    PLAYBACK_MANIFEST_SCHEMA, PlaybackManifest, RecordingId, RecordingProjectionId,
-};
+use veoveo_recording_mcp::contract::{PlaybackManifest, RecordingId, RecordingProjectionId};
 
 use crate::{
     AppState,
@@ -321,39 +319,9 @@ fn validated_manifest_bytes(body: &[u8], recording_id: RecordingId) -> anyhow::R
     let manifest = serde_json::from_slice::<PlaybackManifest>(body)
         .context("manifest is not valid playback JSON")?;
     ensure!(
-        manifest.schema == PLAYBACK_MANIFEST_SCHEMA,
-        "manifest schema must be {PLAYBACK_MANIFEST_SCHEMA}"
-    );
-    ensure!(
         manifest.recording_segment_id == recording_id,
         "manifest recording identity does not match its request"
     );
-    let dataset_id = manifest.dataset_id;
-    ensure!(
-        !manifest.catalog_revision.is_empty() && !manifest.access.redap_token.is_empty(),
-        "manifest grant or catalog revision is invalid"
-    );
-    if let Some(archive) = &manifest.archive {
-        ensure!(
-            archive.dataset_id == dataset_id
-                && archive.recording_segment_id == recording_id
-                && archive.catalog_revision == manifest.catalog_revision,
-            "manifest archive identity does not match its catalog"
-        );
-    }
-    if let Some(blueprint) = &manifest.blueprint {
-        ensure!(
-            blueprint.revision > 0
-                && blueprint.byte_len > 0
-                && !blueprint.blueprint_id.trim().is_empty()
-                && blueprint.sha256.len() == 64
-                && blueprint
-                    .sha256
-                    .bytes()
-                    .all(|value| value.is_ascii_hexdigit()),
-            "manifest Blueprint descriptor is invalid"
-        );
-    }
     serde_json::to_vec(&manifest).context("serializing validated playback manifest")
 }
 
@@ -365,11 +333,12 @@ mod tests {
         routing::get,
     };
     use serde_json::json;
+    use veoveo_recording_mcp::contract::PLAYBACK_MANIFEST_SCHEMA;
 
     use super::{
-        BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PLAYBACK_MANIFEST_SCHEMA,
-        PROJECTION_PATH, RecordingId, blueprint, live_recording, live_rrd_start,
-        live_rrd_stream_headers, manifest, projection, validated_manifest_bytes,
+        BLUEPRINT_PATH, LIVE_RECORDING_PATH, MANIFEST_PATH, PROJECTION_PATH, RecordingId,
+        blueprint, live_recording, live_rrd_start, live_rrd_stream_headers, manifest, projection,
+        validated_manifest_bytes,
     };
 
     fn manifest_value(recording_id: RecordingId) -> serde_json::Value {
@@ -380,7 +349,7 @@ mod tests {
             "recording_segment_id": recording_id,
             "application_id": "veoveo-uav-sim",
             "recording_key": "inspection-flight",
-            "state": "recording",
+            "state": "sealed",
             "started_at": "2026-07-28T20:00:00Z",
             "ended_at": null,
             "catalog_revision": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -414,6 +383,8 @@ mod tests {
     fn manifest_v9_is_canonicalized_after_identity_validation() {
         let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
+        manifest["state"] = json!("live");
+        manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
             "layer_id": uuid::Uuid::now_v7(),
             "layer_name": "capture-00000000000000000000",
@@ -436,6 +407,8 @@ mod tests {
     fn manifest_rejects_an_unknown_live_transport() {
         let recording_id = RecordingId::new();
         let mut manifest = manifest_value(recording_id);
+        manifest["state"] = json!("live");
+        manifest["archive"] = serde_json::Value::Null;
         manifest["live"] = json!({
             "layer_id": uuid::Uuid::now_v7(),
             "layer_name": "capture-00000000000000000000",

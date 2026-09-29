@@ -8,7 +8,6 @@
 use std::{
     collections::{BTreeMap, HashMap},
     pin::Pin,
-    str::FromStr as _,
     sync::{Arc, Mutex},
     time::Duration,
 };
@@ -34,17 +33,19 @@ use tonic::{Request, Response, Status};
 use url::Url;
 use veoveo_platform_store::{
     PlatformStore, RecordId, RecordingDatasetId, RecordingId, RecordingReadGrantClass,
-    RecordingReadGrantId, RecordingReadGrantRecord, RecordingState,
+    RecordingReadGrantId, RecordingReadGrantRecord,
 };
 
 use crate::{
     RecordingPlaybackPlan,
     contract::{
-        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest, PlaybackMapProvider,
+        PlaybackAccess, PlaybackArchive, PlaybackBlueprint, PlaybackManifest,
+        PlaybackManifestBuilder, PlaybackManifestSchema, PlaybackMapProvider,
         RecordingCatalogGrant,
     },
 };
 
+#[cfg(test)]
 use crate::contract::PLAYBACK_MANIFEST_SCHEMA;
 pub const RECORDING_GRANT_HEADER: &str = "x-veoveo-recording-grant";
 const TOKEN_ISSUER: &str = "veoveo-recording-playback";
@@ -116,27 +117,7 @@ impl PlaybackManager {
             .context("RECORDING_PLAYBACK_TOKEN_KEY must be canonical base64")?;
         let public_url = Url::parse(public_base_url)
             .context("RECORDING_PLAYBACK_PUBLIC_URL must be an absolute URL")?;
-        ensure!(
-            matches!(public_url.scheme(), "http" | "https")
-                && public_url.host_str().is_some()
-                && matches!(public_url.path(), "" | "/")
-                && public_url.query().is_none()
-                && public_url.fragment().is_none(),
-            "RECORDING_PLAYBACK_PUBLIC_URL must be an http(s) origin without a path, query, or fragment"
-        );
-        let authority = match public_url.port() {
-            Some(port) => format!(
-                "{}:{port}",
-                public_url.host_str().expect("host was validated")
-            ),
-            None => public_url
-                .host_str()
-                .expect("host was validated")
-                .to_owned(),
-        };
-        let public_origin =
-            Origin::from_str(&format!("rerun+{}://{authority}", public_url.scheme()))
-                .context("constructing the public Redap origin")?;
+        let public_origin = playback_origin(&public_url)?;
         Ok(Self {
             inner: Arc::new(PlaybackManagerInner {
                 provider,
@@ -164,42 +145,49 @@ impl PlaybackManager {
         };
         let access = self.issue_access(&grant)?;
         self.prune_catalogs();
-        Ok(PlaybackManifest {
-            schema: PLAYBACK_MANIFEST_SCHEMA.to_owned(),
+        PlaybackManifestBuilder {
+            schema: PlaybackManifestSchema::V9,
             dataset_id: crate::contract::RecordingDatasetId::try_from(plan.dataset_id.as_uuid())?,
             recording_segment_id: crate::contract::RecordingId::try_from(
                 plan.recording_id.as_uuid(),
             )?,
             application_id: plan.application_id,
             recording_key: plan.recording_key,
-            state: recording_state(plan.state).to_owned(),
-            started_at: plan.started_at.to_rfc3339(),
-            ended_at: plan.ended_at.map(|value| value.to_rfc3339()),
+            state: crate::service::recording_state(plan.state),
+            started_at: plan.started_at,
+            ended_at: plan.ended_at,
             catalog_revision: plan.catalog_revision,
             access,
             archive,
             live: plan.live.map(|live| live.descriptor),
-            blueprint: plan.blueprint.map(|blueprint| PlaybackBlueprint {
-                blueprint_id: blueprint.blueprint_id,
-                revision: blueprint.revision,
-                sha256: blueprint.sha256,
-                byte_len: blueprint.byte_len,
-                map_provider: match blueprint.map_provider {
-                    veoveo_recording_hub::BlueprintMapProviderSelection::None => {
-                        PlaybackMapProvider::None
-                    }
-                    veoveo_recording_hub::BlueprintMapProviderSelection::OpenStreetMap => {
-                        PlaybackMapProvider::OpenStreetMap
-                    }
-                    veoveo_recording_hub::BlueprintMapProviderSelection::Mapbox => {
-                        PlaybackMapProvider::Mapbox
-                    }
-                    veoveo_recording_hub::BlueprintMapProviderSelection::Mixed => {
-                        PlaybackMapProvider::Mixed
-                    }
-                },
-            }),
-        })
+            blueprint: plan
+                .blueprint
+                .map(|blueprint| -> Result<_> {
+                    Ok(PlaybackBlueprint {
+                        blueprint_id: blueprint.blueprint_id,
+                        revision: blueprint.revision.try_into()?,
+                        sha256: veoveo_types::Sha256Digest::from_hex(blueprint.sha256)?,
+                        byte_len: blueprint.byte_len.try_into()?,
+                        map_provider: match blueprint.map_provider {
+                            veoveo_recording_hub::BlueprintMapProviderSelection::None => {
+                                PlaybackMapProvider::None
+                            }
+                            veoveo_recording_hub::BlueprintMapProviderSelection::OpenStreetMap => {
+                                PlaybackMapProvider::OpenStreetMap
+                            }
+                            veoveo_recording_hub::BlueprintMapProviderSelection::Mapbox => {
+                                PlaybackMapProvider::Mapbox
+                            }
+                            veoveo_recording_hub::BlueprintMapProviderSelection::Mixed => {
+                                PlaybackMapProvider::Mixed
+                            }
+                        },
+                    })
+                })
+                .transpose()?,
+        }
+        .build()
+        .context("constructing the Recording playback manifest")
     }
 
     pub fn scoped_redap_service(&self) -> ScopedRedapService {
@@ -257,7 +245,7 @@ impl PlaybackManager {
             )
             .to_string(),
             redap_token: access.redap_token,
-            expires_at: access.expires_at,
+            expires_at: access.expires_at.to_rfc3339(),
         })
     }
 
@@ -374,7 +362,7 @@ impl PlaybackManager {
         Ok(PlaybackAccess {
             grant_id: crate::contract::RecordingReadGrantId::try_from(grant_id.as_uuid())?,
             redap_token: token,
-            expires_at: grant.expires_at.to_rfc3339(),
+            expires_at: grant.expires_at,
         })
     }
 
@@ -450,6 +438,30 @@ impl PlaybackManager {
             catalogs.remove(&oldest);
         }
     }
+}
+
+fn playback_origin(public_url: &Url) -> Result<Origin> {
+    ensure!(
+        matches!(public_url.scheme(), "http" | "https")
+            && public_url.host().is_some()
+            && public_url.username().is_empty()
+            && public_url.password().is_none()
+            && matches!(public_url.path(), "" | "/")
+            && public_url.query().is_none()
+            && public_url.fragment().is_none(),
+        "RECORDING_PLAYBACK_PUBLIC_URL must be an http(s) origin without credentials, a path, query, or fragment"
+    );
+    Ok(Origin {
+        scheme: if public_url.scheme() == "https" {
+            re_uri::Scheme::RerunHttps
+        } else {
+            re_uri::Scheme::RerunHttp
+        },
+        host: public_url.host().expect("validated origin host").to_owned(),
+        port: public_url
+            .port_or_known_default()
+            .expect("validated HTTP scheme"),
+    })
 }
 
 fn catalog_slot_is_idle(slot: &CatalogSlot, now: DateTime<Utc>) -> bool {
@@ -636,17 +648,6 @@ fn recording_layer_kind(kind: veoveo_platform_store::RecordingLayerKind) -> &'st
     }
 }
 
-fn recording_state(state: RecordingState) -> &'static str {
-    match state {
-        RecordingState::Live => "live",
-        RecordingState::Ready => "ready",
-        RecordingState::Sealing => "sealing",
-        RecordingState::Sealed => "sealed",
-        RecordingState::Interrupted => "interrupted",
-        RecordingState::Failed => "failed",
-    }
-}
-
 fn ensure_redap_claims(claims: &Claims, allowed_host: &str) -> Result<(), Status> {
     let exact_host_scope = match claims {
         Claims::Redap(claims) => claims.allowed_hosts.as_slice() == [allowed_host],
@@ -821,6 +822,27 @@ impl_scoped_redap_service! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn redap_origin_uses_url_host_components_and_default_ports() {
+        for (http, expected) in [
+            ("https://example.com/", "rerun://example.com:443"),
+            ("http://127.0.0.1:8080/", "rerun+http://127.0.0.1:8080"),
+            ("https://[::1]:8443/", "rerun://[::1]:8443"),
+        ] {
+            let origin = playback_origin(&Url::parse(http).unwrap()).unwrap();
+            assert_eq!(origin.to_string(), expected);
+        }
+        for invalid in [
+            "ftp://example.com/",
+            "https://user:secret@example.com/",
+            "https://example.com/path",
+            "https://example.com/?q=1",
+            "https://example.com/#fragment",
+        ] {
+            assert!(playback_origin(&Url::parse(invalid).unwrap()).is_err());
+        }
+    }
 
     #[test]
     fn manifest_schema_is_the_v9_hard_cut() {

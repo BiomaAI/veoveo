@@ -1182,6 +1182,29 @@ and owned cleanup, and the final run passed. Its cause remains unconfirmed. No f
 containers remain, the reference cluster is stopped, and about 923 GiB is free. Broader
 playback/projection DTO construction and installed acceptance remain open.
 
+Playback manifests now use a checked builder and a sealed model with immutable field
+access. JSON decoding runs the same archive-parent, catalog-revision, lifecycle,
+capture-time and live-layer checks as Rust construction. The domain owns the closed
+Recording state and manifest version. Timestamps use UTC values; Blueprint revisions
+and byte lengths use nonzero types, and its digest uses the foundational SHA-256 type
+with the existing lowercase-hex field encoding. Console keeps only its requested-ID
+check. The producer uses the shared builder, and Rerun origin construction uses typed
+URL host and port components instead of assembling a string.
+
+Qualification passes 179 native cases across the contract, server, reader, Console and
+gateway, plus 17 independent-consumer cases and four compile-fail examples. The isolated
+graph still has 59 packages and no service runtime dependencies. A service case signs a
+grant and constructs a live manifest against the owned database fixture. IPv6 origin,
+invalid relationships, lifecycle and Blueprint integrity cases pass. Runtime-only
+compilation, scoped strict Clippy, formatting, docs and identifier checks pass. Two
+post-link attempts hit the 30-second Docker creation deadline before SQL and cleaned up;
+the unchanged compiled suite passed with database cases completing in about five seconds.
+Linux reported elevated recent I/O stalls after linking. This timing supports further
+investigation of build I/O pressure but does not establish the timeout's cause. All
+fixtures are removed, the reference cluster stays stopped, and about 921 GiB is free.
+Projection construction, remaining URI/digest field admission and installed acceptance
+remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1697,7 +1720,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Governed references import Map, Frames, Recording and Artifact URI types, and source features must belong to a declared Map release. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions. Public DTOs keep distinct Recording/dataset/layer/grant/projection IDs; catalog selections have a checked constructor, and Console imports shared playback DTOs. Projection reads, reservations and lifecycle transitions select current caller authority, source visibility and grant relationships in SQL before receipt decoding; writes admit and change state in one transaction. Typed requests bind idempotency to context, policy and inputs; native memory/RocksDB races and rollback pass. Grant creation admits every parent in its transaction; reuse checks current caller authority including Work Context in SQL. Redap grant classes are selected before decoding | Complete playback/projection DTO relationships; qualify installed behavior |
+| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions. Public DTOs keep distinct Recording/dataset/layer/grant/projection IDs; catalog selections have a checked constructor, and Console imports shared playback DTOs. Projection reads, reservations and lifecycle transitions select current caller authority, source visibility and grant relationships in SQL before receipt decoding; writes admit and change state in one transaction. Typed requests bind idempotency to context, policy and inputs; native memory/RocksDB races and rollback pass. Grant creation admits every parent in its transaction; reuse checks current caller authority including Work Context in SQL. Redap grant classes are selected before decoding. Sealed playback manifests share typed lifecycle, time, Blueprint integrity and parent checks between the producer and Console; Rerun origins use typed URL components | Complete projection construction and remaining URI/digest field admission; qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

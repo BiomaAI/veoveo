@@ -17,7 +17,12 @@ pub use ids::{
 pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
 pub use scopes::RecordingScope;
 
-pub const PLAYBACK_MANIFEST_SCHEMA: &str = "veoveo.ai/recording-playback/v9";
+mod playback;
+pub use playback::{
+    PLAYBACK_MANIFEST_SCHEMA, PlaybackAccess, PlaybackArchive, PlaybackBlueprint,
+    PlaybackLiveReceiver, PlaybackLiveTransport, PlaybackManifest, PlaybackManifestBuilder,
+    PlaybackManifestSchema, PlaybackMapProvider, RecordingState,
+};
 
 mod catalog;
 pub use catalog::{
@@ -40,7 +45,7 @@ pub struct RecordingView {
     pub dataset_key: String,
     pub application_id: String,
     pub recording_key: String,
-    pub state: String,
+    pub state: RecordingState,
     pub classification: String,
     pub labels: Vec<String>,
     pub started_at: String,
@@ -82,82 +87,6 @@ pub struct SealRecordingOutput {
     pub manifest_artifact_uri: String,
     pub layer_artifact_uris: Vec<String>,
     pub blueprint_artifact_uri: Option<String>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlaybackManifest {
-    pub schema: String,
-    pub dataset_id: RecordingDatasetId,
-    pub recording_segment_id: RecordingId,
-    pub application_id: String,
-    pub recording_key: String,
-    pub state: String,
-    pub started_at: String,
-    pub ended_at: Option<String>,
-    pub catalog_revision: String,
-    pub access: PlaybackAccess,
-    pub archive: Option<PlaybackArchive>,
-    pub live: Option<PlaybackLiveReceiver>,
-    pub blueprint: Option<PlaybackBlueprint>,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlaybackAccess {
-    pub grant_id: RecordingReadGrantId,
-    pub redap_token: String,
-    pub expires_at: String,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlaybackArchive {
-    pub uri: String,
-    pub dataset_id: RecordingDatasetId,
-    pub recording_segment_id: RecordingId,
-    pub catalog_revision: String,
-    pub rrd_version: String,
-    pub optimization_profile: String,
-    pub byte_len: u64,
-    pub layer_count: usize,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlaybackLiveReceiver {
-    pub layer_id: RecordingLayerId,
-    pub layer_name: String,
-    pub ordinal: i64,
-    pub current_byte_len: u64,
-    pub history_seconds: u64,
-    pub video_preroll_seconds: u64,
-    pub transport: PlaybackLiveTransport,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum PlaybackLiveTransport {
-    RerunRrdChannelV2,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
-pub struct PlaybackBlueprint {
-    pub blueprint_id: String,
-    pub revision: u64,
-    pub sha256: String,
-    pub byte_len: u64,
-    pub map_provider: PlaybackMapProvider,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub enum PlaybackMapProvider {
-    None,
-    OpenStreetMap,
-    Mapbox,
-    Mixed,
 }
 
 #[derive(Clone, Debug, Serialize)]

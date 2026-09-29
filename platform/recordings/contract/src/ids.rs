@@ -8,6 +8,7 @@ pub enum RecordingContractError {
     Resource,
     Cursor,
     Selection,
+    Playback,
 }
 impl fmt::Display for RecordingContractError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -16,6 +17,7 @@ impl fmt::Display for RecordingContractError {
             Self::Resource => "invalid Recording resource address",
             Self::Cursor => "invalid Recording catalog cursor",
             Self::Selection => "Recording catalog selection requires 1 to 500 recording IDs",
+            Self::Playback => "invalid Recording playback manifest",
         })
     }
 }
