@@ -30,7 +30,9 @@ fn run() -> RunView {
         RunDetails {
             status: "succeeded".into(),
             progress: 1.0,
-            recording_uri: format!("recording://recordings/{OTHER}"),
+            recording_uri: veoveo_recording_mcp::contract::RecordingUri::new(
+                veoveo_recording_mcp::contract::RecordingId::parse(OTHER).unwrap(),
+            ),
             entity_path: "/camera/front".into(),
             timeline: "sensor_time".into(),
             created_at: "2026-09-28T00:00:00Z".into(),
@@ -270,4 +272,20 @@ fn recording_output_requires_its_canonical_result_uri() {
     assert_eq!(value["result_uri"], format!("stream://run/{ID}/results"));
     value.as_object_mut().unwrap().remove("result_uri");
     assert!(serde_json::from_value::<RunRecordingOutput>(value).is_err());
+}
+
+#[test]
+fn recording_references_use_the_recording_owner_admission() {
+    let valid = serde_json::to_value(run()).unwrap();
+    serde_json::from_value::<RunView>(valid.clone()).unwrap();
+    for address in [
+        "recording://recording/01983da0-0000-7000-8000-000000000002",
+        "recording://recordings/01983da0-0000-7000-8000-000000000002/layers",
+        "recording://recordings/01983da0-0000-4000-8000-000000000002",
+    ] {
+        let mut invalid = valid.clone();
+        invalid["recording_uri"] = address.into();
+        let error = serde_json::from_value::<RunView>(invalid).unwrap_err();
+        assert!(!error.to_string().contains(address));
+    }
 }

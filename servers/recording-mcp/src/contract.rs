@@ -1,6 +1,13 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+mod cursor;
+mod ids;
+mod resources;
+pub use cursor::{RECORDING_PAGE_SIZE, RecordingCatalogCursor};
+pub use ids::{RecordingContractError, RecordingId};
+pub use resources::{RecordingDocument, RecordingLayersUri, RecordingResource, RecordingUri};
+
 mod catalog;
 pub use catalog::{
     CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
@@ -12,12 +19,12 @@ pub use catalog::{
 #[derive(Clone, Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SealRecordingRequest {
-    pub recording_id: String,
+    pub recording_id: RecordingId,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct RecordingView {
-    pub recording_id: String,
+    pub recording_id: RecordingId,
     pub dataset_id: String,
     pub dataset_key: String,
     pub application_id: String,
@@ -38,7 +45,7 @@ pub struct RecordingView {
 pub struct RecordingCatalogPage {
     pub items: Vec<RecordingView>,
     pub limit: usize,
-    pub next_cursor: Option<String>,
+    pub next_cursor: Option<RecordingCatalogCursor>,
 }
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -60,7 +67,7 @@ pub struct LayerView {
 
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct SealRecordingOutput {
-    pub recording_id: String,
+    pub recording_id: RecordingId,
     pub manifest_artifact_uri: String,
     pub layer_artifact_uris: Vec<String>,
     pub blueprint_artifact_uri: Option<String>,

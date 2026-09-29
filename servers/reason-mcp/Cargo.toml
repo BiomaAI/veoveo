@@ -22,6 +22,7 @@ required-features = ["contract"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-recording-mcp",
     "dep:base64",
     "dep:chrono",
     "dep:uuid",
@@ -65,6 +66,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-recording-mcp = { path = "../recording-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-stream-mcp = { path = "../stream-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }

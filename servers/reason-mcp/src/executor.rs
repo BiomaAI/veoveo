@@ -353,7 +353,9 @@ mod tests {
 
     fn selection() -> RecordingVideoSelection {
         RecordingVideoSelection {
-            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000".to_owned(),
+            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"
+                .parse()
+                .unwrap(),
             entity_path: "/camera/front".to_owned(),
             timeline: "sensor_time".to_owned(),
             range: IndexRange {

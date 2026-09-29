@@ -67,7 +67,7 @@ pub async fn materialize_video(
 ) -> Result<MaterializedVideo> {
     limits.validate()?;
     validate_video_selection(&selection)?;
-    let recording_id = recording_id_from_uri(&selection.recording_uri)?;
+    let recording_id = RecordingId::from_uuid(selection.recording_uri.id().as_uuid());
     let materialized = recordings
         .materialize_analysis_snapshot(
             &authority,
@@ -128,33 +128,4 @@ pub async fn materialize_video(
         clip,
         mp4,
     })
-}
-
-pub fn recording_id_from_uri(uri: &str) -> Result<RecordingId> {
-    let value = veoveo_recording_reader::uris::parse_recording_uri(uri)
-        .context("recording_uri must match recording://recordings/{recording_id}")?;
-    let value = uuid::Uuid::parse_str(value).context("recording URI id must be a UUIDv7")?;
-    ensure!(
-        value.get_version_num() == 7,
-        "recording URI id must be a UUIDv7"
-    );
-    Ok(RecordingId::from_uuid(value))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn recording_ids_must_be_canonical_uuidv7() {
-        assert!(
-            recording_id_from_uri("recording://recordings/01983da0-0000-7000-8000-000000000000")
-                .is_ok()
-        );
-        assert!(
-            recording_id_from_uri("recording://recordings/8c5e505e-3e18-4a4e-8f3b-000000000000")
-                .is_err()
-        );
-        assert!(recording_id_from_uri("artifact://something").is_err());
-    }
 }

@@ -13,7 +13,7 @@ pub use source_snapshot::{
 #[serde(deny_unknown_fields)]
 pub struct RecordingVideoSelection {
     /// Canonical `recording://recordings/{recording_id}` URI.
-    pub recording_uri: String,
+    pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     /// Exact Rerun entity path containing `VideoStream` samples.
     pub entity_path: String,
     /// Rerun duration, timestamp, or sequence timeline.
@@ -69,7 +69,9 @@ mod tests {
 
     fn selection() -> RecordingVideoSelection {
         RecordingVideoSelection {
-            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000".to_owned(),
+            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"
+                .parse()
+                .unwrap(),
             entity_path: "/camera/front".to_owned(),
             timeline: "sensor_time".to_owned(),
             range: IndexRange { start: 0, end: 10 },

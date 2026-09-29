@@ -1098,7 +1098,8 @@ quarantine and restart recovery.
 `src/contract.rs` owns the `RecordingVideoSelection`/`IndexRange`/`VideoTimelineKind`
 selection contract; `contract/source_snapshot.rs` owns public source identities and
 their digest. `src/runtime.rs` owns `VideoSourceLimits`, authorized materialization,
-MP4 remux and recording-URI admission. `runtime/source_snapshot.rs` maps private reader
+MP4 remux. Selection decoding uses the Recording owner’s contract-only `RecordingUri`.
+`runtime/source_snapshot.rs` maps private reader
 identities without exposing source paths. Contract-only consumers exclude the reader,
 Store, MCP and Rerun.
 
@@ -1122,7 +1123,10 @@ Rerun catalogs, finite Blueprint sources, and the scoped read-only Redap service
 temporal history, and rewrites messages to the stable playback identity.
 `live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel` and
 distinguishes an empty-channel bootstrap from a current-head transport resume.
-`uris.rs` owns recording identities. `bin/server.rs` composes the authenticated manifest,
+`contract/ids.rs`, `resources.rs` and `cursor.rs` own typed recording IDs, resource
+addresses and catalog continuations. `uris.rs` exposes typed factories and discovery
+declarations. `bin/server/resources.rs` dispatches admitted resource variants.
+`bin/server.rs` composes the authenticated manifest,
 framed live route, Redap, projections, MCP transports, storage readiness and diagnostics,
 and Artifact publication.
 

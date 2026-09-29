@@ -57,7 +57,7 @@ pub fn write_annotation_rrd(task_id: AnalysisId, results: &ReasoningResults) -> 
             model_id: &results.model_id,
             prompt_revision: &results.prompt_revision,
             model_digest: results.model_digest.as_deref(),
-            recording_uri: &results.recording_uri,
+            recording_uri: results.recording_uri.as_str(),
             entity_path: &results.entity_path,
             timeline: &results.timeline,
             timeline_kind: results.timeline_kind,

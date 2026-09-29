@@ -931,6 +931,39 @@ Reference containers remain stopped, with 62 GiB free. Recording ID/URI builders
 View's governed references remain open; the audit found that View's singular Recording
 route does not match the owner's published plural route.
 
+Recording now owns typed RFC UUIDv7 IDs, resource variants and catalog cursors in its
+isolated contract. Reads, subscriptions and prompts use the shared owner parser;
+Video selections and Reason/Stream results and views import that same URI type. The
+reader's unused parser and Video's second parser are removed. SQL still selects tenant,
+labels and cursor position before limits; Store cursor conversion occurs at the query
+call. Discovery templates expand to the typed builders. Malformed IDs, wrong parents,
+unsupported queries and noncanonical cursor encodings fail at wire admission.
+
+Qualification passes ten Recording contract cases and two compile-fail examples.
+Independent Recording, Video, Stream and Reason consumers pass 10, 4, 19 and 18 cases;
+their Linux dependency graphs contain 58, 68, 71 and 72 packages and exclude MCP,
+Store, async and Rerun implementations. The native four-package suite passes 155 cases,
+including all four upstream Redap read profiles, SQL-authorized catalog paging and
+cross-replica Task reads/subscriptions. Runtime-only Recording compilation and strict
+workspace Clippy pass. Reason's first concurrent SQL checks hit their 90-second bound;
+both pass alone in three seconds and in the complete two-thread rerun. The cause was
+not reproduced. Current query statements and stored formats are unchanged.
+
+Thirty-two superseded executables with matching target/profile/feature replacements
+were removed after inode and active-process checks, reclaiming 32.47 GiB. Rust object,
+fingerprint and incremental caches are preserved. Fixture containers are removed and
+reference containers stay stopped, with 67 GiB free. Installed and GPU qualification
+remain open.
+
+Remaining Recording consumers include View, Gateway, Hub, UAV and smoke. Hub cannot
+import the server library while the server depends on Hub for Blueprint validation,
+live-message handling and publication. Resolve that demonstrated package dependency
+cycle before migrating Hub's URI construction: extract a protocol-independent Recording
+contract below both packages, or remove the service's dependency on Hub implementation
+through the appropriate shared owners. Do not duplicate the route grammar in Hub or
+move Recording vocabulary into MCP core. Dataset/layer identities, playback/projection
+relationships and checked MCP setup also remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1439,12 +1472,12 @@ default owner; the inventory must not become a central domain-type registry.
 | DuckDB source contract | DuckDB owns its public source vocabulary and read SQL helpers through an isolated `contract` feature; Timeseries imports that contract directly, and the agent kernel consumes its SQL quoting. MCP core has no source types or re-exports. Source wire, SQL-fragment and 17-schema checks pass without MCP, engine or service dependencies; native DuckDB, Timeseries, MCP and kernel memory checks pass, including Spatial execution and the unchanged Timeseries forecast schema | Complete owner database catalog paging, remaining typed resource builders and checked MCP setup; qualify installed source consumption |
 | UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer preserves 97 schemas and the flight harness imports owner types. Checked MCP setup supplies startup, configuration, documents, templates and typed scope membership; native discovery and all 22 template expansions pass. Both gateway registrations declare revision 3 | Complete broader DTO relationships and cross-language construction; qualify current installed consumers, URI admission and recovery |
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify current scope enforcement on every installed UAV replica |
-| Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
+| Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities. Recording addresses in selections, results and analysis views use the Recording owner’s contract type | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |
 | Task-backed resource notifications | Domain-owned `TaskResourceAddress` implementations feed the shared `TaskResourceSubscriptions` adapter. One authorized Task subscription supplies explicit Task status and resource invalidations. Native independent-client, reconnect, revocation and official MCP cancellation cases pass. LIVE connection generations trigger a current-owner SQL baseline even after retained events expire; a TCP outage regression fails against the old watch. The adapter reuses the Task stream; Phase 5 still owns outbox replacement | Adopt for other Task-backed domains while preserving their additional admission policy; qualify installed cross-replica delivery and coordinated replacement |
-| Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas | Strengthen remaining result/recording references; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
-| Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies | Strengthen recording identities and selector relationships through their owners; qualify current snapshot digests and consumers |
+| Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
+| Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Replace manual governed-input references through the owning contracts; qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The isolated library contract owns recording/playback views, catalog grants and Arrow projection DTOs. The gateway imports that contract; MCP core has no catalog grant or projection definitions. Runtime, MCP and Redap dependencies are gated; native catalog, playback and independent-consumer checks pass | Add domain ID/URI builders and checked MCP setup, migrate resource construction and consumers, and qualify installed behavior |
+| Recording | The isolated library contract owns recording/playback views, catalog grants and Arrow projection DTOs. The gateway imports that contract; MCP core has no catalog grant or projection definitions. Runtime, MCP and Redap dependencies are gated. Typed RFC UUIDv7 recording IDs, exhaustive resource parsing/building and catalog cursors live in the contract. Hosted reads, subscriptions, prompts and Video/Reason/Stream references use these types; cursor conversion to Store happens at the SQL call | Strengthen dataset/layer identities and playback/projection relationships; adopt checked MCP setup and remaining consumers (View, Gateway, Hub, UAV and smoke); qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

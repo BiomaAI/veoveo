@@ -14,6 +14,7 @@ required-features = ["contract"]
 [features]
 default = ["runtime"]
 contract = [
+    "dep:veoveo-recording-mcp",
     "dep:anyhow",
     "dep:chrono",
     "dep:hex",
@@ -25,7 +26,6 @@ contract = [
 runtime = [
     "contract",
     "dep:tokio",
-    "dep:uuid",
     "dep:veoveo-mcp-contract",
     "dep:veoveo-platform-store",
     "dep:veoveo-rrd",
@@ -42,8 +42,9 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt"], optional = true }
-uuid = { workspace = true, optional = true }
 veoveo-mcp-contract = { workspace = true, default-features = false, optional = true }
 veoveo-platform-store = { workspace = true, optional = true }
 veoveo-rrd = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
+
+veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["contract"], optional = true }

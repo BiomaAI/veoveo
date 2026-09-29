@@ -49,10 +49,9 @@ use veoveo_recording_mcp::{
     RecordingService,
     admin::{self, SERVER_DOCS},
     contract::{
-        CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,
-        RecordingProjectionHandle, SealRecordingOutput, SealRecordingRequest,
+        CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest, RecordingDocument,
+        RecordingProjectionHandle, RecordingResource, SealRecordingOutput, SealRecordingRequest,
     },
-    index,
     playback::{
         PlaybackManager, RECORDING_GRANT_HEADER, playback_application_id, playback_store_id,
     },
@@ -67,6 +66,8 @@ mod auth;
 mod config;
 #[path = "server/prompts.rs"]
 mod prompts;
+#[path = "server/resources.rs"]
+mod resources;
 #[path = "server/state.rs"]
 mod state;
 
@@ -113,7 +114,7 @@ impl RecordingMcp {
         Parameters(request): Parameters<SealRecordingRequest>,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
-        let recording_id = parse_recording_id(&request.recording_id)?;
+        let recording_id = RecordingId::from_uuid(request.recording_id.as_uuid());
         let identity = identity(&context)?;
         let output = self
             .state
@@ -123,11 +124,11 @@ impl RecordingMcp {
             .map_err(invalid_params)?;
         self.state
             .subscribers
-            .notify_resource_updated(uris::recording_uri(&request.recording_id))
+            .notify_resource_updated(uris::recording_uri(request.recording_id))
             .await;
         self.state
             .subscribers
-            .notify_resource_updated(uris::layers_uri(&request.recording_id))
+            .notify_resource_updated(uris::layers_uri(request.recording_id))
             .await;
         self.state
             .subscribers
@@ -265,10 +266,15 @@ impl ServerHandler for RecordingMcp {
         ];
         for doc in SERVER_DOCS.iter() {
             resources.push(
-                Resource::new(uris::doc_uri(doc.id), doc.title)
-                    .with_title(doc.title)
-                    .with_description("Crate document embedded at build time.")
-                    .with_mime_type("text/markdown"),
+                Resource::new(
+                    uris::doc_uri(
+                        RecordingDocument::parse(doc.id).expect("declared Recording document"),
+                    ),
+                    doc.title,
+                )
+                .with_title(doc.title)
+                .with_description("Crate document embedded at build time.")
+                .with_mime_type("text/markdown"),
             );
         }
         resources.sort_by(|left, right| left.uri.cmp(&right.uri));
@@ -323,99 +329,11 @@ impl ServerHandler for RecordingMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<rmcp::model::ReadResourceResponse, McpError> {
         let cacheable = request.request_state.is_none() && request.input_responses.is_none();
-        async {
-            let identity = identity(&context)?;
-            let uri = request.uri.as_str();
-            // Well-known surface (contract C18, C19): readable by any identity
-            // that can list resources.
-            if uri == uris::DOCS_URI {
-                return json_resource(uri, &SERVER_DOCS.iter().collect::<Vec<_>>());
-            }
-            if let Some(doc_id) = uris::parse_doc(uri) {
-                let doc = SERVER_DOCS.doc(doc_id).ok_or_else(|| {
-                    McpError::resource_not_found("server document not found", None)
-                })?;
-                return Ok(ReadResourceResult::new(vec![
-                    ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
-                ]));
-            }
-            if uri == uris::CONTRACT_URI {
-                return json_resource(uri, SERVER_DOCS.contract_declaration());
-            }
-            if uri == uris::EXPLORER_APP_URI {
-                let html = veoveo_mcp_apps_extension::workbench_app_html(
-                    &veoveo_mcp_apps_extension::WorkbenchApp {
-                        app_id: "recording-explorer",
-                        title: "Explorer",
-                        subtitle: "Browse recordings and inspect their timeline data",
-                        empty_message: "No recordings are visible to this identity.",
-                        resources: &[veoveo_mcp_apps_extension::WorkbenchResource {
-                            label: "Recording catalog",
-                            uri: uris::CATALOG_URI,
-                        }],
-                        tools: &[
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Create bounded Arrow projection",
-                                name: "create_recording_projection",
-                                arguments_json: r#"{"dataset_id":"","recording_id":"","entity_paths":["/sensor"],"component_ids":["Scalars:scalars"],"timeline":"tick","sampling":{"kind":"range","start":0,"end":100},"sparse_fill":"none","maximum_entities":8,"maximum_columns":8,"maximum_samples":1000,"maximum_rows":10000,"maximum_bytes":33554432,"deadline_ms":15000,"idempotency_key":"","units":{},"coordinate_frame_refs":[]}"#,
-                            },
-                            veoveo_mcp_apps_extension::WorkbenchTool {
-                                label: "Seal recording",
-                                name: "seal_recording",
-                                arguments_json: r#"{"recording_id":""}"#,
-                            },
-                        ],
-                        stream_result: Some(
-                            veoveo_mcp_apps_extension::WorkbenchStreamResult::RecordingProjection {
-                                tool_name: "create_recording_projection",
-                            },
-                        ),
-                    },
-                );
-                return Ok(ReadResourceResult::new(vec![
-                    veoveo_mcp_apps_extension::app_html_contents(uri, &html),
-                ]));
-            }
-            if let Some(after) = index::parse_catalog_uri(uri)? {
-                return json_resource(
-                    uri,
-                    &self
-                        .state
-                        .recordings
-                        .catalog_page(&identity, after.as_ref())
-                        .await
-                        .map_err(index::query_error)?,
-                );
-            }
-            if let Some(value) = uris::parse_layers_uri(uri) {
-                let recording_id = parse_recording_id(value)?;
-                let layers = self
-                    .state
-                    .recordings
-                    .layer_views(&identity, recording_id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| McpError::resource_not_found(format!("Recording `{recording_id}` was not found."), None))?;
-                return json_resource(uri, &layers);
-            }
-            if let Some(value) = veoveo_recording_reader::uris::parse_recording_uri(uri) {
-                let recording_id = parse_recording_id(value)?;
-                let recording = self
-                    .state
-                    .recordings
-                    .recording_view(&identity, recording_id)
-                    .await
-                    .map_err(internal)?
-                    .ok_or_else(|| McpError::resource_not_found(format!("Recording `{recording_id}` was not found."), None))?;
-                return json_resource(uri, &recording);
-            }
-            Err(McpError::resource_not_found(
-                format!("unknown recording resource `{uri}`"),
-                None,
-            ))
-        }
-        .await
-        .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
+        let identity = identity(&context)?;
+        let resource = RecordingResource::parse(&request.uri).map_err(invalid_params)?;
+        resources::read(&self.state, &identity, &request.uri, resource)
+            .await
+            .map(|result| veoveo_mcp_contract::private_resource_response(result, cacheable))
     }
 
     async fn list_prompts(
@@ -506,7 +424,7 @@ impl ServerHandler for RecordingMcp {
             .recordings
             .complete_recording_ids(&identity, &request.argument.value)
             .await
-            .map_err(index::query_error)?;
+            .map_err(resources::query_error)?;
         let has_more = values.len() > CompletionInfo::MAX_VALUES;
         values.truncate(CompletionInfo::MAX_VALUES);
         let total = (!has_more).then_some(values.len() as u32);
@@ -537,15 +455,8 @@ fn mcp_page<T>(
 }
 
 fn parse_recording_id(value: &str) -> Result<RecordingId, McpError> {
-    let id = uuid::Uuid::parse_str(value)
-        .map_err(|_| McpError::invalid_params("recording_id must be a UUIDv7", None))?;
-    if id.get_version_num() != 7 {
-        return Err(McpError::invalid_params(
-            "recording_id must be a UUIDv7",
-            None,
-        ));
-    }
-    Ok(RecordingId::from_uuid(id))
+    let id = veoveo_recording_mcp::contract::RecordingId::parse(value).map_err(invalid_params)?;
+    Ok(RecordingId::from_uuid(id.as_uuid()))
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -555,14 +466,19 @@ enum SubscriptionResource {
 }
 
 fn subscription_resource(uri: &str) -> Result<SubscriptionResource, McpError> {
-    if uri == uris::CATALOG_URI {
-        return Ok(SubscriptionResource::Catalog);
+    match RecordingResource::parse(uri).map_err(invalid_params)? {
+        RecordingResource::Catalog(None) => Ok(SubscriptionResource::Catalog),
+        RecordingResource::Recording(uri) => Ok(SubscriptionResource::Recording(
+            RecordingId::from_uuid(uri.id().as_uuid()),
+        )),
+        RecordingResource::Layers(uri) => Ok(SubscriptionResource::Recording(
+            RecordingId::from_uuid(uri.id().as_uuid()),
+        )),
+        _ => Err(McpError::invalid_params(
+            "resource is not subscribable",
+            None,
+        )),
     }
-    uris::parse_layers_uri(uri)
-        .or_else(|| veoveo_recording_reader::uris::parse_recording_uri(uri))
-        .ok_or_else(|| McpError::invalid_params("resource is not subscribable", None))
-        .and_then(parse_recording_id)
-        .map(SubscriptionResource::Recording)
 }
 
 fn invalid_params(error: impl std::fmt::Display) -> McpError {
@@ -1206,8 +1122,10 @@ mod tests {
     fn subscriptions_accept_catalog_and_recording_resources() {
         let id = uuid::Uuid::now_v7();
         for uri in [
-            uris::recording_uri(&id.to_string()),
-            uris::layers_uri(&id.to_string()),
+            uris::recording_uri(veoveo_recording_mcp::contract::RecordingId::try_from(id).unwrap())
+                .to_string(),
+            uris::layers_uri(veoveo_recording_mcp::contract::RecordingId::try_from(id).unwrap())
+                .to_string(),
         ] {
             assert_eq!(
                 subscription_resource(&uri).unwrap(),

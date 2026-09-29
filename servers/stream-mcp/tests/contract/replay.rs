@@ -12,6 +12,9 @@ fn replay_profile_and_intrinsic_checks_are_owned_by_the_contract() {
     let mut wire = serde_json::to_value(value).unwrap();
     wire["schema"] = "unsupported/v2".into();
     assert!(serde_json::from_value::<AnalysisResults>(wire).is_err());
+    let mut invalid = serde_json::to_value(results()).unwrap();
+    invalid["recording_uri"] = "recording://recordings/private?token=secret".into();
+    assert!(serde_json::from_value::<AnalysisResults>(invalid).is_err());
     for field in [
         "source_snapshot",
         "recording_uri",

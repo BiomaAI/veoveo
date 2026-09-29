@@ -7,31 +7,35 @@ use veoveo_platform_store::{
 use veoveo_recording_reader::access::record_uuid;
 
 use super::RecordingService;
-use crate::{
-    contract::RecordingCatalogPage,
-    index::{self, PAGE_SIZE},
+use crate::contract::{
+    RECORDING_PAGE_SIZE as PAGE_SIZE, RecordingCatalogCursor, RecordingCatalogPage,
+    RecordingId as DomainRecordingId,
 };
 
 impl RecordingService {
     pub async fn catalog_page(
         &self,
         identity: &GatewayInternalIdentity,
-        after: Option<&RecordingCursor>,
+        after: Option<&RecordingCatalogCursor>,
     ) -> Result<RecordingCatalogPage> {
         let platform = self.platform_identity(identity).await?;
         let scope = read_scope(&platform, identity);
+        let position = after.map(|cursor| RecordingCursor {
+            started_at: cursor.started_at(),
+            recording_id: RecordingId::from_uuid(cursor.recording_id().as_uuid()),
+        });
         let mut records = self
             .store
-            .list_recordings(&scope, after, PAGE_SIZE as u32 + 1)
+            .list_recordings(&scope, position.as_ref(), PAGE_SIZE as u32 + 1)
             .await?;
         let has_more = records.len() > PAGE_SIZE;
         records.truncate(PAGE_SIZE);
         let next_cursor = if has_more {
             let last = records.last().context("missing Recording page cursor")?;
-            Some(index::encode(RecordingCursor {
-                started_at: last.started_at,
-                recording_id: RecordingId::from_uuid(record_uuid(&last.id, "recording")?),
-            })?)
+            Some(RecordingCatalogCursor::new(
+                last.started_at,
+                DomainRecordingId::try_from(record_uuid(&last.id, "recording")?)?,
+            ))
         } else {
             None
         };

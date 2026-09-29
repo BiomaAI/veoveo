@@ -33,7 +33,10 @@ Clients import `veoveo-stream-mcp` with `default-features = false` and
 `features = ["contract"]`. The public `contract` module owns the domain request,
 response and result models. Video selection and source identity come from the
 [recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
-through its contract feature. Artifact metadata comes from the Artifact contract.
+through its contract feature. Selections, run/analysis views and results retain the
+Recording owner’s `RecordingUri` type, imported with only its contract feature enabled.
+Wire decoding and prompt arguments use that owner’s UUIDv7 and URI admission. Artifact
+metadata comes from the Artifact contract.
 These imports exclude MCP integration, asynchronous runtimes, database clients,
 Rerun and GPU execution libraries.
 

@@ -4,6 +4,7 @@ use rmcp::{
 };
 use serde::Deserialize;
 use serde_json::Value;
+use veoveo_recording_mcp::{contract::RecordingId, uris};
 
 #[derive(Clone, Copy)]
 pub(super) enum RecordingPrompt {
@@ -58,7 +59,7 @@ impl RecordingPrompt {
         #[derive(Deserialize)]
         struct Args {
             dataset_id: Option<String>,
-            recording_id: String,
+            recording_id: RecordingId,
             timeline: Option<String>,
             entity_path: Option<String>,
             component_id: Option<String>,
@@ -67,8 +68,9 @@ impl RecordingPrompt {
             .map_err(|error| McpError::invalid_params(error.to_string(), None))?;
         let text = match self {
             Self::Inspect => format!(
-                "Read recording://recordings/{} and recording://recordings/{}/layers. Report lifecycle state, classification, labels, layer health, and Artifact availability.",
-                args.recording_id, args.recording_id
+                "Read {} and {}. Report lifecycle state, classification, labels, layer health, and Artifact availability.",
+                uris::recording_uri(args.recording_id),
+                uris::layers_uri(args.recording_id)
             ),
             Self::Project => format!(
                 "Call create_recording_projection with dataset_id {}, recording_id {}, timeline {}, exact entity path {}, exact component identifier {}, explicit sampling, fixed row/byte/deadline bounds, and a fresh idempotency key. Consume the returned Arrow stream through the authorized host path and summarize only the projected result metadata.",
@@ -81,8 +83,10 @@ impl RecordingPrompt {
                     .unwrap_or("<exact component identifier>")
             ),
             Self::Seal => format!(
-                "Read recording://recordings/{0} and recording://recordings/{0}/layers. Only if every immutable layer is committed, call seal_recording for {0}; then report the manifest and layer Artifact URIs.",
-                args.recording_id
+                "Read {1} and {2}. Only if every immutable layer is committed, call seal_recording for {0}; then report the manifest and layer Artifact URIs.",
+                args.recording_id,
+                uris::recording_uri(args.recording_id),
+                uris::layers_uri(args.recording_id)
             ),
         };
         Ok(GetPromptResult::new(vec![PromptMessage::new_text(

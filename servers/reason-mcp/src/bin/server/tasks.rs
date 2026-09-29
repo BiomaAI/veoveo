@@ -23,7 +23,7 @@ use veoveo_reason_mcp::{
     },
 };
 use veoveo_recording_video::contract::{RecordingSourceSnapshot, validate_video_selection};
-use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
+use veoveo_recording_video::runtime::{materialize_video, timeline_kind};
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, RecoveryClass, TaskFailure, TaskPayloadState,
     TaskRetentionPin, TaskSnapshot, TaskTransition,
@@ -490,7 +490,6 @@ async fn complete_tool_error(state: &AppState, task_id: AnalysisId, message: Str
 }
 
 fn validate_input(state: &AppState, input: &ReasonTaskInput) -> Result<()> {
-    recording_id_from_uri(&input.video().recording_uri)?;
     validate_video_selection(input.video())?;
     let ReasonTaskInput::Analyze(request) = input;
     ensure!(

@@ -36,7 +36,9 @@ fn analysis() -> AnalysisView {
             status: "succeeded".into(),
             progress: 1.0,
             task_kind: "detect_events".into(),
-            recording_uri: format!("recording://recordings/{OTHER}"),
+            recording_uri: veoveo_recording_mcp::contract::RecordingUri::new(
+                veoveo_recording_mcp::contract::RecordingId::parse(OTHER).unwrap(),
+            ),
             entity_path: "/camera/front".into(),
             timeline: "sensor_time".into(),
             created_at: "2026-09-28T00:00:00Z".into(),
@@ -197,4 +199,20 @@ fn analysis_wire_rejects_cross_task_and_cross_pipeline_nested_products() {
             .output()
             .is_none()
     );
+}
+
+#[test]
+fn recording_references_use_the_recording_owner_admission() {
+    let valid = serde_json::to_value(analysis()).unwrap();
+    serde_json::from_value::<AnalysisView>(valid.clone()).unwrap();
+    for address in [
+        "recording://recording/01983da0-0000-7000-8000-000000000002",
+        "recording://recordings/01983da0-0000-7000-8000-000000000002/layers",
+        "recording://recordings/01983da0-0000-4000-8000-000000000002",
+    ] {
+        let mut invalid = valid.clone();
+        invalid["recording_uri"] = address.into();
+        let error = serde_json::from_value::<AnalysisView>(invalid).unwrap_err();
+        assert!(!error.to_string().contains(address));
+    }
 }

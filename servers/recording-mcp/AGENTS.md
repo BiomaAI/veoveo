@@ -16,7 +16,10 @@ and reactive Rerun live following.
   library's isolated `contract` feature. Cross-server consumers import it with
   default features disabled. Runtime admission owns authorization and operational
   bounds; MCP core must not import or define these Recording models.
-- The canonical resource is `recording://recordings/{recording_uuidv7}`.
+- The canonical resource is `recording://recordings/{recording_uuidv7}`. Build it
+  through the contract's `RecordingUri` and `RecordingId`; resource adapters and
+  consumers reuse `RecordingResource` admission. Public cursors carry the owning
+  ID and convert to Store types only at query calls.
 - One durable recording dataset contains one or more recordings. Dataset UUID is the
   Rerun application ID. Recording UUID is the Rerun recording and segment ID.
 - Committed capture, properties, and derived layers are immutable Artifact occurrences.
@@ -46,7 +49,9 @@ and reactive Rerun live following.
 - `contract/catalog.rs` owns catalog grant and projection types consumed by the gateway.
 - `service.rs` owns playback plans, sealing, and properties publication.
 - `service/index.rs` assembles SQL-authorized catalog pages, direct reads, and completions;
-  `index.rs` owns versioned catalog cursors. SQL applies tenant and label predicates before limits.
+  `contract/cursor.rs` owns typed catalog cursors. SQL applies tenant and label predicates before limits.
+- `contract/ids.rs` and `contract/resources.rs` own public recording identities and addresses;
+  `bin/server/resources.rs` dispatches the admitted resource variants.
 - [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
 - `service/projection.rs` owns projection receipts and bounded scratch.
 - The shared reader cache owns verified Artifact-to-PVC materialization and eviction;

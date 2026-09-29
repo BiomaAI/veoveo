@@ -6,7 +6,6 @@ use veoveo_platform_store::PlatformStore;
 pub mod access;
 pub mod cache;
 mod read;
-pub mod uris;
 pub use read::{
     MaterializedRecordingReadSnapshot, RecordingReadAuthority, RecordingReadLayer,
     RecordingReadPlan, RecordingReadSnapshot, RecordingReadSource, RecordingReadSourceKind,

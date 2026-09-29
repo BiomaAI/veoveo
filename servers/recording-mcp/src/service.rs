@@ -692,7 +692,7 @@ impl RecordingService {
             .await?;
         self.remove_recording_static_context(recording_id, &dataset.dataset_key)?;
         Ok(SealRecordingOutput {
-            recording_id: recording_id.to_string(),
+            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
             manifest_artifact_uri: artifact_uri(manifest_artifact_id),
             layer_artifact_uris: manifest_layers
                 .into_iter()
@@ -1048,7 +1048,7 @@ impl RecordingService {
                 })
                 .transpose()?;
         Ok(SealRecordingOutput {
-            recording_id: recording_id.to_string(),
+            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
             manifest_artifact_uri: artifact_uri(PlatformArtifactId::from_uuid(record_uuid(
                 manifest,
                 "artifact_occurrence",
@@ -1076,7 +1076,7 @@ impl RecordingService {
             .recording_layer_counts(tenant_id, recording_id)
             .await?;
         Ok(RecordingView {
-            recording_id: recording_id.to_string(),
+            recording_id: crate::contract::RecordingId::try_from(recording_id.as_uuid())?,
             dataset_id: dataset_id.to_string(),
             dataset_key: dataset.dataset_key,
             application_id: recording.application_id,
@@ -1283,15 +1283,6 @@ fn source_layer_manifest_digest(
     hex::encode(digest.finalize())
 }
 
-pub fn parse_recording_id(value: &str) -> Result<RecordingId> {
-    let value = uuid::Uuid::parse_str(value).context("recording_id must be a UUIDv7")?;
-    ensure!(
-        value.get_version_num() == 7,
-        "recording_id must be a UUIDv7"
-    );
-    Ok(RecordingId::from_uuid(value))
-}
-
 fn artifact_uri(id: PlatformArtifactId) -> String {
     format!("artifact://{id}")
 }
@@ -1335,12 +1326,6 @@ fn layer_state(state: RecordingLayerState) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn external_recording_ids_require_uuid_v7() {
-        assert!(parse_recording_id(&uuid::Uuid::now_v7().to_string()).is_ok());
-        assert!(parse_recording_id(&uuid::Uuid::new_v4().to_string()).is_err());
-    }
 
     #[test]
     fn sealed_static_context_path_is_confined_to_the_spool() {

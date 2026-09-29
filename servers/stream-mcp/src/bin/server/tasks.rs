@@ -16,7 +16,7 @@ use veoveo_mcp_contract::{
     IssuedArtifactReadCapability, IssuedArtifactWriteCapability, PlaneCaller,
 };
 use veoveo_recording_video::contract::validate_video_selection;
-use veoveo_recording_video::runtime::{materialize_video, recording_id_from_uri, timeline_kind};
+use veoveo_recording_video::runtime::{materialize_video, timeline_kind};
 use veoveo_stream_mcp::{
     annotation::write_annotation_rrd,
     contract::{RecordingVideoSelection, RunId, RunRecordingRequest, SamplingPolicy},
@@ -480,7 +480,6 @@ async fn complete_tool_error(state: &AppState, task_id: RunId, message: String) 
 }
 
 fn validate_input(state: &AppState, input: &StreamTaskInput) -> Result<()> {
-    recording_id_from_uri(&input.video().recording_uri)?;
     validate_video_selection(input.video())?;
     match input {
         StreamTaskInput::RunRecording(request) => {

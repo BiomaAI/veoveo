@@ -8,7 +8,7 @@ use super::{PipelineId, RunId, RunRecordingOutput, RunResultsUri, RunUri, Stream
 pub struct RunDetails {
     pub status: String,
     pub progress: f64,
-    pub recording_uri: String,
+    pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     pub entity_path: String,
     pub timeline: String,
     pub created_at: String,
@@ -98,7 +98,7 @@ struct RunViewWire {
     status: String,
     progress: f64,
     pipeline_id: PipelineId,
-    recording_uri: String,
+    recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     entity_path: String,
     timeline: String,
     created_at: String,

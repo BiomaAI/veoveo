@@ -10,6 +10,8 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 |---|---|
 | Model Context Protocol `2026-07-28` | JSON-RPC 2.0 over Streamable HTTP for recording discovery, layer inspection, sealing, projection control, resources, prompts, subscriptions, and notifications. |
 | MCP Apps SEP-1865 / `io.modelcontextprotocol/ui` `2026-01-26` | `ui://recording/explorer.html` is the server-owned Recording Explorer. |
+| RFC 3986, RFC 6570 and RFC 9562 | Shared URI components and discovery templates; recording routes require lowercase hyphenated RFC UUIDv7 identities. |
+| Recording catalog cursor version 1 | Collection-bound JSON encoded as lowercase hexadecimal, limited to 2048 input bytes, with a timestamp and typed recording identity. |
 | JSON Schema Draft 2020-12 | Closed tool inputs, views, playback manifest, grants, projection handles, and storage diagnostics. |
 | Rerun `0.38.1` RRD | Immutable Artifact-backed capture, properties, and derived layers. Dataset UUID is the Rerun application ID, and recording UUID is the Rerun recording and segment ID. |
 | Rerun Data Protocol `rerun.cloud.v1alpha1` | Read-only WebViewer and Catalog SDK subset over HTTP/2 or gRPC-Web. The service does not claim complete Redap conformance. |
@@ -23,8 +25,9 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 
 The library's `contract` feature exposes recording views, playback manifests, catalog
 grants and Arrow projection requests and handles. Consumers enable it with default
-features disabled. It depends on Serde, JSON Schema support, JSON values and UUIDs;
-it excludes MCP, Store, asynchronous runtimes and Rerun implementations.
+features disabled. It uses foundational URI types, UUIDs, clock-free date/time values,
+Serde and JSON Schema support. It excludes MCP, Store, asynchronous runtimes and
+Rerun implementations.
 
 `contract/catalog.rs` owns the HTTP grant and projection models shared with the
 gateway's Recording adapter. MCP core has no catalog grant or projection model and no
@@ -36,8 +39,19 @@ and live playback. `mcp` adds discovery and HTTP adapter dependencies and is ena
 by default. `redap` includes that profile and adds the Rerun catalog service used by
 the binary. `redap-conformance` adds Rerun's read-profile checks. Native test fixtures
 are attached to their runtime feature, so contract tests do not activate Rerun SDKs.
-Resource parsing and stronger domain identities are separate adoption work in the
-[foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+`contract/ids.rs` owns `RecordingId`; `contract/resources.rs` owns `RecordingUri`,
+`RecordingLayersUri` and the exhaustive `RecordingResource` enum. Constructors take
+Recording IDs and use the shared URI builder. Parsing rejects unsupported routes,
+queries, fragments and alternate encodings. Video selections and Reason/Stream results
+import `RecordingUri` from this contract; the shared reader owns no public URI parser.
+
+`contract/cursor.rs` owns catalog positions independently of Store. The service converts
+an admitted cursor to Store's typed query parameters immediately before the SQL call.
+The resource adapter dispatches typed variants in `bin/server/resources.rs`; sealing,
+prompts and resource subscriptions use the same Recording identity admission. UUID
+version and RFC variant checks apply at decoding, with static errors that omit input.
+Dataset/layer identities, playback and projection relationships, and checked MCP setup
+remain adoption work in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Durable Authority
 

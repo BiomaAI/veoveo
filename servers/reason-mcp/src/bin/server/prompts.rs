@@ -60,7 +60,7 @@ impl ReasonPrompt {
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
         struct Args {
-            recording_uri: String,
+            recording_uri: veoveo_recording_mcp::contract::RecordingUri,
             entity_path: String,
             timeline: String,
             start: i64,

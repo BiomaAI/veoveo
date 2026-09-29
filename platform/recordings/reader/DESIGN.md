@@ -4,7 +4,7 @@
 
 | Boundary | Profile |
 |---|---|
-| Veoveo recording identity | Canonical `recording://recordings/{UUIDv7}` resources |
+| Veoveo recording identity | Typed Store recording IDs; public URI admission belongs to the Recording contract |
 | Gateway internal identity | Typed actor, tenant and data-label authority; no retained bearer |
 | Artifact plane | Existing caller or bounded task-read capability, immutable occurrence UUID, expected length and SHA-256 |
 | Rerun RRD | Existing repository profile 0.38.1, canonical dataset/recording Store IDs |
@@ -69,8 +69,10 @@ accepts only metadata requests and serves no artifact body.
 ## Build Boundary
 
 Stream, Reason and the video materializer depend on this crate. Recording MCP composes
-the same cache and visibility rules for playback. A service-internal Hub or Recording
-MCP edit therefore has no production Cargo dependency edge into Stream or Reason.
+the same cache and visibility rules for playback. Stream, Reason and Video import
+Recording URI types through its isolated contract feature. That Cargo edge excludes
+Hub and Recording service implementations. Public URI parsing belongs to Recording;
+the reader accepts Store identities.
 All shared Cargo manifests remain available to image planning. Runtime input contexts
 must still follow the production dependency closure to realize this source isolation.
 

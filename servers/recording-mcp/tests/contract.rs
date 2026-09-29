@@ -1,4 +1,7 @@
 //! The same contract checks run in an independent consumer without server features.
+#[path = "contract/addresses.rs"]
+mod addresses;
+
 use serde_json::{Value, json};
 use veoveo_recording_mcp::contract::{
     CreateRecordingCatalogGrantRequest, CreateRecordingProjectionRequest,

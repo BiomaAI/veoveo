@@ -357,7 +357,10 @@ Recording owns its catalog grants and Arrow projection request/result models in
 the server library's isolated contract feature. The gateway's Recording adapter
 imports that feature directly. MCP core has no catalog grant or projection DTO
 definitions and no dependency on that server. Authorization and execution limits stay
-with the runtime owners.
+with the runtime owners. Recording also owns its UUIDv7 resource identities and typed
+catalog positions. Video, Reason and Stream consume its contract-only URI type;
+Store cursor conversion stays at the Recording query call. The shared reader takes
+Store identities and owns no public Recording URI parser.
 
 UAV owns its simulator and live-view v4 model in the server library's isolated
 contract feature. Flight clients consume those types directly. Gateway identity

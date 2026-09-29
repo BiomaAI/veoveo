@@ -62,7 +62,10 @@ Clients import `veoveo-reason-mcp` with `default-features = false` and
 response and result models, distinct pipeline, model and analysis identities,
 resource addresses and collection cursors. Video selection and source identity come from the
 [recorded-video library](../../platform/recordings/video/DESIGN.md#library-features)
-through its contract feature. Artifact metadata comes from the Artifact contract.
+through its contract feature. Selections, run/analysis views and results retain the
+Recording owner’s `RecordingUri` type, imported with only its contract feature enabled.
+Wire decoding and prompt arguments use that owner’s UUIDv7 and URI admission. Artifact
+metadata comes from the Artifact contract.
 Stream owns `StreamArtifactUri`, the replay result model and its portable validation.
 Reason imports these through Stream's contract feature. Its own `grounding` module
 exposes selection and subset extraction through `contract` for independent consumers.

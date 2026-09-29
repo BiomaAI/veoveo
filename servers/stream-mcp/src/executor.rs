@@ -393,7 +393,9 @@ mod tests {
         let executor =
             StreamExecutor::new(runner, Duration::from_secs(5), 10, 10, 1_000_000).unwrap();
         let video = RecordingVideoSelection {
-            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000".to_owned(),
+            recording_uri: "recording://recordings/01983da0-0000-7000-8000-000000000000"
+                .parse()
+                .unwrap(),
             entity_path: "/camera/front".to_owned(),
             timeline: "sensor_time".to_owned(),
             range: IndexRange {

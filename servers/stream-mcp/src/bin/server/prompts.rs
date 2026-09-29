@@ -51,7 +51,7 @@ impl StreamPrompt {
     pub(super) fn render(self, arguments: Option<JsonObject>) -> Result<GetPromptResult, McpError> {
         #[derive(Deserialize)]
         struct Args {
-            recording_uri: Option<String>,
+            recording_uri: Option<veoveo_recording_mcp::contract::RecordingUri>,
             entity_path: Option<String>,
             timeline: Option<String>,
             start: Option<i64>,
@@ -65,7 +65,10 @@ impl StreamPrompt {
         let text = match self {
             Self::RunRecording => format!(
                 "Read stream://pipelines and verify pipeline {pipeline_id}. Call run_recording with video recording_uri {}, entity_path {}, timeline {}, range {}..={}, and the selected pipeline. Treat the returned run and artifact URIs as canonical.",
-                args.recording_uri.as_deref().unwrap_or("<required>"),
+                args.recording_uri
+                    .as_ref()
+                    .map(|uri| uri.as_str())
+                    .unwrap_or("<required>"),
                 args.entity_path.as_deref().unwrap_or("<required>"),
                 args.timeline.as_deref().unwrap_or("<required>"),
                 args.start

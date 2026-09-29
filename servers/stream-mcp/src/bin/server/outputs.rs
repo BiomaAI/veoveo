@@ -206,7 +206,7 @@ async fn record_usage(state: &AppState, task_id: RunId, results: &AnalysisResult
         .upsert_domain_usage(DomainUsageDraft {
             task_id: task_id.task_id(),
             server: "stream".to_owned(),
-            source_id: Some(results.recording_uri.clone()),
+            source_id: Some(results.recording_uri.to_string()),
             provider_job_id: None,
             model_id: results.model_id.to_string(),
             kind: DomainUsageKind::Actual,

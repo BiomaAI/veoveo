@@ -192,7 +192,7 @@ pub struct ReasoningResults {
     pub schema: String,
     pub pipeline_id: PipelineId,
     pub model_id: ModelId,
-    pub recording_uri: String,
+    pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
     pub entity_path: String,
     pub timeline: String,
     pub timeline_kind: VideoTimelineKind,

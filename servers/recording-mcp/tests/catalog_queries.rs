@@ -13,8 +13,9 @@ use veoveo_platform_store::{
     RecordingDatasetDraft, RecordingDatasetId, RecordingDraft, RecordingId, RecordingLayerCounts,
     RecordingLayerDraft, RecordingReadScope,
 };
-use veoveo_recording_mcp::{RecordingService, index, uris};
+use veoveo_recording_mcp::{RecordingService, contract::RecordingResource};
 use veoveo_recording_reader::access::record_uuid;
+use veoveo_types::ResourceAddress;
 use veoveo_types::{
     AccessSubject, DataLabelId, InvocationProvenance, PolicyVersion, PrincipalId, TenantId,
     WorkContextId,
@@ -229,14 +230,18 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
             visited.extend(
                 page.items
                     .iter()
-                    .map(|item| item.recording_id.parse::<RecordingId>().unwrap()),
+                    .map(|item| RecordingId::from_uuid(item.recording_id.as_uuid())),
             );
             let Some(cursor) = page.next_cursor else {
                 break;
             };
-            after = index::parse_catalog_uri(&format!("{}?cursor={cursor}", uris::CATALOG_URI))
-                .unwrap()
-                .unwrap();
+            let uri = RecordingResource::Catalog(Some(cursor)).to_uri().unwrap();
+            let RecordingResource::Catalog(cursor) =
+                RecordingResource::parse(uri.as_str()).unwrap()
+            else {
+                panic!("catalog address");
+            };
+            after = cursor;
             assert!(page_count < 6, "catalog cursor did not make progress");
         }
         expected.reverse();
@@ -300,7 +305,10 @@ async fn sql_authorizes_before_paging_completion_and_exact_reads() {
         );
         let foreign_page = service.catalog_page(&foreign, None).await.unwrap();
         assert_eq!(foreign_page.items.len(), 1);
-        assert_eq!(foreign_page.items[0].recording_id, foreign_id.to_string());
+        assert_eq!(
+            foreign_page.items[0].recording_id.as_uuid(),
+            foreign_id.as_uuid()
+        );
         let scope = RecordingReadScope {
             tenant_id: producer.tenant_id,
             data_labels: vec!["operations".into()],

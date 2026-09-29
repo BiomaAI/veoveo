@@ -9,8 +9,6 @@ pub mod blueprint_playback;
 #[cfg(feature = "contract")]
 pub mod contract;
 #[cfg(feature = "runtime")]
-pub mod index;
-#[cfg(feature = "runtime")]
 pub mod live_playback;
 #[cfg(feature = "redap")]
 pub mod live_stream;
@@ -18,7 +16,7 @@ pub mod live_stream;
 pub mod playback;
 #[cfg(feature = "runtime")]
 pub mod service;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 
 #[cfg(feature = "runtime")]

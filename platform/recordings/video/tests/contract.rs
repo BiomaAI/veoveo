@@ -60,3 +60,24 @@ fn selection_validation_is_available_without_materialization() {
     selection.timeline = "sensor\n_time".into();
     assert!(validate_video_selection(&selection).is_err());
 }
+
+#[test]
+fn recording_addresses_are_admitted_before_source_materialization() {
+    let mut wire = serde_json::json!({
+        "recording_uri": "recording://recordings/01983da0-0000-7000-8000-000000000000",
+        "entity_path": "/camera/front", "timeline": "sensor_time",
+        "range": {"start": 10, "end": 20}
+    });
+    let selected: RecordingVideoSelection = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(selected).unwrap(), wire);
+    for address in [
+        "recording://recording/01983da0-0000-7000-8000-000000000000",
+        "recording://recordings/01983da0-0000-4000-8000-000000000000",
+        "recording://recordings/01983da0-0000-7000-8000-000000000000/layers",
+        "recording://recordings/01983da0-0000-7000-8000-000000000000?private=token",
+    ] {
+        wire["recording_uri"] = address.into();
+        let error = serde_json::from_value::<RecordingVideoSelection>(wire.clone()).unwrap_err();
+        assert!(!error.to_string().contains(address));
+    }
+}

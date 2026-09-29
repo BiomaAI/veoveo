@@ -65,7 +65,9 @@ fn grounding_rejects_other_recordings_entities_timelines_and_uncovered_ranges() 
         match field {
             "recording" => {
                 selected.recording_uri =
-                    "recording://recordings/01983da0-0000-7000-8000-000000000003".into()
+                    "recording://recordings/01983da0-0000-7000-8000-000000000003"
+                        .parse()
+                        .unwrap()
             }
             "entity" => selected.entity_path = "/camera/back".into(),
             "timeline" => selected.timeline = "other_time".into(),
