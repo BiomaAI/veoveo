@@ -1343,7 +1343,7 @@ dispatch preflights and budgeted execution.
 | Path | Responsibility |
 |---|---|
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
-| `testing/fixtures/store.rs`, `connection_switch.rs` | owned disposable database lifecycle and acknowledged TCP connection loss for native recovery tests; test owners supply assertions and deadlines |
+| `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

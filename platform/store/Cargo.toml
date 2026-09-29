@@ -25,4 +25,4 @@ url.workspace = true
 uuid = { workspace = true, features = ["serde", "v5", "v7"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "sync"] }
+tokio = { workspace = true, features = ["process", "macros", "rt-multi-thread", "net", "io-util", "sync"] }

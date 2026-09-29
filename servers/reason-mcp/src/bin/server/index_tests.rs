@@ -44,8 +44,8 @@ fn owner() -> TaskOwner {
 
 #[tokio::test]
 async fn native_completion_filters_before_limits_and_deduplicates_artifacts() {
+    let db = fixture::TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = fixture::TestDb::new().await;
         let tasks = TaskRuntime::new(db.a.clone(), "reason", "index-test");
         let mut expected_tasks = Vec::new();
         let mut expected_artifacts = Vec::new();
@@ -129,8 +129,8 @@ async fn resource_reads_and_subscription_admission_filter_before_decoding() {
     use super::super::resources::{analysis_snapshot, subscribable_analysis_id};
     use veoveo_reason_mcp::{contract::AnalysisId, uris};
 
+    let db = fixture::TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(90), async {
-        let db = fixture::TestDb::new().await;
         let reader = TaskRuntime::new(db.a.clone(), "reason", "resource-reader");
         let writer = TaskRuntime::new(db.b.clone(), "reason", "resource-writer");
         let draft = || CreateTask {

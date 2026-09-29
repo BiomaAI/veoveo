@@ -27,4 +27,5 @@ veoveo-mcp-contract.workspace = true
 veoveo-platform-store = { path = "../store" }
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["process", "io-util"] }
 rmcp = { workspace = true, features = ["client"] }

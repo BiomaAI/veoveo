@@ -1,9 +1,10 @@
 //! Shared Rust fixture: exact disposable store, no installation data or credentials.
-use std::{process::Command, time::Duration};
+use std::time::Duration;
+#[path = "store/container.rs"]
+mod container;
+use container::{Container, Docker};
 use uuid::Uuid;
 use veoveo_platform_store::{PlatformStore, StoreConfig, StoreCredentials};
-const IMAGE: &str =
-    "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843";
 
 #[allow(
     dead_code,
@@ -17,26 +18,10 @@ fn fixture_password() -> String {
     format!("{}{}", Uuid::now_v7().simple(), Uuid::now_v7().simple())
 }
 pub struct TestDb {
-    container: String,
+    _container: Container,
     runtime_credentials: StoreCredentials,
     pub a: PlatformStore,
     pub b: PlatformStore,
-}
-struct PendingContainer(String);
-impl Drop for PendingContainer {
-    fn drop(&mut self) {
-        stop(&self.0);
-    }
-}
-fn stop(name: &str) {
-    let _ = Command::new("docker")
-        .args(["rm", "--force", "--volumes", name])
-        .output();
-}
-impl Drop for TestDb {
-    fn drop(&mut self) {
-        stop(&self.container);
-    }
 }
 
 impl TestDb {
@@ -49,64 +34,10 @@ impl TestDb {
             StoreBackend::Memory => "memory",
             StoreBackend::RocksDb => "rocksdb:/tmp/veoveo-test.db",
         };
-        let name = format!("veoveo-native-store-test-{}", Uuid::now_v7().simple());
         let password = fixture_password();
-        // TODO(foundations): bound Docker startup/cleanup and arm ownership before dispatch.
-        let output = Command::new("docker")
-            .args([
-                "run",
-                "--detach",
-                "--rm",
-                "--pull",
-                "never",
-                "--name",
-                &name,
-                "--runtime",
-                "runc",
-                "--memory",
-                "2g",
-                "--cpus",
-                "2",
-                "--pids-limit",
-                "256",
-                "--publish",
-                "127.0.0.1::8000",
-                "--env",
-                "SURREAL_USER",
-                "--env",
-                "SURREAL_PASS",
-                "--env",
-                "SURREAL_ROCKSDB_BLOCK_CACHE_SIZE=67108864",
-                "--env",
-                "SURREAL_ROCKSDB_WRITE_BUFFER_SIZE=16777216",
-                "--env",
-                "SURREAL_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=2",
-                IMAGE,
-                "start",
-                "--log",
-                "error",
-                storage,
-            ])
-            .env("SURREAL_USER", "fixture_admin")
-            .env("SURREAL_PASS", &password)
-            .output()
-            .expect("docker required");
-        assert!(
-            output.status.success(),
-            "isolated pinned SurrealDB fixture could not start"
-        );
-        let pending = PendingContainer(name.clone());
-        let port = Command::new("docker")
-            .args(["port", &name, "8000/tcp"])
-            .output()
-            .unwrap();
-        assert!(port.status.success());
-        let port = String::from_utf8(port.stdout).unwrap();
-        let port = port
-            .trim()
-            .strip_prefix("127.0.0.1:")
-            .expect("fixture is loopback only");
-        let endpoint = format!("ws://127.0.0.1:{port}");
+        let (container, endpoint) = Container::start(Docker::default(), storage, &password)
+            .await
+            .unwrap_or_else(|error| panic!("{error}"));
         let database = format!("fixture_{}", Uuid::now_v7().simple());
         let config = StoreConfig::builder(
             &endpoint,
@@ -139,10 +70,13 @@ impl TestDb {
         .await
         .expect("isolated migrations/readiness failed");
         let runtime_password = fixture_password();
-        admin
-            .replace_database_editor("fixture_runtime", &runtime_password.clone().into())
-            .await
-            .unwrap();
+        tokio::time::timeout(
+            Duration::from_secs(10),
+            admin.replace_database_editor("fixture_runtime", &runtime_password.clone().into()),
+        )
+        .await
+        .expect("Store fixture runtime credential setup exceeded 10 seconds")
+        .unwrap_or_else(|_| panic!("Store fixture runtime credential setup failed"));
         let runtime_credentials = StoreCredentials::database("fixture_runtime", runtime_password);
         let config = StoreConfig::builder(
             &endpoint,
@@ -152,12 +86,10 @@ impl TestDb {
         )
         .build()
         .unwrap();
-        let a = PlatformStore::connect(config.clone()).await.unwrap();
-        let b = PlatformStore::connect(config).await.unwrap();
-        // Transfer cleanup ownership only after every fallible setup action succeeds.
-        std::mem::forget(pending);
+        let a = connect(config.clone(), "first runtime client").await;
+        let b = connect(config, "second runtime client").await;
         Self {
-            container: name,
+            _container: container,
             runtime_credentials,
             a,
             b,
@@ -177,6 +109,13 @@ impl TestDb {
         )
         .build()
         .unwrap();
-        PlatformStore::connect(config).await.unwrap()
+        connect(config, "fault-injection client").await
     }
+}
+
+async fn connect(config: StoreConfig, stage: &str) -> PlatformStore {
+    tokio::time::timeout(Duration::from_secs(10), PlatformStore::connect(config))
+        .await
+        .unwrap_or_else(|_| panic!("Store fixture {stage}: connection exceeded 10 seconds"))
+        .unwrap_or_else(|_| panic!("Store fixture {stage}: connection failed"))
 }

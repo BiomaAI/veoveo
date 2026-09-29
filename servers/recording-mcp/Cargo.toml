@@ -136,3 +136,6 @@ veoveo-rrd = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
 re_sdk = { workspace = true, optional = true }
 re_sdk_types = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["process", "io-util"] }

@@ -989,7 +989,24 @@ that delay. `testing/fixtures/store.rs` uses blocking subprocess calls inside as
 setup, so its caller deadline cannot interrupt the command. Give fixture subprocess
 startup and cleanup explicit bounds and stage-specific redacted diagnostics in a
 separate fixture change; keep domain SQL deadlines independent of fixture startup.
-This is an open native harness issue, not a failed Recording query assertion.
+The delayed Docker response's underlying cause is still unknown.
+
+The Store fixture now uses cancellable Tokio subprocesses with a 30-second command
+limit, two-second kill/reap and stdout bounds, and a 4096-byte output cap. Cleanup
+ownership starts before creation; creation and startup use separate commands. Drop
+removal has a ten-second limit and reports failure against the owned fixture name.
+It fails the test on cleanup errors and avoids a second panic during unwinding.
+Credential setup and each runtime connection have ten-second limits; migration
+readiness keeps its 60-second bound. Reason's two index tests start their unchanged
+90-second SQL deadline after setup. These controls enforce lifecycle deadlines;
+they do not claim to eliminate daemon delays.
+
+Six lifecycle fault cases pass, including caller cancellation, child reaping, redacted
+creation failure, endpoint admission and cleanup timeout. Native Store, Reason,
+Recording catalog and Task admission checks pass another 23 cases, including the
+RocksDB transaction profile. Strict workspace Clippy passes. No fixture containers
+remain; reference workloads stay stopped and 44 GiB is free. The harness lifecycle
+Deferred Work item is closed. Installed and GPU acceptance remain pending.
 
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
@@ -1920,7 +1937,6 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 3 native Store fixture lifecycle | `testing/fixtures/store.rs` | Bound Docker subprocess startup and cleanup, claim cleanup ownership before dispatch, and report redacted stage diagnostics | Repeated first-start delays exceeded the caller's SQL timeout; the shared fixture fix follows the Recording contract extraction |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
 | Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |

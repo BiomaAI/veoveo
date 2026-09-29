@@ -23,4 +23,4 @@ veoveo-task-runtime = { path = "../../platform/task-runtime" }
 [dev-dependencies]
 veoveo-types.workspace = true
 secrecy.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = ["process", "io-util", "macros", "rt-multi-thread", "time"] }

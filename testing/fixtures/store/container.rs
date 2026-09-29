@@ -1,0 +1,223 @@
+//! Owned Docker lifecycle for the native Store fixture.
+use std::{fmt, path::PathBuf, process::Stdio, time::Duration};
+use tokio::io::AsyncReadExt;
+use tokio::process::Command;
+use uuid::Uuid;
+
+const IMAGE: &str =
+    "surrealdb/surrealdb@sha256:51baed8709f57f67dcf04b30e3177db846803fa9342dae2be58c6fa5f8d59843";
+
+#[derive(Clone)]
+pub(super) struct Docker {
+    pub program: PathBuf,
+    pub command_timeout: Duration,
+}
+
+impl Default for Docker {
+    fn default() -> Self {
+        Self {
+            program: "docker".into(),
+            command_timeout: Duration::from_secs(30),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(super) struct Failure {
+    pub stage: &'static str,
+    container: String,
+    reason: String,
+}
+
+impl fmt::Display for Failure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Store fixture {}: {}: {}",
+            self.container, self.stage, self.reason
+        )
+    }
+}
+
+impl std::error::Error for Failure {}
+
+pub(super) struct Container {
+    name: String,
+    docker: Docker,
+}
+
+impl Container {
+    pub async fn start(
+        docker: Docker,
+        storage: &'static str,
+        password: &str,
+    ) -> Result<(Self, String), Failure> {
+        // Own cleanup before dispatch. Failed or cancelled creation still drops this guard.
+        let container = Self {
+            name: format!("veoveo-native-store-test-{}", Uuid::now_v7().simple()),
+            docker,
+        };
+        let mut create = container.command();
+        create
+            .args([
+                "create",
+                "--rm",
+                "--pull",
+                "never",
+                "--name",
+                &container.name,
+                "--runtime",
+                "runc",
+                "--memory",
+                "2g",
+                "--cpus",
+                "2",
+                "--pids-limit",
+                "256",
+                "--publish",
+                "127.0.0.1::8000",
+                "--env",
+                "SURREAL_USER",
+                "--env",
+                "SURREAL_PASS",
+                "--env",
+                "SURREAL_ROCKSDB_BLOCK_CACHE_SIZE=67108864",
+                "--env",
+                "SURREAL_ROCKSDB_WRITE_BUFFER_SIZE=16777216",
+                "--env",
+                "SURREAL_ROCKSDB_MAX_WRITE_BUFFER_NUMBER=2",
+                IMAGE,
+                "start",
+                "--log",
+                "error",
+                storage,
+            ])
+            .env("SURREAL_USER", "fixture_admin")
+            .env("SURREAL_PASS", password);
+        container
+            .run(
+                create,
+                "container creation",
+                container.docker.command_timeout,
+            )
+            .await?;
+        let mut start = container.command();
+        start.args(["start", &container.name]);
+        container
+            .run(start, "container startup", container.docker.command_timeout)
+            .await?;
+        let mut port = container.command();
+        port.args(["port", &container.name, "8000/tcp"]);
+        let output = container
+            .run(port, "published port", container.docker.command_timeout)
+            .await?;
+        let port = std::str::from_utf8(&output)
+            .ok()
+            .and_then(|value| value.trim().strip_prefix("127.0.0.1:"))
+            .and_then(|value| value.parse::<std::num::NonZeroU16>().ok())
+            .ok_or_else(|| container.failure("published port", "expected one loopback TCP port"))?;
+        Ok((container, format!("ws://127.0.0.1:{port}")))
+    }
+
+    fn command(&self) -> Command {
+        let mut command = Command::new(&self.docker.program);
+        command
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        command
+    }
+
+    fn failure(&self, stage: &'static str, reason: impl Into<String>) -> Failure {
+        Failure {
+            stage,
+            container: self.name.clone(),
+            reason: reason.into(),
+        }
+    }
+
+    async fn run(
+        &self,
+        mut command: Command,
+        stage: &'static str,
+        limit: Duration,
+    ) -> Result<Vec<u8>, Failure> {
+        // Never print command arguments, environment, or child output: all can contain secrets.
+        let mut child = command
+            .stdout(Stdio::piped())
+            .spawn()
+            .map_err(|error| self.failure(stage, format!("subprocess I/O {:?}", error.kind())))?;
+        let status = match tokio::time::timeout(limit, child.wait()).await {
+            Ok(result) => result.map_err(|error| {
+                self.failure(stage, format!("subprocess I/O {:?}", error.kind()))
+            })?,
+            Err(_) => {
+                // Wait for SIGKILL/reaping while the cleanup runtime is still alive.
+                let reaped = matches!(
+                    tokio::time::timeout(Duration::from_secs(2), child.kill()).await,
+                    Ok(Ok(()))
+                );
+                return Err(self.failure(
+                    stage,
+                    format!("deadline exceeded after {limit:?}; child reaped: {reaped}"),
+                ));
+            }
+        };
+        if !status.success() {
+            return Err(self.failure(stage, format!("subprocess exit {:?}", status.code())));
+        }
+        let mut output = Vec::new();
+        let mut stdout = child
+            .stdout
+            .take()
+            .expect("fixture stdout is piped")
+            .take(4097);
+        tokio::time::timeout(Duration::from_secs(2), stdout.read_to_end(&mut output))
+            .await
+            .map_err(|_| self.failure(stage, "stdout deadline exceeded"))?
+            .map_err(|error| self.failure(stage, format!("stdout I/O {:?}", error.kind())))?;
+        if output.len() > 4096 {
+            return Err(self.failure(stage, "stdout exceeded 4096 bytes"));
+        }
+        Ok(output)
+    }
+}
+
+impl Drop for Container {
+    fn drop(&mut self) {
+        // Drop also runs on a current-thread test runtime. A separate thread avoids
+        // nesting a runtime and completes owned cleanup before the test can finish.
+        let result = std::thread::scope(|scope| {
+            scope
+                .spawn(|| {
+                    let runtime = tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                        .map_err(|error| {
+                            self.failure("cleanup runtime", format!("I/O {:?}", error.kind()))
+                        })?;
+                    runtime.block_on(async {
+                        let mut command = self.command();
+                        command.args(["rm", "--force", "--volumes", &self.name]);
+                        self.run(
+                            command,
+                            "container cleanup",
+                            self.docker.command_timeout.min(Duration::from_secs(10)),
+                        )
+                        .await
+                    })
+                })
+                .join()
+        });
+        let failure = match result {
+            Ok(Ok(_)) => return,
+            Ok(Err(error)) => format!("{error}; inspect this fixture name before further tests"),
+            Err(_) => format!("Store fixture {}: cleanup worker panicked", self.name),
+        };
+        if std::thread::panicking() {
+            eprintln!("{failure}");
+        } else {
+            panic!("{failure}");
+        }
+    }
+}
