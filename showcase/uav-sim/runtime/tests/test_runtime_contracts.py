@@ -155,6 +155,15 @@ WORLD = WorldConfiguration(
 
 
 class RuntimeConfigTests(unittest.TestCase):
+    def test_installation_world_path_is_optional_and_explicit(self) -> None:
+        with patch.dict(os.environ, VALID_ENVIRONMENT, clear=True):
+            self.assertIsNone(RuntimeConfig.from_environment().world_bootstrap_file)
+            os.environ["UAV_SIM_WORLD_BOOTSTRAP_FILE"] = "/etc/veoveo/world.json"
+            self.assertEqual(
+                RuntimeConfig.from_environment().world_bootstrap_file,
+                Path("/etc/veoveo/world.json"),
+            )
+
     def test_rtp_timestamp_has_a_per_source_epoch_and_wraps(self) -> None:
         self.assertEqual(_rtp_timestamp(0x12345678, 0.0), 0x12345678)
         self.assertEqual(_rtp_timestamp(0xFFFF_FFF0, 1.0), 89_984)
@@ -1534,6 +1543,43 @@ class Px4CommanderTests(unittest.TestCase):
 
 
 class WorldConfigurationTests(unittest.TestCase):
+    def test_installation_binding_file_validates_before_runtime_startup(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "world.json"
+            payload = {"session_id": "uav-showcase", "world": WORLD.as_dict()}
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            self.assertEqual(WorldConfiguration.from_file(path, "uav-showcase"), WORLD)
+            with self.assertRaisesRegex(WorldConfigurationError, "unknown simulation session"):
+                WorldConfiguration.from_file(path, "another-session")
+            path.write_text("{", encoding="utf-8")
+            with self.assertRaisesRegex(WorldConfigurationError, "invalid installation world"):
+                WorldConfiguration.from_file(path, "uav-showcase")
+            path.unlink()
+            with self.assertRaisesRegex(WorldConfigurationError, "invalid installation world"):
+                WorldConfiguration.from_file(path, "uav-showcase")
+
+    def test_mixed_rollout_cannot_admit_an_unexpected_world_first(self) -> None:
+        next_world = WorldConfiguration(
+            revision_uri="frames://world/uav-showcase-new-york/revision/revision-2",
+            spec_sha256="2" * 64,
+            simulation_frame_uri=(
+                "frames://world/uav-showcase-new-york/revision/revision-2/frame/isaac-world"
+            ),
+            georeference_origin=WORLD.georeference_origin,
+        )
+        for expected, stale in [(WORLD, next_world), (next_world, WORLD)]:
+            with self.subTest(expected=expected.revision_uri):
+                slot = WorldConfigurationSlot(expected)
+                self.assertIsNone(slot.get())
+                with self.assertRaisesRegex(WorldConfigurationError, "installation world binding"):
+                    slot.configure(stale)
+                self.assertIsNone(slot.wait(0))
+                self.assertEqual(slot.configure(expected), expected)
+                self.assertEqual(slot.configure(expected), expected)
+                with self.assertRaisesRegex(WorldConfigurationError, "installation world binding"):
+                    slot.configure(stale)
+                self.assertEqual(slot.get(), expected)
+
     def test_world_binding_is_strict_and_typed(self) -> None:
         world = WorldConfiguration.from_request(
             {"session_id": "uav-showcase", "world": WORLD.as_dict()},

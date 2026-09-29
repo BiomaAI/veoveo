@@ -13,7 +13,7 @@ use std::{ffi::OsString, fs, path::Path, time::Duration};
 use tokio::sync::oneshot;
 use veoveo_frames_mcp::contract::{
     FrameBasis, FrameId, FrameNode, FrameParentTransform, FrameWorldId, FrameWorldRevision,
-    FrameWorldTree, Wgs84Position,
+    FrameWorldRevisionUri, FrameWorldTree, Wgs84Position, WorldFrameUri,
 };
 use veoveo_map_mcp::contract::MapMobilityProfileUri;
 use veoveo_recording_contract::RecordingId;
@@ -34,12 +34,14 @@ mod scenario;
 mod showcase;
 mod stream;
 mod world;
+mod world_publication;
 use artifacts::*;
 use client::*;
 use scenario::*;
 pub(crate) use showcase::{uav_showcase_up, uav_showcase_verify};
 use stream::*;
 use world::*;
+pub(crate) use world_publication::uav_world_publish;
 
 const GOOGLE_PHOTOREALISTIC_3D_TILES_ASSET_ID: u64 = 2_275_207;
 fn preflight_flight_authority(installation: &InstalledTarget) -> Result<()> {

@@ -14,6 +14,20 @@ pub(crate) struct Args {
 #[derive(Debug, Subcommand)]
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum SmokeCommand {
+    /// Publish the scenario in Frames and write the admitted simulator startup binding.
+    UavWorldPublish {
+        #[arg(long, default_value = "target/debug/conformance")]
+        conformance_bin: PathBuf,
+        #[arg(
+            long,
+            default_value = "showcase/uav-sim/scenarios/new-york-aerial.json"
+        )]
+        scenario: PathBuf,
+        #[arg(long)]
+        installation: PathBuf,
+        #[arg(long)]
+        output: PathBuf,
+    },
     /// Verify the independent UAV domain path through flight, live Stream, recording replay, and Reason.
     UavDomainVerify {
         #[arg(long, default_value = "target/debug/conformance")]
@@ -65,6 +79,38 @@ pub(crate) enum SmokeCommand {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn world_publication_requires_installation_and_explicit_output() {
+        for missing in [
+            vec!["flight-smoke", "uav-world-publish"],
+            vec![
+                "flight-smoke",
+                "uav-world-publish",
+                "--installation",
+                "fork.json",
+            ],
+            vec![
+                "flight-smoke",
+                "uav-world-publish",
+                "--output",
+                "world.json",
+            ],
+        ] {
+            assert!(Args::try_parse_from(missing).is_err());
+        }
+        assert!(
+            Args::try_parse_from([
+                "flight-smoke",
+                "uav-world-publish",
+                "--installation",
+                "fork.json",
+                "--output",
+                "world.json"
+            ])
+            .is_ok()
+        );
+    }
 
     #[test]
     fn installed_flight_commands_require_one_target_and_reject_coordinate_overrides() {

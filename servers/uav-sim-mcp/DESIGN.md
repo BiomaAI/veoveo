@@ -47,7 +47,13 @@ provide value types, validation, serialization and URI parsing. It excludes the 
 MCP integration, database, async runtime, simulator adapter and GPU libraries. Chrono's
 clock support belongs to the runtime feature.
 
-`runtime` adds world binding and the private simulator HTTP adapter. Its completion
+`contract/world_binding.rs` derives `SimulationWorldBinding` from a validated Frames
+revision and a typed frame URI. `InstallationWorldBinding` validates that result during
+construction and JSON decoding. The builder rejects frames from another revision,
+missing geodetic ancestry, dynamic transforms, malformed digests and coordinates outside
+the simulator envelope. Installation clients reuse these types without runtime dependencies.
+
+`runtime` adds the private simulator HTTP adapter. Its completion
 receipt has private construction and validates the response against its dispatched
 operation before result resolution. This low-level adapter requires installation
 credentials; vehicle authorization and mission admission belong to the hosted domain
@@ -316,12 +322,25 @@ static simulation frame. The adapter derives the WGS 84, ECEF, ENU, NED, stage, 
 Cesium mappings from that binding. Runtime configuration is immutable after admission.
 
 Always-on installations mount the already-admitted binding from an installation-owned
-ConfigMap. The MCP companion parses the strict document and applies it once during
-startup. It does not begin serving when the file is absent, malformed, cross-revision,
+ConfigMap. Both the GPU runtime and MCP companion mount that document. Before Isaac
+initialization, the runtime validates it and pins the expected binding without admitting
+a world. The MCP companion parses the same document and applies it once during startup.
+The runtime rejects a different binding even before its first admission, which prevents
+an older companion from binding a newly started runtime during deployment. It does not begin serving when the file is absent, malformed, cross-revision,
 or rejected by the simulator. This is startup configuration, not durable renderer state:
 there is no poller, retry scheduler, desired-versus-realized model, or periodic replay.
 Installations that intentionally begin unconfigured omit the mount and use the ordinary
 tool once.
+
+A world change requires a drained simulation and a new runtime process. The chart hashes
+the document into both Pod templates and recreates the runtime; its caches keep their
+claims. Old and new companions may overlap, but each runtime accepts only its selected
+binding. An installation upgrading from a runtime without this check must drain both
+workloads before applying the chart and image together. After a Frames database reset,
+`uav-world-publish` publishes a current revision and writes a new binding for deployment.
+The composed flight harness reads both Frames resources before accepting the installed
+world. A missing publication requires that deployment step; it never reconstructs a
+deleted revision.
 
 Durable task tools use `interrupted_indeterminate` recovery. An unclean interruption
 never replays physical work. The default fleet controller keeps the configured fleet

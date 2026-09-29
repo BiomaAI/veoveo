@@ -1,8 +1,8 @@
 use super::*;
 
 pub(super) struct WorldBinding {
-    pub(super) revision_uri: String,
-    pub(super) simulation_frame_uri: String,
+    pub(super) revision_uri: FrameWorldRevisionUri,
+    pub(super) simulation_frame_uri: WorldFrameUri,
 }
 
 pub(super) async fn ensure_vehicle_landed(
@@ -68,9 +68,9 @@ pub(super) async fn ensure_world_configured(
         .pointer("/world")
         .is_some_and(Value::is_object)
     {
-        let revision_uri = json_string(&initial_state, "/world/revision_uri")?.to_owned();
+        let revision_uri = json_string(&initial_state, "/world/revision_uri")?.parse()?;
         let simulation_frame_uri =
-            json_string(&initial_state, "/world/simulation_frame_uri")?.to_owned();
+            json_string(&initial_state, "/world/simulation_frame_uri")?.parse()?;
         verify_published_world(
             operator,
             scenario,
@@ -78,7 +78,7 @@ pub(super) async fn ensure_world_configured(
             &simulation_frame_uri,
             None,
         )
-        .await?;
+        .await.context("installed UAV world must resolve through Frames; after a database reset, run uav-world-publish and deploy its new binding before flight acceptance")?;
         return Ok(WorldBinding {
             revision_uri,
             simulation_frame_uri,
@@ -88,40 +88,10 @@ pub(super) async fn ensure_world_configured(
         json_string(&initial_state, "/lifecycle")? == "unconfigured",
         "UAV session must begin unconfigured or retain the same immutable binding: {initial_state}"
     );
-    let tree_digest = hex::encode(Sha256::digest(serde_json::to_vec(&scenario.world.tree)?));
-    let world_id = FrameWorldId::new(format!(
-        "{}-{}",
-        scenario.world.world_id,
-        &tree_digest[..16]
-    ))?;
-    operator
-        .call_tool(
-            "frames__create_world",
-            serde_json::json!({
-                "world_id": world_id,
-                "display_name": scenario.world.display_name,
-                "description": scenario.world.description,
-            }),
-        )
-        .await?;
-    let publication = operator
-        .call_tool(
-            "frames__publish_world",
-            serde_json::json!({
-                "world_id": world_id,
-                "tree": scenario.world.tree,
-            }),
-        )
-        .await?;
-    let revision = publication
-        .get("revision")
-        .cloned()
-        .context("Frames publication omitted its immutable revision")?;
-    let revision_uri = json_string(&publication, "/revision/revision_uri")?.to_owned();
-    let simulation_frame_uri = format!(
-        "{revision_uri}/frame/{}",
-        scenario.world.simulation_frame_id
-    );
+    let revision = super::world_publication::publish_world_revision(operator, scenario).await?;
+    let revision_uri = revision.revision_uri().clone();
+    let simulation_frame_uri =
+        WorldFrameUri::new(&revision_uri, &scenario.world.simulation_frame_id);
     operator
         .call_tool(
             "uav-sim__configure_world",
@@ -137,7 +107,7 @@ pub(super) async fn ensure_world_configured(
         scenario,
         &revision_uri,
         &simulation_frame_uri,
-        Some(&world_id),
+        Some(&revision_uri.world_id()),
     )
     .await?;
     Ok(WorldBinding {
@@ -149,21 +119,21 @@ pub(super) async fn ensure_world_configured(
 pub(super) async fn verify_published_world(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-    revision_uri: &str,
-    simulation_frame_uri: &str,
+    revision_uri: &FrameWorldRevisionUri,
+    simulation_frame_uri: &WorldFrameUri,
     expected_world_id: Option<&FrameWorldId>,
-) -> Result<()> {
+) -> Result<FrameWorldRevision> {
     ensure!(
         simulation_frame_uri
-            == format!(
-                "{revision_uri}/frame/{}",
-                scenario.world.simulation_frame_id
-            ),
+            == &WorldFrameUri::new(revision_uri, &scenario.world.simulation_frame_id),
         "UAV immutable binding selects the wrong simulation frame: {simulation_frame_uri}"
     );
     let frame: FrameNode = serde_json::from_str(
         &operator
-            .conformance(&["resource", simulation_frame_uri], Duration::from_secs(60))
+            .conformance(
+                &["resource", simulation_frame_uri.as_str()],
+                Duration::from_secs(60),
+            )
             .await?,
     )
     .context("decoding the published simulation frame resource")?;
@@ -180,7 +150,10 @@ pub(super) async fn verify_published_world(
     );
     let published_revision: FrameWorldRevision = serde_json::from_str(
         &operator
-            .conformance(&["resource", revision_uri], Duration::from_secs(60))
+            .conformance(
+                &["resource", revision_uri.as_str()],
+                Duration::from_secs(60),
+            )
             .await?,
     )
     .context("decoding the published Frames world revision resource")?;
@@ -189,8 +162,7 @@ pub(super) async fn verify_published_world(
     let mut published_frames = published_revision.tree().frames.clone();
     published_frames.sort_by(|left, right| left.frame_id.cmp(&right.frame_id));
     ensure!(
-        published_revision.revision_uri().as_str() == revision_uri
-            && published_frames == expected_frames,
+        published_revision.revision_uri() == revision_uri && published_frames == expected_frames,
         "published Frames world revision disagrees with the complete scenario hierarchy: \
          {published_revision:?}"
     );
@@ -201,13 +173,13 @@ pub(super) async fn verify_published_world(
              {published_revision:?}"
         );
     }
-    Ok(())
+    Ok(published_revision)
 }
 
 pub(super) fn assert_world_ready(
     state: &Value,
-    revision_uri: &str,
-    simulation_frame_uri: &str,
+    revision_uri: &FrameWorldRevisionUri,
+    simulation_frame_uri: &WorldFrameUri,
 ) -> Result<()> {
     ensure!(
         matches!(
@@ -217,8 +189,8 @@ pub(super) fn assert_world_ready(
         "UAV session is not ready: {state}"
     );
     ensure!(
-        json_string(state, "/world/revision_uri")? == revision_uri
-            && json_string(state, "/world/simulation_frame_uri")? == simulation_frame_uri
+        json_string(state, "/world/revision_uri")? == revision_uri.as_str()
+            && json_string(state, "/world/simulation_frame_uri")? == simulation_frame_uri.as_str()
             && json_string(state, "/world/spec_sha256")?.len() == 64,
         "UAV session uses the wrong immutable Frames world: {state}"
     );
@@ -349,8 +321,8 @@ pub(super) fn sensor_camera_is_started(camera: &Value) -> bool {
 pub(super) async fn wait_for_world_ready(
     operator: &OperatorClient<'_>,
     scenario: &UavAcceptanceScenario,
-    revision_uri: &str,
-    simulation_frame_uri: &str,
+    revision_uri: &FrameWorldRevisionUri,
+    simulation_frame_uri: &WorldFrameUri,
     timeout: Duration,
 ) -> Result<Value> {
     let deadline = tokio::time::Instant::now() + timeout;

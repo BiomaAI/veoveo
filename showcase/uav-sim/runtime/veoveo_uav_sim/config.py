@@ -359,6 +359,7 @@ class RuntimeConfig:
     fleet_loop: FleetLoopConfig
     stream_publication: StreamPublicationConfig | None
     extension_directory: str
+    world_bootstrap_file: Path | None = None
 
     def __post_init__(self) -> None:
         maximum_operator_fps = max(
@@ -473,5 +474,10 @@ class RuntimeConfig:
             stream_publication=StreamPublicationConfig.from_environment(),
             extension_directory=os.environ.get(
                 "UAV_SIM_EXTENSION_DIRECTORY", "/opt/veoveo/extensions"
+            ),
+            world_bootstrap_file=(
+                Path(path)
+                if (path := os.environ.get("UAV_SIM_WORLD_BOOTSTRAP_FILE"))
+                else None
             ),
         )

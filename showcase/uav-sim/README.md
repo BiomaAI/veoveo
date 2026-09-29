@@ -396,6 +396,13 @@ graphics proof, screenshots, and digests.
 
 The Helm value `world.bootstrap.existingConfigMap` names a world JSON file that the
 installation provides. Set `world.bootstrap.contentSha256` to the SHA-256 of that file
-and update it with every content change. The digest is written as a Pod annotation, so a
-new digest restarts the MCP server that reads the file. Other chart metadata changes do
-not restart running Pods.
+and update it with every content change. Both the runtime and MCP companion mount the
+file. A changed digest restarts both workloads because the runtime admits its world once
+per process. It validates the file before Isaac initialization and rejects requests for
+a different binding, including requests from an older companion during rollout. Runtime
+and tile caches keep their existing claims. Drain active flights before changing worlds.
+
+After a Frames database reset, publish the scenario through `cargo xtask smoke
+uav-world-publish --installation <target.json> --output <world.json>`. Deploy that file
+and the returned content SHA-256 together before composed acceptance. Other chart
+metadata changes do not restart running Pods.

@@ -10,8 +10,6 @@ pub mod adapter;
 pub mod contract;
 #[cfg(feature = "contract")]
 pub mod uris;
-#[cfg(feature = "runtime")]
-pub mod world;
 
 #[cfg(feature = "mcp")]
 mod live_app;

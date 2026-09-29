@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .config import RuntimeConfig
 from .physical_camera import physical_camera_product_name
+from .world_config import WorldConfiguration, WorldConfigurationSlot
 
 LOGGER = logging.getLogger("veoveo.uav_sim")
 
@@ -69,6 +70,12 @@ def _cleanup(name: str, action: Callable[[], None]) -> None:
 
 
 def run(config: RuntimeConfig) -> None:
+    expected_world = (
+        WorldConfiguration.from_file(config.world_bootstrap_file, config.session_id)
+        if config.world_bootstrap_file is not None
+        else None
+    )
+    world_slot = WorldConfigurationSlot(expected_world)
     # Isaac requires SimulationApp to exist before importing Kit or simulator modules.
     from isaacsim import SimulationApp
 
@@ -213,11 +220,8 @@ def run(config: RuntimeConfig) -> None:
         begin_provider_session_replacement,
         tile_content_ready,
     )
-    from .world_config import WorldConfiguration, WorldConfigurationSlot
-
     state: RuntimeState | None = None
     world_config: WorldConfiguration | None = None
-    world_slot = WorldConfigurationSlot()
     command_queue = MainThreadQueue()
     recording: RecordingPublisher | None = None
     stream_publication: StreamPublicationWorker | None = None

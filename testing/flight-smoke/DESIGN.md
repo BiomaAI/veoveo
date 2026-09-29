@@ -11,12 +11,13 @@
 | UAV control grants | UAV-owned grant, permission and collection types through its isolated contract feature; a 60-second and 100-page traversal limit; Map owns mobility-profile references |
 | Browser automation | Headed Chrome DevTools Protocol, hardware-backed WebGPU or WebGL, shared browser assertions owned by `testing/browser-smoke` |
 | GPU workload evidence | Existing NVIDIA resource identity, NVENC source and concurrent workload assertions; software rendering is rejected |
+| World publication | Frames-owned immutable revisions and typed frame URIs; UAV-owned validated installation binding; `veoveo.ai/uav-world-publication/v1` JSON receipt with the output file SHA-256 |
 | Evidence | Existing `veoveo.ai/uav-showcase-acceptance-evidence/v4` JSON and revision-qualified captures |
 
 ## Ownership
 
 `cargo xtask smoke` builds this harness and its conformance executable for
-`uav-domain-verify`, `uav-showcase-up`, and `uav-showcase-verify`. Their command
+`uav-world-publish`, `uav-domain-verify`, `uav-showcase-up`, and `uav-showcase-verify`. Their command
 arguments and assertions stay in Rust. `main.rs` only installs TLS and dispatches
 parsed commands. `cli.rs` owns those arguments.
 
@@ -25,6 +26,15 @@ authenticated MCP calls, world and vehicle state, Stream session ownership, gove
 Artifact checks, and visual flight checkpoints. The harness reads and commands a
 running installation through its admitted interfaces. It does not compile or start a
 platform database, task runtime, recording service, or unrelated MCP server.
+
+`domain/world_publication.rs` publishes the scenario through Frames, reads back its
+revision and simulation frame, and constructs startup input through the UAV contract
+builder. `uav-world-publish` writes that input to an explicit output path and prints its
+SHA-256. It requires only operator credentials and does not configure the simulator.
+The installation deploys the reviewed file and digest together. Repeating publication
+of the same tree uses Frames' existing immutable publication semantics. The composed
+flight path requires the installed revision and frame to resolve through Frames,
+including after a database reset.
 
 Scenario and grant decoders admit Map profile references through the same owning type.
 The route request serializes its typed profile ID and version without reparsing text.

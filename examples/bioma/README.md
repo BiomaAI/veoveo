@@ -107,7 +107,8 @@ then register it in the gateway control plane.
 
 The UAV world bootstrap pairs `uav-sim-world.json` with its exact SHA-256 in
 `uav-sim-values.yaml` at `world.bootstrap.contentSha256`. Update both in the same
-commit. That digest restarts only the MCP server that reads the bootstrap file.
+commit. That digest restarts both the immutable simulator runtime and its MCP companion.
+Drain active flights before changing it; the runtime and tile cache claims are preserved.
 
 Generated Helm values ConfigMaps carry the `reconcile.fluxcd.io/watch: Enabled`
 label. A values update therefore wakes the owning Helm controller immediately after
@@ -799,8 +800,24 @@ installation's external credential store, enroll Computers trust as described in
 [Release publication](#release-publication), and [connect Flux to Git](#connect-flux-to-git).
 Reconcile any changed public Computers key ID and configuration revision before
 [bootstrapping desired state](#bootstrap-desired-state). This creates fresh application
-volumes from the published locks. Run GitOps convergence and installed verification
-against that revision, including live MCP conformance, before accepting the reset.
+volumes from the published locks. Once Frames and the public gateway are available,
+publish the current world using the operator credentials described above:
+
+~~~bash
+cargo xtask smoke uav-world-publish \
+  --installation examples/bioma/installation-target.json \
+  --output examples/bioma/uav-sim-world.json
+~~~
+
+Set `world.bootstrap.contentSha256` in `uav-sim-values.yaml` to the command's
+`contentSha256`, and commit both files together. Publish and select the chart/runtime
+that mount and pin this document in both workloads. Drain the simulator and companion
+when upgrading an installation whose runtime does not check the expected binding.
+The new deployment uses the current Frames publication and keeps the tile cache.
+A reset never reuses a deleted revision from the previous database.
+
+Run GitOps convergence and installed verification against that revision, including
+live MCP conformance and composed UAV acceptance, before accepting the reset.
 
 ### Remove the cluster
 

@@ -13,23 +13,31 @@ suite passed 2,649. Python passed 156 tests, and documentation and identifier ch
 passed. The old reference node and its five owned volumes have been removed.
 The fresh GPU installation converged at `c0862f74`; all 24 deployments, both StatefulSets
 and both bootstrap Jobs passed readiness. `installation-verify` passed public OAuth
-and the full, HEAD and range Artifact delivery checks. Live hosted certification passed
-14 of 17 servers. The certifier now supplies a signed automated request context,
-Recording admits Host authorities before credentials, and Charts uses its registered
-resource scheme with static discovery declarations. The correction batch passes 16
-Rust tests and five Node tests; Charts also passes 25 native protocol checks and reads
-of its three domain resources. All seven affected images are published at `cf7a382d`;
-installed certification of those images remains pending. The architecture catalog
+and the full, HEAD and range Artifact delivery checks. Certification corrections are
+published at `cf7a382d` and deployed by digest at `c5d56238`. The reference installation
+converged to that revision; all 17 hosted servers passed certification (421 checks,
+with 17 readiness probes omitted because deployment readiness was checked separately).
+The temporary certification Pod and policy were removed. Public installation verification
+passed with the installation-aware client after adding its required administrator
+`time:read` scope. Composed UAV acceptance then found that the startup binding named a
+Frames revision deleted by the reset. A current world publication and simulator deployment
+are required before flight acceptance can continue. The world recovery batch adds a
+contract-only binding builder, `uav-world-publish`, and runtime admission pinned to the
+installation's expected binding. Both Pod templates change with the binding digest,
+while cache claims stay intact. Native qualification passes 263 Rust cases and 115
+Python cases, including both old/new binding mismatches and the client dependency graph.
+Scoped strict Clippy, Helm configuration, formatting, docs and identifier checks pass.
+Installed world publication, deployment and flight acceptance remain pending. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
-qualification at `783e447a`. The temporary certification Pod and ingress policy are removed, and
-the cluster is stopped during development. Sequential preparation of the consumed
+qualification at `783e447a`. The cluster is stopped during development. Sequential preparation of the consumed
 images resolved the cold-bootstrap I/O
 contention. Fresh recording and Computers trust is enrolled
 locally; its public key IDs and configuration digests pass Helm and rollout checks.
 The native provider accepts the generated JWT key and signs an extension token;
 installed authentication and lifecycle qualification are pending. The Phase 2 catalog fixture
 at `883a09ba` passed native SDK reads (16 rows) and grant renewal on 2026-09-27;
-reference installation acceptance is pending. All 16 installed flight and browser commands now require the installation target.
+reference installation acceptance is pending. All installed flight and browser commands require the installation target; the world
+publication command uses the same loader.
 The shared loader resolves typed operator and administrator identities from its control
 plane, and each token exchange uses the selected client's separate credentials. Flight
 checks derive namespace, profile, scopes, principal, Work Context and output ownership
@@ -2426,7 +2434,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Install the published certification corrections, finish live certification, then qualify the installed workloads | Fresh GitOps convergence and `installation-verify` passed at `c0862f74`. The Reason checkpoint is staged and verified. Live hosted certification passed 14 of 17 servers; the certifier, Recording and Charts corrections pass native checks and their seven affected images are published at `cf7a382d` |
+| Phase 1 reference reset | `examples/bioma/README.md` | Publish and deploy a current Frames world binding, then finish installed workload acceptance | GitOps convergence, 17 hosted certifications and public installation verification passed at `c5d56238`. The Reason checkpoint is staged and verified. Composed UAV acceptance found a deleted Frames revision in the installation startup input; the typed publication and rollout batch passes 263 Rust and 115 Python cases and awaits installation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

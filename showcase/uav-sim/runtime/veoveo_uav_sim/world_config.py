@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import copy
+import json
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -67,6 +69,16 @@ class WorldConfiguration:
     spec_sha256: str
     simulation_frame_uri: str
     georeference_origin: GeoreferenceOrigin
+
+    @classmethod
+    def from_file(cls, path: Path, expected_session_id: str) -> "WorldConfiguration":
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return cls.from_request(payload, expected_session_id)
+        except (OSError, ValueError) as error:
+            raise WorldConfigurationError(
+                f"invalid installation world binding at {path}: {error}"
+            ) from error
 
     @classmethod
     def from_request(
@@ -159,12 +171,18 @@ class WorldConfiguration:
 
 
 class WorldConfigurationSlot:
-    def __init__(self) -> None:
+    def __init__(self, expected: WorldConfiguration | None = None) -> None:
         self._condition = threading.Condition()
+        self._expected = expected
         self._world: WorldConfiguration | None = None
 
     def configure(self, world: WorldConfiguration) -> WorldConfiguration:
         with self._condition:
+            if self._expected is not None and self._expected != world:
+                raise WorldConfigurationError(
+                    "world configuration differs from the installation world binding; "
+                    "deploy matching runtime and MCP companion bindings"
+                )
             if self._world is not None and self._world != world:
                 raise WorldConfigurationError(
                     "the simulation is already bound to a different world revision"

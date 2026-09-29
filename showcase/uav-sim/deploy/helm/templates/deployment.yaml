@@ -22,6 +22,10 @@ spec:
         {{- if .Values.streamPublication.enabled }}
         veoveo.ai/stream-producer: "true"
         {{- end }}
+      {{- if .Values.world.bootstrap.existingConfigMap }}
+      annotations:
+        checksum/world-bootstrap: {{ required "world.bootstrap.contentSha256 is required with an existing ConfigMap" .Values.world.bootstrap.contentSha256 | quote }}
+      {{- end }}
     spec:
       runtimeClassName: {{ .Values.scheduling.runtime.runtimeClassName }}
       automountServiceAccountToken: false
@@ -49,6 +53,10 @@ spec:
             {{- include "uav-sim.containerSecurityContext" . | nindent 12 }}
           env:
             {{- include "uav-sim.runtimeEnv" (dict "root" . "sessionId" .Values.session.id) | nindent 12 }}
+            {{- if .Values.world.bootstrap.existingConfigMap }}
+            - name: UAV_SIM_WORLD_BOOTSTRAP_FILE
+              value: /etc/veoveo/uav-sim-world/{{ .Values.world.bootstrap.key }}
+            {{- end }}
           ports:
             - name: adapter
               containerPort: 8810
@@ -71,8 +79,21 @@ spec:
             - {name: runtime-data, mountPath: /var/lib/veoveo/.local/share}
             - {name: runtime-data, mountPath: /isaac-sim/kit/data}
             - {name: tmp, mountPath: /tmp}
+            {{- if .Values.world.bootstrap.existingConfigMap }}
+            - name: world-bootstrap
+              mountPath: /etc/veoveo/uav-sim-world
+              readOnly: true
+            {{- end }}
         {{- include "uav-sim.recordingForwarder" (dict "root" .) | nindent 8 }}
       volumes:
+        {{- if .Values.world.bootstrap.existingConfigMap }}
+        - name: world-bootstrap
+          configMap:
+            name: {{ .Values.world.bootstrap.existingConfigMap }}
+            items:
+              - key: {{ .Values.world.bootstrap.key }}
+                path: {{ .Values.world.bootstrap.key }}
+        {{- end }}
         - name: shared-memory
           emptyDir: {medium: Memory, sizeLimit: 8Gi}
         - name: runtime-cache

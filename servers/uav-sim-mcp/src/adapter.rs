@@ -187,8 +187,11 @@ impl HttpAdapter {
         &self,
         request: &ConfigureWorldRequest,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        let world = crate::world::world_binding(request)
-            .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        let world = SimulationWorldBinding::from_revision(
+            &request.world_revision,
+            &request.simulation_frame_uri,
+        )
+        .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
         self.configure_world_binding(&request.session_id, &world)
             .await
     }
@@ -390,8 +393,11 @@ impl FakeAdapter {
         &mut self,
         request: &ConfigureWorldRequest,
     ) -> Result<ConfigureWorldOutput, AdapterError> {
-        let world = crate::world::world_binding(request)
-            .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
+        let world = SimulationWorldBinding::from_revision(
+            &request.world_revision,
+            &request.simulation_frame_uri,
+        )
+        .map_err(|error| AdapterError::InvalidState(error.to_string()))?;
         self.configure_world_binding(&request.session_id, &world)
     }
 

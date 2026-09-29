@@ -9,6 +9,8 @@
 //!     viewer_instance_id: LiveViewerInstanceId::new("browser").unwrap(),
 //! };
 //! ```
+mod world_binding;
+pub use world_binding::{InstallationWorldBinding, WorldBindingError};
 mod recordings;
 pub use recordings::{
     RecordingCatalog, RecordingCatalogError, RecordingCatalogLifecycle, RecordingState,

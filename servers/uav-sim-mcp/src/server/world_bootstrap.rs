@@ -1,51 +1,10 @@
 use std::path::Path;
 
-use anyhow::{Context, Result, ensure};
-use serde::Deserialize;
-
-use crate::{
-    adapter::Adapter,
-    contract::{SessionId, SimulationWorldBinding},
-};
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InstallationWorldBinding {
-    session_id: SessionId,
-    world: SimulationWorldBinding,
-}
+use crate::{adapter::Adapter, contract::InstallationWorldBinding};
+use anyhow::{Context, Result};
 
 fn parse(document: &[u8]) -> Result<InstallationWorldBinding> {
-    let binding: InstallationWorldBinding =
-        serde_json::from_slice(document).context("decode installation world binding")?;
-    let world = &binding.world;
-    ensure!(
-        world.spec_sha256.len() == 64
-            && world
-                .spec_sha256
-                .bytes()
-                .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()),
-        "installation world binding spec_sha256 must be 64 lowercase hexadecimal characters"
-    );
-    ensure!(
-        world.simulation_frame_uri.revision_uri() == world.revision_uri,
-        "installation simulation frame must belong to its immutable world revision"
-    );
-    let origin = &world.georeference_origin;
-    ensure!(
-        origin.latitude_degrees.is_finite() && (-90.0..=90.0).contains(&origin.latitude_degrees),
-        "installation world latitude must be finite and within [-90, 90]"
-    );
-    ensure!(
-        origin.longitude_degrees.is_finite()
-            && (-180.0..=180.0).contains(&origin.longitude_degrees),
-        "installation world longitude must be finite and within [-180, 180]"
-    );
-    ensure!(
-        origin.ellipsoid_height_m.is_finite(),
-        "installation world ellipsoid height must be finite"
-    );
-    Ok(binding)
+    serde_json::from_slice(document).context("decode installation world binding")
 }
 
 pub(super) async fn apply(path: &Path, adapter: &Adapter) -> Result<()> {
@@ -54,11 +13,11 @@ pub(super) async fn apply(path: &Path, adapter: &Adapter) -> Result<()> {
         .with_context(|| format!("read installation world binding {}", path.display()))?;
     let binding = parse(&document)?;
     let result = adapter
-        .configure_world_binding(&binding.session_id, &binding.world)
+        .configure_world_binding(binding.session_id(), binding.world())
         .await
         .context("apply installation world binding to authoritative simulator")?;
     tracing::info!(
-        session_id = %binding.session_id,
+        session_id = %binding.session_id(),
         revision_uri = %result.world.revision_uri,
         simulation_frame_uri = %result.world.simulation_frame_uri,
         "installation world binding applied"
@@ -87,9 +46,9 @@ mod tests {
     #[test]
     fn accepts_one_strict_immutable_binding() {
         let binding = parse(VALID.as_bytes()).unwrap();
-        assert_eq!(binding.session_id.as_str(), "session-alpha");
+        assert_eq!(binding.session_id().as_str(), "session-alpha");
         assert_eq!(
-            binding.world.simulation_frame_uri.frame_id().as_str(),
+            binding.world().simulation_frame_uri.frame_id().as_str(),
             "isaac-world"
         );
     }
@@ -100,6 +59,7 @@ mod tests {
         assert!(
             parse(cross_revision.as_bytes())
                 .unwrap_err()
+                .root_cause()
                 .to_string()
                 .contains("must belong")
         );
@@ -107,6 +67,7 @@ mod tests {
         assert!(
             parse(uppercase.as_bytes())
                 .unwrap_err()
+                .root_cause()
                 .to_string()
                 .contains("lowercase hexadecimal")
         );
@@ -122,8 +83,9 @@ mod tests {
         assert!(
             parse(unknown.as_bytes())
                 .unwrap_err()
+                .root_cause()
                 .to_string()
-                .contains("decode installation world binding")
+                .contains("unknown field")
         );
     }
 }

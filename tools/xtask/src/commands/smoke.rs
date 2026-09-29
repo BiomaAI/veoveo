@@ -194,7 +194,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         Ok(BROWSER_SMOKE)
     } else if matches!(
         scenario,
-        "uav-domain-verify" | "uav-showcase-up" | "uav-showcase-verify"
+        "uav-world-publish" | "uav-domain-verify" | "uav-showcase-up" | "uav-showcase-verify"
     ) {
         Ok(FLIGHT_SMOKE)
     } else {
@@ -220,6 +220,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         "gateway-platform-store" | "gateway-vault-secrets" => &[GATEWAY],
         "contract-schemas"
         | "sumo-verify"
+        | "uav-world-publish"
         | "uav-domain-verify"
         | "uav-showcase-up"
         | "uav-showcase-verify" => &[CONFORMANCE],
@@ -298,6 +299,7 @@ mod tests {
     #[test]
     fn flight_scenarios_build_only_the_focused_client_and_conformance() {
         for scenario in [
+            "uav-world-publish",
             "uav-domain-verify",
             "uav-showcase-up",
             "uav-showcase-verify",

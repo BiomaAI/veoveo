@@ -439,7 +439,7 @@ fn chart_selection_packages_only_the_requested_chart_once() {
 }
 
 #[test]
-fn external_world_content_rolls_only_its_bootstrap_consumer() {
+fn external_world_content_recreates_the_immutable_runtime_and_its_companion() {
     let chart = repository().join("showcase/uav-sim/deploy/helm");
     let before = render(&chart, true, &[]);
     let digest = "b".repeat(64);
@@ -448,11 +448,50 @@ fn external_world_content_rolls_only_its_bootstrap_consumer() {
         true,
         &[&format!("world.bootstrap.contentSha256={digest}")],
     );
-    assert_eq!(changed_pods(&before, &after), ["uav-sim-mcp"]);
-    assert_eq!(
-        pod_templates(&after)["uav-sim-mcp"]["metadata"]["annotations"]["checksum/world-bootstrap"],
-        digest
-    );
+    assert_eq!(changed_pods(&before, &after), ["uav-sim", "uav-sim-mcp"]);
+    for name in ["uav-sim", "uav-sim-mcp"] {
+        let templates = pod_templates(&after);
+        let pod = &templates[name];
+        assert_eq!(
+            pod["metadata"]["annotations"]["checksum/world-bootstrap"],
+            digest
+        );
+        let container = &pod["spec"]["containers"][0];
+        assert!(container["env"].as_array().unwrap().iter().any(|env| {
+            env["name"] == "UAV_SIM_WORLD_BOOTSTRAP_FILE"
+                && env["value"] == "/etc/veoveo/uav-sim-world/world.json"
+        }));
+        assert!(
+            container["volumeMounts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|mount| { mount["name"] == "world-bootstrap" && mount["readOnly"] == true })
+        );
+        assert!(
+            pod["spec"]["volumes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|volume| {
+                    volume["name"] == "world-bootstrap"
+                        && volume["configMap"]["name"] == "uav-sim-world-binding"
+                })
+        );
+    }
+    let runtime = after
+        .iter()
+        .find(|object| object["kind"] == "Deployment" && object["metadata"]["name"] == "uav-sim")
+        .unwrap();
+    assert_eq!(runtime["spec"]["strategy"]["type"], "Recreate");
+    let claims = |objects: &[Value]| {
+        objects
+            .iter()
+            .filter(|object| object["kind"] == "PersistentVolumeClaim")
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(claims(&before), claims(&after));
     for digest in ["", "invalid"] {
         let output = Command::new("helm")
             .current_dir(repository())
