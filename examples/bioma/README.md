@@ -781,7 +781,7 @@ to the simulator before Isaac constructs its stage.
 The Map bootstrap registers the synthetic showcase source and mobility profile.
 An administrator must acquire and activate its dataset after creating or resetting
 the application store. Use the public Map MCP tools with the installation's
-administrator identity and its declared `map:admin` scope.
+administrator identity and its declared `map:admin` and `map:dataset:read` scopes.
 
 Read `map://active-releases` first. Reuse an active release for dataset
 `dataset-019ffdb2-0598-7717-b916-e359c426f8cf` only when its source digest matches

@@ -76,7 +76,8 @@
       "admin:manage",
       "uav-sim:admin",
       "time:read",
-      "map:admin"
+      "map:admin",
+      "map:dataset:read"
     ]
   }
 }

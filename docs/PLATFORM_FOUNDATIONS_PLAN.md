@@ -100,8 +100,12 @@ flight path tests current aviation admission before world/control work, and
 `uav-route-verify` provides the same prerequisite without flight commands. Native checks
 pass 56 flight cases, the dependency-closure check and 113 xtask cases. The reference
 runbook declares the fixture digest, acquisition and activation steps and the required
-Map administrator scope. Installed release preparation and route qualification follow
-before another composed flight pass.
+Map administration and dataset-read scopes. Installed `uav-route-verify` rejected the
+missing release in under a second, before flight commands. Acquisition
+`acquisition-01a0ef43-cdeb-7a52-821d-7df36eebeead` verified the registered immutable
+fixture digest and staged the current source. Release
+`release-01a0ef43-d09b-7d11-9192-8c814057ec47` is active with record version 2, and the
+same route check now passes in under a second. Full flight qualification follows.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2556,7 +2560,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Prepare an admitted current aviation dataset release and finish mission, Stream, Reason and composed timing acceptance | Revision `f1a55ddc` converged. Public installation verification, all 26 Datasheet hosted checks, current RFC UUID timestamps and Task/catalog/usage reads pass. Every installed sensor validator stays healthy after landing; re-arming and takeoff pass. Map then refuses routing because the operator catalog has no datasets or active releases. Postflight landing and cleanup completed; cluster stopped |
+| Phase 1 reference reset | `examples/bioma/README.md` | Finish mission, Stream, Reason and composed timing acceptance with the admitted aviation release | Revision `f1a55ddc` converged. Public installation verification, all 26 Datasheet hosted checks, current RFC UUID timestamps and Task/catalog/usage reads pass. Every installed sensor validator stays healthy after landing; re-arming and takeoff pass. The aviation fixture has now been acquired with its pinned digest and activated through Map; installed route preflight passes. Full composed acceptance remains |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |
