@@ -286,6 +286,18 @@ mod tests {
     }
 
     #[test]
+    fn committed_installation_selections_match_their_control_planes() {
+        let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        for relative in [
+            "examples/bioma/installation-target.json",
+            "testing/fixtures/fork-installation/installation-target.json",
+        ] {
+            InstalledTarget::load(&repository.join(relative))
+                .unwrap_or_else(|error| panic!("{relative}: {error:#}"));
+        }
+    }
+
+    #[test]
     fn installation_identity_comes_from_the_selected_control_plane() {
         let (target, control) = fixture();
         let expected_key = control.authorization_servers[0].access_token_key_id.clone();
