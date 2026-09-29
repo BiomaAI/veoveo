@@ -947,6 +947,7 @@ admission and recovery synchronize the local worker inventory in
 | `servers/optimization-mcp/src/bin/server/` | MCP tasks, GPU queue, problem/run/solution resources, artifact publication, prompts, and identity |
 | `servers/optimization-mcp/src/bin/server/setup.rs` | checked MCP startup and discovery, typed descriptors, App metadata and RFC 6570 templates |
 | `servers/optimization-mcp/src/reads.rs` | domain-owned SQL selection under matching owner envelopes and Work Context metadata, typed exact lookup, stable pagination and completion search |
+| `servers/optimization-mcp/tests/reads.rs` | native SQL qualification of page and completion limits, denied malformed rows, current ownership, Work Context and clearance |
 | `servers/optimization-mcp/src/task_records.rs` | runtime-only retained solve and verification requests shared by readers and MCP Task execution |
 | `servers/optimization-mcp/src/usage.rs` | usage pages and exact reads through TaskRuntime SQL with current owner and Work Context checks |
 | `deploy/contract/src/lib.rs` | portable Optimization capability, Optimization image closure, and mandatory `cuopt-executor` GPU scheduling declaration |

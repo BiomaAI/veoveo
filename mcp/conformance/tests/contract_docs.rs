@@ -150,25 +150,6 @@ fn every_rust_streamable_server_enforces_the_serialized_response_budget() {
 }
 
 #[test]
-fn optimization_completion_discovery_is_bounded_at_the_store() {
-    let root = repository_root();
-    let service =
-        fs::read_to_string(root.join("servers/optimization-mcp/src/bin/server/service.rs"))
-            .unwrap();
-    let index =
-        fs::read_to_string(root.join("servers/optimization-mcp/src/bin/server/index.rs")).unwrap();
-
-    assert!(
-        !service.contains("async fn visible_tasks("),
-        "Optimization completions must not load the full task collection"
-    );
-    assert!(
-        index.contains("COMPLETION_QUERY") && index.contains("LIMIT $limit"),
-        "Optimization completion lookup must use a bounded store query"
-    );
-}
-
-#[test]
 fn every_server_crate_carries_its_contract_documents() {
     let mut dirs = discovered_server_dirs();
     dirs.push(repository_root().join("templates/python-mcp"));

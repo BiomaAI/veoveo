@@ -363,6 +363,9 @@ installation tenants. Selected malformed records fail explicitly. Typed domain I
 reach driver binding, and collection builders preserve version 1 cursor bytes while
 checking native Task identity and collection membership. MCP handlers use these readers;
 the binary's separate query and retained-request modules are removed.
+Optimization's native database tests own completion bounds and selection behavior.
+The generic conformance suite's obsolete source-text probe of the removed binary
+index module is removed; domain SQL assertions stay in their owning harness.
 Thirty-nine Optimization cases and three compile-fail examples pass, including denied
 rows ahead of full pages, changed clearance between continuations, mismatched ownership
 fields and malformed selected results. Ten expanded SELECT forms pass the pinned

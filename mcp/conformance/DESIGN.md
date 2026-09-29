@@ -22,7 +22,8 @@ typed report. The CLI reads and writes the same JSON contracts.
 
 The hosted runner uses shared MCP protocol and Veoveo contract infrastructure without
 a compiled registry of domains. Other protocol utilities can consume server-owned
-contract features. Domain lifecycle smoke belongs to the component that owns the domain.
+contract features. Domain lifecycle smoke and database selection tests belong to the
+component that owns the domain.
 
 The `modular_server` integration test hosts the independent
 [`modular-mcp` fixture](../../testing/fixtures/modular-mcp/DESIGN.md), which is a
