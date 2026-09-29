@@ -194,7 +194,13 @@ validation failure, or worker failure removes partial output and releases its re
 
 Receipts persist the actor, one-recording projection grant, idempotency key, manifest
 digest, query digest, result identity, state, and expiry. Reusing a key for a different
-request conflicts. A ready download rechecks the file length and SHA-256 before streaming.
+request conflicts. Download admission uses a typed Store scope with the current tenant,
+actor, Work Context, policy revision and data-label clearance. SQL selects a ready,
+unexpired receipt for exactly the requested Recording. The same query checks current
+Recording visibility, its dataset, and the matching unexpired App projection grant,
+including its actor, context, policy, dataset, recording set and catalog revision.
+Denied rows never reach Rust decoding or scratch access. An admitted download rechecks
+the file length and SHA-256 before streaming.
 
 The Gateway and Console BFF keep authorization and routes outside the opaque App frame.
 The Console host extension `veoveo/recordings/projection-stream` accepts only the exact

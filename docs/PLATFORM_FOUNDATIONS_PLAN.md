@@ -1092,6 +1092,26 @@ safe to remove. Reference workloads stay stopped, no fixture containers remain, 
 about 36 GiB is free. Broader Recording DTO relationships and installed acceptance
 remain open.
 
+OCI cleanup retired ten obsolete image tags and 309 old chart versions. Offline
+registry garbage collection reclaimed 16.68 GiB after its dry run matched the reviewed
+manifest closure. All 224 retained manifests, 848 layer links and 82 tags were verified
+through the registry afterward. Current checkout, origin/main, retained publication,
+dependency images and registry build caches were protected. BuildKit and Rust caches
+were untouched; the registry and reference cluster are stopped, with about 52 GiB free.
+
+Recording projection downloads now use a typed Store scope for tenant, actor, Work
+Context, policy revision and data labels. SQL selects the ready, unexpired receipt and
+checks its single Recording parent, current label visibility, dataset and App projection
+grant relationships before Rust decodes it or opens scratch. The two native catalog
+query tests pass, including malformed denied receipts, changed caller authority, expired
+or inconsistent grants, deleted parents and admitted file length/digest validation.
+Projection persistence is a focused Store module; all ten extracted lifecycle and
+helper functions preserve their implementation. The full Recording suite passes 51
+cases, including the official Redap read profile. Runtime-only compilation, strict
+workspace Clippy, formatting, document links and identifier checks pass. Dataset/layer
+identity types, broader playback/projection construction, reservation/lifecycle SQL
+admission and installed acceptance remain open.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1607,7 +1627,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Governed references import Map, Frames, Recording and Artifact URI types, and source features must belong to a declared Map release. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions | Strengthen dataset/layer identities and playback/projection relationships; qualify installed behavior |
+| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream/UAV/View references use those types. Smoke clients reuse the owner for CLI admission, replay construction and capture results. SQL cursor conversion stays at the query call; MCP core imports neither package. Checked MCP setup owns static discovery and both registrations declare revision 3; typed `recording:seal` admission preserves gateway administrator restrictions. Projection downloads select current caller authority, source visibility and grant relationships in SQL before receipt decoding | Complete dataset/layer identities, playback/projection relationships and reservation/lifecycle SQL admission; qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 

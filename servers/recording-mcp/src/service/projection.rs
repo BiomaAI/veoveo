@@ -18,9 +18,10 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio_util::sync::CancellationToken;
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 use veoveo_platform_store::{
-    RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReceiptDraft,
-    RecordingProjectionReceiptId, RecordingProjectionReceiptRecord, RecordingProjectionState,
-    RecordingReadGrantClass, RecordingReadGrantId,
+    RecordId, RecordIdKey, RecordingDatasetId, RecordingId, RecordingProjectionReadScope,
+    RecordingProjectionReceiptDraft, RecordingProjectionReceiptId,
+    RecordingProjectionReceiptRecord, RecordingProjectionState, RecordingReadGrantClass,
+    RecordingReadGrantId,
 };
 use veoveo_rrd::projection::{
     MAX_PROJECTION_BYTES, MAX_PROJECTION_COMPONENTS, MAX_PROJECTION_ENTITIES, MAX_PROJECTION_ROWS,
@@ -502,20 +503,23 @@ impl RecordingService {
             .as_ref()
             .context("recording projection runtime is not configured")?;
         let platform_identity = self.platform_identity(identity).await?;
+        let scope = RecordingProjectionReadScope {
+            tenant_id: platform_identity.tenant_id,
+            actor_id: platform_identity.principal_id,
+            work_context_id: veoveo_platform_store::deterministic_work_context_id(
+                &platform_identity.tenant_key,
+                identity.authority.work_context.as_str(),
+            )?,
+            policy_revision: identity.authority.policy_revision.clone(),
+            data_labels: identity.actor.data_labels.clone(),
+        };
         let Some(receipt) = self
             .store
-            .recording_projection_receipt(platform_identity.tenant_id, projection_id)
+            .ready_recording_projection(&scope, recording_id, projection_id)
             .await?
         else {
             return Ok(None);
         };
-        if receipt.actor != platform_identity.principal_id.record_id()
-            || receipt.recordings.as_slice() != [recording_id.record_id()]
-            || receipt.state != RecordingProjectionState::Ready
-            || receipt.expires_at <= Utc::now()
-        {
-            return Ok(None);
-        }
         let byte_len = u64::try_from(
             receipt
                 .result_byte_len

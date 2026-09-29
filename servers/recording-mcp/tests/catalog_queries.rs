@@ -27,6 +27,8 @@ use veoveo_types::{InvocationAuthority, WorkContextMembershipLevel, WorkContextO
 
 #[path = "../../../testing/fixtures/store.rs"]
 mod fixture;
+#[path = "catalog_queries/projections.rs"]
+mod projections;
 
 fn identity(tenant: &str, name: &str, labels: &[&str]) -> GatewayInternalIdentity {
     let principal = PrincipalId::new(name).unwrap();
