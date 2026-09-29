@@ -118,8 +118,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 <!-- TODO(foundations): Finish composed flight and installed workload acceptance.
 GitOps convergence, installation-verify and hosted certification pass. PX4 reports
-healthy barometers but stale gyroscope and magnetometer inputs after landing;
-qualify the complete stationary HIL sensor model before another flight run. -->
+stale gyroscope and magnetometer inputs in the deployed runtime after landing.
+The complete model passes native CUDA/PX4 health qualification; deploy it and
+qualify composed timing and flight. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's

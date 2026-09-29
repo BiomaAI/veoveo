@@ -219,7 +219,7 @@ class Px4Commander:
             if self._mission_interrupt.is_set():
                 raise RuntimeError(f"mission on {self.vehicle_id} was interrupted")
             if not self._armed:
-                self._arm_when_ready_locked()
+                self._arm_locked(CommandDeadline.after(ARM_READINESS_TIMEOUT_SECONDS))
 
             deadline = (
                 None if timeout_seconds is None else time.monotonic() + timeout_seconds

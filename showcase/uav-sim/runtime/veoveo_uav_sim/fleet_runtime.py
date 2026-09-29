@@ -11,6 +11,7 @@ from .vehicle_spec import (
     PX4_HIL_HZ,
     PX4_IRIS_SENSOR_CADENCE,
     VehicleSnapshot,
+    decode_hil_packet,
 )
 
 
@@ -285,38 +286,10 @@ class WarpFleetRuntime:
         frames: list[HilSensorFrame] = []
         snapshots: list[VehicleSnapshot] = []
         for row in self._packet_host_values:
-            values = tuple(float(value) for value in row)
-            if not all(math.isfinite(value) for value in values):
-                raise RuntimeError("CUDA UAV sensor packet contains a non-finite value")
-            acceleration = values[13:16]
-            angular_velocity = values[10:13]
-            snapshots.append(
-                VehicleSnapshot(
-                    position_enu_m=values[0:3],
-                    attitude_xyzw=values[3:7],
-                    linear_velocity_enu_mps=values[7:10],
-                    angular_velocity_frd_rps=angular_velocity,
-                    linear_acceleration_frd_mps2=acceleration,
-                )
+            frame, snapshot = decode_hil_packet(
+                row, time_usec=time_usec, fields_updated=fields_updated,
+                gps_updated=gps_updated,
             )
-            frames.append(
-                HilSensorFrame(
-                    time_usec=time_usec,
-                    fields_updated=fields_updated,
-                    gps_updated=gps_updated,
-                    acceleration_frd_mps2=acceleration,
-                    angular_velocity_frd_rps=angular_velocity,
-                    magnetic_field_frd_gauss=values[16:19],
-                    absolute_pressure_hpa=values[19],
-                    differential_pressure_hpa=0.0,
-                    pressure_altitude_m=values[20],
-                    temperature_celsius=values[21],
-                    latitude_degrees=values[22],
-                    longitude_degrees=values[23],
-                    altitude_m=values[24],
-                    velocity_ned_mps=values[25:28],
-                    ground_speed_mps=values[28],
-                    course_over_ground_degrees=values[29],
-                )
-            )
+            frames.append(frame)
+            snapshots.append(snapshot)
         return tuple(frames), tuple(snapshots)

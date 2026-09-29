@@ -3,6 +3,7 @@ from __future__ import annotations
 import warp as wp
 
 from .vehicle_spec import (
+    HIL_PACKET_WIDTH,
     PX4_IRIS_DIAGONAL_INERTIA_KG_M2,
     PX4_IRIS_LINEAR_DRAG_FLU_NS_M,
     PX4_IRIS_MASS_KG,
@@ -15,7 +16,7 @@ from .vehicle_spec import (
 )
 
 
-PACKET_WIDTH = 30
+PACKET_WIDTH = HIL_PACKET_WIDTH
 MOTOR_CONSTANT = wp.constant(PX4_IRIS_MOTOR_CONSTANT)
 YAW_MOMENT_COEFFICIENT = wp.constant(PX4_IRIS_YAW_MOMENT_COEFFICIENT)
 TIME_CONSTANT_UP_S = wp.constant(PX4_IRIS_TIME_CONSTANT_UP_S)
@@ -30,7 +31,8 @@ GRAVITY_MPS2 = wp.constant(9.80665)
 LAUNCH_SURFACE_CENTER_UP_M = wp.constant(0.04)
 GROUND_FRICTION_PER_SECOND = wp.constant(8.0)
 BAROMETER_NOISE_STDDEV_HPA = wp.constant(0.01)
-BAROMETER_NOISE_SEED = wp.constant(1234)
+SENSOR_NOISE_SEED = wp.constant(1234)
+POWERED_THRUST_EPSILON_N = wp.constant(1.1920928955078125e-7)
 ROTOR_0_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][0])
 ROTOR_0_Y = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[0][1])
 ROTOR_1_X = wp.constant(PX4_IRIS_ROTOR_POSITIONS_FLU_M[1][0])
@@ -177,10 +179,15 @@ def advance_fleet_and_sample_hil(
     altitude = origin_altitude_m + up
     temperature_kelvin = wp.max(180.0, 288.15 - 0.0065 * altitude)
     pressure_hpa = 1013.25 / wp.pow(288.15 / temperature_kelvin, 5.2561)
-    # Match PX4's simulated barometer: 1 Pa RMS Gaussian measurement noise.
-    # Each vehicle/step has a reproducible sample; body and GPS truth stay exact.
-    noise_state = wp.rand_init(BAROMETER_NOISE_SEED + vehicle, physics_step)
+    # Reproducible measurement noise follows the pinned PX4 simulation profiles.
+    # All nine vector axes draw independent samples; dynamics and truth stay separate.
+    noise_state = wp.rand_init(SENSOR_NOISE_SEED + vehicle, physics_step)
     pressure_hpa += BAROMETER_NOISE_STDDEV_HPA * wp.randn(noise_state)
+    accel_std = wp.vec3(0.1, 0.1, 0.1)
+    gyro_std = wp.vec3(0.01, 0.01, 0.01)
+    if force_0 + force_1 + force_2 + force_3 > POWERED_THRUST_EPSILON_N:
+        accel_std = wp.vec3(0.5, 1.7, 1.4)
+        gyro_std = wp.vec3(0.14, 0.07, 0.03)
     latitude = origin_latitude_degrees + north / meters_per_degree_latitude
     longitude = origin_longitude_degrees + east / meters_per_degree_longitude
     ground_speed = wp.sqrt(
@@ -207,9 +214,9 @@ def advance_fleet_and_sample_hil(
     packet[vehicle, 13] = acceleration_flu[0]
     packet[vehicle, 14] = -acceleration_flu[1]
     packet[vehicle, 15] = -acceleration_flu[2]
-    packet[vehicle, 16] = magnetic_flu[0]
-    packet[vehicle, 17] = -magnetic_flu[1]
-    packet[vehicle, 18] = -magnetic_flu[2]
+    packet[vehicle, 16] = magnetic_flu[0] + 0.02 * wp.randn(noise_state)
+    packet[vehicle, 17] = -magnetic_flu[1] + 0.02 * wp.randn(noise_state)
+    packet[vehicle, 18] = -magnetic_flu[2] + 0.03 * wp.randn(noise_state)
     packet[vehicle, 19] = pressure_hpa
     packet[vehicle, 20] = altitude
     packet[vehicle, 21] = temperature_kelvin - 273.15
@@ -221,6 +228,13 @@ def advance_fleet_and_sample_hil(
     packet[vehicle, 27] = -linear_velocity[2]
     packet[vehicle, 28] = ground_speed
     packet[vehicle, 29] = course
+    # These are measured IMU values; slots 10–15 retain the body truth.
+    packet[vehicle, 30] = angular_flu[0] + gyro_std[0] * wp.randn(noise_state)
+    packet[vehicle, 31] = -angular_flu[1] + gyro_std[1] * wp.randn(noise_state)
+    packet[vehicle, 32] = -angular_flu[2] + gyro_std[2] * wp.randn(noise_state)
+    packet[vehicle, 33] = acceleration_flu[0] + accel_std[0] * wp.randn(noise_state)
+    packet[vehicle, 34] = -acceleration_flu[1] + accel_std[1] * wp.randn(noise_state)
+    packet[vehicle, 35] = -acceleration_flu[2] + accel_std[2] * wp.randn(noise_state)
 
     previous_linear_velocity_enu[vehicle, 0] = linear_velocity[0]
     previous_linear_velocity_enu[vehicle, 1] = linear_velocity[1]

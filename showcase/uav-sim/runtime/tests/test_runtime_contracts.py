@@ -90,6 +90,7 @@ from veoveo_uav_sim.vehicle_spec import (
     PX4_IRIS_YAW_MOMENT_COEFFICIENT,
     SensorCadence,
     decode_actuator_controls,
+    decode_hil_packet,
 )
 from veoveo_uav_sim.world_config import (
     GeoreferenceOrigin,
@@ -1245,6 +1246,11 @@ class NativeCadenceTests(unittest.TestCase):
 
 
 class Px4HilPlantContractTests(unittest.TestCase):
+    def test_hil_packet_rejects_missing_and_nonfinite_measurements(self) -> None:
+        for packet in ([0.0] * 30, [0.0] * 35 + [float("nan")]):
+            with self.assertRaisesRegex(ValueError, "36 finite values"):
+                decode_hil_packet(packet, time_usec=1, fields_updated=8191, gps_updated=True)
+
     def test_yaw_coefficient_matches_pinned_px4_iris_contract(self) -> None:
         self.assertEqual(PX4_IRIS_MOTOR_CONSTANT, 5.84e-6)
         self.assertEqual(PX4_IRIS_MOMENT_CONSTANT, 0.06)

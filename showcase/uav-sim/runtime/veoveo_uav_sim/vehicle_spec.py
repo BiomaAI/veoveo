@@ -23,6 +23,7 @@ PX4_IRIS_TIME_CONSTANT_UP_S = 0.0125
 PX4_IRIS_TIME_CONSTANT_DOWN_S = 0.025
 PX4_IRIS_LINEAR_DRAG_FLU_NS_M = (0.50, 0.30, 0.0)
 PX4_HIL_HZ = 60
+HIL_PACKET_WIDTH = 36
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,6 +103,31 @@ class HilSensorFrame:
     eph_m: float = 1.0
     epv_m: float = 1.0
     satellites_visible: int = 10
+
+
+def decode_hil_packet(
+    packet: Sequence[float], *, time_usec: int, fields_updated: int, gps_updated: bool
+) -> tuple[HilSensorFrame, VehicleSnapshot]:
+    """Decode CUDA truth and measured IMU fields into their separate contracts."""
+    values = tuple(float(value) for value in packet)
+    if len(values) != HIL_PACKET_WIDTH or not all(math.isfinite(value) for value in values):
+        raise ValueError("CUDA UAV sensor packet must contain 36 finite values")
+    snapshot = VehicleSnapshot(
+        position_enu_m=values[0:3], attitude_xyzw=values[3:7],
+        linear_velocity_enu_mps=values[7:10], angular_velocity_frd_rps=values[10:13],
+        linear_acceleration_frd_mps2=values[13:16],
+    )
+    frame = HilSensorFrame(
+        time_usec=time_usec, fields_updated=fields_updated, gps_updated=gps_updated,
+        angular_velocity_frd_rps=values[30:33], acceleration_frd_mps2=values[33:36],
+        magnetic_field_frd_gauss=values[16:19], absolute_pressure_hpa=values[19],
+        differential_pressure_hpa=0.0, pressure_altitude_m=values[20],
+        temperature_celsius=values[21], latitude_degrees=values[22],
+        longitude_degrees=values[23], altitude_m=values[24],
+        velocity_ned_mps=values[25:28], ground_speed_mps=values[28],
+        course_over_ground_degrees=values[29],
+    )
+    return frame, snapshot
 
 
 def decode_actuator_controls(

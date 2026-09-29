@@ -117,6 +117,17 @@ class Px4CommandDeadlineTests(unittest.TestCase):
             }))
         self.assertEqual(takeoff.call_args.kwargs["deadline"].remaining(), 50.0)
 
+    def test_mission_admission_has_a_bounded_arming_deadline(self) -> None:
+        def receive(*, blocking: bool, timeout: float):
+            self.now += timeout
+            return None
+
+        self.connection.recv_match.side_effect = receive
+        with self.assertRaisesRegex(TimeoutError, "acknowledge"):
+            self.commander.execute_mission(())
+        self.assertEqual(self.now, 115.0)
+        self.assertEqual(self.connection.mav.command_long_send.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

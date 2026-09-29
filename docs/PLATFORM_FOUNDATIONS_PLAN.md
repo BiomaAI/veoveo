@@ -69,6 +69,15 @@ qualification before another installed run. The runtime had no container restart
 UAV 1 settled in standby while the other three vehicles kept flying. Startup MAVLink
 poll timeouts remain a separate timing concern. The reference cluster is stopped
 after collecting diagnostics.
+The next runtime batch separates measured IMU fields from vehicle truth and completes
+stationary and powered gyroscope, accelerometer and magnetometer noise using the
+pinned PX4 simulation profiles. All 124 runtime unit checks pass. RTX 4090 checks
+qualify the distributions, independent vehicle/axis samples, repeatability and unchanged
+truth. A native pinned PX4 process consumes the CUDA plant through the production HIL
+bridge; all five gyro, accel, mag and barometer validators report OK at 15 and 30 seconds,
+with no failsafe or IMU data gaps. This avoids a full installation cycle to discover each
+stationary sensor defect. The batch also fixes mission admission's missing arming
+deadline. Composed rendering, timing and flight still require installed qualification.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2523,7 +2532,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Qualify the complete stationary HIL sensor model and simulator timing, then finish composed flight and installed workload acceptance | Revision `481ee4d2` converged and public installation verification passed. Datasheet passes all 26 hosted checks and its public Task/catalog path. UAV landing succeeded, but PX4 refused re-arming; the adapter returned its 409 command deadline. PX4 reports BARO healthy and GYRO/MAG stale. No takeoff retry was issued. Native GPU and PX4 sensor-health checks must cover inertial and magnetic measurements together before another installed run |
+| Phase 1 reference reset | `examples/bioma/README.md` | Install the qualified stationary HIL model, qualify composed simulator timing, and finish flight and installed workload acceptance | Revision `481ee4d2` converged and public installation verification passed. Datasheet passes all 26 hosted checks and its public Task/catalog path. UAV landing succeeded, but PX4 refused re-arming; the adapter returned its 409 command deadline. PX4 reports BARO healthy and GYRO/MAG stale. No takeoff retry was issued. Native RTX 4090 and pinned PX4 checks now qualify all stationary sensor channels together, with healthy validators at 15 and 30 seconds; composed installed qualification remains |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

@@ -631,13 +631,28 @@ bounded physics debt and coalesces missed visual deadlines into one render of th
 authoritative state. RTX, Cesium, NVENC, H.264 delivery, Recording, and Rerun work can reduce
 presentation cadence under load, but none of them changes the simulation clock.
 
-The Warp plant adds seeded Gaussian barometer measurement noise with a standard
-deviation of 1 Pa, matching the pressure-noise term in the pinned
-[PX4 simulator](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_baro_sim/SensorBaroSim.cpp).
-Vehicle identity and physics step select the CUDA random sample. Body position and
-GPS truth remain independent of that measurement. PX4's sensor validator treats a
-long sequence of identical pressure readings as a stuck sensor, including while
-landed. The model supplies measurement variance without disabling that health check.
+The Warp plant generates independent Gaussian HIL measurement noise on CUDA.
+Vehicle identity and physics step seed reproducible samples. The packet carries
+separate measured IMU fields and body truth; the decoder exposes measurements to PX4
+and truth to vehicle snapshots. Noise cannot change dynamics, pose or GPS truth.
+PX4's validators keep their stuck-sensor checks active while the vehicle is landed.
+The standard deviations follow the pinned PX4 simulators:
+
+| Measurement | Standard deviation per sample | PX4 source |
+|---|---|---|
+| Barometer | 1 Pa | [SensorBaroSim](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_baro_sim/SensorBaroSim.cpp) |
+| Gyroscope, unpowered | 0.01 rad/s on each axis | [SIH](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/simulator_sih/sih.cpp) |
+| Gyroscope, powered | (0.14, 0.07, 0.03) rad/s, FRD | SIH |
+| Accelerometer, unpowered | 0.1 m/s² on each axis | SIH |
+| Accelerometer, powered | (0.5, 1.7, 1.4) m/s², FRD | SIH |
+| Magnetometer | (0.02, 0.02, 0.03) Gauss, FRD | [SensorMagSim](https://github.com/PX4/PX4-Autopilot/blob/d6f12ad1c4f70ad3230afd7d86e971421e02fef4/src/modules/simulation/sensor_mag_sim/SensorMagSim.cpp) |
+
+The powered profile applies when total rotor thrust exceeds single-precision epsilon,
+matching SIH. Hardware CUDA checks cover sample distributions, independent axes and
+vehicles, repeatability and unchanged truth. A separate native PX4 harness feeds the
+same plant through the production HIL bridge and checks every sensor validator after
+15 and 30 seconds. It requires the pinned patched PX4 binary and owns its temporary
+process and storage. Installed flight acceptance also qualifies the composed runtime.
 
 Direct vehicle commands share a 75-second runtime deadline across fleet takeover,
 commander lock acquisition, mode transition, arming and command acknowledgement.
