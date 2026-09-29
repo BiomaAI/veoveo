@@ -1087,6 +1087,12 @@ client allowlists plus Console scope requests include the new domain permission.
 is a coordinated hard cut with fresh tokens; the service accepts no broad-admin alias.
 Reference, local and catalog-fixture registrations declare revision 3 with static
 resource discovery. The reference configuration checksum matches its rendered bundle.
+Reference and local admin policies separate ordinary Recording reads and projections
+from sealing and its prompt. The extra `recording:seal` scope gates only the sealing
+rule; profile, administrator authority and service-principal checks still apply.
+Four App exposure cases pass, including 80 human/service policy decisions covering
+the separate permissions and denied subjects, scopes and profiles. Helm configuration
+checks pass with the updated gateway bundle digest. Installed acceptance is pending.
 
 Native qualification passes 50 cases, including the official Redap read profile,
 all four template expansions and tenant/label/lifecycle rejection after scope admission.

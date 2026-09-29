@@ -5135,8 +5135,7 @@
             "recording"
           ],
           "tools": [
-            "create_recording_projection",
-            "seal_recording"
+            "create_recording_projection"
           ],
           "resource_schemes": [
             "recording",
@@ -5144,7 +5143,40 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-project",
+            "recording-project"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage"
+          ],
+          "tenant_ids": [
+            "bioma"
+          ],
+          "roles": [
+            "administrator"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_recording_seal",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "seal_recording"
+          ],
+          "prompts": [
             "recording-seal"
           ],
           "required_scopes": [
@@ -5759,8 +5791,7 @@
             "recording"
           ],
           "tools": [
-            "create_recording_projection",
-            "seal_recording"
+            "create_recording_projection"
           ],
           "resource_schemes": [
             "recording",
@@ -5768,7 +5799,37 @@
           ],
           "prompts": [
             "recording-inspect",
-            "recording-project",
+            "recording-project"
+          ],
+          "principal_ids": [
+            "https://veoveo.bioma.ai/oauth#admin-service"
+          ],
+          "required_scopes": [
+            "operator:use",
+            "admin:manage"
+          ],
+          "metadata": {}
+        },
+        {
+          "id": "allow_admin_service_recording_seal",
+          "effect": "allow",
+          "actions": [
+            "tools_list",
+            "tools_call",
+            "prompts_list",
+            "prompts_get",
+            "completion_complete"
+          ],
+          "profiles": [
+            "admin"
+          ],
+          "servers": [
+            "recording"
+          ],
+          "tools": [
+            "seal_recording"
+          ],
+          "prompts": [
             "recording-seal"
           ],
           "principal_ids": [

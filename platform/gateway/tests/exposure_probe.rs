@@ -1,11 +1,12 @@
 use std::{collections::BTreeSet, path::Path};
 
 use veoveo_mcp_contract::{
-    GatewayAction, GatewayProfileId, PolicyEffect, PolicyTarget, Principal, PrincipalKind,
-    ServerSlug, TokenIssuer, TokenSubject, TraceId,
+    GatewayAction, GatewayProfileId, LocalToolName, PolicyEffect, PolicyTarget, Principal,
+    PrincipalKind, PromptName, ServerSlug, TokenIssuer, TokenSubject, TraceId,
 };
 use veoveo_mcp_gateway::{GatewayCatalog, PolicyRequest, www_authenticate_challenge};
-use veoveo_types::{PrincipalId, ResourceUri, RoleId, ScopeName, TenantId};
+use veoveo_recording_mcp::contract::RecordingScope;
+use veoveo_types::{PrincipalId, ResourceUri, RoleId, ScopeDefinition, ScopeName, TenantId};
 
 const LOCAL_CONTROL_PLANE: &str = "../../configs/gateway.local.json";
 
@@ -94,6 +95,147 @@ fn local_console_profiles_authorize_every_release_target_app_resource() {
                 "{uri} is projected but policy denied it for {profile_name}: {decision:?}"
             );
         }
+    }
+}
+
+#[test]
+fn local_recording_reads_and_sealing_have_separate_permissions() {
+    let catalog =
+        GatewayCatalog::load_json(Path::new(LOCAL_CONTROL_PLANE)).expect("load control plane");
+    let admin = GatewayProfileId::new("admin").unwrap();
+    let operator = GatewayProfileId::new("operator").unwrap();
+    for (kind, id, roles) in [
+        (
+            PrincipalKind::User,
+            "app-acceptance@example.com",
+            BTreeSet::from([RoleId::new("administrator").unwrap()]),
+        ),
+        (
+            PrincipalKind::Service,
+            "https://veoveo.example/oauth#admin-service",
+            BTreeSet::new(),
+        ),
+    ] {
+        let mut principal = Principal {
+            id: PrincipalId::new(id).unwrap(),
+            kind,
+            issuer: TokenIssuer::new("https://veoveo.example/oauth").unwrap(),
+            subject: TokenSubject::new("recording-acceptance").unwrap(),
+            tenant: Some(TenantId::new("enterprise").unwrap()),
+            groups: BTreeSet::new(),
+            group_roles: BTreeSet::new(),
+            roles,
+            scopes: catalog
+                .profile(&admin)
+                .unwrap()
+                .required_scopes
+                .iter()
+                .cloned()
+                .collect(),
+            data_labels: BTreeSet::new(),
+            assurances: BTreeSet::new(),
+            authenticated_at: None,
+        };
+        assert_recording_permissions(
+            &catalog,
+            &principal,
+            &admin,
+            PolicyEffect::Allow,
+            PolicyEffect::Deny,
+        );
+        principal.scopes.insert(RecordingScope::Seal.name().clone());
+        assert_recording_permissions(
+            &catalog,
+            &principal,
+            &admin,
+            PolicyEffect::Allow,
+            PolicyEffect::Allow,
+        );
+
+        let mut missing_admin_scope = principal.clone();
+        missing_admin_scope
+            .scopes
+            .remove(&ScopeName::new("admin:manage").unwrap());
+        assert_recording_permissions(
+            &catalog,
+            &missing_admin_scope,
+            &admin,
+            PolicyEffect::Deny,
+            PolicyEffect::Deny,
+        );
+
+        let mut wrong_subject = principal.clone();
+        wrong_subject.id = PrincipalId::new("unregistered-service").unwrap();
+        wrong_subject.roles.clear();
+        assert_recording_permissions(
+            &catalog,
+            &wrong_subject,
+            &admin,
+            PolicyEffect::Deny,
+            PolicyEffect::Deny,
+        );
+
+        principal.roles.insert(RoleId::new("operator").unwrap());
+        principal.scopes.extend(
+            catalog
+                .profile(&operator)
+                .unwrap()
+                .required_scopes
+                .iter()
+                .cloned(),
+        );
+        assert_recording_permissions(
+            &catalog,
+            &principal,
+            &operator,
+            PolicyEffect::Allow,
+            PolicyEffect::Deny,
+        );
+    }
+}
+
+fn assert_recording_permissions(
+    catalog: &GatewayCatalog,
+    principal: &Principal,
+    profile: &GatewayProfileId,
+    ordinary: PolicyEffect,
+    sealing: PolicyEffect,
+) {
+    let server = ServerSlug::new("recording").unwrap();
+    let app = PolicyTarget::Resource {
+        server: server.clone(),
+        uri: ResourceUri::new("ui://recording/explorer.html").unwrap(),
+    };
+    let projection = PolicyTarget::Tool {
+        server: server.clone(),
+        tool: LocalToolName::new("create_recording_projection").unwrap(),
+    };
+    let seal = PolicyTarget::Tool {
+        server: server.clone(),
+        tool: LocalToolName::new("seal_recording").unwrap(),
+    };
+    let prompt = PolicyTarget::Prompt {
+        server,
+        prompt: PromptName::new("recording-seal").unwrap(),
+    };
+    for (action, target, expected) in [
+        (GatewayAction::ResourcesList, &app, ordinary),
+        (GatewayAction::ResourcesRead, &app, ordinary),
+        (GatewayAction::ToolsList, &projection, ordinary),
+        (GatewayAction::ToolsCall, &projection, ordinary),
+        (GatewayAction::ToolsList, &seal, sealing),
+        (GatewayAction::ToolsCall, &seal, sealing),
+        (GatewayAction::PromptsList, &prompt, sealing),
+        (GatewayAction::PromptsGet, &prompt, sealing),
+    ] {
+        let decision = catalog.decide(PolicyRequest {
+            principal,
+            profile,
+            action,
+            target,
+            trace_id: &TraceId::new("recording-permission-acceptance").unwrap(),
+        });
+        assert_eq!(decision.effect, expected, "{decision:?}");
     }
 }
 

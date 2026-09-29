@@ -104,10 +104,12 @@ static discovery. Subscription admission accepts the catalog root, recording met
 and layer addresses; it excludes documents, catalog pages and unrelated Task handles.
 
 The shared Recording contract owns `RecordingScope::Seal`, serialized as
-`recording:seal`. The service checks that typed permission before reading or mutating
+`recording:seal`. Sealing checks that typed permission before reading or mutating
 Recording state, then applies the ordinary SQL visibility and lifecycle checks.
-Gateway rules additionally require the administrator profile, `operator:use` and
-`admin:manage`, with their existing role or service-principal constraints. Console's
+The reference and local gateway policies bind sealing to the administrator profile,
+`operator:use` and `admin:manage`, with role or service-principal constraints.
+Separate rules admit ordinary admin reads and projections with those profile and
+identity checks; sealing and its prompt additionally require `recording:seal`. Console's
 configured scope request and the administrator clients' allowlists include the domain
 permission. Possessing a parsed scope value establishes no grant.
 
