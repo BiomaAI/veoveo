@@ -2,10 +2,10 @@
   "keys": [
     {
       "kty": "RSA",
-      "kid": "recording-hub-2026",
+      "kid": "bioma-recording-hub-20260929",
       "use": "sig",
       "alg": "RS256",
-      "n": "n-JbrtaqB40v_uvfWwJKdKmysHjRVq0ZeCWNEVVl8P1ecpnzVoBCJeEzjOrLzSVCDrzQlun1bGhs6dPgjitVHiRMeYfrMkI3SSxgHCkMxyErvQIUB2VAJxInYNcG-nF3OxCBLV14t6j7OzKV1L-1Q3abd3nZk5O6aDgXf1KwDUrHuv1MClofuiq2CzmSnRzNFKC2sgVBVEcv4uS-BaZxHLr2PzJilv5U7oja-3V0qHQu4tFJkjckDvtJVlG2ZSS0cENmnhYnCPNF8oO15EODhCCDFE9nzLOzxnM_VJRlen47bqvDP4m16Bi0Vm2QVUHiIwVFUEIqiUnl0oBkol2FqoB_yuZAX6QQ966hFWTDfoHCfq71FPhpaK3rkkTZwTuosnN-DzaYU3O1PgvxbIjOlLuB_zy_GvviiK1hfimOqmdVUCrCmd5ec7eSocqDvz-dAvC1Af_ZqeV6akxiTlEk_S65ao2HTbvxLkcrnybns1dHMZgGS4DLp_EC7aWMgGtB",
+      "n": "zoBfOjtyXuFLt-pGqKN2-vtR7QnB1swi3pEHeuDcty2_Cm4xaEN6pd62pU-nIaLlVv-whDTSVzRouGLUHIWNbEq-5g6eZj0bZNoyQNIWm47i0Zh7smMs630y4sTph8A6jfjgqGGSwByc_P0JGAX3ddvAjmbs5_pDzxNGG3SmN3nQTu1jxpxpN6hXYRRkq4Aly46ccKzD0Nfw2dr_NclUcMqNGPCuSEgz5UqqzvQgvZU_iurccIakWZQKNSlxD9J761T_DhcWeAxZVOq7dSq414qo5Lys-WwLyBQk8qhVomO8A2knNolDGrWhQEEZcxnC9bb0shE3nKLyE5ta0HB7rLTnUijf-oSwNMe-3x5EV4Q2c1-khmyeSVowMQH_uIuBKmyL7zyRF2Dp-Ap9BMSVsBcqyQmsQRAKPXZHmHbMhgVtj14L6MAFVMLucqtHCu7hqpiFencoqISQLrP-2l7QB6KaF7T5dhn6NCc-jiSnrf6aqxFkIeDxypWZ7f699dyPgRFGS3lSz0CmAG2qXvcMYuJeaGjGOELJPKt22OMGKSiATgp_ZqkCakGRkY6J9l_mltYmIPuf_AmXS6-7mT2AXThCSbXx07vwi1J2GU7G87T-CY6uzVtkyECckqRlgFFLtYCGxu66429b9UJi7yQ5x-xYQ1rs3kMS3sFjlPDGC7E",
       "e": "AQAB"
     }
   ]

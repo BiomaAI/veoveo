@@ -55,3 +55,6 @@ liveView:
     host: veoveo.bioma.ai
     tls:
       enabled: false
+
+recordingForwarder:
+  keyId: bioma-recording-producer-20260929

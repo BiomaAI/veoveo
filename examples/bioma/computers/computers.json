@@ -91,10 +91,10 @@
         "maximumOutputBytes": 8388608
       },
       "artifactEndpoint": "http://artifact-service:8790",
-      "activeKeyId": "01a0e1f4-abae-76e2-853f-6a09689f1c88",
+      "activeKeyId": "01a0ed7a-b944-7990-8220-123f661bc638",
       "keys": [
         {
-          "id": "01a0e1f4-abae-76e2-853f-6a09689f1c88",
+          "id": "01a0ed7a-b944-7990-8220-123f661bc638",
           "file": "/etc/veoveo/computers/trust/command-key.bin"
         }
       ],

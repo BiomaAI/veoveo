@@ -10,8 +10,11 @@ checks and reference GitOps convergence passed. Phases 1–3 are in progress.
 Phases 4–9 have not started. Phase 1 images and charts are published at `faa1fed3`;
 the old reference node and its five owned volumes have been removed. Cleanup
 reclaimed about 416 GiB, leaving 570 GiB free on 2026-09-27. The reference workloads
-are stopped at the user's request; native acceptance, rebuild, and installed
-qualification are pending. The Phase 2 catalog fixture
+are stopped at the user's request; workspace Rust acceptance, release rebuild, and
+installed qualification are pending. Fresh recording and Computers trust is enrolled
+locally; its public key IDs and configuration digests pass Helm and rollout checks.
+The native provider accepts the generated JWT key and signs an extension token;
+installed authentication and lifecycle qualification are pending. The Phase 2 catalog fixture
 at `883a09ba` passed native SDK reads (16 rows) and grant renewal on 2026-09-27;
 reference installation acceptance is pending. Phase 3 Reason pagination
 is implemented at `3c5d914d` with native Store qualification. Stream run and session

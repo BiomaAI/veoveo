@@ -119,7 +119,7 @@ gateway:
         - reference: agent_model_api_key
           secret: veoveo-workspace-models
           key: api-key
-  controlPlaneRevision: 6e29f77da7f8cc8c21d889e7decf79db1f106ab9d69eaa5eb042b6209256f6ae
+  controlPlaneRevision: 8478de54efca895a8d4ff7c20386dbbb49939ad41d5e5effdb25997879d574e0
 consoleBff:
   workspace:
     oauthScopes:
@@ -179,7 +179,7 @@ computers:
   resources:
     requests: {cpu: "0", memory: "0"}
   existingConfigMap: bioma-computers-configuration
-  configurationRevision: 4ba8ee8ba8ccec4aecab2fcf2cc0f5f9814fb5654b2e81abde9acf8fa8a35ca7
+  configurationRevision: 810579e8c20545b9901c4a2f5275fd5ff387e62e69c58a5a79478c3234c8705c
   existingTrustSecret: bioma-computers-worker-trust
   host:
     existingConfigMap: bioma-computer-host-configuration
@@ -214,3 +214,13 @@ agentManager:
     port: 443
   - cidr: 104.19.193.29/32
     port: 443
+
+recording:
+  publication:
+    keyId: bioma-recording-hub-20260929
+  mcpPublisher:
+    keyId: bioma-recording-mcp-publisher-20260929
+stream:
+  recordingOutput:
+    forwarder:
+      keyId: bioma-recording-producer-20260929
