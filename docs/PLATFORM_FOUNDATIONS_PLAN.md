@@ -7,16 +7,20 @@ requirements to preserve them. Current-format restart and failure recovery still
 
 Status: Phase 0 accepted and published on 2026-09-27 at `1177185f`; documentation
 checks and reference GitOps convergence passed. Phases 1–3 are in progress.
-Phases 4–9 have not started. Phase 1 images and charts are published at `faa1fed3`;
-the old reference node and its five owned volumes have been removed. Cleanup
-reclaimed about 416 GiB, leaving 570 GiB free on 2026-09-27. The reference workloads
-are stopped at the user's request; workspace Rust acceptance, release rebuild, and
-installed qualification are pending. Fresh recording and Computers trust is enrolled
+Phases 4–9 have not started. The platform and UAV images and charts are published at
+`5df83706` on 2026-09-29. Strict Rust acceptance passed 2,670 tests; the default-feature
+suite passed 2,649. Python passed 156 tests, and documentation and identifier checks
+passed. The old reference node and its five owned volumes have been removed.
+Reference workloads are stopped during the rebuild; fresh installation and installed
+qualification are pending. Publication reused the compiler caches and left about
+519 GiB free. Fresh recording and Computers trust is enrolled
 locally; its public key IDs and configuration digests pass Helm and rollout checks.
 The native provider accepts the generated JWT key and signs an extension token;
 installed authentication and lifecycle qualification are pending. The Phase 2 catalog fixture
 at `883a09ba` passed native SDK reads (16 rows) and grant renewal on 2026-09-27;
-reference installation acceptance is pending. Phase 3 Reason pagination
+reference installation acceptance is pending. The focused flight and browser acceptance
+harnesses still need to consume the installation target instead of separate URL,
+context and namespace arguments. Phase 3 Reason pagination
 is implemented at `3c5d914d` with native Store qualification. Stream run and session
 pagination, authorized completion, and the updated Live Monitor pass local Rust,
 Store, and browser behavioral checks; installed GPU acceptance is pending.
@@ -2392,7 +2396,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
+| Phase 1 reference reset | `examples/bioma/README.md` | Install the published platform and UAV locks on the fresh reference node, then qualify the workloads | Native acceptance and image/chart publication at `5df83706` pass. Node and volume cleanup is complete; fresh installation and installed qualification are pending |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

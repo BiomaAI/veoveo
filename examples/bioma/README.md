@@ -30,15 +30,12 @@ per-chat contexts with explicit capability allowlists. They have no pilot identi
 simulation control or service credentials. The configured account identifier is
 public configuration; the provider token remains in an installation-owned Secret.
 
-Before activating the Workspace gateway image, create the referenced provider
-Secret from a protected local credential file:
-
-```sh
-kubectl --context k3d-veoveo-bioma -n veoveo create secret generic veoveo-workspace-models --from-file=api-key=/private/cloudflare-api-token
-```
+[Provision Secrets](#provision-secrets) installs the model token in the application
+and managed-kernel namespaces before the workloads start. Each namespace owns its
+`veoveo-workspace-models` Secret.
 
 The token needs model inference permission for the account configured in the model
-URL. Do not put it in Helm values, Git or command-line literals. The gateway alone
+URL. Do not put it in Helm values, Git or command-line literals. The gateway
 receives the selected key through `VEOVEO_AGENT_MODEL_API_KEY`. The browser edge
 uses the distinct Workspace OAuth client and requests operator use, Artifact upload
 and time-read scopes. Work Context and resource policies still apply to every action.
@@ -118,10 +115,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 
 ## Release publication
 
-<!-- TODO(foundations): Finish native acceptance, reset the reference installation
-from the published Phase 1 images and charts, and qualify the installed workloads.
-The old node and its volumes are removed. Keep reference workloads stopped while
-local qualification finishes, and verify host free space before reactivation. -->
+<!-- TODO(foundations): Install the published Phase 1 images and charts on the fresh
+reference node and qualify the workloads. Native acceptance and publication passed.
+The old node and its volumes are removed; verify host free space before reactivation. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
@@ -368,6 +364,8 @@ remediation enabled to exercise that controller path. Verify cancellation with t
 
 The enterprise owns Secret creation. For this local reference, load the main
 worktree .env and create the required Secret objects before the root Kustomization.
+Bootstrap the managed-kernel namespace with the chart's security labels and Helm
+ownership metadata, allowing the release to adopt it after its Secrets exist.
 The following command reads values through the environment and sends the Secret
 documents directly to Kubernetes over stdin:
 
@@ -377,6 +375,22 @@ source .env
 set +a
 
 kubectl --context k3d-veoveo-bioma apply   -f examples/bioma/gitops/namespace.yaml
+
+kubectl --context k3d-veoveo-bioma apply -f - <<'YAML'
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: veoveo-agents
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: v1.36
+    veoveo.ai/agent-installation: veoveo
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    helm.sh/resource-policy: keep
+    meta.helm.sh/release-name: veoveo
+    meta.helm.sh/release-namespace: veoveo
+YAML
 
 jq -n '{
   apiVersion: "v1", kind: "Secret",
@@ -388,15 +402,24 @@ jq -n '{
   }
 }' | kubectl --context k3d-veoveo-bioma apply -f -
 
-jq -n '{
-  apiVersion: "v1", kind: "Secret",
-  metadata: {name: "veoveo-surreal-runtime", namespace: "veoveo"},
-  type: "Opaque",
-  stringData: {
-    username: env.VEOVEO_SURREAL_RUNTIME_USERNAME,
-    password: env.VEOVEO_SURREAL_RUNTIME_PASSWORD
-  }
-}' | kubectl --context k3d-veoveo-bioma apply -f -
+for bioma_namespace in veoveo veoveo-agents; do
+  jq -n --arg namespace "$bioma_namespace" '{
+    apiVersion: "v1", kind: "Secret",
+    metadata: {name: "veoveo-surreal-runtime", namespace: $namespace},
+    type: "Opaque",
+    stringData: {
+      username: env.VEOVEO_SURREAL_RUNTIME_USERNAME,
+      password: env.VEOVEO_SURREAL_RUNTIME_PASSWORD
+    }
+  }' | kubectl --context k3d-veoveo-bioma apply -f -
+
+  jq -n --arg namespace "$bioma_namespace" '{
+    apiVersion: "v1", kind: "Secret",
+    metadata: {name: "veoveo-workspace-models", namespace: $namespace},
+    type: "Opaque",
+    stringData: {"api-key": env.CLOUDFLARE_API_TOKEN}
+  }' | kubectl --context k3d-veoveo-bioma apply -f -
+done
 
 jq -n '{
   apiVersion: "v1", kind: "Secret",
