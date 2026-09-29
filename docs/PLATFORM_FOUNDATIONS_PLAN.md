@@ -53,7 +53,11 @@ arming and acknowledgement, inside the default 90-second adapter HTTP timeout.
 Native qualification passes 122 runtime tests and a separate RTX 4090 CUDA plant
 test covering 600 stationary samples for each of four vehicles and exact replay.
 These checks do not establish recovery of PX4 re-arming or the reported transport
-poll timeouts; image publication and installed flight acceptance remain pending.
+poll timeouts. The UAV runtime overlay and Datasheet image are published together at
+`0c015dd8`; their reference image locks select the new immutable digests. Publication
+reused the simulator dependency image and completed in 122 seconds. The existing
+charts cover these image-only changes. Installed flight and Datasheet acceptance
+remain pending.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
