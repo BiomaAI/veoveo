@@ -16,7 +16,8 @@ This crate owns Recording's public IDs, resource addresses, cursors and data mod
 It depends on foundational types, Serde, JSON Schema support, UUIDs and clock-free
 date/time values. It imports no server, Store, async runtime, Rerun or GPU library.
 
-Hub produces the same Recording identity that playback and analysis consume.
+Hub produces the same Recording identity that playback, analysis, UAV and acceptance
+clients consume.
 Recording MCP depends on Hub for Blueprint validation, live-message handling and
 publication. Placing the shared contract below both packages permits Hub to build
 public addresses without a Cargo cycle. This dependency requirement justifies a

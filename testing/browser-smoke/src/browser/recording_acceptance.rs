@@ -341,7 +341,7 @@ fn sample_bounds(
 impl Cdp {
     pub(super) fn recording_playback_network_evidence(
         &self,
-        recording_id: &str,
+        recording_id: super::RecordingId,
         playback_mode: RecordingPlaybackMode,
     ) -> Result<RecordingPlaybackNetworkEvidence> {
         let recording_prefix = format!("/console/api/recordings/{recording_id}/");

@@ -536,7 +536,7 @@ enum Cmd {
         #[arg(long)]
         dataset_id: uuid::Uuid,
         #[arg(long)]
-        recording_id: uuid::Uuid,
+        recording_id: veoveo_recording_contract::RecordingId,
     },
     /// Run the world-model GPU reasoner through Recording Hub and the final MCP task protocol.
     ReasonGpu {
@@ -948,7 +948,7 @@ mod installation_cli_tests {
                 "--dataset-id",
                 "00000000-0000-0000-0000-000000000001",
                 "--recording-id",
-                "00000000-0000-0000-0000-000000000002",
+                "019f7122-3d89-7d21-8312-8940d1e0f510",
             ],
             vec![
                 "stream-gpu",
@@ -985,6 +985,28 @@ mod installation_cli_tests {
             assert!(error.to_string().contains("--installation"));
             cli.extend(["--installation", "installation.json"]);
             Args::try_parse_from(cli).unwrap();
+        }
+    }
+
+    #[test]
+    fn recording_arguments_require_the_owner_identity_before_dispatch() {
+        for invalid in [
+            "00000000-0000-0000-0000-000000000002",
+            "019f7122-3d89-7d21-0312-8940d1e0f510",
+            "producer-key",
+        ] {
+            let error = Args::try_parse_from([
+                "smoke",
+                "recording-catalog-sdk",
+                "--installation",
+                "installation.json",
+                "--dataset-id",
+                "019f7122-3d89-7d21-8312-8940d1e0f511",
+                "--recording-id",
+                invalid,
+            ])
+            .unwrap_err();
+            assert_eq!(error.kind(), clap::error::ErrorKind::ValueValidation);
         }
     }
 

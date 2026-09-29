@@ -85,6 +85,10 @@ plant, PX4 transport, and authoritative operator cameras and encoded products.
 - `CESIUM_ION_ACCESS_TOKEN` comes only from the dedicated Kubernetes Secret.
   It is never a tool argument, ConfigMap value, resource field, log field, or
   exported USD content.
+- Import public Recording IDs and addresses from `veoveo-recording-contract`.
+  `RecordingCatalog` owns readiness and its single URI; derive repeated IDs during
+  serialization and reject conflicting wire fields. Keep private producer keys typed
+  through catalog lookup and completion handling.
 - Recording state publishes its producer key and typed catalog lifecycle
   immediately. The canonical `recording://recordings/{recording_id}` identity
   appears only after catalog resolution; catalog delay or failure never blocks

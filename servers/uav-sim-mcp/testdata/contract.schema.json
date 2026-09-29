@@ -4516,12 +4516,6 @@
     "title": "RecordingCatalogLifecycle",
     "type": "string"
   },
-  "RecordingId": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "description": "Stable identity of one governed recording.",
-    "title": "RecordingId",
-    "type": "string"
-  },
   "RecordingKey": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "description": "Producer identity of one recording stream.",
@@ -4548,10 +4542,6 @@
           "unavailable",
           "invalid"
         ],
-        "type": "string"
-      },
-      "RecordingId": {
-        "description": "Stable identity of one governed recording.",
         "type": "string"
       },
       "RecordingKey": {
@@ -4614,13 +4604,9 @@
         "type": "integer"
       },
       "recording_id": {
-        "anyOf": [
-          {
-            "$ref": "#/$defs/RecordingId"
-          },
-          {
-            "type": "null"
-          }
+        "type": [
+          "string",
+          "null"
         ]
       },
       "recording_key": {
@@ -5872,10 +5858,6 @@
         ],
         "type": "string"
       },
-      "RecordingId": {
-        "description": "Stable identity of one governed recording.",
-        "type": "string"
-      },
       "RecordingKey": {
         "description": "Producer identity of one recording stream.",
         "type": "string"
@@ -5935,13 +5917,9 @@
             "type": "integer"
           },
           "recording_id": {
-            "anyOf": [
-              {
-                "$ref": "#/$defs/RecordingId"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "recording_key": {

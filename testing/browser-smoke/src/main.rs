@@ -10,6 +10,7 @@ use chrono::Utc;
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use veoveo_recording_contract::RecordingId;
 
 #[allow(dead_code)]
 mod browser;
@@ -387,7 +388,7 @@ enum SmokeCommand {
     /// Verify one governed sealed Recording through the lazy Redap archive path.
     UavRecordingArchiveBrowserVerify {
         #[arg(long)]
-        recording_id: String,
+        recording_id: RecordingId,
         #[arg(long)]
         public_base_url: String,
         #[arg(long, default_value = "http://127.0.0.1:9222")]
@@ -439,7 +440,7 @@ struct RecordingBrowserAcceptanceEvidence {
     run_id: String,
     scenario_path: String,
     session_id: String,
-    recording_id: String,
+    recording_id: RecordingId,
     source_simulation_time_seconds: f64,
     recording_simulation_time_seconds: f64,
     recording_source_lag_seconds: f64,
@@ -454,7 +455,7 @@ struct RecordingArchiveBrowserAcceptanceEvidence {
     completed_at: chrono::DateTime<Utc>,
     source_revision: String,
     run_id: String,
-    recording_id: String,
+    recording_id: RecordingId,
     recording: ConsoleRecordingArchiveCaptureEvidence,
 }
 
@@ -784,7 +785,7 @@ async fn main() -> Result<()> {
             evidence_root,
         } => {
             verify_recording_archive(
-                &recording_id,
+                recording_id,
                 &public_base_url,
                 &chrome_cdp_url,
                 &evidence_root,
@@ -1005,15 +1006,11 @@ async fn verify_uav_app_hosts(
 }
 
 async fn verify_recording_archive(
-    recording_id: &str,
+    recording_id: RecordingId,
     public_base_url: &str,
     chrome_cdp_url: &str,
     evidence_root: &Path,
 ) -> Result<()> {
-    ensure!(
-        uuid::Uuid::parse_str(recording_id)?.get_version_num() == 7,
-        "archive recording identity must be UUIDv7"
-    );
     let public_base_url = public_base_url.trim_end_matches('/');
     ensure!(
         url::Url::parse(public_base_url)?.scheme() == "https",
@@ -1041,7 +1038,7 @@ async fn verify_recording_archive(
         completed_at: Utc::now(),
         source_revision,
         run_id,
-        recording_id: recording_id.to_owned(),
+        recording_id,
         recording,
     };
     let manifest = evidence_directory.join("evidence.json");
@@ -1100,7 +1097,7 @@ async fn verify_running_recording(
     let recording = capture_console_recording(
         chrome_cdp_url,
         public_base_url,
-        &recording_id,
+        recording_id,
         &evidence_directory.join("recording.png"),
         Duration::from_secs(scenario.view.timeout_seconds),
     )
@@ -1686,21 +1683,17 @@ fn json_string<'a>(value: &'a Value, pointer: &str) -> Result<&'a str> {
         .with_context(|| format!("JSON output omitted string {pointer}: {value}"))
 }
 
-fn recording_id(state: &Value) -> Result<String> {
-    ensure!(
-        json_string(state, "/recordings/0/catalog_lifecycle")? == "ready",
-        "simulation recording has not reached the governed catalog: {}",
-        state.pointer("/recordings/0").unwrap_or(&Value::Null)
-    );
-    let uri = json_string(state, "/recordings/0/recording_uri")?;
-    let id = uri
-        .strip_prefix("recording://recordings/")
-        .context("simulation returned a non-canonical recording URI")?;
-    ensure!(
-        uuid::Uuid::parse_str(id)?.get_version_num() == 7,
-        "recording identity must be UUIDv7"
-    );
-    Ok(id.to_owned())
+fn recording_id(state: &Value) -> Result<RecordingId> {
+    let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
+        state
+            .pointer("/recordings/0")
+            .context("simulation state omitted recording")?
+            .clone(),
+    )?;
+    recording
+        .catalog
+        .recording_id()
+        .context("simulation recording catalog is not ready")
 }
 
 fn git_revision() -> Result<String> {

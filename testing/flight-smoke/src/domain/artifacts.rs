@@ -140,7 +140,7 @@ pub(super) async fn download_governed_json_artifact(
 pub(super) async fn wait_for_recording_camera_range(
     operator: &OperatorClient<'_>,
     dataset_id: &str,
-    recording_id: &str,
+    recording_id: super::RecordingId,
     camera_entity: &str,
     range_start: i64,
     range_end: i64,

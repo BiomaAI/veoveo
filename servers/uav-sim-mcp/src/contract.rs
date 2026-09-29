@@ -9,6 +9,10 @@
 //!     viewer_instance_id: LiveViewerInstanceId::new("browser").unwrap(),
 //! };
 //! ```
+mod recordings;
+pub use recordings::{
+    RecordingCatalog, RecordingCatalogError, RecordingCatalogLifecycle, RecordingState,
+};
 mod task_kind;
 pub use task_kind::UavTaskKind;
 mod live_view;
@@ -19,6 +23,7 @@ mod resources;
 pub use resources::*;
 
 use std::{collections::BTreeMap, fmt, str::FromStr};
+use veoveo_recording_contract::RecordingUri;
 use veoveo_types::TaskTypeDefinition;
 
 use chrono::{DateTime, Utc};
@@ -146,7 +151,6 @@ domain_id!(
     ControlGrantId,
     "Stable identity of one principal-to-vehicle control grant."
 );
-domain_id!(RecordingId, "Stable identity of one governed recording.");
 domain_id!(RecordingKey, "Producer identity of one recording stream.");
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -473,37 +477,6 @@ pub struct CameraState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
-pub struct RecordingState {
-    pub recording_key: RecordingKey,
-    pub catalog_lifecycle: RecordingCatalogLifecycle,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub recording_id: Option<RecordingId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub recording_uri: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub catalog_diagnostic: Option<String>,
-    pub active: bool,
-    pub publisher_lifecycle: RecordingPublisherLifecycle,
-    pub queue_capacity: u32,
-    pub queued_events: u32,
-    pub dropped_events: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub publisher_diagnostic: Option<String>,
-    pub camera_streams: Vec<String>,
-    pub started_at: DateTime<Utc>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum RecordingCatalogLifecycle {
-    Pending,
-    Ready,
-    Unavailable,
-    Invalid,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(deny_unknown_fields)]
 pub struct RuntimeTimingState {
     #[schemars(range(min = 30, max = 1000))]
     pub physics_hz: u32,
@@ -725,7 +698,7 @@ pub struct MissionResult {
     pub started_at: DateTime<Utc>,
     pub finished_at: DateTime<Utc>,
     pub completed_waypoints: u64,
-    pub recording_uris: Vec<String>,
+    pub recording_uris: Vec<RecordingUri>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -735,7 +708,7 @@ pub struct ScenarioResult {
     pub elapsed_seconds: f64,
     pub final_simulation_time_s: f64,
     pub collision_count: u64,
-    pub recording_uris: Vec<String>,
+    pub recording_uris: Vec<RecordingUri>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -743,7 +716,7 @@ pub struct ScenarioResult {
 pub struct CaptureDatasetResult {
     pub session_id: SessionId,
     pub elapsed_seconds: f64,
-    pub recording_uris: Vec<String>,
+    pub recording_uris: Vec<RecordingUri>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, JsonSchema)]

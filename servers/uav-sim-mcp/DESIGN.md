@@ -33,6 +33,7 @@ for visualization.
 | `veoveo.ai/map-route-handoff/v1` | Map-owned `MapRouteHandoff` consumed through its contract-only library, including `MapMobilityProfileUri` and `ValidationId`; UAV admits validated routes and explicitly granted planning-advisory routes. |
 | `frames://world/{world_id}/revision/{revision_id}` | Frames MCP-owned immutable world revision identity consumed by session configuration and mission admission. |
 | MAVLink 2 | Private PX4 command, telemetry, actuator, and HIL sensor integration. The protocol is not projected as high-rate MCP traffic. |
+| Recording resources | RFC 9562 UUIDv7 identities and `recording://recordings/{id}` addresses from `veoveo-recording-contract`; pending catalog state carries no public identity. |
 | Rerun RRD | Version `0.38.1` recording data and producer-authored Blueprint stores sent independently to Recording Hub. |
 | NVIDIA Container Runtime | One Kubernetes GPU allocation with compute, graphics, utility, and video driver capabilities. CPU rendering and encoding are unsupported. |
 
@@ -41,7 +42,7 @@ for visualization.
 `veoveo-uav-sim-mcp` exposes `contract`, `runtime` and `mcp` features. The default is
 `mcp`, and the server binary requires it. Consumers of public types use
 `default-features = false, features = ["contract"]`. This feature includes IDs, tool
-requests and results, `UavScope`, Map/Frames handoffs, and the live-view v4 model. Its dependencies
+requests and results, `UavScope`, Map/Frames handoffs, Recording references, and the live-view v4 model. Its dependencies
 provide value types, validation, serialization and URI parsing. It excludes the server,
 MCP integration, database, async runtime, simulator adapter and GPU libraries. Chrono's
 clock support belongs to the runtime feature.
@@ -71,6 +72,32 @@ Internal Rust imports use one owner without compatibility exports. This library 
 requires no data conversion or deployment drain. Contract schema snapshots and
 an independently resolved consumer qualify the library surface; installation behavior
 and hardware execution require their separate acceptance runs.
+
+## Recording References
+
+The Recording domain contract owns public recording IDs and URIs. UAV imports those
+types directly and owns only its producer `RecordingKey`. The adapter carries that
+key through state handling to the catalog query. Completion receipts keep unresolved
+producer keys separate from admitted keys; their validation runs during result
+resolution, after the worker settles the correlated physical completion. Catalog admission
+requires the Recording table and a native RFC UUIDv7 key before the shared URI builder
+constructs the public address. SQL still selects the tenant, application and producer
+key before the adapter decodes the selected row.
+
+`contract/recordings.rs` owns `RecordingCatalog` and `RecordingState`. Catalog readiness
+carries one typed Recording URI; serialization derives `recording_id` from that address.
+Pending, unavailable and invalid states have no public recording identity. The private
+wire representation validates status, ID, URI and diagnostic agreement on decoding.
+It preserves the public JSON fields, and the schema inlines the owner's string identity.
+Mission, scenario and capture results carry vectors of the same URI type. Catalog
+resolution still follows settlement of physical completion, so catalog failure cannot
+turn a completed physical operation into permission to repeat it.
+
+Flight and browser acceptance clients decode this public model and keep the Recording
+ID typed through capture and result serialization. Replay smoke constructs source URIs
+through the owner builder. CLI recording arguments use the owner's parser before
+network or browser work begins. Native contract and adapter tests qualify identity
+admission; these tests establish no simulation or visual GPU acceptance.
 
 ## Checked MCP Setup
 

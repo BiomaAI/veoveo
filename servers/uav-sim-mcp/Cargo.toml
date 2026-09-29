@@ -23,6 +23,7 @@ required-features = ["mcp"]
 [features]
 default = ["mcp"]
 contract = [
+    "dep:veoveo-recording-contract",
     "dep:chrono",
     "dep:hex",
     "dep:schemars",
@@ -66,6 +67,7 @@ mcp = [
 ]
 
 [dependencies]
+veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-map-mcp = { path = "../map-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-frames-mcp = { path = "../frames-mcp", default-features = false, features = ["contract"], optional = true }
 veoveo-types = { workspace = true, optional = true }

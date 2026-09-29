@@ -257,7 +257,6 @@ fn relative_identifiers_are_rejected_at_construction_and_retained_json_admission
         MissionId,
         MissionPlanId,
         ControlGrantId,
-        RecordingId,
         RecordingKey,
         LiveSessionId,
         LiveCameraId,

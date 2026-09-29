@@ -8,6 +8,7 @@ name = "flight-smoke"
 path = "src/main.rs"
 
 [dependencies]
+veoveo-recording-contract.workspace = true
 veoveo-types.workspace = true
 veoveo-stream-mcp = { path = "../../servers/stream-mcp", default-features = false, features = ["contract"] }
 veoveo-uav-sim-mcp = { path = "../../servers/uav-sim-mcp", default-features = false, features = ["contract"] }

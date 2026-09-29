@@ -13,15 +13,15 @@ use veoveo_platform_store::{
     PlatformStore, RecordIdKey, RecordingId as PlatformRecordingId, TenantId,
     deterministic_tenant_id,
 };
+use veoveo_recording_contract::{RecordingId, RecordingUri};
 
 use crate::{
     contract::{
         CameraState, CommandAcknowledgement, ConfigureWorldOutput, ConfigureWorldRequest,
         DurableOperation, DurableOperationResult, MissionLifecycle, MissionResult,
-        RecordingCatalogLifecycle, RecordingId, RecordingKey, RecordingPublisherLifecycle,
-        RecordingState, RuntimeTimingState, ScenarioResult, SessionId, SimulationCommand,
-        SimulationLifecycle, SimulationState, SimulationWorldBinding, TileState,
-        VehicleFlightState, VehicleState,
+        RecordingCatalog, RecordingKey, RecordingPublisherLifecycle, RecordingState,
+        RuntimeTimingState, ScenarioResult, SessionId, SimulationCommand, SimulationLifecycle,
+        SimulationState, SimulationWorldBinding, TileState, VehicleFlightState, VehicleState,
     },
     uris,
 };
@@ -38,7 +38,7 @@ const RECORDING_CATALOG_RETRY: Duration = Duration::from_millis(100);
 #[serde(deny_unknown_fields)]
 struct AdapterRecordingState {
     application_id: String,
-    recording_key: String,
+    recording_key: RecordingKey,
     active: bool,
     publisher_lifecycle: RecordingPublisherLifecycle,
     queue_capacity: u32,
@@ -134,49 +134,28 @@ impl HttpAdapter {
                     recording.application_id
                 )));
             }
-            let recording_key = RecordingKey::new(recording.recording_key.clone())
-                .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
-            let (catalog_lifecycle, recording_id, recording_uri, catalog_diagnostic) = match self
-                .resolve_recording_once(&recording.recording_key)
-                .await
-            {
-                Ok(Some((recording_id, recording_uri))) => (
-                    RecordingCatalogLifecycle::Ready,
-                    Some(recording_id),
-                    Some(recording_uri),
-                    None,
-                ),
-                Ok(None) => (
-                    RecordingCatalogLifecycle::Pending,
-                    None,
-                    None,
-                    Some("recording catalog publication is pending".to_owned()),
-                ),
+            let recording_key = recording.recording_key;
+            let catalog = match self.resolve_recording_once(&recording_key).await {
+                Ok(Some(uri)) => RecordingCatalog::Ready(uri),
+                Ok(None) => RecordingCatalog::Pending {
+                    diagnostic: Some("recording catalog publication is pending".to_owned()),
+                },
                 Err(AdapterError::Catalog(error)) => {
                     tracing::warn!(error = ?error, recording_key = %recording_key, "recording catalog lookup is unavailable; simulation state remains readable");
-                    (
-                        RecordingCatalogLifecycle::Unavailable,
-                        None,
-                        None,
-                        Some("recording catalog is unavailable".to_owned()),
-                    )
+                    RecordingCatalog::Unavailable {
+                        diagnostic: Some("recording catalog is unavailable".to_owned()),
+                    }
                 }
                 Err(error) => {
                     tracing::error!(error = ?error, recording_key = %recording_key, "recording catalog entry is invalid; simulation state remains readable");
-                    (
-                        RecordingCatalogLifecycle::Invalid,
-                        None,
-                        None,
-                        Some("recording catalog entry is invalid".to_owned()),
-                    )
+                    RecordingCatalog::Invalid {
+                        diagnostic: Some("recording catalog entry is invalid".to_owned()),
+                    }
                 }
             };
             recordings.push(RecordingState {
                 recording_key,
-                catalog_lifecycle,
-                recording_id,
-                recording_uri,
-                catalog_diagnostic,
+                catalog,
                 active: recording.active,
                 publisher_lifecycle: recording.publisher_lifecycle,
                 queue_capacity: recording.queue_capacity,
@@ -257,19 +236,19 @@ impl HttpAdapter {
 
     async fn resolve_recording_keys(
         &self,
-        recording_keys: Vec<String>,
-    ) -> Result<Vec<String>, AdapterError> {
+        recording_keys: Vec<RecordingKey>,
+    ) -> Result<Vec<RecordingUri>, AdapterError> {
         let mut recording_uris = Vec::with_capacity(recording_keys.len());
         for recording_key in recording_keys {
-            recording_uris.push(self.resolve_recording(&recording_key).await?.1);
+            recording_uris.push(self.resolve_recording(&recording_key).await?);
         }
         Ok(recording_uris)
     }
 
     async fn resolve_recording(
         &self,
-        recording_key: &str,
-    ) -> Result<(RecordingId, String), AdapterError> {
+        recording_key: &RecordingKey,
+    ) -> Result<RecordingUri, AdapterError> {
         for _ in 0..RECORDING_CATALOG_ATTEMPTS {
             if let Some(recording) = self.resolve_recording_once(recording_key).await? {
                 return Ok(recording);
@@ -277,45 +256,28 @@ impl HttpAdapter {
             tokio::time::sleep(RECORDING_CATALOG_RETRY).await;
         }
         Err(AdapterError::RecordingCatalogTimeout(
-            recording_key.to_owned(),
+            recording_key.to_string(),
         ))
     }
 
     async fn resolve_recording_once(
         &self,
-        recording_key: &str,
-    ) -> Result<Option<(RecordingId, String)>, AdapterError> {
+        recording_key: &RecordingKey,
+    ) -> Result<Option<RecordingUri>, AdapterError> {
         let Some(recording) = self
             .platform_store
             .recording_by_key(
                 self.recording_tenant_id,
                 RECORDING_APPLICATION_ID,
-                recording_key,
+                recording_key.as_str(),
             )
             .await
             .map_err(AdapterError::Catalog)?
         else {
             return Ok(None);
         };
-        let uuid = match recording.id.key {
-            RecordIdKey::Uuid(value) => *value,
-            RecordIdKey::String(value) => uuid::Uuid::parse_str(&value)
-                .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?,
-            key => {
-                return Err(AdapterError::InvalidRecordingCatalog(format!(
-                    "recording catalog returned unsupported record key {key:?}"
-                )));
-            }
-        };
-        if recording.id.table.as_str() != PlatformRecordingId::TABLE || uuid.get_version_num() != 7
-        {
-            return Err(AdapterError::InvalidRecordingCatalog(format!(
-                "recording key {recording_key:?} resolved to a non-UUIDv7 recording"
-            )));
-        }
-        let id = RecordingId::new(uuid.to_string())
-            .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))?;
-        Ok(Some((id, format!("recording://recordings/{uuid}"))))
+        let id = catalog_recording_id(&recording.id)?;
+        Ok(Some(RecordingUri::new(id)))
     }
 
     async fn get<T>(&self, path: &str) -> Result<T, AdapterError>
@@ -619,13 +581,30 @@ impl FakeAdapter {
             .ok_or_else(|| AdapterError::UnknownVehicle(vehicle_id.to_string()))
     }
 
-    fn recording_uris(&self) -> Vec<String> {
+    fn recording_uris(&self) -> Vec<RecordingUri> {
         self.state
             .recordings
             .iter()
-            .filter_map(|recording| recording.recording_uri.clone())
+            .filter_map(|recording| recording.catalog.recording_uri().cloned())
             .collect()
     }
+}
+
+fn catalog_recording_id(
+    record: &veoveo_platform_store::RecordId,
+) -> Result<RecordingId, AdapterError> {
+    if record.table.as_str() != PlatformRecordingId::TABLE {
+        return Err(AdapterError::InvalidRecordingCatalog(
+            "catalog row is not a recording".to_owned(),
+        ));
+    }
+    let RecordIdKey::Uuid(uuid) = &record.key else {
+        return Err(AdapterError::InvalidRecordingCatalog(
+            "catalog recording requires a native UUID key".to_owned(),
+        ));
+    };
+    RecordingId::try_from(**uuid)
+        .map_err(|error| AdapterError::InvalidRecordingCatalog(error.to_string()))
 }
 
 #[derive(Clone)]
@@ -898,6 +877,25 @@ mod tests {
     }
 
     #[test]
+    fn catalog_identity_requires_the_recording_table_and_native_rfc_uuidv7() {
+        let id = RecordingId::new();
+        let record = PlatformRecordingId::from_uuid(id.as_uuid()).record_id();
+        assert_eq!(catalog_recording_id(&record).unwrap(), id);
+        for record in [
+            veoveo_platform_store::RecordId::new("other", record.key.clone()),
+            veoveo_platform_store::RecordId::new("recording", id.to_string()),
+            PlatformRecordingId::from_uuid(uuid::Uuid::nil()).record_id(),
+            PlatformRecordingId::from_uuid(
+                uuid::Uuid::parse_str("019f7122-3d89-7d21-0312-8940d1e0f510").unwrap(),
+            )
+            .record_id(),
+        ] {
+            let error = catalog_recording_id(&record).unwrap_err();
+            assert!(!error.to_string().contains(&id.to_string()));
+        }
+    }
+
+    #[test]
     fn private_adapter_recording_wire_uses_catalog_key() {
         let recording: AdapterRecordingState = serde_json::from_value(serde_json::json!({
             "application_id": "veoveo-uav-sim",
@@ -914,7 +912,7 @@ mod tests {
 
         assert_eq!(recording.application_id, RECORDING_APPLICATION_ID);
         assert_eq!(
-            recording.recording_key,
+            recording.recording_key.as_str(),
             "019f7122-3d89-7d21-8312-8940d1e0f510"
         );
     }

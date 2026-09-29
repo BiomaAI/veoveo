@@ -16403,6 +16403,7 @@ dependencies = [
  "tokio-tungstenite 0.30.0",
  "url",
  "uuid",
+ "veoveo-recording-contract",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
 ]
@@ -16766,6 +16767,7 @@ dependencies = [
  "veoveo-frames-mcp",
  "veoveo-map-mcp",
  "veoveo-mcp-contract",
+ "veoveo-recording-contract",
  "veoveo-stream-mcp",
  "veoveo-types",
  "veoveo-uav-sim-mcp",
@@ -17503,6 +17505,7 @@ dependencies = [
  "veoveo-media-mcp",
  "veoveo-platform-store",
  "veoveo-reason-mcp",
+ "veoveo-recording-contract",
  "veoveo-recording-forwarder",
  "veoveo-recording-hub",
  "veoveo-recording-protocol",
@@ -17791,6 +17794,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-recording-contract",
  "veoveo-task-runtime",
  "veoveo-types",
 ]

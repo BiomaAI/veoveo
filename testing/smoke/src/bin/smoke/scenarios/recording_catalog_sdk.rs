@@ -10,7 +10,7 @@ pub(crate) async fn recording_catalog_sdk(
     conformance: &Path,
     installation: &InstalledTarget,
     dataset_id: uuid::Uuid,
-    recording_id: uuid::Uuid,
+    recording_id: veoveo_recording_contract::RecordingId,
 ) -> Result<()> {
     let target = &installation.target;
     let catalog = target

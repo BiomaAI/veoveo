@@ -41,7 +41,7 @@ struct ShowcaseEvidence {
     session_id: veoveo_uav_sim_mcp::contract::SessionId,
     camera_id: String,
     camera_rig: &'static str,
-    recording_id: String,
+    recording_id: RecordingId,
     checkpoints: Vec<FlightCheckpointEvidence>,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
@@ -58,7 +58,7 @@ struct RecordingSourceLatencyEvidence {
 }
 
 struct FlightEvidence {
-    recording_id: String,
+    recording_id: RecordingId,
     checkpoints: Vec<FlightCheckpointEvidence>,
     stream: ConsoleStreamCaptureEvidence,
     recording: ConsoleRecordingCaptureEvidence,
@@ -352,7 +352,7 @@ async fn monitor_flight(
     let recording = capture_console_recording(
         chrome_cdp_url,
         public_base_url,
-        &recording_id,
+        recording_id,
         &evidence_directory.join("recording-rerun.png"),
         timeout,
     )
@@ -508,21 +508,17 @@ fn checkpoint_evidence(
     })
 }
 
-fn recording_id(state: &Value) -> Result<String> {
-    ensure!(
-        json_string(state, "/recordings/0/catalog_lifecycle")? == "ready",
-        "UAV recording has not reached the governed catalog: {}",
-        state.pointer("/recordings/0").unwrap_or(&Value::Null)
-    );
-    let uri = json_string(state, "/recordings/0/recording_uri")?;
-    let id = uri
-        .strip_prefix("recording://recordings/")
-        .context("UAV state returned a non-canonical recording URI")?;
-    ensure!(
-        uuid::Uuid::parse_str(id)?.get_version_num() == 7,
-        "UAV recording identity must be UUIDv7"
-    );
-    Ok(id.to_owned())
+fn recording_id(state: &Value) -> Result<RecordingId> {
+    let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
+        state
+            .pointer("/recordings/0")
+            .context("simulation state omitted recording")?
+            .clone(),
+    )?;
+    recording
+        .catalog
+        .recording_id()
+        .context("simulation recording catalog is not ready")
 }
 
 fn assert_showcase_gpu_workloads(context: &str, namespace: &str) -> Result<()> {

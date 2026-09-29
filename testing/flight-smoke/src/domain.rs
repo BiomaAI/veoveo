@@ -16,6 +16,7 @@ use veoveo_frames_mcp::contract::{
     FrameWorldTree, Wgs84Position,
 };
 use veoveo_map_mcp::contract::MapMobilityProfileUri;
+use veoveo_recording_contract::RecordingId;
 use veoveo_stream_mcp::contract::{
     LiveSessionLifecycle, LiveSessionView, StartLiveSessionOutput, StopLiveSessionOutput,
 };
@@ -142,16 +143,19 @@ async fn uav_sim_verify_with_visual_hold(
     );
     state = wait_for_recording_catalog(&operator, &scenario, Duration::from_secs(30)).await?;
     let control_grant = ensure_operator_control_grant(&operator, &scenario).await?;
-    let recording_uri = json_string(&state, "/recordings/0/recording_uri")?.to_owned();
-    let recording_id = recording_uri
-        .strip_prefix("recording://recordings/")
-        .context("UAV state returned a non-canonical recording URI")?;
-    ensure!(
-        uuid::Uuid::parse_str(recording_id)?.get_version_num() == 7,
-        "UAV recording identity must be UUIDv7"
-    );
+    let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
+        state
+            .pointer("/recordings/0")
+            .context("UAV state omitted recording")?
+            .clone(),
+    )?;
+    let recording_uri = recording
+        .catalog
+        .recording_uri()
+        .context("UAV recording catalog is not ready")?;
+    let recording_id = recording_uri.id();
     let recording_catalog_entry = operator
-        .resource(&recording_uri, Duration::from_secs(60))
+        .resource(&recording_uri.to_string(), Duration::from_secs(60))
         .await?;
     let dataset_id = json_string(&recording_catalog_entry, "/dataset_id")?.to_owned();
     ensure!(

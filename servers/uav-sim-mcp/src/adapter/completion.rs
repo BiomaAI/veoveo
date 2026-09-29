@@ -5,8 +5,22 @@ use serde::Deserialize;
 use super::AdapterError;
 use crate::contract::{
     CaptureDatasetResult, DurableOperation, DurableOperationResult, MissionId, MissionLifecycle,
-    MissionResult, ScenarioResult, SessionId, VehicleId,
+    MissionResult, RecordingKey, ScenarioResult, SessionId, VehicleId,
 };
+
+// A malformed recording key cannot erase a correlated physical completion.
+// Admit these provider values only when projecting the settled result.
+#[derive(Debug, Deserialize)]
+#[serde(transparent)]
+struct UnresolvedRecordingKey(String);
+
+impl UnresolvedRecordingKey {
+    fn admit(self) -> Result<RecordingKey, AdapterError> {
+        RecordingKey::new(self.0).map_err(|_| {
+            AdapterError::InvalidRecordingCatalog("invalid producer recording key".to_owned())
+        })
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,7 +29,7 @@ pub(super) struct AdapterScenarioResult {
     elapsed_seconds: f64,
     final_simulation_time_s: f64,
     collision_count: u64,
-    recording_keys: Vec<String>,
+    recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +40,7 @@ pub(super) struct AdapterMissionResult {
     started_at: DateTime<Utc>,
     finished_at: DateTime<Utc>,
     completed_waypoints: u64,
-    recording_keys: Vec<String>,
+    recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,7 +48,7 @@ pub(super) struct AdapterMissionResult {
 pub(super) struct AdapterCaptureDatasetResult {
     session_id: SessionId,
     elapsed_seconds: f64,
-    recording_keys: Vec<String>,
+    recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -93,7 +107,7 @@ impl AdapterDurableOperationResult {
 pub struct CompletedOperation {
     operation: DurableOperation,
     result: DurableOperationResult,
-    recording_keys: Vec<String>,
+    recording_keys: Vec<UnresolvedRecordingKey>,
 }
 
 impl CompletedOperation {
@@ -157,7 +171,12 @@ impl CompletedOperation {
         adapter: &super::Adapter,
     ) -> Result<DurableOperationResult, AdapterError> {
         if let super::Adapter::Http(adapter) = adapter {
-            let uris = adapter.resolve_recording_keys(self.recording_keys).await?;
+            let keys = self
+                .recording_keys
+                .into_iter()
+                .map(UnresolvedRecordingKey::admit)
+                .collect::<Result<Vec<_>, _>>()?;
+            let uris = adapter.resolve_recording_keys(keys).await?;
             match &mut self.result {
                 DurableOperationResult::RunScenario(value) => value.recording_uris = uris,
                 DurableOperationResult::ExecuteMission(value) => value.recording_uris = uris,

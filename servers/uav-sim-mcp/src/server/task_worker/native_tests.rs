@@ -30,6 +30,7 @@ enum Reply {
     Redirect,
     Malformed,
     MissingRecording,
+    InvalidRecordingKey,
 }
 
 struct ProviderState {
@@ -131,10 +132,10 @@ async fn provider_operation(
     object.remove("recording_uris");
     object.insert(
         "recording_keys".into(),
-        if matches!(state.reply, Reply::MissingRecording) {
-            serde_json::json!(["missing-native-recording"])
-        } else {
-            serde_json::json!([])
+        match state.reply {
+            Reply::MissingRecording => serde_json::json!(["missing-native-recording"]),
+            Reply::InvalidRecordingKey => serde_json::json!(["invalid/producer/key"]),
+            _ => serde_json::json!([]),
         },
     );
     let response = match state.reply {
@@ -424,7 +425,11 @@ async fn native_completion_releases_vehicle_even_when_recording_projection_fails
     let _ = rustls::crypto::ring::default_provider().install_default();
     let db = TestDb::new().await;
     tokio::time::timeout(Duration::from_secs(65), async {
-        for reply in [Reply::Completed, Reply::MissingRecording] {
+        for reply in [
+            Reply::Completed,
+            Reply::MissingRecording,
+            Reply::InvalidRecordingKey,
+        ] {
             let mut case = MissionCase::start(&db.a, reply, Duration::from_secs(10)).await;
             case.http.state.release.notify_one();
             let task = case.wait().await;

@@ -1,3 +1,5 @@
+#[path = "contract/recordings.rs"]
+mod recordings;
 #[path = "contract/resources.rs"]
 mod resources;
 
@@ -78,7 +80,6 @@ fn schemas_preserve_the_published_contract() {
         PrepareVehicleMissionRequest,
         QuaternionXyzw,
         RecordingCatalogLifecycle,
-        RecordingId,
         RecordingKey,
         RecordingPublisherLifecycle,
         RecordingState,

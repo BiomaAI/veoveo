@@ -151,7 +151,7 @@ pub(crate) async fn reason_gpu(
         wait_for_recording_source(&environment, installation, &recording_key, &queue_dir).await?;
     let arguments = json!({
         "video": {
-            "recording_uri": format!("recording://recordings/{recording_id}"),
+            "recording_uri": veoveo_recording_contract::RecordingUri::new(recording_id),
             "entity_path": "/world/camera/front",
             "timeline": "sensor_time",
             "range": {"start": 0, "end": 3_000_000_000_i64}

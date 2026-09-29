@@ -4,6 +4,7 @@ use std::{
     path::Path,
     sync::Arc,
 };
+use veoveo_recording_contract::RecordingId;
 
 #[cfg(test)]
 use anyhow::anyhow;
@@ -314,7 +315,7 @@ pub(crate) struct ConsoleRecordingCaptureEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
     page_url: String,
-    recording_id: String,
+    recording_id: RecordingId,
     screenshot_path: String,
     screenshot_sha256: String,
     hardware: HardwareIdentity,
@@ -333,7 +334,7 @@ pub(crate) struct ConsoleRecordingArchiveCaptureEvidence {
     schema: &'static str,
     captured_at: chrono::DateTime<chrono::Utc>,
     page_url: String,
-    recording_id: String,
+    recording_id: RecordingId,
     screenshot_path: String,
     screenshot_sha256: String,
     hardware: HardwareIdentity,
@@ -636,7 +637,7 @@ pub(crate) async fn capture_console_apps_catalog(
 pub(crate) async fn capture_console_recording(
     cdp_base: &str,
     public_base_url: &str,
-    recording_id: &str,
+    recording_id: RecordingId,
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleRecordingCaptureEvidence> {
@@ -653,7 +654,7 @@ pub(crate) async fn capture_console_recording(
 pub(crate) async fn capture_console_recording_archive(
     cdp_base: &str,
     public_base_url: &str,
-    recording_id: &str,
+    recording_id: RecordingId,
     screenshot_path: &Path,
     timeout: Duration,
 ) -> Result<ConsoleRecordingArchiveCaptureEvidence> {
@@ -1745,7 +1746,7 @@ async fn ensure_console_stream_session(
 async fn capture_console_recording_inner(
     cdp_base: &str,
     page_url: &str,
-    recording_id: &str,
+    recording_id: RecordingId,
     screenshot_path: &Path,
 ) -> Result<ConsoleRecordingCaptureEvidence> {
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
@@ -1813,7 +1814,7 @@ async fn capture_console_recording_inner(
             schema: "veoveo.ai/uav-console-recording-capture/v6",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
-            recording_id: recording_id.to_owned(),
+            recording_id,
             screenshot_path: screenshot_path.display().to_string(),
             screenshot_sha256,
             hardware: final_hardware,
@@ -1836,7 +1837,7 @@ async fn capture_console_recording_inner(
 async fn capture_console_recording_archive_inner(
     cdp_base: &str,
     page_url: &str,
-    recording_id: &str,
+    recording_id: RecordingId,
     screenshot_path: &Path,
 ) -> Result<ConsoleRecordingArchiveCaptureEvidence> {
     let (mut cdp, target_id, session_id) = open_headed_target(cdp_base, page_url).await?;
@@ -1878,7 +1879,7 @@ async fn capture_console_recording_archive_inner(
             schema: "veoveo.ai/uav-console-recording-archive-capture/v2",
             captured_at: chrono::Utc::now(),
             page_url: page_url.to_owned(),
-            recording_id: recording_id.to_owned(),
+            recording_id,
             screenshot_path: screenshot_path.display().to_string(),
             screenshot_sha256,
             hardware: final_hardware,
@@ -1952,7 +1953,7 @@ async fn wait_for_rerun_archive_latest(
 async fn wait_for_console_recording_surface(
     cdp: &mut Cdp,
     session_id: &str,
-    recording_id: &str,
+    recording_id: RecordingId,
 ) -> Result<()> {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(300);
     loop {
@@ -2002,7 +2003,7 @@ async fn wait_for_console_recording_surface(
                 .unwrap_or(0)
                 > 0
             && state.get("loading").and_then(Value::as_bool) == Some(false)
-            && body.contains(recording_id)
+            && body.contains(&recording_id.to_string())
         {
             return Ok(());
         }

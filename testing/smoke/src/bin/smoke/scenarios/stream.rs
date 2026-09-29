@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
+use veoveo_recording_contract::{RecordingId, RecordingUri};
 
 use anyhow::{Context, Result, bail, ensure};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -16,7 +17,8 @@ use veoveo_mcp_contract::{
     GatewayProfileId, Principal, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_platform_store::{
-    PlatformStore, RecordIdKey, RecordingId, StoreConfig, StoreCredentials, deterministic_tenant_id,
+    PlatformStore, RecordIdKey, RecordingId as StoreRecordingId, StoreConfig, StoreCredentials,
+    deterministic_tenant_id,
 };
 use veoveo_types::{
     AccessSubject, InvocationProvenance, PolicyVersion, PrincipalId, ScopeName, TenantId,
@@ -182,7 +184,7 @@ pub(crate) async fn stream_gpu(
         wait_for_recording_source(&environment, installation, &recording_key, &queue_dir).await?;
     let arguments = json!({
         "video": {
-            "recording_uri": format!("recording://recordings/{recording_id}"),
+            "recording_uri": RecordingUri::new(recording_id),
             "entity_path": "/world/camera/front",
             "timeline": "sensor_time",
             "range": {"start": 0, "end": 3_000_000_000_i64}
@@ -379,20 +381,15 @@ pub(crate) async fn wait_for_recording_source(
             .await?
         {
             ensure!(
-                recording.id.table.as_str() == RecordingId::TABLE,
+                recording.id.table.as_str() == StoreRecordingId::TABLE,
                 "catalog returned a non-recording id: {:?}",
                 recording.id
             );
             let uuid = match &recording.id.key {
                 RecordIdKey::Uuid(value) => **value,
-                RecordIdKey::String(value) => uuid::Uuid::parse_str(value)?,
                 other => bail!("catalog recording key is not a UUID: {other:?}"),
             };
-            ensure!(
-                uuid.get_version_num() == 7,
-                "catalog recording id is not UUIDv7"
-            );
-            let id = RecordingId::from_uuid(uuid);
+            let id = RecordingId::try_from(uuid)?;
             for entry in std::fs::read_dir(queue_dir)? {
                 let path = entry?.path().join("stream.json");
                 let bytes = match std::fs::read(&path) {
@@ -423,7 +420,7 @@ pub(crate) async fn wait_for_recording_source(
                     .next_upload_sequence
                     .checked_sub(queued.remote_first_local_sequence)
                     .context("forwarder upload sequence precedes its remote generation")?;
-                if remote.recording == id.record_id()
+                if remote.recording == StoreRecordingId::from_uuid(id.as_uuid()).record_id()
                     && remote
                         .materialized_through_sequence
                         .is_some_and(|sequence| {
