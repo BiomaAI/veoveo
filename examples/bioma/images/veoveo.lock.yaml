@@ -11,9 +11,9 @@ global:
     veoveo/console-bff: sha256:ee990afba6dabcf96761ac562795c2edf07e7c0d139f287c5ef6b9a969b7b4e6
     veoveo/cuopt-executor: sha256:1965e43ad038e922850f4e3d79e077e56dd80e2fb1d3334e30104aa9848e26e7
     veoveo/datasheet-mcp: sha256:e79d3b01a4c1bc5311330f3ee57ce9cdaf0977655e32158857a54b98c4b27c00
-    veoveo/duckdb-mcp: sha256:3661cf5243c872e63c5e5badda20a62f9aad9cd12bda86fe9ca37f845e69c720
+    veoveo/duckdb-mcp: sha256:607253e3bfe382f23be6ac2c2952a09154c69a2bf78023bcad1a67c4b560932e
     veoveo/frames-mcp: sha256:ffc6ed9097cb644952212ddfcbde21ac4bb6bff9e218c8d7e00ef5471527dc90
-    veoveo/map-mcp: sha256:e1e7e2d9f4fa3a4a54881d19aba9d65f1adb6cfdd740112a1df4c00de2237dab
+    veoveo/map-mcp: sha256:f9d485c72c09ea27abc6765e19554b99e4945f0064ff4b7adbe18ab8d13282e3
     veoveo/mcp-gateway: sha256:f8eaa2884aa5dbc0c6bbc912386d5ecf2c763ff77f2752db972d25136bde8b40
     veoveo/mcp-legacy-bridge: sha256:ec29c888fc4933fc500bfa318b23566c2996db6dc6ba91a0d1803ef870f3ccdf
     veoveo/media-mcp: sha256:c809408676b4cc171066e39b7e94f9669c0baf9f0672fe3362dca090dffa422d
@@ -23,8 +23,8 @@ global:
     veoveo/recording-mcp: sha256:bc7c037d0b3bc5d0b22cdaae993357671334275740ddc45bedc597ebe71f3180
     veoveo/stream-mcp: sha256:e8cc0d010073892c15767d2cbfc5eff3e4631200a4a55925dcbe8d31ae6623e7
     veoveo/time-mcp: sha256:7484bb4a3f9234a12a2c07f75770598420948e9a33bab9c105d59e29213cb833
-    veoveo/timeseries-mcp: sha256:b71ad9265c358a032a1e0350317101735bd5dbd02124f072b06106987c8e91a2
+    veoveo/timeseries-mcp: sha256:a1142b43e70272c383457408194b834bdcc9c5f732a84ed8c40b63787d8fc680
     veoveo/view-mcp: sha256:4a42e4174148eb7983df86feec5f6ee87b72a9f97092691df3e4f5c3d6a5e6ae
-    veoveo/agent-kernel: sha256:dbe9c03a95d023fc2f48a688e86860886d0d392441c21e0bd2796df94bbe38b1
+    veoveo/agent-kernel: sha256:99314948a920ea60d8dd89a453ae249b807ed56cbf9c39677146f9b37332ced2
     veoveo/agent-manager: sha256:e0dce432b9cf9f58a0ab0cbab5d87082b643968b7b3c3e65c18f68a18a6e00c4
     veoveo/speech-mcp: sha256:fb54e4f42d2e6752afe931289cf45dd20da2c6929ee8c4eced8ca4014c4d6965
