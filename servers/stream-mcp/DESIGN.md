@@ -177,6 +177,22 @@ assigned after NVDEC; Recording analysis retains its governed source-timeline
 indices. Result and preview rings are bounded. Overflow drops the oldest retained
 App history; it never blocks the live pipeline.
 
+The reference RTP graph sets `rtpjitterbuffer mode=none` to derive presentation time
+from the sender's 90 kHz RTP clock. Packet arrival time does not redefine that media
+clock when a simulator stalls and catches up. The jitter buffer still reorders packets
+and applies its 50 ms latency and packet-loss bounds. GStreamer's default clock-slaving
+mode can clamp distinct frames to one presentation timestamp during catch-up;
+`h264parse` can then emit an access unit with no timestamp. The runner rejects that
+unit instead of inventing a timestamp. The selected mode follows GStreamer's
+[RTP timestamp profile](https://gstreamer.freedesktop.org/documentation/rtpmanager/rtpjitterbuffer.html#RTPJitterBufferMode).
+
+The UAV publisher's [native GPU regression](../../showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py)
+sends steady and stalled/catch-up RTP through the production NVDEC/TensorRT runner.
+It qualifies the example graph without a cluster, preserves model/image caches and
+checks both inference progress and unique preview timestamps. Helm configuration
+checks require the same timestamp mode in the rendered deployment. Installed public
+resource delivery and composed flight use the separate installation harness.
+
 A native probe failure posts a private application message to the pipeline bus.
 The runner exits immediately with the typed cause, and Stream reaps it before
 releasing the admitted UDP port. A failed probe cannot leave a session marked

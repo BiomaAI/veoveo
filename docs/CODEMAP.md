@@ -1081,6 +1081,7 @@ Simulation live-view ownership:
 | `showcase/uav-sim/runtime/veoveo_uav_sim/server.py` | simulator-local control boundary for camera and product realization |
 | `showcase/uav-sim/runtime/tests_gpu/test_plant.py` | hardware CUDA plant qualification for reproducible barometer, magnetic and IMU noise with separate vehicle truth |
 | `showcase/uav-sim/runtime/tests_gpu/test_px4_health.py` | native pinned PX4 qualification of all stationary sensor validators through the CUDA plant and production HIL bridge |
+| `showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py` | isolated production RTP publication through the Stream NVDEC/TensorRT runner; steady and catch-up delivery with preview timestamp checks |
 | `platform/store/src/live_views.rs` | durable audit persistence for camera, product, authorization, denial, expiry, and revocation facts |
 | `platform/store/migrations/0036_remove_simulation_view_mirror_state.surql` | forward-only removal of obsolete mirrored desired/runtime state |
 

@@ -350,6 +350,22 @@ and provenance.
 
 ## Hardware Acceptance
 
+The isolated RTP GPU regression uses the production publisher and Stream's native
+NVDEC/TensorRT runner without starting a cluster. Provide a locally cached immutable
+Stream image in `VEOVEO_TEST_STREAM_IMAGE`, the compiled engine in
+`VEOVEO_TEST_STREAM_ENGINE`, its inference configuration in
+`VEOVEO_TEST_STREAM_INFERENCE`, an IDR-starting H.264 fixture in
+`VEOVEO_TEST_STREAM_H264`, and the allocated hardware UUID in
+`VEOVEO_TEST_NVIDIA_GPU_UUID`. The inference configuration names
+`/models/primary-detector.engine`. Docker with NVIDIA Container Toolkit and `ffprobe`
+must be available. The harness emits JSON results and removes its owned containers
+and temporary files while preserving the supplied image and model caches.
+
+```sh
+PYTHONPATH=showcase/uav-sim/runtime timeout 180s uv run --python 3.13 \
+  python showcase/uav-sim/runtime/tests_gpu/test_stream_rtp.py
+```
+
 Acceptance on an installation deploys one simulator GPU workload. Live-view acceptance
 checks the always-on fleet, camera health, one tiled product
 for all cameras, RTX/NVENC/WebCodecs playback, five users with all five camera canvases,

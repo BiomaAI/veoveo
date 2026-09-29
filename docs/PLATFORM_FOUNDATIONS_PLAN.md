@@ -120,6 +120,16 @@ Map route costs stay typed through mission budgeting. Failures print before clea
 and a prerequisite failure does not initiate landing. One native check passes 56 flight
 cases, the dependency-closure check and 113 xtask cases. The new command awaits installed
 qualification with the media timestamp correction before another composed flight.
+The isolated Stream GPU reproduction identifies receiver clock slaving as the timestamp
+failure: stalled delivery followed by catch-up clamps consecutive presentation times,
+and H.264 parsing emits an untimestamped access unit after 56 preview frames. The
+reference and example graphs now select RTP-only timestamping through
+`rtpjitterbuffer mode=none`. The production UAV publisher and existing Stream image
+pass both steady and catch-up cases on the RTX 4090: each sends 180 frames, receives
+180 unique preview timestamps and completes 177 NVDEC/TensorRT results. The native
+runner and model image digests are unchanged. The regression owns its temporary
+container and reuses the compiled model. Chart publication and installed live Stream
+qualification are next; this result does not establish composed flight acceptance.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA

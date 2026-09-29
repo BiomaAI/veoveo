@@ -15,6 +15,11 @@ dynamic RTP payload type, a 90 kHz clock, and an RFC 6381 AVC codec. The
 encoded-output branch must retain Annex B access-unit alignment because the
 Stream MCP App decodes that same bitstream without another encode.
 
+The example uses `rtpjitterbuffer mode=none` to preserve the sender's RTP media clock
+through delayed and bursty delivery. The same mode ships in the installation chart.
+Packet reordering and the 50 ms jitter limit still apply. The runner rejects access
+units without a timestamp; callers must not substitute arrival time.
+
 A live graph may also declare `recording_output`. Its proxy must be a
 pod-loopback Rerun endpoint backed by the standard Recording forwarder. The
 application ID must be admitted by the installation's recording producer
