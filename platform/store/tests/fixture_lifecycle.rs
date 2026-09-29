@@ -14,7 +14,8 @@ impl CliFixture {
         fs::create_dir(&root).unwrap();
         let script = format!(
             "#!/bin/sh\nroot=$(dirname \"$0\")\ncase \"$1\" in\n\
-             create) printf '%s' \"$$\" > \"$root/pid\"; {create};;\n\
+             create) printf '%s' \"$$\" > \"$root/pid\"; touch \"$root/created\"; {create};;\n\
+             inspect) test -f \"$root/created\";;\n\
              start) {start};;\n\
              port) {port};;\n\
              rm) printf '%s\\n' \"$@\" > \"$root/cleanup\"; {cleanup};;\n\
@@ -30,6 +31,7 @@ impl CliFixture {
         Docker {
             program: self.0.join("docker"),
             command_timeout: Duration::from_millis(300),
+            creation_settlement_timeout: Duration::from_secs(2),
         }
     }
 
@@ -90,6 +92,20 @@ async fn failed_creation_cleans_up_and_redacts_child_output() {
 }
 
 #[tokio::test]
+async fn missing_cli_has_no_dispatched_creation_to_settle() {
+    let fixture = CliFixture::new("exit 99", "exit 99", "exit 99", "exit 99");
+    let mut docker = fixture.docker();
+    docker.program = fixture.0.join("missing-cli");
+    let error = Container::start(docker, "memory", "private-fixture-password")
+        .await
+        .err()
+        .expect("missing CLI must fail creation");
+    assert_eq!(error.stage, "container creation");
+    assert!(!fixture.0.join("pid").exists());
+    assert!(!fixture.0.join("cleanup").exists());
+}
+
+#[tokio::test]
 async fn command_deadline_kills_the_cli_and_cleans_up() {
     let fixture = CliFixture::new("exec sleep 30", "exit 99", "exit 99", "exit 0");
     let error = tokio::time::timeout(
@@ -118,6 +134,40 @@ async fn caller_cancellation_also_kills_the_cli_and_cleans_up() {
     .await;
     assert!(result.is_err());
     fixture.assert_cleanup();
+    fixture.assert_child_reaped().await;
+}
+
+#[tokio::test]
+async fn late_daemon_creation_is_observed_before_removal() {
+    let fixture = CliFixture::new(
+        "rm \"$root/created\"; (sleep 0.6; touch \"$root/created\") & exec sleep 30",
+        "exit 99",
+        "exit 99",
+        "test -f \"$root/created\"",
+    );
+    let result = Container::start(fixture.docker(), "memory", "private-fixture-password").await;
+    assert!(result.is_err());
+    assert!(fixture.0.join("created").exists());
+    fixture.assert_cleanup();
+    fixture.assert_child_reaped().await;
+}
+
+#[tokio::test]
+async fn unknown_creation_outcome_cannot_report_successful_cleanup() {
+    let fixture = CliFixture::new(
+        "rm \"$root/created\"; exec sleep 30",
+        "exit 99",
+        "exit 99",
+        "exit 0",
+    );
+    let mut docker = fixture.docker();
+    docker.creation_settlement_timeout = Duration::from_millis(300);
+    let task = tokio::spawn(async move {
+        let _ = Container::start(docker, "memory", "private-fixture-password").await;
+    });
+    let failure = task.await.expect_err("unknown cleanup must fail its owner");
+    assert!(failure.is_panic());
+    assert!(!fixture.0.join("cleanup").exists());
     fixture.assert_child_reaped().await;
 }
 

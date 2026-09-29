@@ -1008,6 +1008,17 @@ RocksDB transaction profile. Strict workspace Clippy passes. No fixture containe
 remain; reference workloads stay stopped and 44 GiB is free. The harness lifecycle
 Deferred Work item is closed. Installed and GPU acceptance remain pending.
 
+A later native run exposed a second fixture race: the Docker daemon created the owned
+container after the CLI timeout and after removal of the still-missing name had
+reported success. Creation and startup were already separate, so the late container
+stayed stopped. Cleanup now observes the allocated name for up to 120 seconds before
+removing it. An unresolved creation fails the owning test with cleanup unconfirmed;
+failure to spawn the CLI establishes that nothing was dispatched. The nine lifecycle
+cases cover late creation and both failure outcomes. They pass alongside the native
+Store authority check and strict workspace Clippy. The observed stopped fixture was
+removed by its exact name, and no fixture containers remain. The underlying daemon
+delay is still unexplained.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma

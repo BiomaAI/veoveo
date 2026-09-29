@@ -11,6 +11,7 @@ const IMAGE: &str =
 pub(super) struct Docker {
     pub program: PathBuf,
     pub command_timeout: Duration,
+    pub creation_settlement_timeout: Duration,
 }
 
 impl Default for Docker {
@@ -18,6 +19,7 @@ impl Default for Docker {
         Self {
             program: "docker".into(),
             command_timeout: Duration::from_secs(30),
+            creation_settlement_timeout: Duration::from_secs(120),
         }
     }
 }
@@ -27,6 +29,7 @@ pub(super) struct Failure {
     pub stage: &'static str,
     container: String,
     reason: String,
+    dispatched: bool,
 }
 
 impl fmt::Display for Failure {
@@ -44,6 +47,13 @@ impl std::error::Error for Failure {}
 pub(super) struct Container {
     name: String,
     docker: Docker,
+    creation: Creation,
+}
+
+enum Creation {
+    Pending,
+    Confirmed,
+    NotDispatched,
 }
 
 impl Container {
@@ -53,9 +63,10 @@ impl Container {
         password: &str,
     ) -> Result<(Self, String), Failure> {
         // Own cleanup before dispatch. Failed or cancelled creation still drops this guard.
-        let container = Self {
+        let mut container = Self {
             name: format!("veoveo-native-store-test-{}", Uuid::now_v7().simple()),
             docker,
+            creation: Creation::Pending,
         };
         let mut create = container.command();
         create
@@ -94,13 +105,20 @@ impl Container {
             ])
             .env("SURREAL_USER", "fixture_admin")
             .env("SURREAL_PASS", password);
-        container
+        if let Err(error) = container
             .run(
                 create,
                 "container creation",
                 container.docker.command_timeout,
             )
-            .await?;
+            .await
+        {
+            if !error.dispatched {
+                container.creation = Creation::NotDispatched;
+            }
+            return Err(error);
+        }
+        container.creation = Creation::Confirmed;
         let mut start = container.command();
         start.args(["start", &container.name]);
         container
@@ -133,6 +151,7 @@ impl Container {
             stage,
             container: self.name.clone(),
             reason: reason.into(),
+            dispatched: true,
         }
     }
 
@@ -143,10 +162,11 @@ impl Container {
         limit: Duration,
     ) -> Result<Vec<u8>, Failure> {
         // Never print command arguments, environment, or child output: all can contain secrets.
-        let mut child = command
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|error| self.failure(stage, format!("subprocess I/O {:?}", error.kind())))?;
+        let mut child = command.stdout(Stdio::piped()).spawn().map_err(|error| {
+            let mut failure = self.failure(stage, format!("subprocess I/O {:?}", error.kind()));
+            failure.dispatched = false;
+            failure
+        })?;
         let status = match tokio::time::timeout(limit, child.wait()).await {
             Ok(result) => result.map_err(|error| {
                 self.failure(stage, format!("subprocess I/O {:?}", error.kind()))
@@ -181,6 +201,59 @@ impl Container {
         }
         Ok(output)
     }
+
+    async fn cleanup(&self) -> Result<(), Failure> {
+        // Killing the CLI does not cancel an accepted daemon request. Wait for the
+        // allocated name before removing it; an early `rm --force` reports success
+        // for a missing name and can otherwise leave a late-created container behind.
+        if matches!(self.creation, Creation::NotDispatched) {
+            return Ok(());
+        }
+        if matches!(self.creation, Creation::Pending) {
+            let deadline = tokio::time::Instant::now() + self.docker.creation_settlement_timeout;
+            loop {
+                let remaining = deadline
+                    .checked_duration_since(tokio::time::Instant::now())
+                    .filter(|duration| !duration.is_zero())
+                    .ok_or_else(|| {
+                        self.failure(
+                            "creation settlement",
+                            "outcome remains unknown; cleanup is unconfirmed",
+                        )
+                    })?;
+                let mut inspect = self.command();
+                inspect.args([
+                    "inspect",
+                    "--type",
+                    "container",
+                    "--format",
+                    "{{.Id}}",
+                    &self.name,
+                ]);
+                if self
+                    .run(
+                        inspect,
+                        "creation settlement",
+                        remaining.min(self.docker.command_timeout),
+                    )
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100).min(remaining)).await;
+            }
+        }
+        let mut command = self.command();
+        command.args(["rm", "--force", "--volumes", &self.name]);
+        self.run(
+            command,
+            "container cleanup",
+            self.docker.command_timeout.min(Duration::from_secs(10)),
+        )
+        .await?;
+        Ok(())
+    }
 }
 
 impl Drop for Container {
@@ -196,16 +269,7 @@ impl Drop for Container {
                         .map_err(|error| {
                             self.failure("cleanup runtime", format!("I/O {:?}", error.kind()))
                         })?;
-                    runtime.block_on(async {
-                        let mut command = self.command();
-                        command.args(["rm", "--force", "--volumes", &self.name]);
-                        self.run(
-                            command,
-                            "container cleanup",
-                            self.docker.command_timeout.min(Duration::from_secs(10)),
-                        )
-                        .await
-                    })
+                    runtime.block_on(self.cleanup())
                 })
                 .join()
         });

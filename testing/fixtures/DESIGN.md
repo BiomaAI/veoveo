@@ -30,8 +30,12 @@ Diagnostics identify the stage, fixture name and exit code or I/O category, and 
 arguments, environment and child output. Test-only Tokio process/I/O features keep
 this lifecycle out of contract consumers' dependency graphs.
 
-Cleanup ownership starts before `docker create`. Cancellation kills the CLI child
-and removes the allocated fixture name. Creation and startup are separate commands,
+Cleanup ownership starts before `docker create`. Cancellation kills the CLI child.
+If the daemon has not confirmed creation, cleanup probes only the allocated name
+for up to 120 seconds, then removes the observed container. An expired reconciliation
+reports an unknown creation outcome and fails the test; an early removal of a missing
+name cannot count as cleanup. Failure to spawn the CLI proves that creation was never
+dispatched and requires no reconciliation. Creation and startup are separate commands,
 so a late creation response cannot also start a workload. The guard transfers to
 `TestDb` after setup succeeds. Drop runs removal on a separate thread with its own
 Tokio runtime, allowing the same cleanup on current-thread tests and during runtime
@@ -45,7 +49,8 @@ deadline, as Reason's index tests do. The fixture uses the cached digest with
 `--pull never`, so missing images fail without fetching storage during a test.
 
 `platform/store/tests/fixture_lifecycle.rs` injects CLI failures, hanging commands,
-caller cancellation, malformed published ports and cleanup timeout. Its Linux shell
+caller cancellation, late daemon creation, unresolved creation, missing CLI, malformed
+published ports and cleanup timeout. Its Linux shell
 stand-ins hold no database data. Native Store and owner suites exercise the same
 lifecycle against the pinned database image; the command tests alone prove no SQL
 or installed behavior.
