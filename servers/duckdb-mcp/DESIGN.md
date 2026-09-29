@@ -314,8 +314,13 @@ csv
 duck_db
 ```
 
-`duck_db` means one immutable snapshot of the complete database file. It is not
-valid for a table or query-result export.
+`duck_db` means one immutable snapshot of the complete database file.
+`DuckDbTabularFormat` admits `parquet` and `csv` for query, table and SQL-result
+exports. `DuckDbExportRequest` has separate tabular and snapshot variants, and its
+wire representation keeps `db`, `selection` and `format` at the top level. Decoding
+and the generated JSON Schema reject incompatible selection/format pairs before
+the Task reserves an Artifact capability. Rust callers choose the corresponding
+variant and cannot supply a tabular format to a snapshot.
 
 ## Tool Model
 
@@ -368,6 +373,15 @@ artifact = null
 byte ceiling is checked before a value is materialized. An interactive query
 stops reading once either limit is reached and marks the response truncated.
 Callers that need the complete set should request artifact output.
+
+`DuckDbQueryOutput` checks each row against the column width and checks the observed
+row count when built or decoded. An untruncated count equals the number of returned
+rows. A truncated count is a lower bound that includes at least one unreturned row;
+it is not the complete result-set size. A byte limit can therefore return zero rows
+with a positive observed count. The human-readable result reports the returned count.
+Artifact results have empty columns and rows and cannot claim truncation. JSON Schema
+declares those output forms; the Rust constructor also checks the relationships
+between row widths and counts.
 
 Artifact output accepts `parquet` or `csv`. The server wraps the validated query
 in a DuckDB `COPY`, permits only one fresh exchange directory, uploads the result

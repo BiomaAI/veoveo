@@ -28,6 +28,9 @@ engine rather than by narrowing SQL.
   check capability, origin and operation agreement before publication. Keep known
   Artifact and usage metadata in the library contract and convert it to JSON at the
   Artifact or Store adapter. File paths and writer-lock keys use `PathBuf`.
+- Export requests distinguish tabular data from database snapshots at admission.
+  Build query results through their checked constructors; preserve row-width,
+  observed-count and inline/Artifact agreement through serialization.
 - Recovery classes are fixed: `query` and `export` resume; `execute` and
   `ingest` are indeterminate after interruption and never gain replay or
   polling fallbacks.

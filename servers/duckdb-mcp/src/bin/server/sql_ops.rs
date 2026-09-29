@@ -15,9 +15,9 @@ use serde_json::json;
 use veoveo_duckdb_mcp::{
     contract::{
         DuckDbArtifactOperation, DuckDbArtifactOrigin, DuckDbDatabaseId, DuckDbExecuteOutput,
-        DuckDbExecuteRequest, DuckDbExportFormat, DuckDbExportOutput, DuckDbExportRequest,
-        DuckDbExportSelection, DuckDbIngestMode, DuckDbIngestOutput, DuckDbIngestRequest,
-        DuckDbQueryOutput, DuckDbQueryOutputMode, DuckDbQueryRequest, DuckDbSource,
+        DuckDbExecuteRequest, DuckDbExportOutput, DuckDbExportRequest, DuckDbIngestMode,
+        DuckDbIngestOutput, DuckDbIngestRequest, DuckDbQueryOutput, DuckDbQueryOutputMode,
+        DuckDbQueryRequest, DuckDbSource, DuckDbTabularFormat, DuckDbTabularSelection,
         duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
         duckdb_read_options_sql,
     },
@@ -124,15 +124,14 @@ async fn cleanup_exchange_dir(dir: &Path) {
     }
 }
 
-fn export_file_details(format: DuckDbExportFormat) -> (&'static str, &'static str, &'static str) {
+fn export_file_details(format: DuckDbTabularFormat) -> (&'static str, &'static str, &'static str) {
     match format {
-        DuckDbExportFormat::Parquet => (
+        DuckDbTabularFormat::Parquet => (
             "parquet",
             "application/vnd.apache.parquet",
             "FORMAT PARQUET",
         ),
-        DuckDbExportFormat::Csv => ("csv", "text/csv", "FORMAT CSV, HEADER"),
-        DuckDbExportFormat::DuckDb => ("duckdb", "application/vnd.duckdb", ""),
+        DuckDbTabularFormat::Csv => ("csv", "text/csv", "FORMAT CSV, HEADER"),
     }
 }
 
@@ -185,7 +184,7 @@ pub(super) async fn query_op(
     let settings = state.engine.clone();
     let timeout_ms = state.clamp_timeout_ms(request.timeout_ms);
     match request.output.clone() {
-        DuckDbQueryOutputMode::Inline => {
+        DuckDbQueryOutputMode::Inline {} => {
             let row_cap = request
                 .row_limit
                 .unwrap_or(state.caps.max_inline_rows)
@@ -206,21 +205,10 @@ pub(super) async fn query_op(
                     engine::run_query(&conn, &sql, row_cap, byte_cap)
                 })
                 .await?;
-            Ok(DuckDbQueryOutput {
-                columns: rows.columns,
-                rows: rows.rows,
-                row_count: rows.row_count,
-                truncated: rows.truncated,
-                artifact: None,
-            })
+            DuckDbQueryOutput::inline(rows.columns, rows.rows, rows.row_count, rows.truncated)
+                .map_err(|error| McpError::internal_error(error.to_string(), None))
         }
         DuckDbQueryOutputMode::Artifact { format } => {
-            if format == DuckDbExportFormat::DuckDb {
-                return Err(McpError::invalid_params(
-                    "query artifact output supports parquet or csv; use export for database snapshots",
-                    None,
-                ));
-            }
             let select_sql = single_statement_sql("query", &request.sql)?;
             let (extension, mime_type, copy_options) = export_file_details(format);
             let exchange = fresh_exchange_dir(state);
@@ -275,13 +263,10 @@ pub(super) async fn query_op(
                 .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
-            Ok(DuckDbQueryOutput {
-                columns: Vec::new(),
-                rows: Vec::new(),
+            Ok(DuckDbQueryOutput::exported(
+                artifact.without_download_url(),
                 row_count,
-                truncated: false,
-                artifact: Some(artifact.without_download_url()),
-            })
+            ))
         }
     }
 }
@@ -545,17 +530,10 @@ pub(super) async fn export_op(
     identity: &GatewayInternalIdentity,
     request: DuckDbExportRequest,
 ) -> Result<DuckDbExportOutput, McpError> {
-    let (extension, mime_type, copy_options) = export_file_details(request.format);
-    match &request.selection {
-        DuckDbExportSelection::Database => {
-            if request.format != DuckDbExportFormat::DuckDb {
-                return Err(McpError::invalid_params(
-                    "database snapshots require format `duck_db`",
-                    None,
-                ));
-            }
-            let db = resolve_readable_database(state, identity, &request.db)?;
-            let db_path = require_data_file(&request.db, &db)?;
+    match request {
+        DuckDbExportRequest::Snapshot { db: db_id } => {
+            let db = resolve_readable_database(state, identity, &db_id)?;
+            let db_path = require_data_file(&db_id, &db)?;
             let lock = state.write_lock(&db).await;
             let _guard = lock.lock().await;
             let settings = state.engine.clone();
@@ -587,38 +565,36 @@ pub(super) async fn export_op(
                 state,
                 artifact_writer,
                 bytes,
-                mime_type,
-                format!("{}_snapshot.{extension}", request.db),
-                DuckDbArtifactOrigin::new(request.db.clone(), DuckDbArtifactOperation::Snapshot {})
+                "application/vnd.duckdb",
+                format!("{db_id}_snapshot.duckdb"),
+                DuckDbArtifactOrigin::new(db_id.clone(), DuckDbArtifactOperation::Snapshot {})
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
             Ok(DuckDbExportOutput {
-                db: request.db,
+                db: db_id,
                 rows_exported: 0,
                 artifact: artifact.without_download_url(),
             })
         }
-        selection => {
-            if request.format == DuckDbExportFormat::DuckDb {
-                return Err(McpError::invalid_params(
-                    "format `duck_db` is only valid for database snapshots",
-                    None,
-                ));
-            }
-            let select_sql = match selection {
-                DuckDbExportSelection::Table { table } => {
+        DuckDbExportRequest::Tabular {
+            db: db_id,
+            selection,
+            format,
+        } => {
+            let (extension, mime_type, copy_options) = export_file_details(format);
+            let select_sql = match &selection {
+                DuckDbTabularSelection::Table { table } => {
                     let table = table.trim();
                     if table.is_empty() {
                         return Err(McpError::invalid_params("table must not be empty", None));
                     }
                     format!("SELECT * FROM {}", duckdb_quote_identifier(table))
                 }
-                DuckDbExportSelection::Sql { sql } => single_statement_sql("export", sql)?,
-                DuckDbExportSelection::Database => unreachable!("handled above"),
+                DuckDbTabularSelection::Sql { sql } => single_statement_sql("export", sql)?,
             };
-            let db = resolve_readable_database(state, identity, &request.db)?;
-            let db_path = require_data_file(&request.db, &db)?;
+            let db = resolve_readable_database(state, identity, &db_id)?;
+            let db_path = require_data_file(&db_id, &db)?;
             let exchange = fresh_exchange_dir(state);
             tokio::fs::create_dir_all(&exchange)
                 .await
@@ -658,27 +634,26 @@ pub(super) async fn export_op(
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?;
             cleanup_exchange_dir(&exchange).await;
             let operation = match selection {
-                DuckDbExportSelection::Table { table } => DuckDbArtifactOperation::ExportTable {
+                DuckDbTabularSelection::Table { table } => DuckDbArtifactOperation::ExportTable {
                     table: table.trim().to_owned(),
                     row_count: rows_exported,
                 },
-                DuckDbExportSelection::Sql { .. } => DuckDbArtifactOperation::ExportSql {
+                DuckDbTabularSelection::Sql { .. } => DuckDbArtifactOperation::ExportSql {
                     row_count: rows_exported,
                 },
-                DuckDbExportSelection::Database => unreachable!("handled above"),
             };
             let artifact = put_op_artifact(
                 state,
                 artifact_writer,
                 bytes,
                 mime_type,
-                format!("{}_export.{extension}", request.db),
-                DuckDbArtifactOrigin::new(request.db.clone(), operation)
+                format!("{}_export.{extension}", db_id),
+                DuckDbArtifactOrigin::new(db_id.clone(), operation)
                     .map_err(|error| McpError::internal_error(error.to_string(), None))?,
             )
             .await?;
             Ok(DuckDbExportOutput {
-                db: request.db,
+                db: db_id,
                 rows_exported,
                 artifact: artifact.without_download_url(),
             })

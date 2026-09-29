@@ -40,11 +40,12 @@ fn artifact_link(
 
 pub(super) fn query_result(output: &DuckDbQueryOutput) -> Result<CallToolResult, McpError> {
     let mut blocks = Vec::new();
-    match &output.artifact {
+    match output.artifact() {
         Some(artifact) => {
             blocks.push(ContentBlock::text(format!(
                 "query exported {} row(s) to {}",
-                output.row_count, artifact.artifact_uri
+                output.row_count(),
+                artifact.artifact_uri
             )));
             blocks.push(artifact_link(
                 artifact,
@@ -55,8 +56,8 @@ pub(super) fn query_result(output: &DuckDbQueryOutput) -> Result<CallToolResult,
         None => {
             blocks.push(ContentBlock::text(format!(
                 "query returned {} row(s){}",
-                output.row_count,
-                if output.truncated {
+                output.rows().len(),
+                if output.truncated() {
                     "; inline rows truncated — re-run with artifact output for the full set"
                 } else {
                     ""

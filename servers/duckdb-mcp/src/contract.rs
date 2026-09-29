@@ -1,10 +1,14 @@
 mod artifact_origin;
 mod catalog;
+mod export;
+mod query_output;
 mod resources;
 mod scopes;
 mod task_kind;
 pub use artifact_origin::*;
 pub use catalog::*;
+pub use export::*;
+pub use query_output::*;
 pub use resources::*;
 pub use scopes::DuckDbScope;
 use std::fmt;
@@ -12,7 +16,6 @@ pub use task_kind::DuckDbTaskKind;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use veoveo_artifact_contract::ArtifactMetadata;
 mod read_sql;
 mod source;
@@ -109,23 +112,18 @@ impl fmt::Display for DuckDbDatabaseIdError {
 }
 impl std::error::Error for DuckDbDatabaseIdError {}
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum DuckDbExportFormat {
-    Parquet,
-    Csv,
-    /// Full database snapshot as one immutable `.duckdb` file.
-    DuckDb,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "mode", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "mode", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DuckDbQueryOutputMode {
     /// Rows inline in the tool result, subject to the server's row/byte caps.
-    #[default]
-    Inline,
+    Inline {},
     /// Rows written to an immutable artifact; the result carries the link.
-    Artifact { format: DuckDbExportFormat },
+    Artifact { format: DuckDbTabularFormat },
+}
+impl Default for DuckDbQueryOutputMode {
+    fn default() -> Self {
+        Self::Inline {}
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -176,43 +174,10 @@ pub struct DuckDbIngestRequest {
     pub create_db_if_missing: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum DuckDbExportSelection {
-    Table {
-        table: String,
-    },
-    /// Read-only SQL whose result set is exported.
-    Sql {
-        sql: String,
-    },
-    /// The whole database as a snapshot (format must be `duck_db`).
-    Database,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbExportRequest {
-    pub db: DuckDbDatabaseId,
-    pub selection: DuckDbExportSelection,
-    pub format: DuckDbExportFormat,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DuckDbColumn {
     pub name: String,
     pub type_name: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbQueryOutput {
-    pub columns: Vec<DuckDbColumn>,
-    /// Row-major values; present only for inline output.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub rows: Vec<Vec<Value>>,
-    pub row_count: u64,
-    pub truncated: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub artifact: Option<ArtifactMetadata>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -257,13 +222,13 @@ mod tests {
     #[test]
     fn query_output_mode_wire_shape() {
         let inline: DuckDbQueryOutputMode = serde_json::from_str(r#"{"mode":"inline"}"#).unwrap();
-        assert_eq!(inline, DuckDbQueryOutputMode::Inline);
+        assert_eq!(inline, DuckDbQueryOutputMode::Inline {});
         let artifact: DuckDbQueryOutputMode =
             serde_json::from_str(r#"{"mode":"artifact","format":"parquet"}"#).unwrap();
         assert_eq!(
             artifact,
             DuckDbQueryOutputMode::Artifact {
-                format: DuckDbExportFormat::Parquet
+                format: DuckDbTabularFormat::Parquet
             }
         );
     }

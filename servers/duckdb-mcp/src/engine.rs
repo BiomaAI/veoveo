@@ -86,6 +86,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn native_query_results_satisfy_shape_and_observed_count_admission() {
+        for (sql, row_cap, byte_cap, returned, observed, truncated) in [
+            ("SELECT 42 AS answer WHERE false", 10, 1024, 0, 0, false),
+            (
+                "SELECT range AS answer FROM range(3)",
+                10,
+                1024,
+                3,
+                3,
+                false,
+            ),
+            ("SELECT range AS answer FROM range(3)", 1, 1024, 1, 2, true),
+            ("SELECT 42 AS answer", 10, 1, 0, 1, true),
+            ("SELECT NULL AS answer", 10, 1024, 1, 1, false),
+        ] {
+            let conn = Connection::open_in_memory().unwrap();
+            let rows = run_query(&conn, sql, row_cap, byte_cap).unwrap();
+            let output = crate::contract::DuckDbQueryOutput::inline(
+                rows.columns,
+                rows.rows,
+                rows.row_count,
+                rows.truncated,
+            )
+            .unwrap();
+            assert_eq!(output.rows().len(), returned);
+            assert_eq!(output.row_count(), observed);
+            assert_eq!(output.truncated(), truncated);
+        }
+    }
+
+    #[test]
     fn duckdb_mcp_spatial_verification_retains_native_axis_policy() {
         let Some(extension) = std::env::var_os("VEOVEO_TEST_DUCKDB_SPATIAL_EXTENSION") else {
             return;

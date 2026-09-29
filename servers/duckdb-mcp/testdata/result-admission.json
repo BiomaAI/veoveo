@@ -1,0 +1,370 @@
+[
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "format": "parquet",
+      "selection": {
+        "kind": "table",
+        "table": "facts"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "format": "parquet",
+      "selection": {
+        "kind": "sql",
+        "sql": "SELECT 42"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "parquet",
+      "selection": {
+        "kind": "database"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "table",
+        "table": "facts"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "sql",
+        "sql": "SELECT 42"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "database"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "duck_db",
+      "selection": {
+        "kind": "table",
+        "table": "facts"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "duck_db",
+      "selection": {
+        "kind": "sql",
+        "sql": "SELECT 42"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "format": "duck_db",
+      "selection": {
+        "kind": "database"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "duck_db",
+      "selection": {
+        "kind": "database",
+        "sql": "SELECT 42"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "table",
+        "table": "facts",
+        "sql": "SELECT 42"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "sql",
+        "sql": "SELECT 42"
+      },
+      "surprise": true
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "csv",
+      "selection": {
+        "kind": "sql"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "format": "duck_db"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": true,
+    "value": {
+      "mode": "inline"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": true,
+    "value": {
+      "mode": "artifact",
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": true,
+    "value": {
+      "mode": "artifact",
+      "format": "parquet"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": false,
+    "value": {
+      "mode": "inline",
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": false,
+    "value": {
+      "mode": "artifact",
+      "format": "duck_db"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": false,
+    "value": {
+      "mode": "artifact"
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutputMode",
+    "accepted": false,
+    "value": {
+      "mode": "artifact",
+      "format": "csv",
+      "surprise": true
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": true,
+    "value": {
+      "columns": [
+        {
+          "name": "answer",
+          "type_name": "BIGINT"
+        }
+      ],
+      "rows": [
+        [
+          42
+        ]
+      ],
+      "row_count": 1,
+      "truncated": false
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": true,
+    "value": {
+      "columns": [],
+      "row_count": 0,
+      "truncated": false
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": true,
+    "value": {
+      "columns": [
+        {
+          "name": "answer",
+          "type_name": "BIGINT"
+        }
+      ],
+      "rows": [
+        [
+          42
+        ]
+      ],
+      "row_count": 2,
+      "truncated": true
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": true,
+    "value": {
+      "columns": [
+        {
+          "name": "answer",
+          "type_name": "BIGINT"
+        }
+      ],
+      "row_count": 1,
+      "truncated": true
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": true,
+    "value": {
+      "columns": [],
+      "row_count": 42,
+      "truncated": false,
+      "artifact": {
+        "artifact_id": "01983da0-0000-7000-8000-000000000001",
+        "artifact_uri": "duckdb://artifact/01983da0-0000-7000-8000-000000000001",
+        "byte_len": 12,
+        "created_at": "2026-09-29T00:00:00Z"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": false,
+    "value": {
+      "columns": [],
+      "row_count": 42,
+      "truncated": false,
+      "artifact": {
+        "artifact_id": "01983da0-0000-7000-8000-000000000001",
+        "artifact_uri": "duckdb://artifact/01983da0-0000-7000-8000-000000000001",
+        "byte_len": 12,
+        "created_at": "2026-09-29T00:00:00Z"
+      },
+      "rows": [
+        [
+          42
+        ]
+      ]
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": false,
+    "value": {
+      "columns": [
+        {
+          "name": "answer",
+          "type_name": "BIGINT"
+        }
+      ],
+      "row_count": 42,
+      "truncated": false,
+      "artifact": {
+        "artifact_id": "01983da0-0000-7000-8000-000000000001",
+        "artifact_uri": "duckdb://artifact/01983da0-0000-7000-8000-000000000001",
+        "byte_len": 12,
+        "created_at": "2026-09-29T00:00:00Z"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": false,
+    "value": {
+      "columns": [],
+      "row_count": 42,
+      "truncated": true,
+      "artifact": {
+        "artifact_id": "01983da0-0000-7000-8000-000000000001",
+        "artifact_uri": "duckdb://artifact/01983da0-0000-7000-8000-000000000001",
+        "byte_len": 12,
+        "created_at": "2026-09-29T00:00:00Z"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbQueryOutput",
+    "accepted": false,
+    "value": {
+      "columns": [
+        {
+          "name": "answer",
+          "type_name": "BIGINT"
+        }
+      ],
+      "rows": [
+        [
+          42
+        ]
+      ],
+      "row_count": 1,
+      "truncated": false,
+      "surprise": true
+    }
+  }
+]

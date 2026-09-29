@@ -1008,6 +1008,7 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/src/catalog.rs` | owner-directory pagination that retains at most 101 filename candidates and reads no database bytes |
 | `servers/duckdb-mcp/src/bin/server/setup.rs`, `src/bin/server/resources.rs` | checked hosted declarations and exhaustive authenticated resource dispatch |
 | `servers/duckdb-mcp/src/contract/artifact_origin.rs`, `src/contract/usage_metadata.rs` | checked Artifact origin and closed usage facts shared through the isolated contract feature |
+| `servers/duckdb-mcp/src/contract/export.rs`, `src/contract/query_output.rs` | export selection/format agreement and checked row/result construction; shared decoder/schema admission cases in `testdata/result-admission.json` |
 | `servers/duckdb-mcp/src/bin/server/tasks.rs`, `src/bin/server/artifact_output.rs` | typed Task execution, recovery and capability-bound Artifact publication; native execution qualification in `task_execution_tests.rs` |
 | `servers/duckdb-mcp/src/engine.rs` | adapter from server results to the shared runtime |
 | `servers/duckdb-mcp/src/bin/server/ownership.rs` | derived owner workspaces and database resolution |

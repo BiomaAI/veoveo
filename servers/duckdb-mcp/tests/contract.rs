@@ -4,6 +4,8 @@ mod catalog;
 mod execution;
 #[path = "contract/resources.rs"]
 mod resources;
+#[path = "contract/results.rs"]
+mod results;
 use serde_json::{Value, json};
 use veoveo_duckdb_mcp::contract::*;
 
@@ -21,13 +23,13 @@ fn schemas_match_the_declared_contract() {
         DuckDbReadOptions,
         DuckDbSource,
         DuckDbDatabaseId,
-        DuckDbExportFormat,
+        DuckDbTabularFormat,
         DuckDbQueryOutputMode,
         DuckDbQueryRequest,
         DuckDbExecuteRequest,
         DuckDbIngestMode,
         DuckDbIngestRequest,
-        DuckDbExportSelection,
+        DuckDbTabularSelection,
         DuckDbExportRequest,
         DuckDbColumn,
         DuckDbQueryOutput,
@@ -74,7 +76,7 @@ fn public_consumer_reuses_source_variants_and_default_ingest_fields() {
     }
     let query: DuckDbQueryRequest =
         serde_json::from_value(json!({"db":"measurements", "sql":"SELECT 1"})).unwrap();
-    assert_eq!(query.output, DuckDbQueryOutputMode::Inline);
+    assert_eq!(query.output, DuckDbQueryOutputMode::Inline {});
     assert!(query.attach.is_empty());
     assert!(query.row_limit.is_none());
     assert!(query.timeout_ms.is_none());

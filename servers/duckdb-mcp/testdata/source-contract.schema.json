@@ -96,24 +96,6 @@
     "title": "DuckDbExecuteRequest",
     "type": "object"
   },
-  "DuckDbExportFormat": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [
-      {
-        "enum": [
-          "parquet",
-          "csv"
-        ],
-        "type": "string"
-      },
-      {
-        "const": "duck_db",
-        "description": "Full database snapshot as one immutable `.duckdb` file.",
-        "type": "string"
-      }
-    ],
-    "title": "DuckDbExportFormat"
-  },
   "DuckDbExportOutput": {
     "$defs": {
       "AccessSubject": {
@@ -468,25 +450,10 @@
         "pattern": "^[a-z][a-z0-9_]{0,63}$",
         "description": "Owner-scoped name of a mutable hosted database file."
       },
-      "DuckDbExportFormat": {
+      "DuckDbTabularSelection": {
         "oneOf": [
           {
-            "enum": [
-              "parquet",
-              "csv"
-            ],
-            "type": "string"
-          },
-          {
-            "const": "duck_db",
-            "description": "Full database snapshot as one immutable `.duckdb` file.",
-            "type": "string"
-          }
-        ]
-      },
-      "DuckDbExportSelection": {
-        "oneOf": [
-          {
+            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "table",
@@ -503,6 +470,7 @@
             "type": "object"
           },
           {
+            "additionalProperties": false,
             "description": "Read-only SQL whose result set is exported.",
             "properties": {
               "kind": {
@@ -518,9 +486,13 @@
               "sql"
             ],
             "type": "object"
-          },
+          }
+        ]
+      },
+      "SnapshotSelection": {
+        "oneOf": [
           {
-            "description": "The whole database as a snapshot (format must be `duck_db`).",
+            "additionalProperties": false,
             "properties": {
               "kind": {
                 "const": "database",
@@ -536,76 +508,74 @@
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "properties": {
-      "db": {
-        "$ref": "#/$defs/DuckDbDatabaseId"
-      },
-      "format": {
-        "$ref": "#/$defs/DuckDbExportFormat"
-      },
-      "selection": {
-        "$ref": "#/$defs/DuckDbExportSelection"
-      }
-    },
-    "required": [
-      "db",
-      "selection",
-      "format"
-    ],
     "title": "DuckDbExportRequest",
-    "type": "object"
-  },
-  "DuckDbExportSelection": {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "description": "A snapshot has its own format; row exports require a tabular format.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbExportRequest, DuckDbTabularFormat};\nlet request = DuckDbExportRequest::Snapshot {\n    db: \"metrics\".parse().unwrap(),\n    format: DuckDbTabularFormat::Csv,\n};\n```",
     "oneOf": [
       {
+        "additionalProperties": false,
         "properties": {
-          "kind": {
-            "const": "table",
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "format": {
+            "const": "parquet",
             "type": "string"
           },
-          "table": {
-            "type": "string"
+          "selection": {
+            "$ref": "#/$defs/DuckDbTabularSelection"
           }
         },
         "required": [
-          "kind",
-          "table"
+          "format",
+          "db",
+          "selection"
         ],
         "type": "object"
       },
       {
-        "description": "Read-only SQL whose result set is exported.",
+        "additionalProperties": false,
         "properties": {
-          "kind": {
-            "const": "sql",
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "format": {
+            "const": "csv",
             "type": "string"
           },
-          "sql": {
-            "type": "string"
+          "selection": {
+            "$ref": "#/$defs/DuckDbTabularSelection"
           }
         },
         "required": [
-          "kind",
-          "sql"
+          "format",
+          "db",
+          "selection"
         ],
         "type": "object"
       },
       {
-        "description": "The whole database as a snapshot (format must be `duck_db`).",
+        "additionalProperties": false,
         "properties": {
-          "kind": {
-            "const": "database",
+          "db": {
+            "$ref": "#/$defs/DuckDbDatabaseId"
+          },
+          "format": {
+            "const": "duck_db",
             "type": "string"
+          },
+          "selection": {
+            "$ref": "#/$defs/SnapshotSelection"
           }
         },
         "required": [
-          "kind"
+          "format",
+          "db",
+          "selection"
         ],
         "type": "object"
       }
-    ],
-    "title": "DuckDbExportSelection"
+    ]
   },
   "DuckDbFormat": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1235,7 +1205,6 @@
         "type": "integer"
       },
       "rows": {
-        "description": "Row-major values; present only for inline output.",
         "items": {
           "items": true,
           "type": "array"
@@ -1252,25 +1221,46 @@
       "truncated"
     ],
     "title": "DuckDbQueryOutput",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false,
+    "description": "Construct results through `inline` or `exported`; callers cannot mutate\nrow/count or inline/Artifact relationships independently.\n\n```compile_fail\nuse veoveo_duckdb_mcp::contract::DuckDbQueryOutput;\nfn change_count(mut output: DuckDbQueryOutput) { output.row_count = 7; }\n```",
+    "oneOf": [
+      {
+        "properties": {
+          "artifact": {
+            "type": "null"
+          }
+        }
+      },
+      {
+        "properties": {
+          "artifact": {
+            "type": "object"
+          },
+          "columns": {
+            "maxItems": 0
+          },
+          "rows": {
+            "maxItems": 0
+          },
+          "truncated": {
+            "const": false
+          }
+        },
+        "required": [
+          "artifact"
+        ]
+      }
+    ]
   },
   "DuckDbQueryOutputMode": {
     "$defs": {
-      "DuckDbExportFormat": {
-        "oneOf": [
-          {
-            "enum": [
-              "parquet",
-              "csv"
-            ],
-            "type": "string"
-          },
-          {
-            "const": "duck_db",
-            "description": "Full database snapshot as one immutable `.duckdb` file.",
-            "type": "string"
-          }
-        ]
+      "DuckDbTabularFormat": {
+        "enum": [
+          "parquet",
+          "csv"
+        ],
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1286,13 +1276,14 @@
         "required": [
           "mode"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       },
       {
         "description": "Rows written to an immutable artifact; the result carries the link.",
         "properties": {
           "format": {
-            "$ref": "#/$defs/DuckDbExportFormat"
+            "$ref": "#/$defs/DuckDbTabularFormat"
           },
           "mode": {
             "const": "artifact",
@@ -1303,7 +1294,8 @@
           "mode",
           "format"
         ],
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false
       }
     ],
     "title": "DuckDbQueryOutputMode"
@@ -1314,22 +1306,6 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9_]{0,63}$",
         "description": "Owner-scoped name of a mutable hosted database file."
-      },
-      "DuckDbExportFormat": {
-        "oneOf": [
-          {
-            "enum": [
-              "parquet",
-              "csv"
-            ],
-            "type": "string"
-          },
-          {
-            "const": "duck_db",
-            "description": "Full database snapshot as one immutable `.duckdb` file.",
-            "type": "string"
-          }
-        ]
       },
       "DuckDbQueryOutputMode": {
         "oneOf": [
@@ -1344,13 +1320,14 @@
             "required": [
               "mode"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           },
           {
             "description": "Rows written to an immutable artifact; the result carries the link.",
             "properties": {
               "format": {
-                "$ref": "#/$defs/DuckDbExportFormat"
+                "$ref": "#/$defs/DuckDbTabularFormat"
               },
               "mode": {
                 "const": "artifact",
@@ -1361,9 +1338,17 @@
               "mode",
               "format"
             ],
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false
           }
         ]
+      },
+      "DuckDbTabularFormat": {
+        "enum": [
+          "parquet",
+          "csv"
+        ],
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2213,5 +2198,55 @@
       }
     ],
     "title": "DuckDbUsageDetails"
+  },
+  "DuckDbTabularFormat": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "enum": [
+      "parquet",
+      "csv"
+    ],
+    "title": "DuckDbTabularFormat",
+    "type": "string"
+  },
+  "DuckDbTabularSelection": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "oneOf": [
+      {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "table",
+            "type": "string"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "table"
+        ],
+        "type": "object"
+      },
+      {
+        "additionalProperties": false,
+        "description": "Read-only SQL whose result set is exported.",
+        "properties": {
+          "kind": {
+            "const": "sql",
+            "type": "string"
+          },
+          "sql": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "sql"
+        ],
+        "type": "object"
+      }
+    ],
+    "title": "DuckDbTabularSelection"
   }
 }

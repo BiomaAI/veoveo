@@ -276,7 +276,7 @@ async fn run_task_inner(
                     if let Err(error) = outputs::record_op_usage(
                         &state,
                         task_id,
-                        output.row_count,
+                        output.row_count(),
                         DuckDbUsageDetails::Query {
                             result: query_usage(&output),
                         },
@@ -389,13 +389,13 @@ async fn run_task_inner(
 }
 
 fn query_usage(output: &DuckDbQueryOutput) -> DuckDbQueryUsage {
-    match &output.artifact {
+    match output.artifact() {
         Some(artifact) => DuckDbQueryUsage::Artifact {
             artifact: artifact.artifact_id(),
         },
         None => DuckDbQueryUsage::Inline {
-            rows_returned: output.rows.len(),
-            truncated: output.truncated,
+            rows_returned: output.rows().len(),
+            truncated: output.truncated(),
         },
     }
 }
