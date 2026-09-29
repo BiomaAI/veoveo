@@ -478,24 +478,15 @@ pub(super) fn nearby_mission_position(
 }
 
 pub(super) fn governed_mission_timeout(
-    route: &Value,
+    cost: &veoveo_map_mcp::contract::RouteCost,
     speed_mps: f64,
     limit_seconds: u64,
 ) -> Result<Duration> {
-    let distance_m = route
-        .pointer("/summary/distance")
-        .and_then(Value::as_f64)
-        .context("governed Map route omitted its summary distance")?;
-    let modeled_duration_s = route
-        .pointer("/summary/duration")
-        .and_then(Value::as_f64)
-        .context("governed Map route omitted its summary duration")?;
+    let distance_m = cost.distance.get();
+    let modeled_duration_s = cost.duration.get();
     ensure!(
-        distance_m.is_finite()
-            && distance_m >= 0.0
-            && modeled_duration_s.is_finite()
-            && modeled_duration_s >= 0.0,
-        "governed Map route returned invalid cost quantities: {route}"
+        speed_mps.is_finite() && speed_mps > 0.0,
+        "mission speed must be finite and positive"
     );
     let minimum_flight_duration_s = distance_m / speed_mps;
     let required_seconds = modeled_duration_s

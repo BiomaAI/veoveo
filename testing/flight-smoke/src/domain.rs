@@ -35,6 +35,7 @@ mod scenario;
 pub(crate) use route::verify as uav_route_verify;
 mod showcase;
 mod stream;
+pub(crate) use stream::verify as uav_stream_verify;
 mod world;
 mod world_publication;
 use artifacts::*;
@@ -150,7 +151,6 @@ async fn uav_sim_verify_with_visual_hold(
         "UAV camera did not fail closed on the canonical NVIDIA NVENC H.264 path: {state}"
     );
     state = wait_for_recording_catalog(&operator, &scenario, Duration::from_secs(30)).await?;
-    let control_grant = ensure_operator_control_grant(&operator, &scenario).await?;
     let recording: veoveo_uav_sim_mcp::contract::RecordingState = serde_json::from_value(
         state
             .pointer("/recordings/0")
@@ -188,6 +188,7 @@ async fn uav_sim_verify_with_visual_hold(
     let live_preview_uri = live.preview_uri;
     let owned_live_session = live.owned_by_acceptance;
     let mut owned_live_session_stopped = false;
+    let mut flight_control_started = false;
     let (mut visual_stream_capture, mut moving_recording_capture) = match visual_holds {
         Some(holds) => (
             Some(holds.stream_capture_complete),
@@ -197,6 +198,18 @@ async fn uav_sim_verify_with_visual_hold(
     };
 
     let flight_result: Result<String> = async {
+        // Qualify independent live inference before any landing or takeoff work.
+        // The later check still proves freshness after the mission.
+        wait_for_live_stream(
+            &operator,
+            &live_session_id,
+            &live_preview_uri,
+            &scenario.stream,
+        )
+        .await?;
+        eprintln!("UAV live Stream prerequisite passed before flight commands");
+        let control_grant = ensure_operator_control_grant(&operator, &scenario).await?;
+        flight_control_started = true;
         ensure_vehicle_landed(&operator, &scenario, "preflight recovery").await?;
         operator
             .call_tool(
@@ -247,17 +260,16 @@ async fn uav_sim_verify_with_visual_hold(
             Duration::from_secs(scenario.mission.task_timeout_seconds),
         )
         .await?;
-        let route = serde_json::to_value(route)?;
         let map_route = operator
             .call_tool(
                 "map__prepare_route_handoff",
                 serde_json::json!({
-                    "route_id": json_string(&route, "/route_id")?
+                    "route_id": route.route_id
                 }),
             )
             .await?;
         let mission_timeout = governed_mission_timeout(
-            &route,
+            &route.summary,
             scenario.mission.speed_mps,
             scenario.mission.task_timeout_seconds,
         )?;
@@ -298,20 +310,13 @@ async fn uav_sim_verify_with_visual_hold(
             "UAV mission did not complete a waypoint: {mission_output}"
         );
 
-        let live_result = wait_for_live_stream(
+        wait_for_live_stream(
             &operator,
             &live_session_id,
             &live_preview_uri,
             &scenario.stream,
         )
         .await?;
-        ensure!(
-            live_result
-                .pointer("/results/processed_frames")
-                .and_then(Value::as_u64)
-                .is_some_and(|count| count >= scenario.stream.minimum_live_frames),
-            "Stream did not process enough direct live frames: {live_result}"
-        );
 
         // The direct live graph has already proved fresh inference. Composed
         // acceptance keeps it open only until the browser captures that same
@@ -479,7 +484,14 @@ async fn uav_sim_verify_with_visual_hold(
         Ok(governed_artifact_id)
     }
     .await;
-    let landing_result = ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await;
+    if let Err(error) = &flight_result {
+        eprintln!("UAV acceptance failed; starting owned postflight cleanup: {error:#}");
+    }
+    let landing_result = if flight_control_started {
+        ensure_vehicle_landed(&operator, &scenario, "postflight recovery").await
+    } else {
+        Ok(())
+    };
     let stream_stop_result = if !owned_live_session || owned_live_session_stopped {
         Ok(())
     } else {

@@ -117,9 +117,9 @@ Flux applies it. Chart publication alone does not replace unchanged Pod template
 ## Release publication
 
 <!-- TODO(foundations): Finish composed flight and installed workload acceptance.
-Sensor health, landing, re-arming and takeoff pass. The operator Map catalog has the
-showcase source and mobility profile but no datasets or active releases. Prepare
-an admitted current aviation release and preflight routing before another flight. -->
+Sensor health, landing, re-arming, takeoff, Map routing and mission completion pass.
+Live Stream fails because the parsed H.264 access unit has no timestamp. Qualify that
+path with uav-stream-verify before repeating flight, replay and Reason acceptance. -->
 
 Service clients authenticate with separate installation-owned RSA keys. Only their
 public JWKS belongs in this GitOps bundle. The private PEM files stay in the caller's
@@ -738,6 +738,19 @@ cargo xtask smoke uav-route-verify \
 This command creates a Map route Task at the scenario's takeoff altitude. It requires
 the operator credentials and Map, and issues no flight commands. Full acceptance
 rechecks admission before taking control of a vehicle.
+
+With the UAV camera and Stream service running, qualify live inference separately:
+
+~~~bash
+cargo xtask smoke uav-stream-verify \
+  --installation examples/bioma/installation-target.json
+~~~
+
+This command needs only operator credentials. It checks fresh results and the encoded
+preview through the public Stream resources, then stops the session if it created it.
+It leaves a reused session with its owner. It performs no landing, takeoff, mission,
+recording replay or Reason work. Full flight checks the same live prerequisite before
+vehicle control and again after mission completion.
 
 Flight verification also requires the administrator client's private key through
 `VEOVEO_ADMIN_SERVICE_CLIENT_PRIVATE_KEY_FILE` and its ID through

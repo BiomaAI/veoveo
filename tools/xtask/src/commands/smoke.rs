@@ -196,6 +196,7 @@ fn dispatcher_binary(arguments: &[OsString]) -> Result<CargoBinary> {
         scenario,
         "uav-world-publish"
             | "uav-route-verify"
+            | "uav-stream-verify"
             | "uav-domain-verify"
             | "uav-showcase-up"
             | "uav-showcase-verify"
@@ -226,6 +227,7 @@ fn scenario_binaries(scenario: &str) -> Result<&'static [CargoBinary]> {
         | "sumo-verify"
         | "uav-world-publish"
         | "uav-route-verify"
+        | "uav-stream-verify"
         | "uav-domain-verify"
         | "uav-showcase-up"
         | "uav-showcase-verify" => &[CONFORMANCE],
@@ -306,6 +308,7 @@ mod tests {
         for scenario in [
             "uav-world-publish",
             "uav-route-verify",
+            "uav-stream-verify",
             "uav-domain-verify",
             "uav-showcase-up",
             "uav-showcase-verify",

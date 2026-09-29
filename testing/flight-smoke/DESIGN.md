@@ -19,7 +19,8 @@
 ## Ownership
 
 `cargo xtask smoke` builds this harness and its conformance executable for
-`uav-world-publish`, `uav-route-verify`, `uav-domain-verify`, `uav-showcase-up`, and `uav-showcase-verify`. Their command
+`uav-world-publish`, `uav-route-verify`, `uav-stream-verify`, `uav-domain-verify`,
+`uav-showcase-up`, and `uav-showcase-verify`. Their command
 arguments and assertions stay in Rust. `main.rs` only installs TLS and dispatches
 parsed commands. `cli.rs` owns those arguments.
 
@@ -48,6 +49,22 @@ current tenant, source, release, family and departure-time admission in SQL. The
 path repeats the prerequisite before world and control operations, then requests the
 mission route from the observed airborne position. A prerequisite pass does not freeze
 Map policy or make the later route request optional.
+The mission keeps Map's `RoutePlan` and `RouteCost` types through handoff and timeout
+calculation; JSON serialization occurs at the MCP call.
+
+`uav-stream-verify` requires operator credentials and an already running UAV camera
+and Stream service. It reads the typed NVENC camera state, starts or reuses the
+admitted live session, and checks fresh inference results and its encoded H.264 preview.
+It sends no vehicle commands and does not require Recording replay, Reason or a browser.
+The full flight path uses the same check before obtaining control and repeats it after
+mission completion. Session, result and preview identities must agree. One scenario
+timeout covers all result reads and waits. The preview admits AVC presentation
+reordering while checking contiguous decode sequence and distinct timestamps.
+
+Both commands report a failure before cleanup and stop only sessions they created.
+Flight cleanup lands the vehicle only after this run began issuing flight commands.
+An early Stream failure therefore needs no landing cycle. Existing sessions keep their
+owner, and an independent Stream pass does not establish composed flight or visual acceptance.
 
 `domain/readiness.rs` distinguishes startup from invalid state. Runtime, terrain,
 PX4 connection and camera warmup share the scenario's single timeout. A running

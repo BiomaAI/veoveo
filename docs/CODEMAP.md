@@ -781,6 +781,7 @@ The packaged Node chart server keeps its Veoveo boundary beside the image:
 | `testing/flight-smoke/src/domain.rs` | runtime world publication plus credentialed Google tiles, PX4, independent live Stream processing, Recording Hub replay, Reason, and concurrent GPU acceptance |
 | `testing/flight-smoke/src/domain/world_publication.rs` | Frames publication, readback and typed installation world document with content digest for fresh/reset installations |
 | `testing/flight-smoke/src/domain/route.rs` | Map-owned route requests and current aviation admission before flight, also exposed as the lightweight `uav-route-verify` command |
+| `testing/flight-smoke/src/domain/stream.rs` | typed live Stream reads, preview admission and owned cleanup; `uav-stream-verify` isolates inference acceptance from flight and replay |
 | `testing/flight-smoke/src/domain/readiness.rs` | typed UAV world, terrain, PX4 and camera readiness; transient startup shares one deadline while invalid state fails immediately |
 | `testing/flight-smoke/src/domain/control_grants.rs` | client-only UAV grant page decoding, Map-owned profile references and bounded authority qualification |
 | `testing/flight-smoke/src/domain/showcase.rs` | showcase UAV cameras and products, authenticated Console checkpoints, Rerun playback, and evidence tied to a revision |

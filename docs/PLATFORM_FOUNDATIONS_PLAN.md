@@ -105,7 +105,21 @@ missing release in under a second, before flight commands. Acquisition
 `acquisition-01a0ef43-cdeb-7a52-821d-7df36eebeead` verified the registered immutable
 fixture digest and staged the current source. Release
 `release-01a0ef43-d09b-7d11-9192-8c814057ec47` is active with record version 2, and the
-same route check now passes in under a second. Full flight qualification follows.
+same route check now passes in under a second. Installed flight then completed Map
+routing and the UAV mission, including a waypoint. Live Stream failed before replay
+and Reason: its native runner reports an H.264 access unit without a timestamp. The
+supervisor can kill the runner during event-channel cleanup, so the reported SIGKILL
+does not identify the initial failure. TensorRT loaded successfully; the Stream container and
+node report no OOM kills. Sensor validators remain healthy, and postflight landing and
+live-session cleanup completed. The cluster is stopped after collecting diagnostics.
+The next client batch exposes `uav-stream-verify` using the existing live assertions
+without flight commands or replay. Full acceptance runs the same prerequisite before
+obtaining vehicle control and repeats it after the mission. Reads use Stream-owned
+session, result and preview types, validate their shared identity, and share one timeout.
+Map route costs stay typed through mission budgeting. Failures print before cleanup,
+and a prerequisite failure does not initiate landing. One native check passes 56 flight
+cases, the dependency-closure check and 113 xtask cases. The new command awaits installed
+qualification with the media timestamp correction before another composed flight.
 The cluster is stopped during that development; Rust and BuildKit caches, image layers
 and runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
@@ -2560,7 +2574,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Finish mission, Stream, Reason and composed timing acceptance with the admitted aviation release | Revision `f1a55ddc` converged. Public installation verification, all 26 Datasheet hosted checks, current RFC UUID timestamps and Task/catalog/usage reads pass. Every installed sensor validator stays healthy after landing; re-arming and takeoff pass. The aviation fixture has now been acquired with its pinned digest and activated through Map; installed route preflight passes. Full composed acceptance remains |
+| Phase 1 reference reset | `examples/bioma/README.md` | Qualify live H.264 timestamps with `uav-stream-verify`, then finish Stream replay, Reason and composed timing acceptance | The current aviation release, route preflight and installed UAV mission pass. Sensor health holds and owned landing/session cleanup completes. Live Stream reports an access unit without a timestamp; replay and Reason were not reached. Its container and node report no OOM kills |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

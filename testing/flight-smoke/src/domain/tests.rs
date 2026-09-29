@@ -201,18 +201,29 @@ fn acceptance_mission_is_bounded_from_the_current_authorized_pose() {
 
 #[test]
 fn governed_mission_budget_tracks_the_authoritative_route_cost() {
-    let route = serde_json::json!({
-        "summary": {"distance": 580.0, "duration": 29.0}
-    });
+    use veoveo_map_mcp::contract::{Meters, Ratio, RouteCost, Seconds};
+    let route = RouteCost {
+        distance: Meters::new(580.0).unwrap(),
+        duration: Seconds::new(29.0).unwrap(),
+        energy: None,
+        fuel: None,
+        monetary_minor_units: None,
+        risk: Ratio::new(0.0).unwrap(),
+    };
     assert_eq!(
         governed_mission_timeout(&route, 20.0, 1800).unwrap(),
         Duration::from_secs(118)
     );
 
-    let excessive = serde_json::json!({
-        "summary": {"distance": 20_000.0, "duration": 1_000.0}
-    });
+    let excessive = RouteCost {
+        distance: Meters::new(20_000.0).unwrap(),
+        duration: Seconds::new(1_000.0).unwrap(),
+        ..route.clone()
+    };
     assert!(governed_mission_timeout(&excessive, 20.0, 1800).is_err());
+    for invalid_speed in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+        assert!(governed_mission_timeout(&route, invalid_speed, 1800).is_err());
+    }
 }
 
 #[test]
@@ -242,22 +253,33 @@ fn native_sensor_stream_requires_nvenc_access_units() {
 
 #[test]
 fn live_preview_orders_reordered_h264_by_decode_sequence() {
+    use veoveo_stream_mcp::contract::EncodedVideoChunk;
     let access_unit = BASE64_STANDARD.encode([0, 0, 0, 1, 0x65]);
     let chunks = vec![
-        serde_json::json!({
-            "sequence": 0,
-            "timestamp_us": 200_000,
-            "keyframe": true,
-            "data_base64": access_unit,
-        }),
-        serde_json::json!({
-            "sequence": 1,
-            "timestamp_us": 100_000,
-            "keyframe": false,
-            "data_base64": access_unit,
-        }),
+        EncodedVideoChunk {
+            sequence: 0,
+            timestamp_us: 200_000,
+            keyframe: true,
+            data_base64: access_unit.clone(),
+        },
+        EncodedVideoChunk {
+            sequence: 1,
+            timestamp_us: 100_000,
+            keyframe: false,
+            data_base64: access_unit,
+        },
     ];
     validate_live_preview(&chunks).expect("AVC presentation reordering is valid");
+    let mut duplicate_time = chunks.clone();
+    duplicate_time[1].timestamp_us = duplicate_time[0].timestamp_us;
+    assert!(validate_live_preview(&duplicate_time).is_err());
+    let mut gap = chunks.clone();
+    gap[1].sequence = 2;
+    assert!(validate_live_preview(&gap).is_err());
+    let mut overflow = chunks;
+    overflow[0].sequence = u64::MAX;
+    overflow[1].sequence = 0;
+    assert!(validate_live_preview(&overflow).is_err());
 }
 
 #[test]

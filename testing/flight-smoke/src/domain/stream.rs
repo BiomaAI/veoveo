@@ -1,8 +1,62 @@
 use super::*;
+use veoveo_stream_mcp::contract::{EncodedVideoChunk, LivePreviewView, LiveResultsView};
 use veoveo_stream_mcp::{
     contract::{PipelineId, SessionId, SessionPreviewUri, SessionResultsUri},
     uris as stream_uris,
 };
+
+pub(crate) async fn verify(
+    conformance: &Path,
+    scenario_path: &Path,
+    installation: &InstalledTarget,
+) -> Result<()> {
+    let scenario = UavAcceptanceScenario::load(scenario_path)?;
+    assert_executable(conformance)?;
+    installation.operator.validate_credentials()?;
+    let operator = OperatorClient {
+        conformance,
+        installation,
+    };
+    let state: veoveo_uav_sim_mcp::contract::SimulationState =
+        serde_json::from_value(simulation_state(&operator, &scenario).await?)
+            .context("decoding the UAV-owned camera state")?;
+    ensure!(
+        state.session_id == scenario.session_id
+            && state.cameras.iter().any(|camera| {
+                camera.vehicle_id == scenario.vehicle_id
+                    && camera.lifecycle == veoveo_uav_sim_mcp::contract::CameraLifecycle::Ready
+                    && camera.frames_observed >= 3
+                    && camera.last_access_unit_bytes > 0
+            }),
+        "the selected UAV camera must publish NVIDIA NVENC access units before Stream acceptance"
+    );
+    let live = prepare_live_stream_pipeline(&operator, &scenario.stream.live_pipeline_id).await?;
+    let result = wait_for_live_stream(
+        &operator,
+        &live.session_id,
+        &live.preview_uri,
+        &scenario.stream,
+    )
+    .await;
+    if let Err(error) = &result {
+        eprintln!("live Stream acceptance failed; starting owned cleanup: {error:#}");
+    }
+    let cleanup = if live.owned_by_acceptance {
+        stop_live_stream_session(&operator, &live.session_id, "Stream acceptance cleanup").await
+    } else {
+        Ok(())
+    };
+    match (result, cleanup) {
+        (Err(error), Err(cleanup)) => bail!("{error:#}; Stream cleanup also failed: {cleanup:#}"),
+        (Err(error), Ok(())) | (Ok(()), Err(error)) => return Err(error),
+        (Ok(()), Ok(())) => {}
+    }
+    println!(
+        "UAV live Stream acceptance passed: fresh inference and encoded preview; session {}",
+        live.session_id
+    );
+    Ok(())
+}
 
 pub(super) struct AcceptanceLiveSession {
     pub(super) session_id: SessionId,
@@ -173,89 +227,92 @@ pub(super) async fn wait_for_live_stream(
     session_id: &SessionId,
     preview_uri: &SessionPreviewUri,
     acceptance: &StreamScenario,
-) -> Result<Value> {
+) -> Result<()> {
     let session_uri = stream_uris::session_uri(*session_id).to_string();
     let results_uri = stream_uris::session_results_uri(*session_id).to_string();
     let timeout = Duration::from_secs(acceptance.live_timeout_seconds);
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let session = operator
-            .resource(&session_uri, Duration::from_secs(60))
-            .await?;
-        ensure!(
-            json_string(&session, "/lifecycle")? != "failed",
-            "live Stream session failed: {session}"
-        );
-        let results = operator
-            .resource(&results_uri, Duration::from_secs(60))
-            .await?;
-        let preview = operator
-            .resource(&preview_uri.to_string(), Duration::from_secs(60))
-            .await?;
-        let current = serde_json::json!({
-            "session": session,
-            "results": results,
-            "preview": preview
-        });
-
-        let enough_frames = current
-            .pointer("/results/processed_frames")
-            .and_then(Value::as_u64)
-            .is_some_and(|count| count >= acceptance.minimum_live_frames);
-        let latest_frame = current
-            .pointer("/results/frames")
-            .and_then(Value::as_array)
-            .and_then(|frames| frames.last());
-        let fresh = latest_frame
-            .and_then(|frame| frame.get("observed_at"))
-            .and_then(Value::as_str)
-            .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
-            .is_some_and(|observed_at| {
-                let age = Utc::now()
-                    .signed_duration_since(observed_at.with_timezone(&Utc))
-                    .num_milliseconds();
-                age >= 0
-                    && age <= i64::try_from(acceptance.maximum_result_age_ms).unwrap_or(i64::MAX)
-            });
-        let chunks = current
-            .pointer("/preview/chunks")
-            .and_then(Value::as_array)
-            .cloned()
-            .unwrap_or_default();
-        let decodable_preview = validate_live_preview(&chunks).is_ok();
-        if enough_frames && fresh && decodable_preview {
-            validate_live_preview(&chunks)?;
-            return Ok(current);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            bail!(
-                "Stream produced no fresh typed results and decodable App preview within \
-                 {timeout:?}: {current}"
+    tokio::time::timeout(timeout, async {
+        loop {
+            let session: LiveSessionView = serde_json::from_value(
+                operator
+                    .resource(&session_uri, Duration::from_secs(60))
+                    .await?,
+            )
+            .context("decoding live Stream session")?;
+            ensure!(
+                session.session_id() == *session_id
+                    && session.pipeline_id() == &acceptance.live_pipeline_id,
+                "Stream session does not match the admitted session and pipeline"
             );
+            ensure!(
+                matches!(
+                    session.lifecycle,
+                    LiveSessionLifecycle::Starting | LiveSessionLifecycle::Running
+                ),
+                "live Stream session is {:?}: {}",
+                session.lifecycle,
+                session.error.as_deref().unwrap_or("no diagnostic")
+            );
+            let results: LiveResultsView = serde_json::from_value(
+                operator
+                    .resource(&results_uri, Duration::from_secs(60))
+                    .await?,
+            )
+            .context("decoding live Stream results")?;
+            let preview: LivePreviewView = serde_json::from_value(
+                operator
+                    .resource(&preview_uri.to_string(), Duration::from_secs(60))
+                    .await?,
+            )
+            .context("decoding live Stream preview")?;
+            ensure!(
+                results.session_id == *session_id
+                    && preview.session_id == *session_id
+                    && results.pipeline_id == acceptance.live_pipeline_id,
+                "Stream results or preview belong to another session or pipeline"
+            );
+
+            let enough_frames = results.processed_frames >= acceptance.minimum_live_frames;
+            let fresh = results
+                .frames
+                .last()
+                .and_then(|frame| DateTime::parse_from_rfc3339(&frame.observed_at).ok())
+                .is_some_and(|observed_at| {
+                    let age = Utc::now()
+                        .signed_duration_since(observed_at.with_timezone(&Utc))
+                        .num_milliseconds();
+                    age >= 0
+                        && age
+                            <= i64::try_from(acceptance.maximum_result_age_ms).unwrap_or(i64::MAX)
+                });
+            let decodable_preview = validate_live_preview(&preview.chunks).is_ok();
+            if enough_frames && fresh && decodable_preview {
+                return Ok(());
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
         }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
+    })
+    .await
+    .with_context(|| {
+        format!(
+            "Stream produced no fresh typed results and decodable App preview within {timeout:?}"
+        )
+    })?
 }
 
-pub(super) fn validate_live_preview(chunks: &[Value]) -> Result<()> {
+pub(super) fn validate_live_preview(chunks: &[EncodedVideoChunk]) -> Result<()> {
     ensure!(
-        chunks.first().and_then(|chunk| chunk.get("keyframe")) == Some(&Value::Bool(true)),
+        chunks.first().is_some_and(|chunk| chunk.keyframe),
         "live preview must begin at a keyframe"
     );
-    let mut last_sequence = None;
+    let mut last_sequence: Option<u64> = None;
     let mut timestamps = BTreeSet::new();
     for chunk in chunks {
-        let sequence = chunk
-            .get("sequence")
-            .and_then(Value::as_u64)
-            .context("live preview chunk omitted sequence")?;
-        let timestamp = chunk
-            .get("timestamp_us")
-            .and_then(Value::as_u64)
-            .context("live preview chunk omitted timestamp_us")?;
+        let sequence = chunk.sequence;
+        let timestamp = chunk.timestamp_us;
         if let Some(previous) = last_sequence {
             ensure!(
-                sequence == previous + 1,
+                Some(sequence) == previous.checked_add(1),
                 "live preview sequence is not contiguous"
             );
         }
@@ -263,12 +320,8 @@ pub(super) fn validate_live_preview(chunks: &[Value]) -> Result<()> {
             timestamps.insert(timestamp),
             "live preview repeated a presentation timestamp"
         );
-        let encoded = chunk
-            .get("data_base64")
-            .and_then(Value::as_str)
-            .context("live preview chunk omitted data_base64")?;
         let bytes = BASE64_STANDARD
-            .decode(encoded)
+            .decode(&chunk.data_base64)
             .context("live preview chunk is not valid base64")?;
         ensure!(
             bytes.starts_with(&[0, 0, 0, 1]) || bytes.starts_with(&[0, 0, 1]),
