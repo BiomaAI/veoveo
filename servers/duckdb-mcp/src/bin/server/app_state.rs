@@ -67,8 +67,9 @@ impl AppState {
             .clone()
     }
 
-    pub(super) fn clamp_timeout_ms(&self, requested: Option<u64>) -> u64 {
+    pub(super) fn clamp_timeout_ms(&self, requested: Option<std::num::NonZeroU64>) -> u64 {
         requested
+            .map(std::num::NonZeroU64::get)
             .unwrap_or(self.caps.default_timeout_ms)
             .clamp(1, self.caps.max_timeout_ms)
     }

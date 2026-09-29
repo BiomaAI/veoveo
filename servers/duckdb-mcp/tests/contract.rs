@@ -2,6 +2,8 @@
 mod catalog;
 #[path = "contract/execution.rs"]
 mod execution;
+#[path = "contract/requests.rs"]
+mod requests;
 #[path = "contract/resources.rs"]
 mod resources;
 #[path = "contract/results.rs"]
@@ -23,6 +25,11 @@ fn schemas_match_the_declared_contract() {
     check!(
         DuckDbFormat,
         DuckDbReadOptions,
+        DuckDbReadOptionName,
+        DuckDbReadOptionValue,
+        DuckDbReadOptionText,
+        DuckDbSqlText,
+        DuckDbTableName,
         DuckDbSource,
         DuckDbSourceUris,
         DuckDbArtifactSourceUri,
@@ -80,10 +87,10 @@ fn public_consumer_reuses_source_variants_and_default_ingest_fields() {
     }
     let query: DuckDbQueryRequest =
         serde_json::from_value(json!({"db":"measurements", "sql":"SELECT 1"})).unwrap();
-    assert_eq!(query.output, DuckDbQueryOutputMode::Inline {});
-    assert!(query.attach.is_empty());
-    assert!(query.row_limit.is_none());
-    assert!(query.timeout_ms.is_none());
+    assert_eq!(*query.output(), DuckDbQueryOutputMode::Inline {});
+    assert!(query.attachments().is_empty());
+    assert!(query.row_limit().is_none());
+    assert!(query.timeout_ms().is_none());
     for id in ["", "../private", "UPPER", "0db", "has-dash"] {
         assert!(
             serde_json::from_value::<DuckDbQueryRequest>(json!({"db":id,"sql":"SELECT 1"}))
@@ -101,31 +108,23 @@ fn read_fragments_keep_quoting_and_option_admission() {
             &source,
             &DuckDbFormat::Parquet,
             &DuckDbReadOptions::default()
-        )
-        .unwrap(),
+        ),
         "read_parquet('a''); DROP TABLE observations; --.parquet')"
     );
-    let mut options = DuckDbReadOptions {
-        header: Some(true),
-        delimiter: Some("'".into()),
-        timestamp_format: None,
-        extra: [("nullstr".into(), json!(["NA", "O'Reilly"]))].into(),
-    };
+    let options = DuckDbReadOptions::default()
+        .with_header(true)
+        .with_delimiter("'")
+        .unwrap()
+        .with_extra(
+            "nullstr".parse().unwrap(),
+            DuckDbReadOptionValue::Array(vec![
+                DuckDbReadOptionValue::String("NA".parse().unwrap()),
+                DuckDbReadOptionValue::String("O'Reilly".parse().unwrap()),
+            ]),
+        )
+        .unwrap();
     assert_eq!(
-        duckdb_read_options_sql(&options).unwrap(),
+        duckdb_read_options_sql(&options),
         ", header = true, delim = '''', nullstr = ['NA', 'O''Reilly']"
     );
-    for (name, value) in [
-        ("header", json!(false)),
-        ("delim", json!(",")),
-        ("timestampformat", json!("%Y")),
-        ("x); SELECT 1; --", json!(true)),
-        ("", json!(true)),
-        ("columns", json!({"value":"INTEGER"})),
-        ("nullstr", Value::Null),
-        ("nullstr", json!(["NA", null])),
-    ] {
-        options.extra = [(name.into(), value)].into();
-        assert!(duckdb_read_options_sql(&options).is_err(), "{name}");
-    }
 }

@@ -1,5 +1,5 @@
 //! Export selection and format agree before execution or capability reservation.
-use super::DuckDbDatabaseId;
+use super::{DuckDbDatabaseId, DuckDbSqlText, DuckDbTableName};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -14,11 +14,11 @@ pub enum DuckDbTabularFormat {
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DuckDbTabularSelection {
     Table {
-        table: String,
+        table: DuckDbTableName,
     },
     /// Read-only SQL whose result set is exported.
     Sql {
-        sql: String,
+        sql: DuckDbSqlText,
     },
 }
 

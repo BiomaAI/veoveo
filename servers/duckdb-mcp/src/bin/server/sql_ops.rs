@@ -3,7 +3,6 @@
 //! registers an interrupt handle, and is cancelled on timeout.
 
 use std::{
-    collections::BTreeSet,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -162,18 +161,11 @@ pub(super) async fn query_op(
     identity: &GatewayInternalIdentity,
     request: DuckDbQueryRequest,
 ) -> Result<DuckDbQueryOutput, McpError> {
-    let db = resolve_readable_database(state, identity, &request.db)?;
-    let db_path = require_data_file(&request.db, &db)?;
+    let db = resolve_readable_database(state, identity, request.database())?;
+    let db_path = require_data_file(request.database(), &db)?;
 
     let mut attach = Vec::new();
-    let mut seen = BTreeSet::from([request.db.clone()]);
-    for extra in &request.attach {
-        if !seen.insert(extra.clone()) {
-            return Err(McpError::invalid_params(
-                format!("duplicate attached database `{extra}`"),
-                None,
-            ));
-        }
+    for extra in request.attachments() {
         let attached = resolve_readable_database(state, identity, extra)?;
         attach.push(AttachSpec {
             name: extra.as_str().to_string(),
@@ -182,16 +174,17 @@ pub(super) async fn query_op(
     }
 
     let settings = state.engine.clone();
-    let timeout_ms = state.clamp_timeout_ms(request.timeout_ms);
-    match request.output.clone() {
+    let timeout_ms = state.clamp_timeout_ms(request.timeout_ms());
+    match request.output().clone() {
         DuckDbQueryOutputMode::Inline {} => {
             let row_cap = request
-                .row_limit
+                .row_limit()
+                .map(std::num::NonZeroU64::get)
                 .unwrap_or(state.caps.max_inline_rows)
                 .min(state.caps.max_inline_rows)
                 .max(1);
             let byte_cap = state.caps.max_inline_bytes;
-            let sql = request.sql.clone();
+            let sql = request.sql().clone();
             let rows =
                 run_engine_blocking("query", EngineOperation::Read, timeout_ms, move |watch| {
                     let conn = engine::open_connection(
@@ -202,14 +195,14 @@ pub(super) async fn query_op(
                         &settings,
                     )?;
                     watch.register(&conn);
-                    engine::run_query(&conn, &sql, row_cap, byte_cap)
+                    engine::run_query(&conn, sql.as_str(), row_cap, byte_cap)
                 })
                 .await?;
             DuckDbQueryOutput::inline(rows.columns, rows.rows, rows.row_count, rows.truncated)
                 .map_err(|error| McpError::internal_error(error.to_string(), None))
         }
         DuckDbQueryOutputMode::Artifact { format } => {
-            let select_sql = single_statement_sql("query", &request.sql)?;
+            let select_sql = single_statement_sql("query", request.sql().as_str())?;
             let (extension, mime_type, copy_options) = export_file_details(format);
             let exchange = fresh_exchange_dir(state);
             tokio::fs::create_dir_all(&exchange)
@@ -255,12 +248,11 @@ pub(super) async fn query_op(
                 artifact_writer,
                 bytes,
                 mime_type,
-                format!("{}_query.{extension}", request.db),
+                format!("{}_query.{extension}", request.database()),
                 DuckDbArtifactOrigin::new(
-                    request.db.clone(),
+                    request.database().clone(),
                     DuckDbArtifactOperation::Query { row_count },
-                )
-                .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                ),
             )
             .await?;
             Ok(DuckDbQueryOutput::exported(
@@ -297,7 +289,7 @@ pub(super) async fn execute_op(
             let conn =
                 engine::open_connection(&db_path, false, &[], &FileExchange::Denied, &settings)?;
             watch.register(&conn);
-            execute_sql(&conn, &sql)
+            execute_sql(&conn, sql.as_str())
         },
     )
     .await?;
@@ -333,10 +325,7 @@ pub(super) async fn ingest_op(
     identity: &GatewayInternalIdentity,
     request: DuckDbIngestRequest,
 ) -> Result<DuckDbIngestOutput, McpError> {
-    let table = request.table.trim();
-    if table.is_empty() {
-        return Err(McpError::invalid_params("table must not be empty", None));
-    }
+    let table = request.table.as_str();
     let (db, created) =
         resolve_writable_database(state, identity, &request.db, request.create_db_if_missing)?;
     let db_path = db.clone();
@@ -408,7 +397,7 @@ pub(super) async fn ingest_op(
     let rows_ingested = result?;
     Ok(DuckDbIngestOutput {
         db: request.db,
-        table: table.to_string(),
+        table: request.table,
         rows_ingested,
         db_created: created,
     })
@@ -451,20 +440,18 @@ async fn materialize_source(
             .await
             .map_err(|err| McpError::internal_error(err.to_string(), None))?
             .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
-            duckdb_read_function_sql(
+            Ok(duckdb_read_function_sql(
                 &duckdb_quote_literal(path.to_string_lossy().as_ref()),
                 format,
                 options,
-            )
-            .map_err(|err| McpError::invalid_params(err.to_string(), None))
+            ))
         }
         DuckDbSource::InlineCsv { csv, options, .. } => {
             let path = exchange.join("inline.csv");
             tokio::fs::write(&path, csv)
                 .await
                 .map_err(|err| McpError::internal_error(err.to_string(), None))?;
-            let options = duckdb_read_options_sql(options)
-                .map_err(|err| McpError::invalid_params(err.to_string(), None))?;
+            let options = duckdb_read_options_sql(options);
             Ok(format!(
                 "read_csv({}{options})",
                 duckdb_quote_literal(path.to_string_lossy().as_ref())
@@ -476,12 +463,11 @@ async fn materialize_source(
             options,
         } => {
             let path = fetch_ingest_uri(state, uri, exchange, 0).await?;
-            duckdb_read_function_sql(
+            Ok(duckdb_read_function_sql(
                 &duckdb_quote_literal(path.to_string_lossy().as_ref()),
                 format,
                 options,
-            )
-            .map_err(|err| McpError::invalid_params(err.to_string(), None))
+            ))
         }
         DuckDbSource::Uris {
             uris,
@@ -493,8 +479,11 @@ async fn materialize_source(
                 let path = fetch_ingest_uri(state, uri, exchange, index).await?;
                 literals.push(duckdb_quote_literal(path.to_string_lossy().as_ref()));
             }
-            duckdb_read_function_sql(&format!("[{}]", literals.join(", ")), format, options)
-                .map_err(|err| McpError::invalid_params(err.to_string(), None))
+            Ok(duckdb_read_function_sql(
+                &format!("[{}]", literals.join(", ")),
+                format,
+                options,
+            ))
         }
     }
 }
@@ -562,8 +551,7 @@ pub(super) async fn export_op(
                 bytes,
                 "application/vnd.duckdb",
                 format!("{db_id}_snapshot.duckdb"),
-                DuckDbArtifactOrigin::new(db_id.clone(), DuckDbArtifactOperation::Snapshot {})
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                DuckDbArtifactOrigin::new(db_id.clone(), DuckDbArtifactOperation::Snapshot {}),
             )
             .await?;
             Ok(DuckDbExportOutput {
@@ -580,13 +568,11 @@ pub(super) async fn export_op(
             let (extension, mime_type, copy_options) = export_file_details(format);
             let select_sql = match &selection {
                 DuckDbTabularSelection::Table { table } => {
-                    let table = table.trim();
-                    if table.is_empty() {
-                        return Err(McpError::invalid_params("table must not be empty", None));
-                    }
-                    format!("SELECT * FROM {}", duckdb_quote_identifier(table))
+                    format!("SELECT * FROM {}", duckdb_quote_identifier(table.as_str()))
                 }
-                DuckDbTabularSelection::Sql { sql } => single_statement_sql("export", sql)?,
+                DuckDbTabularSelection::Sql { sql } => {
+                    single_statement_sql("export", sql.as_str())?
+                }
             };
             let db = resolve_readable_database(state, identity, &db_id)?;
             let db_path = require_data_file(&db_id, &db)?;
@@ -630,7 +616,7 @@ pub(super) async fn export_op(
             cleanup_exchange_dir(&exchange).await;
             let operation = match selection {
                 DuckDbTabularSelection::Table { table } => DuckDbArtifactOperation::ExportTable {
-                    table: table.trim().to_owned(),
+                    table,
                     row_count: rows_exported,
                 },
                 DuckDbTabularSelection::Sql { .. } => DuckDbArtifactOperation::ExportSql {
@@ -643,8 +629,7 @@ pub(super) async fn export_op(
                 bytes,
                 mime_type,
                 format!("{}_export.{extension}", db_id),
-                DuckDbArtifactOrigin::new(db_id.clone(), operation)
-                    .map_err(|error| McpError::internal_error(error.to_string(), None))?,
+                DuckDbArtifactOrigin::new(db_id.clone(), operation),
             )
             .await?;
             Ok(DuckDbExportOutput {

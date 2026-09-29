@@ -163,7 +163,6 @@ mod tests {
             "metrics".parse().unwrap(),
             DuckDbArtifactOperation::Query { row_count: 3 },
         )
-        .unwrap()
     }
 
     #[test]
@@ -196,8 +195,7 @@ mod tests {
         let snapshot = DuckDbArtifactOrigin::new(
             "metrics".parse().unwrap(),
             DuckDbArtifactOperation::Snapshot {},
-        )
-        .unwrap();
+        );
         assert!(writer.prepare(ArtifactPut::new(vec![]), snapshot).is_err());
     }
 

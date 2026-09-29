@@ -286,7 +286,7 @@ fn materialize_source_table(
             let path_literal = duckdb_quote_literal(path.to_string_lossy().as_ref());
             format!(
                 "read_csv({path_literal}{})",
-                duckdb_read_options_sql(options)?
+                duckdb_read_options_sql(options)
             )
         }
         DuckDbSource::Uri {
@@ -300,7 +300,7 @@ fn materialize_source_table(
                 &duckdb_quote_literal(path.to_string_lossy().as_ref()),
                 format,
                 options,
-            )?
+            )
         }
         DuckDbSource::Uris {
             uris,
@@ -318,7 +318,7 @@ fn materialize_source_table(
                 })
                 .collect::<Result<Vec<_>>>()?
                 .join(", ");
-            duckdb_read_function_sql(&format!("[{list}]"), format, options)?
+            duckdb_read_function_sql(&format!("[{list}]"), format, options)
         }
         DuckDbSource::Artifact { .. } => {
             // Cross-server artifact:// input is served by the duckdb server, which
@@ -803,10 +803,7 @@ mod tests {
                 source: DuckDbSource::InlineCsv {
                     csv: "ts,value\n2026-01-01,10\n2026-01-02,12\n2026-01-03,15\n".into(),
                     filename: Some("input.csv".into()),
-                    options: DuckDbReadOptions {
-                        header: Some(true),
-                        ..Default::default()
-                    },
+                    options: DuckDbReadOptions::default().with_header(true),
                 },
                 mapping: TimeseriesTableMapping {
                     time_column: Some("ts".into()),
@@ -832,10 +829,7 @@ mod tests {
             source: DuckDbSource::InlineCsv {
                 csv: "ts,series,value\n2026-01-01,a,10\n2026-01-02,a,12\n2026-01-01,b,4\n2026-01-02,b,5\n".into(),
                 filename: Some("input.csv".into()),
-                options: DuckDbReadOptions {
-                    header: Some(true),
-                    ..Default::default()
-                },
+                options: DuckDbReadOptions::default().with_header(true),
             },
             mapping: TimeseriesTableMapping {
                 time_column: Some("ts".into()),
@@ -883,10 +877,7 @@ mod tests {
                 source: DuckDbSource::InlineCsv {
                     csv,
                     filename: Some(example.file.clone()),
-                    options: DuckDbReadOptions {
-                        header: Some(true),
-                        ..Default::default()
-                    },
+                    options: DuckDbReadOptions::default().with_header(true),
                 },
                 mapping: TimeseriesTableMapping {
                     time_column: Some(manifest.schema.time_column.clone()),
@@ -941,10 +932,7 @@ mod tests {
         let source = DuckDbSource::InlineCsv {
             csv: "ts,value\n2026-01-01,10\n".into(),
             filename: Some("input.csv".into()),
-            options: DuckDbReadOptions {
-                header: Some(true),
-                ..Default::default()
-            },
+            options: DuckDbReadOptions::default().with_header(true),
         };
 
         assert_eq!(
@@ -987,8 +975,7 @@ mod tests {
                 "'s3://bucket/file.parquet'",
                 &DuckDbFormat::Parquet,
                 &DuckDbReadOptions::default()
-            )
-            .unwrap(),
+            ),
             "read_parquet('s3://bucket/file.parquet')"
         );
     }

@@ -36,10 +36,10 @@ fn typed_export_requests_keep_the_single_wire_format() {
     for format in [DuckDbTabularFormat::Csv, DuckDbTabularFormat::Parquet] {
         for selection in [
             DuckDbTabularSelection::Table {
-                table: "facts".into(),
+                table: "facts".parse().unwrap(),
             },
             DuckDbTabularSelection::Sql {
-                sql: "SELECT 42".into(),
+                sql: "SELECT 42".parse().unwrap(),
             },
         ] {
             let request = DuckDbExportRequest::Tabular {

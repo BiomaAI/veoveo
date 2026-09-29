@@ -27,6 +27,9 @@ Source URLs use foundational `HttpsUrl`, and URL lists use DuckDB's nonempty sou
 type. Forecast decoding applies those profiles before the worker creates a workspace.
 Provenance keeps the same types until serialization. The [shared runtime](../../platform/runtimes/duckdb/DESIGN.md)
 still enforces allowed hosts, public DNS addresses, redirects and byte/time limits.
+Reader options also use the DuckDB contract's checked names and closed value enum.
+Forecast decoding rejects malformed options before materialization, and the worker
+renders admitted options through the same infallible SQL helper.
 
 ## Library Features
 

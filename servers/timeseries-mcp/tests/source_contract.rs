@@ -22,6 +22,8 @@ fn forecasting_consumes_source_admission_from_the_owner() {
         json!({"kind":"uri","uri":"http://data.example.test/input.csv","format":"csv"}),
         json!({"kind":"uris","uris":[],"format":"csv"}),
         json!({"kind":"uri","uri":"https://user:password@data.example.test/input.csv","format":"csv"}),
+        json!({"kind":"inline_csv","csv":"value\n1\n","options":{"extra":{"HEADER":true}}}),
+        json!({"kind":"inline_csv","csv":"value\n1\n","options":{"extra":{"nullstr":["NA",null]}}}),
     ] {
         assert!(serde_json::from_value::<TimeseriesForecastRequest>(request(source)).is_err());
     }

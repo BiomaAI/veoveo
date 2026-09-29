@@ -1,5 +1,5 @@
 //! Known DuckDB usage facts converted to the Store's open metadata at the driver boundary.
-use super::{DuckDbDatabaseId, DuckDbTaskKind};
+use super::{DuckDbDatabaseId, DuckDbTableName, DuckDbTaskKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactId;
@@ -28,7 +28,7 @@ pub enum DuckDbUsageDetails {
     },
     Ingest {
         db: DuckDbDatabaseId,
-        table: String,
+        table: DuckDbTableName,
     },
     Export {
         db: DuckDbDatabaseId,

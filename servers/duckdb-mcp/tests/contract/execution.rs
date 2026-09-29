@@ -9,12 +9,12 @@ fn artifact_origins_separate_direct_calls_from_native_tasks() {
         DuckDbArtifactOperation::Query { row_count: 0 },
         DuckDbArtifactOperation::ExportSql { row_count: 12 },
         DuckDbArtifactOperation::ExportTable {
-            table: "observations".into(),
+            table: "observations".parse().unwrap(),
             row_count: 12,
         },
         DuckDbArtifactOperation::Snapshot {},
     ] {
-        let direct = DuckDbArtifactOrigin::new("metrics".parse().unwrap(), operation).unwrap();
+        let direct = DuckDbArtifactOrigin::new("metrics".parse().unwrap(), operation);
         let wire = serde_json::to_value(&direct).unwrap();
         assert!(wire.get("task_id").is_none());
         assert_eq!(
@@ -54,16 +54,7 @@ fn artifact_origin_admission_rejects_fake_tasks_and_invalid_operation_facts() {
         wire["operation"] = operation;
         assert!(serde_json::from_value::<DuckDbArtifactOrigin>(wire).is_err());
     }
-    assert!(
-        DuckDbArtifactOrigin::new(
-            "metrics".parse().unwrap(),
-            DuckDbArtifactOperation::ExportTable {
-                table: " ".into(),
-                row_count: 1
-            }
-        )
-        .is_err()
-    );
+    assert!(DuckDbTableName::new(" ").is_err());
 }
 
 #[test]
@@ -88,7 +79,7 @@ fn usage_details_derive_the_operation_and_preserve_domain_ids() {
         (
             DuckDbUsageDetails::Ingest {
                 db: "metrics".parse().unwrap(),
-                table: "observations".into(),
+                table: "observations".parse().unwrap(),
             },
             "ingest",
         ),

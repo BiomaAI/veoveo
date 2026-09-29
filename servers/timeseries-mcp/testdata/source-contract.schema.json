@@ -13,14 +13,45 @@
     "DuckDbReadOptions": {
       "properties": {
         "delimiter": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbReadOptionText"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "extra": {
-          "additionalProperties": true,
-          "type": "object"
+          "additionalProperties": false,
+          "type": "object",
+          "patternProperties": {
+            "^[a-z_]": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            }
+          },
+          "propertyNames": {
+            "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+            "type": "string",
+            "not": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "header",
+                    "delim",
+                    "delimiter",
+                    "sep",
+                    "timestampformat",
+                    "timestamp_format"
+                  ]
+                },
+                {
+                  "pattern": "[^a-z0-9_]"
+                }
+              ]
+            },
+            "pattern": "^[a-z_]"
+          }
         },
         "header": {
           "type": [
@@ -29,13 +60,19 @@
           ]
         },
         "timestamp_format": {
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DuckDbReadOptionText"
+            },
+            {
+              "type": "null"
+            }
           ]
         }
       },
-      "type": "object"
+      "type": "object",
+      "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```",
+      "additionalProperties": false
     },
     "DuckDbSource": {
       "oneOf": [
@@ -321,6 +358,30 @@
       "type": "string",
       "format": "uri",
       "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
+    },
+    "DuckDbReadOptionText": {
+      "type": "string",
+      "pattern": "^[^\\u0000]*$"
+    },
+    "DuckDbReadOptionValue": {
+      "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "$ref": "#/$defs/DuckDbReadOptionText"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DuckDbReadOptionValue"
+          }
+        }
+      ]
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

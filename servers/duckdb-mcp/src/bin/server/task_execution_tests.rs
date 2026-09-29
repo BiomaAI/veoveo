@@ -75,5 +75,23 @@ async fn execution_and_recovered_query_keep_native_ids_in_results_and_usage() {
                 assert_eq!(details, DuckDbUsageDetails::Query { result: DuckDbQueryUsage::Inline { rows_returned: 1, truncated: false } });
             }
         }
+
+        // Exercise the checked source options and preserve the quoted identifier
+        // through real ingest, result metadata and a subsequent read.
+        let table = "  Order \"Lines\"  ";
+        let caller = crate::ownership::caller_from(identity.clone(), "fixture-bearer".into());
+        let request = serde_json::from_value(json!({
+            "db":"metrics", "table":table, "mode":"create",
+            "source":{"kind":"inline_csv", "csv":"value\n43\nNA\n", "options":{
+                "header":true, "extra":{"nullstr":["NA"],"sample_size":-1}
+            }}
+        })).unwrap();
+        let ingested = crate::sql_ops::ingest_op(&state, &caller, &identity, request).await.unwrap();
+        assert_eq!(ingested.table.as_str(), table);
+        assert_eq!(ingested.rows_ingested, 2);
+        let sql = format!("SELECT value FROM {} ORDER BY value NULLS LAST", veoveo_duckdb_mcp::contract::duckdb_quote_identifier(table));
+        let query = DuckDbQueryRequest::builder("metrics".parse().unwrap(), sql.try_into().unwrap()).build().unwrap();
+        let output = crate::sql_ops::query_op(&state, &crate::artifact_output::ArtifactWriter::caller(caller), &identity, query).await.unwrap();
+        assert_eq!(output.rows(), &[vec![json!(43)], vec![json!(null)]]);
     }).await.expect("DuckDB execution qualification exceeded 90 seconds");
 }

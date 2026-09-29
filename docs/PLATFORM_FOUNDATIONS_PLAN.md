@@ -1420,11 +1420,12 @@ are a hard cut, with no historical decoder. TaskRuntime's existing string lookup
 remain a separate migration. Export requests now distinguish tabular formats from
 snapshots in their Rust variants and wire admission. Checked query-result constructors
 reject row-width/count disagreement and mixed inline/Artifact output. Truncated counts
-retain their observed lower-bound meaning; response text reports returned rows. Fifty-one
-native cases pass, including retained-request execution, separate-connection usage reads
-and real-engine row/byte-limit cases. The 59-package consumer passes 22 cases over 31
-schemas, and nine compile-fail examples pass. The Rust decoder and JSON Schema agree
-on 30 shared result-admission cases; five source-admission schema cases also pass.
+retain their observed lower-bound meaning; response text reports returned rows. Fifty-five
+native cases pass, including retained-request execution, separate-connection usage reads,
+real-engine row/byte limits and ingest followed by a quoted-table read. The 59-package
+consumer passes 26 cases over 36 schemas, and eleven compile-fail examples pass. The Rust
+decoder and JSON Schema agree on 30 result cases and 75 request cases. Eight lexical
+cases also pass with ECMAScript regex semantics; five source-admission schema cases pass.
 
 Source addresses now use the foundational `HttpsUrl` through DuckDB, Map and Timeseries
 materialization. The parser checks canonical HTTPS syntax and preserves accepted signed
@@ -1436,11 +1437,19 @@ passes 20 native cases and one compile-fail example; seven focused Map cases pas
 Timeseries passes 28 native cases and seven independent-consumer cases in a 60-package
 graph. Strict Clippy passes for the foundation and shared runtime, all three services'
 full feature sets, and DuckDB/Timeseries runtime-only builds. Forecast still rejects
-Artifact materialization; its advertised source profile
-needs a separate correction. Request-field/read-option admission and installed source,
-catalog and Artifact publication/recovery qualification remain work. The user-requested
-Rust cleanup before this final check reclaimed another 43.4 GiB and left 971.6 GiB free;
+Artifact materialization; its advertised source profile needs a separate correction.
+Installed source, catalog and Artifact publication/recovery qualification remain work.
+The latest user-requested Rust cleanup reclaimed 18.95 GiB and left 971.6 GiB free;
 checks rebuild only their required outputs with the reference cluster stopped.
+
+DuckDB request admission now owns checked SQL text, table names, reader-option names
+and values, and query construction. The builder rejects repeated attachments, attachment
+of the primary database, zero limits and inline row limits on Artifact output before
+Task creation or file access. Table names preserve whitespace and embedded quotes through
+execution and metadata. Reader-option builders reserve controlled fields and their
+aliases, reject unsupported value shapes and NUL, and render SQL without late validation.
+Timeseries consumes the same option contract. DuckDB still owns SQL grammar and
+reader-specific option meaning; the service's configured limits bound execution.
 
 ## Standards And Protocols
 
@@ -1924,7 +1933,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Media generation result | The isolated contract owns checked current generation results, typed addresses and output attribution. SQL selects successful linked Tasks under current owner policy. The old decoder, result conversion and rollback-only smoke option are removed. CLI downloads use the current result and verify resource equality | Qualify current-format installed delivery, caller isolation and restart behavior |
 | Native Task identity | `veoveo-types` owns `TaskId`; consumers import it directly and Store's `task_record_id` performs database conversion. Native lifecycle, wire preservation, compile-fail, and independent consumption checks pass. Frames uses it in usage cursors without runtime dependencies; runtime external lookups still require v7 and opaque MCP handles keep their own profile | Migrate remaining string-based runtime lookup APIs with their owning admission contract |
 | Shared public Task reads and notifications | Exact owner reads, subscription baselines and current-state delivery apply SQL visibility before decoding. Typed native IDs reach driver bindings. Public delivery uses event identities to select current Tasks; trusted internal replay preserves historical transitions. Native lifecycle, revocation, malformed-row and denied-page cases pass | Qualify current-format installed delivery; audit domain-specific Task adapters for their additional policy |
-| DuckDB source contract | The isolated `contract` feature owns source vocabulary, read SQL helpers, checked resources/pages, Artifact origins and operation-usage metadata. Timeseries and the agent kernel consume that owner directly; MCP core has no domain dependency. Checked MCP setup owns startup and discovery. Database catalogs page over the current owner directory; owner keys distinguish optional tenant values. Execution keeps native Task IDs, direct calls carry no Task association, and publication checks capability/origin agreement. Export variants enforce selection/format agreement; query-result builders check row shape, count and output mode. Source URLs retain foundational HTTPS types through materialization; nonempty lists and neutral Artifact addresses are admitted before execution. Fifty-one native and 22 independent-consumer cases over 31 schemas pass, with nine compile-fail examples and 30 shared result decoder/schema cases | Finish request-field/read-option admission; qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery |
+| DuckDB source contract | The isolated `contract` feature owns source vocabulary, read SQL helpers, checked resources/pages, Artifact origins and operation-usage metadata. Timeseries and the agent kernel consume that owner directly; MCP core has no domain dependency. Checked MCP setup owns startup and discovery. Database catalogs page over the current owner directory; owner keys distinguish optional tenant values. Execution keeps native Task IDs, direct calls carry no Task association, and publication checks capability/origin agreement. Export variants enforce selection/format agreement; query-result builders check row shape, count and output mode. Source URLs retain foundational HTTPS types through materialization; nonempty lists and neutral Artifact addresses are admitted before execution. Request builders check attachments, positive limits and output relationships; SQL/table text and reader options stay typed through execution. Fifty-five native and 26 independent-consumer cases over 36 schemas pass, with eleven compile-fail examples, 30 shared result cases and 75 shared request decoder/schema cases | Qualify installed source consumption, catalog pages, the fresh owner-directory/metadata formats and Artifact publication/recovery; correct the Timeseries Artifact-source profile |
 | UAV contract | Contract-only imports expose public mission, grant and live-view v4 types without service dependencies. MCP core has no live-view exports; gateway owner conversion stays in the authenticated adapter. The independent consumer qualifies 96 schemas. Atomic Recording catalog state and result references use the shared Recording owner; native tests preserve physical settlement on invalid recording metadata. Checked MCP setup supplies startup, configuration, documents, templates and typed scope membership; native discovery and all 22 template expansions pass. Both gateway registrations declare revision 3 | Complete broader DTO relationships and cross-language construction; qualify current installed consumers, URI admission and recovery |
 | UAV scopes | `UavScope` owns the four scope spellings and shared permission guards; tools and Tasks apply the same admission requirement, and flight/browser token requests reuse the owning vocabulary. Native routing, grant combinations, contract-only consumption and strict workspace Clippy pass | Qualify current scope enforcement on every installed UAV replica |
 | Reason | Its isolated contract owns distinct catalog and analysis IDs, typed resources, cursors and an empty scope vocabulary. Checked MCP setup, SQL owner reads and Task-backed notifications are implemented. Current v1 results serve completion, Task reads and subscriptions. Grounding imports Stream contracts and carries input labels into output capabilities. Recording addresses in selections, results and analysis views use the Recording owner’s contract type | Complete broader result/reference typing; qualify current-format installed delivery, restart recovery and GPU behavior |

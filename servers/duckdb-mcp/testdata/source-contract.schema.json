@@ -65,6 +65,18 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9_]{0,63}$",
         "description": "Owner-scoped name of a mutable hosted database file."
+      },
+      "DuckDbSqlText": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -77,12 +89,11 @@
         "$ref": "#/$defs/DuckDbDatabaseId"
       },
       "sql": {
-        "description": "DDL/DML SQL executed on a writable connection.",
-        "type": "string"
+        "$ref": "#/$defs/DuckDbSqlText"
       },
       "timeout_ms": {
         "format": "uint64",
-        "minimum": 0,
+        "minimum": 1,
         "type": [
           "integer",
           "null"
@@ -94,7 +105,8 @@
       "sql"
     ],
     "title": "DuckDbExecuteRequest",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false
   },
   "DuckDbExportOutput": {
     "$defs": {
@@ -460,7 +472,7 @@
                 "type": "string"
               },
               "table": {
-                "type": "string"
+                "$ref": "#/$defs/DuckDbTableName"
               }
             },
             "required": [
@@ -478,7 +490,7 @@
                 "type": "string"
               },
               "sql": {
-                "type": "string"
+                "$ref": "#/$defs/DuckDbSqlText"
               }
             },
             "required": [
@@ -505,6 +517,30 @@
             "type": "object"
           }
         ]
+      },
+      "DuckDbSqlText": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string"
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -591,24 +627,13 @@
   },
   "DuckDbIngestMode": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "oneOf": [
-      {
-        "const": "create",
-        "description": "Create the table; error if it already exists.",
-        "type": "string"
-      },
-      {
-        "const": "append",
-        "description": "Append to an existing table.",
-        "type": "string"
-      },
-      {
-        "const": "replace",
-        "description": "Replace the table contents.",
-        "type": "string"
-      }
+    "title": "DuckDbIngestMode",
+    "enum": [
+      "create",
+      "append",
+      "replace"
     ],
-    "title": "DuckDbIngestMode"
+    "type": "string"
   },
   "DuckDbIngestOutput": {
     "$defs": {
@@ -616,6 +641,18 @@
         "type": "string",
         "pattern": "^[a-z][a-z0-9_]{0,63}$",
         "description": "Owner-scoped name of a mutable hosted database file."
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -632,7 +669,7 @@
         "type": "integer"
       },
       "table": {
-        "type": "string"
+        "$ref": "#/$defs/DuckDbTableName"
       }
     },
     "required": [
@@ -662,35 +699,55 @@
         "type": "string"
       },
       "DuckDbIngestMode": {
-        "oneOf": [
-          {
-            "const": "create",
-            "description": "Create the table; error if it already exists.",
-            "type": "string"
-          },
-          {
-            "const": "append",
-            "description": "Append to an existing table.",
-            "type": "string"
-          },
-          {
-            "const": "replace",
-            "description": "Replace the table contents.",
-            "type": "string"
-          }
-        ]
+        "enum": [
+          "create",
+          "append",
+          "replace"
+        ],
+        "type": "string"
       },
       "DuckDbReadOptions": {
         "properties": {
           "delimiter": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "extra": {
-            "additionalProperties": true,
-            "type": "object"
+            "additionalProperties": false,
+            "type": "object",
+            "patternProperties": {
+              "^[a-z_]": {
+                "$ref": "#/$defs/DuckDbReadOptionValue"
+              }
+            },
+            "propertyNames": {
+              "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+              "not": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "header",
+                      "delim",
+                      "delimiter",
+                      "sep",
+                      "timestampformat",
+                      "timestamp_format"
+                    ]
+                  },
+                  {
+                    "pattern": "[^a-z0-9_]"
+                  }
+                ]
+              },
+              "pattern": "^[a-z_]",
+              "type": "string"
+            }
           },
           "header": {
             "type": [
@@ -699,13 +756,19 @@
             ]
           },
           "timestamp_format": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
       },
       "DuckDbSource": {
         "oneOf": [
@@ -831,6 +894,42 @@
         "format": "uri",
         "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
         "type": "string"
+      },
+      "DuckDbReadOptionText": {
+        "pattern": "^[^\\u0000]*$",
+        "type": "string"
+      },
+      "DuckDbReadOptionValue": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            },
+            "type": "array"
+          }
+        ],
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -849,7 +948,7 @@
         "$ref": "#/$defs/DuckDbSource"
       },
       "table": {
-        "type": "string"
+        "$ref": "#/$defs/DuckDbTableName"
       }
     },
     "required": [
@@ -859,7 +958,8 @@
       "mode"
     ],
     "title": "DuckDbIngestRequest",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false
   },
   "DuckDbQueryOutput": {
     "$defs": {
@@ -1364,16 +1464,28 @@
           "csv"
         ],
         "type": "string"
+      },
+      "DuckDbSqlText": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "properties": {
       "attach": {
-        "description": "Additional readable databases attached read-only under their db ids.",
         "items": {
           "$ref": "#/$defs/DuckDbDatabaseId"
         },
-        "type": "array"
+        "type": "array",
+        "uniqueItems": true
       },
       "db": {
         "$ref": "#/$defs/DuckDbDatabaseId"
@@ -1386,19 +1498,18 @@
       },
       "row_limit": {
         "format": "uint64",
-        "minimum": 0,
+        "minimum": 1,
         "type": [
           "integer",
           "null"
         ]
       },
       "sql": {
-        "description": "Read-only SQL. Enforced by a read-only connection, not by parsing.",
-        "type": "string"
+        "$ref": "#/$defs/DuckDbSqlText"
       },
       "timeout_ms": {
         "format": "uint64",
-        "minimum": 0,
+        "minimum": 1,
         "type": [
           "integer",
           "null"
@@ -1410,20 +1521,81 @@
       "sql"
     ],
     "title": "DuckDbQueryRequest",
-    "type": "object"
+    "type": "object",
+    "additionalProperties": false,
+    "allOf": [
+      {
+        "if": {
+          "properties": {
+            "output": {
+              "properties": {
+                "mode": {
+                  "const": "artifact"
+                }
+              },
+              "required": [
+                "mode"
+              ]
+            }
+          },
+          "required": [
+            "output"
+          ]
+        },
+        "then": {
+          "properties": {
+            "row_limit": {
+              "type": "null"
+            }
+          }
+        }
+      }
+    ],
+    "description": "Query attachments and output options are checked together.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbQueryRequest, DuckDbTableName};\nDuckDbQueryRequest::builder(\"metrics\".parse().unwrap(), DuckDbTableName::new(\"facts\").unwrap());\n```"
   },
   "DuckDbReadOptions": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "properties": {
       "delimiter": {
-        "type": [
-          "string",
-          "null"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "type": "null"
+          }
         ]
       },
       "extra": {
-        "additionalProperties": true,
-        "type": "object"
+        "additionalProperties": false,
+        "type": "object",
+        "patternProperties": {
+          "^[a-z_]": {
+            "$ref": "#/$defs/DuckDbReadOptionValue"
+          }
+        },
+        "propertyNames": {
+          "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+          "not": {
+            "anyOf": [
+              {
+                "enum": [
+                  "header",
+                  "delim",
+                  "delimiter",
+                  "sep",
+                  "timestampformat",
+                  "timestamp_format"
+                ]
+              },
+              {
+                "pattern": "[^a-z0-9_]"
+              }
+            ]
+          },
+          "pattern": "^[a-z_]",
+          "type": "string"
+        }
       },
       "header": {
         "type": [
@@ -1432,14 +1604,46 @@
         ]
       },
       "timestamp_format": {
-        "type": [
-          "string",
-          "null"
+        "anyOf": [
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "type": "null"
+          }
         ]
       }
     },
     "title": "DuckDbReadOptions",
-    "type": "object"
+    "type": "object",
+    "$defs": {
+      "DuckDbReadOptionText": {
+        "pattern": "^[^\\u0000]*$",
+        "type": "string"
+      },
+      "DuckDbReadOptionValue": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            },
+            "type": "array"
+          }
+        ],
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
+      }
+    },
+    "additionalProperties": false,
+    "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
   },
   "DuckDbSource": {
     "$defs": {
@@ -1456,14 +1660,45 @@
       "DuckDbReadOptions": {
         "properties": {
           "delimiter": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "extra": {
-            "additionalProperties": true,
-            "type": "object"
+            "additionalProperties": false,
+            "type": "object",
+            "patternProperties": {
+              "^[a-z_]": {
+                "$ref": "#/$defs/DuckDbReadOptionValue"
+              }
+            },
+            "propertyNames": {
+              "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+              "not": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "header",
+                      "delim",
+                      "delimiter",
+                      "sep",
+                      "timestampformat",
+                      "timestamp_format"
+                    ]
+                  },
+                  {
+                    "pattern": "[^a-z0-9_]"
+                  }
+                ]
+              },
+              "pattern": "^[a-z_]",
+              "type": "string"
+            }
           },
           "header": {
             "type": [
@@ -1472,13 +1707,19 @@
             ]
           },
           "timestamp_format": {
-            "type": [
-              "string",
-              "null"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/DuckDbReadOptionText"
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         },
-        "type": "object"
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Every constructed options value can be rendered without a late shape check.\n```compile_fail\nuse veoveo_duckdb_mcp::contract::{DuckDbReadOptions, DuckDbReadOptionValue};\nDuckDbReadOptions::default().with_extra(\"nullstr\", DuckDbReadOptionValue::Bool(true));\n```"
       },
       "DuckDbArtifactSourceUri": {
         "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
@@ -1497,6 +1738,30 @@
         "format": "uri",
         "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$",
         "type": "string"
+      },
+      "DuckDbReadOptionText": {
+        "pattern": "^[^\\u0000]*$",
+        "type": "string"
+      },
+      "DuckDbReadOptionValue": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "$ref": "#/$defs/DuckDbReadOptionText"
+          },
+          {
+            "items": {
+              "$ref": "#/$defs/DuckDbReadOptionValue"
+            },
+            "type": "array"
+          }
+        ],
+        "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning."
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1889,7 +2154,7 @@
             "type": "integer"
           },
           "table": {
-            "type": "string"
+            "$ref": "#/$defs/DuckDbTableName"
           }
         },
         "required": [
@@ -1913,7 +2178,21 @@
         "type": "object"
       }
     ],
-    "title": "DuckDbArtifactOperation"
+    "title": "DuckDbArtifactOperation",
+    "$defs": {
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
+      }
+    }
   },
   "DuckDbArtifactOrigin": {
     "$defs": {
@@ -1970,7 +2249,7 @@
                 "type": "integer"
               },
               "table": {
-                "type": "string"
+                "$ref": "#/$defs/DuckDbTableName"
               }
             },
             "required": [
@@ -2003,6 +2282,18 @@
       "TaskId": {
         "maxLength": 45,
         "pattern": "^(?:[0-9A-Fa-f]{32}|[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}|\\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\\}|urn:uuid:[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12})(?![\\s\\S])",
+        "type": "string"
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
         "type": "string"
       }
     },
@@ -2140,6 +2431,18 @@
             "type": "object"
           }
         ]
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
       }
     },
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2195,7 +2498,7 @@
             "type": "string"
           },
           "table": {
-            "type": "string"
+            "$ref": "#/$defs/DuckDbTableName"
           }
         },
         "required": [
@@ -2249,7 +2552,7 @@
             "type": "string"
           },
           "table": {
-            "type": "string"
+            "$ref": "#/$defs/DuckDbTableName"
           }
         },
         "required": [
@@ -2267,7 +2570,7 @@
             "type": "string"
           },
           "sql": {
-            "type": "string"
+            "$ref": "#/$defs/DuckDbSqlText"
           }
         },
         "required": [
@@ -2277,7 +2580,33 @@
         "type": "object"
       }
     ],
-    "title": "DuckDbTabularSelection"
+    "title": "DuckDbTabularSelection",
+    "$defs": {
+      "DuckDbSqlText": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+        "type": "string"
+      },
+      "DuckDbTableName": {
+        "allOf": [
+          {
+            "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+          },
+          {
+            "pattern": "^[^\\u0000]*$"
+          }
+        ],
+        "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+        "type": "string"
+      }
+    }
   },
   "DuckDbArtifactSourceUri": {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -2302,5 +2631,91 @@
     "minItems": 1,
     "title": "DuckDbSourceUris",
     "type": "array"
+  },
+  "DuckDbReadOptionName": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "description": "Lowercase reader option name; use explicit fields for header, delimiter and timestamp format.",
+    "not": {
+      "anyOf": [
+        {
+          "enum": [
+            "header",
+            "delim",
+            "delimiter",
+            "sep",
+            "timestampformat",
+            "timestamp_format"
+          ]
+        },
+        {
+          "pattern": "[^a-z0-9_]"
+        }
+      ]
+    },
+    "pattern": "^[a-z_]",
+    "title": "DuckDbReadOptionName",
+    "type": "string"
+  },
+  "DuckDbReadOptionText": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "pattern": "^[^\\u0000]*$",
+    "title": "DuckDbReadOptionText",
+    "type": "string"
+  },
+  "DuckDbReadOptionValue": {
+    "$defs": {
+      "DuckDbReadOptionText": {
+        "pattern": "^[^\\u0000]*$",
+        "type": "string"
+      }
+    },
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "type": "boolean"
+      },
+      {
+        "type": "number"
+      },
+      {
+        "$ref": "#/$defs/DuckDbReadOptionText"
+      },
+      {
+        "items": {
+          "$ref": "#"
+        },
+        "type": "array"
+      }
+    ],
+    "description": "Reader arguments have a closed value shape; the engine owns option-specific meaning.",
+    "title": "DuckDbReadOptionValue"
+  },
+  "DuckDbSqlText": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "allOf": [
+      {
+        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      },
+      {
+        "pattern": "^[^\\u0000]*$"
+      }
+    ],
+    "description": "Nonblank SQL text without NUL. The engine checks grammar, statement count and execution permissions.",
+    "title": "DuckDbSqlText",
+    "type": "string"
+  },
+  "DuckDbTableName": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "allOf": [
+      {
+        "pattern": "[^\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000]"
+      },
+      {
+        "pattern": "^[^\\u0000]*$"
+      }
+    ],
+    "description": "Nonblank table name without NUL, preserved verbatim and quoted as one SQL identifier.",
+    "title": "DuckDbTableName",
+    "type": "string"
   }
 }

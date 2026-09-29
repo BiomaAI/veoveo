@@ -2,6 +2,10 @@ mod artifact_origin;
 mod catalog;
 mod export;
 mod query_output;
+mod request_text;
+mod requests;
+pub use request_text::*;
+pub use requests::*;
 mod resources;
 mod scopes;
 mod task_kind;
@@ -17,6 +21,8 @@ pub use task_kind::DuckDbTaskKind;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
+mod read_options;
+pub use read_options::*;
 mod read_sql;
 mod source;
 mod source_addresses;
@@ -27,10 +33,10 @@ pub use usage::*;
 pub use usage_metadata::*;
 
 pub use read_sql::{
-    DuckDbSqlBuildError, duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
     duckdb_read_options_sql,
 };
-pub use source::{DuckDbFormat, DuckDbReadOptions, DuckDbSource};
+pub use source::{DuckDbFormat, DuckDbSource};
 
 /// Owner-scoped name of a mutable hosted database file.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -128,54 +134,6 @@ impl Default for DuckDbQueryOutputMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbQueryRequest {
-    pub db: DuckDbDatabaseId,
-    /// Read-only SQL. Enforced by a read-only connection, not by parsing.
-    pub sql: String,
-    /// Additional readable databases attached read-only under their db ids.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub attach: Vec<DuckDbDatabaseId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub row_limit: Option<u64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub timeout_ms: Option<u64>,
-    #[serde(default)]
-    pub output: DuckDbQueryOutputMode,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbExecuteRequest {
-    pub db: DuckDbDatabaseId,
-    /// DDL/DML SQL executed on a writable connection.
-    pub sql: String,
-    #[serde(default)]
-    pub create_if_missing: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub timeout_ms: Option<u64>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum DuckDbIngestMode {
-    /// Create the table; error if it already exists.
-    Create,
-    /// Append to an existing table.
-    Append,
-    /// Replace the table contents.
-    Replace,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbIngestRequest {
-    pub db: DuckDbDatabaseId,
-    pub table: String,
-    pub source: DuckDbSource,
-    pub mode: DuckDbIngestMode,
-    #[serde(default)]
-    pub create_db_if_missing: bool,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct DuckDbColumn {
     pub name: String,
@@ -193,7 +151,7 @@ pub struct DuckDbExecuteOutput {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct DuckDbIngestOutput {
     pub db: DuckDbDatabaseId,
-    pub table: String,
+    pub table: DuckDbTableName,
     pub rows_ingested: u64,
     pub db_created: bool,
 }

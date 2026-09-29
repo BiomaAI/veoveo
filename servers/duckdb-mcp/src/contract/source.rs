@@ -1,11 +1,8 @@
 //! Tabular input vocabulary owned by DuckDB and reused by analytical consumers.
 
-use std::collections::BTreeMap;
-
-use super::{DuckDbArtifactSourceUri, DuckDbSourceUris};
+use super::{DuckDbArtifactSourceUri, DuckDbReadOptions, DuckDbSourceUris};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use veoveo_types::HttpsUrl;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -16,18 +13,6 @@ pub enum DuckDbFormat {
     Parquet,
     Json,
     Ndjson,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
-pub struct DuckDbReadOptions {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub header: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub delimiter: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub timestamp_format: Option<String>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -80,7 +65,7 @@ mod tests {
             panic!("expected inline csv");
         };
         assert_eq!(csv, "a,b\n1,2\n");
-        assert_eq!(options.header, Some(true));
+        assert_eq!(options.header(), Some(true));
     }
 
     #[test]

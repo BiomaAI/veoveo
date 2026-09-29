@@ -295,10 +295,14 @@ json
 ndjson
 ```
 
-`DuckDbReadOptions` has controlled fields for header detection, delimiter, and
-timestamp format. Its extension map accepts option names made from ASCII letters,
-digits, and underscores. Values may be booleans, numbers, strings, or arrays of
-those values. Objects and null are rejected.
+`DuckDbReadOptions` has checked builders for header detection, delimiter and timestamp
+format. Extra names use lowercase ASCII letters, digits and underscores, beginning
+with a letter or underscore. The explicit fields and their reader aliases are reserved;
+clients cannot override them through `extra`. Values use a closed enum of booleans,
+JSON numbers, checked strings and arrays. Constructors and decoding reject NUL in text,
+objects and null values. The builder rejects duplicate names; direct contract JSON
+decoding also rejects repeated map keys. SQL rendering is infallible after admission.
+DuckDB validates which options apply to a particular reader and what their values mean.
 
 The contract describes data. It does not authorize access. `duckdb-mcp` resolves
 an artifact under the live caller's plane identity or fetches an HTTPS source
@@ -328,6 +332,22 @@ wire representation keeps `db`, `selection` and `format` at the top level. Decod
 and the generated JSON Schema reject incompatible selection/format pairs before
 the Task reserves an Artifact capability. Rust callers choose the corresponding
 variant and cannot supply a tabular format to a snapshot.
+
+### Request Admission
+
+`DuckDbSqlText` requires nonblank text without NUL. It preserves the caller's SQL;
+DuckDB parses grammar and the runtime enforces statement and access policies.
+`DuckDbTableName` applies the same lexical checks and represents one quoted identifier.
+The service preserves its whitespace and quotes through ingest, export, results, usage
+and Artifact metadata.
+
+`DuckDbQueryRequest::builder` requires a database ID and SQL text. Its checked result
+rejects duplicate attachments and attachment of the query database itself. Optional row
+and timeout limits use `NonZeroU64`. A row limit belongs to inline output; an Artifact
+query uses SQL `LIMIT` when desired. JSON decoding applies the same checks before Task
+or file admission. JSON Schema expresses unique attachments, positive limits and the
+output/row-limit relationship; equality between the main database and an attachment
+is checked by the Rust constructor. The server's configured caps still bound execution.
 
 ## Tool Model
 

@@ -1007,6 +1007,7 @@ DuckDB-specific ownership:
 | `servers/duckdb-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | database IDs and tool request/result types; isolated contract feature with runtime and hosted MCP feature gates |
 | `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | cross-server tabular source types and read SQL fragments owned by DuckDB; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
 | `servers/duckdb-mcp/src/contract/source_addresses.rs` | nonempty typed HTTPS source lists and neutral Artifact input addresses; network URL parsing belongs to `platform/types` |
+| `servers/duckdb-mcp/src/contract/read_options.rs`, `src/contract/requests.rs`, `src/contract/request_text.rs` | checked reader options, query relationship builder, positive limits and distinct SQL/table text; shared admission cases in `testdata/request-admission.json` |
 | `servers/duckdb-mcp/src/contract/usage.rs`, `src/usage.rs` | checked usage addresses, collection cursors and pages; TaskRuntime SQL applies current owner policy before grouping and limits |
 | `servers/duckdb-mcp/src/contract/catalog.rs`, `src/contract/resources.rs`, `src/uris.rs` | typed database pages, collection cursors, schema responses and complete resource admission/builders without MCP runtime dependencies |
 | `servers/duckdb-mcp/src/catalog.rs` | owner-directory pagination that retains at most 101 filename candidates and reads no database bytes |

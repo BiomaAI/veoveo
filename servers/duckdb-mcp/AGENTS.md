@@ -34,6 +34,10 @@ engine rather than by narrowing SQL.
 - Source URLs use `HttpsUrl` through materialization, source lists require at least
   one URL, and Artifact inputs use `DuckDbArtifactSourceUri`. Keep address admission
   separate from runtime host/DNS policy and Artifact-plane authorization.
+- Query construction uses the checked request builder and positive limit types.
+  Reader options use their owning names, values and builders; render admitted options
+  without a second validation path. Preserve typed SQL text and table names until the
+  engine adapter, and keep table names in result, usage and Artifact metadata.
 - Recovery classes are fixed: `query` and `export` resume; `execute` and
   `ingest` are indeterminate after interruption and never gain replay or
   polling fallbacks.

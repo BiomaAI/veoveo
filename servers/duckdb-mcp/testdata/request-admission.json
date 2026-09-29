@@ -1,0 +1,726 @@
+[
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": true,
+    "value": {}
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": true,
+    "value": {
+      "header": true,
+      "delimiter": "\t",
+      "timestamp_format": "%Y-%m-%d",
+      "extra": {
+        "nullstr": [
+          "",
+          "NA",
+          "O'Reilly"
+        ],
+        "sample_size": -1
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": true,
+    "value": {
+      "extra": {
+        "nested": [
+          [
+            true,
+            1,
+            "x"
+          ],
+          []
+        ]
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "header": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "HEADER": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "delim": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "Delim": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "delimiter": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "sep": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "timestampformat": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "timestamp_format": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "NULLSTR": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "0first": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "x-y": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "x); SELECT 1; --": true
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "nullstr": null
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": false,
+    "value": null
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "nullstr": {}
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": false,
+    "value": {}
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "nullstr": [
+          "NA",
+          null
+        ]
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": false,
+    "value": [
+      "NA",
+      null
+    ]
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "nullstr": {
+          "a": 1
+        }
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": false,
+    "value": {
+      "a": 1
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "nullstr": "x\u0000y"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": false,
+    "value": "x\u0000y"
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": true
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": 4
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": 1.25
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": ""
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": "O'Reilly"
+  },
+  {
+    "schema": "DuckDbReadOptionValue",
+    "accepted": true,
+    "value": [
+      1,
+      false,
+      [
+        "NA"
+      ]
+    ]
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "delimiter": "\u0000"
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "timestamp_format": "%Y\u0000"
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "ignored": true
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1"
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "attach": [
+        "other"
+      ],
+      "row_limit": 10,
+      "timeout_ms": 200
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "parquet"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "parquet"
+      },
+      "row_limit": null
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "attach": [
+        "other",
+        "other"
+      ]
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "row_limit": 0
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "timeout_ms": 0
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "row_limit": -1
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "output": {
+        "mode": "artifact",
+        "format": "parquet"
+      },
+      "row_limit": 1
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "ignored": true
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": ""
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": ""
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": " \n\t"
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": " \n\t"
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "\u2003"
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "\u2003"
+    }
+  },
+  {
+    "schema": "DuckDbQueryRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT\u0000 1"
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT\u0000 1"
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "create_if_missing": true,
+      "timeout_ms": 1
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "SELECT 1",
+      "timeout_ms": 0
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "table": "facts",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true
+        }
+      },
+      "mode": "create"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "table",
+        "table": "facts"
+      },
+      "format": "parquet"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "table": "  Order \"Lines\"  ",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true
+        }
+      },
+      "mode": "create"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "table",
+        "table": "  Order \"Lines\"  "
+      },
+      "format": "parquet"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "table": "",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true
+        }
+      },
+      "mode": "create"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "table",
+        "table": ""
+      },
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "table": "  ",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true
+        }
+      },
+      "mode": "create"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "table",
+        "table": "  "
+      },
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "table": "a\u0000b",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "value\n1\n",
+        "options": {
+          "header": true
+        }
+      },
+      "mode": "create"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "table",
+        "table": "a\u0000b"
+      },
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbExportRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "selection": {
+        "kind": "sql",
+        "sql": ""
+      },
+      "format": "csv"
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "sample_size\n": 1
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "sample_size\r\n": 1
+      }
+    }
+  },
+  {
+    "schema": "DuckDbReadOptions",
+    "accepted": false,
+    "value": {
+      "extra": {
+        "sample_size\u2028": 1
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "sql": "\u0085"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": false,
+    "value": {
+      "db": "metrics",
+      "table": "\u0085",
+      "mode": "create",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "x\n1\n"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "\ufeff"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "table": "\ufeff",
+      "mode": "create",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "x\n1\n"
+      }
+    }
+  },
+  {
+    "schema": "DuckDbExecuteRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "sql": "\u001c"
+    }
+  },
+  {
+    "schema": "DuckDbIngestRequest",
+    "accepted": true,
+    "value": {
+      "db": "metrics",
+      "table": "\u001c",
+      "mode": "create",
+      "source": {
+        "kind": "inline_csv",
+        "csv": "x\n1\n"
+      }
+    }
+  }
+]
