@@ -23,35 +23,31 @@ repository-wide ingest, storage, publication, activation, and operations contrac
 
 ## Library Features
 
-The library's `contract` feature exposes recording views, playback manifests, catalog
-grants and Arrow projection requests and handles. Consumers enable it with default
-features disabled. It uses foundational URI types, UUIDs, clock-free date/time values,
-Serde and JSON Schema support. It excludes MCP, Store, asynchronous runtimes and
-Rerun implementations.
+The library's `contract` feature exposes the types owned by
+[`platform/recordings/contract`](../../platform/recordings/contract/DESIGN.md).
+Consumers enable it with default features disabled. That domain crate sits below Hub
+and this server because both publish Recording identities while the server uses Hub's
+Blueprint, live-message and publication implementations. The library exposes one model
+through `contract.rs` and the same discovery factories through `uris.rs`.
 
-`contract/catalog.rs` owns the HTTP grant and projection models shared with the
-gateway's Recording adapter. MCP core has no catalog grant or projection model and no
-dependency on this server. The models describe requests and responses; runtime admission checks limits, identities
-and current authorization before an operation.
+The contract includes recording views, playback manifests, catalog grants and Arrow
+projection requests and handles. It excludes MCP, Store, asynchronous runtimes and
+Rerun implementations. The gateway's Recording adapter imports this library's contract
+feature and uses its Recording ID admission and URI builder for policy targets.
+MCP core defines no Recording models and depends on neither domain crate nor server.
 
 `runtime` enables Store access, the reader and caches, sealing, projection execution
 and live playback. `mcp` adds discovery and HTTP adapter dependencies and is enabled
 by default. `redap` includes that profile and adds the Rerun catalog service used by
 the binary. `redap-conformance` adds Rerun's read-profile checks. Native test fixtures
 are attached to their runtime feature, so contract tests do not activate Rerun SDKs.
-`contract/ids.rs` owns `RecordingId`; `contract/resources.rs` owns `RecordingUri`,
-`RecordingLayersUri` and the exhaustive `RecordingResource` enum. Constructors take
-Recording IDs and use the shared URI builder. Parsing rejects unsupported routes,
-queries, fragments and alternate encodings. Video selections and Reason/Stream results
-import `RecordingUri` from this contract; the shared reader owns no public URI parser.
 
-`contract/cursor.rs` owns catalog positions independently of Store. The service converts
-an admitted cursor to Store's typed query parameters immediately before the SQL call.
-The resource adapter dispatches typed variants in `bin/server/resources.rs`; sealing,
-prompts and resource subscriptions use the same Recording identity admission. UUID
-version and RFC variant checks apply at decoding, with static errors that omit input.
-Dataset/layer identities, playback and projection relationships, and checked MCP setup
-remain adoption work in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
+The resource adapter dispatches `RecordingResource` in `bin/server/resources.rs`;
+sealing, prompts and subscriptions use the same Recording identity admission. The
+service converts admitted catalog positions to Store types immediately before SQL.
+Authorization, operational bounds and playback/projection relationships belong to
+runtime owners. Dataset/layer identities and checked MCP setup remain adoption work
+in the [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 ## Durable Authority
 
@@ -202,7 +198,7 @@ durable capture bytes are not modified by this browser adapter.
 | Path | Responsibility |
 |---|---|
 | `contract.rs` | recording, layer, seal, manifest v9, and manifest-occurrence views |
-| `contract/catalog.rs` | shared catalog grant and bounded projection wire models, independent of protocol and runtime implementations |
+| `contract.rs`, `uris.rs` | public access to the shared Recording domain contract and its resource factories |
 | `service.rs` | playback plans, sealing, properties publication, and catalog revision |
 | `service/index.rs`, `index.rs` | SQL-authorized catalog assembly, completions, direct reads, and versioned resource cursors |
 | `platform/recordings/reader` | shared governed analysis plans, task-local live-part snapshots and bounded cache |

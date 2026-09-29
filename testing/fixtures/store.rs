@@ -51,6 +51,7 @@ impl TestDb {
         };
         let name = format!("veoveo-native-store-test-{}", Uuid::now_v7().simple());
         let password = fixture_password();
+        // TODO(foundations): bound Docker startup/cleanup and arm ownership before dispatch.
         let output = Command::new("docker")
             .args([
                 "run",

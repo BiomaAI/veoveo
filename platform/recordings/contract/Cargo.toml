@@ -1,0 +1,14 @@
+[package]
+name = "veoveo-recording-contract"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Match the qualified workspace pin; cursor positions need date/time values only.
+chrono = { version = "=0.4.45", default-features = false, features = ["serde", "std"] }
+hex.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+uuid = { workspace = true, features = ["serde", "v7"] }
+veoveo-types.workspace = true

@@ -1352,7 +1352,10 @@ impl RecordingIngestService {
         let recording_id = typed_record_uuid::<RecordingId>(&stream.recording, RecordingId::TABLE)?;
         Ok(RecordingStream {
             stream_id: stream_id.to_string(),
-            recording_uri: format!("recording://recordings/{recording_id}"),
+            recording_uri: veoveo_recording_contract::RecordingUri::new(
+                veoveo_recording_contract::RecordingId::try_from(recording_id.as_uuid())?,
+            )
+            .to_string(),
             state: match stream.state {
                 RecordingIngestStreamState::Open => RecordingStreamState::Open.into(),
                 RecordingIngestStreamState::Finished => RecordingStreamState::Finished.into(),

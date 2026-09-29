@@ -964,6 +964,33 @@ through the appropriate shared owners. Do not duplicate the route grammar in Hub
 move Recording vocabulary into MCP core. Dataset/layer identities, playback/projection
 relationships and checked MCP setup also remain open.
 
+The Recording domain contract now lives in `platform/recordings/contract`, below Hub
+and the MCP server. This separate crate resolves their package dependency cycle; the
+server library exposes the same public types through its `contract` feature, with no
+second model. Hub builds ingest response addresses through it, and Video imports it
+directly. Gateway playback admission and grant policy targets use the owning IDs and
+URI builder. Domain tests moved with their implementation; the server facade tests
+assignment to the shared public types. No external dependency pin or wire field changes.
+
+The shared contract passes ten cases and two compile-fail examples. Independent
+Recording, Video, Stream and Reason consumers pass 11, 4, 19 and 18 cases across
+59, 68, 72 and 73 packages without MCP, Store, async or Rerun implementations. The
+native combined suite passes 156 cases; Hub passes 39 and Gateway playback passes
+two. Runtime-only compilation and strict workspace Clippy pass. Ten superseded
+executables were removed after replacement, inode and process checks, recovering
+15.67 GiB. Build caches are preserved; reference containers stay stopped, with
+50 GiB free after qualification. Installed and GPU acceptance remain pending.
+
+Native fixture diagnosis: the first two Reason tests again exceeded their 90-second
+outer timeout. Process inspection caught both `docker run` children waiting before
+container creation; Docker events show creation only about 105 seconds after their
+UUIDv7 names were generated, followed by immediate owned cleanup. No SQL ran before
+that delay. `testing/fixtures/store.rs` uses blocking subprocess calls inside async
+setup, so its caller deadline cannot interrupt the command. Give fixture subprocess
+startup and cleanup explicit bounds and stage-specific redacted diagnostics in a
+separate fixture change; keep domain SQL deadlines independent of fixture startup.
+This is an open native harness issue, not a failed Recording query assertion.
+
 This plan tells an implementing agent how to deliver six changes. The first moves
 every repository-owned identifier onto the `veoveo.ai` domain in one hard cut. The
 second makes installed smoke checks run against any installation, not only the Bioma
@@ -1477,7 +1504,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Stream | Its isolated contract owns IDs, resources, cursors and response builders that check repeated identities and parent/output agreement. Checked MCP setup supplies static discovery; all 11 templates match builders, and both registrations declare revision 3 without list-change notifications. Run reads and subscription admission select caller-owned Tasks in SQL; isolated contracts preserve all 37 schemas. Recording addresses in selections, results and run views use the Recording owner’s contract type | Strengthen remaining result relationships; qualify canonical result reads, mixed-source notifications, Task delivery and GPU behavior on the reference installation |
 | Shared recorded video | `contract` owns selectors, timeline kinds and ordered source identities with unchanged SHA-256 serialization; `runtime` owns reader conversion, authorization and remux. Its independent Linux consumer excludes MCP, Store, Rerun and async dependencies. Selection decoding admits the owner’s typed Recording URI before source access | Strengthen source-snapshot identities and selector relationships through their owners; qualify installed snapshot digests and consumers |
 | View | Its isolated contract owns public scene types, scopes, Task kinds and typed resource addresses. Checked records validate parents, cameras, geometry and output bytes. Capture admission checks request revision and principal/tenant/Work Context before claiming. Task operations apply Work Context and operation selection in SQL; completed reads and subscription delivery validate saved requests, metadata, bytes and attribution before projection | Replace manual governed-input references through the owning contracts; qualify installed consumers, cross-context Task delivery and GPU behavior, including GPU JPEG encoding |
-| Recording | The isolated library contract owns recording/playback views, catalog grants and Arrow projection DTOs. The gateway imports that contract; MCP core has no catalog grant or projection definitions. Runtime, MCP and Redap dependencies are gated. Typed RFC UUIDv7 recording IDs, exhaustive resource parsing/building and catalog cursors live in the contract. Hosted reads, subscriptions, prompts and Video/Reason/Stream references use these types; cursor conversion to Store happens at the SQL call | Strengthen dataset/layer identities and playback/projection relationships; adopt checked MCP setup and remaining consumers (View, Gateway, Hub, UAV and smoke); qualify installed behavior |
+| Recording | The shared domain crate below Hub and the MCP server owns public models, RFC UUIDv7 IDs, resource builders/parsers and catalog positions. The MCP library exposes the same types through its isolated contract feature; Hub and Video consume the domain crate directly. Hub ingest responses, Gateway policy targets, hosted reads/subscriptions/prompts and Video/Reason/Stream references use those types. SQL cursor conversion stays at the query call; MCP core imports neither package | Strengthen dataset/layer identities and playback/projection relationships; adopt checked MCP setup and remaining consumers (View, UAV and smoke); qualify installed behavior |
 | Shared consumers | Gateway, policy, Console BFF, Computers, conformance, smoke, and integration tests import foundational names | Keep imports direct and preserve authorization, identity serialization, and schemas |
 | SDKs, clients, templates, and showcase servers | Cross-language builders and extension qualification are not yet inventoried completely; the independent Rust hosted fixture and its isolated consumer pass | Complete owner-local adoption and template guidance |
 
@@ -1893,6 +1920,7 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
+| Phase 3 native Store fixture lifecycle | `testing/fixtures/store.rs` | Bound Docker subprocess startup and cleanup, claim cleanup ownership before dispatch, and report redacted stage diagnostics | Repeated first-start delays exceeded the caller's SQL timeout; the shared fixture fix follows the Recording contract extraction |
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
 | Phase 1 reference reset | `examples/bioma/README.md` | Finish native acceptance, rebuild from the published platform and UAV locks, then qualify the reference installation | Node and volume cleanup is complete. Reference workloads are stopped at the user's request after disk pressure; local qualification must finish before reactivation |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |

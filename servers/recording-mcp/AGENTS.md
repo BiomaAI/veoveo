@@ -13,7 +13,8 @@ and reactive Rerun live following.
 ## Invariants
 
 - Keep public recording, playback, catalog grant and projection models in the
-  library's isolated `contract` feature. Cross-server consumers import it with
+  shared [Recording domain contract](../../platform/recordings/contract/DESIGN.md),
+  exposed by this library’s isolated `contract` feature. Cross-server consumers import it with
   default features disabled. Runtime admission owns authorization and operational
   bounds; MCP core must not import or define these Recording models.
 - The canonical resource is `recording://recordings/{recording_uuidv7}`. Build it
@@ -45,13 +46,12 @@ and reactive Rerun live following.
 
 ## Module Boundaries
 
-- `contract.rs` owns recording, layer, seal, and playback-manifest types.
-- `contract/catalog.rs` owns catalog grant and projection types consumed by the gateway.
+- `contract.rs` exposes the shared Recording domain models; `uris.rs` exposes their
+  builders and declarations. Hub and Video import the domain crate directly.
 - `service.rs` owns playback plans, sealing, and properties publication.
 - `service/index.rs` assembles SQL-authorized catalog pages, direct reads, and completions;
-  `contract/cursor.rs` owns typed catalog cursors. SQL applies tenant and label predicates before limits.
-- `contract/ids.rs` and `contract/resources.rs` own public recording identities and addresses;
-  `bin/server/resources.rs` dispatches the admitted resource variants.
+  the shared contract owns typed catalog cursors. SQL applies tenant and label predicates before limits.
+- `bin/server/resources.rs` dispatches the admitted resource variants.
 - [`platform/recordings/reader`](../../platform/recordings/reader/DESIGN.md) owns governed Artifact-backed analysis plans.
 - `service/projection.rs` owns projection receipts and bounded scratch.
 - The shared reader cache owns verified Artifact-to-PVC materialization and eviction;
@@ -62,6 +62,7 @@ and reactive Rerun live following.
 
 ## Build And Test
 
+- `cargo test -p veoveo-recording-contract`
 - `cargo test -p veoveo-recording-mcp --no-default-features --features contract`
 - Prove contract dependency isolation in an independent consumer workspace.
 - `cargo check -p veoveo-recording-mcp --no-default-features --features runtime --lib`

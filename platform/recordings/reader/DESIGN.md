@@ -70,7 +70,8 @@ accepts only metadata requests and serves no artifact body.
 
 Stream, Reason and the video materializer depend on this crate. Recording MCP composes
 the same cache and visibility rules for playback. Stream, Reason and Video import
-Recording URI types through its isolated contract feature. That Cargo edge excludes
+the shared Recording domain types; server consumers may use the MCP library’s
+isolated contract feature. That Cargo edge excludes
 Hub and Recording service implementations. Public URI parsing belongs to Recording;
 the reader accepts Store identities.
 All shared Cargo manifests remain available to image planning. Runtime input contexts

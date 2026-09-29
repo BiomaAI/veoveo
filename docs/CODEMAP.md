@@ -1054,6 +1054,14 @@ Simulation live-view ownership:
 
 ## Recordings
 
+### `platform/recordings/contract`
+
+[`DESIGN.md`](../platform/recordings/contract/DESIGN.md) defines Recording’s shared
+IDs, resource addresses, catalog continuations and public models. `ids.rs`,
+`resources.rs`, `cursor.rs` and `uris.rs` own admission and construction; `catalog.rs`
+owns grants and projection models. Hub and Video import this domain crate directly.
+The MCP library exposes the same types through its isolated contract feature.
+
 ### `platform/recordings/protocol`
 
 `proto/veoveo/recording/ingest/v1/ingest.proto` is the public wire schema.
@@ -1108,9 +1116,9 @@ Store, MCP and Rerun.
 `src/bin/server.rs` advertises stable discovery roots and templates. Recording content
 changes notify accepted resource readers without invalidating App discovery.
 
-`contract.rs` owns recording, layer, seal, playback-manifest v9, Blueprint, and live
-descriptor types. `contract/catalog.rs` owns catalog grants and Arrow projection
-requests and handles. The isolated `contract` feature exposes these models without
+`contract.rs` exposes recording, layer, seal, playback-manifest v9, Blueprint, live,
+catalog grant and Arrow projection models from the shared domain crate. The isolated
+`contract` feature exposes these models without
 MCP, Store, async or Rerun implementations; the gateway's Recording adapter imports
 that profile directly. `runtime`, `mcp` and `redap` enable their service dependencies.
 `service.rs` resolves authorized MCP and playback plans and publishes
@@ -1123,9 +1131,7 @@ Rerun catalogs, finite Blueprint sources, and the scoped read-only Redap service
 temporal history, and rewrites messages to the stable playback identity.
 `live_stream.rs` frames complete RRD batches for the authorized WebViewer `LogChannel` and
 distinguishes an empty-channel bootstrap from a current-head transport resume.
-`contract/ids.rs`, `resources.rs` and `cursor.rs` own typed recording IDs, resource
-addresses and catalog continuations. `uris.rs` exposes typed factories and discovery
-declarations. `bin/server/resources.rs` dispatches admitted resource variants.
+`uris.rs` exposes the shared contract’s typed factories and discovery declarations. `bin/server/resources.rs` dispatches admitted resource variants.
 `bin/server.rs` composes the authenticated manifest,
 framed live route, Redap, projections, MCP transports, storage readiness and diagnostics,
 and Artifact publication.

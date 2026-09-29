@@ -17208,6 +17208,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "veoveo-recording-contract"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hex",
+ "schemars 1.2.2",
+ "serde",
+ "serde_json",
+ "uuid",
+ "veoveo-types",
+]
+
+[[package]]
 name = "veoveo-recording-forwarder"
 version = "0.1.0"
 dependencies = [
@@ -17289,6 +17302,7 @@ dependencies = [
  "veoveo-artifact-contract",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-recording-contract",
  "veoveo-recording-forwarder",
  "veoveo-recording-protocol",
  "veoveo-rrd",
@@ -17345,6 +17359,7 @@ dependencies = [
  "veoveo-mcp-apps-extension",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
+ "veoveo-recording-contract",
  "veoveo-recording-hub",
  "veoveo-recording-reader",
  "veoveo-rrd",
@@ -17399,7 +17414,7 @@ dependencies = [
  "tokio",
  "veoveo-mcp-contract",
  "veoveo-platform-store",
- "veoveo-recording-mcp",
+ "veoveo-recording-contract",
  "veoveo-recording-reader",
  "veoveo-rrd",
 ]

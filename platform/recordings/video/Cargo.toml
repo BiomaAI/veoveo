@@ -14,7 +14,7 @@ required-features = ["contract"]
 [features]
 default = ["runtime"]
 contract = [
-    "dep:veoveo-recording-mcp",
+    "dep:veoveo-recording-contract",
     "dep:anyhow",
     "dep:chrono",
     "dep:hex",
@@ -47,4 +47,4 @@ veoveo-platform-store = { workspace = true, optional = true }
 veoveo-rrd = { workspace = true, optional = true }
 veoveo-recording-reader = { workspace = true, optional = true }
 
-veoveo-recording-mcp = { path = "../../../servers/recording-mcp", default-features = false, features = ["contract"], optional = true }
+veoveo-recording-contract = { workspace = true, optional = true }

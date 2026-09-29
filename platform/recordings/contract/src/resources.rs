@@ -104,11 +104,11 @@ address!(RecordingLayersUri, Layers, Some("layers"));
 
 /// All hosted Recording resource families.
 /// ```compile_fail
-/// use veoveo_recording_mcp::contract::RecordingUri;
+/// use veoveo_recording_contract::RecordingUri;
 /// RecordingUri::new("01983da0-0000-7000-8000-000000000000");
 /// ```
 /// ```compile_fail
-/// use veoveo_recording_mcp::contract::RecordingUri;
+/// use veoveo_recording_contract::RecordingUri;
 /// RecordingUri::new(veoveo_types::TaskId::new());
 /// ```
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

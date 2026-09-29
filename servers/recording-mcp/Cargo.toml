@@ -22,7 +22,9 @@ required-features = ["contract"]
 
 [features]
 default = ["mcp"]
-contract = [
+contract = ["dep:veoveo-recording-contract"]
+runtime = [
+    "contract",
     "dep:chrono",
     "dep:hex",
     "dep:veoveo-types",
@@ -30,9 +32,6 @@ contract = [
     "dep:serde",
     "dep:serde_json",
     "dep:uuid",
-]
-runtime = [
-    "contract",
     "dep:veoveo-artifact-contract",
     "dep:anyhow",
     "dep:bytes",
@@ -86,6 +85,7 @@ redap = [
 redap-conformance = ["redap", "dep:re_redap_tests"]
 
 [dependencies]
+veoveo-recording-contract = { workspace = true, optional = true }
 veoveo-artifact-contract = { workspace = true, optional = true }
 veoveo-types = { workspace = true, optional = true }
 anyhow = { workspace = true, optional = true }

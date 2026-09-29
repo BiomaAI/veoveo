@@ -353,14 +353,14 @@ Media owns its prediction summaries and generation result DTOs. Protocol utiliti
 consume Media's contract feature directly; extracting those DTOs preserves their
 published schema and gives MCP core no dependency on Media.
 
-Recording owns its catalog grants and Arrow projection request/result models in
-the server library's isolated contract feature. The gateway's Recording adapter
-imports that feature directly. MCP core has no catalog grant or projection DTO
-definitions and no dependency on that server. Authorization and execution limits stay
-with the runtime owners. Recording also owns its UUIDv7 resource identities and typed
-catalog positions. Video, Reason and Stream consume its contract-only URI type;
-Store cursor conversion stays at the Recording query call. The shared reader takes
-Store identities and owns no public Recording URI parser.
+Recording's [domain contract](../platform/recordings/contract/DESIGN.md) owns its
+public models, UUIDv7 IDs, resource addresses and catalog positions. The MCP server’s
+isolated contract feature exposes those types to cross-server consumers. Hub and Video
+import the domain crate directly. A separate crate resolves the concrete dependency
+cycle: the MCP runtime uses Hub implementations, while Hub publishes the same public
+Recording identities. The gateway builds policy targets through the owner’s URI type.
+MCP core owns no Recording DTOs or resource vocabulary and imports neither package.
+SQL authorization and Store cursor conversion stay with the runtime owners.
 
 UAV owns its simulator and live-view v4 model in the server library's isolated
 contract feature. Flight clients consume those types directly. Gateway identity

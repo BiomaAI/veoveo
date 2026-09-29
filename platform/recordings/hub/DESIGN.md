@@ -9,6 +9,14 @@ journals use synchronized writes and atomic publication on the same filesystem.
 `veoveo.ai/recording-journal-quarantine/v1` is an internal JSON recovery receipt,
 owned by Hub; it is not a producer protocol or an accepted recording batch.
 
+## Recording Identity
+
+Hub imports [`veoveo-recording-contract`](../contract/DESIGN.md) to construct the
+public Recording URI returned by ingest. Store IDs convert to its checked RFC UUIDv7
+identity before the shared builder emits the protobuf string. Hub has no dependency
+on the Recording MCP server. The domain crate also supplies the MCP server’s public
+contract, keeping producer and reader address admission identical.
+
 ## Archive Materialization
 
 Hub applies Rerun's `OBJECT_STORE` chunk-compaction profile to a complete archive

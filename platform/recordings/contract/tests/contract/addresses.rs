@@ -1,5 +1,5 @@
 use serde_json::{Value, json};
-use veoveo_recording_mcp::{contract::*, uris};
+use veoveo_recording_contract::{uris, *};
 use veoveo_types::{ResourceAddress, ResourceTemplateUri};
 
 const ID: &str = "01983da0-0000-7000-8000-000000000001";

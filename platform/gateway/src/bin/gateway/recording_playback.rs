@@ -12,8 +12,9 @@ use veoveo_mcp_contract::{
     PrincipalAuditAttributes, ServerSlug, TraceId,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, PolicyRequest, merge_principal_audit_metadata};
-use veoveo_recording_mcp::contract::CreateRecordingCatalogGrantRequest;
-use veoveo_types::ResourceUri;
+use veoveo_recording_mcp::contract::{
+    CreateRecordingCatalogGrantRequest, RecordingId, RecordingUri,
+};
 
 use crate::runtime::{RecordingPlaybackState, current_catalog};
 
@@ -41,7 +42,7 @@ impl PlaybackSource {
         }
     }
 
-    fn upstream_path(&self, recording_id: &str) -> String {
+    fn upstream_path(&self, recording_id: RecordingId) -> String {
         match self {
             Self::Manifest => format!("/recordings/{recording_id}/playback"),
             Self::LiveRrdStream => format!("/recordings/{recording_id}/live/rrd-stream"),
@@ -162,9 +163,10 @@ pub(super) async fn catalog_grant(
     };
     let manifest = manifest.clone();
     for recording_id in &request.recording_ids {
-        let Ok(uri) = ResourceUri::new(format!("recording://recordings/{recording_id}")) else {
+        let Ok(id) = RecordingId::try_from(*recording_id) else {
             return StatusCode::BAD_REQUEST.into_response();
         };
+        let uri = RecordingUri::new(id).as_resource_uri().clone();
         let trace_id = match TraceId::new(uuid::Uuid::new_v4().to_string()) {
             Ok(value) => value,
             Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -290,18 +292,13 @@ async fn proxy_playback(
     let Ok(profile) = GatewayProfileId::new(profile) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    let Ok(recording_uuid) = uuid::Uuid::parse_str(&recording_id) else {
+    let Ok(recording_id) = RecordingId::parse(recording_id) else {
         return StatusCode::NOT_FOUND.into_response();
     };
-    if recording_uuid.get_version_num() != 7 {
-        return StatusCode::NOT_FOUND.into_response();
-    }
     let Ok(server) = ServerSlug::new(RECORDING_SERVER) else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
-    let Ok(uri) = ResourceUri::new(format!("recording://recordings/{recording_id}")) else {
-        return StatusCode::NOT_FOUND.into_response();
-    };
+    let uri = RecordingUri::new(recording_id).as_resource_uri().clone();
     let catalog = current_catalog(&state.catalog);
     let Some((_, _, manifest)) = catalog.profile_server(&profile, &server) else {
         return StatusCode::NOT_FOUND.into_response();
@@ -341,7 +338,7 @@ async fn proxy_playback(
         latency_ms: u64::try_from(started_at.elapsed().as_millis()).ok(),
         metadata: merge_principal_audit_metadata(
             BTreeMap::from([
-                ("recording_id".to_owned(), recording_id.clone()),
+                ("recording_id".to_owned(), recording_id.to_string()),
                 ("playback_mode".to_owned(), source.mode().to_owned()),
             ]),
             &subject.principal,
@@ -402,7 +399,7 @@ async fn proxy_playback(
             return StatusCode::BAD_GATEWAY.into_response();
         }
     };
-    let path = source.upstream_path(&recording_id);
+    let path = source.upstream_path(recording_id);
     url.set_path(&path);
     url.set_query(None);
     let request = forwarded_request_headers(
@@ -491,7 +488,7 @@ mod tests {
 
         assert_eq!(source.mode(), "live-rrd-stream");
         assert_eq!(
-            source.upstream_path("019faa9f-acc8-7400-ba67-a9b022da1f63"),
+            source.upstream_path("019faa9f-acc8-7400-ba67-a9b022da1f63".parse().unwrap()),
             "/recordings/019faa9f-acc8-7400-ba67-a9b022da1f63/live/rrd-stream"
         );
     }

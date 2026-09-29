@@ -13,7 +13,7 @@ pub use source_snapshot::{
 #[serde(deny_unknown_fields)]
 pub struct RecordingVideoSelection {
     /// Canonical `recording://recordings/{recording_id}` URI.
-    pub recording_uri: veoveo_recording_mcp::contract::RecordingUri,
+    pub recording_uri: veoveo_recording_contract::RecordingUri,
     /// Exact Rerun entity path containing `VideoStream` samples.
     pub entity_path: String,
     /// Rerun duration, timestamp, or sequence timeline.

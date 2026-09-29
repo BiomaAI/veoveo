@@ -23,7 +23,7 @@ Artifact cache. The library never authorizes replay from an old spool path.
 
 `contract` exposes `contract::RecordingVideoSelection`, `IndexRange`,
 `VideoTimelineKind` and the captured source identities. Selections use `RecordingUri`
-from the Recording server library with only its `contract` feature enabled. Its decoder
+from the [Recording domain contract](../contract/DESIGN.md). Its decoder
 requires the canonical plural route and RFC UUIDv7 before materialization. It includes selector validation
 and the snapshot digest. Select `default-features = false, features = ["contract"]`
 for public consumers. Chrono supplies date/time values without its clock feature.
