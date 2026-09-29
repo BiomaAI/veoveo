@@ -202,7 +202,24 @@ fn public_summary_checks_metadata_and_keeps_the_existing_wire_fields() {
     bad["license"]["attribution"] = serde_json::json!("");
     assert!(serde_json::from_value::<SourceSummary>(bad).is_err());
     let schema = serde_json::to_value(schemars::schema_for!(MapSourcePage)).unwrap();
-    assert!(!schema.to_string().contains("credential"));
+    let mut pending = vec![&schema];
+    while let Some(value) = pending.pop() {
+        match value {
+            serde_json::Value::Object(object) => {
+                if let Some(properties) = object.get("properties").and_then(|v| v.as_object()) {
+                    for private_field in ["endpoint", "credential", "publisher_key_refs"] {
+                        assert!(
+                            !properties.contains_key(private_field),
+                            "public source schema exposes {private_field}"
+                        );
+                    }
+                }
+                pending.extend(object.values());
+            }
+            serde_json::Value::Array(array) => pending.extend(array),
+            _ => {}
+        }
+    }
 }
 
 #[test]

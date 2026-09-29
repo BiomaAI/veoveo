@@ -6,6 +6,8 @@ mod execution;
 mod resources;
 #[path = "contract/results.rs"]
 mod results;
+#[path = "contract/source_addresses.rs"]
+mod source_addresses;
 use serde_json::{Value, json};
 use veoveo_duckdb_mcp::contract::*;
 
@@ -22,6 +24,8 @@ fn schemas_match_the_declared_contract() {
         DuckDbFormat,
         DuckDbReadOptions,
         DuckDbSource,
+        DuckDbSourceUris,
+        DuckDbArtifactSourceUri,
         DuckDbDatabaseId,
         DuckDbTabularFormat,
         DuckDbQueryOutputMode,

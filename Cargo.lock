@@ -16743,6 +16743,7 @@ dependencies = [
  "rustls",
  "serde_json",
  "tempfile",
+ "veoveo-types",
 ]
 
 [[package]]

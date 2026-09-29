@@ -34,6 +34,8 @@ returns structured output with a bounded chartable preview.
 - Import tabular source types and read SQL helpers from `veoveo-duckdb-mcp` with
   default features disabled and `contract` enabled. Timeseries keeps ownership of
   source materialization and forecasting; MCP core contains no source vocabulary.
+- Keep source URLs and nonempty URL lists typed through provenance and the shared
+  download API. Source syntax admission does not authorize a host or its DNS answers.
 - Usage reads use `TimeseriesUsage` and TaskRuntime's SQL owner policy before limits.
   Keep Task IDs and cursor positions typed through query admission. The library's
   isolated `contract` feature owns usage addresses and pages; use its component

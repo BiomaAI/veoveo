@@ -448,7 +448,7 @@ impl AcquisitionService {
                     .map(|host| host.as_str().to_owned())
                     .collect::<BTreeSet<_>>();
                 hosts.insert(endpoint.host());
-                self.fetch_https(source, endpoint.as_str(), hosts, input_dir, filename)
+                self.fetch_https(source, endpoint.as_https_url(), hosts, input_dir, filename)
                     .await
             }
             SourceLocation::OsmReplication {
@@ -458,7 +458,7 @@ impl AcquisitionService {
                 let hosts = BTreeSet::from([snapshot_endpoint.host(), replication_endpoint.host()]);
                 self.fetch_https(
                     source,
-                    snapshot_endpoint.as_str(),
+                    snapshot_endpoint.as_https_url(),
                     hosts,
                     input_dir,
                     filename,
@@ -492,7 +492,7 @@ impl AcquisitionService {
     async fn fetch_https(
         &self,
         source: &RegisteredSource,
-        endpoint: &str,
+        endpoint: &veoveo_types::HttpsUrl,
         hosts: BTreeSet<String>,
         input_dir: &Path,
         filename: &str,

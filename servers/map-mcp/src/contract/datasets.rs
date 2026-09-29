@@ -3,7 +3,6 @@ use std::{collections::BTreeSet, fmt};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 use super::{DatasetReleaseId, MapDatasetId, MapFamily, MapSourceId, Wgs84BoundingBox};
 
@@ -149,31 +148,25 @@ impl From<SourceHeaderName> for String {
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
 )]
-#[serde(try_from = "String", into = "String")]
-pub struct HttpsEndpoint(String);
+#[serde(transparent)]
+pub struct HttpsEndpoint(veoveo_types::HttpsUrl);
 
 impl HttpsEndpoint {
     pub fn parse(value: impl Into<String>) -> Result<Self, SourceContractError> {
-        let value = value.into();
-        let parsed = Url::parse(&value).map_err(|_| SourceContractError::InvalidEndpoint)?;
-        if parsed.scheme() != "https"
-            || parsed.host_str().is_none()
-            || parsed.username() != ""
-            || parsed.password().is_some()
-            || parsed.fragment().is_some()
-        {
-            return Err(SourceContractError::InvalidEndpoint);
-        }
-        Ok(Self(value))
+        veoveo_types::HttpsUrl::parse(&value.into())
+            .map(Self)
+            .map_err(|_| SourceContractError::InvalidEndpoint)
     }
 
     pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+    pub fn as_https_url(&self) -> &veoveo_types::HttpsUrl {
         &self.0
     }
-
     pub fn host(&self) -> String {
-        Url::parse(&self.0)
-            .expect("validated endpoint")
+        self.0
+            .as_url()
             .host_str()
             .expect("validated endpoint host")
             .to_owned()
@@ -190,7 +183,7 @@ impl TryFrom<String> for HttpsEndpoint {
 
 impl From<HttpsEndpoint> for String {
     fn from(value: HttpsEndpoint) -> Self {
-        value.0
+        value.0.into()
     }
 }
 
@@ -616,6 +609,15 @@ mod tests {
         assert!(HttpsEndpoint::parse("https://example.com/data.pbf").is_ok());
         assert!(HttpsEndpoint::parse("http://example.com/data.pbf").is_err());
         assert!(HttpsEndpoint::parse("https://user:password@example.com/data.pbf").is_err());
+        assert!(HttpsEndpoint::parse("https://EXAMPLE.com/data.pbf").is_err());
+        assert!(HttpsEndpoint::parse("https://example.com/data.pbf#part").is_err());
+        let signed = "https://example.com:8443/data.pbf?part=2&part=1&sig=a%2Fb";
+        let endpoint = HttpsEndpoint::parse(signed).unwrap();
+        assert_eq!(endpoint.as_https_url().as_str(), signed);
+        assert_eq!(endpoint.host(), "example.com");
+        let schema = serde_json::to_value(schemars::schema_for!(HttpsEndpoint)).unwrap();
+        assert_eq!(schema["format"], "uri");
+        assert!(schema["pattern"].as_str().unwrap().starts_with("^https://"));
     }
 
     #[test]

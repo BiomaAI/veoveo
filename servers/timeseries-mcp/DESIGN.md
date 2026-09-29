@@ -13,7 +13,7 @@ structured output.
 | [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12/) | Forecast source, mapping, horizon, output, and app-call argument contracts. |
 | MCP Tasks extension `io.modelcontextprotocol/tasks` | Version `2026-07-28`; forecasting executes through durable create, status, cancellation, terminal `tasks/get` payloads, and `subscriptions/listen`. |
 | [MCP Apps SEP-1865](../../mcp/apps-extension/DESIGN.md) | `ext-apps` version `2026-01-26`; the self-contained `ui://timeseries/forecast.html` view uses the sandboxed host bridge. |
-| CSV, JSON/NDJSON, and Apache Parquet | Governed inline, HTTPS, or artifact sources are materialized through the shared DuckDB source contract. |
+| CSV, JSON/NDJSON, and Apache Parquet | Inline CSV and HTTPS sources are materialized through the shared DuckDB runtime; forecast does not materialize Artifact inputs. |
 | [Rerun 0.38.1](https://rerun.io/docs/) RRD | Full-resolution observations, forecast quantiles, and provenance are encoded into an immutable recording artifact. |
 | SVG | The MCP App renders its bounded preview as inline vector graphics without external network access. |
 | Veoveo MCP server contract | Revision 3, including canonical result handoff, bounded discovery, and the 8 MiB final serialized-response cap. |
@@ -23,6 +23,10 @@ The forecast request imports `DuckDbSource` and read SQL rendering from the Duck
 server library with only its `contract` feature enabled. Timeseries owns source
 materialization and forecasting; this dependency provides no DuckDB hosted runtime.
 The source and forecast request schemas preserve their published fields and defaults.
+Source URLs use foundational `HttpsUrl`, and URL lists use DuckDB's nonempty source
+type. Forecast decoding applies those profiles before the worker creates a workspace.
+Provenance keeps the same types until serialization. The [shared runtime](../../platform/runtimes/duckdb/DESIGN.md)
+still enforces allowed hosts, public DNS addresses, redirects and byte/time limits.
 
 ## Library Features
 
@@ -95,15 +99,11 @@ over the shared [resource component profile](../../platform/types/DESIGN.md).
 
 ### Usage Deployment And Qualification
 
-Coordinate replacement of every Timeseries replica when adopting SQL-filtered pages.
-Mixed replicas can produce short nonterminal pages from the older post-read filter,
-which checked page consumers reject. Existing emitted URI spellings, cursor bytes,
-forecast payloads and usage rows require no conversion. Native Task addresses use
-canonical UUIDv7 text; clients must refresh noncanonical hand-written addresses.
-The change writes no retained data. Rollback uses the previous service image with
-the same store, and reinstates its earlier pagination behavior. Installed acceptance
-must exercise multiple pages with denied rows, exact usage reads and renewed authority
-before this transition is accepted.
+Deploy Timeseries replicas and usage-page consumers together. The foundations rollout
+uses a fresh disposable installation and the current request/source format. Installed
+acceptance exercises multiple pages with denied rows, exact usage reads, renewed
+authority and current-format recovery. Historical data conversion and mixed-format
+replicas are outside this rollout.
 
 `tests/usage_contract.rs` checks wire preservation, typed construction and malformed
 inputs. `tests/usage.rs` uses the isolated pinned Store fixture to check page filling,

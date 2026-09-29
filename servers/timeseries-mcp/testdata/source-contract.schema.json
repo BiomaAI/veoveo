@@ -1,9 +1,5 @@
 {
   "$defs": {
-    "ArtifactUri": {
-      "description": "Neutral or server-presented Artifact occurrence URI.",
-      "type": "string"
-    },
     "DuckDbFormat": {
       "enum": [
         "auto",
@@ -67,7 +63,8 @@
             "kind",
             "csv"
           ],
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false
         },
         {
           "properties": {
@@ -83,7 +80,7 @@
               "default": {}
             },
             "uri": {
-              "type": "string"
+              "$ref": "#/$defs/HttpsUrl"
             }
           },
           "required": [
@@ -91,7 +88,8 @@
             "uri",
             "format"
           ],
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false
         },
         {
           "properties": {
@@ -107,10 +105,7 @@
               "default": {}
             },
             "uris": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
+              "$ref": "#/$defs/DuckDbSourceUris"
             }
           },
           "required": [
@@ -118,7 +113,8 @@
             "uris",
             "format"
           ],
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false
         },
         {
           "description": "A neutral `artifact://{artifact_id}` reference resolved through the shared\nartifact plane under the caller's identity — the cross-server input path.\nAny artifact produced by any hosted server (a media output, a timeseries\nRRD, an optimization DuckDB snapshot) can be read here, gated by the same\ngrant + label checks as any other plane read. The server resolves and\nmaterializes the bytes; the SQL engine never touches the network.",
@@ -135,7 +131,7 @@
               "default": {}
             },
             "uri": {
-              "$ref": "#/$defs/ArtifactUri"
+              "$ref": "#/$defs/DuckDbArtifactSourceUri"
             }
           },
           "required": [
@@ -143,7 +139,8 @@
             "uri",
             "format"
           ],
-          "type": "object"
+          "type": "object",
+          "additionalProperties": false
         }
       ]
     },
@@ -306,6 +303,24 @@
         "value_column"
       ],
       "type": "object"
+    },
+    "DuckDbArtifactSourceUri": {
+      "description": "Neutral Artifact plane URI naming a native UUIDv7 occurrence. Parsed by the Artifact contract.",
+      "type": "string",
+      "pattern": "^artifact://(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|[0-9a-fA-F]{12}7[0-9a-fA-F]{3}[89aAbB][0-9a-fA-F]{15})$"
+    },
+    "DuckDbSourceUris": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/HttpsUrl"
+      },
+      "minItems": 1
+    },
+    "HttpsUrl": {
+      "description": "Canonical ASCII HTTPS URL without credentials or a fragment. The URL parser also checks host syntax, escaping and normalization; runtime policy checks access.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^/?#@\\s]+/[^#\\s]*$"
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",

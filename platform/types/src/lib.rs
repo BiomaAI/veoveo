@@ -23,6 +23,7 @@
 mod authority;
 mod digest;
 mod error;
+mod https_url;
 pub mod identifier_syntax;
 mod identity;
 mod names;
@@ -41,6 +42,7 @@ pub use authority::{
 };
 pub use digest::{Sha256Digest, Sha256DigestError};
 pub use error::IdentifierError;
+pub use https_url::{HttpsUrl, HttpsUrlError};
 pub use names::{ResourceScheme, ScopeDefinition, ScopeName};
 pub use resource::{ResourceAddress, ResourceUri, TaskResourceAddress};
 pub use resource_components::{

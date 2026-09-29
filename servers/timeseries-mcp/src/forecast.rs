@@ -19,8 +19,9 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use veoveo_duckdb_mcp::contract::{
-    DuckDbFormat, DuckDbReadOptions, DuckDbSource, duckdb_quote_identifier, duckdb_quote_literal,
-    duckdb_read_function_sql, duckdb_read_options_sql,
+    DuckDbArtifactSourceUri, DuckDbFormat, DuckDbReadOptions, DuckDbSource, DuckDbSourceUris,
+    duckdb_quote_identifier, duckdb_quote_literal, duckdb_read_function_sql,
+    duckdb_read_options_sql,
 };
 use veoveo_duckdb_runtime::{
     EngineSettings, FileAccess, HttpsSourcePolicy, RequestWorkspace, open_in_memory,
@@ -116,12 +117,17 @@ enum SourceProvenance {
         options: DuckDbReadOptions,
     },
     Uri {
-        uri: String,
+        uri: veoveo_types::HttpsUrl,
         format: DuckDbFormat,
         options: DuckDbReadOptions,
     },
     Uris {
-        uris: Vec<String>,
+        uris: DuckDbSourceUris,
+        format: DuckDbFormat,
+        options: DuckDbReadOptions,
+    },
+    Artifact {
+        uri: DuckDbArtifactSourceUri,
         format: DuckDbFormat,
         options: DuckDbReadOptions,
     },
@@ -210,11 +216,6 @@ fn validate_request(request: &TimeseriesForecastRequest) -> Result<()> {
     }
     if let Some(column) = &request.mapping.series_column {
         validate_identifier("series_column", column)?;
-    }
-    if let DuckDbSource::Uris { uris, .. } = &request.source
-        && uris.is_empty()
-    {
-        bail!("source.uris must not be empty");
     }
     if let Some(filter) = &request.training_filter {
         validate_row_filter(filter)?;
@@ -733,8 +734,8 @@ fn source_provenance(source: &DuckDbSource) -> SourceProvenance {
             uri,
             format,
             options,
-        } => SourceProvenance::Uri {
-            uri: uri.to_string(),
+        } => SourceProvenance::Artifact {
+            uri: uri.clone(),
             format: format.clone(),
             options: options.clone(),
         },
@@ -959,7 +960,7 @@ mod tests {
             "task-private-source",
             &TimeseriesForecastRequest {
                 source: DuckDbSource::Uri {
-                    uri: "https://127.0.0.1/input.csv".to_string(),
+                    uri: "https://127.0.0.1/input.csv".parse().unwrap(),
                     format: DuckDbFormat::Csv,
                     options: DuckDbReadOptions::default(),
                 },

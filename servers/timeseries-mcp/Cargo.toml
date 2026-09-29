@@ -13,6 +13,10 @@ path = "src/bin/server.rs"
 required-features = ["mcp"]
 
 [[test]]
+name = "source_contract"
+required-features = ["contract"]
+
+[[test]]
 name = "usage_contract"
 required-features = ["contract"]
 

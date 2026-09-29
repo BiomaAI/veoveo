@@ -304,6 +304,13 @@ The contract describes data. It does not authorize access. `duckdb-mcp` resolves
 an artifact under the live caller's plane identity or fetches an HTTPS source
 under the server's allowlist before DuckDB sees a request-local file.
 
+The contract carries network addresses as foundational `HttpsUrl` values and requires
+at least one URL in `DuckDbSourceUris`. `DuckDbArtifactSourceUri` accepts only a neutral
+Artifact-plane occurrence address. Constructors and decoding apply these profiles
+before materialization. The [shared runtime](../../platform/runtimes/duckdb/DESIGN.md)
+accepts typed HTTPS inputs and enforces host, DNS, redirect and download limits; syntax
+admission grants no network or Artifact access.
+
 ### Export Model
 
 Query and export output formats are controlled separately from input formats.

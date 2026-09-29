@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use veoveo_artifact_contract::ArtifactMetadata;
 mod read_sql;
 mod source;
+mod source_addresses;
+pub use source_addresses::*;
 mod usage;
 mod usage_metadata;
 pub use usage::*;

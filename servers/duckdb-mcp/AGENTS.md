@@ -31,6 +31,9 @@ engine rather than by narrowing SQL.
 - Export requests distinguish tabular data from database snapshots at admission.
   Build query results through their checked constructors; preserve row-width,
   observed-count and inline/Artifact agreement through serialization.
+- Source URLs use `HttpsUrl` through materialization, source lists require at least
+  one URL, and Artifact inputs use `DuckDbArtifactSourceUri`. Keep address admission
+  separate from runtime host/DNS policy and Artifact-plane authorization.
 - Recovery classes are fixed: `query` and `export` resume; `execute` and
   `ingest` are indeterminate after interruption and never gain replay or
   polling fallbacks.

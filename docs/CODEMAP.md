@@ -72,6 +72,7 @@ Component designs live beside the code whose contract they specify:
 | [`platform/computers/DESIGN.md`](../platform/computers/DESIGN.md) | Computers domain: lifecycle, access checks, named grants, files and maintenance |
 | [`mcp/contract/DESIGN.md`](../mcp/contract/DESIGN.md) | the normative MCP `2026-07-28` server contract: Discover, stateless Streamable HTTP, official Tasks and multi-round input, request-scoped subscriptions, replica-safe state, schema bounds, packaging, well-known resources, and compliance |
 | [`platform/types/DESIGN.md`](../platform/types/DESIGN.md) | protocol-independent identity and attribution, scope names, resource references, URI component parsing and builders, validation errors, and public extension traits |
+| [`platform/runtimes/duckdb/DESIGN.md`](../platform/runtimes/duckdb/DESIGN.md) | shared analytical sandbox, typed HTTPS materialization, network policy and query limits |
 | [`mcp/conformance/DESIGN.md`](../mcp/conformance/DESIGN.md) | typed domain-neutral hosted-server certification profiles, reports, and standalone distribution |
 | [`servers/artifact-mcp/DESIGN.md`](../servers/artifact-mcp/DESIGN.md) | artifact discovery, access, publication and the Artifact App |
 | [`platform/artifacts/contract/DESIGN.md`](../platform/artifacts/contract/DESIGN.md) | lightweight Artifact-plane identity, typed addresses and builders, metadata, compliance, provenance, and byte handoff values |
@@ -364,6 +365,8 @@ schemas, URL parsing, and percent encoding. Consumers import its types directly.
 [the foundations plan](PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts)
 tracks concrete/template reference separation, URI builder adoption, MCP integration traits,
 and server library features.
+`src/https_url.rs` owns canonical network URL parsing and redacted diagnostics; download
+policies own DNS and access checks.
 `src/scopes.rs` provides the `scope_enum!` declaration helper. `src/digest.rs` owns the
 prefixed SHA-256 representation shared by provenance contracts. `src/sha256_hex.rs`
 owns explicit required/optional field serialization for declared bare-hex profiles.
@@ -1003,6 +1006,7 @@ DuckDB-specific ownership:
 | `platform/runtimes/duckdb/` | engine runtime with resource limits, closed Spatial axis policy, effective-setting verification, and sandbox primitives |
 | `servers/duckdb-mcp/src/contract.rs`, `Cargo.toml`, `src/lib.rs` | database IDs and tool request/result types; isolated contract feature with runtime and hosted MCP feature gates |
 | `servers/duckdb-mcp/src/contract/source.rs`, `src/contract/read_sql.rs` | cross-server tabular source types and read SQL fragments owned by DuckDB; Timeseries consumes the contract feature; schema and consumer checks in `tests/contract.rs` |
+| `servers/duckdb-mcp/src/contract/source_addresses.rs` | nonempty typed HTTPS source lists and neutral Artifact input addresses; network URL parsing belongs to `platform/types` |
 | `servers/duckdb-mcp/src/contract/usage.rs`, `src/usage.rs` | checked usage addresses, collection cursors and pages; TaskRuntime SQL applies current owner policy before grouping and limits |
 | `servers/duckdb-mcp/src/contract/catalog.rs`, `src/contract/resources.rs`, `src/uris.rs` | typed database pages, collection cursors, schema responses and complete resource admission/builders without MCP runtime dependencies |
 | `servers/duckdb-mcp/src/catalog.rs` | owner-directory pagination that retains at most 101 filename candidates and reads no database bytes |

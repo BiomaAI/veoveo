@@ -2,9 +2,11 @@
 
 use std::collections::BTreeMap;
 
+use super::{DuckDbArtifactSourceUri, DuckDbSourceUris};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use veoveo_types::HttpsUrl;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -29,7 +31,7 @@ pub struct DuckDbReadOptions {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum DuckDbSource {
     InlineCsv {
         csv: String,
@@ -39,13 +41,13 @@ pub enum DuckDbSource {
         options: DuckDbReadOptions,
     },
     Uri {
-        uri: String,
+        uri: HttpsUrl,
         format: DuckDbFormat,
         #[serde(default)]
         options: DuckDbReadOptions,
     },
     Uris {
-        uris: Vec<String>,
+        uris: DuckDbSourceUris,
         format: DuckDbFormat,
         #[serde(default)]
         options: DuckDbReadOptions,
@@ -57,7 +59,7 @@ pub enum DuckDbSource {
     /// grant + label checks as any other plane read. The server resolves and
     /// materializes the bytes; the SQL engine never touches the network.
     Artifact {
-        uri: veoveo_artifact_contract::ArtifactUri,
+        uri: DuckDbArtifactSourceUri,
         format: DuckDbFormat,
         #[serde(default)]
         options: DuckDbReadOptions,

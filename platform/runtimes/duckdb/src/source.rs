@@ -10,6 +10,7 @@ use std::{
 use anyhow::{Context, Result, bail};
 use reqwest::{Url, blocking::Client, header};
 use tempfile::{Builder, TempDir};
+use veoveo_types::HttpsUrl;
 
 #[derive(Debug, Clone)]
 pub struct HttpsSourcePolicy {
@@ -162,7 +163,7 @@ impl RequestWorkspace {
 
     pub fn fetch_https(
         &self,
-        uri: &str,
+        uri: &HttpsUrl,
         filename: &str,
         policy: &HttpsSourcePolicy,
     ) -> Result<PathBuf> {
@@ -194,9 +195,15 @@ pub fn materialize_authorized_artifact(
 }
 
 /// Fetch a governed HTTPS source into an existing request directory.
+/// ```compile_fail
+/// use veoveo_duckdb_runtime::{HttpsSourcePolicy, materialize_https_source};
+/// fn fetch(uri: &str, policy: &HttpsSourcePolicy) {
+///     materialize_https_source(std::path::Path::new("."), uri, "source.csv", policy);
+/// }
+/// ```
 pub fn materialize_https_source(
     request_dir: &Path,
-    uri: &str,
+    uri: &HttpsUrl,
     filename: &str,
     policy: &HttpsSourcePolicy,
 ) -> Result<PathBuf> {
@@ -215,7 +222,7 @@ pub fn materialize_https_source(
 /// headers.
 pub fn materialize_https_source_with_headers(
     request_dir: &Path,
-    uri: &str,
+    uri: &HttpsUrl,
     filename: &str,
     policy: &HttpsSourcePolicy,
     headers: &header::HeaderMap,
@@ -232,12 +239,12 @@ pub fn materialize_https_source_with_headers(
 }
 
 fn fetch_https_to(
-    uri: &str,
+    uri: &HttpsUrl,
     destination: &Path,
     policy: &HttpsSourcePolicy,
     source_headers: Option<&header::HeaderMap>,
 ) -> Result<()> {
-    let mut url = Url::parse(uri).with_context(|| format!("invalid source URI `{uri}`"))?;
+    let mut url = uri.as_url().clone();
     let deadline = Instant::now() + policy.total_timeout;
     let origin_host = url
         .host_str()
@@ -265,9 +272,7 @@ fn fetch_https_to(
         {
             request = request.headers(headers.clone());
         }
-        let mut response = request
-            .send()
-            .with_context(|| format!("fetching source `{url}`"))?;
+        let mut response = request.send().map_err(source_request_error)?;
         if response.status().is_redirection() {
             if redirect == policy.max_redirects {
                 bail!("source exceeded the redirect limit");
@@ -278,7 +283,7 @@ fn fetch_https_to(
                 .context("source redirect omitted Location")?
                 .to_str()
                 .context("source redirect Location is not valid text")?;
-            url = url.join(location).context("invalid source redirect URI")?;
+            url = resolve_redirect(&url, location)?;
             continue;
         }
         if !response.status().is_success() {
@@ -329,6 +334,17 @@ fn fetch_https_to(
         return Ok(());
     }
     unreachable!("redirect loop returns or fails")
+}
+
+fn source_request_error(error: reqwest::Error) -> anyhow::Error {
+    anyhow::Error::new(error.without_url()).context("fetching HTTPS source")
+}
+
+fn resolve_redirect(current: &Url, location: &str) -> Result<Url> {
+    let next = current
+        .join(location)
+        .context("invalid source redirect URI")?;
+    Ok(HttpsUrl::parse(next.as_str())?.as_url().clone())
 }
 
 fn validate_source_headers(headers: &header::HeaderMap) -> Result<()> {
@@ -397,6 +413,47 @@ mod tests {
     use super::*;
 
     #[test]
+    fn source_request_errors_omit_signed_urls() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let uri = Url::parse("https://example.test/data.csv?token=secret").unwrap();
+        let error = reqwest::Client::new()
+            .get(uri.clone())
+            .header("x-test", "invalid\nheader")
+            .build()
+            .unwrap_err()
+            .with_url(uri);
+        let error = source_request_error(error);
+        for rendered in [format!("{error:#}"), format!("{error:?}")] {
+            assert!(rendered.contains("fetching HTTPS source"));
+            assert!(!rendered.contains("token"));
+            assert!(!rendered.contains("secret"));
+            assert!(!rendered.contains("example.test"));
+        }
+        assert!(error.downcast_ref::<reqwest::Error>().unwrap().is_builder());
+    }
+
+    #[test]
+    fn redirects_preserve_query_bytes_and_reapply_the_https_profile() {
+        let current = Url::parse("https://example.test/source/input.csv").unwrap();
+        assert_eq!(
+            resolve_redirect(&current, "../data.csv?part=2&part=1&sig=a%2Fb")
+                .unwrap()
+                .as_str(),
+            "https://example.test/data.csv?part=2&part=1&sig=a%2Fb"
+        );
+        for location in [
+            "http://example.test/data.csv",
+            "https://user:secret@example.test/data.csv",
+            "data.csv#secret",
+        ] {
+            let error = resolve_redirect(&current, location)
+                .unwrap_err()
+                .to_string();
+            assert!(!error.contains("secret"));
+        }
+    }
+
+    #[test]
     fn private_and_special_addresses_are_rejected() {
         for address in [
             "127.0.0.1",
@@ -439,7 +496,7 @@ mod tests {
         let workspace = RequestWorkspace::new("veoveo-source-test-").unwrap();
         let error = workspace
             .fetch_https(
-                "https://example.com/source.csv",
+                &"https://example.com/source.csv".parse().unwrap(),
                 "source.csv",
                 &HttpsSourcePolicy::deny_network(),
             )

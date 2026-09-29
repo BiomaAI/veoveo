@@ -9,6 +9,7 @@
 | [OAuth 2.0 scope tokens, RFC 6749 section 3.3](https://www.rfc-editor.org/rfc/rfc6749#section-3.3) | `scope_enum!` declarations follow the scope-token grammar. Dynamic `ScopeName` preserves the broader repository profile of nonempty text without whitespace or controls. Neither type establishes a grant. |
 | Resource reference syntax | Lowercase URI scheme followed by `://` and a nonempty suffix without whitespace or controls; an opaque reference can include a completion template, and this validator does not establish full URI or template conformance |
 | [WHATWG URL Standard](https://url.spec.whatwg.org/) | Concrete hierarchical address components use [`url` 2.5.8](https://docs.rs/url/2.5.8/url/). The profile rejects parser violations and normalization, requires an unescaped authority, and excludes credentials, ports, fragments, and unexpanded templates. This is a Veoveo resource profile, not support for every URI scheme. |
+| HTTPS URL profile | `HttpsUrl` uses the same URL parser for canonical ASCII HTTPS addresses without credentials or fragments. Ports and repeated query names are admitted, and input query bytes are preserved. Runtime network policy owns host and address authorization. |
 | Percent encoding and form query encoding | [`percent-encoding` 2.3.2](https://docs.rs/percent-encoding/2.3.2/percent_encoding/) decodes UTF-8 components and encodes path characters left unescaped by the URL setter. URL query pairs use form semantics: `+` represents space and `%2B` represents plus. |
 | [RFC 6570 URI Templates](https://www.rfc-editor.org/rfc/rfc6570) | `ResourceTemplateUri` uses [`iri-string` 0.7.14](https://docs.rs/crate/iri-string/0.7.14) for all four expression levels and expansion. The profile admits ASCII literals with a literal lowercase scheme, `://`, and a nonempty suffix. Local guards enforce prefix lengths `1..=9999` without leading zeroes and nonempty dotted variable-name components. Expanded results must also pass the concrete resource profile. |
 | Rust extension interfaces | Public `ScopeDefinition`, `TaskTypeDefinition`, `ResourceAddress` and `TaskResourceAddress` traits permit implementations in independent libraries |
@@ -19,7 +20,7 @@
 ## Ownership And Dependencies
 
 `veoveo-types` owns `ScopeName`, `ResourceScheme`, `ResourceUri`, `IdentifierError`,
-`Sha256Digest`, and `Sha256DigestError`. A digest can be constructed from a checked
+`Sha256Digest`, `Sha256DigestError`, `HttpsUrl` and `HttpsUrlError`. A digest can be constructed from a checked
 32-byte SHA-256 output without parsing text; the type performs no hashing. `ResourceUriParts`, `ResourceUriBuilder`,
 `UriAuthority`, `UriSegment`, and `ResourceUriError` implement concrete component handling.
 `ResourceTemplateUri` and `ResourceTemplateError` own template admission and expansion.
@@ -141,6 +142,20 @@ compile time. `TaskTypeDefinition` lets a server-owned enum supply its operation
 Stream and Reason expose these enums through their contract-only libraries. The shared
 runtime accepts their names in `OwnerTaskQuery`; it contains no domain variants.
 Selected names convert to text when binding to the database driver.
+
+## HTTPS Network URLs
+
+`HttpsUrl` owns the separate network-address profile. Construction rejects parser
+violations and any spelling the URL library would normalize. An authority-only HTTPS
+root includes its trailing slash. The type preserves encoded path and query bytes,
+query ordering, repeated names and nondefault ports. Debug output and admission errors
+omit the URL because a query may contain credentials. `as_url` exposes an immutable
+parsed URL to HTTP adapters without reparsing or erasing its type.
+
+The type validates syntax only. A loopback URL can pass this constructor, and a download
+policy must still reject forbidden addresses after DNS resolution and every redirect.
+Server contracts own source-list cardinality and supported source kinds. This
+foundational type contains no DuckDB, Map or Timeseries vocabulary.
 
 ## Concrete Resource Components
 

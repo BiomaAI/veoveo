@@ -429,10 +429,11 @@ async fn materialize_source(
             // Resolve the neutral artifact:// URI through the plane under the
             // caller's identity; the plane enforces grant + label checks. Bytes
             // are written to the sandboxed exchange dir, never fetched by SQL.
-            let object =
-                state.artifacts.resolve(caller, uri).await.map_err(|err| {
-                    McpError::invalid_params(format!("artifact source: {err}"), None)
-                })?;
+            let object = state
+                .artifacts
+                .resolve(caller, uri.as_artifact_uri())
+                .await
+                .map_err(|err| McpError::invalid_params(format!("artifact source: {err}"), None))?;
             let exchange = exchange.to_path_buf();
             let filename = format!("artifact-{}", object.metadata.artifact_id());
             let bytes = object.bytes;
@@ -487,13 +488,7 @@ async fn materialize_source(
             format,
             options,
         } => {
-            if uris.is_empty() {
-                return Err(McpError::invalid_params(
-                    "source.uris must not be empty",
-                    None,
-                ));
-            }
-            let mut literals = Vec::with_capacity(uris.len());
+            let mut literals = Vec::with_capacity(uris.as_slice().len());
             for (index, uri) in uris.iter().enumerate() {
                 let path = fetch_ingest_uri(state, uri, exchange, index).await?;
                 literals.push(duckdb_quote_literal(path.to_string_lossy().as_ref()));
@@ -509,11 +504,11 @@ async fn materialize_source(
 /// into the request-local directory under a hard byte cap.
 async fn fetch_ingest_uri(
     state: &AppState,
-    uri: &str,
+    uri: &veoveo_types::HttpsUrl,
     exchange: &Path,
     index: usize,
 ) -> Result<PathBuf, McpError> {
-    let uri = uri.to_string();
+    let uri = uri.clone();
     let exchange = exchange.to_path_buf();
     let policy = state.source_policy.clone();
     tokio::task::spawn_blocking(move || {

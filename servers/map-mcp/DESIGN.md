@@ -733,22 +733,21 @@ controls and acquisition limits. Its checked decoder validates name, license, fa
 version and timestamps. Map Explorer follows every source page before replacing its
 view; a continuation failure preserves the prior view.
 
-This collection profile requires a coordinated Map/client upgrade. Drain acquisition
-and routing Tasks, then replace Map replicas and Map Explorer together. Consumers
-replace array decoding with page traversal. Preflight source IDs and their references in releases, acquisitions, source features,
-rasters and derivations for lowercase hyphenated RFC-variant UUIDv5/v7 spelling,
-and check selected document/index agreement. Preserve rejected rows for operator
-repair before restoring traffic. The reader does not rewrite stored records.
-Rollback restores the prior server/client pair against the same rows and discards new
-cursors; operators must accept the prior reader's weaker checks. Installed paging,
-retained-record repair and reverse/forward replacement are required qualification.
+Deploy Map and its page consumers together after draining acquisition and routing Tasks.
+The foundations rollout uses a fresh disposable installation and the current typed
+source format. Installed acceptance qualifies page traversal, current authority and
+current-format restart recovery. The reader rejects selected malformed documents;
+it supplies no historical-data conversion or weaker fallback reader.
 
 ### Network And File Controls
 
 The Rust process resolves every input from a registered source before invoking
 the helper.
 
-HTTPS acquisition enforces:
+`HttpsEndpoint` wraps the foundational `HttpsUrl`; admission rejects noncanonical
+spelling and preserves accepted path and query bytes. Acquisition passes that typed
+value to the [shared download runtime](../../platform/runtimes/duckdb/DESIGN.md).
+The runtime applies the following controls independently of URL syntax:
 
 - HTTPS endpoints without embedded credentials or fragments;
 - registered endpoint and redirect-host allowlists;
