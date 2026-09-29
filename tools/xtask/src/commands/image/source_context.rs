@@ -697,7 +697,7 @@ mod tests {
         );
     }
     #[test]
-    fn gpu_control_consumers_do_not_enable_unneeded_analytics() {
+    fn gpu_control_consumers_exclude_unneeded_services_and_analytics() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .canonicalize()
@@ -719,7 +719,7 @@ mod tests {
                 "--prefix",
                 "none",
                 "--format",
-                "{p}",
+                "{p} features={f}",
             ])
             .current_dir(repository)
             .output()
@@ -744,16 +744,35 @@ mod tests {
                 "missing expected consumer {expected}"
             );
         }
-        for unneeded in ["duckdb", "libduckdb-sys"] {
+        for unneeded in [
+            "duckdb",
+            "libduckdb-sys",
+            "veoveo-recording-hub",
+            "veoveo-recording-forwarder",
+        ] {
             assert!(
                 !packages.contains(unneeded),
                 "GPU control consumers enabled {unneeded}"
             );
         }
+        for line in tree.lines().filter(|line| !line.trim().is_empty()) {
+            let name = line.split_whitespace().next().unwrap();
+            if matches!(name, "veoveo-recording-mcp" | "veoveo-map-mcp") {
+                assert_eq!(
+                    line.split_once("features=")
+                        .unwrap()
+                        .1
+                        .split_whitespace()
+                        .next(),
+                    Some("contract"),
+                    "GPU control consumers enabled server implementation features: {line}"
+                );
+            }
+        }
     }
 
     #[test]
-    fn real_recording_consumers_exclude_service_implementations_and_keep_native_inputs() {
+    fn real_recording_consumers_keep_contract_sources_and_native_inputs() {
         let repository = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../..")
             .canonicalize()
@@ -764,17 +783,19 @@ mod tests {
             let inputs =
                 input_files(&repository, &metadata, &[package.to_owned()], &files).unwrap();
             assert!(inputs.contains(Path::new("platform/recordings/reader/src/read.rs")));
-            assert!(!inputs.contains(Path::new("platform/recordings/hub/src/ingest.rs")));
-            assert!(!inputs.contains(Path::new("servers/recording-mcp/src/service.rs")));
-            assert!(!inputs.contains(Path::new("platform/recordings/forwarder/src/client.rs")));
+            assert!(inputs.contains(Path::new("platform/recordings/contract/src/scopes.rs")));
+            assert!(inputs.contains(Path::new("platform/frames/contract/src/uris.rs")));
+            assert!(inputs.contains(Path::new("servers/recording-mcp/src/contract.rs")));
             // Cargo still receives all real workspace manifests and target entrypoints.
             assert!(inputs.contains(Path::new("servers/recording-mcp/Cargo.toml")));
             assert!(inputs.contains(Path::new("servers/recording-mcp/src/lib.rs")));
             let source_packages = source_packages(&metadata, &[package.to_owned()]).unwrap();
-            assert!(!source_packages.iter().any(|name| matches!(
-                name.as_str(),
-                "veoveo-recording-mcp" | "veoveo-recording-hub" | "veoveo-recording-forwarder"
-            )));
+            for contract in ["veoveo-recording-contract", "veoveo-frames-contract"] {
+                assert!(
+                    source_packages.iter().any(|name| name == contract),
+                    "{package} omitted the {contract} source package"
+                );
+            }
             match package {
                 "veoveo-stream-mcp" => {
                     assert!(

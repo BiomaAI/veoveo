@@ -1345,6 +1345,10 @@ without MCP integration, Store, Rerun, async or GPU runtimes. The existing schem
 and domain assertions moved with their owner; a facade test proves public type identity.
 The focused flight and browser client graph check admits this extracted contract by
 name. All three graph selections pass without Store, Rerun, DuckDB or server runtimes.
+Image qualification checks production features separately from conservative source
+discovery. Stream and Reason consume Recording and Map contract features without
+Hub, Forwarder or DuckDB dependencies. Six input and cache checks pass, including
+required contract files, native inputs and separate runtime assets.
 
 Recording projection requests and results carry `WorldFrameUri` values. They admit at
 most 64 distinct immutable-revision references, preserve caller order and keep URI wire

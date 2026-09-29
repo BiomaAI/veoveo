@@ -94,7 +94,11 @@ contribute only the metadata files and target entrypoints Cargo needs for discov
 The shared task runtime consumes the workspace's feature-neutral MCP contract dependency.
 Analytics is enabled by its actual consumers. A native Cargo feature-graph regression
 requires Stream and Reason to retain the task runtime without DuckDB or its native
-build script. This production graph check is separate from conservative file discovery.
+build script, Recording Hub or Forwarder. Recording and Map server libraries enter
+that graph only through their contract features. Source discovery includes their
+optional implementation inputs because it resolves all features; Cargo's production
+selection determines which of those inputs compile. The source checks verify the
+required domain contract files and native build inputs separately.
 
 A package that reads compilation inputs outside its own directory declares them as
 repository-relative files or directories:

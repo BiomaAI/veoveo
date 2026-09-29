@@ -433,7 +433,8 @@ unchanged files retain their previous compilation timestamp. UAV MCP uses the sh
 trixie family.
 Every Rust family receives a Cargo-derived context. Standalone vLLM and SUMO recipes
 keep their native/runtime package inputs and all real Cargo workspace metadata. They
-exclude unrelated service implementation sources. Standalone Dockerfiles do not copy a
+use the same conservative source closure; Cargo selects their production features.
+Standalone Dockerfiles do not copy a
 handwritten subset of workspace members. The
 planner rejects a standalone builder that omits the source mount or introduces a
 builder-stage `COPY`, which prevents a new workspace crate from breaking an otherwise
