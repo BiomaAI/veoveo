@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Single source of the Autonomy Harness whitepaper. Browsers read this file directly;
+<!-- Single source of the Veoveo whitepaper. Browsers read this file directly;
      docs/veoveo-whitepaper.pdf is printed from it. To print, serve the repository root,
      open this file in headed Chrome whose WebGPU or WebGL adapter is hardware-backed,
      emulate prefers-color-scheme: light, and call DevTools Page.printToPDF with
@@ -12,7 +12,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Autonomy Harness Whitepaper</title>
+<title>Veoveo Whitepaper</title>
 <link rel="icon" type="image/png" href="assets/brand/favicon.png">
 <style>
   :root {
@@ -116,7 +116,7 @@
   .titleblock { position: relative; z-index: 1; max-width: 46rem; margin: 0 auto; padding: 2.6rem 16px 0; }
   .cover-top { z-index: 1; }
   .eyebrow { font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.2em; color: var(--accent-bright); text-transform: uppercase; margin-bottom: 1rem; }
-  .cover h1 { font-size: clamp(2.6rem, 9vw, 3.8rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; color: #fff; }
+  .cover h1 { font-size: clamp(2.1rem, 6.5vw, 3.2rem); max-width: 13em; text-wrap: balance; font-weight: 700; letter-spacing: -0.02em; line-height: 1.02; color: #fff; }
   .cover .subtitle { margin-top: 1rem; font-size: 1.1rem; line-height: 1.5; color: #CFC8DA; max-width: 34rem; }
   .cover .subtitle em { font-style: normal; font-weight: 700; color: var(--accent-bright); }
   .verline { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.14em; color: var(--dark-muted); text-transform: uppercase; margin-top: 1rem; }
@@ -181,7 +181,7 @@
     size: letter;
     margin: 0.8in 0.8in 0.9in;
     @top-right {
-      content: "Autonomy Harness · Technical Whitepaper";
+      content: "Veoveo · Technical Whitepaper";
       font-family: ui-monospace, Menlo, monospace; font-size: 7px; letter-spacing: 0.14em;
       text-transform: uppercase; color: #8A7F99; vertical-align: bottom; padding-bottom: 0.22in;
     }
@@ -215,7 +215,7 @@
     .cover .kind { font-size: 7.5px; }
     .titleblock { position: absolute; top: 1.55in; left: 0.8in; right: 0.8in; max-width: none; padding: 0; margin: 0; }
     .eyebrow { font-size: 10px; margin-bottom: 16px; }
-    .cover h1 { font-size: 64px; }
+    .cover h1 { font-size: 48px; }
     .cover .subtitle { font-size: 14.5px; max-width: 5.6in; margin-top: 16px; }
     .verline { font-size: 8.5px; margin-top: 14px; }
 
@@ -268,7 +268,7 @@
     <div class="kind">Technical whitepaper</div>
   </div>
   <div class="titleblock">
-    <h1>Autonomy<br>Harness</h1>
+    <h1>Autonomous operations on infrastructure you own</h1>
     <p class="subtitle">A self-hosted <em>autonomy harness for physical AI</em>, where humans, robots
       and agents learn, play and evolve together in simulated and real worlds.</p>
     <div class="verline">Version 2.1 · September 2026</div>
@@ -325,39 +325,26 @@
   <h1 class="section">Abstract</h1>
   <div class="abstract">
     <p>
-      What an operation needs from autonomy is harder to supply than intelligence. Decisions
-      have to follow from what was actually observed, and they have to stay aligned with the
-      mission — with its objectives and constraints, and with the intent behind them when
-      circumstances force a change of plan. Permission has to hold when the model's judgment
-      fails, because that is when it matters most. Resilience has to be engineered: processes die, machines
-      are lost, tasks are cut off mid-flight, and the system must come back knowing what it was
-      doing, with the consequences of every interruption defined in advance. What the autonomy
-      is doing has to be observable while it is doing it. And the operator, who answers for all
-      of it, needs assurance that behavior stays within what was approved — and an account of
-      every action, attributable and replayable from the record.
+      Physical AI agents can now plan and act well enough to run real robots. To trust them
+      with that work, an operation needs an autonomy harness, a system that contains what the
+      agents do. Inside it, agents draw on the operation's context, think in simulation before
+      acting and stay aligned with the humans they serve.
     </p>
     <p>
-      The <b>Autonomy Harness</b> is a self-hosted cognition stack built to supply these
-      guarantees structurally. Its foundation is a <b>world model</b>: everything the operation
-      senses, remembers, and decides, fused into a durable body of state that agents query
-      rather than accumulate. The mission is part of that model — objectives, constraints, and
-      current beliefs held as data — so intent is something an agent reasons over, and a
-      deviation is measured against the goal it serves before it is adopted and recorded.
-      Reasoning runs in bounded episodes over fresh slices of this model, which is why an
-      agent's knowledge outlives any single process or context window. Between every agent and
-      every tool sits one gateway, enforcing the operator's policy outside the model's
-      reasoning; a refusal there leaves the same evidence an approval does. Work too long for
-      an episode becomes a durable task whose recovery behavior is declared before it starts.
-      Beneath all of this, a producer-local forwarder holds each signal until Recording Hub
-      acknowledges fsynced journal state and an immutable ordered part. One verified archive pass
-      reduced a representative 30,307-chunk corpus to 31 indexed chunks in 2.56 seconds. The
-      record that grounds a decision can also replay it. New hosted servers attach through a full
-      MCP contract, in Rust or Python, and inherit the task, artifact, identity, policy, and audit
-      guarantees on arrival. A live traffic world exercises the complete loop, and the identical
-      stack runs on a single edge host or inside an air-gapped cluster.
+      Veoveo is a self-hosted autonomy harness for physical AI, where humans, robots and agents
+      learn, play and evolve together in simulated and real worlds. A gateway outside the model
+      checks each tool call against the operator's identity and policy, and the harness records
+      every action with the reasoning behind it. Simulated and real worlds
+      share the same contracts, so a plan an agent works out in simulation runs on the robot
+      through the same tools, and each run feeds a world model that the next run learns from.
+      Veoveo is built on open standards: MCP for agents and tools, OAuth and OpenID Connect for
+      identity, Rerun for recordings, OpenTelemetry for traces, and Kubernetes for deployment.
+      Any compatible model, robot or simulator connects through them without special
+      integration. An operation keeps the whole harness on its own infrastructure, from a single
+      edge host to an air-gapped cluster.
     </p>
-    <p class="keywords"><b>KEYWORDS</b> &nbsp; autonomous agents · world model · runtime policy ·
-      task recovery · acknowledged recording · edge and air-gap deployment · MCP</p>
+    <p class="keywords"><b>KEYWORDS</b> &nbsp; autonomy harness · physical AI · world model ·
+      runtime policy · MCP</p>
   </div>
 </section>
 
