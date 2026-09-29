@@ -28,20 +28,27 @@ while cache claims stay intact. Native qualification passes 263 Rust cases and 1
 Python cases, including both old/new binding mismatches and the client dependency graph.
 Scoped strict Clippy, Helm configuration, formatting, docs and identifier checks pass.
 The two UAV images and its chart are published at `bbefad48`. Installed publication
-exposed a gateway defect before the installation file changed: recursive URI projection
-replaced a UAV producer URI inside the Frames tree with the Frames scheme, breaking
-its digest. The stored resource and both native feature configurations preserve the
-correct digest. Gateway projection is being restricted to protocol addresses and the
-App link; domain values and unknown extension metadata pass through unchanged. Ten
-forwarding cases pass in the freshly compiled gateway test executable, and ten isolated
-Frames contract cases pass, including the complete scenario digest and repeated JSON
-round trips. Strict library Clippy, formatting, docs and identifier checks pass.
-Publication selects only the gateway: the other changed package inputs
-are contract tests and qualification documentation. The cluster is stopped, with root GitOps and the UAV release suspended and both UAV
-Deployments drained. New image/chart selections await the corrected gateway before
-world publication, deployment and flight acceptance. The architecture catalog
+exposed gateway rewriting of a producer URI inside the digest-bound Frames tree. The
+correction at `2132f9c5` preserves domain payloads and unknown extension metadata while
+projecting explicit MCP resource addresses and the App link. Ten forwarding cases,
+ten isolated Frames contract cases, strict library Clippy, formatting, docs and
+identifier checks pass. The complete scenario digest also passes with workspace features.
+Only gateway production code changed; the other package changes were contract tests
+and qualification documentation.
+The gateway deployed at `abf2ceab`, and public world publication and resource readback
+passed. The reviewed world file, digest, UAV images and chart deployed at `3b538126`.
+GitOps convergence passed, and both ready UAV containers report the selected image and
+world digests. Public installation verification passed again. Composed flight acceptance
+passed world admission, recording catalog and control-grant setup, then failed during
+takeoff with an adapter command transport error. The simulator did not restart; its
+logs contain PX4 sensor timeouts, stale barometer reports and arming refusals. A later
+state read showed the controlled vehicle in standby. The command outcome was not
+inferred from the transport error, and takeoff was not retried. Sensor timing and command
+deadlines need one runtime qualification batch before another full flight run. The
+cluster is stopped during that development; Rust and BuildKit caches, image layers and
+runtime claims are preserved. The architecture catalog
 validates, rendering is idempotent, and its unchanged HTML/PDF reuse the headed NVIDIA
-qualification at `783e447a`. The cluster is stopped during development. Sequential preparation of the consumed
+qualification at `783e447a`. Sequential preparation of the consumed
 images resolved the cold-bootstrap I/O
 contention. Fresh recording and Computers trust is enrolled
 locally; its public key IDs and configuration digests pass Helm and rollout checks.
@@ -2449,7 +2456,7 @@ not complete while a row remains.
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
 | Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
-| Phase 1 reference reset | `examples/bioma/README.md` | Publish and deploy a current Frames world binding, then finish installed workload acceptance | GitOps convergence, 17 hosted certifications and public installation verification passed at `c5d56238`. The Reason checkpoint is staged and verified. Composed UAV acceptance found a deleted Frames revision in the installation startup input; the typed publication and rollout batch passes 263 Rust and 115 Python cases and is published at `bbefad48`. Live publication exposed gateway rewriting of independent producer URIs inside digest-bound domain data; protocol-only projection passes ten forwarding cases and ten Frames contract cases; gateway publication and installed acceptance are next |
+| Phase 1 reference reset | `examples/bioma/README.md` | Qualify simulator sensor timing, command deadlines and composed flight, then finish installed workload acceptance | Seventeen hosted certifications passed at `c5d56238`. Gateway payload preservation deployed at `abf2ceab`; current world publication passed and its matching UAV rollout converged at `3b538126`. Public installation verification passed. Flight acceptance reached takeoff, then reported an adapter command transport error while PX4 logged sensor timeouts and arming refusals; no takeoff retry was issued |
 | Phase 3 Reason C02 installation | `servers/reason-mcp/src/bin/server/task_results.rs` | Verify current result delivery and GPU completion on the rebuilt reference installation | Native work runs with reference workloads stopped; no historical-data transition or dual-profile rollback is required |
 | Phase 3 Stream C02 installation | `servers/stream-mcp/src/bin/server/task_results.rs` | Qualify canonical result reads, Task delivery and GPU completion on the rebuilt reference installation | Native current-format delivery and browser behavior pass; reference workloads are stopped during development |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

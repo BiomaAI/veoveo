@@ -811,9 +811,12 @@ cargo xtask smoke uav-world-publish \
 
 Set `world.bootstrap.contentSha256` in `uav-sim-values.yaml` to the command's
 `contentSha256`, and commit both files together. Publish and select the chart/runtime
-that mount and pin this document in both workloads. Drain the simulator and companion
-when upgrading an installation whose runtime does not check the expected binding.
-The new deployment uses the current Frames publication and keeps the tile cache.
+that mount and pin this document in both workloads. Keep the UAV HelmRelease suspended
+in reviewed GitOps desired state while draining the simulator and companion. A root
+reconciliation can remove an out-of-band suspension patch. Remove the suspension in
+the activation commit that selects the new binding, chart and images together, so the
+old release cannot resume between those updates. The new deployment uses the current
+Frames publication and keeps the tile cache.
 A reset never reuses a deleted revision from the previous database.
 
 Run GitOps convergence and installed verification against that revision, including
