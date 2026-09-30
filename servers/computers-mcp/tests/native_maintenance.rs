@@ -232,7 +232,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
         lifecycle.step(create).boxed().await.unwrap(),
         WorkerStep::Settled
     );
-    let initial = Binding::new(computer.computer_id, source.fingerprint()).unwrap();
+    let initial = Binding::new(computer.computer_id.into_uuid(), source.fingerprint()).unwrap();
     shell(
         &provider.runtime,
         &initial,
@@ -353,7 +353,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     assert_eq!(upgraded.template_fingerprint, target.fingerprint());
     assert!(upgraded.active_operation.is_none());
     let current = Binding::from_instance(
-        upgraded.computer_id,
+        upgraded.computer_id.into_uuid(),
         upgraded.instance_id(),
         upgraded.template_fingerprint,
     )
@@ -409,7 +409,7 @@ async fn installation_templates_upgrade_recover_and_rollback_retained_home() {
     assert_eq!(restored.template_fingerprint, source.fingerprint());
     assert!(restored.active_operation.is_none());
     let final_binding = Binding::from_instance(
-        restored.computer_id,
+        restored.computer_id.into_uuid(),
         restored.instance_id(),
         restored.template_fingerprint,
     )

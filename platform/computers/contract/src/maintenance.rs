@@ -9,7 +9,7 @@ use uuid::Uuid;
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct UpdateTemplateInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub request_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub template_id: Option<String>,
@@ -19,7 +19,7 @@ pub struct UpdateTemplateInput {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ResumeUpdateInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub task_id: Uuid,
     pub request_id: Uuid,
     pub expected_updated_at: DateTime<Utc>,
@@ -53,7 +53,7 @@ pub enum MaintenanceRecoveryReason {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MaintenanceView {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub task_id: Uuid,
     pub source_template_id: String,
     pub target_template_id: String,
@@ -68,12 +68,8 @@ pub struct MaintenanceView {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct MaintenanceState {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub targets: Vec<TemplateView>,
     pub can_update: bool,
     pub active: Option<MaintenanceView>,
-}
-
-pub fn maintenance_uri(computer: Uuid) -> String {
-    format!("{}/maintenance", crate::computer_uri(computer))
 }

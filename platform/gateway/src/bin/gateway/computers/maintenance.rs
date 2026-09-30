@@ -13,7 +13,10 @@ fn template_id(id: &str) -> bool {
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
-pub(super) fn input(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+pub(super) fn input(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<Vec<u8>, ()> {
     let input: UpdateTemplateInput = serde_json::from_slice(bytes).map_err(|_| ())?;
     if input.computer_id != computer
         || input.request_id.is_nil()
@@ -26,7 +29,11 @@ pub(super) fn input(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
     }
     serde_json::to_vec(&input).map_err(|_| ())
 }
-fn valid(view: &MaintenanceView, computer: Uuid, task: Option<Uuid>) -> bool {
+fn valid(
+    view: &MaintenanceView,
+    computer: veoveo_computers_contract::ComputerId,
+    task: Option<Uuid>,
+) -> bool {
     view.computer_id == computer
         && view.task_id.get_version_num() == 7
         && task.is_none_or(|id| view.task_id == id)
@@ -36,7 +43,11 @@ fn valid(view: &MaintenanceView, computer: Uuid, task: Option<Uuid>) -> bool {
         && (view.phase == MaintenancePhase::RecoveryRequired) == view.recovery.is_some()
         && (!view.can_resume || view.phase == MaintenancePhase::RecoveryRequired)
 }
-pub(super) fn resume_input(bytes: &[u8], computer: Uuid, task: Uuid) -> Result<Vec<u8>, ()> {
+pub(super) fn resume_input(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    task: Uuid,
+) -> Result<Vec<u8>, ()> {
     let input: ResumeUpdateInput = serde_json::from_slice(bytes).map_err(|_| ())?;
     if input.computer_id != computer
         || input.task_id != task
@@ -47,14 +58,21 @@ pub(super) fn resume_input(bytes: &[u8], computer: Uuid, task: Uuid) -> Result<V
     }
     serde_json::to_vec(&input).map_err(|_| ())
 }
-pub(super) fn receipt(bytes: &[u8], computer: Uuid, task: Option<Uuid>) -> Result<Vec<u8>, ()> {
+pub(super) fn receipt(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    task: Option<Uuid>,
+) -> Result<Vec<u8>, ()> {
     let view: MaintenanceView = serde_json::from_slice(bytes).map_err(|_| ())?;
     if !valid(&view, computer, task) {
         return Err(());
     }
     serde_json::to_vec(&view).map_err(|_| ())
 }
-pub(super) fn state(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+pub(super) fn state(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<Vec<u8>, ()> {
     let state: MaintenanceState = serde_json::from_slice(bytes).map_err(|_| ())?;
     let mut names = BTreeSet::new();
     if state.computer_id != computer
@@ -80,7 +98,7 @@ mod tests {
     use serde_json::json;
     #[test]
     fn maintenance_identity_and_recovery_cannot_be_substituted() {
-        let computer = Uuid::now_v7();
+        let computer = veoveo_computers_contract::ComputerId::new();
         let task = Uuid::now_v7();
         let time = chrono::Utc::now();
         let view = json!({"computerId":computer,"taskId":task,"sourceTemplateId":"development-retained","targetTemplateId":"development","phase":"queued","recovery":null,"canResume":false,"pendingCancellationAt":null,"createdAt":time,"updatedAt":time});
@@ -88,13 +106,27 @@ mod tests {
         let resume = serde_json::json!({"computerId":computer,"taskId":task,"requestId":Uuid::now_v7(),"expectedUpdatedAt":time,"acknowledgedCancellationAt":null});
         let input_bytes = serde_json::to_vec(&resume).unwrap();
         assert!(resume_input(&input_bytes, computer, task).is_ok());
-        assert!(resume_input(&input_bytes, Uuid::now_v7(), task).is_err());
+        assert!(
+            resume_input(
+                &input_bytes,
+                veoveo_computers_contract::ComputerId::new(),
+                task
+            )
+            .is_err()
+        );
         assert!(resume_input(&input_bytes, computer, Uuid::now_v7()).is_err());
         let mut forged = resume;
         forged["templateId"] = "substitution".into();
         assert!(resume_input(&serde_json::to_vec(&forged).unwrap(), computer, task).is_err());
         assert!(receipt(&bytes, computer, Some(task)).is_ok());
-        assert!(receipt(&bytes, Uuid::now_v7(), Some(task)).is_err());
+        assert!(
+            receipt(
+                &bytes,
+                veoveo_computers_contract::ComputerId::new(),
+                Some(task)
+            )
+            .is_err()
+        );
         assert!(receipt(&bytes, computer, Some(Uuid::now_v7())).is_err());
         let mut changed = view;
         changed["canResume"] = true.into();

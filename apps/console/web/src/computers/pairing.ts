@@ -1,19 +1,19 @@
 import { z } from "zod";
 import { boundedJson, browserJson } from "../browserHttp.ts";
-import { parseComputer } from "../generatedContracts.ts";
+import { parseComputer, parseComputerId } from "../generatedContracts.ts";
 import { revokeAccess } from "./api.ts";
-import type { CliPairingResult } from "../generated/computers.ts";
+import type { CliPairingResult, ComputerId } from "../generated/computers.ts";
 
-export interface PairingLocation { computerId: string; callbackPort: number; code: string }
+export interface PairingLocation { computerId: ComputerId; callbackPort: number; code: string }
 export function pairingLocation(url: URL): PairingLocation | undefined {
   const id = url.pathname.match(/^\/console\/computers\/([0-9a-f-]{36})\/auth\/connect$/)?.[1];
-  if (!id || !z.uuid().safeParse(id).success || /^0+-0+-0+-0+-0+$/.test(id) || url.hash) return;
+  if (!id || url.hash) return;
   if ([...url.searchParams.keys()].length !== 2 || url.searchParams.getAll("callback_port").length !== 1 || url.searchParams.getAll("code").length !== 1) return;
   const port = url.searchParams.get("callback_port")!;
   if (!/^[1-9][0-9]{3,4}$/.test(port)) return;
   try {
     const input = parseComputer("cli_pairing_input", { name: "CLI", callbackPort: Number(port), code: url.searchParams.get("code") });
-    return { computerId: id, callbackPort: input.callbackPort, code: input.code };
+    return { computerId: parseComputerId(id), callbackPort: input.callbackPort, code: input.code };
   } catch { return; }
 }
 

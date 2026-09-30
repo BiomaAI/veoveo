@@ -150,7 +150,7 @@ async fn admission_preserves_signed_source_context_without_admin_permission_and_
         stop: CancellationToken::new(),
     };
     let caller = subject();
-    let id = uuid::Uuid::new_v4();
+    let id = veoveo_computers_contract::ComputerId::new();
     let route = Route {
         operation_id: None,
         grant_id: None,

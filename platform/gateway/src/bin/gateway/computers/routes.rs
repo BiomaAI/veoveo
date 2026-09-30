@@ -2,15 +2,15 @@ use super::Fault;
 use axum::http::Method;
 use serde::Deserialize;
 use uuid::Uuid;
+use veoveo_computers_contract::{AutomationGrantId, ComputerId, ComputerResource, FileTransferId};
 use veoveo_mcp_contract::{
     GatewayAction, GatewayProfileId, LocalToolName, PolicyTarget, ServerSlug,
 };
-use veoveo_types::ResourceUri;
 
 #[derive(Deserialize)]
 pub(super) struct Route {
     pub profile: GatewayProfileId,
-    pub id: Option<Uuid>,
+    pub id: Option<ComputerId>,
     pub operation_id: Option<Uuid>,
     pub grant_id: Option<Uuid>,
     pub pairing_id: Option<Uuid>,
@@ -19,40 +19,66 @@ pub(super) struct Route {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Operation {
     List,
-    Read(Uuid),
-    TransferFile(Uuid),
-    File { computer: Uuid, operation: Uuid },
-    CancelFile { computer: Uuid, operation: Uuid },
-    Receipt { computer: Uuid, operation: Uuid },
-    Maintenance(Uuid),
-    MaintenanceReceipt { computer: Uuid, operation: Uuid },
-    UpdateTemplate(Uuid),
-    ResumeUpdate { computer: Uuid, operation: Uuid },
-    Access(Uuid),
-    Automation(Uuid),
-    AutomationGrant { computer: Uuid, grant: Uuid },
-    GrantAutomation(Uuid),
-    RevokeAutomation { computer: Uuid, grant: Uuid },
-    RevokeAccess { computer: Uuid, grant: Uuid },
-    Pairing(Uuid),
-    ConfirmPairing { computer: Uuid, pairing: Uuid },
+    Read(ComputerId),
+    TransferFile(ComputerId),
+    File {
+        computer: ComputerId,
+        operation: FileTransferId,
+    },
+    CancelFile {
+        computer: ComputerId,
+        operation: FileTransferId,
+    },
+    Receipt {
+        computer: veoveo_computers_contract::ComputerId,
+        operation: Uuid,
+    },
+    Maintenance(ComputerId),
+    MaintenanceReceipt {
+        computer: veoveo_computers_contract::ComputerId,
+        operation: Uuid,
+    },
+    UpdateTemplate(ComputerId),
+    ResumeUpdate {
+        computer: veoveo_computers_contract::ComputerId,
+        operation: Uuid,
+    },
+    Access(ComputerId),
+    Automation(ComputerId),
+    AutomationGrant {
+        computer: ComputerId,
+        grant: AutomationGrantId,
+    },
+    GrantAutomation(ComputerId),
+    RevokeAutomation {
+        computer: ComputerId,
+        grant: AutomationGrantId,
+    },
+    RevokeAccess {
+        computer: veoveo_computers_contract::ComputerId,
+        grant: Uuid,
+    },
+    Pairing(ComputerId),
+    ConfirmPairing {
+        computer: veoveo_computers_contract::ComputerId,
+        pairing: Uuid,
+    },
     Create,
-    Start(Uuid),
-    Stop(Uuid),
-    Ticket(Uuid),
-    Terminal(Uuid),
+    Start(ComputerId),
+    Stop(ComputerId),
+    Ticket(ComputerId),
+    Terminal(ComputerId),
 }
 impl Operation {
     pub fn from_route(
         matched: &str,
         method: &Method,
-        id: Option<Uuid>,
+        id: Option<ComputerId>,
         operation_id: Option<Uuid>,
         grant_id: Option<Uuid>,
         pairing_id: Option<Uuid>,
     ) -> Result<Self, Fault> {
-        if id.is_some_and(|id| id.is_nil())
-            || operation_id.is_some_and(|id| id.is_nil())
+        if operation_id.is_some_and(|id| id.is_nil())
             || grant_id.is_some_and(|id| id.is_nil())
             || pairing_id.is_some_and(|id| id.is_nil())
             || [grant_id, operation_id, pairing_id]
@@ -79,12 +105,18 @@ impl Operation {
                     "/computers/{profile}/{id}/automation/{grant_id}",
                     &Method::GET,
                     Some(computer),
-                ) => Ok(Self::AutomationGrant { computer, grant }),
+                ) => Ok(Self::AutomationGrant {
+                    computer,
+                    grant: AutomationGrantId::try_from(grant).map_err(|_| Fault::invalid())?,
+                }),
                 (
                     "/computers/{profile}/{id}/automation/{grant_id}/revoke",
                     &Method::POST,
                     Some(computer),
-                ) => Ok(Self::RevokeAutomation { computer, grant }),
+                ) => Ok(Self::RevokeAutomation {
+                    computer,
+                    grant: AutomationGrantId::try_from(grant).map_err(|_| Fault::invalid())?,
+                }),
                 (
                     "/computers/{profile}/{id}/access/{grant_id}/revoke",
                     &Method::POST,
@@ -101,7 +133,7 @@ impl Operation {
                     Some(computer),
                 ) => Ok(Self::File {
                     computer,
-                    operation,
+                    operation: FileTransferId::try_from(operation).map_err(|_| Fault::invalid())?,
                 }),
                 (
                     "/computers/{profile}/{id}/files/{operation_id}/cancel",
@@ -109,7 +141,7 @@ impl Operation {
                     Some(computer),
                 ) => Ok(Self::CancelFile {
                     computer,
-                    operation,
+                    operation: FileTransferId::try_from(operation).map_err(|_| Fault::invalid())?,
                 }),
                 (
                     "/computers/{profile}/{id}/maintenance/{operation_id}/resume",
@@ -245,7 +277,7 @@ impl Operation {
             );
         }
         let uri = match self {
-            Self::Automation(id) => format!("computer://computers/{id}/automation"),
+            Self::Automation(id) => ComputerResource::Automation(id).to_uri(),
             Self::AutomationGrant { computer, grant } => {
                 veoveo_computers_contract::automation_grant_uri(computer, grant)
             }
@@ -261,20 +293,14 @@ impl Operation {
             | Self::Ticket(id)
             | Self::Terminal(id)
             | Self::Receipt { computer: id, .. } => veoveo_computers_contract::computer_uri(id),
-            _ => veoveo_computers_contract::COMPUTERS_URI.into(),
+            _ => ComputerResource::Collection(None).to_uri(),
         };
         let actions: &'static [_] = if self.is_attachment() {
             &[GatewayAction::ComputerAttach, GatewayAction::ResourcesRead]
         } else {
             &[GatewayAction::ResourcesRead]
         };
-        (
-            PolicyTarget::Resource {
-                server,
-                uri: ResourceUri::new(uri).expect("canonical resource"),
-            },
-            actions,
-        )
+        (PolicyTarget::Resource { server, uri }, actions)
     }
     pub fn is_attachment(self) -> bool {
         matches!(

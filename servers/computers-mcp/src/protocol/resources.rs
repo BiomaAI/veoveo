@@ -1,155 +1,10 @@
+use super::setup::SERVER_DOCS;
 use super::{ComputersMcp, auth};
 use rmcp::{ErrorData, RoleServer, model::*, service::RequestContext};
 use serde::Serialize;
-use std::sync::LazyLock;
-use uuid::Uuid;
-use veoveo_mcp_contract::docs::ServerDocs;
+use veoveo_computers_contract::ComputerResource;
 use veoveo_types::TaskTypeDefinition;
 
-pub const COLLECTION: &str = veoveo_computers::api::COMPUTERS_URI;
-pub const COMPUTER_TEMPLATE: &str = "computer://computers/{computer_id}";
-pub const ACCESS_TEMPLATE: &str = "computer://computers/{computer_id}/access";
-pub const MAINTENANCE_TEMPLATE: &str = "computer://computers/{computer_id}/maintenance";
-pub const EXECUTION_TEMPLATE: &str = "computer://executions/{execution_id}";
-pub const TRANSFER_TEMPLATE: &str = "computer://transfers/{transfer_id}";
-pub const AUTOMATION_TEMPLATE: &str = "computer://computers/{computer_id}/automation";
-pub const GRANT_TEMPLATE: &str = "computer://computers/{computer_id}/automation/{grant_id}";
-pub const PAGE_TEMPLATE: &str = "computer://computers?after={after}";
-pub const DOC_TEMPLATE: &str = "computer://docs/{doc_id}";
-pub static DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!("computers"));
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ResourceId<'a> {
-    Collection(Option<Uuid>),
-    Computer(Uuid),
-    Access(Uuid),
-    Maintenance(Uuid),
-    Execution(Uuid),
-    Transfer(Uuid),
-    Automation(Uuid),
-    Grant(Uuid, Uuid),
-    Docs,
-    Doc(&'a str),
-    Contract,
-}
-pub fn parse(uri: &str) -> Option<ResourceId<'_>> {
-    match uri {
-        COLLECTION => Some(ResourceId::Collection(None)),
-        "computer://docs" => Some(ResourceId::Docs),
-        "computer://contract" => Some(ResourceId::Contract),
-        _ => {
-            if uri.starts_with("computer://transfers/") {
-                return veoveo_computers::api::FileTransferResultUri::try_from(uri.to_owned())
-                    .ok()
-                    .map(|uri| ResourceId::Transfer(uri.transfer_id()));
-            }
-            if uri.starts_with("computer://executions/") {
-                return veoveo_computers::api::ExecutionResultUri::try_from(uri.to_owned())
-                    .ok()
-                    .map(|uri| ResourceId::Execution(uri.execution_id()));
-            }
-            if let Some(id) = uri.strip_prefix("computer://computers/") {
-                if let Some(id) = id.strip_suffix("/maintenance") {
-                    return canonical_uuid(id).map(ResourceId::Maintenance);
-                }
-                if let Some((computer, grant)) = id.split_once("/automation/") {
-                    return Some(ResourceId::Grant(
-                        canonical_uuid(computer)?,
-                        canonical_uuid(grant)?,
-                    ));
-                }
-                if let Some(id) = id.strip_suffix("/automation") {
-                    return canonical_uuid(id).map(ResourceId::Automation);
-                }
-                if let Some(id) = id.strip_suffix("/access") {
-                    return canonical_uuid(id).map(ResourceId::Access);
-                }
-                return canonical_uuid(id).map(ResourceId::Computer);
-            }
-            if let Some(id) = uri.strip_prefix("computer://computers?after=") {
-                return canonical_uuid(id).map(|id| ResourceId::Collection(Some(id)));
-            }
-            uri.strip_prefix("computer://docs/")
-                .filter(|id| DOCS.doc(id).is_some())
-                .map(ResourceId::Doc)
-        }
-    }
-}
-pub fn canonical_uuid(text: &str) -> Option<Uuid> {
-    let id = Uuid::parse_str(text).ok()?;
-    (!id.is_nil() && id.to_string() == text).then_some(id)
-}
-pub fn roots() -> Vec<Resource> {
-    [
-        (
-            COLLECTION,
-            "computers",
-            "Your Computers and current permitted actions",
-        ),
-        (
-            "computer://docs",
-            "docs",
-            "Computer capability documentation",
-        ),
-        (
-            "computer://contract",
-            "contract",
-            "Implemented server contract",
-        ),
-    ]
-    .into_iter()
-    .map(|(uri, name, description)| {
-        Resource::new(uri, name)
-            .with_description(description)
-            .with_mime_type("application/json")
-    })
-    .collect()
-}
-pub fn templates() -> Vec<ResourceTemplate> {
-    [
-        (COMPUTER_TEMPLATE, "computer", "One private Computer"),
-        (
-            TRANSFER_TEMPLATE,
-            "file-transfer-result",
-            "A file transfer's verified result and its Artifact",
-        ),
-        (
-            MAINTENANCE_TEMPLATE,
-            "computer-maintenance",
-            "Environment updates you can apply, and the progress of an active one",
-        ),
-        (
-            AUTOMATION_TEMPLATE,
-            "computer-automation",
-            "Live named automation grants for your Computer",
-        ),
-        (
-            GRANT_TEMPLATE,
-            "automation-grant",
-            "One automation grant, including whether it was revoked or expired",
-        ),
-        (
-            EXECUTION_TEMPLATE,
-            "execution-result",
-            "A command's exit status and its output Artifacts",
-        ),
-        (
-            ACCESS_TEMPLATE,
-            "computer-access",
-            "Outstanding access grants for your Computer",
-        ),
-        (
-            PAGE_TEMPLATE,
-            "computer-page",
-            "Next page of your Computers",
-        ),
-        (DOC_TEMPLATE, "document", "Embedded server documentation"),
-    ]
-    .into_iter()
-    .map(|(uri, name, description)| ResourceTemplate::new(uri, name).with_description(description))
-    .collect()
-}
 pub fn json<T: Serialize>(uri: &str, value: &T) -> Result<ReadResourceResult, ErrorData> {
     Ok(ReadResourceResult::new(vec![
         ResourceContents::text(
@@ -173,10 +28,10 @@ impl ComputersMcp {
             ));
         }
         let uri = &request.uri;
-        let result = match parse(uri)
-            .ok_or_else(|| ErrorData::invalid_params("unknown Computer resource", None))?
+        let result = match ComputerResource::parse(uri)
+            .map_err(|_| ErrorData::invalid_params("unknown Computer resource", None))?
         {
-            ResourceId::Maintenance(id) => json(
+            ComputerResource::Maintenance(id) => json(
                 uri,
                 &self
                     .app
@@ -184,7 +39,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Collection(after) => json(
+            ComputerResource::Collection(after) => json(
                 uri,
                 &self
                     .app
@@ -192,7 +47,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Computer(id) => json(
+            ComputerResource::Computer(id) => json(
                 uri,
                 &self
                     .app
@@ -200,7 +55,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Access(id) => json(
+            ComputerResource::Access(id) => json(
                 uri,
                 &self
                     .app
@@ -208,7 +63,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Execution(id) => {
+            ComputerResource::Execution(id) => {
                 let access = self
                     .app
                     .store
@@ -257,7 +112,7 @@ impl ComputersMcp {
                     .await
                     .map_err(|_| auth::forbidden())??
             }
-            ResourceId::Transfer(id) => json(
+            ComputerResource::Transfer(id) => json(
                 uri,
                 &self
                     .app
@@ -265,7 +120,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Automation(id) => json(
+            ComputerResource::Automation(id) => json(
                 uri,
                 &self
                     .app
@@ -273,7 +128,7 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Grant(computer, grant) => json(
+            ComputerResource::Grant { computer, grant } => json(
                 uri,
                 &self
                     .app
@@ -281,11 +136,11 @@ impl ComputersMcp {
                     .await
                     .map_err(super::read_error)?,
             )?,
-            ResourceId::Docs => json(uri, &DOCS.iter().collect::<Vec<_>>())?,
-            ResourceId::Contract => json(uri, DOCS.contract_declaration())?,
-            ResourceId::Doc(id) => {
-                let doc = DOCS
-                    .doc(id)
+            ComputerResource::Docs => json(uri, &SERVER_DOCS.iter().collect::<Vec<_>>())?,
+            ComputerResource::Contract => json(uri, SERVER_DOCS.contract_declaration())?,
+            ComputerResource::Document(id) => {
+                let doc = SERVER_DOCS
+                    .doc(id.as_str())
                     .ok_or_else(|| ErrorData::invalid_params("unknown document", None))?;
                 ReadResourceResult::new(vec![
                     ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),

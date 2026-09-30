@@ -98,12 +98,12 @@ impl ComputersStore {
 fn operation_event(operation: &Operation, event: &str) -> Result<OutboxDraft> {
     #[derive(Serialize)]
     struct Event<'a> {
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         operation_id: Uuid,
         actor: &'a str,
         authority: &'a veoveo_types::InvocationAuthority,
         owner: &'a str,
-        grant_id: Option<Uuid>,
+        grant_id: Option<crate::api::AutomationGrantId>,
         dispatch_authority: Option<&'a crate::ExecutionDecision>,
     }
     let serde_json::Value::Object(fields) = serde_json::to_value(Event {

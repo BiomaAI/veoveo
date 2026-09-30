@@ -4,8 +4,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grants": {
           "items": {
@@ -81,8 +80,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
           "format": "uuid",
@@ -194,8 +192,7 @@
           "type": "boolean"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantablePermissions": {
           "items": {
@@ -227,6 +224,13 @@
         "grants"
       ],
       "type": "object"
+    },
+    "AutomationGrantId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
     },
     "AutomationGrantLimits": {
       "additionalProperties": false,
@@ -281,8 +285,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "executionLimits": {
           "anyOf": [
@@ -299,8 +302,7 @@
           "type": "string"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AutomationGrantId"
         },
         "issuedAt": {
           "format": "date-time",
@@ -376,8 +378,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "expiresAt": {
           "format": "date-time",
@@ -435,8 +436,7 @@
           "type": "integer"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "expiresAt": {
           "format": "date-time",
@@ -482,10 +482,13 @@
       "description": "An authorized invalidation; clients reread current state after each event.",
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "kind": {
@@ -565,8 +568,7 @@
           "type": "string"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AutomationGrantId"
         },
         "name": {
           "type": "string"
@@ -587,6 +589,13 @@
         "expiresAt"
       ],
       "type": "object"
+    },
+    "ComputerId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
     },
     "ComputerLimits": {
       "additionalProperties": false,
@@ -653,10 +662,13 @@
           ]
         },
         "nextCursor": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "template": {
@@ -726,8 +738,7 @@
           "type": "boolean"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "createdAt": {
           "format": "date-time",
@@ -774,12 +785,15 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "description": "Continue provisioning an owned reservation, or omit for a new Computer.",
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ComputerId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Continue provisioning an owned reservation, or omit for a new Computer."
         },
         "requestId": {
           "format": "uuid",
@@ -822,8 +836,7 @@
           "type": "array"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "directory": {
           "maxLength": 1024,
@@ -837,8 +850,7 @@
           "type": "object"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AutomationGrantId"
         },
         "limits": {
           "$ref": "#/$defs/AutomationExecutionLimits"
@@ -864,6 +876,13 @@
         "limits"
       ],
       "type": "object"
+    },
+    "ExecutionId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
     },
     "ExecutionOutput": {
       "additionalProperties": false,
@@ -891,12 +910,10 @@
       "description": "A known foreground result. Nonzero exit is a completed command with a tool\nerror; it does not imply transport failure or termination of detached children.",
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "executionId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ExecutionId"
         },
         "exitCode": {
           "format": "uint8",
@@ -988,6 +1005,13 @@
       ],
       "type": "string"
     },
+    "FileTransferId": {
+      "format": "uuid",
+      "maxLength": 36,
+      "minLength": 36,
+      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+      "type": "string"
+    },
     "FileTransferLimits": {
       "additionalProperties": false,
       "properties": {
@@ -1017,7 +1041,7 @@
     },
     "FileTransferResult": {
       "additionalProperties": false,
-      "description": "Metadata only. Artifact reads remain governed by the Artifact service.",
+      "description": "Canonical address for one completed file transfer; it is not an access credential.",
       "properties": {
         "artifactId": {
           "format": "uuid",
@@ -1030,8 +1054,7 @@
           "type": "integer"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "direction": {
           "$ref": "#/$defs/FileTransferDirection"
@@ -1045,8 +1068,7 @@
           "type": "string"
         },
         "transferId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/FileTransferId"
         }
       },
       "required": [
@@ -1094,8 +1116,7 @@
           ]
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "createdAt": {
           "format": "date-time",
@@ -1148,8 +1169,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "executionLimits": {
           "anyOf": [
@@ -1209,14 +1229,16 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationGrantId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "requestId": {
@@ -1237,8 +1259,7 @@
           "$ref": "#/$defs/Action"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "operationId": {
           "format": "uuid",
@@ -1286,8 +1307,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "maintenanceId": {
           "format": "uuid",
@@ -1325,8 +1345,7 @@
           "type": "boolean"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "targets": {
           "items": {
@@ -1349,8 +1368,7 @@
           "type": "boolean"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "createdAt": {
           "format": "date-time",
@@ -1410,8 +1428,7 @@
           "$ref": "#/$defs/Action"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "status": {
           "$ref": "#/$defs/OperationStatus"
@@ -1466,8 +1483,7 @@
           ]
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "createdAt": {
           "format": "date-time",
@@ -1517,8 +1533,7 @@
           ]
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "expectedUpdatedAt": {
           "format": "date-time",
@@ -1555,8 +1570,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
           "format": "uuid",
@@ -1577,12 +1591,10 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/AutomationGrantId"
         }
       },
       "required": [
@@ -1595,10 +1607,13 @@
       "additionalProperties": false,
       "properties": {
         "grantId": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationGrantId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "requestId": {
@@ -1615,10 +1630,13 @@
       "additionalProperties": false,
       "properties": {
         "grantId": {
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationGrantId"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "requestId": {
@@ -1674,8 +1692,7 @@
           "type": "integer"
         },
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "rows": {
           "format": "uint32",
@@ -1840,8 +1857,7 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "endpoint": {
           "description": "Same-origin authenticated WebSocket path; the BFF rewrites its own edge.",
@@ -1875,16 +1891,18 @@
       "additionalProperties": false,
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "grantId": {
-          "description": "A direct owner omits this field. Delegation requires a current named grant.",
-          "format": "uuid",
-          "type": [
-            "string",
-            "null"
-          ]
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AutomationGrantId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A direct owner omits this field. Delegation requires a current named grant."
         },
         "limits": {
           "$ref": "#/$defs/FileTransferLimits"
@@ -1910,8 +1928,7 @@
       "description": "Select an installation-admitted template, or omit it to choose the current\ndefault on the first request. An exact retry retains the original selection.",
       "properties": {
         "computerId": {
-          "format": "uuid",
-          "type": "string"
+          "$ref": "#/$defs/ComputerId"
         },
         "requestId": {
           "format": "uuid",

@@ -10,7 +10,6 @@ use axum::{
     routing::{get, post},
 };
 use std::sync::Arc;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, api::*};
 use veoveo_mcp_contract::{GatewayInternalIdentity, PlaneCaller};
 
@@ -18,7 +17,7 @@ async fn transfer(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
     Extension(bearer): Extension<ForwardedBearer>,
-    Path(computer): Path<Uuid>,
+    Path(computer): Path<veoveo_computers_contract::ComputerId>,
     Json(input): Json<TransferFileInput>,
 ) -> Result<(StatusCode, Json<FileTransferView>), HttpError> {
     if input.computer_id != computer {
@@ -49,7 +48,10 @@ async fn transfer(
 async fn state(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, transfer)): Path<(Uuid, Uuid)>,
+    Path((computer, transfer)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::FileTransferId,
+    )>,
 ) -> Result<Json<FileTransferView>, HttpError> {
     Ok(Json(
         app.file_transfer(&actor(&identity)?, computer, transfer, false)
@@ -60,7 +62,10 @@ async fn state(
 async fn cancel(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, transfer)): Path<(Uuid, Uuid)>,
+    Path((computer, transfer)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::FileTransferId,
+    )>,
     Json(_body): Json<CancelFileTransferBody>,
 ) -> Result<Json<FileTransferView>, HttpError> {
     Ok(Json(

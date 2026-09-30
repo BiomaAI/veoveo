@@ -38,6 +38,13 @@ can use those same types without linking workers, persistence or hosted transpor
 The `runtime` feature supplies execution modules, and `mcp` adds server configuration
 and protocol entrypoints. The executable requires `mcp`, which is the default.
 
+The public library exports the domain's identity types, `ComputerResource` and
+`ComputerScope`. `protocol/setup.rs` implements `McpServerContract` with these owner
+types. Checked setup validates hosted declarations before startup and supplies the
+capabilities, five fixed resources and nine templates. Resource reads and subscriptions
+use the public parser. The MCP server slug is `computers`; its resource scheme is
+`computer`.
+
 The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
 qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
 feature configurations; a contract build supplies no installed workload evidence.

@@ -1,6 +1,5 @@
 use super::{Application, ApplicationError, Result};
 use std::time::Instant;
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerActor, ComputerError,
     api::{FileTransferResult, FileTransferStage, FileTransferView},
@@ -13,8 +12,8 @@ impl Application {
     pub async fn file_transfer(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
-        transfer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        transfer: veoveo_computers_contract::FileTransferId,
         cancel: bool,
     ) -> Result<FileTransferView> {
         let action = if cancel {
@@ -59,7 +58,7 @@ impl Application {
             }
             access.owner()?;
             Ok(FileTransferView {
-                task_id: transfer,
+                task_id: transfer.into_uuid(),
                 computer_id: computer,
                 direction: access.direction(),
                 stage: access.stage(),
@@ -80,7 +79,7 @@ impl Application {
     pub async fn file_result(
         &self,
         actor: &ComputerActor,
-        transfer: Uuid,
+        transfer: veoveo_computers_contract::FileTransferId,
     ) -> Result<FileTransferResult> {
         let access = self
             .store

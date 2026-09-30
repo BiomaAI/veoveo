@@ -10,12 +10,9 @@ impl ComputersStore {
     pub async fn access_grants(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<AccessGrantCollection> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            if computer_id.is_nil() {
-                return Err(ComputerError::InvalidInput);
-            }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
@@ -30,7 +27,7 @@ impl ComputersStore {
                      ORDER BY grant_id DESC LIMIT 129;",
                     vec![
                         ("owner_key", owner.clone().into_value()),
-                        ("computer_id", computer_id.into_value()),
+                        ("computer_id", computer_id.into_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -49,7 +46,7 @@ impl ComputersStore {
                         &row.owner_key,
                         &accepted.task_owner(),
                     )?;
-                    if row.owner_key != owner || row.computer_id != computer_id {
+                    if row.owner_key != owner || row.computer_id != computer_id.into_uuid() {
                         return Err(ComputerError::Unavailable);
                     }
                     Ok(AccessGrantView {
@@ -100,7 +97,7 @@ impl ComputersStore {
     pub async fn revoke_access(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         grant: Uuid,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {

@@ -14,7 +14,7 @@ use veoveo_mcp_contract::GatewayInternalIdentity;
 async fn state(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(computer): Path<Uuid>,
+    Path(computer): Path<veoveo_computers_contract::ComputerId>,
 ) -> Result<Json<MaintenanceState>, HttpError> {
     Ok(Json(
         app.maintenance_state(&actor(&identity)?, computer).await?,
@@ -23,7 +23,7 @@ async fn state(
 async fn operation(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, task)): Path<(Uuid, Uuid)>,
+    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
 ) -> Result<Json<MaintenanceView>, HttpError> {
     Ok(Json(
         app.maintenance_operation(&actor(&identity)?, computer, task)
@@ -33,7 +33,7 @@ async fn operation(
 async fn update(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(computer): Path<Uuid>,
+    Path(computer): Path<veoveo_computers_contract::ComputerId>,
     Json(input): Json<UpdateTemplateInput>,
 ) -> Result<(StatusCode, Json<MaintenanceView>), HttpError> {
     if input.computer_id != computer {
@@ -52,7 +52,7 @@ async fn update(
 async fn resume(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, task)): Path<(Uuid, Uuid)>,
+    Path((computer, task)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
     Json(input): Json<ResumeUpdateInput>,
 ) -> Result<(StatusCode, Json<MaintenanceView>), HttpError> {
     if input.computer_id != computer || input.task_id != task {

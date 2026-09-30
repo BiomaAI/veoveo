@@ -21,7 +21,7 @@ impl ComputersStore {
         &self,
         owner: &TaskOwner,
         computers: &[Computer],
-    ) -> Result<BTreeMap<Uuid, ComputerExecution>> {
+    ) -> Result<BTreeMap<crate::api::ComputerId, ComputerExecution>> {
         if computers.len() > 100 {
             return Err(ComputerError::InvalidInput);
         }
@@ -33,7 +33,7 @@ impl ComputersStore {
     pub async fn active_executions_for_access(
         &self,
         access: &[crate::ComputerReadAccess],
-    ) -> Result<BTreeMap<Uuid, ComputerExecution>> {
+    ) -> Result<BTreeMap<crate::api::ComputerId, ComputerExecution>> {
         if access.len() > 100 {
             return Err(ComputerError::InvalidInput);
         }
@@ -50,7 +50,7 @@ impl ComputersStore {
     async fn read_active_executions(
         &self,
         computers: &[Computer],
-    ) -> Result<BTreeMap<Uuid, ComputerExecution>> {
+    ) -> Result<BTreeMap<crate::api::ComputerId, ComputerExecution>> {
         if computers.is_empty() {
             return Ok(BTreeMap::new());
         }
@@ -63,9 +63,11 @@ impl ComputersStore {
         let rows: Vec<Slot> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let mut active = BTreeMap::new();
         for row in rows {
-            if row.id != crate::commands::slot(row.computer_id)
+            let computer_id = crate::api::ComputerId::try_from(row.computer_id)
+                .map_err(|_| ComputerError::Unavailable)?;
+            if row.id != crate::commands::slot(computer_id)
                 || row.target_computer != row.computer_id
-                || !computers.iter().any(|c| c.computer_id == row.computer_id)
+                || !computers.iter().any(|c| c.computer_id == computer_id)
             {
                 return Err(ComputerError::Unavailable);
             }
@@ -81,7 +83,7 @@ impl ComputersStore {
                 "computer_file_transfer" => ComputerExecution::File { task_id },
                 _ => return Err(ComputerError::Unavailable),
             };
-            if active.insert(row.computer_id, work).is_some() {
+            if active.insert(computer_id, work).is_some() {
                 return Err(ComputerError::Unavailable);
             }
         }

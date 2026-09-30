@@ -201,8 +201,8 @@ async fn completed_command_has_one_canonical_governed_result_resource() {
     let actor_token = signing.identity(support::identity(agent.owner()), "computers", expires);
     let owner_token = signing.identity(support::identity(owner.owner()), "computers", expires);
     let client = client();
-    let execution = uuid::Uuid::parse_str(&claim.snapshot.task_id.to_string()).unwrap();
-    let uri = String::from(ExecutionResultUri::new(execution).unwrap());
+    let execution = ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
+    let uri = String::from(ExecutionResultUri::new(execution));
     assert!(
         rpc(
             &client,

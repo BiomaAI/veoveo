@@ -83,7 +83,7 @@ impl ComputersStore {
         if stopped.provider_instance_id != binding.provider_instance_id
             || stopped
                 .replacement_instance_id
-                .unwrap_or(stopped.computer_id)
+                .unwrap_or(stopped.computer_id.into_uuid())
                 != binding.instance_id
             || stopped.computer_id != binding.computer_id
             || stopped.template_fingerprint != binding.template_fingerprint

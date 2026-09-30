@@ -40,24 +40,24 @@ pub fn payload(value: &str, seconds: u32) -> CommandPayload {
 pub async fn permit(
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
 ) -> AutomationAuthority {
     store
         .authorize_automation_grant(actor, computer, grant, AutomationPermission::Execute)
         .await
         .unwrap()
 }
-pub fn computer_record(id: Uuid) -> RecordId {
-    RecordId::new("computer", surrealdb::types::Uuid::from(id))
+pub fn computer_record(id: veoveo_computers_contract::ComputerId) -> RecordId {
+    RecordId::new("computer", surrealdb::types::Uuid::from(id.into_uuid()))
 }
 
 pub async fn queue_claim(
     db: &support::TestDb,
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
 ) -> veoveo_task_runtime::ClaimedTask {
     let operation = store
         .queue_command(
@@ -70,11 +70,7 @@ pub async fn queue_claim(
         .await
         .unwrap();
     store
-        .attach_command_output(
-            &operation,
-            output_capability(operation.execution_id()),
-            &keys(),
-        )
+        .attach_command_output(&operation, output_capability(operation.task_id()), &keys())
         .await
         .unwrap();
     store.ensure_command_task(&operation).await.unwrap();
@@ -89,7 +85,9 @@ pub async fn queue_claim(
 
 /// Synthetic issuance receipt for isolated domain tests. Native worker tests must
 /// obtain a real capability from the Artifact service before publication.
-pub fn output_capability(task: Uuid) -> veoveo_mcp_contract::IssuedArtifactWriteCapability {
+pub fn output_capability(
+    task: veoveo_types::TaskId,
+) -> veoveo_mcp_contract::IssuedArtifactWriteCapability {
     veoveo_mcp_contract::IssuedArtifactWriteCapability {
         capability_id: veoveo_mcp_contract::ArtifactWriteCapabilityId::new(),
         secret: veoveo_mcp_contract::ArtifactWriteCapabilitySecret::new(

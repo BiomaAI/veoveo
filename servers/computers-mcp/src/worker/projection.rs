@@ -6,7 +6,7 @@ impl<G: Preflight> LifecycleWorker<G> {
             OperationStage::Succeeded => {
                 let uri = veoveo_computers::api::computer_uri(operation.computer_id);
                 let payload = veoveo_computers::api::LifecycleResult {
-                    result_uri: (operation.action == Action::Create).then(|| uri.clone()),
+                    result_uri: (operation.action == Action::Create).then(|| uri.to_string()),
                     computer_id: operation.computer_id,
                     operation_id: operation.operation_id,
                     action: operation.action,

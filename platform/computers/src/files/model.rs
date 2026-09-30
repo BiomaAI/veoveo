@@ -72,7 +72,7 @@ impl FileOperation {
     pub fn task_projected(&self) -> bool {
         self.task_projected_at.is_some()
     }
-    pub fn transfer_id(&self) -> Uuid {
+    pub fn transfer_id(&self) -> veoveo_computers_contract::FileTransferId {
         self.binding.transfer_id
     }
     pub fn stage(&self) -> FileTransferStage {
@@ -81,11 +81,11 @@ impl FileOperation {
     pub fn execution_deadline(&self) -> Option<DateTime<Utc>> {
         self.execution_deadline
     }
-    pub fn computer_id(&self) -> Uuid {
+    pub fn computer_id(&self) -> veoveo_computers_contract::ComputerId {
         self.binding.computer_id
     }
     pub fn task_id(&self) -> TaskId {
-        TaskId::from_uuid(self.transfer_id())
+        self.transfer_id().task_id()
     }
     pub fn actor(&self) -> TaskOwner {
         self.authority.task_owner()
@@ -97,8 +97,8 @@ impl FileOperation {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Reference {
-            computer_id: Uuid,
-            transfer_id: Uuid,
+            computer_id: veoveo_computers_contract::ComputerId,
+            transfer_id: veoveo_computers_contract::FileTransferId,
         }
         serde_json::to_value(Reference {
             computer_id: self.computer_id(),
@@ -205,10 +205,9 @@ impl TryFrom<Record> for FileOperation {
         file.authority
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
-        if row.id != super::record(row.transfer_id)
-            || row.transfer_id.get_version_num() != 7
-            || file.transfer_id() != row.transfer_id
-            || file.computer_id() != row.computer_id
+        if row.id != super::record(file.transfer_id())
+            || file.transfer_id().into_uuid() != row.transfer_id
+            || file.computer_id().into_uuid() != row.computer_id
             || file.binding.provider_instance_id != row.provider_instance_id
             || row.actor_key != super::actor_key(&file.authority)?
             || file.binding.actor_key != row.actor_key

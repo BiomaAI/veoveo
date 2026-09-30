@@ -15,7 +15,7 @@ use veoveo_mcp_contract::GatewayInternalIdentity;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Page {
-    after: Option<Uuid>,
+    after: Option<ComputerId>,
 }
 fn receipt(operation: veoveo_computers::Operation) -> (StatusCode, Json<OperationReceipt>) {
     let status = match operation.stage {
@@ -49,7 +49,7 @@ async fn collection(
 async fn computer(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
 ) -> Result<Json<ComputerView>, HttpError> {
     Ok(Json(app.computer(&actor(&identity)?, id).await?))
 }
@@ -63,7 +63,7 @@ async fn create(
 async fn operation(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer_id, operation_id)): Path<(Uuid, Uuid)>,
+    Path((computer_id, operation_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
 ) -> Result<Json<OperationReceipt>, HttpError> {
     let (_, receipt) = receipt(
         app.operation(&actor(&identity)?, computer_id, operation_id)
@@ -74,7 +74,7 @@ async fn operation(
 async fn start(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     Json(request): Json<StartInput>,
 ) -> Result<(StatusCode, Json<OperationReceipt>), HttpError> {
     Ok(receipt(
@@ -93,7 +93,7 @@ async fn start(
 async fn access_grants(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(computer_id): Path<Uuid>,
+    Path(computer_id): Path<veoveo_computers_contract::ComputerId>,
 ) -> Result<Json<AccessGrantCollection>, HttpError> {
     Ok(Json(
         app.access_grants(&actor(&identity)?, computer_id).await?,
@@ -102,7 +102,7 @@ async fn access_grants(
 async fn revoke_access(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer_id, grant_id)): Path<(Uuid, Uuid)>,
+    Path((computer_id, grant_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
     Json(_body): Json<RevokeAccessBody>,
 ) -> Result<Json<AccessRevocation>, HttpError> {
     Ok(Json(
@@ -119,7 +119,7 @@ async fn revoke_access(
 async fn stop(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     Json(request): Json<StopInput>,
 ) -> Result<(StatusCode, Json<OperationReceipt>), HttpError> {
     Ok(receipt(
@@ -139,12 +139,12 @@ pub fn router(app: Arc<Application>) -> Router {
     Router::new()
         .route(
             "/docs/llms.txt",
-            get(|| async { crate::protocol::resources::DOCS.llms_txt() }),
+            get(|| async { crate::protocol::setup::SERVER_DOCS.llms_txt() }),
         )
         .route(
             "/docs/{id}",
             get(|Path(id): Path<String>| async move {
-                crate::protocol::resources::DOCS
+                crate::protocol::setup::SERVER_DOCS
                     .doc(&id)
                     .map(|d| {
                         (

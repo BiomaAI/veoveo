@@ -31,7 +31,7 @@ pub struct AccessGrantView {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessGrantCollection {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     #[schemars(length(max = 128))]
     pub grants: Vec<AccessGrantView>,
 }
@@ -39,7 +39,7 @@ pub struct AccessGrantCollection {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RevokeAccessInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub grant_id: Uuid,
 }
 
@@ -50,7 +50,7 @@ pub struct RevokeAccessBody {}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccessRevocation {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub grant_id: Uuid,
     pub revoked: bool,
 }

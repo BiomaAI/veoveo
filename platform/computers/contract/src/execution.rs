@@ -1,3 +1,4 @@
+use crate::ExecutionResultUri;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -7,8 +8,8 @@ use uuid::Uuid;
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExecuteInput {
-    pub computer_id: Uuid,
-    pub grant_id: Uuid,
+    pub computer_id: crate::ComputerId,
+    pub grant_id: crate::AutomationGrantId,
     pub request_id: Uuid,
     #[schemars(length(min = 1, max = 1024))]
     pub arguments: Vec<String>,
@@ -19,42 +20,6 @@ pub struct ExecuteInput {
     #[schemars(length(max = 1398104))]
     pub stdin: String,
     pub limits: crate::AutomationExecutionLimits,
-}
-
-/// Canonical address for one completed command; it is not an access credential.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct ExecutionResultUri(Uuid);
-impl ExecutionResultUri {
-    pub fn new(execution_id: Uuid) -> Result<Self, &'static str> {
-        if execution_id.get_version_num() != 7 {
-            return Err("invalid Computer execution result URI");
-        }
-        Ok(Self(execution_id))
-    }
-    pub fn execution_id(self) -> Uuid {
-        self.0
-    }
-}
-impl From<ExecutionResultUri> for String {
-    fn from(uri: ExecutionResultUri) -> Self {
-        format!("computer://executions/{}", uri.0)
-    }
-}
-impl TryFrom<String> for ExecutionResultUri {
-    type Error = &'static str;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let invalid = "invalid Computer execution result URI";
-        let id = value
-            .strip_prefix("computer://executions/")
-            .ok_or(invalid)?;
-        let id = Uuid::parse_str(id).map_err(|_| invalid)?;
-        let uri = Self::new(id)?;
-        if String::from(uri) != value {
-            return Err(invalid);
-        }
-        Ok(uri)
-    }
 }
 
 /// Governed occurrence reference. Bytes remain behind Artifact read authority.
@@ -79,8 +44,8 @@ pub struct ExecutionResult {
         )
     )]
     pub result_uri: ExecutionResultUri,
-    pub computer_id: Uuid,
-    pub execution_id: Uuid,
+    pub computer_id: crate::ComputerId,
+    pub execution_id: crate::ExecutionId,
     pub exit_code: u8,
     pub stdout: ExecutionOutput,
     pub stderr: ExecutionOutput,
@@ -91,8 +56,8 @@ mod tests {
     use super::*;
     #[test]
     fn execution_addresses_reject_alternate_paths_encodings_and_non_command_ids() {
-        let id = Uuid::now_v7();
-        let canonical = String::from(ExecutionResultUri::new(id).unwrap());
+        let id = crate::ExecutionId::new();
+        let canonical = String::from(ExecutionResultUri::new(id));
         assert_eq!(
             ExecutionResultUri::try_from(canonical.clone())
                 .unwrap()
@@ -103,7 +68,7 @@ mod tests {
             canonical.to_uppercase(),
             format!("{canonical}/"),
             format!("{canonical}?other=1"),
-            format!("computer://executions/{}", id.simple()),
+            format!("computer://executions/{}", id.as_uuid().simple()),
             format!("computer://executions/{}", Uuid::nil()),
             format!("computer://computers/{id}"),
         ] {

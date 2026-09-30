@@ -35,10 +35,7 @@ struct Receipt {
     input: OpenObject,
 }
 fn request_record(actor: &ComputerActor, input: &ResumeUpdateInput) -> Result<RecordId> {
-    if input.computer_id.is_nil()
-        || input.task_id.get_version_num() != 7
-        || input.request_id.is_nil()
-    {
+    if input.task_id.get_version_num() != 7 || input.request_id.is_nil() {
         return Err(ComputerError::InvalidInput);
     }
     Ok(RecordId::new(
@@ -192,7 +189,7 @@ impl ComputersStore {
             };
             #[derive(Serialize)]
             struct Event<'a> {
-                computer_id: Uuid,
+                computer_id: veoveo_computers_contract::ComputerId,
                 maintenance_id: Uuid,
                 request_id: Uuid,
                 authority: &'a crate::AcceptedAuthority,

@@ -13,7 +13,6 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::{Mutex, oneshot};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, tungstenite::Message as ClientMessage};
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 use veoveo_computers_contract::*;
 use veoveo_computers_transport::{Client, TransportError, UpstreamRequest, relay};
 
@@ -48,7 +47,7 @@ impl Fixture {
     async fn new() -> Self {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let stop = CancellationToken::new();
-        let computer = Uuid::now_v7();
+        let computer = ComputerId::new();
         let (send_provider, receive_provider) = oneshot::channel();
         let provider = Router::new()
             .route(

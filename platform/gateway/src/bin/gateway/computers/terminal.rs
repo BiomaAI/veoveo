@@ -21,10 +21,7 @@ pub(super) async fn upgrade(
     ws: WebSocketUpgrade,
 ) -> Result<Response, Fault> {
     let Path(route) = route.map_err(|_| Fault::invalid())?;
-    let id = route
-        .id
-        .filter(|id| !id.is_nil())
-        .ok_or_else(Fault::invalid)?;
+    let id = route.id.ok_or_else(Fault::invalid)?;
     if uri.query().is_some() {
         return Err(Fault::invalid());
     }

@@ -95,8 +95,7 @@ impl ComputersStore {
         }
         let mut operation = ticket.dispatch.into_operation();
         let result = ExecutionResult {
-            result_uri: crate::api::ExecutionResultUri::new(operation.execution_id())
-                .map_err(|_| ComputerError::Unavailable)?,
+            result_uri: crate::api::ExecutionResultUri::new(operation.execution_id()),
             computer_id: operation.computer_id(),
             execution_id: operation.execution_id(),
             exit_code: ticket.exit_code,

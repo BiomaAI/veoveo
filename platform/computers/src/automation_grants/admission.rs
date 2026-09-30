@@ -144,10 +144,10 @@ impl ComputersStore {
         {
             return Err(ComputerError::InvalidInput);
         }
-        let grant_id = Uuid::now_v7();
+        let grant_id = crate::api::AutomationGrantId::new();
         let content = Content {
-            grant_id,
-            computer_id: input.computer_id,
+            grant_id: grant_id.into_uuid(),
+            computer_id: input.computer_id.into_uuid(),
             owner_key: key.clone(),
             provider_instance_id: self.provider_instance_id,
             authority: object(actor.accepted())?,
@@ -169,7 +169,7 @@ impl ComputersStore {
         let mut params = owner.bindings(actor)?;
         params.extend([
             ("computer", computer_record(input.computer_id).into_value()),
-            ("computer_id", input.computer_id.into_value()),
+            ("computer_id", input.computer_id.into_uuid().into_value()),
             ("owner_key", key.into_value()),
             ("provider", self.provider_instance_id.into_value()),
             ("request", request.clone().into_value()),
@@ -187,7 +187,7 @@ impl ComputersStore {
                 "guard",
                 RecordId::new(
                     "computer_automation_guard",
-                    surrealdb::types::Uuid::from(input.computer_id),
+                    surrealdb::types::Uuid::from(input.computer_id.into_uuid()),
                 )
                 .into_value(),
             ),
@@ -196,7 +196,7 @@ impl ComputersStore {
                 crate::session_grants::authority::event(
                     actor.accepted(),
                     input.computer_id,
-                    grant_id,
+                    grant_id.into_uuid(),
                     "automation_granted",
                 )?
                 .into_value(),
@@ -223,7 +223,7 @@ impl ComputersStore {
     pub async fn list_automation_grants(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<AutomationGrantCollection> {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
@@ -237,7 +237,7 @@ impl ComputersStore {
                  ORDER BY grant_id LIMIT 64;",
                     vec![
                         ("owner_key", owner_key(&computer.owner)?.into_value()),
-                        ("computer_id", computer_id.into_value()),
+                        ("computer_id", computer_id.into_uuid().into_value()),
                     ],
                 )
                 .await?;
@@ -277,8 +277,8 @@ impl ComputersStore {
     pub async fn get_automation_grant(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
-        grant_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
+        grant_id: veoveo_computers_contract::AutomationGrantId,
     ) -> Result<AutomationGrantView> {
         tokio::time::timeout(std::time::Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
@@ -307,7 +307,7 @@ impl ComputersStore {
             params.extend([
                 ("grant", super::record(input.grant_id).into_value()),
                 ("computer", computer_record(input.computer_id).into_value()),
-                ("computer_id", input.computer_id.into_value()),
+                ("computer_id", input.computer_id.into_uuid().into_value()),
                 ("owner_key", owner_key(&computer.owner)?.into_value()),
                 ("provider", self.provider_instance_id.into_value()),
                 (
@@ -315,7 +315,7 @@ impl ComputersStore {
                     crate::session_grants::authority::event(
                         actor.accepted(),
                         input.computer_id,
-                        input.grant_id,
+                        input.grant_id.into_uuid(),
                         "automation_revoked",
                     )?
                     .into_value(),

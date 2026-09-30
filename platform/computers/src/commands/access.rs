@@ -12,7 +12,6 @@ use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskOwner;
-use veoveo_types::TaskId;
 
 #[derive(Clone, Copy)]
 pub enum CommandTaskAction {
@@ -25,8 +24,8 @@ pub enum CommandTaskAction {
 /// deadline before releasing a response after a possibly slow Task read.
 pub struct CommandTaskAccess {
     owner: TaskOwner,
-    computer_id: Uuid,
-    execution_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
+    execution_id: veoveo_computers_contract::ExecutionId,
     deadline: Instant,
 }
 impl CommandTaskAccess {
@@ -39,10 +38,10 @@ impl CommandTaskAccess {
     pub fn valid_until(&self) -> Instant {
         self.deadline
     }
-    pub fn computer_id(&self) -> Uuid {
+    pub fn computer_id(&self) -> veoveo_computers_contract::ComputerId {
         self.computer_id
     }
-    pub fn execution_id(&self) -> Uuid {
+    pub fn execution_id(&self) -> veoveo_computers_contract::ExecutionId {
         self.execution_id
     }
 }
@@ -67,7 +66,7 @@ impl ComputersStore {
     pub async fn authorize_command_task(
         &self,
         actor: &ComputerActor,
-        execution: Uuid,
+        execution: veoveo_computers_contract::ExecutionId,
         action: CommandTaskAction,
     ) -> Result<CommandTaskAccess> {
         actor.check_admission()?;
@@ -82,12 +81,9 @@ impl ComputersStore {
     async fn command_access(
         &self,
         actor: &ComputerActor,
-        execution: Uuid,
+        execution: veoveo_computers_contract::ExecutionId,
         action: CommandTaskAction,
     ) -> Result<CommandTaskAccess> {
-        if execution.get_version_num() != 7 {
-            return Err(ComputerError::NotFound);
-        }
         let mut read = self.query(
             "SELECT id, execution_id, computer_id, provider_instance_id, actor_key, binding, authority, task FROM ONLY $execution;",
             vec![("execution", super::record(execution).into_value())],
@@ -106,13 +102,13 @@ impl ComputersStore {
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
         if row.id != super::record(execution)
-            || row.execution_id != execution
+            || row.execution_id != execution.into_uuid()
             || binding.execution_id != execution
-            || row.computer_id != binding.computer_id
+            || row.computer_id != binding.computer_id.into_uuid()
             || row.provider_instance_id != binding.provider_instance_id
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
-            || row.task != task_record_id(TaskId::from_uuid(execution))
+            || row.task != task_record_id(execution.task_id())
         {
             return Err(ComputerError::Unavailable);
         }

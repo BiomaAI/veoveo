@@ -11,17 +11,18 @@ use uuid::Uuid;
 impl ComputersStore {
     pub async fn open_cli_connection(
         &self,
-        expected_computer: Option<Uuid>,
+        expected_computer: Option<veoveo_computers_contract::ComputerId>,
         expected_profile: veoveo_mcp_contract::GatewayProfileId,
         credential: &CliGrantCredential,
     ) -> Result<CliConnectionHandle> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (grant_id, hash) = secret::parse(credential)?;
             let grant = self.cli_grant(grant_id).await?;
-            if expected_computer.is_some_and(|id| id != grant.computer_id) {
+            let computer_id = grant.computer_id()?;
+            if expected_computer.is_some_and(|id| id != computer_id) {
                 return Err(ComputerError::Forbidden);
             }
-            let computer_id = grant.computer_id;
+            let computer_id = grant.computer_id()?;
             let accepted = grant.accepted()?;
             if accepted.profile != expected_profile {
                 return Err(ComputerError::Forbidden);
@@ -54,7 +55,7 @@ impl ComputersStore {
                         "computer",
                         crate::model::computer_record(computer_id).into_value(),
                     ),
-                    ("computer_id", computer_id.into_value()),
+                    ("computer_id", computer_id.into_uuid().into_value()),
                     ("provider", self.provider_instance_id.into_value()),
                     ("credential_hash", hash.into_value()),
                     (
@@ -102,7 +103,7 @@ impl ComputersStore {
     pub async fn cli_access_grants(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<Vec<CliGrantView>> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let control = self.control_authority(actor).await?;
@@ -112,7 +113,7 @@ impl ComputersStore {
             let mut read = self.query("SELECT * FROM computer_cli_grant WHERE owner_key = $owner_key AND computer_id = $computer_id \
                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now() \
                 AND family.revoked_at = NONE AND family.expires_at > time::now() ORDER BY grant_id DESC LIMIT 129;", vec![
-                ("owner_key", owner.clone().into_value()), ("computer_id", computer_id.into_value()),
+                ("owner_key", owner.clone().into_value()), ("computer_id", computer_id.into_uuid().into_value()),
             ]).await?;
             let rows: Vec<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
             if rows.len() > 128 { return Err(ComputerError::Unavailable); }
@@ -120,7 +121,7 @@ impl ComputersStore {
             let result = rows.into_iter().map(|row| {
                 let accepted = row.accepted()?;
                 crate::identity::verify_retained_owner(&computer.owner, &row.owner_key, &accepted.task_owner())?;
-                if row.owner_key != owner || row.computer_id != computer_id { return Err(ComputerError::Unavailable); }
+                if row.owner_key != owner || row.computer_id != computer_id.into_uuid() { return Err(ComputerError::Unavailable); }
                 Ok(CliGrantView { grant_id:row.grant_id, name:row.name,
                     current_session:family.is_some() && family == accepted.request_context.access_token.session_family.as_ref(),
                     issued_at:row.issued_at, expires_at:row.expires_at, last_activity_at:row.last_activity_at })
@@ -132,12 +133,12 @@ impl ComputersStore {
     pub async fn revoke_cli_grant(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         grant_id: Uuid,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let row = self.cli_grant(grant_id).await?;
-            if row.computer_id != computer_id {
+            if row.computer_id != computer_id.into_uuid() {
                 return Err(ComputerError::NotFound);
             }
             let control = self.control_authority(actor).await?;
@@ -152,7 +153,7 @@ impl ComputersStore {
                 include_str!("../../queries/revoke_cli_grant.surql"),
                 vec![
                     ("grant", super::grant_record(grant_id).into_value()),
-                    ("computer_id", computer_id.into_value()),
+                    ("computer_id", computer_id.into_uuid().into_value()),
                     ("owner_key", row.owner_key.into_value()),
                     (
                         "admission_expires_at",

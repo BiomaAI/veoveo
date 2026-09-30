@@ -1,7 +1,7 @@
 import { compileGeneratedSchema } from "./jsonSchema.ts";
 import computerSchema from "./generated/computers.schema.json" with { type: "json" };
 import consoleSchema from "./generated/console.schema.json" with { type: "json" };
-import type { ComputersApi } from "./generated/computers.ts";
+import type { ComputerId, ComputersApi } from "./generated/computers.ts";
 import type { ConsoleBootstrap } from "./generated/console.ts";
 
 // The cast joins generated interfaces to the very schema which generated them.
@@ -11,6 +11,7 @@ function parser<T>(schema: object): (value: unknown) => T {
   return (value) => validator.parse(value) as T;
 }
 export const parseConsoleBootstrap = parser<ConsoleBootstrap>(consoleSchema);
+export const parseComputerId = parser<ComputerId>(computerSchema.$defs.ComputerId);
 const computerParsers = new Map<keyof ComputersApi, (value: unknown) => unknown>();
 export function parseComputer<K extends keyof ComputersApi>(
   kind: K,

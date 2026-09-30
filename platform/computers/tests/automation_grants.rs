@@ -162,7 +162,7 @@ async fn automation_uses_its_own_principal_and_survives_the_grantors_browser_log
     assert!(matches!(
         b.authorize_automation_grant(
             &agent,
-            Uuid::now_v7(),
+            veoveo_computers_contract::ComputerId::new(),
             granted.grant_id,
             AutomationPermission::Read
         )
@@ -318,7 +318,10 @@ async fn current_principals_policy_clearance_and_reduced_limits_bound_each_use()
         Err(ComputerError::Forbidden)
     ));
     support::policy::install(&db.b, control()).await;
-    let record = RecordId::new("computer", surrealdb::types::Uuid::from(computer));
+    let record = RecordId::new(
+        "computer",
+        surrealdb::types::Uuid::from(computer.into_uuid()),
+    );
     db.b.client()
         .query("UPDATE ONLY $computer SET owner_context.data_labels = ['pii'];")
         .bind(("computer", record.clone()))

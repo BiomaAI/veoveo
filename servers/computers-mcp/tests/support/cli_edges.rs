@@ -20,7 +20,6 @@ use std::{
     time::Duration,
 };
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 use veoveo_computers_transport::{CliRelayMode, CliUpstreamRequest, Client, relay_cli};
 
 pub struct Edges {
@@ -51,7 +50,11 @@ async fn serve(router: Router, stop: CancellationToken) -> (String, tokio::task:
     (format!("http://{address}"), job)
 }
 impl Edges {
-    pub async fn start(workers: [String; 2], computer: Uuid, directory: &Path) -> Self {
+    pub async fn start(
+        workers: [String; 2],
+        computer: veoveo_computers_contract::ComputerId,
+        directory: &Path,
+    ) -> Self {
         let stop = CancellationToken::new();
         let mut jobs = Vec::new();
         let scoped = Arc::new(AtomicUsize::new(0));

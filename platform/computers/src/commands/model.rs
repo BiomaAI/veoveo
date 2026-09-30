@@ -78,7 +78,7 @@ impl CommandOperation {
     pub fn task_projected(&self) -> bool {
         self.task_projected_at.is_some()
     }
-    pub fn execution_id(&self) -> Uuid {
+    pub fn execution_id(&self) -> veoveo_computers_contract::ExecutionId {
         self.binding.execution_id
     }
     pub fn stage(&self) -> CommandStage {
@@ -87,11 +87,11 @@ impl CommandOperation {
     pub fn execution_deadline(&self) -> Option<DateTime<Utc>> {
         self.execution_deadline
     }
-    pub fn computer_id(&self) -> Uuid {
+    pub fn computer_id(&self) -> veoveo_computers_contract::ComputerId {
         self.binding.computer_id
     }
     pub fn task_id(&self) -> TaskId {
-        TaskId::from_uuid(self.execution_id())
+        self.execution_id().task_id()
     }
     pub fn actor(&self) -> TaskOwner {
         self.authority.task_owner()
@@ -103,8 +103,8 @@ impl CommandOperation {
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Reference {
-            computer_id: Uuid,
-            execution_id: Uuid,
+            computer_id: veoveo_computers_contract::ComputerId,
+            execution_id: veoveo_computers_contract::ExecutionId,
         }
         serde_json::to_value(Reference {
             computer_id: self.computer_id(),
@@ -206,10 +206,9 @@ impl TryFrom<Record> for CommandOperation {
             .authority
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
-        if row.id != super::record(row.execution_id)
-            || row.execution_id.get_version_num() != 7
-            || command.execution_id() != row.execution_id
-            || command.computer_id() != row.computer_id
+        if row.id != super::record(command.execution_id())
+            || command.execution_id().into_uuid() != row.execution_id
+            || command.computer_id().into_uuid() != row.computer_id
             || command.binding.provider_instance_id != row.provider_instance_id
             || row.actor_key != super::actor_key(&command.authority)?
             || command.binding.actor_key != row.actor_key

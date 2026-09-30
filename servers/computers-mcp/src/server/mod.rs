@@ -31,6 +31,7 @@ pub fn router(
     allowed_origins: BrowserOrigins,
     shutdown: CancellationToken,
 ) -> Result<Router, ApplicationError> {
+    crate::protocol::validate_contract();
     if allowed_hosts.is_empty()
         || allowed_hosts
             .iter()

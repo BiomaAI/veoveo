@@ -34,7 +34,7 @@ impl CliPairingInput {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CliPairingChallenge {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub pairing_id: Uuid,
     pub expires_at: DateTime<Utc>,
 }
@@ -64,7 +64,7 @@ impl CliPairingToken {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct CliPairingResult {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub pairing_id: Uuid,
     pub grant_id: Uuid,
     pub token: CliPairingToken,

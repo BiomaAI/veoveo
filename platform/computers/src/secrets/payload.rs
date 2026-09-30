@@ -12,10 +12,10 @@ pub(super) const MAX_PLAINTEXT: usize = MAX_FRAME_BYTES + 12;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommandBinding {
-    pub execution_id: Uuid,
+    pub execution_id: veoveo_computers_contract::ExecutionId,
     pub request_id: Uuid,
-    pub computer_id: Uuid,
-    pub grant_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
+    pub grant_id: crate::api::AutomationGrantId,
     pub provider_instance_id: Uuid,
     pub owner_key: String,
     pub actor_key: String,
@@ -30,7 +30,8 @@ pub struct CommandBinding {
 }
 impl CommandBinding {
     pub fn instance_id(&self) -> Uuid {
-        self.replacement_instance_id.unwrap_or(self.computer_id)
+        self.replacement_instance_id
+            .unwrap_or(self.computer_id.into_uuid())
     }
     pub(super) fn aad(&self) -> Result<Vec<u8>> {
         let hash = |s: &str| {
@@ -40,15 +41,9 @@ impl CommandBinding {
         };
         let native_id =
             |s: &str| !s.is_empty() && s.len() <= 256 && s.bytes().all(|b| b.is_ascii_graphic());
-        if [
-            self.execution_id,
-            self.request_id,
-            self.computer_id,
-            self.grant_id,
-            self.provider_instance_id,
-        ]
-        .iter()
-        .any(Uuid::is_nil)
+        if [self.request_id, self.provider_instance_id]
+            .iter()
+            .any(Uuid::is_nil)
             || !hash(&self.owner_key)
             || !hash(&self.actor_key)
             || !hash(&self.template_fingerprint)
@@ -57,7 +52,7 @@ impl CommandBinding {
             || self.required_output_labels.len() > 256
             || self
                 .replacement_instance_id
-                .is_some_and(|id| id.is_nil() || id == self.computer_id)
+                .is_some_and(|id| id.is_nil() || id == self.computer_id.into_uuid())
         {
             return Err(ComputerError::InvalidInput);
         }

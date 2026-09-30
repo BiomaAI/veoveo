@@ -42,20 +42,24 @@ struct Content {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Reference {
-    computer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
     maintenance_id: Uuid,
 }
 #[derive(Serialize)]
 struct AdmissionEvent<'a> {
-    computer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
     maintenance_id: Uuid,
     actor: &'a str,
     authority: &'a veoveo_types::InvocationAuthority,
     target_template_id: &'a str,
 }
 
-fn request_record(caller: &TaskOwner, computer: Uuid, request: Uuid) -> Result<RecordId> {
-    if request.is_nil() || computer.is_nil() {
+fn request_record(
+    caller: &TaskOwner,
+    computer: veoveo_computers_contract::ComputerId,
+    request: Uuid,
+) -> Result<RecordId> {
+    if request.is_nil() {
         return Err(ComputerError::InvalidInput);
     }
     Ok(RecordId::new(
@@ -93,7 +97,7 @@ impl ComputersStore {
     pub async fn maintenance_for_request(
         &self,
         caller: &TaskOwner,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         request: Uuid,
     ) -> Result<Option<MaintenanceOperation>> {
         let mut reply = self
@@ -120,7 +124,11 @@ impl ComputersStore {
 
     /// Current state eligibility for a UI projection. Admission still checks the
     /// same source and execution slot atomically before acquiring the fence.
-    pub async fn maintenance_available(&self, caller: &TaskOwner, id: Uuid) -> Result<bool> {
+    pub async fn maintenance_available(
+        &self,
+        caller: &TaskOwner,
+        id: crate::api::ComputerId,
+    ) -> Result<bool> {
         let computer = self.get(caller, id).await?;
         match self.maintenance_source(caller, &computer).await {
             Ok(_) => {}
@@ -189,7 +197,7 @@ impl ComputersStore {
                 if original.computer_id != computer.computer_id
                     || original.action != Action::Create
                     || original.stage != OperationStage::RecoveryRequired
-                    || original.instance_id() != computer.computer_id
+                    || original.instance_id() != computer.computer_id.into_uuid()
                     || original.template_fingerprint != computer.template_fingerprint
                     || original.provider_instance_id != self.provider_instance_id
                     || original.dispatch_id.is_none()
@@ -211,7 +219,7 @@ impl ComputersStore {
     pub async fn queue_maintenance(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         request_id: Uuid,
         target: &MaintenanceTarget,
     ) -> Result<MaintenanceOperation> {
@@ -226,7 +234,7 @@ impl ComputersStore {
     async fn queue_maintenance_inner(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         request_id: Uuid,
         target: &MaintenanceTarget,
     ) -> Result<MaintenanceOperation> {
@@ -277,7 +285,7 @@ impl ComputersStore {
         let content = Content {
             operation_id: id,
             request_id,
-            computer_id,
+            computer_id: computer_id.into_uuid(),
             task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
             owner_key: owner_key(caller)?,
             actor_context: object(caller)?,
@@ -344,7 +352,7 @@ impl ComputersStore {
                     "execution_slot",
                     RecordId::new(
                         "computer_execution_slot",
-                        surrealdb::types::Uuid::from(computer_id),
+                        surrealdb::types::Uuid::from(computer_id.into_uuid()),
                     )
                     .into_value(),
                 ),

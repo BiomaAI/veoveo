@@ -2,9 +2,19 @@
 
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ComputerId".
+ */
+export type ComputerId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AccessGrantKind".
  */
 export type AccessGrantKind = "browser" | "cli";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "AutomationGrantId".
+ */
+export type AutomationGrantId = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "AutomationPermission".
@@ -88,9 +98,19 @@ export type ErrorCode =
 export type ComputerEventKind = "snapshot_changed";
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "ExecutionId".
+ */
+export type ExecutionId = string;
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "FileTransferDirection".
  */
 export type FileTransferDirection = "import" | "export";
+/**
+ * This interface was referenced by `ComputersApi`'s JSON-Schema
+ * via the `definition` "FileTransferId".
+ */
+export type FileTransferId = string;
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "FileTransferStage".
@@ -294,7 +314,7 @@ export interface ComputersApi {
  * via the `definition` "AccessGrantCollection".
  */
 export interface AccessGrantCollection {
-  computerId: string;
+  computerId: ComputerId;
   /**
    * @maxItems 128
    */
@@ -328,7 +348,7 @@ export interface AccessGrantView {
  * via the `definition` "AccessRevocation".
  */
 export interface AccessRevocation {
-  computerId: string;
+  computerId: ComputerId;
   grantId: string;
   revoked: boolean;
 }
@@ -337,10 +357,10 @@ export interface AccessRevocation {
  * via the `definition` "AutomationGrantView".
  */
 export interface AutomationGrantView {
-  computerId: string;
+  computerId: ComputerId;
   executionLimits?: AutomationExecutionLimits | null;
   expiresAt: string;
-  grantId: string;
+  grantId: AutomationGrantId;
   issuedAt: string;
   name: string;
   oauthClientId: string;
@@ -383,7 +403,7 @@ export interface AutomationGrantCollection {
    */
   clientChoices: AutomationClientChoice[];
   clientChoicesTruncated: boolean;
-  computerId: string;
+  computerId: ComputerId;
   /**
    * @maxItems 4
    */
@@ -429,7 +449,7 @@ export interface AutomationGrantLimits {
  * via the `definition` "CliPairingChallenge".
  */
 export interface CliPairingChallenge {
-  computerId: string;
+  computerId: ComputerId;
   expiresAt: string;
   pairingId: string;
 }
@@ -448,7 +468,7 @@ export interface CliPairingInput {
  */
 export interface CliPairingResult {
   callbackPort: number;
-  computerId: string;
+  computerId: ComputerId;
   expiresAt: string;
   grantId: string;
   pairingId: string;
@@ -481,7 +501,7 @@ export interface ComputerView {
    */
   canStop: boolean;
   canTransferFiles: boolean;
-  computerId: string;
+  computerId: ComputerId;
   createdAt: string;
   /**
    * Current named grants available to this grantee; owners manage their grant
@@ -504,7 +524,7 @@ export interface ComputerGrantedAccess {
   canTransferFiles: boolean;
   executionLimits?: AutomationExecutionLimits | null;
   expiresAt: string;
-  grantId: string;
+  grantId: AutomationGrantId;
   name: string;
   permissions: AutomationPermission[];
 }
@@ -516,7 +536,7 @@ export interface CreateInput {
   /**
    * Continue provisioning an owned reservation, or omit for a new Computer.
    */
-  computerId?: string | null;
+  computerId?: ComputerId | null;
   requestId: string;
 }
 /**
@@ -534,7 +554,7 @@ export interface ApiError {
  * via the `definition` "ComputerEvent".
  */
 export interface ComputerEvent {
-  computerId?: string | null;
+  computerId?: ComputerId | null;
   kind: ComputerEventKind;
 }
 /**
@@ -550,12 +570,12 @@ export interface ExecuteInput {
    * @maxItems 1024
    */
   arguments: [string, ...string[]];
-  computerId: string;
+  computerId: ComputerId;
   directory: string;
   environment: {
     [k: string]: string;
   };
-  grantId: string;
+  grantId: AutomationGrantId;
   limits: AutomationExecutionLimits;
   requestId: string;
   /**
@@ -571,8 +591,8 @@ export interface ExecuteInput {
  * via the `definition` "ExecutionResult".
  */
 export interface ExecutionResult {
-  computerId: string;
-  executionId: string;
+  computerId: ComputerId;
+  executionId: ExecutionId;
   exitCode: number;
   result_uri: string;
   stderr: ExecutionOutput;
@@ -589,7 +609,7 @@ export interface ExecutionOutput {
   byteCount: number;
 }
 /**
- * Metadata only. Artifact reads remain governed by the Artifact service.
+ * Canonical address for one completed file transfer; it is not an access credential.
  *
  * This interface was referenced by `ComputersApi`'s JSON-Schema
  * via the `definition` "FileTransferResult".
@@ -597,11 +617,11 @@ export interface ExecutionOutput {
 export interface FileTransferResult {
   artifactId: string;
   bytes: number;
-  computerId: string;
+  computerId: ComputerId;
   direction: FileTransferDirection;
   result_uri: string;
   sha256: string;
-  transferId: string;
+  transferId: FileTransferId;
 }
 /**
  * Native Console projection of the same durable Task used by MCP callers.
@@ -613,7 +633,7 @@ export interface FileTransferView {
   canCancel: boolean;
   cancellationRequestedAt?: string | null;
   completedAt?: string | null;
-  computerId: string;
+  computerId: ComputerId;
   createdAt: string;
   direction: FileTransferDirection;
   message?: string | null;
@@ -627,7 +647,7 @@ export interface FileTransferView {
  * via the `definition` "IssueAutomationGrantInput".
  */
 export interface IssueAutomationGrantInput {
-  computerId: string;
+  computerId: ComputerId;
   executionLimits?: AutomationExecutionLimits | null;
   expiresAt: string;
   name: string;
@@ -649,8 +669,8 @@ export interface IssueAutomationGrantInput {
  * via the `definition` "LifecycleInput".
  */
 export interface LifecycleInput {
-  computerId: string;
-  grantId?: string | null;
+  computerId: ComputerId;
+  grantId?: AutomationGrantId | null;
   requestId: string;
 }
 /**
@@ -659,7 +679,7 @@ export interface LifecycleInput {
  */
 export interface LifecycleResult {
   action: Action;
-  computerId: string;
+  computerId: ComputerId;
   operationId: string;
   result_uri?: string | null;
 }
@@ -677,7 +697,7 @@ export interface ComputerLimits {
  * via the `definition` "MaintenanceResult".
  */
 export interface MaintenanceResult {
-  computerId: string;
+  computerId: ComputerId;
   maintenanceId: string;
   result_uri: string;
   templateId: string;
@@ -689,7 +709,7 @@ export interface MaintenanceResult {
 export interface MaintenanceState {
   active?: MaintenanceView | null;
   canUpdate: boolean;
-  computerId: string;
+  computerId: ComputerId;
   targets: TemplateView[];
 }
 /**
@@ -698,7 +718,7 @@ export interface MaintenanceState {
  */
 export interface MaintenanceView {
   canResume: boolean;
-  computerId: string;
+  computerId: ComputerId;
   createdAt: string;
   pendingCancellationAt?: string | null;
   phase: MaintenancePhase;
@@ -726,7 +746,7 @@ export interface OperationView {
   action: Action;
   completedAt?: string | null;
   computer?: ComputerView | null;
-  computerId: string;
+  computerId: ComputerId;
   createdAt: string;
   error?: ApiError | null;
   status: OperationStatus;
@@ -739,7 +759,7 @@ export interface OperationView {
  */
 export interface OperationReceipt {
   action: Action;
-  computerId: string;
+  computerId: ComputerId;
   status: OperationStatus;
   taskId: string;
 }
@@ -751,7 +771,7 @@ export interface OperationReceipt {
  */
 export interface ResumeUpdateInput {
   acknowledgedCancellationAt?: string | null;
-  computerId: string;
+  computerId: ComputerId;
   expectedUpdatedAt: string;
   requestId: string;
   taskId: string;
@@ -761,7 +781,7 @@ export interface ResumeUpdateInput {
  * via the `definition` "RevokeAccessInput".
  */
 export interface RevokeAccessInput {
-  computerId: string;
+  computerId: ComputerId;
   grantId: string;
 }
 /**
@@ -769,8 +789,8 @@ export interface RevokeAccessInput {
  * via the `definition` "RevokeAutomationGrantInput".
  */
 export interface RevokeAutomationGrantInput {
-  computerId: string;
-  grantId: string;
+  computerId: ComputerId;
+  grantId: AutomationGrantId;
 }
 /**
  * This interface was referenced by `ComputersApi`'s JSON-Schema
@@ -781,7 +801,7 @@ export interface ComputerSnapshot {
   canCreate: boolean;
   computers: ComputerView[];
   limits?: ComputerLimits | null;
-  nextCursor?: string | null;
+  nextCursor?: ComputerId | null;
   template?: TemplateView | null;
 }
 /**
@@ -789,7 +809,7 @@ export interface ComputerSnapshot {
  * via the `definition` "StartInput".
  */
 export interface StartInput {
-  grantId?: string | null;
+  grantId?: AutomationGrantId | null;
   requestId: string;
 }
 /**
@@ -797,7 +817,7 @@ export interface StartInput {
  * via the `definition` "StopInput".
  */
 export interface StopInput {
-  grantId?: string | null;
+  grantId?: AutomationGrantId | null;
   requestId: string;
 }
 /**
@@ -808,7 +828,7 @@ export interface StopInput {
  */
 export interface TerminalAttach {
   cols: number;
-  computerId: string;
+  computerId: ComputerId;
   rows: number;
   token: TerminalToken;
   type: TerminalAttachKind;
@@ -857,7 +877,7 @@ export interface TerminalLease {
  * via the `definition` "TerminalTicket".
  */
 export interface TerminalTicket {
-  computerId: string;
+  computerId: ComputerId;
   /**
    * Same-origin authenticated WebSocket path; the BFF rewrites its own edge.
    */
@@ -870,11 +890,11 @@ export interface TerminalTicket {
  * via the `definition` "TransferFileInput".
  */
 export interface TransferFileInput {
-  computerId: string;
+  computerId: ComputerId;
   /**
    * A direct owner omits this field. Delegation requires a current named grant.
    */
-  grantId?: string | null;
+  grantId?: AutomationGrantId | null;
   limits: FileTransferLimits;
   requestId: string;
   transfer: FileTransfer;
@@ -899,7 +919,7 @@ export interface FileTransferLimits {
  * via the `definition` "UpdateTemplateInput".
  */
 export interface UpdateTemplateInput {
-  computerId: string;
+  computerId: ComputerId;
   requestId: string;
   templateId?: string | null;
 }

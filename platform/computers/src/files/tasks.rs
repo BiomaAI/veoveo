@@ -10,7 +10,7 @@ impl ComputersStore {
     /// Trusted worker discovery; public projections use current principal authority.
     pub async fn pending_file_transfers(
         &self,
-        after: Option<uuid::Uuid>,
+        after: Option<crate::api::FileTransferId>,
         limit: u32,
     ) -> Result<Vec<FileOperation>> {
         if !(1..=100).contains(&limit) {
@@ -25,7 +25,7 @@ impl ComputersStore {
              ORDER BY transfer_id LIMIT $limit;",
                 vec![
                     ("provider", self.provider_instance_id.into_value()),
-                    ("after", after.into_value()),
+                    ("after", after.map(crate::api::FileTransferId::into_uuid).into_value()),
                     ("limit", limit.into_value()),
                 ],
             )

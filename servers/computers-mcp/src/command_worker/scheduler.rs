@@ -9,8 +9,10 @@ impl CommandWorker {
     /// dispatch still requires the Computer's independent durable execution slot.
     pub async fn run(self: Arc<Self>, shutdown: CancellationToken) {
         let mut active = HashSet::new();
-        let mut jobs: tokio::task::JoinSet<(uuid::Uuid, Result<WorkerStep>)> =
-            tokio::task::JoinSet::new();
+        let mut jobs: tokio::task::JoinSet<(
+            veoveo_computers_contract::ExecutionId,
+            Result<WorkerStep>,
+        )> = tokio::task::JoinSet::new();
         let mut cursor = None;
         let mut scan = tokio::time::interval(Duration::from_secs(1));
         scan.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

@@ -9,6 +9,7 @@ use veoveo_mcp_contract::{
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    veoveo_computers_mcp::protocol::validate_contract();
     let args = config::Args::parse();
     let _ = rustls::crypto::ring::default_provider().install_default();
     let _telemetry = veoveo_mcp_contract::init_server_telemetry("veoveo-computers-mcp", "info")?;

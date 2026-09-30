@@ -1,4 +1,4 @@
-use super::{ComputersMcp, auth, resources};
+use super::{ComputersMcp, auth};
 use rmcp::{ErrorData, RoleServer, service::RequestContext};
 use std::time::Instant;
 use veoveo_computers::{ComputerActor, ComputerError, commands::CommandTaskAction};
@@ -49,8 +49,13 @@ impl ComputersMcp {
         id: &str,
         cancel: bool,
     ) -> Result<TaskAccess, ErrorData> {
-        let id = resources::canonical_uuid(id)
-            .ok_or_else(|| ErrorData::invalid_params("unknown task", None))?;
+        let task = id
+            .parse::<veoveo_types::TaskId>()
+            .map_err(|_| ErrorData::invalid_params("unknown task", None))?;
+        if task.to_string() != id || task.as_uuid().get_version_num() != 7 {
+            return Err(ErrorData::invalid_params("unknown task", None));
+        }
+        let id = task.as_uuid();
         match self
             .app
             .store
@@ -95,7 +100,12 @@ impl ComputersMcp {
                 let command_access = self
                     .app
                     .store
-                    .authorize_command_task(actor, id, action)
+                    .authorize_command_task(
+                        actor,
+                        veoveo_computers_contract::ExecutionId::try_from(id)
+                            .map_err(|_| ErrorData::invalid_params("unknown task", None))?,
+                        action,
+                    )
                     .await;
                 let access = match command_access {
                     Ok(access) => access,
@@ -109,7 +119,12 @@ impl ComputersMcp {
                         let access = self
                             .app
                             .store
-                            .authorize_file_task(actor, id, action)
+                            .authorize_file_task(
+                                actor,
+                                veoveo_computers_contract::FileTransferId::try_from(id)
+                                    .map_err(|_| ErrorData::invalid_params("unknown task", None))?,
+                                action,
+                            )
                             .await
                             .map_err(error)?;
                         return Ok(TaskAccess {

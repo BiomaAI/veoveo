@@ -19,12 +19,12 @@ pub(super) const MAX_FILE_PAYLOAD_BYTES: usize = 16 * 1024;
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FileTransferBinding {
-    pub transfer_id: Uuid,
+    pub transfer_id: veoveo_computers_contract::FileTransferId,
     pub request_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub instance_id: Uuid,
     pub provider_instance_id: Uuid,
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
     pub direction: FileTransferDirection,
     pub owner_key: String,
     pub actor_key: String,
@@ -45,17 +45,9 @@ impl FileTransferBinding {
         };
         let native =
             |v: &str| !v.is_empty() && v.len() <= 256 && v.bytes().all(|c| c.is_ascii_graphic());
-        if [
-            self.transfer_id,
-            self.request_id,
-            self.computer_id,
-            self.instance_id,
-            self.provider_instance_id,
-        ]
-        .iter()
-        .any(Uuid::is_nil)
-            || self.transfer_id.get_version_num() != 7
-            || self.grant_id.is_some_and(|id| id.is_nil())
+        if [self.request_id, self.instance_id, self.provider_instance_id]
+            .iter()
+            .any(Uuid::is_nil)
             || [&self.owner_key, &self.actor_key, &self.template_fingerprint]
                 .iter()
                 .any(|value| !hash(value))
@@ -210,9 +202,9 @@ mod tests {
     }
     fn binding() -> FileTransferBinding {
         FileTransferBinding {
-            transfer_id: Uuid::now_v7(),
+            transfer_id: veoveo_computers_contract::FileTransferId::new(),
             request_id: Uuid::now_v7(),
-            computer_id: Uuid::now_v7(),
+            computer_id: veoveo_computers_contract::ComputerId::new(),
             instance_id: Uuid::now_v7(),
             provider_instance_id: Uuid::now_v7(),
             grant_id: None,

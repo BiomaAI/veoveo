@@ -5,7 +5,7 @@ use veoveo_computers::{ComputerActor, ComputerError, ComputersStore, Reservation
 async fn grant(
     store: &ComputersStore,
     owner: &ComputerActor,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     permissions: &[AutomationPermission],
 ) -> AutomationGrantView {
     let mut input = support::automation::input(computer);

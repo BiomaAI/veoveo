@@ -60,7 +60,7 @@ impl ComputersStore {
             "computer.run_observed",
             1,
             crate::session_grants::object(&Payload {
-                computer_id: before.computer_id,
+                computer_id: before.computer_id.into_uuid(),
                 previous_process_id: before.process_id.as_deref().unwrap(),
                 process_id: &observed.process_id,
             })?,
@@ -72,7 +72,7 @@ impl ComputersStore {
                     "computer",
                     crate::model::computer_record(before.computer_id).into_value(),
                 ),
-                ("computer_id", before.computer_id.into_value()),
+                ("computer_id", before.computer_id.into_uuid().into_value()),
                 (
                     "slot",
                     crate::commands::slot(before.computer_id).into_value(),

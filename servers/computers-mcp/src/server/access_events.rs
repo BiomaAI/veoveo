@@ -11,7 +11,7 @@ use veoveo_platform_store::{
 
 #[derive(Clone)]
 pub(super) enum Change {
-    Computer(Uuid),
+    Computer(veoveo_computers_contract::ComputerId),
     Family(RecordId),
     Policy,
 }
@@ -75,7 +75,11 @@ impl Listener {
             Ok(())
         }
     }
-    pub async fn next(&mut self, computer: Uuid, family: &RecordId) -> Result<(), ()> {
+    pub async fn next(
+        &mut self,
+        computer: veoveo_computers_contract::ComputerId,
+        family: &RecordId,
+    ) -> Result<(), ()> {
         loop {
             self.check()?;
             tokio::select! {
@@ -118,7 +122,7 @@ async fn observe(
             event = outbox.next() => {
                 let event = event.ok_or(())?.map_err(|_| ())?.data;
                 if event.aggregate_type == "computer" {
-                    let id = Uuid::parse_str(&event.aggregate_id).map_err(|_| ())?;
+                    let id = event.aggregate_id.parse::<veoveo_computers_contract::ComputerId>().map_err(|_| ())?;
                     let _ = changes.send(Change::Computer(id));
                 }
             }
@@ -152,7 +156,10 @@ mod tests {
         assert!(listener.check().is_err());
         assert!(
             listener
-                .next(Uuid::now_v7(), &RecordId::new("fixture", "family"))
+                .next(
+                    veoveo_computers_contract::ComputerId::new(),
+                    &RecordId::new("fixture", "family")
+                )
                 .await
                 .is_err()
         );
@@ -168,9 +175,14 @@ mod tests {
             changes: receiver,
             connected,
         };
-        let computer = Uuid::now_v7();
+        let computer = veoveo_computers_contract::ComputerId::new();
         let family = RecordId::new("fixture", "family");
-        changes.send(Change::Computer(Uuid::now_v7())).ok().unwrap();
+        changes
+            .send(Change::Computer(
+                veoveo_computers_contract::ComputerId::new(),
+            ))
+            .ok()
+            .unwrap();
         assert!(
             tokio::time::timeout(Duration::from_millis(20), listener.next(computer, &family))
                 .await
@@ -179,7 +191,12 @@ mod tests {
         changes.send(Change::Computer(computer)).ok().unwrap();
         listener.next(computer, &family).await.unwrap();
         for _ in 0..3 {
-            changes.send(Change::Computer(Uuid::now_v7())).ok().unwrap();
+            changes
+                .send(Change::Computer(
+                    veoveo_computers_contract::ComputerId::new(),
+                ))
+                .ok()
+                .unwrap();
         }
         listener.next(computer, &family).await.unwrap();
         drop(sender);

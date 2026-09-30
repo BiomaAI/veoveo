@@ -23,13 +23,16 @@ use crate::{AcceptedAuthority, ComputerError, Result, identity::digest};
 use surrealdb::types::RecordId;
 use uuid::Uuid;
 
-fn record(id: Uuid) -> RecordId {
-    RecordId::new("computer_execution", surrealdb::types::Uuid::from(id))
+fn record(id: crate::api::ExecutionId) -> RecordId {
+    RecordId::new(
+        "computer_execution",
+        surrealdb::types::Uuid::from(id.into_uuid()),
+    )
 }
-pub(crate) fn slot(computer: Uuid) -> RecordId {
+pub(crate) fn slot(computer: veoveo_computers_contract::ComputerId) -> RecordId {
     RecordId::new(
         "computer_execution_slot",
-        surrealdb::types::Uuid::from(computer),
+        surrealdb::types::Uuid::from(computer.into_uuid()),
     )
 }
 fn actor_key(actor: &AcceptedAuthority) -> Result<String> {
@@ -40,7 +43,11 @@ fn actor_key(actor: &AcceptedAuthority) -> Result<String> {
         &actor.request_context.access_token.oauth_client_id,
     ))
 }
-fn request(actor_key: &str, computer: Uuid, request: Uuid) -> Result<RecordId> {
+fn request(
+    actor_key: &str,
+    computer: veoveo_computers_contract::ComputerId,
+    request: Uuid,
+) -> Result<RecordId> {
     if request.is_nil() {
         return Err(ComputerError::InvalidInput);
     }

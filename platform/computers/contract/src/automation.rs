@@ -37,7 +37,7 @@ pub struct AutomationExecutionLimits {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct IssueAutomationGrantInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub request_id: Uuid,
     #[schemars(length(min = 1, max = 2048))]
     pub principal_id: String,
@@ -55,8 +55,8 @@ pub struct IssueAutomationGrantInput {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationGrantView {
-    pub computer_id: Uuid,
-    pub grant_id: Uuid,
+    pub computer_id: crate::ComputerId,
+    pub grant_id: crate::AutomationGrantId,
     pub principal_id: String,
     pub oauth_client_id: String,
     pub name: String,
@@ -71,7 +71,7 @@ pub struct AutomationGrantView {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AutomationGrantCollection {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub can_grant: bool,
     pub can_revoke: bool,
     #[schemars(length(max = 4))]
@@ -99,7 +99,7 @@ pub struct AutomationClientChoice {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerGrantedAccess {
-    pub grant_id: Uuid,
+    pub grant_id: crate::AutomationGrantId,
     pub name: String,
     #[serde(deserialize_with = "unique_permissions")]
     pub permissions: BTreeSet<AutomationPermission>,
@@ -124,8 +124,8 @@ pub struct RevokeAutomationGrantBody {}
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct RevokeAutomationGrantInput {
-    pub computer_id: Uuid,
-    pub grant_id: Uuid,
+    pub computer_id: crate::ComputerId,
+    pub grant_id: crate::AutomationGrantId,
 }
 
 /// Addressable grant state, including an expired or revoked grant.
@@ -139,13 +139,10 @@ pub struct AutomationGrantResult {
 impl From<AutomationGrantView> for AutomationGrantResult {
     fn from(grant: AutomationGrantView) -> Self {
         Self {
-            result_uri: automation_grant_uri(grant.computer_id, grant.grant_id),
+            result_uri: crate::automation_grant_uri(grant.computer_id, grant.grant_id).to_string(),
             grant,
         }
     }
-}
-pub fn automation_grant_uri(computer: Uuid, grant: Uuid) -> String {
-    format!("computer://computers/{computer}/automation/{grant}")
 }
 
 fn unique_permissions<'de, D: serde::Deserializer<'de>>(
@@ -184,7 +181,7 @@ mod tests {
     #[test]
     fn grant_wire_requires_distinct_permissions_and_explicit_interruption_scope() {
         let grant = serde_json::json!({
-            "computerId":Uuid::nil(),"requestId":Uuid::nil(),"principalId":"agent","oauthClientId":"agent",
+            "computerId":crate::ComputerId::new(),"requestId":Uuid::nil(),"principalId":"agent","oauthClientId":"agent",
             "name":"Builder","permissions":["read","execute"],"expiresAt":"2026-09-10T21:00:00Z",
             "executionLimits":{"maximumSeconds":30,"maximumOutputBytes":1024,"onInterruption":"stop_computer"}
         });

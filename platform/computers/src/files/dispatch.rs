@@ -17,7 +17,7 @@ use veoveo_task_runtime::{ClaimedTask, ProviderCommit};
 pub struct FileDispatchDecision {
     pub control_revision: String,
     pub control_sha256: String,
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
     pub grant_revision: Option<u64>,
     pub checked_at: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,
@@ -142,7 +142,7 @@ impl ComputersStore {
             || crate::identity::owner_key(&current.owner)? != operation.binding.owner_key
             || current
                 .replacement_instance_id
-                .unwrap_or(current.computer_id)
+                .unwrap_or(current.computer_id.into_uuid())
                 != operation.binding.instance_id
             || current.template_fingerprint != operation.binding.template_fingerprint
             || current.provider_resource_id.as_deref() != Some(&operation.binding.resource_id)

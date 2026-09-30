@@ -19,7 +19,7 @@ fn binding() -> MaintenanceBinding {
     MaintenanceBinding {
         operation_id: Uuid::now_v7(),
         request_id: Uuid::from_u128(1),
-        computer_id: Uuid::from_u128(2),
+        computer_id: crate::api::ComputerId::new(),
         provider_instance_id: Uuid::from_u128(3),
         owner_key: "a".repeat(64),
         actor_key: "b".repeat(64),
@@ -90,7 +90,11 @@ fn every_maintenance_identity_and_label_is_authenticated() {
         let altered: MaintenanceBinding = serde_json::from_value(altered).unwrap();
         assert!(ring.open_maintenance(&altered, &sealed).is_err(), "{name}");
     }
-    for id in [Uuid::nil(), binding.source_instance_id, binding.computer_id] {
+    for id in [
+        Uuid::nil(),
+        binding.source_instance_id,
+        binding.computer_id.into_uuid(),
+    ] {
         let mut invalid = binding.clone();
         invalid.target_instance_id = id;
         assert!(ring.seal_maintenance(&invalid, &checkpoint()).is_err());
@@ -112,10 +116,10 @@ fn maintenance_envelopes_reject_cross_purpose_tampering_and_size_overflow() {
         assert!(ring.open_maintenance(&binding, &damaged).is_err());
     }
     let command_binding = CommandBinding {
-        execution_id: binding.operation_id,
+        execution_id: crate::api::ExecutionId::try_from(binding.operation_id).unwrap(),
         request_id: binding.request_id,
         computer_id: binding.computer_id,
-        grant_id: Uuid::from_u128(9),
+        grant_id: crate::api::AutomationGrantId::new(),
         provider_instance_id: binding.provider_instance_id,
         owner_key: binding.owner_key.clone(),
         actor_key: binding.actor_key.clone(),

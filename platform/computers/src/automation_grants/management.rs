@@ -6,7 +6,6 @@ use crate::{
     authority_snapshot::AuthoritySnapshot,
 };
 use std::collections::BTreeSet;
-use uuid::Uuid;
 use veoveo_mcp_contract::OAuthClientRegistration;
 use veoveo_policy::PolicyCatalogView;
 use veoveo_types::InvocationMode;
@@ -61,7 +60,7 @@ impl ComputersStore {
     pub(super) async fn automation_management(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
     ) -> Result<GrantManagement> {
         actor.check_admission()?;
         if actor.accepted().actor.id != actor.accepted().request_context.principal.id {

@@ -106,8 +106,7 @@ impl ComputersStore {
         let (result, rejection) = match ticket.result {
             Ok(receipt) => {
                 let result = FileTransferResult {
-                    result_uri: crate::api::FileTransferResultUri::new(operation.transfer_id())
-                        .map_err(|_| ComputerError::Unavailable)?,
+                    result_uri: crate::api::FileTransferResultUri::new(operation.transfer_id()),
                     computer_id: operation.computer_id(),
                     transfer_id: operation.transfer_id(),
                     direction: operation.binding.direction,

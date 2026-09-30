@@ -26,10 +26,10 @@ pub enum OperationStage {
 #[derive(Clone, Debug)]
 pub struct Operation {
     pub operation_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub actor: TaskOwner,
     pub owner: TaskOwner,
-    pub automation_grant_id: Option<Uuid>,
+    pub automation_grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
     pub execution_authority: crate::AcceptedAuthority,
     pub provider_instance_id: Uuid,
     pub template_fingerprint: String,
@@ -56,7 +56,8 @@ pub struct Operation {
 }
 impl Operation {
     pub fn instance_id(&self) -> Uuid {
-        self.replacement_instance_id.unwrap_or(self.computer_id)
+        self.replacement_instance_id
+            .unwrap_or(self.computer_id.into_uuid())
     }
     pub fn task_id(&self) -> TaskId {
         TaskId::from_uuid(self.operation_id)
@@ -113,13 +114,20 @@ impl TryFrom<OperationRecord> for Operation {
         {
             return Err(ComputerError::Unavailable);
         }
+        let computer_id = crate::api::ComputerId::try_from(value.computer_id)
+            .map_err(|_| ComputerError::Unavailable)?;
+        let automation_grant_id = value
+            .automation_grant_id
+            .map(crate::api::AutomationGrantId::try_from)
+            .transpose()
+            .map_err(|_| ComputerError::Unavailable)?;
         let decode = || {
             Ok(Self {
                 operation_id: value.operation_id,
-                computer_id: value.computer_id,
+                computer_id,
                 actor: serde_json::from_value(serde_json::to_value(value.actor_context)?)?,
                 owner: serde_json::from_value(serde_json::to_value(value.owner_context)?)?,
-                automation_grant_id: value.automation_grant_id,
+                automation_grant_id,
                 execution_authority: serde_json::from_value(serde_json::to_value(
                     value.execution_authority,
                 )?)?,
@@ -164,7 +172,7 @@ impl TryFrom<OperationRecord> for Operation {
             return Err(ComputerError::Unavailable);
         }
         match operation.automation_grant_id {
-            Some(id) if id.is_nil() || operation.action == Action::Create => {
+            Some(_) if operation.action == Action::Create => {
                 return Err(ComputerError::Unavailable);
             }
             None if !crate::identity::same_resource_owner(&operation.owner, &operation.actor)? => {

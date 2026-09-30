@@ -4,7 +4,6 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use std::time::Instant;
 use surrealdb::types::{SurrealValue, Value};
-use uuid::Uuid;
 use veoveo_platform_store::{OutboxDraft, deterministic_tenant_id};
 use veoveo_task_runtime::{ClaimedTask, ProviderCommit, TaskError, TaskRuntime};
 use veoveo_types::TaskTypeDefinition;
@@ -32,7 +31,7 @@ impl ComputersStore {
         {
             return Err(ComputerError::InvalidInput);
         }
-        let id = Uuid::parse_str(&claim.snapshot.task_id.to_string())
+        let id = crate::api::FileTransferId::try_from(claim.snapshot.task_id.as_uuid())
             .map_err(|_| ComputerError::InvalidInput)?;
         let started = Instant::now();
         let mut read = self
@@ -69,9 +68,9 @@ impl ComputersStore {
     ) -> Result<()> {
         #[derive(Serialize)]
         struct Event<'a> {
-            transfer_id: Uuid,
-            computer_id: Uuid,
-            grant_id: Option<Uuid>,
+            transfer_id: veoveo_computers_contract::FileTransferId,
+            computer_id: veoveo_computers_contract::ComputerId,
+            grant_id: Option<veoveo_computers_contract::AutomationGrantId>,
             actor: &'a crate::AcceptedAuthority,
             dispatch_authority: Option<&'a super::FileDispatchDecision>,
             interruption: Option<super::FileInterruption>,
@@ -113,7 +112,10 @@ impl ComputersStore {
                 "execution",
                 super::record(operation.transfer_id()).into_value(),
             ),
-            ("transfer_id", operation.transfer_id().into_value()),
+            (
+                "transfer_id",
+                operation.transfer_id().into_uuid().into_value(),
+            ),
             (
                 "computer",
                 crate::model::computer_record(operation.computer_id()).into_value(),

@@ -1772,6 +1772,29 @@ containers were removed. The unchanged compiled billing case passes in four seco
 when retried after compilation. Thirteen Rust servers adopt checked setup; Computers,
 Map and the templates remain. Installed acceptance stays at the integration checkpoint.
 
+The Computers batch introduces distinct Computer, execution, file-transfer and
+automation-grant IDs in its public contract. Domain services, persistence adapters,
+gateway routes, relays and generated browser schemas consume those identities.
+`ComputerResource` owns every hosted address and builds it through foundational URI
+components. Checked server setup supplies capabilities, five fixed resources and nine
+templates. Computers keeps its existing gateway actions and domain authorization;
+its scope enum is empty.
+
+The grouped selection qualifies 579 native checks across seven affected packages.
+Two Console CLI fixtures used UUIDv4 Computer IDs; owner constructors now supply their
+identities, and the affected Computer checks pass. Store fixture creation exceeded its
+30-second deadline after both compilations; the two affected cases pass in under two
+seconds each when rerun from the current executables after compilation. Owned containers
+were removed. Six checks still require native provider, native database or BuildKit
+prerequisites and remain ignored. The isolated consumer passes five checks, and five
+compile-fail cases pass. Browser qualification passes 34 behavioral unit checks and
+TypeScript compilation. Documentation, identifier and formatting checks pass.
+Fourteen Rust servers now adopt checked setup; Map and the templates remain.
+The next Computers batch must complete SQL admission before decoding and page limits,
+including owned and delegated reads, collections and completions. Remaining
+lifecycle/access/provider identities and DTO relationships are recorded below.
+Installed qualification stays at the integration checkpoint.
+
 ## Standards And Protocols
 
 | Standard or protocol | Role in this plan |
@@ -1798,7 +1821,11 @@ Map and the templates remain. Installed acceptance stays at the integration chec
   crate, target and feature set before the first Cargo invocation; inspect development
   dependencies because `cargo test` can import unrelated service implementations.
   Use `--no-fail-fast` for independent Cargo targets so a fixture failure does not
-  prevent the remaining targets from reporting results.
+  prevent the remaining targets from reporting results. For a broad type migration,
+  compile the same selected packages and integration targets with `cargo build
+  --keep-going` to collect independent compiler errors together. Cargo test does not
+  provide that compiler behavior; its flag applies to test execution. Keep the feature
+  graph and build directory unchanged when proceeding to the grouped tests.
   Include direct consumers of changed native libraries. Deployment harness configuration
   checks use its normal binary and `helm-config`; its gateway integration tests are a
   separate target for changes to that integration. Avoid running `check`, `test` and another compilation
@@ -2231,7 +2258,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Surface | Current dependency or representation gap | Next owning change |
 |---|---|---|
 | Foundational primitives | `ScopeName`, `ResourceScheme`, `ResourceUri`, and `IdentifierError` are extracted into `platform/types`; direct callers use that crate; wire/schema preservation and independent dependency isolation pass | Resolve concrete/template resource references before tightening URI validation |
-| Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Artifact, Speech, Frames, Timeseries, Time, UAV, Reason, DuckDB, Optimization, Recording, View and Stream consume checked setup. The independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup in Computers, Map, Media and templates; preserve domain-owned authorization |
+| Independent extension traits | `ScopeDefinition`, `ResourceAddress` and `TaskResourceAddress` are public and contain no domain variants; `McpServerContract` associates server-owned types with descriptors and documents. Artifact, Computers, Speech, Frames, Timeseries, Media, Time, UAV, Reason, DuckDB, Optimization, Recording, View and Stream consume checked setup. The independently owned fixture passes hosted conformance, typed access/denial and contract-only consumption | Adopt checked setup in Map and templates; preserve domain-owned authorization |
 | Scope declarations | `scope_enum!` generates conversions and schemas from server-owned spellings, with compile-time rejection of invalid or duplicate declarations | Adopt it across server libraries while keeping each domain's vocabulary local |
 | Resolved invocation authority | Capability and Work Context membership levels, invocation authority and output defaults belong to `veoveo-types`; callers import them directly. Five schemas, serialized authority bytes, nested identity admission and level ordering pass native and independent-consumer checks. MCP retains configuration and membership matching | Preserve complete authority when extracting domain contracts; qualify installed policy and composition consumers |
 | Concrete URI components | `ResourceUriParts` validates the concrete profile with URL 2.5.8; `ResourceUriBuilder`, `UriAuthority`, and percent-encoding 2.3.2 encode typed scheme/authority and path/query components, preserve segment identity, and reject duplicate query names | Adopt through domain constructors with specific ID types; qualify each family's spelling and parameters |
@@ -2252,7 +2279,7 @@ default owner; the inventory must not become a central domain-type registry.
 | Time resolution metadata | `ResolveTimeOutput` admits matching instant/release pairs and protects them with read-only accessors; its wire adapter preserves flat projection fields. Engine epoch keys remain typed, relative calculations reject foreign authority and preserve uncertainty, and additional uncertainty checks overflow. Native and independent-consumer cases qualify these relationships | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. A shared tenant write fences different-family decisions on 3.2.4; the transaction compares the observed metadata and rolls back every mutation on conflict. Native cases cover RocksDB contention, retained schema upgrades, stale inputs and failed file loads | Qualify installed activation; qualify 3.3 locked reads before retiring the concurrency fence |
 | Digest wire profiles | Time's `AuthoritySourceDigest` preserves bare hexadecimal spelling through metadata, requests and typed persistence drafts; canonical content comparison and shared provenance use the foundational `sha256:` value. Native cases preserve uppercase retained data and idempotency while rejecting malformed matching rows. View still uses bare hexadecimal text | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
-| Computers | The server library exposes its domain-owned public types through an isolated contract feature. Its independent consumer rejects service/MCP dependencies; default hosted tests and runtime-only library compilation pass | Complete owner-local scope/resource and DTO adoption, checked server setup, and installed qualification |
+| Computers | The isolated contract owns distinct Computer, execution, file-transfer and automation-grant IDs, the complete resource vocabulary and an empty scope enum. Domain APIs, gateway routes, relays and generated browser schemas adopt those types. Checked hosted setup supplies startup and discovery. Grouped native checks, isolated consumption, compile-fail cases and browser schema checks pass | Complete SQL admission before decoding and page limits, remaining lifecycle/access/provider identities and DTO relationships, and installed qualification |
 | Speech | The isolated contract owns distinct transcription/dictation IDs, every public resource family and an empty scope vocabulary. Checked hosted setup supplies initialization and discovery. Application execution, resource subscriptions, Gateway targets and Console routes retain the owner types; receipt decoding and completed output reads check parent identity. Independent consumers, compile-fail cases and native callers pass; generated browser schemas use the qualified shared converter | Qualify current-profile CUDA transcription/dictation and installed delivery; strengthen remaining transcript result relationships |
 | Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, grants, share-link values and byte handoffs. The separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle. Its server library exposes tool DTOs and typed `ArtifactResource` families through an isolated contract feature. Shared URI components build addresses from occurrence IDs or closed document variants. Checked hosted setup includes the Library App, index and embedded documents; both registrations declare revision 3. Independent consumption, direct consumer tests, and wire/schema qualification pass | Qualify installed reads and sharing at the next integration checkpoint; separate remaining access/service request contracts and finish index cursor addresses |
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Qualify installed consumption of the current identity and URI contract |

@@ -78,12 +78,12 @@ impl ComputersStore {
             return Err(ComputerError::OperationBusy);
         }
         let binding = FileTransferBinding {
-            transfer_id: Uuid::now_v7(),
+            transfer_id: veoveo_computers_contract::FileTransferId::new(),
             request_id,
             computer_id: computer.computer_id,
             instance_id: computer
                 .replacement_instance_id
-                .unwrap_or(computer.computer_id),
+                .unwrap_or(computer.computer_id.into_uuid()),
             provider_instance_id: self.provider_instance_id,
             grant_id: authority.grant_id(),
             direction: payload.transfer().direction(),
@@ -102,20 +102,20 @@ impl ComputersStore {
         };
         let sealed = keys.seal_file_transfer(&binding, payload)?;
         let content = Content {
-            transfer_id: binding.transfer_id,
-            computer_id: binding.computer_id,
+            transfer_id: binding.transfer_id.into_uuid(),
+            computer_id: binding.computer_id.into_uuid(),
             provider_instance_id: self.provider_instance_id,
             owner_key: binding.owner_key.clone(),
             actor_key,
             binding: super::object(&binding)?,
             authority: super::object(actor.accepted())?,
             sealed: super::object(&sealed)?,
-            task: task_record_id(veoveo_types::TaskId::from_uuid(binding.transfer_id)),
+            task: task_record_id(binding.transfer_id.task_id()),
         };
         #[derive(Serialize)]
         struct Event<'a> {
-            transfer_id: Uuid,
-            computer_id: Uuid,
+            transfer_id: veoveo_computers_contract::FileTransferId,
+            computer_id: veoveo_computers_contract::ComputerId,
             direction: crate::api::FileTransferDirection,
             actor: &'a crate::AcceptedAuthority,
         }

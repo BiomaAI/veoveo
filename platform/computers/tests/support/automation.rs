@@ -29,7 +29,7 @@ pub async fn setup(
     ComputersStore,
     ComputerActor,
     ComputerActor,
-    Uuid,
+    veoveo_computers_contract::ComputerId,
 ) {
     let owner = ComputerActor::from_verified(&super::browser::identity(db, "alice").await).unwrap();
     let (a, b, computer) = super::interactive::ready(db, &owner).await;
@@ -52,7 +52,7 @@ pub async fn setup(
     let agent = super::authenticated(&service);
     (a, b, owner, agent, computer)
 }
-pub fn input(computer: Uuid) -> IssueAutomationGrantInput {
+pub fn input(computer: veoveo_computers_contract::ComputerId) -> IssueAutomationGrantInput {
     IssueAutomationGrantInput {
         computer_id: computer,
         request_id: Uuid::now_v7(),

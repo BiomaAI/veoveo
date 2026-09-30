@@ -17,7 +17,7 @@ use veoveo_task_runtime::{ClaimedTask, ProviderCommit};
 pub struct CommandDispatchDecision {
     pub control_revision: String,
     pub control_sha256: String,
-    pub grant_id: Uuid,
+    pub grant_id: veoveo_computers_contract::AutomationGrantId,
     pub grant_revision: u64,
     pub checked_at: DateTime<Utc>,
     pub valid_until: DateTime<Utc>,

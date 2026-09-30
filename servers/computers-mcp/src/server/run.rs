@@ -17,6 +17,7 @@ pub async fn serve(
     verifier: GatewayInternalTokenVerifier,
     shutdown: CancellationToken,
 ) -> anyhow::Result<()> {
+    crate::protocol::validate_contract();
     let _cancel_on_drop = shutdown.clone().drop_guard();
     let listener = tokio::net::TcpListener::bind(config.listen).await?;
     let store = ComputersStore::new(tasks.platform_store().clone(), config.provider_instance_id)?;

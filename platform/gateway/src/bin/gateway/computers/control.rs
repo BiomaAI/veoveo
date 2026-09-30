@@ -22,7 +22,7 @@ const RESPONSE_LIMIT: usize = 2 * 1024 * 1024;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Page {
-    after: Option<Uuid>,
+    after: Option<api::ComputerId>,
 }
 
 pub(super) async fn proxy(
@@ -43,9 +43,7 @@ pub(super) async fn proxy(
         route.grant_id,
         route.pairing_id,
     )?;
-    if (operation != Operation::List && request.uri().query().is_some())
-        || page.after.is_some_and(|id| id.is_nil())
-    {
+    if operation != Operation::List && request.uri().query().is_some() {
         return Err(Fault::invalid());
     }
     tokio::time::timeout(
@@ -258,30 +256,36 @@ async fn forward(
 
 fn automation_result(
     bytes: &[u8],
-    computer: Uuid,
-    grant: Option<Uuid>,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: Option<api::AutomationGrantId>,
     revoked: bool,
 ) -> Result<Vec<u8>, ()> {
     let result: api::AutomationGrantResult = serde_json::from_slice(bytes).map_err(|_| ())?;
     if result.grant.computer_id != computer
-        || result.grant.grant_id.is_nil()
         || grant.is_some_and(|grant| result.grant.grant_id != grant)
         || (revoked && result.grant.revoked_at.is_none())
-        || result.result_uri != api::automation_grant_uri(computer, result.grant.grant_id)
+        || result.result_uri != api::automation_grant_uri(computer, result.grant.grant_id).as_str()
     {
         return Err(());
     }
     serde_json::to_vec(&result).map_err(|_| ())
 }
 
-fn pairing_challenge(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+fn pairing_challenge(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<Vec<u8>, ()> {
     let value: api::CliPairingChallenge = serde_json::from_slice(bytes).map_err(|_| ())?;
     if value.computer_id != computer || value.pairing_id.is_nil() {
         return Err(());
     }
     serde_json::to_vec(&value).map_err(|_| ())
 }
-fn pairing_result(bytes: &[u8], computer: Uuid, pairing: Uuid) -> Result<Vec<u8>, ()> {
+fn pairing_result(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    pairing: Uuid,
+) -> Result<Vec<u8>, ()> {
     let value: api::CliPairingResult = serde_json::from_slice(bytes).map_err(|_| ())?;
     if value.computer_id != computer
         || value.pairing_id != pairing
@@ -294,14 +298,21 @@ fn pairing_result(bytes: &[u8], computer: Uuid, pairing: Uuid) -> Result<Vec<u8>
     serde_json::to_vec(&value).map_err(|_| ())
 }
 
-fn read_receipt(bytes: &[u8], computer: Uuid, operation: Uuid) -> Result<Vec<u8>, ()> {
+fn read_receipt(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    operation: Uuid,
+) -> Result<Vec<u8>, ()> {
     let receipt: api::OperationReceipt = serde_json::from_slice(bytes).map_err(|_| ())?;
     if receipt.computer_id != computer || receipt.task_id != operation {
         return Err(());
     }
     serde_json::to_vec(&receipt).map_err(|_| ())
 }
-fn access_grants(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+fn access_grants(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<Vec<u8>, ()> {
     let grants: api::AccessGrantCollection = serde_json::from_slice(bytes).map_err(|_| ())?;
     let mut ids = std::collections::BTreeSet::new();
     if grants.computer_id != computer
@@ -315,7 +326,11 @@ fn access_grants(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
     }
     serde_json::to_vec(&grants).map_err(|_| ())
 }
-fn access_revocation(bytes: &[u8], computer: Uuid, grant: Uuid) -> Result<Vec<u8>, ()> {
+fn access_revocation(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    grant: Uuid,
+) -> Result<Vec<u8>, ()> {
     let receipt: api::AccessRevocation = serde_json::from_slice(bytes).map_err(|_| ())?;
     if receipt.computer_id != computer || receipt.grant_id != grant || !receipt.revoked {
         return Err(());
@@ -343,7 +358,7 @@ fn normalize<T: DeserializeOwned + Serialize>(bytes: &[u8]) -> Result<Vec<u8>, (
         .and_then(|body| serde_json::to_vec(&body))
         .map_err(|_| ())
 }
-fn rewrite_ticket(bytes: &[u8], id: Uuid, profile: &str) -> Result<Vec<u8>, ()> {
+fn rewrite_ticket(bytes: &[u8], id: api::ComputerId, profile: &str) -> Result<Vec<u8>, ()> {
     let mut ticket: api::TerminalTicket = serde_json::from_slice(bytes).map_err(|_| ())?;
     if ticket.computer_id != id {
         return Err(());
@@ -363,7 +378,7 @@ mod tests {
     }
     #[test]
     fn ticket_destination_is_owned_by_gateway_and_bound_to_computer() {
-        let id = Uuid::new_v4();
+        let id = api::ComputerId::new();
         let bytes = serde_json::to_vec(&api::TerminalTicket {
             computer_id: id,
             token: api::TerminalToken::new("fixture".into()),
@@ -377,6 +392,6 @@ mod tests {
             ticket.endpoint,
             format!("/computers/operator/{id}/terminal")
         );
-        assert!(rewrite_ticket(&bytes, Uuid::new_v4(), "operator").is_err());
+        assert!(rewrite_ticket(&bytes, api::ComputerId::new(), "operator").is_err());
     }
 }

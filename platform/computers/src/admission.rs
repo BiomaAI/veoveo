@@ -79,7 +79,13 @@ impl ComputersStore {
             .await?;
         let id: Option<Uuid> = response.take(0).map_err(|_| ComputerError::Unavailable)?;
         match id {
-            Some(id) => self.get(owner, id).await.map(Some),
+            Some(id) => self
+                .get(
+                    owner,
+                    crate::api::ComputerId::try_from(id).map_err(|_| ComputerError::Unavailable)?,
+                )
+                .await
+                .map(Some),
             None => Ok(None),
         }
     }
@@ -106,10 +112,10 @@ impl ComputersStore {
             )
             .await
             .map_err(|_| ComputerError::Unavailable)?;
-        let id = Uuid::now_v7();
+        let id = crate::api::ComputerId::new();
         let computer = computer_record(id);
         let content = Content {
-            computer_id: id,
+            computer_id: id.into_uuid(),
             owner_key: key.clone(),
             tenant_key: owner.tenant_key().into(),
             owner_context: object(owner)?,
@@ -185,7 +191,7 @@ impl ComputersStore {
 
 #[derive(Serialize)]
 struct Event<'a> {
-    computer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
     actor_key: &'a str,
     authority: &'a veoveo_types::InvocationAuthority,
 }

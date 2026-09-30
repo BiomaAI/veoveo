@@ -20,7 +20,6 @@ use axum::{
 };
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 use veoveo_computers::{
     ComputerError,
     cli_grants::{CliConnectionHandle, CliGrantCredential},
@@ -72,7 +71,7 @@ async fn root(
 }
 async fn scoped(
     State(transport): State<Transport>,
-    Path((profile, id)): Path<(GatewayProfileId, Uuid)>,
+    Path((profile, id)): Path<(GatewayProfileId, veoveo_computers_contract::ComputerId)>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -82,7 +81,7 @@ async fn scoped(
 async fn upgrade(
     transport: Transport,
     profile: GatewayProfileId,
-    computer: Option<Uuid>,
+    computer: Option<veoveo_computers_contract::ComputerId>,
     query: Option<String>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -152,7 +151,7 @@ async fn attached(
     let activity = Arc::new(activity);
     let computer = baseline.computer();
     let binding = Binding::from_instance(
-        computer.computer_id,
+        computer.computer_id.into_uuid(),
         computer.instance_id(),
         computer.template_fingerprint.clone(),
     )

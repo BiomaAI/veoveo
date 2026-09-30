@@ -14,7 +14,9 @@ pub(super) fn upstream(capture: Arc<Mutex<Vec<Observed>>>) -> Router {
     Router::new().route(
         "/computers/admin/{id}/terminal",
         get(
-            move |Path(id): Path<Uuid>, headers: HeaderMap, ws: WebSocketUpgrade| {
+            move |Path(id): Path<api_contract::ComputerId>,
+                  headers: HeaderMap,
+                  ws: WebSocketUpgrade| {
                 capture.lock().unwrap().push(Observed {
                     path: format!("/computers/admin/{id}/terminal"),
                     headers,
@@ -70,7 +72,7 @@ async fn cookie_authenticated_upgrade_returns_refresh_cookie_and_relays_terminal
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut fixture = Fixture::new().await;
         let base = listen(&mut fixture).await;
-        let id = Uuid::new_v4();
+        let id = api_contract::ComputerId::new();
         let mut request = format!("{base}/console/api/computers/{id}/terminal")
             .into_client_request()
             .unwrap();
@@ -146,7 +148,7 @@ async fn upgrade_rejects_missing_cookie_duplicate_origin_and_url_credentials_bef
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut fixture = Fixture::new().await;
         let base = listen(&mut fixture).await;
-        let id = Uuid::new_v4();
+        let id = api_contract::ComputerId::new();
         for (cookie, duplicate, query, expected) in [
             (false, false, "", StatusCode::UNAUTHORIZED),
             (true, true, "", StatusCode::FORBIDDEN),

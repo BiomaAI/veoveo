@@ -65,8 +65,8 @@ impl ComputersStore {
             .check_control_session(&snapshot)
             .await?
             .ok_or(ComputerError::Forbidden)?;
-        authority::require_attach(&snapshot, row.computer_id)?;
-        let computer = self.get(&accepted.task_owner(), row.computer_id).await?;
+        authority::require_attach(&snapshot, row.computer_id()?)?;
+        let computer = self.get(&accepted.task_owner(), row.computer_id()?).await?;
         verify_retained_owner(&computer.owner, &row.owner_key, &accepted.task_owner())?;
         authority::ready(&computer, self.provider_instance_id)?;
         if computer.provider_resource_id.as_deref() != Some(row.provider_resource_id.as_str())
@@ -127,20 +127,20 @@ impl ComputersStore {
     pub async fn revoke_browser_grant(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         grant_id: Uuid,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            if computer_id.is_nil() || grant_id.is_nil() {
+            if grant_id.is_nil() {
                 return Err(ComputerError::InvalidInput);
             }
             let row = self.session_grant(grant_id).await?;
-            if row.computer_id != computer_id {
+            if row.computer_id()? != computer_id {
                 return Err(ComputerError::NotFound);
             }
             let control = self.control_authority(actor).await?;
-            control.require_read(Some(row.computer_id))?;
-            let computer = self.get(actor.owner(), row.computer_id).await?;
+            control.require_read(Some(row.computer_id()?))?;
+            let computer = self.get(actor.owner(), row.computer_id()?).await?;
             verify_retained_owner(
                 &computer.owner,
                 &row.owner_key,
@@ -150,7 +150,7 @@ impl ComputersStore {
                 include_str!("../../queries/revoke_session_grant.surql"),
                 vec![
                     ("grant", super::record(grant_id).into_value()),
-                    ("owner_key", row.owner_key.into_value()),
+                    ("owner_key", row.owner_key.clone().into_value()),
                     ("connection", Option::<Uuid>::None.into_value()),
                     (
                         "admission_expires_at",
@@ -160,7 +160,7 @@ impl ComputersStore {
                         "event",
                         authority::event(
                             actor.accepted(),
-                            row.computer_id,
+                            row.computer_id()?,
                             grant_id,
                             "access_revoked",
                         )?
@@ -186,7 +186,7 @@ impl ComputersStore {
                 include_str!("../../queries/revoke_session_grant.surql"),
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
-                    ("owner_key", row.owner_key.into_value()),
+                    ("owner_key", row.owner_key.clone().into_value()),
                     ("connection", Some(handle.connection_id).into_value()),
                     (
                         "admission_expires_at",
@@ -196,7 +196,7 @@ impl ComputersStore {
                         "event",
                         authority::event(
                             &accepted,
-                            row.computer_id,
+                            row.computer_id()?,
                             handle.grant_id,
                             "access_closed",
                         )?

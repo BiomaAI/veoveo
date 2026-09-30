@@ -61,8 +61,8 @@ impl CommandWorker {
     ) -> Result<ExecutionOutput> {
         #[derive(Serialize)]
         struct Descriptor {
-            computer_id: uuid::Uuid,
-            execution_id: uuid::Uuid,
+            computer_id: veoveo_computers_contract::ComputerId,
+            execution_id: veoveo_computers_contract::ExecutionId,
             stream: &'static str,
         }
         let operation = ticket.operation();

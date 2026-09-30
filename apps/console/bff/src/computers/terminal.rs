@@ -5,12 +5,12 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode},
     response::Response,
 };
-use uuid::Uuid;
+use veoveo_computers_contract::ComputerId;
 use veoveo_computers_transport::{MAX_MESSAGE_BYTES, UpstreamRequest, relay};
 
 pub(super) async fn upgrade(
     State(state): State<AppState>,
-    id: Result<Path<Uuid>, axum::extract::rejection::PathRejection>,
+    id: Result<Path<ComputerId>, axum::extract::rejection::PathRejection>,
     OriginalUri(uri): OriginalUri,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -18,7 +18,7 @@ pub(super) async fn upgrade(
     let Ok(Path(id)) = id else {
         return fault(StatusCode::BAD_REQUEST);
     };
-    if id.is_nil() || uri.query().is_some() {
+    if uri.query().is_some() {
         return fault(StatusCode::BAD_REQUEST);
     }
     let origin = match origin(&state, &headers) {
@@ -44,7 +44,7 @@ pub(super) async fn upgrade(
 
 async fn admitted(
     state: AppState,
-    id: Uuid,
+    id: ComputerId,
     origin: HeaderValue,
     token: &str,
     ws: WebSocketUpgrade,

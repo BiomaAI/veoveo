@@ -57,7 +57,7 @@ impl ControlAuthority {
             .session_family
             .is_some()
     }
-    pub fn require_attach(&self, computer: Uuid) -> Result<()> {
+    pub fn require_attach(&self, computer: veoveo_computers_contract::ComputerId) -> Result<()> {
         self.check_fresh()?;
         crate::session_grants::require_attach(&self.snapshot, computer)
     }
@@ -110,10 +110,13 @@ impl ControlAuthority {
     }
     /// Policy for the canonical collection or exact Computer resource; ownership
     /// and retained labels are independently enforced by the domain read.
-    pub fn require_read(&self, computer: Option<Uuid>) -> Result<()> {
+    pub fn require_read(
+        &self,
+        computer: Option<veoveo_computers_contract::ComputerId>,
+    ) -> Result<()> {
         self.check_fresh()?;
         let uri = computer.map_or_else(
-            || crate::api::COMPUTERS_URI.into(),
+            || crate::api::ComputerResource::Collection(None).to_uri(),
             crate::api::computer_uri,
         );
         let target = PolicyTarget::Resource {

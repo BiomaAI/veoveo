@@ -121,7 +121,7 @@ impl ComputersStore {
     ) -> Result<ContainmentReadAdmission> {
         let operation = self.worker_command(claim).await?.operation;
         let id = Uuid::now_v7();
-        let jitter = u64::from(operation.execution_id().as_bytes()[15]);
+        let jitter = u64::from(operation.execution_id().as_uuid().as_bytes()[15]);
         let milliseconds = (500_u64 << operation.containment_reads.min(5)).min(10_000) + jitter;
         self.commit_command(
             claim,

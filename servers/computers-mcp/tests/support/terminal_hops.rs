@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
+use veoveo_computers_contract::ComputerId;
 use veoveo_computers_transport::{Client, UpstreamRequest};
 
 pub async fn start(
@@ -20,7 +20,7 @@ pub async fn start(
     let router = Router::new().route(
         "/computers/{id}/terminal",
         get(
-            move |Path(id): Path<Uuid>, headers: HeaderMap, ws: WebSocketUpgrade| {
+            move |Path(id): Path<ComputerId>, headers: HeaderMap, ws: WebSocketUpgrade| {
                 let client = client.clone();
                 let upstream = upstream.clone();
                 let stop = token.clone();

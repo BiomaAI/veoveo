@@ -90,9 +90,13 @@ async fn ticket_redemption_is_private_one_use_and_cross_replica_revocation_ends_
             .is_err()
     );
     assert!(
-        a.revoke_browser_grant(&actor, Uuid::now_v7(), handle.grant_id())
-            .await
-            .is_err()
+        a.revoke_browser_grant(
+            &actor,
+            veoveo_computers_contract::ComputerId::new(),
+            handle.grant_id()
+        )
+        .await
+        .is_err()
     );
     assert!(b.renew_browser_grant(&handle, false).await.is_ok());
     // Reducing existing access remains possible after membership loses the right
@@ -228,7 +232,10 @@ async fn accepted_grant_crosses_token_expiry_but_never_logout_or_current_policy_
         .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
         .bind((
             "computer",
-            RecordId::new("computer", surrealdb::types::Uuid::from(computer)),
+            RecordId::new(
+                "computer",
+                surrealdb::types::Uuid::from(computer.into_uuid()),
+            ),
         ))
         .await
         .unwrap()

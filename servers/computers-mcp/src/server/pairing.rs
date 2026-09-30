@@ -42,7 +42,7 @@ fn admit(state: &PairingState, headers: &HeaderMap, query: Option<&str>) -> Resu
 async fn begin(
     State(state): State<PairingState>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     Json(input): Json<CliPairingInput>,
@@ -68,7 +68,7 @@ async fn begin(
 async fn confirm(
     State(state): State<PairingState>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((id, pairing_id)): Path<(Uuid, Uuid)>,
+    Path((id, pairing_id)): Path<(veoveo_computers_contract::ComputerId, Uuid)>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     Json(_input): Json<CliPairingConfirmBody>,

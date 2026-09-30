@@ -73,7 +73,7 @@ pub async fn qualify(
     db: &support::TestDb,
     runtime: OpenShellRuntime,
     template: DevelopmentTemplate,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
 ) {
     tokio::time::timeout(
         Duration::from_secs(110),
@@ -86,7 +86,7 @@ async fn run(
     db: &support::TestDb,
     runtime: OpenShellRuntime,
     template: DevelopmentTemplate,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
 ) {
     let binary = PathBuf::from(
         std::env::var_os("VEOVEO_COMPUTERS_NATIVE_CLI").expect("pinned stock CLI required"),

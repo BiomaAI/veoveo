@@ -29,7 +29,7 @@ async fn pair(
     a: &ComputersStore,
     b: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     code: &str,
 ) -> PairedCliGrant {
     let challenge = a
@@ -87,9 +87,13 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
             .is_err()
     );
     assert!(
-        b.confirm_cli_pairing(&actor, Uuid::now_v7(), challenge.pairing_id)
-            .await
-            .is_err()
+        b.confirm_cli_pairing(
+            &actor,
+            veoveo_computers_contract::ComputerId::new(),
+            challenge.pairing_id
+        )
+        .await
+        .is_err()
     );
     let (one, two) = tokio::join!(
         a.confirm_cli_pairing(&actor, computer, challenge.pairing_id),
@@ -133,7 +137,7 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
     );
     assert!(
         a.open_cli_connection(
-            Some(Uuid::now_v7()),
+            Some(veoveo_computers_contract::ComputerId::new()),
             veoveo_mcp_contract::GatewayProfileId::new("operator").unwrap(),
             &paired.credential
         )
@@ -195,9 +199,13 @@ async fn pairing_is_one_use_private_and_connection_close_preserves_the_named_gra
             .is_err()
     );
     assert!(
-        a.revoke_access(&actor, Uuid::now_v7(), paired.grant_id)
-            .await
-            .is_err()
+        a.revoke_access(
+            &actor,
+            veoveo_computers_contract::ComputerId::new(),
+            paired.grant_id
+        )
+        .await
+        .is_err()
     );
     let mut viewer = control();
     viewer.work_contexts[0].memberships[0].level = WorkContextMembershipLevel::Viewer;
@@ -366,7 +374,7 @@ async fn paired_client_crosses_token_and_process_changes_but_old_connections_and
     support::policy::install(&db.b, control()).await;
     db.b.client()
         .query("UPDATE ONLY $computer SET process_id = 'replacement-process';")
-        .bind(("computer", record("computer", computer)))
+        .bind(("computer", record("computer", computer.into_uuid())))
         .await
         .unwrap()
         .check()

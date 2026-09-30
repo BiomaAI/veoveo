@@ -12,7 +12,6 @@ use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
 use veoveo_platform_store::task_record_id;
 use veoveo_task_runtime::TaskOwner;
-use veoveo_types::TaskId;
 
 #[derive(Clone, Copy)]
 pub enum FileTaskAction {
@@ -25,8 +24,8 @@ pub enum FileTaskAction {
 /// deadline before releasing a response after a possibly slow Task read.
 pub struct FileTaskAccess {
     owner: TaskOwner,
-    computer_id: Uuid,
-    transfer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
+    transfer_id: veoveo_computers_contract::FileTransferId,
     deadline: Instant,
     direction: FileTransferDirection,
     stage: FileTransferStage,
@@ -42,10 +41,10 @@ impl FileTaskAccess {
     pub fn valid_until(&self) -> Instant {
         self.deadline
     }
-    pub fn computer_id(&self) -> Uuid {
+    pub fn computer_id(&self) -> veoveo_computers_contract::ComputerId {
         self.computer_id
     }
-    pub fn transfer_id(&self) -> Uuid {
+    pub fn transfer_id(&self) -> veoveo_computers_contract::FileTransferId {
         self.transfer_id
     }
     pub fn direction(&self) -> FileTransferDirection {
@@ -80,7 +79,7 @@ impl ComputersStore {
     pub async fn authorize_file_task(
         &self,
         actor: &ComputerActor,
-        transfer: Uuid,
+        transfer: veoveo_computers_contract::FileTransferId,
         action: FileTaskAction,
     ) -> Result<FileTaskAccess> {
         actor.check_admission()?;
@@ -95,12 +94,9 @@ impl ComputersStore {
     async fn file_access(
         &self,
         actor: &ComputerActor,
-        transfer: Uuid,
+        transfer: veoveo_computers_contract::FileTransferId,
         action: FileTaskAction,
     ) -> Result<FileTaskAccess> {
-        if transfer.get_version_num() != 7 {
-            return Err(ComputerError::NotFound);
-        }
         let mut read = self.query(
             "SELECT id, transfer_id, computer_id, provider_instance_id, actor_key, binding, authority, task, stage FROM ONLY $execution;",
             vec![("execution", super::record(transfer).into_value())],
@@ -120,13 +116,13 @@ impl ComputersStore {
             .validate()
             .map_err(|_| ComputerError::Unavailable)?;
         if row.id != super::record(transfer)
-            || row.transfer_id != transfer
+            || row.transfer_id != transfer.into_uuid()
             || binding.transfer_id != transfer
-            || row.computer_id != binding.computer_id
+            || row.computer_id != binding.computer_id.into_uuid()
             || row.provider_instance_id != binding.provider_instance_id
             || row.actor_key != super::actor_key(&accepted)?
             || binding.actor_key != row.actor_key
-            || row.task != task_record_id(TaskId::from_uuid(transfer))
+            || row.task != task_record_id(transfer.task_id())
         {
             return Err(ComputerError::Unavailable);
         }

@@ -10,9 +10,9 @@ impl Application {
     pub(super) async fn granted_lifecycle(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         request: Uuid,
-        grant: Uuid,
+        grant: veoveo_computers_contract::AutomationGrantId,
         action: Action,
     ) -> Result<Operation> {
         let permission = match action {

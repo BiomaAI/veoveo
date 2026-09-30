@@ -8,10 +8,10 @@ use zeroize::Zeroizing;
 
 fn binding() -> CommandBinding {
     CommandBinding {
-        execution_id: Uuid::from_u128(1),
+        execution_id: crate::api::ExecutionId::new(),
         request_id: Uuid::from_u128(2),
-        computer_id: Uuid::from_u128(3),
-        grant_id: Uuid::from_u128(4),
+        computer_id: crate::api::ComputerId::new(),
+        grant_id: crate::api::AutomationGrantId::new(),
         provider_instance_id: Uuid::from_u128(5),
         owner_key: "a".repeat(64),
         actor_key: "b".repeat(64),
@@ -60,7 +60,7 @@ fn replacement_identity_is_authenticated_without_reencoding_initial_envelopes() 
     assert!(encoded.get("replacement_instance_id").is_none());
     let restored: CommandBinding = serde_json::from_value(encoded).unwrap();
     keys.open(&restored, &original).unwrap();
-    assert_eq!(restored.instance_id(), restored.computer_id);
+    assert_eq!(restored.instance_id(), restored.computer_id.into_uuid());
     let mut replacement = initial.clone();
     replacement.replacement_instance_id = Some(Uuid::now_v7());
     assert!(keys.open(&replacement, &original).is_err());
@@ -69,7 +69,7 @@ fn replacement_identity_is_authenticated_without_reencoding_initial_envelopes() 
     assert!(keys.open(&initial, &replaced).is_err());
     replacement.replacement_instance_id = Some(Uuid::now_v7());
     assert!(keys.open(&replacement, &replaced).is_err());
-    for invalid in [Uuid::nil(), initial.computer_id] {
+    for invalid in [Uuid::nil(), initial.computer_id.into_uuid()] {
         replacement.replacement_instance_id = Some(invalid);
         assert!(keys.seal(&replacement, &payload).is_err());
     }
@@ -123,7 +123,7 @@ fn every_identity_is_authenticated_and_cannot_be_rebound() {
             "owner_key" | "actor_key" | "template_fingerprint" => json!("d".repeat(64)),
             "resource_id" | "process_id" => json!("different-native-run"),
             "required_output_labels" => json!(["inherited-home"]),
-            _ => json!(Uuid::from_u128(99)),
+            _ => json!(Uuid::now_v7()),
         };
         let altered: CommandBinding = serde_json::from_value(changed).unwrap();
         assert!(keys.open(&altered, &sealed).is_err(), "{name}");
@@ -238,7 +238,7 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
         ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, IssuedArtifactWriteCapability,
     };
     let mut binding = binding();
-    binding.execution_id = Uuid::now_v7();
+    binding.execution_id = crate::api::ExecutionId::new();
     binding
         .required_output_labels
         .insert(veoveo_types::DataLabelId::new("retained-home").unwrap());
@@ -276,7 +276,7 @@ fn output_access_is_rotatable_purpose_bound_and_cannot_drop_labels() {
     let original_binding = serde_json::to_value(&binding).unwrap();
     binding.required_output_labels.clear();
     assert!(keys.open_output_access(&binding, &sealed).is_err());
-    binding.execution_id = Uuid::now_v7();
+    binding.execution_id = crate::api::ExecutionId::new();
     assert!(keys.seal_output_access(&binding, &access).is_err());
     binding = serde_json::from_value(original_binding).unwrap();
     for (field, replacement) in [

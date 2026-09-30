@@ -50,7 +50,7 @@ async fn access_inventory_and_revocation_share_owned_state_and_resource_invalida
         .unwrap()
         .computer_id;
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
-        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer))))
+        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid()))))
         .await.unwrap().check().unwrap();
     let ticket = store.issue_browser_grant(&actor, computer).await.unwrap();
     let handle = store

@@ -66,7 +66,7 @@ impl ComputersStore {
         })
     }
 
-    pub async fn get(&self, caller: &TaskOwner, id: Uuid) -> Result<Computer> {
+    pub async fn get(&self, caller: &TaskOwner, id: crate::api::ComputerId) -> Result<Computer> {
         owner_key(caller)?;
         let mut response = self
             .query(
@@ -84,7 +84,7 @@ impl ComputersStore {
     pub(crate) async fn retained_owner_computer(
         &self,
         caller: &TaskOwner,
-        id: Uuid,
+        id: crate::api::ComputerId,
         retained_key: &str,
     ) -> Result<Option<Computer>> {
         match self.get(caller, id).await {
@@ -100,7 +100,7 @@ impl ComputersStore {
     pub async fn list(
         &self,
         caller: &TaskOwner,
-        after: Option<Uuid>,
+        after: Option<crate::api::ComputerId>,
         limit: u32,
     ) -> Result<ComputerPage> {
         if !(1..=100).contains(&limit) {
@@ -108,7 +108,10 @@ impl ComputersStore {
         }
         let mut params = owner_query_bindings(caller)?;
         params.extend([
-            ("after", after.into_value()),
+            (
+                "after",
+                after.map(crate::api::ComputerId::into_uuid).into_value(),
+            ),
             ("limit", i64::from(limit + 1).into_value()),
         ]);
         let mut response = self

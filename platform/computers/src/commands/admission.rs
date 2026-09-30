@@ -108,7 +108,7 @@ impl ComputersStore {
             required_output_labels.extend(output_policy.classification.iter().cloned());
         }
         let binding = CommandBinding {
-            execution_id: Uuid::now_v7(),
+            execution_id: veoveo_computers_contract::ExecutionId::new(),
             request_id,
             computer_id,
             grant_id: authority.grant_id(),
@@ -129,20 +129,20 @@ impl ComputersStore {
         };
         let sealed = keys.seal(&binding, payload)?;
         let content = Content {
-            execution_id: binding.execution_id,
-            computer_id,
+            execution_id: binding.execution_id.into_uuid(),
+            computer_id: computer_id.into_uuid(),
             provider_instance_id: self.provider_instance_id,
             actor_key,
             binding: object(&binding)?,
             authority: object(actor.accepted())?,
             sealed: object(&sealed)?,
-            task: task_record_id(veoveo_types::TaskId::from_uuid(binding.execution_id)),
+            task: task_record_id(binding.execution_id.task_id()),
         };
         #[derive(Serialize)]
         struct Event<'a> {
-            execution_id: Uuid,
-            computer_id: Uuid,
-            grant_id: Uuid,
+            execution_id: veoveo_computers_contract::ExecutionId,
+            computer_id: veoveo_computers_contract::ComputerId,
+            grant_id: veoveo_computers_contract::AutomationGrantId,
             actor: &'a crate::AcceptedAuthority,
         }
         let event = OutboxDraft::now(
@@ -212,8 +212,8 @@ impl ComputersStore {
         &self,
         command: CommandOperation,
         actor: &ComputerActor,
-        computer: Uuid,
-        grant: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: veoveo_computers_contract::AutomationGrantId,
         request: Uuid,
         payload: &CommandPayload,
         keys: &ComputerKeyRing,

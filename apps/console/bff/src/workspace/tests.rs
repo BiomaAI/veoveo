@@ -187,7 +187,7 @@ async fn speech_uses_workspace_cookie_csrf_and_fixed_profile() {
 
 #[tokio::test]
 async fn shared_capability_routes_keep_workspace_cookie_profile_csrf_and_terminal_origin() {
-    let id = uuid::Uuid::now_v7();
+    let id = veoveo_computers_contract::ComputerId::new();
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = calls.clone();
     let upstream = Router::new()

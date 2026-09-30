@@ -18,7 +18,7 @@ pub async fn setup(
     ComputersStore,
     ComputerActor,
     ComputerActor,
-    Uuid,
+    veoveo_computers_contract::ComputerId,
 ) {
     let state = support::automation::setup(db).await;
     let mut control = support::automation::control();
@@ -50,8 +50,8 @@ pub async fn queue_claim(
     db: &support::TestDb,
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
 ) -> ClaimedTask {
     queue(
         db,
@@ -67,8 +67,8 @@ pub async fn queue(
     db: &support::TestDb,
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Option<Uuid>,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: Option<veoveo_computers_contract::AutomationGrantId>,
     payload: &FileTransferPayload,
 ) -> ClaimedTask {
     let authority = store
@@ -81,7 +81,7 @@ pub async fn queue(
         .unwrap();
     let access = match payload.transfer() {
         FileTransfer::Export { .. } => FileTransferAccess::Export {
-            capability: command_fixture::output_capability(operation.transfer_id()),
+            capability: command_fixture::output_capability(operation.task_id()),
         },
         FileTransfer::Import { .. } => FileTransferAccess::Import {
             capability: veoveo_mcp_contract::IssuedArtifactReadCapability {

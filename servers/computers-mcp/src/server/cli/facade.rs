@@ -10,7 +10,7 @@ use veoveo_computers_runtime::{
 #[derive(Clone)]
 pub(super) struct Restricted {
     pub access: OpenShellAccess,
-    pub computer: uuid::Uuid,
+    pub computer: veoveo_computers_contract::ComputerId,
     pub activity: Arc<Activity>,
 }
 type Output = Pin<Box<dyn futures::Stream<Item = Result<api::TcpForwardFrame, Status>> + Send>>;

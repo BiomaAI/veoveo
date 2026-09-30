@@ -1,7 +1,4 @@
-use super::{
-    ComputersMcp, auth,
-    resources::{self, ResourceId},
-};
+use super::{ComputersMcp, auth};
 use futures::StreamExt;
 use rmcp::{
     ErrorData, RoleServer,
@@ -12,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 use veoveo_computers::ComputerActor;
+use veoveo_computers_contract::{AutomationGrantId, ComputerId, ComputerResource};
 use veoveo_platform_store::{OutboxEventRecord, PlatformTable};
 use veoveo_task_runtime::{DurableTaskUpdateStream, TaskOwner};
 
@@ -37,11 +35,11 @@ impl ComputersMcp {
             .map_err(|_| auth::forbidden())?;
         let mut deadline = control.valid_until();
         for uri in uris {
-            match resources::parse(uri) {
-                Some(ResourceId::Collection(_)) => {
+            match ComputerResource::parse(uri).ok() {
+                Some(ComputerResource::Collection(_)) => {
                     control.require_read(None).map_err(|_| auth::forbidden())?
                 }
-                Some(ResourceId::Computer(id)) => {
+                Some(ComputerResource::Computer(id)) => {
                     let access = self
                         .app
                         .store
@@ -51,9 +49,9 @@ impl ComputersMcp {
                     deadline = deadline.min(access.valid_until());
                 }
                 Some(
-                    ResourceId::Access(id)
-                    | ResourceId::Automation(id)
-                    | ResourceId::Maintenance(id),
+                    ComputerResource::Access(id)
+                    | ComputerResource::Automation(id)
+                    | ComputerResource::Maintenance(id),
                 ) => {
                     control
                         .require_read(Some(id))
@@ -64,7 +62,7 @@ impl ComputersMcp {
                         .await
                         .map_err(|_| auth::forbidden())?;
                 }
-                Some(ResourceId::Grant(computer, grant)) => {
+                Some(ComputerResource::Grant { computer, grant }) => {
                     self.app
                         .automation_grant(&actor, computer, grant)
                         .await
@@ -216,8 +214,9 @@ impl ComputersMcp {
                         let page = platform.read_outbox(cursor, 100).await.map_err(|_| auth::unavailable())?;
                         replay = page.events.len() == 100;
                         for event in page.events {
-                            let Some(id) = resources::canonical_uuid(&event.aggregate_id) else { continue; };
+                            let Some(id) = canonical_event_uuid(&event.aggregate_id) else { continue; };
                             let id = if event.aggregate_type == "computer" {
+                                let Ok(id) = ComputerId::try_from(id) else { continue; };
                                 id
                             } else if event.aggregate_type == "task" && event.event_type == "task.cancel_requested" {
                                 // Paused maintenance may have no active worker to emit
@@ -240,12 +239,12 @@ impl ComputersMcp {
                                     if event.event_type == "automation_revoked" {
                                         let grant = event.payload.as_map().get("grant_id")
                                             .and_then(serde_json::Value::as_str)
-                                            .and_then(resources::canonical_uuid);
+                                            .and_then(|value| value.parse::<AutomationGrantId>().ok());
                                         if let Some(grant) = grant
                                             && self.app.store.automation_change_recipient(actor, &control, id, grant)
                                                 .await.map_err(|_| auth::unavailable())? {
                                             for uri in &uris {
-                                                if matches!(resources::parse(uri), Some(ResourceId::Collection(_))) {
+                                                if matches!(ComputerResource::parse(uri).ok(), Some(ComputerResource::Collection(_))) {
                                                     context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
                                                 }
                                             }
@@ -256,12 +255,12 @@ impl ComputersMcp {
                                 Err(_) => return Err(auth::unavailable()),
                             }
                             for uri in &uris {
-                                if matches!(resources::parse(uri), Some(ResourceId::Collection(_)))
-                                    || resources::parse(uri) == Some(ResourceId::Computer(id))
-                                    || resources::parse(uri) == Some(ResourceId::Access(id))
-                                    || resources::parse(uri) == Some(ResourceId::Automation(id))
-                                    || resources::parse(uri) == Some(ResourceId::Maintenance(id))
-                                    || matches!(resources::parse(uri), Some(ResourceId::Grant(computer, _)) if computer == id) {
+                                if matches!(ComputerResource::parse(uri).ok(), Some(ComputerResource::Collection(_)))
+                                    || ComputerResource::parse(uri).ok() == Some(ComputerResource::Computer(id))
+                                    || ComputerResource::parse(uri).ok() == Some(ComputerResource::Access(id))
+                                    || ComputerResource::parse(uri).ok() == Some(ComputerResource::Automation(id))
+                                    || ComputerResource::parse(uri).ok() == Some(ComputerResource::Maintenance(id))
+                                    || matches!(ComputerResource::parse(uri).ok(), Some(ComputerResource::Grant { computer, .. }) if computer == id) {
                                     context.sink().notify_resource_updated(uri.clone()).await.map_err(|_| auth::unavailable())?;
                                 }
                             }
@@ -299,4 +298,9 @@ impl ComputersMcp {
         )
         .await
     }
+}
+
+fn canonical_event_uuid(text: &str) -> Option<uuid::Uuid> {
+    let id = uuid::Uuid::parse_str(text).ok()?;
+    (!id.is_nil() && id.to_string() == text).then_some(id)
 }

@@ -13,7 +13,7 @@ impl ComputersStore {
     pub async fn begin_cli_pairing(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         request: &crate::api::CliPairingInput,
     ) -> Result<CliPairing> {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -36,7 +36,7 @@ impl ComputersStore {
                             "computer",
                             crate::model::computer_record(computer_id).into_value(),
                         ),
-                        ("computer_id", computer_id.into_value()),
+                        ("computer_id", computer_id.into_uuid().into_value()),
                         (
                             "guard",
                             RecordId::new("computer_cli_pairing_guard", owner.clone()).into_value(),
@@ -83,7 +83,7 @@ impl ComputersStore {
     pub async fn confirm_cli_pairing(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         pairing_id: Uuid,
     ) -> Result<PairedCliGrant> {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -115,7 +115,7 @@ impl ComputersStore {
             let family = model::family(actor.accepted())?;
             let binding = model::binding_hash(actor.accepted())?;
             if pairing.pairing_id != pairing_id
-                || pairing.computer_id != computer_id
+                || pairing.computer_id != computer_id.into_uuid()
                 || pairing.owner_key != owner
                 || pairing.family != family
                 || pairing.binding_hash != binding
@@ -133,12 +133,13 @@ impl ComputersStore {
                     "computer",
                     crate::model::computer_record(computer_id).into_value(),
                 ),
-                ("computer_id", computer_id.into_value()),
+                ("computer_id", computer_id.into_uuid().into_value()),
                 ("grant", super::grant_record(grant_id).into_value()),
                 ("grant_id", grant_id.into_value()),
                 (
                     "guard",
-                    super::record("computer_session_grant_guard", computer_id).into_value(),
+                    super::record("computer_session_grant_guard", computer_id.into_uuid())
+                        .into_value(),
                 ),
                 ("owner_key", owner.into_value()),
                 ("provider", self.provider_instance_id.into_value()),

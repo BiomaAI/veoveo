@@ -38,7 +38,7 @@ impl FileTransferAccess {
         let valid = match self {
             Self::Import { capability } => {
                 binding.direction == FileTransferDirection::Import
-                    && capability.task_id.as_uuid() == binding.transfer_id
+                    && capability.task_id.as_uuid() == binding.transfer_id.into_uuid()
             }
             Self::Export { capability } => {
                 binding.direction == FileTransferDirection::Export
@@ -104,9 +104,9 @@ mod tests {
         )
         .unwrap();
         let binding = FileTransferBinding {
-            transfer_id: Uuid::now_v7(),
+            transfer_id: veoveo_computers_contract::FileTransferId::new(),
             request_id: Uuid::now_v7(),
-            computer_id: Uuid::now_v7(),
+            computer_id: veoveo_computers_contract::ComputerId::new(),
             instance_id: Uuid::now_v7(),
             provider_instance_id: Uuid::now_v7(),
             grant_id: None,
@@ -142,7 +142,7 @@ mod tests {
             access.expires_at()
         );
         let mut changed = binding.clone();
-        changed.transfer_id = Uuid::now_v7();
+        changed.transfer_id = crate::api::FileTransferId::new();
         assert!(keys.seal_file_access(&changed, &access).is_err());
         assert!(keys.open_file_access(&changed, &sealed).is_err());
         let request = serde_json::from_value(serde_json::to_value(&sealed).unwrap()).unwrap();
@@ -168,7 +168,7 @@ mod tests {
                 .expires_at(),
             write.expires_at()
         );
-        changed.transfer_id = Uuid::now_v7();
+        changed.transfer_id = crate::api::FileTransferId::new();
         assert!(keys.seal_file_access(&changed, &write).is_err());
         assert!(keys.open_file_access(&changed, &sealed).is_err());
     }

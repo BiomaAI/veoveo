@@ -1,20 +1,19 @@
 use super::{Application, Result};
-use uuid::Uuid;
 use veoveo_computers::{ComputerActor, api::*};
 
 impl Application {
     pub async fn automation_grants(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
     ) -> Result<AutomationGrantCollection> {
         Ok(self.store.list_automation_grants(actor, computer).await?)
     }
     pub async fn automation_grant(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
-        grant: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: veoveo_computers_contract::AutomationGrantId,
     ) -> Result<AutomationGrantResult> {
         Ok(self
             .store

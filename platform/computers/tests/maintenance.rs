@@ -32,7 +32,14 @@ fn target() -> MaintenanceTarget {
         template_fingerprint: "b".repeat(64),
     }
 }
-async fn ready(db: &TestDb) -> (ComputersStore, ComputersStore, ComputerActor, Uuid) {
+async fn ready(
+    db: &TestDb,
+) -> (
+    ComputersStore,
+    ComputersStore,
+    ComputerActor,
+    veoveo_computers_contract::ComputerId,
+) {
     let actor = support::authenticated(&owner("alice"));
     let (a, b, id) = support::interactive::ready(db, &actor).await;
     support::policy::install(&db.a, control()).await;
@@ -56,12 +63,12 @@ async fn replicas_share_one_replacement_task_fence_and_retained_capacity() {
         let operation = result.unwrap();
         assert_eq!(operation.operation_id, expected.operation_id);
         assert_eq!(operation.target_instance_id, expected.target_instance_id);
-        assert_eq!(operation.source_instance_id, computer_id);
+        assert_eq!(operation.source_instance_id, computer_id.into_uuid());
         assert_eq!(operation.stage, MaintenanceStage::Queued);
         assert_eq!(operation.target, target);
         assert!(matches!(operation.source, MaintenanceSource::Ready { .. }));
     }
-    assert_ne!(expected.target_instance_id, computer_id);
+    assert_ne!(expected.target_instance_id, computer_id.into_uuid());
     let after = b.get(actor.owner(), computer_id).await.unwrap();
     assert_eq!(after.active_operation, Some(expected.operation_id));
     assert_eq!(after.phase, before.phase);
@@ -256,7 +263,7 @@ async fn failed_initial_create_is_fenced_without_reclassifying_its_unknown_effec
     let retained = a.get(actor.owner(), computer.computer_id).await.unwrap();
     assert_eq!(retained.active_operation, Some(replacement.operation_id));
     assert_eq!(retained.phase, ComputerPhase::RecoveryRequired);
-    assert_eq!(retained.instance_id(), computer.computer_id);
+    assert_eq!(retained.instance_id(), computer.computer_id.into_uuid());
     assert!(retained.provider_resource_id.is_none());
     assert!(matches!(
         a.reserve(
@@ -329,9 +336,12 @@ async fn maintenance_requires_current_named_policy_private_owner_and_no_executio
         .query("CREATE $slot CONTENT { computer_id: $computer, execution: $execution };")
         .bind((
             "slot",
-            RecordId::new("computer_execution_slot", StoreUuid::from(computer_id)),
+            RecordId::new(
+                "computer_execution_slot",
+                StoreUuid::from(computer_id.into_uuid()),
+            ),
         ))
-        .bind(("computer", computer_id))
+        .bind(("computer", computer_id.into_uuid()))
         .bind((
             "execution",
             RecordId::new("computer_execution", StoreUuid::from(Uuid::now_v7())),
@@ -363,7 +373,10 @@ async fn browser_admits_maintenance_for_an_existing_replacement() {
     support::policy::install(&db.a, control()).await;
     db.a.client()
         .query("UPDATE ONLY $computer SET replacement_instance_id = $replacement;")
-        .bind(("computer", RecordId::new("computer", StoreUuid::from(id))))
+        .bind((
+            "computer",
+            RecordId::new("computer", StoreUuid::from(id.into_uuid())),
+        ))
         .bind(("replacement", Uuid::now_v7()))
         .await
         .unwrap()

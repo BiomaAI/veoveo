@@ -32,7 +32,7 @@ struct Content {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct OperationRef {
-    computer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
     operation_id: Uuid,
 }
 
@@ -45,11 +45,11 @@ impl ComputersStore {
     pub async fn operation_for_request(
         &self,
         caller: &TaskOwner,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         request_id: Uuid,
         action: Action,
     ) -> Result<Option<Operation>> {
-        if request_id.is_nil() || computer.is_nil() {
+        if request_id.is_nil() {
             return Err(ComputerError::InvalidInput);
         }
         let mut response = self
@@ -79,7 +79,7 @@ impl ComputersStore {
     pub async fn queue_operation(
         &self,
         actor: ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         request_id: Uuid,
         action: Action,
     ) -> Result<Operation> {
@@ -150,11 +150,11 @@ impl ComputersStore {
         };
         let content = Content {
             operation_id: id,
-            computer_id,
+            computer_id: computer_id.into_uuid(),
             task: task_record_id(veoveo_types::TaskId::from_uuid(id)),
             actor_context: object(caller)?,
             owner_context: object(&computer.owner)?,
-            automation_grant_id: grant_id,
+            automation_grant_id: grant_id.map(crate::api::AutomationGrantId::into_uuid),
             execution_authority: object(actor.accepted())?,
             provider_instance_id: computer.provider_instance_id,
             template_fingerprint: computer.template_fingerprint,
@@ -295,7 +295,7 @@ impl ComputersStore {
 }
 pub(crate) fn request_record(
     caller: &TaskOwner,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     request: Uuid,
 ) -> Result<RecordId> {
     Ok(RecordId::new(
@@ -323,13 +323,13 @@ fn phase(value: ComputerPhase) -> String {
 }
 #[derive(Serialize)]
 struct Event<'a> {
-    computer_id: Uuid,
+    computer_id: veoveo_computers_contract::ComputerId,
     operation_id: Uuid,
     action: &'a str,
     actor: &'a str,
     authority: &'a veoveo_types::InvocationAuthority,
     owner: &'a str,
-    grant_id: Option<Uuid>,
+    grant_id: Option<crate::api::AutomationGrantId>,
 }
 fn object(value: &impl Serialize) -> Result<OpenObject> {
     let serde_json::Value::Object(fields) =

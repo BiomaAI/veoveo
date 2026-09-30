@@ -27,7 +27,11 @@ pub fn control() -> GatewayControlPlane {
 pub async fn ready(
     db: &super::TestDb,
     actor: &ComputerActor,
-) -> (ComputersStore, ComputersStore, Uuid) {
+) -> (
+    ComputersStore,
+    ComputersStore,
+    veoveo_computers_contract::ComputerId,
+) {
     super::policy::install(&db.a, control()).await;
     let a = ComputersStore::new(db.a.clone(), PROVIDER).unwrap();
     let b = ComputersStore::new(db.b.clone(), PROVIDER).unwrap();
@@ -54,7 +58,7 @@ pub async fn ready(
         .await
         .unwrap();
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'fixture-resource', process_id = 'fixture-process';")
-        .bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.computer_id))))
+        .bind(("computer", RecordId::new("computer", surrealdb::types::Uuid::from(computer.computer_id.into_uuid()))))
         .await.unwrap().check().unwrap();
     (a, b, computer.computer_id)
 }

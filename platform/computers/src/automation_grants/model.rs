@@ -31,8 +31,7 @@ pub(super) fn scope(
     Ok(())
 }
 pub(super) fn validate(input: &IssueAutomationGrantInput) -> Result<PrincipalId> {
-    if input.computer_id.is_nil()
-        || input.request_id.is_nil()
+    if input.request_id.is_nil()
         || input.name.trim() != input.name
         || input.name.is_empty()
         || input.name.len() > 64
@@ -121,8 +120,12 @@ impl TryFrom<Record> for Grant {
             .iter()
             .map(|s| permission(s))
             .collect::<Result<BTreeSet<_>>>()?;
+        let computer_id = crate::api::ComputerId::try_from(row.computer_id)
+            .map_err(|_| ComputerError::Unavailable)?;
+        let grant_id = crate::api::AutomationGrantId::try_from(row.grant_id)
+            .map_err(|_| ComputerError::Unavailable)?;
         let input = IssueAutomationGrantInput {
-            computer_id: row.computer_id,
+            computer_id,
             request_id: row.grant_id,
             principal_id: row.principal_id.clone(),
             oauth_client_id: row.oauth_client_id.clone(),
@@ -132,8 +135,7 @@ impl TryFrom<Record> for Grant {
             expires_at: row.expires_at,
         };
         validate(&input).map_err(|_| ComputerError::Unavailable)?;
-        if row.id != super::record(row.grant_id)
-            || row.grant_id.get_version_num() != 7
+        if row.id != super::record(grant_id)
             || row.provider_instance_id.is_nil()
             || permissions.len() != row.permissions.len()
             || row.expires_at <= row.issued_at
@@ -152,8 +154,8 @@ impl TryFrom<Record> for Grant {
         }
         Ok(Self {
             view: AutomationGrantView {
-                computer_id: row.computer_id,
-                grant_id: row.grant_id,
+                computer_id,
+                grant_id,
                 principal_id: row.principal_id,
                 oauth_client_id: row.oauth_client_id,
                 name: row.name,

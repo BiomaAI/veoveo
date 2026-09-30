@@ -121,7 +121,7 @@ async fn retained_collection_uses_current_profile_policy_and_indexed_owner_ident
             "computer",
             veoveo_platform_store::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer_id),
+                surrealdb::types::Uuid::from(computer_id.into_uuid()),
             ),
         ))
         .bind((

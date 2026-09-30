@@ -27,7 +27,7 @@ pub struct ExecutionDecision {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AutomationLifecycleDecision {
-    pub grant_id: uuid::Uuid,
+    pub grant_id: crate::api::AutomationGrantId,
     pub grant_revision: u64,
     pub owner: PolicyDecision,
 }

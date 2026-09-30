@@ -20,7 +20,6 @@ use axum::{
 use std::{sync::Arc, time::Duration};
 use tokio::sync::OwnedSemaphorePermit;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 use veoveo_computers::{ComputerActor, ComputerError, api::*};
 use veoveo_computers_runtime::{Binding, LeaseAuthority, TerminalSize};
 use veoveo_mcp_contract::GatewayInternalIdentity;
@@ -54,7 +53,7 @@ fn forbidden() -> HttpError {
 async fn ticket(
     State(transport): State<Transport>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     headers: HeaderMap,
     Json(_request): Json<TerminalTicketInput>,
 ) -> Result<Response, HttpError> {
@@ -98,7 +97,7 @@ async fn ticket(
 async fn upgrade(
     State(transport): State<Transport>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, HttpError> {
@@ -135,7 +134,10 @@ async fn upgrade(
         .max_write_buffer_size(128 * 1024)
         .on_upgrade(move |socket| run(socket, transport, actor, id, slot)))
 }
-async fn first(socket: &mut WebSocket, id: Uuid) -> Result<TerminalAttach, ()> {
+async fn first(
+    socket: &mut WebSocket,
+    id: veoveo_computers_contract::ComputerId,
+) -> Result<TerminalAttach, ()> {
     let Some(Ok(Message::Text(text))) = socket.recv().await else {
         return Err(());
     };
@@ -143,7 +145,7 @@ async fn first(socket: &mut WebSocket, id: Uuid) -> Result<TerminalAttach, ()> {
         return Err(());
     }
     let attach: TerminalAttach = serde_json::from_str(&text).map_err(|_| ())?;
-    if attach.version != TERMINAL_VERSION || attach.computer_id != id || id.is_nil() {
+    if attach.version != TERMINAL_VERSION || attach.computer_id != id {
         return Err(());
     }
     TerminalSize::new(attach.cols, attach.rows).map_err(|_| ())?;
@@ -153,7 +155,7 @@ async fn run(
     mut socket: WebSocket,
     transport: Transport,
     actor: ComputerActor,
-    id: Uuid,
+    id: veoveo_computers_contract::ComputerId,
     _slot: OwnedSemaphorePermit,
 ) {
     let attach = tokio::select! {
@@ -182,7 +184,7 @@ async fn run(
 async fn attached(
     socket: WebSocket,
     transport: &Transport,
-    id: Uuid,
+    id: veoveo_computers_contract::ComputerId,
     size: TerminalSize,
     handle: &veoveo_computers::session_grants::SessionGrantHandle,
 ) -> Result<(), ()> {
@@ -202,7 +204,7 @@ async fn attached(
             .map_err(|_| ())?;
     let (activity, updates) = authority::Activity::new();
     let binding = Binding::from_instance(
-        id,
+        id.into_uuid(),
         baseline.computer().instance_id(),
         baseline.computer().template_fingerprint.clone(),
     )

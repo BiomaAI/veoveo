@@ -8,9 +8,8 @@ use std::{
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
-use uuid::Uuid;
 use veoveo_computers_contract::{
-    TERMINAL_VERSION, TerminalAttach, TerminalResize, TerminalServerControl,
+    ComputerId, TERMINAL_VERSION, TerminalAttach, TerminalResize, TerminalServerControl,
 };
 
 struct Delivery {
@@ -23,7 +22,7 @@ struct Delivery {
 pub async fn relay(
     mut downstream: WebSocket,
     mut upstream: Upstream,
-    computer: Uuid,
+    computer: ComputerId,
     stop: CancellationToken,
 ) -> Result<()> {
     let first = tokio::select! {
@@ -41,7 +40,6 @@ pub async fn relay(
         serde_json::from_str(&first).map_err(|_| TransportError::Protocol)?;
     if attach.version != TERMINAL_VERSION
         || attach.computer_id != computer
-        || computer.is_nil()
         || !dimensions(attach.cols, attach.rows)
     {
         return Err(TransportError::Protocol);

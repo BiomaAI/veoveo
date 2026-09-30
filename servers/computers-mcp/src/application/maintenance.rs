@@ -16,7 +16,7 @@ impl Application {
     pub async fn maintenance_state(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<MaintenanceState> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(Some(computer_id))?;
@@ -67,7 +67,7 @@ impl Application {
     pub async fn maintenance_operation(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         task_id: Uuid,
     ) -> Result<MaintenanceView> {
         let authority = self.store.control_authority(actor).await?;

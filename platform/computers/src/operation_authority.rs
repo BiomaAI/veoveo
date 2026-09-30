@@ -38,13 +38,13 @@ impl ComputersStore {
     pub async fn automation_operation_for_request(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         request: Uuid,
-        grant: Uuid,
+        grant: crate::api::AutomationGrantId,
         action: Action,
     ) -> Result<Option<Operation>> {
         actor.check_admission()?;
-        if computer.is_nil() || request.is_nil() || grant.is_nil() {
+        if request.is_nil() {
             return Err(ComputerError::InvalidInput);
         }
         let mut read = self

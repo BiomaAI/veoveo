@@ -2,7 +2,11 @@ mod auth;
 mod automation;
 mod guard;
 pub(crate) mod resources;
+pub(crate) mod setup;
 mod subscriptions;
+pub fn validate_contract() {
+    std::sync::LazyLock::force(&setup::SERVER_SETUP);
+}
 mod task_authority;
 mod tasks;
 use crate::{Application, ApplicationError};
@@ -20,6 +24,7 @@ pub struct ComputersMcp {
 }
 impl ComputersMcp {
     pub fn new(app: Arc<Application>) -> Self {
+        validate_contract();
         Self { app }
     }
 }
@@ -51,22 +56,7 @@ impl ServerHandler for ComputersMcp {
         veoveo_mcp_contract::final_protocol_versions()
     }
     fn get_info(&self) -> ServerConfig {
-        let mut capabilities = ServerCapabilities::builder()
-            .enable_tools()
-            .enable_resources()
-            .enable_resources_subscribe()
-            .enable_prompts()
-            .enable_completions()
-            .build();
-        capabilities
-            .extensions
-            .get_or_insert_default()
-            .insert(TASKS_EXTENSION_ID.into(), JsonObject::new());
-        let mut info = ServerConfig::default();
-        info.capabilities = capabilities;
-        info.server_info = Implementation::new("computers", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some("Start by reading computer://computers to see your Computers, whether they are available, and which actions you may take. Call lifecycle tools as MCP Tasks with a requestId you reuse on retries. Disconnecting leaves work running; Stop ends processes and keeps the home directory. An operation marked Needs recovery had an uncertain outcome and will not run again automatically; check the Computer before retrying.".into());
-        info
+        setup::SERVER_SETUP.server_config().clone()
     }
     async fn list_tools(
         &self,
@@ -142,7 +132,14 @@ impl ServerHandler for ComputersMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
         auth::actor(&context)?;
-        let p = page(resources::roots(), params.as_ref())?;
+        let p = page(
+            setup::SERVER_SETUP
+                .resources()
+                .iter()
+                .map(|resource| resource.descriptor().clone())
+                .collect(),
+            params.as_ref(),
+        )?;
         Ok(ListResourcesResult {
             resources: p.items,
             next_cursor: p.next_cursor,
@@ -158,7 +155,14 @@ impl ServerHandler for ComputersMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, ErrorData> {
         auth::actor(&context)?;
-        let p = page(resources::templates(), params.as_ref())?;
+        let p = page(
+            setup::SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            params.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: p.items,
             next_cursor: p.next_cursor,
@@ -222,10 +226,10 @@ impl ServerHandler for ComputersMcp {
             (&request.r#ref, request.argument.name.as_str())
             && matches!(
                 reference.uri.as_str(),
-                resources::COMPUTER_TEMPLATE
-                    | resources::ACCESS_TEMPLATE
-                    | resources::AUTOMATION_TEMPLATE
-                    | resources::GRANT_TEMPLATE
+                veoveo_computers_contract::COMPUTER_TEMPLATE
+                    | veoveo_computers_contract::ACCESS_TEMPLATE
+                    | veoveo_computers_contract::AUTOMATION_TEMPLATE
+                    | veoveo_computers_contract::GRANT_TEMPLATE
             )
         {
             let authority = self
@@ -237,7 +241,7 @@ impl ServerHandler for ComputersMcp {
             authority
                 .require_read(None)
                 .map_err(|_| auth::forbidden())?;
-            let (ids, more) = if reference.uri == resources::COMPUTER_TEMPLATE {
+            let (ids, more) = if reference.uri == veoveo_computers_contract::COMPUTER_TEMPLATE {
                 self.app
                     .store
                     .complete_accessible_ids(&actor, &authority, &request.argument.value)
@@ -258,8 +262,10 @@ impl ServerHandler for ComputersMcp {
             ));
         }
         let values = match (&request.r#ref, request.argument.name.as_str()) {
-            (Reference::Resource(r), "doc_id") if r.uri == resources::DOC_TEMPLATE => {
-                resources::DOCS
+            (Reference::Resource(r), "doc_id")
+                if r.uri == veoveo_computers_contract::DOC_TEMPLATE =>
+            {
+                setup::SERVER_DOCS
                     .iter()
                     .map(|d| d.id.to_owned())
                     .filter(|id| id.starts_with(&request.argument.value))

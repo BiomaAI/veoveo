@@ -153,7 +153,7 @@ impl ComputersStore {
         if current.provider_instance_id != binding.provider_instance_id
             || current
                 .replacement_instance_id
-                .unwrap_or(current.computer_id)
+                .unwrap_or(current.computer_id.into_uuid())
                 != binding.instance_id
             || crate::identity::owner_key(&current.owner)? != binding.owner_key
             || current.template_fingerprint != binding.template_fingerprint

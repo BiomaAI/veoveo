@@ -6,7 +6,7 @@ use axum::{
     http::{HeaderMap, StatusCode, header},
     response::Response,
 };
-use uuid::Uuid;
+use veoveo_computers_contract::ComputerId;
 use veoveo_computers_transport::{
     CliCredentialFraming, CliRelayMode, CliUpstreamRequest, MAX_MESSAGE_BYTES, cli_authorization,
     relay_cli,
@@ -22,7 +22,7 @@ pub(super) async fn root(
 }
 pub(super) async fn scoped(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<ComputerId>,
     RawQuery(query): RawQuery,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
@@ -31,14 +31,11 @@ pub(super) async fn scoped(
 }
 async fn upgrade(
     state: AppState,
-    computer: Option<Uuid>,
+    computer: Option<ComputerId>,
     query: Option<String>,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Response {
-    if computer.is_some_and(|id| id.is_nil()) {
-        return fault(StatusCode::BAD_REQUEST);
-    }
     let Ok(authorization) =
         cli_authorization(&headers, CliCredentialFraming::Stock, query.as_deref())
     else {

@@ -1,4 +1,10 @@
 //! Canonical public JSON contract. Generate every client model from schema_bundle().
+mod ids;
+pub use ids::*;
+mod resources;
+pub use resources::*;
+mod scopes;
+pub use scopes::*;
 mod task_kind;
 pub use task_kind::ComputerTaskKind;
 mod access;
@@ -17,11 +23,6 @@ pub use pairing::*;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
-pub const COMPUTERS_URI: &str = "computer://computers";
-pub fn computer_uri(id: Uuid) -> String {
-    format!("{COMPUTERS_URI}/{id}")
-}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -88,7 +89,7 @@ pub struct ComputerSnapshot {
     pub limits: Option<ComputerLimits>,
     pub can_create: bool,
     pub computers: Vec<ComputerView>,
-    pub next_cursor: Option<Uuid>,
+    pub next_cursor: Option<crate::ComputerId>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -105,7 +106,7 @@ pub enum CapacityAvailability {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerView {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub access_mode: ComputerAccessMode,
     /// Current named grants available to this grantee; owners manage their grant
     /// inventory through the separate owner-only resource.
@@ -153,7 +154,7 @@ pub enum ComputerExecution {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationReceipt {
     pub task_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub action: Action,
     pub status: OperationStatus,
 }
@@ -163,7 +164,7 @@ pub struct OperationReceipt {
 pub struct LifecycleResult {
     #[serde(rename = "result_uri", skip_serializing_if = "Option::is_none")]
     pub result_uri: Option<String>,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub operation_id: Uuid,
     pub action: Action,
 }
@@ -173,7 +174,7 @@ pub struct LifecycleResult {
 pub struct MaintenanceResult {
     #[serde(rename = "result_uri")]
     pub result_uri: String,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub maintenance_id: Uuid,
     pub template_id: String,
 }
@@ -182,7 +183,7 @@ pub struct MaintenanceResult {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct OperationView {
     pub task_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub action: Action,
     pub status: OperationStatus,
     pub computer: Option<ComputerView>,
@@ -198,7 +199,7 @@ pub struct CreateInput {
     pub request_id: Uuid,
     /// Continue provisioning an owned reservation, or omit for a new Computer.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub computer_id: Option<Uuid>,
+    pub computer_id: Option<crate::ComputerId>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -206,7 +207,7 @@ pub struct CreateInput {
 pub struct StartInput {
     pub request_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<crate::AutomationGrantId>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -214,16 +215,16 @@ pub struct StartInput {
 pub struct StopInput {
     pub request_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<crate::AutomationGrantId>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct LifecycleInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub request_id: Uuid,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<crate::AutomationGrantId>,
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -253,7 +254,7 @@ impl TerminalToken {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TerminalTicket {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub token: TerminalToken,
     pub expires_at: DateTime<Utc>,
     /// Same-origin authenticated WebSocket path; the BFF rewrites its own edge.
@@ -296,7 +297,7 @@ pub enum ComputerEventKind {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ComputerEvent {
     pub kind: ComputerEventKind,
-    pub computer_id: Option<Uuid>,
+    pub computer_id: Option<crate::ComputerId>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -366,7 +367,7 @@ pub struct TerminalAttach {
     pub version: u8,
     #[serde(rename = "type")]
     pub kind: TerminalAttachKind,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub token: TerminalToken,
     #[schemars(range(min = 2, max = 500))]
     pub cols: u32,

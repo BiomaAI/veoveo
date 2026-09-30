@@ -7,7 +7,7 @@ use uuid::Uuid;
 use veoveo_platform_store::OpenObject;
 
 pub struct SessionGrantTicket {
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub token: TerminalToken,
     pub expires_at: DateTime<Utc>,
 }
@@ -65,6 +65,9 @@ pub(super) struct Record {
     pub process_id: String,
 }
 impl Record {
+    pub fn computer_id(&self) -> Result<crate::api::ComputerId> {
+        crate::api::ComputerId::try_from(self.computer_id).map_err(|_| ComputerError::Unavailable)
+    }
     pub fn accepted(&self) -> Result<AcceptedAuthority> {
         let accepted: AcceptedAuthority = serde_json::from_value(
             serde_json::to_value(&self.authority).map_err(|_| ComputerError::Unavailable)?,

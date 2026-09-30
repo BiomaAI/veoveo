@@ -18,6 +18,28 @@ mod tests {
     use super::*;
     use veoveo_artifact_mcp::contract::ArtifactResource;
     #[test]
+    fn computers_consumers_share_owned_ids_and_addresses() {
+        use veoveo_computers_mcp::contract::{
+            AutomationGrantId, ComputerId, ComputerResource, ExecutionId, ExecutionResultUri,
+        };
+        let computer = ComputerId::new();
+        let grant = AutomationGrantId::new();
+        let execution = ExecutionId::new();
+        let result = ExecutionResultUri::new(execution);
+        assert_eq!(result.execution_id(), execution);
+        for resource in [
+            ComputerResource::Computer(computer),
+            ComputerResource::Collection(Some(computer)),
+            ComputerResource::Grant { computer, grant },
+            ComputerResource::Execution(execution),
+        ] {
+            assert_eq!(
+                ComputerResource::parse(resource.to_uri().as_str()).unwrap(),
+                resource
+            );
+        }
+    }
+    #[test]
     fn media_consumers_share_typed_model_and_artifact_addresses() {
         use veoveo_media_mcp::contract::{MediaArtifactUri, MediaModelUri, MediaResource, RunArgs};
         use veoveo_types::ResourceAddress;

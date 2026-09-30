@@ -47,7 +47,7 @@ impl MaintenanceWorker {
             MaintenanceStage::Succeeded => {
                 let uri = veoveo_computers::api::computer_uri(operation.computer_id);
                 let payload = veoveo_computers::api::MaintenanceResult {
-                    result_uri: uri.clone(),
+                    result_uri: uri.to_string(),
                     computer_id: operation.computer_id,
                     maintenance_id: operation.operation_id,
                     template_id: operation.target.template_id.clone(),

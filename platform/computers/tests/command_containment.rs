@@ -16,7 +16,7 @@ async fn dispatched(
     ComputersStore,
     ComputerActor,
     ClaimedTask,
-    Uuid,
+    veoveo_computers_contract::AutomationGrantId,
 ) {
     let (a, b, owner, agent, computer) = support::automation::setup(db).await;
     let grant = a

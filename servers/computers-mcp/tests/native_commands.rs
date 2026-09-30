@@ -66,8 +66,8 @@ fn payload(script: &str, seconds: u32) -> CommandPayload {
 async fn queue(
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
     payload: CommandPayload,
     keys: &ComputerKeyRing,
     plane: &HttpArtifactPlane,
@@ -213,10 +213,14 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     .unwrap();
     // Isolated fixture adoption: qualify all command/lifecycle paths against a
     // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id, selected.fingerprint()).unwrap();
+    let initial = Binding::new(computer.computer_id.into_uuid(), selected.fingerprint()).unwrap();
     let replacement_id = Uuid::now_v7();
-    let binding =
-        Binding::replacement(computer.computer_id, replacement_id, selected.fingerprint()).unwrap();
+    let binding = Binding::replacement(
+        computer.computer_id.into_uuid(),
+        replacement_id,
+        selected.fingerprint(),
+    )
+    .unwrap();
     let allocator = home.worker(home.provider).await;
     allocator.prepare(&initial).await.unwrap();
     allocator
@@ -229,7 +233,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
             "computer",
             surrealdb::types::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer.computer_id),
+                surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
             ),
         ))
         .bind(("instance", replacement_id))
@@ -814,7 +818,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     assert_eq!(retained.active_operation, None);
     assert_eq!(retained.instance_id(), operation.target_instance_id);
     let replacement = Binding::from_instance(
-        retained.computer_id,
+        retained.computer_id.into_uuid(),
         retained.instance_id(),
         retained.template_fingerprint.clone(),
     )
@@ -832,7 +836,7 @@ async fn governed_command_worker_publishes_real_outputs_and_contains_revoked_exe
     assert_eq!(result.maintenance_id, operation.operation_id);
     assert_eq!(
         result.result_uri,
-        veoveo_computers::api::computer_uri(computer.computer_id)
+        veoveo_computers::api::computer_uri(computer.computer_id).as_str()
     );
     assert!(b.pending_maintenance(None, 100).await.unwrap().is_empty());
     inspect(

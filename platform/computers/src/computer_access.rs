@@ -11,7 +11,7 @@ use veoveo_platform_store::deterministic_principal_id;
 
 pub struct ComputerReadPage {
     pub computers: Vec<ComputerReadAccess>,
-    pub next_cursor: Option<Uuid>,
+    pub next_cursor: Option<veoveo_computers_contract::ComputerId>,
 }
 
 pub struct ComputerReadAccess {
@@ -93,14 +93,14 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
-        computer: Uuid,
-        grant: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: crate::api::AutomationGrantId,
     ) -> Result<bool> {
         control.require_actor(actor)?;
         control.require_read(None)?;
         let mut params = scope(actor)?;
         params.extend([
-            ("computer", computer.into_value()),
+            ("computer", computer.into_uuid().into_value()),
             (
                 "grant",
                 crate::automation_grants::record(grant).into_value(),
@@ -118,13 +118,13 @@ impl ComputersStore {
             .await?;
         let ids: Vec<Uuid> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         control.require_read(None)?;
-        Ok(ids == [grant])
+        Ok(ids == [grant.into_uuid()])
     }
     pub async fn read_accessible_computers(
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
-        after: Option<Uuid>,
+        after: Option<crate::api::ComputerId>,
         limit: u32,
     ) -> Result<ComputerReadPage> {
         self.read_accessible_page(actor, control, after, limit, "")
@@ -159,7 +159,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
-        after: Option<Uuid>,
+        after: Option<crate::api::ComputerId>,
         limit: u32,
         prefix: &str,
     ) -> Result<ComputerReadPage> {
@@ -229,7 +229,7 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
-        id: Uuid,
+        id: crate::api::ComputerId,
     ) -> Result<ComputerReadAccess> {
         control.require_actor(actor)?;
         control.require_read(Some(id))?;
@@ -252,7 +252,7 @@ impl ComputersStore {
         tokio::time::timeout_at(tokio::time::Instant::from_std(deadline), async {
             let mut params = scope(actor)?;
             params.extend([
-                ("computer", id.into_value()),
+                ("computer", id.into_uuid().into_value()),
                 ("provider", self.provider_instance_id.into_value()),
             ]);
             let mut read = self
@@ -267,6 +267,8 @@ impl ComputersStore {
             let mut expiry = deadline;
             let mut file_transfer = false;
             for grant in ids {
+                let grant = crate::api::AutomationGrantId::try_from(grant)
+                    .map_err(|_| ComputerError::Unavailable)?;
                 let authority = match self.automation_access_scope(actor, id, grant).await {
                     Ok(authority) => authority,
                     Err(ComputerError::Forbidden | ComputerError::NotFound) => continue,
@@ -320,10 +322,10 @@ impl ComputersStore {
         &self,
         actor: &ComputerActor,
         control: &ControlAuthority,
-        after: Option<Uuid>,
+        after: Option<crate::api::ComputerId>,
         limit: u32,
         prefix: &str,
-    ) -> Result<(Vec<Uuid>, Option<Uuid>)> {
+    ) -> Result<(Vec<crate::api::ComputerId>, Option<crate::api::ComputerId>)> {
         if !(1..=100).contains(&limit) {
             return Err(ComputerError::InvalidInput);
         }
@@ -333,7 +335,10 @@ impl ComputersStore {
         params.extend(crate::store::owner_query_bindings(actor.owner())?);
         params.extend([
             ("provider", self.provider_instance_id.into_value()),
-            ("after", after.into_value()),
+            (
+                "after",
+                after.map(crate::api::ComputerId::into_uuid).into_value(),
+            ),
             ("limit", i64::from(limit + 1).into_value()),
             ("prefix", prefix.to_owned().into_value()),
         ]);
@@ -347,7 +352,12 @@ impl ComputersStore {
             .num_statements()
             .checked_sub(1)
             .ok_or(ComputerError::Unavailable)?;
-        let mut ids: Vec<Uuid> = read.take(result).map_err(|_| ComputerError::Unavailable)?;
+        let ids: Vec<Uuid> = read.take(result).map_err(|_| ComputerError::Unavailable)?;
+        let mut ids = ids
+            .into_iter()
+            .map(crate::api::ComputerId::try_from)
+            .collect::<std::result::Result<Vec<_>, _>>()
+            .map_err(|_| ComputerError::Unavailable)?;
         let more = ids.len() > limit as usize;
         ids.truncate(limit as usize);
         let next = more.then(|| *ids.last().expect("nonzero limit"));

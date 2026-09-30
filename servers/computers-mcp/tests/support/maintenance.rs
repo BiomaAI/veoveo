@@ -66,7 +66,7 @@ async fn maintenance_http_mcp_retry_and_current_task_authority_share_one_fence()
         .unwrap()
         .computer_id;
     db.a.client().query("UPDATE ONLY $computer SET phase = 'ready', provider_resource_id = 'private-source-resource', process_id = 'private-source-process';")
-        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer))))
+        .bind(("computer", surrealdb::types::RecordId::new("computer", surrealdb::types::Uuid::from(computer.into_uuid()))))
         .await.unwrap().check().unwrap();
     let client = client();
     let alice = signing.bearer("alice", "computers");

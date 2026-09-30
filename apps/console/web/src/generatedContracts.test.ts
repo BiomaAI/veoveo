@@ -52,6 +52,11 @@ test("canonical Computer schemas reject unknown properties, invalid UUIDs, enums
   for (const altered of [
     { ...computer, owner: "forged" },
     { ...computer, computerId: "bad" },
+    { ...computer, computerId: id.toUpperCase() },
+    { ...computer, computerId: id.replaceAll("-", "") },
+    { ...computer, computerId: id.replace("-7000-", "-4000-") },
+    { ...computer, computerId: id.replace("-8000-", "-c000-") },
+    { ...computer, computerId: `${id}\n` },
     { ...computer, phase: "unknown" },
     { ...computer, canConnect: undefined },
     { ...computer, createdAt: "yesterday" },

@@ -44,7 +44,7 @@ async fn stock_cli_uses_both_public_routes_without_cookie_authority_or_lease_tex
     tokio::time::timeout(Duration::from_secs(10), async {
         let mut fixture = Fixture::new().await;
         let base = terminal::listen(&mut fixture).await;
-        let id = Uuid::new_v4();
+        let id = veoveo_computers_contract::ComputerId::new();
         let token = format!("vcli1.{}.{}", Uuid::new_v4(), "a".repeat(64));
         for path in ["/_ws_tunnel".into(), format!("/console/computers/{id}/_ws_tunnel")] {
             let mut request = format!("{base}{path}").into_client_request().unwrap();
@@ -74,7 +74,7 @@ async fn stock_cli_uses_both_public_routes_without_cookie_authority_or_lease_tex
 #[tokio::test]
 async fn pairing_posts_require_csrf_and_exact_origin_and_have_fixed_profile_paths() {
     let fixture = Fixture::new().await;
-    let id = Uuid::new_v4();
+    let id = veoveo_computers_contract::ComputerId::new();
     let pairing = Uuid::new_v4();
     for suffix in [
         "cli-pairings".into(),

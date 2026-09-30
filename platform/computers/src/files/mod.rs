@@ -27,8 +27,11 @@ pub use model::FileOperation;
 pub use outcome::{FileInterruption, FileOutcome, FileRefusal};
 pub use preparation::FilePreparation;
 
-fn record(id: uuid::Uuid) -> surrealdb::types::RecordId {
-    surrealdb::types::RecordId::new("computer_file_transfer", surrealdb::types::Uuid::from(id))
+fn record(id: crate::api::FileTransferId) -> surrealdb::types::RecordId {
+    surrealdb::types::RecordId::new(
+        "computer_file_transfer",
+        surrealdb::types::Uuid::from(id.into_uuid()),
+    )
 }
 fn object(value: &impl serde::Serialize) -> crate::Result<veoveo_platform_store::OpenObject> {
     serde_json::from_value(

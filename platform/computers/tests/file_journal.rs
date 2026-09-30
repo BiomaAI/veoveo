@@ -203,7 +203,7 @@ async fn known_import_export_and_rejection_release_the_slot_and_preserve_exact_r
             assert_eq!(result.sha256, hex::encode([7; 32]));
             assert_eq!(
                 result.result_uri,
-                FileTransferResultUri::new(completed.transfer_id()).unwrap()
+                FileTransferResultUri::new(completed.transfer_id())
             );
             assert_eq!(result.direction, payload.transfer().direction());
             tasks.transition(&completed.task_id().to_string(), TaskTransition::Succeeded {message:"File transferred".into(),result:serde_json::json!({"content":[],"structuredContent":result,"isError":false})}).await.unwrap();

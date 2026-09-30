@@ -104,7 +104,7 @@ impl Application {
     pub async fn snapshot(
         &self,
         actor: &ComputerActor,
-        after: Option<Uuid>,
+        after: Option<ComputerId>,
     ) -> Result<ComputerSnapshot> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(None)?;
@@ -158,7 +158,11 @@ impl Application {
             next_cursor: page.next_cursor,
         })
     }
-    pub async fn computer(&self, actor: &ComputerActor, id: Uuid) -> Result<ComputerView> {
+    pub async fn computer(
+        &self,
+        actor: &ComputerActor,
+        id: veoveo_computers_contract::ComputerId,
+    ) -> Result<ComputerView> {
         let authority = self.store.control_authority(actor).await?;
         authority.require_read(Some(id))?;
         let mut computer = self
@@ -182,7 +186,7 @@ impl Application {
     pub async fn operation(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         operation_id: Uuid,
     ) -> Result<Operation> {
         let access = self
@@ -198,7 +202,7 @@ impl Application {
     pub async fn access_grants(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<AccessGrantCollection> {
         Ok(self.store.access_grants(actor, computer_id).await?)
     }
@@ -389,7 +393,7 @@ impl Application {
     async fn accept(
         &self,
         actor: ComputerActor,
-        computer: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
         request: Uuid,
         action: Action,
         authority: &ControlAuthority,

@@ -90,7 +90,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
             2 => seen.replacement_instance_id = Some(Uuid::now_v7()),
             3 => seen.template_fingerprint = "0".repeat(64),
             4 => seen.phase = ReachedPhase::Stopped,
-            _ => seen.computer_id = Uuid::now_v7(),
+            _ => seen.computer_id = veoveo_computers_contract::ComputerId::new(),
         }
         assert!(matches!(
             store
@@ -121,7 +121,7 @@ async fn restart_observation_cannot_replace_identity_or_cross_an_operation_fence
     );
     db.a.client()
         .query("UPDATE ONLY $computer SET active_operation = $op;")
-        .bind(("computer", record("computer", id)))
+        .bind(("computer", record("computer", id.into_uuid())))
         .bind(("op", Uuid::now_v7()))
         .await
         .unwrap()
@@ -147,8 +147,8 @@ async fn restart_observation_preserves_unresolved_command_or_file_slot() {
     let before = store.get(actor.owner(), id).await.unwrap();
     db.a.client()
         .query("CREATE $slot CONTENT {computer_id:$id, execution:$execution};")
-        .bind(("slot", record("computer_execution_slot", id)))
-        .bind(("id", id))
+        .bind(("slot", record("computer_execution_slot", id.into_uuid())))
+        .bind(("id", id.into_uuid()))
         .bind(("execution", record("computer_execution", Uuid::now_v7())))
         .await
         .unwrap()

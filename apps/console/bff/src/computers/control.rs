@@ -9,11 +9,11 @@ use axum::{
 use serde::Deserialize;
 use std::time::Duration;
 use uuid::Uuid;
-use veoveo_computers_contract::TerminalTicket;
+use veoveo_computers_contract::{ComputerId, TerminalTicket};
 
 #[derive(Deserialize)]
 pub(super) struct Route {
-    id: Option<Uuid>,
+    id: Option<ComputerId>,
     operation_id: Option<Uuid>,
     grant_id: Option<Uuid>,
     pairing_id: Option<Uuid>,
@@ -21,7 +21,7 @@ pub(super) struct Route {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Page {
-    after: Option<Uuid>,
+    after: Option<ComputerId>,
 }
 
 pub(super) async fn proxy(
@@ -46,9 +46,7 @@ pub(super) async fn proxy(
     ) else {
         return fault(StatusCode::BAD_REQUEST);
     };
-    if (request.uri().query().is_some() && !(path.is_empty() && request.method() == Method::GET))
-        || page.after.is_some_and(|id| id.is_nil())
-    {
+    if request.uri().query().is_some() && !(path.is_empty() && request.method() == Method::GET) {
         return fault(StatusCode::BAD_REQUEST);
     }
     let ticket = matched.as_str().ends_with("/terminal-ticket");
@@ -128,13 +126,12 @@ pub(super) async fn proxy(
 
 fn upstream_path(
     matched: &str,
-    id: Option<Uuid>,
+    id: Option<ComputerId>,
     operation_id: Option<Uuid>,
     grant_id: Option<Uuid>,
     pairing_id: Option<Uuid>,
 ) -> Option<String> {
-    if id.is_some_and(|id| id.is_nil())
-        || operation_id.is_some_and(|id| id.is_nil())
+    if operation_id.is_some_and(|id| id.is_nil())
         || grant_id.is_some_and(|id| id.is_nil())
         || pairing_id.is_some_and(|id| id.is_nil())
         || [grant_id, operation_id, pairing_id]
@@ -200,7 +197,7 @@ mod tests {
 
     #[test]
     fn file_paths_use_only_fixed_parent_and_task_routes() {
-        let computer = Uuid::now_v7();
+        let computer = ComputerId::new();
         let task = Uuid::now_v7();
         for (route, expected, operation) in [
             ("/computers/{id}/files", format!("/{computer}/files"), None),
@@ -220,7 +217,9 @@ mod tests {
                 Some(expected)
             );
             assert!(upstream_path(route, None, operation, None, None).is_none());
-            assert!(upstream_path(route, Some(Uuid::nil()), operation, None, None).is_none());
+            assert!(
+                serde_json::from_value::<Route>(serde_json::json!({"id": Uuid::nil()})).is_err()
+            );
         }
         assert!(
             upstream_path(

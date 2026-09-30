@@ -11,7 +11,7 @@ use veoveo_task_runtime::TaskRuntime;
 async fn grant(
     store: &ComputersStore,
     owner: &ComputerActor,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
 ) -> AutomationGrantView {
     let mut input = support::automation::input(computer);
     input.permissions = [
@@ -27,8 +27,8 @@ async fn grant(
 async fn queue(
     store: &ComputersStore,
     agent: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
     request: Uuid,
     action: Action,
 ) -> Result<Operation, ComputerError> {
@@ -543,7 +543,7 @@ async fn a_grant_does_not_admit_create_other_computers_other_clients_or_changed_
         queue(
             &store,
             &agent,
-            Uuid::now_v7(),
+            veoveo_computers_contract::ComputerId::new(),
             first.grant_id,
             Uuid::now_v7(),
             Action::Stop

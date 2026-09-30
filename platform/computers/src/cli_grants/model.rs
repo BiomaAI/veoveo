@@ -8,7 +8,7 @@ use veoveo_platform_store::{OpenObject, gateway_refresh_family_record_id};
 
 pub struct CliPairing {
     pub pairing_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -29,7 +29,7 @@ impl CliGrantCredential {
 }
 pub struct PairedCliGrant {
     pub grant_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub credential: CliGrantCredential,
     pub callback_port: u16,
     pub expires_at: DateTime<Utc>,
@@ -89,6 +89,9 @@ pub(super) struct Grant {
     pub revoked_at: Option<DateTime<Utc>>,
 }
 impl Grant {
+    pub fn computer_id(&self) -> Result<crate::api::ComputerId> {
+        crate::api::ComputerId::try_from(self.computer_id).map_err(|_| ComputerError::Unavailable)
+    }
     pub fn accepted(&self) -> Result<AcceptedAuthority> {
         let accepted: AcceptedAuthority = serde_json::from_value(
             serde_json::to_value(&self.authority).map_err(|_| ComputerError::Unavailable)?,

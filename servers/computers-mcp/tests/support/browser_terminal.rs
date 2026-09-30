@@ -113,7 +113,11 @@ impl Server {
             jobs: vec![serve, probe, first_job, second_job],
         }
     }
-    async fn ticket(&self, id: Uuid, bearer: &str) -> TerminalTicket {
+    async fn ticket(
+        &self,
+        id: veoveo_computers_contract::ComputerId,
+        bearer: &str,
+    ) -> TerminalTicket {
         let response = http()
             .post(format!("{}/computers/{id}/terminal-ticket", self.base))
             .bearer_auth(bearer)
@@ -126,7 +130,7 @@ impl Server {
         assert_eq!(response.headers()["cache-control"], "no-store");
         response.json().await.unwrap()
     }
-    async fn socket(&self, id: Uuid, bearer: &str) -> Socket {
+    async fn socket(&self, id: veoveo_computers_contract::ComputerId, bearer: &str) -> Socket {
         let mut request = format!(
             "{}/computers/{id}/terminal",
             self.terminal.replace("http://", "ws://")
@@ -269,7 +273,7 @@ pub async fn qualify(
     db: &support::TestDb,
     runtime: OpenShellRuntime,
     template: DevelopmentTemplate,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
 ) {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let mut control = support::policy::control();

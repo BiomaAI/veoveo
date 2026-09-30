@@ -12,7 +12,7 @@ impl CommandWorker {
         let operation = self.store.begin_command_containment(claim, reason).await?;
         let b = operation.binding();
         let binding = Binding::from_instance(
-            b.computer_id,
+            b.computer_id.into_uuid(),
             b.instance_id(),
             b.template_fingerprint.clone(),
         )

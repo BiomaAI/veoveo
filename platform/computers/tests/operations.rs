@@ -262,7 +262,7 @@ async fn action_admission_preserves_the_previous_run_and_checks_current_membersh
     let computer = store.reserve(&alice, &request()).await.unwrap();
     let record = surrealdb::types::RecordId::new(
         "computer",
-        surrealdb::types::Uuid::from(computer.computer_id),
+        surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
     );
     // Simulated completed provider observation; this fixture tests durable admission.
     db.a.client().query("UPDATE ONLY $computer SET phase = 'stopped', provider_resource_id = 'sandbox-1', process_id = 'run-1', updated_at = time::now();").bind(("computer", record)).await.unwrap().check().unwrap();

@@ -21,7 +21,7 @@ async fn setup(
     ComputersStore,
     ComputerActor,
     ComputerActor,
-    Uuid,
+    veoveo_computers_contract::ComputerId,
 ) {
     let state = support::automation::setup(db).await;
     let mut control = support::automation::control();
@@ -101,7 +101,7 @@ async fn replicas_reserve_one_file_slot_and_recover_the_same_private_task() {
                         "record",
                         surrealdb::types::RecordId::new(
                             "computer_file_transfer",
-                            surrealdb::types::Uuid::from(id),
+                            surrealdb::types::Uuid::from(id.into_uuid()),
                         ),
                     ))
                     .await
@@ -200,9 +200,13 @@ async fn delegated_file_admission_enforces_bounds_and_revocation_at_commit() {
         .await
         .unwrap();
     assert!(
-        b.file_transfer_authority(&agent, Uuid::now_v7(), Some(grant.grant_id))
-            .await
-            .is_err()
+        b.file_transfer_authority(
+            &agent,
+            veoveo_computers_contract::ComputerId::new(),
+            Some(grant.grant_id)
+        )
+        .await
+        .is_err()
     );
     let authority = b
         .file_transfer_authority(&agent, computer, Some(grant.grant_id))
@@ -283,10 +287,13 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
         FileCapabilityRequest::Import(request) => request,
         _ => panic!("read capability required"),
     };
-    assert_eq!(request.task_id.as_uuid(), operation.transfer_id());
+    assert_eq!(
+        request.task_id.as_uuid(),
+        operation.transfer_id().into_uuid()
+    );
     assert_eq!(request.max_artifact_count.get(), 1);
     assert_eq!(request.max_total_bytes.get(), 1024);
-    let access = |task: Uuid| FileTransferAccess::Import {
+    let access = |task: veoveo_computers_contract::FileTransferId| FileTransferAccess::Import {
         capability: IssuedArtifactReadCapability {
             capability_id: ArtifactReadCapabilityId::new(),
             secret: ArtifactReadCapabilitySecret::new("private-file-capability-fixture-1234567890")
@@ -296,8 +303,12 @@ async fn artifact_access_is_task_bound_private_and_first_adequate_receipt_wins()
         },
     };
     assert!(matches!(
-        a.attach_file_artifact_access(&operation, access(Uuid::now_v7()), &keys)
-            .await,
+        a.attach_file_artifact_access(
+            &operation,
+            access(veoveo_computers_contract::FileTransferId::new()),
+            &keys
+        )
+        .await,
         Err(ComputerError::InvalidInput)
     ));
     let (left, right) = futures::join!(

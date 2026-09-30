@@ -1,12 +1,13 @@
 //! Validate public file identity and bounds; the domain owns current authority.
-use uuid::Uuid;
 use veoveo_computers_contract as api;
 
-pub(super) fn input(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
+pub(super) fn input(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<Vec<u8>, ()> {
     let input: api::TransferFileInput = serde_json::from_slice(bytes).map_err(|_| ())?;
     if input.computer_id != computer
         || input.request_id.get_version_num() != 7
-        || input.grant_id.is_some_and(|id| id.get_version_num() != 7)
         || !(1..=300).contains(&input.limits.maximum_seconds)
         || !(1..=api::MAX_TRANSFER_BYTES).contains(&input.limits.maximum_bytes)
     {
@@ -15,11 +16,15 @@ pub(super) fn input(bytes: &[u8], computer: Uuid) -> Result<Vec<u8>, ()> {
     serde_json::to_vec(&input).map_err(|_| ())
 }
 
-pub(super) fn receipt(bytes: &[u8], computer: Uuid, task: Option<Uuid>) -> Result<Vec<u8>, ()> {
+pub(super) fn receipt(
+    bytes: &[u8],
+    computer: veoveo_computers_contract::ComputerId,
+    task: Option<api::FileTransferId>,
+) -> Result<Vec<u8>, ()> {
     let value: api::FileTransferView = serde_json::from_slice(bytes).map_err(|_| ())?;
     if value.computer_id != computer
         || value.task_id.get_version_num() != 7
-        || task.is_some_and(|id| id != value.task_id)
+        || task.is_some_and(|id| id.into_uuid() != value.task_id)
         || value.message.as_ref().is_some_and(|s| s.len() > 4096)
         || (value.can_cancel
             && (value.cancellation_requested_at.is_some()
@@ -36,8 +41,8 @@ pub(super) fn receipt(bytes: &[u8], computer: Uuid, task: Option<Uuid>) -> Resul
     if let Some(result) = &value.result
         && (value.stage != api::FileTransferStage::Completed
             || result.computer_id != computer
-            || result.transfer_id != value.task_id
-            || result.result_uri.transfer_id() != value.task_id
+            || result.transfer_id.into_uuid() != value.task_id
+            || result.result_uri.transfer_id().into_uuid() != value.task_id
             || result.direction != value.direction
             || result.artifact_id.get_version_num() != 7
             || result.bytes > api::MAX_TRANSFER_BYTES
@@ -56,12 +61,13 @@ pub(super) fn receipt(bytes: &[u8], computer: Uuid, task: Option<Uuid>) -> Resul
 mod tests {
     use super::*;
     use serde_json::json;
+    use uuid::Uuid;
 
     #[test]
     fn routes_keep_file_admission_and_current_owner_cancellation_separate() {
         use super::super::routes::Operation;
         use axum::http::Method;
-        let computer = Uuid::now_v7();
+        let computer = api::ComputerId::new();
         let task = Uuid::now_v7();
         let admission = Operation::from_route(
             "/computers/{profile}/{id}/files",
@@ -91,7 +97,7 @@ mod tests {
             );
             assert!(!action.requires_contributor());
             assert!(
-                matches!(action.authorization().0, veoveo_mcp_contract::PolicyTarget::Resource { uri, .. } if uri.as_str() == api::computer_uri(computer))
+                matches!(action.authorization().0, veoveo_mcp_contract::PolicyTarget::Resource { uri, .. } if uri == api::computer_uri(computer))
             );
             assert!(
                 Operation::from_route(
@@ -109,14 +115,14 @@ mod tests {
 
     #[test]
     fn file_routes_bind_input_and_output_to_the_exact_computer_and_task() {
-        let computer = Uuid::now_v7();
-        let task = Uuid::now_v7();
+        let computer = api::ComputerId::new();
+        let task = api::FileTransferId::new();
         let request = json!({"computerId":computer,"requestId":Uuid::now_v7(),"grantId":null,
             "transfer":{"kind":"import","artifactId":Uuid::now_v7(),"path":"data.bin"},
             "limits":{"maximumSeconds":30,"maximumBytes":1024,"onInterruption":"stop_computer"}});
         let bytes = serde_json::to_vec(&request).unwrap();
         assert!(input(&bytes, computer).is_ok());
-        assert!(input(&bytes, Uuid::now_v7()).is_err());
+        assert!(input(&bytes, api::ComputerId::new()).is_err());
         let mut invalid = request;
         invalid["transfer"]["overwrite"] = true.into();
         assert!(input(&serde_json::to_vec(&invalid).unwrap(), computer).is_err());
@@ -128,8 +134,8 @@ mod tests {
                 "direction":"import","artifactId":Uuid::now_v7(),"bytes":1024,"sha256":"07".repeat(32)}});
         let bytes = serde_json::to_vec(&result).unwrap();
         assert!(receipt(&bytes, computer, Some(task)).is_ok());
-        assert!(receipt(&bytes, computer, Some(Uuid::now_v7())).is_err());
-        assert!(receipt(&bytes, Uuid::now_v7(), Some(task)).is_err());
+        assert!(receipt(&bytes, computer, Some(api::FileTransferId::new())).is_err());
+        assert!(receipt(&bytes, api::ComputerId::new(), Some(task)).is_err());
         for (field, value) in [
             ("computerId", json!(Uuid::now_v7())),
             ("transferId", json!(Uuid::now_v7())),

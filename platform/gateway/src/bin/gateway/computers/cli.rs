@@ -8,7 +8,7 @@ use axum::{
     routing::get,
 };
 use serde::Deserialize;
-use uuid::Uuid;
+use veoveo_computers_contract::ComputerId;
 use veoveo_computers_transport::{
     CliCredentialFraming, CliRelayMode, CliUpstreamRequest, MAX_MESSAGE_BYTES, cli_authorization,
     relay_cli,
@@ -18,7 +18,7 @@ use veoveo_mcp_contract::{GatewayProfileId, ServerSlug};
 #[derive(Deserialize)]
 struct Route {
     profile: GatewayProfileId,
-    id: Option<Uuid>,
+    id: Option<ComputerId>,
 }
 pub(super) fn router(state: ComputersState) -> Router {
     Router::new()
@@ -33,9 +33,6 @@ async fn upgrade(
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<Response, Fault> {
-    if route.id.is_some_and(|id| id.is_nil()) {
-        return Err(Fault::invalid());
-    }
     let authorization =
         cli_authorization(&headers, CliCredentialFraming::Internal, query.as_deref())
             .map_err(|_| Fault::denied())?;

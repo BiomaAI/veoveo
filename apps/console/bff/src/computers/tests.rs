@@ -58,7 +58,7 @@ impl Fixture {
                 if path.ends_with("/start") { return (StatusCode::TEMPORARY_REDIRECT, [(header::LOCATION, "/must-not-follow")]).into_response(); }
                 if path.ends_with("/stop") { return fault(StatusCode::SERVICE_UNAVAILABLE); }
                 if path.ends_with("/terminal-ticket") {
-                    let id = path.split('/').nth(3).unwrap().parse::<Uuid>().unwrap();
+                    let id = path.split('/').nth(3).unwrap().parse::<veoveo_computers_contract::ComputerId>().unwrap();
                     let body = veoveo_computers_contract::TerminalTicket { computer_id: id, token: veoveo_computers_contract::TerminalToken::new("only-in-body".into()), expires_at: Utc::now(), endpoint: "https://foreign.invalid/?token=never".into() };
                     return (StatusCode::CREATED, [(header::SET_COOKIE, "foreign=value")], Json(body)).into_response();
                 }
@@ -238,7 +238,7 @@ async fn anonymous_and_csrf_failures_never_contact_gateway() {
 #[tokio::test]
 async fn ticket_uses_cookie_profile_and_rewrites_only_owned_endpoint() {
     let fixture = Fixture::new().await;
-    let id = Uuid::new_v4();
+    let id = veoveo_computers_contract::ComputerId::new();
     let path = format!("/console/api/computers/{id}/terminal-ticket");
     let response = fixture
         .call(
@@ -282,8 +282,8 @@ async fn ticket_uses_cookie_profile_and_rewrites_only_owned_endpoint() {
 #[tokio::test]
 async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_authority() {
     let fixture = Fixture::new().await;
-    let computer = Uuid::new_v4();
-    let operation = Uuid::new_v4();
+    let computer = veoveo_computers_contract::ComputerId::new();
+    let operation = Uuid::now_v7();
     let path = format!("/console/api/computers/{computer}/operations/{operation}");
     let response = fixture
         .call(
@@ -319,7 +319,7 @@ async fn operation_status_is_a_cookie_scoped_read_and_rejects_extra_query_author
 #[tokio::test]
 async fn maintenance_reads_use_fixed_paths_and_reject_query_authority() {
     let fixture = Fixture::new().await;
-    let computer = Uuid::now_v7();
+    let computer = veoveo_computers_contract::ComputerId::new();
     let task = Uuid::now_v7();
     for suffix in [
         format!("/{computer}/maintenance"),
@@ -358,7 +358,7 @@ async fn maintenance_reads_use_fixed_paths_and_reject_query_authority() {
 #[tokio::test]
 async fn automation_and_update_routes_keep_csrf_and_exact_destination_without_forwarding_cookies() {
     let fixture = Fixture::new().await;
-    let computer = Uuid::now_v7();
+    let computer = veoveo_computers_contract::ComputerId::new();
     let grant = Uuid::now_v7();
     for suffix in [
         format!("/{computer}/automation"),
@@ -401,8 +401,8 @@ async fn automation_and_update_routes_keep_csrf_and_exact_destination_without_fo
 #[tokio::test]
 async fn access_revocation_keeps_csrf_even_when_it_only_reduces_authority() {
     let fixture = Fixture::new().await;
-    let computer = Uuid::new_v4();
-    let grant = Uuid::new_v4();
+    let computer = veoveo_computers_contract::ComputerId::new();
+    let grant = Uuid::now_v7();
     let path = format!("/console/api/computers/{computer}/access/{grant}/revoke");
     let denied = fixture
         .call(
@@ -449,7 +449,7 @@ async fn access_revocation_keeps_csrf_even_when_it_only_reduces_authority() {
 #[tokio::test]
 async fn origin_queries_and_body_limits_fail_before_refresh() {
     let fixture = Fixture::new().await;
-    let path = format!("/console/api/computers/{}/terminal-ticket", Uuid::new_v4());
+    let path = format!("/console/api/computers/{}/terminal-ticket", Uuid::now_v7());
     let mut request = fixture
         .mutation(&path, true)
         .body(Body::from("{}"))
@@ -501,7 +501,7 @@ async fn origin_queries_and_body_limits_fail_before_refresh() {
 async fn completed_refresh_is_returned_on_upstream_failure_and_redirects_are_not_followed() {
     let fixture = Fixture::new().await;
     for action in ["start", "stop"] {
-        let path = format!("/console/api/computers/{}/{action}", Uuid::new_v4());
+        let path = format!("/console/api/computers/{}/{action}", Uuid::now_v7());
         let response = fixture
             .call(
                 fixture

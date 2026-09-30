@@ -5,7 +5,6 @@ use std::{
     time::Duration,
 };
 use tokio::sync::{Notify, watch};
-use uuid::Uuid;
 use veoveo_computers::api::{TerminalLease, TerminalLeaseKind};
 use veoveo_computers::session_grants::SessionGrantHandle;
 use veoveo_computers_runtime::LeaseAuthority;
@@ -44,7 +43,7 @@ pub(super) async fn renew(
     authority: &LeaseAuthority,
     activity: &Activity,
     mut events: Listener,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     family: RecordId,
 ) -> Result<(), ()> {
     let mut sequence = 0u64;

@@ -95,7 +95,7 @@ pub enum MaintenanceStage {
 pub struct MaintenanceOperation {
     pub operation_id: Uuid,
     pub request_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub actor: TaskOwner,
     pub execution_authority: AcceptedAuthority,
     pub provider_instance_id: Uuid,
@@ -143,11 +143,13 @@ pub(super) struct MaintenanceRecord {
 impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
     type Error = ComputerError;
     fn try_from(row: MaintenanceRecord) -> Result<Self> {
+        let computer_id = crate::api::ComputerId::try_from(row.computer_id)
+            .map_err(|_| ComputerError::Unavailable)?;
         let decode = || -> std::result::Result<Self, serde_json::Error> {
             Ok(Self {
                 operation_id: row.operation_id,
                 request_id: row.request_id,
-                computer_id: row.computer_id,
+                computer_id,
                 actor: serde_json::from_value(serde_json::to_value(row.actor_context)?)?,
                 execution_authority: serde_json::from_value(serde_json::to_value(
                     row.execution_authority,
@@ -182,14 +184,13 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
         if op.operation_id.get_version_num() != 7
             || op.request_id.is_nil()
             || [
-                op.computer_id,
                 op.provider_instance_id,
                 op.source_instance_id,
                 op.target_instance_id,
             ]
             .iter()
             .any(Uuid::is_nil)
-            || op.target_instance_id == op.computer_id
+            || op.target_instance_id == op.computer_id.into_uuid()
             || op.target_instance_id == op.source_instance_id
             || !fingerprint(&op.source_template_fingerprint)
             || op.source_template_id.is_empty()
@@ -198,7 +199,7 @@ impl TryFrom<MaintenanceRecord> for MaintenanceOperation {
             || owner_key(&op.actor)? != row.owner_key
             || op.execution_authority.task_owner() != op.actor
             || matches!(op.source, MaintenanceSource::InitialFailure { .. })
-                && op.source_instance_id != op.computer_id
+                && op.source_instance_id != op.computer_id.into_uuid()
         {
             return Err(ComputerError::Unavailable);
         }

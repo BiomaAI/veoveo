@@ -81,7 +81,7 @@ impl ComputersStore {
         after.validate_progress()?;
         #[derive(Serialize)]
         struct Event<'a> {
-            computer_id: Uuid,
+            computer_id: veoveo_computers_contract::ComputerId,
             maintenance_id: Uuid,
             actor: &'a crate::AcceptedAuthority,
             stage: super::MaintenanceStage,

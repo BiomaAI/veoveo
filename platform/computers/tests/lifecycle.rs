@@ -47,9 +47,12 @@ async fn replacement_lifecycle_keeps_instance_identity_through_dispatch_and_sett
         )
         .await
         .unwrap();
-    assert_eq!(computer.instance_id(), computer.computer_id);
-    let record = RecordId::new("computer", StoreUuid::from(computer.computer_id));
-    for invalid in [Uuid::nil(), computer.computer_id] {
+    assert_eq!(computer.instance_id(), computer.computer_id.into_uuid());
+    let record = RecordId::new(
+        "computer",
+        StoreUuid::from(computer.computer_id.into_uuid()),
+    );
+    for invalid in [Uuid::nil(), computer.computer_id.into_uuid()] {
         assert!(
             db.a.client()
                 .query("UPDATE $computer SET replacement_instance_id=$instance;")
@@ -140,7 +143,7 @@ async fn create(store: &ComputersStore, tasks: &TaskRuntime) -> (Operation, Clai
 async fn queue(
     store: &ComputersStore,
     tasks: &TaskRuntime,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     action: Action,
 ) -> (Operation, ClaimedTask) {
     let actor = owner("alice");

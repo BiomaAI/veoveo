@@ -9,20 +9,16 @@ use crate::{ComputerError, ComputersStore, Result};
 pub use authority::AutomationAuthority;
 pub use policy::AutomationGrantPolicy;
 use surrealdb::types::{RecordId, SurrealValue};
-use uuid::Uuid;
 
-pub(crate) fn record(id: Uuid) -> RecordId {
+pub(crate) fn record(id: crate::api::AutomationGrantId) -> RecordId {
     RecordId::new(
         "computer_automation_grant",
-        surrealdb::types::Uuid::from(id),
+        surrealdb::types::Uuid::from(id.into_uuid()),
     )
 }
 
 impl ComputersStore {
-    async fn automation_grant(&self, id: Uuid) -> Result<model::Grant> {
-        if id.is_nil() {
-            return Err(ComputerError::InvalidInput);
-        }
+    async fn automation_grant(&self, id: crate::api::AutomationGrantId) -> Result<model::Grant> {
         let mut response = self
             .query(
                 "SELECT * FROM ONLY $grant;",

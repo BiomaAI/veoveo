@@ -8,7 +8,10 @@ use veoveo_platform_store::{OutboxDraft, deterministic_enterprise_id, determinis
 use veoveo_types::ResourceUri;
 use veoveo_types::WorkContextMembershipLevel;
 
-pub(crate) fn require_attach(snapshot: &AuthoritySnapshot, computer: Uuid) -> Result<()> {
+pub(crate) fn require_attach(
+    snapshot: &AuthoritySnapshot,
+    computer: veoveo_computers_contract::ComputerId,
+) -> Result<()> {
     snapshot.check_fresh()?;
     if !snapshot
         .membership
@@ -68,13 +71,13 @@ pub(crate) fn bindings(snapshot: &AuthoritySnapshot) -> Vec<(&'static str, Value
 }
 pub(crate) fn event(
     accepted: &crate::AcceptedAuthority,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     grant: Uuid,
     kind: &str,
 ) -> Result<OutboxDraft> {
     #[derive(serde::Serialize)]
     struct Payload<'a> {
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
         grant_id: Uuid,
         actor: &'a veoveo_types::PrincipalId,
         authority: &'a veoveo_types::InvocationAuthority,

@@ -7,8 +7,8 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 use serde::Deserialize;
-use uuid::Uuid;
 use veoveo_computers_contract::CliPairingInput;
+use veoveo_computers_contract::ComputerId;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -18,16 +18,15 @@ pub(super) struct Parameters {
 }
 pub(super) async fn entry(
     State(state): State<AppState>,
-    Path(id): Path<Uuid>,
+    Path(_): Path<ComputerId>,
     Query(parameters): Query<Parameters>,
 ) -> Response {
-    if id.is_nil()
-        || !(CliPairingInput {
-            name: "CLI".into(),
-            code: parameters.code,
-            callback_port: parameters.callback_port,
-        })
-        .is_valid()
+    if !(CliPairingInput {
+        name: "CLI".into(),
+        code: parameters.code,
+        callback_port: parameters.callback_port,
+    })
+    .is_valid()
     {
         return fault(StatusCode::BAD_REQUEST);
     }

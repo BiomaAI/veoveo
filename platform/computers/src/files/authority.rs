@@ -36,7 +36,10 @@ impl FileTransferAuthority {
             Authority::Delegated(value) => Some(value.expires_at()),
         }
     }
-    pub(super) fn decision(&self, transfer: Uuid) -> Result<super::FileDispatchDecision> {
+    pub(super) fn decision(
+        &self,
+        transfer: veoveo_computers_contract::FileTransferId,
+    ) -> Result<super::FileDispatchDecision> {
         self.computer()?;
         match &self.0 {
             Authority::Delegated(value) => value.file_decision(transfer),
@@ -70,7 +73,7 @@ impl FileTransferAuthority {
             Authority::Delegated(value) => value.computer(),
         }
     }
-    pub fn grant_id(&self) -> Option<Uuid> {
+    pub fn grant_id(&self) -> Option<veoveo_computers_contract::AutomationGrantId> {
         match &self.0 {
             Authority::Owned(_) => None,
             Authority::Delegated(value) => Some(value.grant_id()),
@@ -234,8 +237,8 @@ impl ComputersStore {
     pub async fn file_transfer_authority(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
-        grant: Option<Uuid>,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: Option<veoveo_computers_contract::AutomationGrantId>,
     ) -> Result<FileTransferAuthority> {
         actor.check_admission()?;
         let authority = tokio::time::timeout(Duration::from_secs(5), async {

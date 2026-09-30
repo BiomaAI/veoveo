@@ -52,12 +52,16 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
     );
     assert!(request.expires_at > chrono::Utc::now() + chrono::TimeDelta::seconds(440));
     assert!(
-        a.attach_command_output(&command, output_capability(Uuid::now_v7()), &keys)
-            .await
-            .is_err()
+        a.attach_command_output(
+            &command,
+            output_capability(veoveo_types::TaskId::new()),
+            &keys
+        )
+        .await
+        .is_err()
     );
-    let first = output_capability(command.execution_id());
-    let second = output_capability(command.execution_id());
+    let first = output_capability(command.task_id());
+    let second = output_capability(command.task_id());
     let (left, right) = futures::join!(
         a.attach_command_output(&command, first.clone(), &keys),
         b.attach_command_output(&command, second.clone(), &keys)
@@ -85,7 +89,7 @@ async fn output_capability_precedes_dispatch_survives_replica_loss_and_never_ent
     assert_eq!(ticket.output_access().maximum_output_bytes(), 1024);
     let winner = ticket.output_access().capability().capability_id;
     // A delayed losing issuance response does not change the capability after dispatch.
-    b.attach_command_output(&command, output_capability(command.execution_id()), &keys)
+    b.attach_command_output(&command, output_capability(command.task_id()), &keys)
         .await
         .unwrap();
     let mut response = db
@@ -123,7 +127,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
     let claim = queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
     let command = a.command_for_claim(&claim).await.unwrap();
     let keys = keys();
-    let mut capability = output_capability(command.execution_id());
+    let mut capability = output_capability(command.task_id());
     capability.expires_at = chrono::Utc::now() + chrono::TimeDelta::seconds(140);
     assert!(matches!(
         a.attach_command_output(&command, capability.clone(), &keys)
@@ -148,7 +152,7 @@ async fn unavailable_or_short_lived_output_authority_never_dispatches_and_queued
         a.command_for_claim(&claim).await.unwrap().stage(),
         CommandStage::Queued
     );
-    let renewed = output_capability(command.execution_id());
+    let renewed = output_capability(command.task_id());
     a.attach_command_output(&command, renewed.clone(), &keys)
         .await
         .unwrap();

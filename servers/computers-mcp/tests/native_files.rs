@@ -48,8 +48,8 @@ fn path(value: &str) -> RetainedFilePath {
 async fn queue(
     store: &ComputersStore,
     actor: &ComputerActor,
-    computer: Uuid,
-    grant: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
+    grant: veoveo_computers_contract::AutomationGrantId,
     payload: FileTransferPayload,
     keys: &ComputerKeyRing,
     plane: &HttpArtifactPlane,
@@ -80,7 +80,10 @@ async fn queue(
         .await
         .unwrap()
 }
-async fn task_result(tasks: &TaskRuntime, id: Uuid) -> FileTransferResult {
+async fn task_result(
+    tasks: &TaskRuntime,
+    id: veoveo_computers_contract::FileTransferId,
+) -> FileTransferResult {
     let task = tasks.get(&id.to_string()).await.unwrap().unwrap();
     assert_eq!(task.status, TaskStatus::Succeeded);
     let tool: rmcp::model::CallToolResult = serde_json::from_value(task.result.unwrap()).unwrap();
@@ -195,10 +198,14 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
     .unwrap();
     // Isolated fixture adoption: qualify file and lifecycle paths against a
     // real replacement home. Durable product maintenance admission is separate.
-    let initial = Binding::new(computer.computer_id, selected.fingerprint()).unwrap();
+    let initial = Binding::new(computer.computer_id.into_uuid(), selected.fingerprint()).unwrap();
     let replacement_id = Uuid::now_v7();
-    let binding =
-        Binding::replacement(computer.computer_id, replacement_id, selected.fingerprint()).unwrap();
+    let binding = Binding::replacement(
+        computer.computer_id.into_uuid(),
+        replacement_id,
+        selected.fingerprint(),
+    )
+    .unwrap();
     let allocator = home.worker(home.provider).await;
     allocator.prepare(&initial).await.unwrap();
     allocator
@@ -211,7 +218,7 @@ async fn governed_file_worker_moves_real_artifacts_and_contains_lost_attempts() 
             "computer",
             surrealdb::types::RecordId::new(
                 "computer",
-                surrealdb::types::Uuid::from(computer.computer_id),
+                surrealdb::types::Uuid::from(computer.computer_id.into_uuid()),
             ),
         ))
         .bind(("instance", replacement_id))

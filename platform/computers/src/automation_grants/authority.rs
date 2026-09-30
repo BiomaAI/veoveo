@@ -26,7 +26,7 @@ enum GrantUse {
 /// Operation admission and dispatch must also compare its durable grant revision.
 pub struct AutomationAuthority {
     computer: Computer,
-    grant_id: Uuid,
+    grant_id: veoveo_computers_contract::AutomationGrantId,
     grant_revision: u64,
     permission: AutomationPermission,
     limits: Option<AutomationExecutionLimits>,
@@ -102,7 +102,7 @@ impl AutomationAuthority {
     }
     pub(crate) fn file_decision(
         &self,
-        transfer: Uuid,
+        transfer: veoveo_computers_contract::FileTransferId,
     ) -> Result<crate::files::FileDispatchDecision> {
         self.require_file_transfer()?;
         let trace = TraceId::new(transfer.to_string()).expect("UUID trace");
@@ -141,7 +141,7 @@ impl AutomationAuthority {
     }
     pub(crate) fn command_decision(
         &self,
-        execution: Uuid,
+        execution: veoveo_computers_contract::ExecutionId,
     ) -> Result<crate::commands::CommandDispatchDecision> {
         self.check_fresh()?;
         if self.permission != AutomationPermission::Execute {
@@ -187,7 +187,7 @@ impl AutomationAuthority {
         self.check_fresh()?;
         Ok(&self.computer)
     }
-    pub fn grant_id(&self) -> Uuid {
+    pub fn grant_id(&self) -> veoveo_computers_contract::AutomationGrantId {
         self.grant_id
     }
     pub fn grant_revision(&self) -> u64 {
@@ -322,7 +322,7 @@ pub(super) fn require_tool(snapshot: &AuthoritySnapshot, tool: &str) -> Result<(
 }
 pub(super) fn require_permission(
     snapshot: &AuthoritySnapshot,
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     permission: AutomationPermission,
 ) -> Result<()> {
     if permission != AutomationPermission::Read {
@@ -371,8 +371,8 @@ impl ComputersStore {
     pub async fn authorize_automation_grant(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
-        grant_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
+        grant_id: veoveo_computers_contract::AutomationGrantId,
         permission: AutomationPermission,
     ) -> Result<AutomationAuthority> {
         actor.check_admission()?;
@@ -392,8 +392,8 @@ impl ComputersStore {
     pub(crate) async fn authorize_accepted_automation(
         &self,
         accepted: &AcceptedAuthority,
-        computer: Uuid,
-        grant: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: veoveo_computers_contract::AutomationGrantId,
         permission: AutomationPermission,
     ) -> Result<AutomationAuthority> {
         tokio::time::timeout(
@@ -414,8 +414,8 @@ impl ComputersStore {
     pub(crate) async fn automation_access_scope(
         &self,
         actor: &ComputerActor,
-        computer: Uuid,
-        grant: Uuid,
+        computer: veoveo_computers_contract::ComputerId,
+        grant: veoveo_computers_contract::AutomationGrantId,
     ) -> Result<AutomationAuthority> {
         actor.check_admission()?;
         tokio::time::timeout(
@@ -435,8 +435,8 @@ impl ComputersStore {
         &self,
         accepted: &AcceptedAuthority,
         purpose: GrantUse,
-        computer_id: Uuid,
-        grant_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
+        grant_id: veoveo_computers_contract::AutomationGrantId,
         requested_permission: Option<AutomationPermission>,
     ) -> Result<AutomationAuthority> {
         if let GrantUse::Admission(expires_at) = purpose

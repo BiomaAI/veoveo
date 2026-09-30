@@ -15,7 +15,7 @@ impl ComputersStore {
     pub async fn issue_browser_grant(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<SessionGrantTicket> {
         tokio::time::timeout(
             Duration::from_secs(5),
@@ -27,7 +27,7 @@ impl ComputersStore {
     async fn issue_browser(
         &self,
         actor: &ComputerActor,
-        computer_id: Uuid,
+        computer_id: veoveo_computers_contract::ComputerId,
     ) -> Result<SessionGrantTicket> {
         actor.check_admission()?;
         let snapshot = self.read_authority(actor.accepted()).await?;
@@ -63,7 +63,7 @@ impl ComputersStore {
         let mut params = authority::bindings(&snapshot);
         params.extend([
             ("computer", computer_record(computer_id).into_value()),
-            ("computer_id", computer_id.into_value()),
+            ("computer_id", computer_id.into_uuid().into_value()),
             ("grant", super::record(grant_id).into_value()),
             ("grant_id", grant_id.into_value()),
             ("owner_key", owner_key(&computer.owner)?.into_value()),
@@ -88,7 +88,7 @@ impl ComputersStore {
                 "guard",
                 RecordId::new(
                     "computer_session_grant_guard",
-                    surrealdb::types::Uuid::from(computer_id),
+                    surrealdb::types::Uuid::from(computer_id.into_uuid()),
                 )
                 .into_value(),
             ),
@@ -151,7 +151,7 @@ impl ComputersStore {
         }
         let accepted = row.accepted()?;
         let control = self.control_authority(actor).await?;
-        control.require_attach(row.computer_id)?;
+        control.require_attach(row.computer_id()?)?;
         if accepted.profile != actor.accepted().profile
             || accepted.actor.id != actor.accepted().actor.id
             || accepted.request_context.access_token.session_family
@@ -167,7 +167,7 @@ impl ComputersStore {
         {
             return Err(ComputerError::Forbidden);
         }
-        let computer = self.get(actor.owner(), row.computer_id).await?;
+        let computer = self.get(actor.owner(), row.computer_id()?).await?;
         crate::identity::verify_retained_owner(
             &computer.owner,
             &row.owner_key,
@@ -182,9 +182,9 @@ impl ComputersStore {
                     ("grant", super::record(grant_id).into_value()),
                     ("ticket_hash", hash.into_value()),
                     ("policy", self.session_policy_record().into_value()),
-                    ("owner_key", row.owner_key.into_value()),
+                    ("owner_key", row.owner_key.clone().into_value()),
                     ("connection", connection_id.into_value()),
-                    ("computer", computer_record(row.computer_id).into_value()),
+                    ("computer", computer_record(row.computer_id()?).into_value()),
                     ("provider", self.provider_instance_id.into_value()),
                     (
                         "admission_expires_at",
@@ -194,7 +194,7 @@ impl ComputersStore {
                         "event",
                         authority::event(
                             actor.accepted(),
-                            row.computer_id,
+                            row.computer_id()?,
                             grant_id,
                             "access_connected",
                         )?

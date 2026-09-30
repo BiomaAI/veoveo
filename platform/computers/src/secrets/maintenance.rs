@@ -19,7 +19,7 @@ pub(super) const MAX_CHECKPOINT_BYTES: usize = 1024 * 1024 + 4096;
 pub struct MaintenanceBinding {
     pub operation_id: Uuid,
     pub request_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: veoveo_computers_contract::ComputerId,
     pub provider_instance_id: Uuid,
     pub owner_key: String,
     pub actor_key: String,
@@ -43,7 +43,6 @@ impl MaintenanceBinding {
         if [
             self.operation_id,
             self.request_id,
-            self.computer_id,
             self.provider_instance_id,
             self.source_instance_id,
             self.target_instance_id,
@@ -52,7 +51,7 @@ impl MaintenanceBinding {
         .any(Uuid::is_nil)
             || self.operation_id.get_version_num() != 7
             || self.target_instance_id == self.source_instance_id
-            || self.target_instance_id == self.computer_id
+            || self.target_instance_id == self.computer_id.into_uuid()
             || [
                 &self.owner_key,
                 &self.actor_key,

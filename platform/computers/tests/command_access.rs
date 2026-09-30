@@ -14,7 +14,8 @@ async fn command_tasks_keep_source_client_authority_and_owner_control_separate()
     input.permissions = [AutomationPermission::Execute].into();
     let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
     let claim = command_support::queue_claim(&db, &a, &agent, computer, grant.grant_id).await;
-    let execution = Uuid::parse_str(&claim.snapshot.task_id.to_string()).unwrap();
+    let execution =
+        veoveo_computers_contract::ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
     for actor in [&owner, &agent] {
         for action in [CommandTaskAction::Observe, CommandTaskAction::Cancel] {
             let access = b
@@ -149,7 +150,8 @@ async fn a_current_human_token_from_another_client_cannot_read_a_command_task() 
     input.oauth_client_id = "console".into();
     let grant = a.issue_automation_grant(&owner, &input).await.unwrap();
     let claim = command_support::queue_claim(&db, &a, &actor, computer, grant.grant_id).await;
-    let execution = Uuid::parse_str(&claim.snapshot.task_id.to_string()).unwrap();
+    let execution =
+        veoveo_computers_contract::ExecutionId::try_from(claim.snapshot.task_id.as_uuid()).unwrap();
     assert!(
         b.authorize_command_task(&actor, execution, CommandTaskAction::Observe)
             .await

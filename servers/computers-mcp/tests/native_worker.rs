@@ -40,7 +40,7 @@ use veoveo_task_runtime::{TaskRuntime, TaskStatus};
 /// domain's independent current action-authority check.
 #[derive(Clone)]
 struct FixtureGate {
-    computer: Uuid,
+    computer: veoveo_computers_contract::ComputerId,
     fingerprint: String,
     preparations: Arc<AtomicU32>,
     retained: RetainedHomes,
@@ -53,7 +53,7 @@ impl Preflight for FixtureGate {
         template: &DevelopmentTemplate,
     ) -> Result<(), PreflightError> {
         assert_eq!(operation.computer_id, self.computer);
-        assert_eq!(binding.computer_id(), self.computer);
+        assert_eq!(binding.computer_id(), self.computer.into_uuid());
         assert_eq!(template.fingerprint(), self.fingerprint);
         self.preparations.fetch_add(1, Ordering::SeqCst);
         self.retained
@@ -184,7 +184,7 @@ async fn worker_runs_retained_lifecycle_repairs_crashes_and_keeps_unknown_work_f
         gate.clone(),
     )
     .unwrap();
-    let binding = Binding::new(computer.computer_id, selected.fingerprint()).unwrap();
+    let binding = Binding::new(computer.computer_id.into_uuid(), selected.fingerprint()).unwrap();
 
     // The worker repairs the missing Task link, then the two replicas compete.
     let create = a

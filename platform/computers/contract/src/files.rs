@@ -1,4 +1,5 @@
 //! Regular-file handoff. Artifact references and paths confer no authority.
+use crate::FileTransferResultUri;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -97,10 +98,10 @@ pub struct FileTransferLimits {
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct TransferFileInput {
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub request_id: Uuid,
     /// A direct owner omits this field. Delegation requires a current named grant.
-    pub grant_id: Option<Uuid>,
+    pub grant_id: Option<crate::AutomationGrantId>,
     pub transfer: FileTransfer,
     pub limits: FileTransferLimits,
 }
@@ -117,41 +118,7 @@ pub enum FileTransferStage {
     Cancelled,
 }
 
-/// Canonical address for one completed file transfer; it is not an access credential.
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(try_from = "String", into = "String")]
-pub struct FileTransferResultUri(Uuid);
-impl FileTransferResultUri {
-    pub fn new(transfer_id: Uuid) -> Result<Self, &'static str> {
-        if transfer_id.get_version_num() != 7 {
-            return Err("invalid Computer file transfer result URI");
-        }
-        Ok(Self(transfer_id))
-    }
-    pub fn transfer_id(self) -> Uuid {
-        self.0
-    }
-}
-impl From<FileTransferResultUri> for String {
-    fn from(uri: FileTransferResultUri) -> Self {
-        format!("computer://transfers/{}", uri.0)
-    }
-}
-impl TryFrom<String> for FileTransferResultUri {
-    type Error = &'static str;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        let invalid = "invalid Computer file transfer result URI";
-        let id = value.strip_prefix("computer://transfers/").ok_or(invalid)?;
-        let id = Uuid::parse_str(id).map_err(|_| invalid)?;
-        let uri = Self::new(id)?;
-        if String::from(uri) != value {
-            return Err(invalid);
-        }
-        Ok(uri)
-    }
-}
-
-/// Metadata only. Artifact reads remain governed by the Artifact service.
+/// Completed transfer metadata. Artifact bytes require Artifact read authority.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferResult {
@@ -163,8 +130,8 @@ pub struct FileTransferResult {
         )
     )]
     pub result_uri: FileTransferResultUri,
-    pub computer_id: Uuid,
-    pub transfer_id: Uuid,
+    pub computer_id: crate::ComputerId,
+    pub transfer_id: crate::FileTransferId,
     pub direction: FileTransferDirection,
     pub artifact_id: Uuid,
     #[schemars(range(max = 67108864))]
@@ -178,7 +145,7 @@ pub struct FileTransferResult {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct FileTransferView {
     pub task_id: Uuid,
-    pub computer_id: Uuid,
+    pub computer_id: crate::ComputerId,
     pub direction: FileTransferDirection,
     pub stage: FileTransferStage,
     #[schemars(length(max = 4096))]
@@ -201,7 +168,7 @@ mod tests {
 
     #[test]
     fn result_uri_accepts_only_the_exact_uuidv7_address() {
-        let id = Uuid::now_v7();
+        let id = crate::FileTransferId::new();
         let uri = format!("computer://transfers/{id}");
         assert_eq!(
             FileTransferResultUri::try_from(uri.clone())
@@ -213,14 +180,14 @@ mod tests {
             uri.to_uppercase(),
             format!("{uri}/"),
             format!("{uri}?token=secret"),
-            format!("computer://transfers/{}", id.simple()),
+            format!("computer://transfers/{}", id.as_uuid().simple()),
             format!("computer://transfers/{}", Uuid::nil()),
             "computer://transfers/00000000-0000-4000-8000-000000000001".into(),
         ] {
             assert!(FileTransferResultUri::try_from(invalid).is_err());
         }
         assert_eq!(
-            serde_json::to_value(FileTransferResultUri::new(id).unwrap()).unwrap(),
+            serde_json::to_value(FileTransferResultUri::new(id)).unwrap(),
             uri
         );
     }
@@ -256,7 +223,7 @@ mod tests {
     #[test]
     fn transfer_wire_rejects_extraction_overwrite_and_hidden_authority() {
         let request = serde_json::json!({
-            "computerId":Uuid::nil(), "requestId":Uuid::nil(), "grantId":null,
+            "computerId":crate::ComputerId::new(), "requestId":Uuid::nil(), "grantId":null,
             "transfer":{"kind":"import", "artifactId":Uuid::nil(), "path":"data.bin"},
             "limits":{"maximumSeconds":30, "maximumBytes":1024, "onInterruption":"stop_computer"}
         });

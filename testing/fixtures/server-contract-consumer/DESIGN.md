@@ -10,7 +10,7 @@ it implements no transport or installed service protocol.
 
 This separate workspace prevents service test features from hiding a dependency leak.
 The consumer constructs requests with Artifact identity shared across Speech and the
-Artifact MCP library, imports the Computers public projection, and builds Frames and
+Artifact MCP library, constructs Computers identities and resource addresses, and builds Frames and
 Timeseries resource addresses from their owner types. Media consumers construct model
 requests and Artifact addresses through the same isolated contract. Its graph test
 rejects Veoveo implementation crates, RMCP, databases and asynchronous runtimes.

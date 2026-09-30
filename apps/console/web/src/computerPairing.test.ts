@@ -6,13 +6,16 @@ configureBrowserApplication("console");
 import { acceptBrowserCsrfToken } from "./csrf.ts";
 import { pairCli, pairingLocation } from "./computers/pairing.ts";
 
-const computerId = "00000000-0000-4000-8000-000000000001";
+const computerId = "00000000-0000-7000-8000-000000000001";
 const pairingId = "00000000-0000-4000-8000-000000000002";
 const grantId = "00000000-0000-4000-8000-000000000003";
 const base = `https://veoveo.test/console/computers/${computerId}/auth/connect`;
 const location = { computerId, callbackPort: 49152, code: "ABC-2345" };
 test("pairing accepts only one exact local callback port and stock comparison code", () => {
   assert.deepEqual(pairingLocation(new URL(`${base}?callback_port=49152&code=ABC-2345`)), location);
+  for (const id of [computerId.replace("-7000-", "-4000-"), computerId.replace("-8000-", "-c000-")]) {
+    assert.equal(pairingLocation(new URL(`${base.replace(computerId, id)}?callback_port=49152&code=ABC-2345`)), undefined);
+  }
   for (const query of ["callback_port=22&code=ABC-2345", "callback_port=65536&code=ABC-2345", "callback_port=49152&code=ABC-1234",
     "callback_port=49152&code=ABC-2345&host=foreign", "callback_port=49152&code=ABC-2345&code=DEF-2345",
     "callback_port=49152&code=ABC-2345#injected", "callback_port=+49152&code=ABC-2345", "callback_port=049152&code=ABC-2345"]) {

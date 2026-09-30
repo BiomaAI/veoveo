@@ -7,21 +7,20 @@ use axum::{
     routing::{get, post},
 };
 use std::sync::Arc;
-use uuid::Uuid;
 use veoveo_computers::{ComputerError, api::*};
 use veoveo_mcp_contract::GatewayInternalIdentity;
 
 async fn inventory(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
 ) -> Result<Json<AutomationGrantCollection>, HttpError> {
     Ok(Json(app.automation_grants(&actor(&identity)?, id).await?))
 }
 async fn issue(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path(id): Path<Uuid>,
+    Path(id): Path<veoveo_computers_contract::ComputerId>,
     Json(input): Json<IssueAutomationGrantInput>,
 ) -> Result<Json<AutomationGrantResult>, HttpError> {
     if input.computer_id != id {
@@ -32,7 +31,10 @@ async fn issue(
 async fn read(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer, grant)): Path<(Uuid, Uuid)>,
+    Path((computer, grant)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::AutomationGrantId,
+    )>,
 ) -> Result<Json<AutomationGrantResult>, HttpError> {
     Ok(Json(
         app.automation_grant(&actor(&identity)?, computer, grant)
@@ -42,7 +44,10 @@ async fn read(
 async fn revoke(
     State(app): State<Arc<Application>>,
     Extension(identity): Extension<GatewayInternalIdentity>,
-    Path((computer_id, grant_id)): Path<(Uuid, Uuid)>,
+    Path((computer_id, grant_id)): Path<(
+        veoveo_computers_contract::ComputerId,
+        veoveo_computers_contract::AutomationGrantId,
+    )>,
     Json(_input): Json<RevokeAutomationGrantBody>,
 ) -> Result<Json<AutomationGrantResult>, HttpError> {
     Ok(Json(

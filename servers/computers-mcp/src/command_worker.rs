@@ -163,7 +163,7 @@ impl CommandWorker {
             }
         };
         let binding = Binding::from_instance(
-            ticket.binding().computer_id,
+            ticket.binding().computer_id.into_uuid(),
             ticket.binding().instance_id(),
             ticket.binding().template_fingerprint.clone(),
         )

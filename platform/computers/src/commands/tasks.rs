@@ -10,7 +10,7 @@ impl ComputersStore {
     /// Trusted worker discovery; public projections use current principal authority.
     pub async fn pending_commands(
         &self,
-        after: Option<uuid::Uuid>,
+        after: Option<crate::api::ExecutionId>,
         limit: u32,
     ) -> Result<Vec<CommandOperation>> {
         if !(1..=100).contains(&limit) {
@@ -25,7 +25,7 @@ impl ComputersStore {
              ORDER BY execution_id LIMIT $limit;",
                 vec![
                     ("provider", self.provider_instance_id.into_value()),
-                    ("after", after.into_value()),
+                    ("after", after.map(crate::api::ExecutionId::into_uuid).into_value()),
                     ("limit", limit.into_value()),
                 ],
             )
