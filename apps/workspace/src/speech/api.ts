@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { compileGeneratedSchema } from "../../../console/web/src/jsonSchema.ts";
+import type { z } from "zod";
 import { browserSession } from "../../../console/web/src/csrf.ts";
 import { ApiError, unreadableResponse } from "../api.ts";
 import schema from "../generated/speech.schema.json" with { type: "json" };
@@ -10,7 +11,7 @@ export function parseSpeech<K extends keyof Types>(name: K, value: unknown): Typ
   let validator = validators.get(name);
   if (!validator) {
     const definition: object = { $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${name}` };
-    validator = z.fromJSONSchema(definition as Parameters<typeof z.fromJSONSchema>[0]);
+    validator = compileGeneratedSchema(definition);
     validators.set(name, validator);
   }
   const result = validator.safeParse(value);

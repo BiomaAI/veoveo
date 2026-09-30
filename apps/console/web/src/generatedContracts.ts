@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { compileGeneratedSchema } from "./jsonSchema.ts";
 import computerSchema from "./generated/computers.schema.json" with { type: "json" };
 import consoleSchema from "./generated/console.schema.json" with { type: "json" };
 import type { ComputersApi } from "./generated/computers.ts";
@@ -7,7 +7,7 @@ import type { ConsoleBootstrap } from "./generated/console.ts";
 // The cast joins generated interfaces to the very schema which generated them.
 // No caller supplies a schema, and malformed wire values never become domain objects.
 function parser<T>(schema: object): (value: unknown) => T {
-  const validator = z.fromJSONSchema(schema as Parameters<typeof z.fromJSONSchema>[0]);
+  const validator = compileGeneratedSchema(schema);
   return (value) => validator.parse(value) as T;
 }
 export const parseConsoleBootstrap = parser<ConsoleBootstrap>(consoleSchema);

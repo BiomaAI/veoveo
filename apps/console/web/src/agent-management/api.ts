@@ -1,4 +1,5 @@
-import { z } from "zod";
+import { compileGeneratedSchema } from "../jsonSchema.ts";
+import type { z } from "zod";
 import schema from "../generated/agent-management.schema.json" with { type: "json" };
 import type { Authoring, CapabilityChoice, Definition, DefinitionPage, Draft, RevisionPage, Validation, CreateDefinition, SaveDraft, UpdateMetadata, PublishDefinition, RevisionRequest, ValidateDefinition, TemplateChoice, InstancePage, ManagedInstance, LifecycleOperation, ProvisionInstance, UpdateInstance } from "../generated/agent-management";
 import { browserSession } from "../csrf.ts";
@@ -10,7 +11,7 @@ function parse<K extends keyof Responses>(kind: K, value: unknown): Responses[K]
   let validator = validators.get(kind);
   if (!validator) {
     const definition: object = { $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${kind}` };
-    validator = z.fromJSONSchema(definition as Parameters<typeof z.fromJSONSchema>[0]);
+    validator = compileGeneratedSchema(definition);
     validators.set(kind, validator);
   }
   return validator.parse(value) as Responses[K];

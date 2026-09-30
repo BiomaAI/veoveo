@@ -215,6 +215,8 @@ designs above.
 | [`apps/console/bff/src/bootstrap/`](../apps/console/bff/src/bootstrap/DESIGN.md) | fixed-profile, cookie-authenticated Console session routes with typed responses and token refresh |
 | [`apps/console/bff/src/workspace/`](../apps/console/bff/src/workspace/DESIGN.md) | shared browser edge for Workspace: typed chat routes, cookie credentials, CSRF, event streams and static assets |
 | [`tools/xtask/src/commands/client_types/`](../tools/xtask/src/commands/client_types/DESIGN.md) | Rust schema export and pinned TypeScript conversion; `release client-types --check` detects generated-model drift |
+| `apps/console/web/tools/client-types.mjs`, `client-types.test.mjs` | TypeScript rendering of closed and boolean schemas with a generated-code compiler regression |
+| `apps/console/web/src/jsonSchema.ts`, `jsonSchema.test.ts` | shared Console/Workspace compiler for the generated JSON Schema profile, including equivalent boolean-definition handling |
 | [`tools/xtask/src/commands/computers_trust/`](../tools/xtask/src/commands/computers_trust/DESIGN.md) | fresh installation-owned Computers CA/client/server/JWT and command-key enrollment with separate host, worker and operator outputs |
 | `mcp/contract/src/gateway/console.rs` | shared closed Console bootstrap, branding and session DTOs |
 | [`platform/store/src/workspace/runs/`](../platform/store/src/workspace/runs/DESIGN.md) | per-chat agent admission; human-turn participation and same-chat replies in `workspace/participation.rs`, with server-captured quotes tested by `tests/workspace/replies.rs`; immutable Artifact references tested by `tests/workspace/attachments.rs`; concurrent-run limits, fixed context, execution fences, cancellation and interrupted-worker recovery |

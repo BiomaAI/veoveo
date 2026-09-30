@@ -1,6 +1,7 @@
+import { compileGeneratedSchema } from "../../console/web/src/jsonSchema.ts";
 import type { AgentCatalogPage, AgentRevisionPreview, UpdateChatAgent } from "./generated/workspace.ts";
 import { browserSession } from "../../console/web/src/csrf.ts";
-import { z } from "zod";
+import type { z } from "zod";
 import schema from "./generated/workspace.schema.json" with { type: "json" };
 import type { AppOperationView, AgentActivity, AgentDefinition, ChatAgent, Run, Chat, ChatSnapshot, ChatSettings, Invitation, InvitationSummary, Message, Person, SendMessage, WorkspaceBootstrap } from "./generated/workspace.ts";
 import type { OperationView, OperationPage, OperationSummary, AnswerOperation, StartOperation, Capability, PersonalEvent } from "./generated/workspace.ts";
@@ -14,7 +15,7 @@ export function parse<K extends keyof Definitions>(kind: K, input: unknown): Def
   let validator = validators.get(kind);
   if (!validator) {
     const definition: object = { $schema: schema.$schema, $defs: schema.$defs, $ref: `#/$defs/${kind}` };
-    validator = z.fromJSONSchema(definition as Parameters<typeof z.fromJSONSchema>[0]);
+    validator = compileGeneratedSchema(definition);
     validators.set(kind, validator);
   }
   // Types and schemas are emitted from the same Rust contract.

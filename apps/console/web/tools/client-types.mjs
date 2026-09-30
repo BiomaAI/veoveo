@@ -10,7 +10,13 @@ for await (const chunk of process.stdin) chunks.push(chunk);
 const schema = JSON.parse(Buffer.concat(chunks).toString("utf8"));
 // TypeScript's empty interface admits every non-nullish value. Render a closed
 // empty JSON object as a dictionary which admits no keys instead.
-for (const definition of Object.values(schema.$defs ?? {})) {
+for (const [name, definition] of Object.entries(schema.$defs ?? {})) {
+  // The converter's reference resolver requires object targets. Preserve boolean
+  // schema semantics in this rendering input; the committed JSON stays canonical.
+  if (typeof definition === "boolean") {
+    schema.$defs[name] = definition ? {} : { not: {}, tsType: "never" };
+    continue;
+  }
   if (
     definition.type === "object" &&
     definition.additionalProperties === false &&

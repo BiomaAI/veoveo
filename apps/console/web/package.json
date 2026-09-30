@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "test": "node --experimental-strip-types --test src/*.test.ts",
+    "test": "node --experimental-strip-types --test src/*.test.ts tools/*.test.mjs",
     "test:browser": "node --test tests/*.test.mjs",
     "preview": "vite preview"
   },
