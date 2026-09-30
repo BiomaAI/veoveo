@@ -8,7 +8,7 @@ publish = false
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-surrealdb = { version = "=3.2.4", default-features = false }
+surrealdb = { version = "=3.3.0", default-features = false }
 uuid.workspace = true
 veoveo-mcp-contract.workspace = true
 veoveo-mcp-gateway = { path = "../../../platform/gateway" }
