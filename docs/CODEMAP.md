@@ -633,11 +633,12 @@ Task state lives in this runtime. RMCP defines the Tasks wire types.
 ### `platform/artifacts/contract`
 
 The domain-owned `veoveo-artifact-contract` library supplies occurrence identity,
-metadata, compliance, provenance, release state, and byte handoff values. It depends
+metadata, compliance, provenance, release state, grant/share values and byte handoffs. It depends
 on foundational identity, UUID, date/time, and serialization/schema support. The
 [design](../platform/artifacts/contract/DESIGN.md) records the dependency-cycle reason
 for separating the plane model from its MCP adapter. `src/identity.rs` owns occurrence
-IDs; `src/uri.rs` owns typed neutral and server-presented addresses and construction;
+IDs; `src/access.rs` owns public grant and share values below MCP and HTTP;
+`src/uri.rs` owns typed neutral and server-presented addresses and construction;
 `src/metadata.rs` owns the public model, and `src/provenance.rs`
 maps foundational invocation attribution to Artifact's flat wire profile. Access
 evaluation and transport-facing service interfaces currently live in `mcp/contract`.
@@ -675,7 +676,9 @@ the dedicated internal read routes.
 
 The MCP server for the artifact plane. `handler.rs` owns tools/resources,
 `prompts.rs` owns reusable workflows, and `subscriptions.rs` owns update notification
-plumbing.
+plumbing. `src/contract.rs` exposes tool values and plane-owned public types through
+an isolated contract feature. `src/contract/resources.rs` owns Artifact resource
+families and typed component construction.
 
 ## Domain Servers
 
@@ -1402,6 +1405,7 @@ dispatch preflights and budgeted execution.
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
+| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers and Speech library consumer; rejects service dependencies in their contract features |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

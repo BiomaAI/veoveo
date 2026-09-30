@@ -1,6 +1,8 @@
 //! Artifact-plane identities, metadata, and byte handoff values.
 //! Authorization and transport are owned by the Artifact service and its adapters.
 
+mod access;
+pub use access::{ArtifactShareLink, ArtifactShareLinkId, ArtifactShareLinkIdError, Grant};
 mod identity;
 mod metadata;
 mod provenance;

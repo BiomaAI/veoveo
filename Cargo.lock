@@ -16537,6 +16537,7 @@ dependencies = [
  "veoveo-artifact-service",
  "veoveo-computer-execution",
  "veoveo-computers",
+ "veoveo-computers-contract",
  "veoveo-computers-runtime",
  "veoveo-computers-transport",
  "veoveo-mcp-conformance",

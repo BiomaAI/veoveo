@@ -19,10 +19,11 @@
 
 use std::collections::BTreeSet;
 
-use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+#[cfg(test)]
 use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::Grant;
 
 use veoveo_types::WorkContextMembershipLevel;
 use veoveo_types::{AccessLevel, AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId};
@@ -59,23 +60,6 @@ impl GroupRole {
 pub struct GroupMembership {
     pub group: GroupId,
     pub role: GroupRole,
-}
-
-/// One entry in an artifact's access control list.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct Grant {
-    pub artifact: ArtifactId,
-    pub subject: AccessSubject,
-    pub level: AccessLevel,
-    /// Tenant the artifact (and therefore this grant) lives in. Isolation is a
-    /// hard partition: a grant never bridges tenants.
-    pub tenant: TenantId,
-    /// Labels the artifact carries. MAC is checked against these independently
-    /// of the grant; no grant can widen clearance.
-    #[serde(default)]
-    pub data_labels: BTreeSet<DataLabelId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retention_expires_at: Option<DateTime<Utc>>,
 }
 
 /// The outcome of an access decision, carrying the reason for audit evidence.

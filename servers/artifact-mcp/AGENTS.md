@@ -20,13 +20,22 @@ links. It fronts `artifact-service` and holds no bytes of its own.
   store. Subscription state is session local and in memory.
 - Occurrence identity and metadata come from `veoveo_artifact_contract`.
   Capability levels and resolved invocation values come from `veoveo_types`.
+  Grant and share-link values come from the Artifact plane contract.
   Access decisions and service request shapes come from `veoveo_mcp_contract`;
   tool schemas use the shared `tool` macro with declared output schemas.
 - All six tools are quick metadata actions. A durable operation would require
   the shared task runtime, never a private queue.
-- `DESIGN.md` is the domain contract; the typed contract in `src/lib.rs`
+- `DESIGN.md` is the domain contract; the typed contract in `src/contract.rs`
   carries its shapes and URIs. Both documents are embedded at build time and
   served under the well-known surface.
+
+## Public Library
+
+Consumers select `default-features = false, features = ["contract"]`. Keep the
+contract feature free of MCP integration, service, provider and asynchronous runtime
+dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
+Qualify the isolated consumer and both runtime feature configurations when changing
+these gates. Public types keep their existing domain owners.
 
 ## Build And Test
 

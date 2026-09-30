@@ -1,0 +1,13 @@
+[package]
+name = "veoveo-server-contract-consumer"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace]
+resolver = "3"
+
+[dependencies]
+veoveo-artifact-mcp = { path = "../../../servers/artifact-mcp", default-features = false, features = ["contract"] }
+veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-features = false, features = ["contract"] }
+veoveo-speech-mcp = { path = "../../../servers/speech-mcp", default-features = false, features = ["contract"] }

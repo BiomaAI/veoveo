@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use veoveo_artifact_contract::ArtifactId;
+use veoveo_artifact_contract::{ArtifactId, Grant};
 use veoveo_mcp_contract::{
-    AccessDecision, AccessRequest, Exposure, GatewayControlPlane, Grant, GroupMembership,
-    GroupRole, OwnedRoutePurpose, ResourceSelector, ServerManifest,
+    AccessDecision, AccessRequest, Exposure, GatewayControlPlane, GroupMembership, GroupRole,
+    OwnedRoutePurpose, ResourceSelector, ServerManifest,
 };
 use veoveo_mcp_gateway::{AuthenticatedSubject, GatewayServerHealth, GatewayServerHealthState};
 use veoveo_platform_store::{

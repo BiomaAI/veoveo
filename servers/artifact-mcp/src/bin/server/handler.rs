@@ -23,7 +23,7 @@ use rmcp::{
 use serde::Serialize;
 use veoveo_artifact_client::HttpArtifactPlane;
 use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, parse_artifact_plane_uri};
-use veoveo_artifact_mcp::{
+use veoveo_artifact_mcp::contract::{
     ARTIFACT_TEMPLATE, ArtifactGrantsOutput, ArtifactMetadataOutput, ArtifactMutationOutput,
     ArtifactReference, ArtifactShareOutput, CONTRACT_URI, CreateArtifactShareRequest, DOC_TEMPLATE,
     DOCS_URI, GRANTS_TEMPLATE, GrantArtifactRequest, INDEX_URI, LIBRARY_APP_URI, METADATA_TEMPLATE,
@@ -459,7 +459,7 @@ impl ServerHandler for ArtifactMcp {
         }
         if let Some(doc_id) = parse_doc_uri(uri) {
             let doc = SERVER_DOCS
-                .doc(doc_id)
+                .doc(doc_id.as_str())
                 .ok_or_else(|| McpError::invalid_params("unknown server document", None))?;
             return Ok(private_resource(vec![
                 ResourceContents::text(doc.body, uri).with_mime_type("text/markdown"),
@@ -752,10 +752,13 @@ fn well_known_resources() -> Vec<Resource> {
     ];
     for doc in SERVER_DOCS.iter() {
         resources.push(
-            Resource::new(doc_uri(doc.id), doc.title)
-                .with_title(doc.title)
-                .with_description("Crate document embedded at build time.")
-                .with_mime_type("text/markdown"),
+            Resource::new(
+                doc_uri(doc.id.try_into().expect("embedded Artifact document")).to_string(),
+                doc.title,
+            )
+            .with_title(doc.title)
+            .with_description("Crate document embedded at build time.")
+            .with_mime_type("text/markdown"),
         );
     }
     resources.push(

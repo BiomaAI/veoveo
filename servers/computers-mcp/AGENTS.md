@@ -13,6 +13,14 @@ Never dispatch without a durable ticket and current action authority. A lost
 ticket, provider reply, observer or Task lease permits observation only. A fake
 preflight is test-only; production requires current policy and retained allocation.
 
+## Public Library
+
+Consumers select `default-features = false, features = ["contract"]`. Keep the
+contract feature free of MCP integration, service, provider and asynchronous runtime
+dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
+Qualify the isolated consumer and both runtime feature configurations when changing
+these gates. Public types keep their existing domain owners.
+
 ## Build And Test
 
 Run the application and domain store cases before protocol integration. The native

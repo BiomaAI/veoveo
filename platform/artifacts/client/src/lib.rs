@@ -8,17 +8,17 @@
 
 use base64::Engine;
 use veoveo_artifact_contract::{
-    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState,
+    ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState, ArtifactShareLink,
+    ArtifactShareLinkId, Grant,
 };
-use veoveo_mcp_contract::access::{AccessDecision, Grant};
+use veoveo_mcp_contract::access::AccessDecision;
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPage,
-    ArtifactPlane, ArtifactPlaneError, ArtifactShareLink, ArtifactShareLinkId,
-    ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest, CreateArtifactShareLinkRequest,
-    DecideArtifactAccessRequest, GrantList, IssueArtifactWriteCapabilityRequest,
-    IssuedArtifactWriteCapability, ListArtifactAccessRequests, ListArtifactsRequest, PlaneCaller,
-    PutArtifactRequest, PutGrantRequest, RedeemArtifactWriteCapabilityRequest,
-    StreamArtifactRequest,
+    ArtifactPlane, ArtifactPlaneError, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
+    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
+    IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
+    ListArtifactsRequest, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,
 };
 use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;

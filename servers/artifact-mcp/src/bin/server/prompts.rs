@@ -7,13 +7,13 @@ use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 struct ShareReviewArgs {
-    artifact_id: String,
+    artifact_id: veoveo_artifact_contract::ArtifactId,
     audience: String,
 }
 
 #[derive(Debug, Deserialize)]
 struct AccessReviewArgs {
-    artifact_id: String,
+    artifact_id: veoveo_artifact_contract::ArtifactId,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -69,8 +69,10 @@ impl ArtifactPrompt {
             Self::AccessReview => {
                 let args: AccessReviewArgs = parse(self.name(), value)?;
                 format!(
-                    "Review artifact {}. Read artifact://metadata/{} and artifact://grants/{}. Report its owner, labels, retention, release state, and effective named grants. Flag public-link eligibility separately from authorized access.",
-                    args.artifact_id, args.artifact_id, args.artifact_id
+                    "Review artifact {}. Read {} and {}. Report its owner, labels, retention, release state, and effective named grants. Flag public-link eligibility separately from authorized access.",
+                    args.artifact_id,
+                    veoveo_artifact_mcp::contract::metadata_uri(args.artifact_id),
+                    veoveo_artifact_mcp::contract::grants_uri(args.artifact_id)
                 )
             }
         };

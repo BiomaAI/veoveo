@@ -18,6 +18,14 @@ Keep microphone audio ephemeral. Stop and cancel have distinct meanings: stop fl
 the final result, while cancel discards the session. A lost connection cannot become
 an automatic message send or inference replay.
 
+## Public Library
+
+Consumers select `default-features = false, features = ["contract"]`. Keep the
+contract feature free of MCP integration, service, provider and asynchronous runtime
+dependencies. Execution uses `runtime`; hosted endpoints and binaries require `mcp`.
+Qualify the isolated consumer and both runtime feature configurations when changing
+these gates. Public types keep their existing domain owners.
+
 ## Build And Test
 
 `cargo test -p veoveo-speech-mcp --lib` checks the public runtime adapters.

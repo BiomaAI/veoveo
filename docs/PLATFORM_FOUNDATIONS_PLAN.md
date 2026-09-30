@@ -1705,6 +1705,20 @@ fork fixture passes eight, and native Datasheet smoke passes with the new genera
 All three lockfiles replace only the UUID package. Installed public Task/catalog/usage reads pass at `f1a55ddc`; the new Task ID has the
 current RFC millisecond timestamp. No historical-format adapter is added.
 
+The Phase 3 library batch isolates the remaining Artifact, Computers and Speech server
+contracts. Artifact grant/share DTOs move into the existing Artifact plane contract;
+core policy and transport keep their current owners. Artifact resource helpers adopt
+typed component construction and strict family parsing. Computers and Speech expose
+their existing public contract crates through their server libraries. One independently
+resolved consumer passes both checks across all three gates. The grouped native batch
+passes 479 checks across the three servers, Artifact plane contracts/client/service,
+MCP contract, Gateway and Console BFF. Fourteen prerequisite-dependent cases are ignored;
+they are not installed evidence. Artifact's complete contract suite passes 21 checks,
+including five compile-fail examples and its existing wire/schema fixtures. Runtime-only
+library compilation passes for all three feature configurations. All 15 Rust MCP
+server libraries now expose an isolated contract feature. Installed publication and
+runtime acceptance join the next Phase 3 integration checkpoint.
+
 ## Standards And Protocols
 
 | Standard or protocol | Role in this plan |
@@ -2151,10 +2165,10 @@ invariants are checked. Record remaining adoption explicitly in the inventory be
 
 #### Migration Inventory And Status
 
-All 15 Rust MCP server packages under `servers/` have library targets. Time, Map,
-Frames, Timeseries, DuckDB, Optimization, Media, UAV, Reason, Stream, View and Recording define the
+All 15 Rust MCP server packages under `servers/` have library targets and define the
 `contract` feature. Independent consumer qualification is recorded in each owning row.
-Artifact, Computers and Speech still need that server library feature. Existing libraries remain the
+Artifact, Computers and Speech also pass one separately resolved consumer and grouped
+native default-feature tests; their runtime-only libraries compile. Existing libraries remain the
 default owner; the inventory must not become a central domain-type registry.
 
 | Surface | Current dependency or representation gap | Next owning change |
@@ -2181,8 +2195,8 @@ default owner; the inventory must not become a central domain-type registry.
 | Time resolution metadata | `ResolveTimeOutput` admits matching instant/release pairs and protects them with read-only accessors; its wire adapter preserves flat projection fields. Engine epoch keys remain typed, relative calculations reject foreign authority and preserve uncertainty, and additional uncertainty checks overflow. Native and independent-consumer cases qualify these relationships | Qualify installed resolve/convert decoding and epoch behavior after authority activation; computed representations remain the engine's responsibility |
 | Time activation preflight | A private draft carries the candidate and both admitted active families through file loading to SQL commit. A shared tenant write fences different-family decisions on 3.2.4; the transaction compares the observed metadata and rolls back every mutation on conflict. Native cases cover RocksDB contention, retained schema upgrades, stale inputs and failed file loads | Qualify installed activation; qualify 3.3 locked reads before retiring the concurrency fence |
 | Digest wire profiles | Time's `AuthoritySourceDigest` preserves bare hexadecimal spelling through metadata, requests and typed persistence drafts; canonical content comparison and shared provenance use the foundational `sha256:` value. Native cases preserve uppercase retained data and idempotency while rejecting malformed matching rows. View still uses bare hexadecimal text | Qualify current digest admission in installed Time; migrate remaining owners and callers by hard cut |
-| Computers and Speech | Existing domain contract crates separate some types from the server runtime; Speech imports Artifact metadata directly and its independently resolved contract excludes MCP and service dependencies | Qualify the Computers dependency closure and expose both server libraries' contract features without duplicating types |
-| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, and byte handoffs; the separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle; schema/wire preservation, independent consumption, and native checks pass | Typed addresses now flow through metadata, service/client resolution, and the migrated domain/Store consumers; qualify installed reads and separate remaining access/service request contracts |
+| Computers and Speech | Server libraries expose their existing domain-owned public types through isolated contract features. Their shared independent consumer rejects service/MCP dependencies; default hosted tests and runtime-only library compilation pass | Complete owner-local scope/resource and DTO adoption, checked server setup, and installed qualification |
+| Artifact plane model | `platform/artifacts/contract` owns occurrence identity, metadata, compliance, provenance, release state, grants, share-link values and byte handoffs. The separate plane service/client prevents placing their common model in the MCP server package without a Cargo cycle. Its server library exposes tool DTOs and typed `ArtifactResource` families through an isolated contract feature. Shared URI components build addresses from occurrence IDs or closed document variants. Independent consumption, direct consumer tests, and wire/schema qualification pass | Qualify installed reads and sharing at the next integration checkpoint; separate remaining access/service request contracts and adopt checked server setup |
 | Artifact identity and URI admission | `ArtifactId` checks version and RFC variant; `ArtifactUri` owns neutral/presented variants, preserves accepted URI spelling, and builds from typed IDs and schemes; metadata checks wire ID/URI agreement | Qualify installed consumption of the current identity and URI contract |
 | Remaining Artifact references | Download URLs, some Store DTOs, and other domain URI fields still use broader string profiles | Migrate with each owning contract; distinguish Artifact identities from external fetch locations and declare persisted/profile changes |
 | Artifact attribution construction | `ArtifactProvenance` uses foundational `InvocationProvenance`; a private wire adapter preserves valid flat metadata and requires each mode's identities in both decoding and schemas | Native publication/readback, independent consumption, schema/decoder parity, and compile-fail qualification pass; qualify installed metadata consumption during reference acceptance |
@@ -2635,6 +2649,7 @@ not complete while a row remains.
 
 | Phase and step | Code path | What remains | Why it was deferred |
 |---|---|---|---|
-| Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Install the shared result envelope and event schema 3 on a fresh reference Store; qualify linked domain results and cross-replica delivery | Native format and consumer checks pass; installed acceptance requires stopped writers and a database reset |
+| Phase 3 Task result installation | `platform/task-runtime/DESIGN.md` | Qualify cross-replica delivery of the installed shared result envelope and event schema 3 | The fresh Store and linked Stream/Reason result acceptance pass; multiple installed replicas still need qualification |
+| Phase 3 final server library gates | `servers/artifact-mcp/DESIGN.md` | Publish and qualify Artifact reads/sharing and the Computers/Speech hosted feature builds at the next integration checkpoint | Independent contract consumption, direct native consumers and runtime-only compilation pass; deployment is grouped with the next Phase 3 batch |
 | Phase 1 reference reset | `testing/flight-smoke/src/domain.rs` | Finish composed flight, timing and installed workload acceptance with the corrected shared recording path | Map recovery, route and mission execution, live Stream, and independent live-part Stream replay and grounded Reason pass. The composed run has not yet exercised its corrected recording stage or reached final acceptance |
 | Phase 3 Stream C27 installation | `servers/stream-mcp/src/bin/server/subscriptions.rs` | Qualify cross-replica run invalidations and live-session notifications on the rebuilt reference installation | Native mixed-source, reconnect and MCP cancellation checks pass; reference workloads are stopped during development |

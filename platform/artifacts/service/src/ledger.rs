@@ -3,14 +3,15 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactReleaseState};
-use veoveo_mcp_contract::access::Grant;
+use veoveo_artifact_contract::{
+    ArtifactId, ArtifactMetadata, ArtifactReleaseState, ArtifactShareLinkId, Grant,
+};
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestState, ArtifactShareLinkId, ArtifactWriteCapabilityId,
+    ArtifactAccessRequestState, ArtifactWriteCapabilityId,
 };
 use veoveo_types::InvocationAuthority;
 use veoveo_types::{AccessSubject, DataLabelId, GroupId, PrincipalId, TenantId, WorkContextId};

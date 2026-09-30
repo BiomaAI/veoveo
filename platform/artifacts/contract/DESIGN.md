@@ -14,7 +14,8 @@
 ## Ownership And Dependencies
 
 This library owns the Artifact plane's occurrence identity, metadata, compliance,
-provenance, release state, and in-process byte handoff values. The Artifact service,
+provenance, release state, grant records, share-link values and identities, and
+in-process byte handoff values. The Artifact service,
 HTTP client, MCP server, and other domains import these definitions directly.
 The library depends on foundational identity types, UUID, date/time values, and
 serialization/schema support. It has no MCP, asynchronous runtime, database, GPU,
@@ -24,8 +25,8 @@ The Artifact plane has its own service and client. Housing their common types in
 the MCP server package would create a server-to-client-to-server Cargo cycle when
 the server runtime enables the client. This domain-owned crate supplies the shared
 model below both adapters. It introduces no process or deployment requirement.
-The MCP server's public library can expose the plane model with its own domain
-contract; that feature's remaining dependencies are tracked in the foundations plan.
+The MCP server exposes the plane model through its isolated `contract` feature,
+alongside its tool DTOs and resource families.
 
 Artifact access evaluation, Work Context membership, grant composition, capabilities,
 and transport-facing request/response types currently live in `mcp/contract`.
@@ -119,3 +120,15 @@ combinations, compile-time rejection of an incomplete delegated invocation, and
 publication/readback through memory and independently connected database repositories.
 Schema qualification uses the workspace's pinned JSON Schema validator, also used by
 gateway and MCP conformance; its next upgrade is qualified across those consumers.
+
+## Sharing Values
+
+`access.rs` owns the Artifact `Grant`, `ArtifactShareLink`, and `ArtifactShareLinkId`
+values used by the service, MCP, gateway and Console. The grant retains its occurrence,
+subject, access level, tenant, labels and optional retention deadline. It contains no
+policy evaluator. The service applies current policy before storing or returning it.
+
+Share identities are distinct RFC UUIDv7 values. Their decoder rejects other versions
+and non-RFC variants without echoing the input. Share links keep the existing JSON
+fields and redact bearer URLs from Debug output. Transport adapters map invalid
+share identities to their existing invalid-request response.

@@ -14,6 +14,19 @@ recovery, hosted MCP and installed browser acceptance pass within the
 | Photon | Moondream `2.4.1`, Kestrel `0.8.1`, NVIDIA CUDA only; Parakeet Ultra weights SHA-256 `c9608f36d0ab956c14bfcc525479b0746b3b42a56f6949ec85c14eb7466717dc` |
 | JSON / WebVTT | Typed transcripts with word/segment times in seconds and caption export |
 
+## Library Features
+
+The server library exposes its existing public types through `contract` with
+`default-features = false, features = ["contract"]`. The domain-owned
+`veoveo-speech-contract` crate remains the type owner. A consumer of the server library
+can use those same types without linking workers, persistence or hosted transport.
+The `runtime` feature supplies execution modules, and `mcp` adds server configuration
+and protocol entrypoints. The executable requires `mcp`, which is the default.
+
+The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
+qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
+feature configurations; a contract build supplies no installed workload evidence.
+
 ## Inference Boundary
 
 The persistent worker loads one model and admits a bounded number of simultaneous

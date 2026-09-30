@@ -3,15 +3,15 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use veoveo_artifact_contract::{
-    ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ComplianceMetadata,
+    ArtifactId, ArtifactMetadata, ArtifactProvenance, ArtifactReleaseState, ArtifactShareLinkId,
+    ComplianceMetadata, Grant,
 };
-use veoveo_mcp_contract::access::Grant;
 use veoveo_mcp_contract::gateway::{
     GatewayProfileId, PrincipalKind, ServerSlug, TokenIssuer, TokenSubject,
 };
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestDecision, ArtifactAccessRequestId,
-    ArtifactAccessRequestState, ArtifactShareLinkId,
+    ArtifactAccessRequestState,
 };
 use veoveo_platform_store as platform;
 use veoveo_platform_store::{RecordIdKey, StoreError as PlatformStoreError};

@@ -11,14 +11,14 @@ use chrono::{TimeDelta, Utc};
 use sha2::{Digest, Sha256};
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactProvenance, ArtifactReleaseState,
-    ComplianceMetadata,
+    ArtifactShareLink, ArtifactShareLinkId, ComplianceMetadata, Grant,
 };
-use veoveo_mcp_contract::access::{AccessDecision, AccessRequest, Grant, decide};
+use veoveo_mcp_contract::access::{AccessDecision, AccessRequest, decide};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage,
-    ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError, ArtifactShareLink,
-    ArtifactShareLinkId, ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret,
-    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
+    ArtifactAccessRequestScope, ArtifactPage, ArtifactPlane, ArtifactPlaneError,
+    ArtifactWriteCapabilityId, ArtifactWriteCapabilitySecret, CreateArtifactAccessRequest,
+    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, ListArtifactAccessRequests,
     ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
     RedeemArtifactWriteCapabilityRequest, StreamArtifactRequest,

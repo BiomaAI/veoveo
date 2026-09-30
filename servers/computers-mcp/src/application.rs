@@ -39,11 +39,13 @@ pub struct Application {
     execution: Option<execution::ExecutionSupport>,
     files: Option<execution::ExecutionSupport>,
     maintenance: Option<crate::MaintenanceProfiles>,
+    #[cfg(feature = "mcp")]
     pub(crate) subscription_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) store: ComputersStore,
     pub(crate) tasks: TaskRuntime,
     pub(crate) templates: Templates,
     pub(crate) runtime: crate::RuntimeAccess,
+    #[cfg(feature = "mcp")]
     pub(crate) terminal_slots: std::sync::Arc<tokio::sync::Semaphore>,
     health: watch::Receiver<CapacityHealth>,
 }
@@ -51,6 +53,7 @@ impl Application {
     pub fn task_runtime(&self) -> &TaskRuntime {
         &self.tasks
     }
+    #[cfg(feature = "mcp")]
     pub(crate) fn capacity_health(&self) -> watch::Receiver<CapacityHealth> {
         self.health.clone()
     }
@@ -68,12 +71,14 @@ impl Application {
             execution: None,
             files: None,
             maintenance: None,
+            #[cfg(feature = "mcp")]
             subscription_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(64)),
             store,
             tasks,
             templates,
             health,
             runtime,
+            #[cfg(feature = "mcp")]
             terminal_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(128)),
         })
     }

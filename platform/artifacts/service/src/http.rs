@@ -15,15 +15,14 @@ use axum::{Json, Router};
 use base64::Engine;
 use futures::StreamExt as _;
 use serde::Deserialize;
-use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
+use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata, ArtifactShareLinkId};
 use veoveo_mcp_contract::{
     ArtifactAccessRequest, ArtifactAccessRequestId, ArtifactAccessRequestPage, ArtifactPlane,
-    ArtifactPlaneError, ArtifactShareLinkId, ArtifactWriteCapabilityId,
-    CreateArtifactAccessRequest, CreateArtifactShareLinkRequest, DecideArtifactAccessRequest,
-    GrantList, IssueArtifactWriteCapabilityRequest, ListArtifactAccessRequests,
-    ListArtifactsRequest, MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest,
-    PutGrantRequest, RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest,
-    StreamArtifactRequest,
+    ArtifactPlaneError, ArtifactWriteCapabilityId, CreateArtifactAccessRequest,
+    CreateArtifactShareLinkRequest, DecideArtifactAccessRequest, GrantList,
+    IssueArtifactWriteCapabilityRequest, ListArtifactAccessRequests, ListArtifactsRequest,
+    MAX_ARTIFACT_PUT_DESCRIPTOR_BYTES, PlaneCaller, PutArtifactRequest, PutGrantRequest,
+    RedeemArtifactWriteCapabilityRequest, SetArtifactReleaseStateRequest, StreamArtifactRequest,
 };
 use veoveo_types::AccessLevel;
 use veoveo_types::AccessSubject;
@@ -591,7 +590,8 @@ async fn revoke_share_link<R: ArtifactRepository, S: BlobStore>(
     headers: HeaderMap,
 ) -> Result<StatusCode, ApiError> {
     let caller = caller(&state, &headers)?;
-    let link_id = ArtifactShareLinkId::parse(link_id)?;
+    let link_id = ArtifactShareLinkId::parse(link_id)
+        .map_err(|error| ArtifactPlaneError::InvalidRequest(error.to_string()))?;
     state
         .service
         .revoke_share_link(&caller, &parse_artifact_id(&artifact_id)?, &link_id)

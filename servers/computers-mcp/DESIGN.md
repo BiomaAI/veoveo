@@ -29,6 +29,19 @@ Offline inventory continues to expose retained records without claiming a fresh
 provider observation. Browser grants and terminal setup repeat current authority
 and process checks after recovery.
 
+## Library Features
+
+The server library exposes its existing public types through `contract` with
+`default-features = false, features = ["contract"]`. The domain-owned
+`veoveo-computers-contract` crate remains the type owner. A consumer of the server library
+can use those same types without linking workers, persistence or hosted transport.
+The `runtime` feature supplies execution modules, and `mcp` adds server configuration
+and protocol entrypoints. The executable requires `mcp`, which is the default.
+
+The independent [contract consumer](../../testing/fixtures/server-contract-consumer/DESIGN.md)
+qualifies the isolated dependency graph. Runtime and hosted tests qualify their own
+feature configurations; a contract build supplies no installed workload evidence.
+
 ## Retained Maintenance Worker
 
 `MaintenanceWorker` composes the domain journal with the pinned provider, retained-home

@@ -30,13 +30,14 @@ use std::{
     fmt,
     num::{NonZeroU32, NonZeroU64},
 };
+use veoveo_artifact_contract::{ArtifactShareLink, ArtifactShareLinkId, Grant};
 
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::access::{AccessDecision, Grant, GroupMembership};
+use crate::access::{AccessDecision, GroupMembership};
 use crate::internal_auth::GatewayInternalIdentity;
 use veoveo_artifact_contract::{
     ArtifactId, ArtifactMetadata, ArtifactObject, ArtifactReleaseState,
@@ -171,7 +172,6 @@ impl<'de> Deserialize<'de> for ArtifactWriteIdempotencyKey {
         Self::new(String::deserialize(deserializer)?).map_err(serde::de::Error::custom)
     }
 }
-artifact_uuid_id!(ArtifactShareLinkId, "artifact share link id");
 artifact_uuid_id!(ArtifactAccessRequestId, "artifact access request id");
 
 /// Opaque identity of an artifact-write capability issued by the artifact
@@ -276,28 +276,6 @@ pub struct CreateArtifactShareLinkRequest {
     pub expires_at: Option<DateTime<Utc>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_downloads: Option<NonZeroU64>,
-}
-
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-pub struct ArtifactShareLink {
-    pub link_id: ArtifactShareLinkId,
-    pub artifact_id: ArtifactId,
-    pub url: String,
-    pub expires_at: DateTime<Utc>,
-    pub max_downloads: Option<NonZeroU64>,
-}
-
-impl fmt::Debug for ArtifactShareLink {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter
-            .debug_struct("ArtifactShareLink")
-            .field("link_id", &self.link_id)
-            .field("artifact_id", &self.artifact_id)
-            .field("url", &"<redacted>")
-            .field("expires_at", &self.expires_at)
-            .field("max_downloads", &self.max_downloads)
-            .finish()
-    }
 }
 
 /// What a domain server presents when acting on a principal's behalf.
