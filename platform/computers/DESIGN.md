@@ -76,6 +76,14 @@ OAuth client and session constraints; a Workspace session cannot take over a Con
 attachment. Capacity counts all grants attached to the Computer across profiles.
 Named automation grantees remain bound to their explicit profile and OAuth client.
 
+Browser ticket reads match the secret hash, principal, profile, OAuth client and
+sign-in family in SQL. CLI credential reads match their hash, profile and selected
+Computer before decoding the stored authority. Renewal reads bind the redeemed
+connection and provider and exclude revoked or expired grants. Owner inventory and
+revocation queries bind the retained Computer, provider and owner identity. CLI
+pairing applies its parent, session and challenge-lifetime predicates before decoding
+the callback metadata. The mutation transactions repeat their admission checks.
+
 Real-store qualification in `tests/resource_ownership.rs` and
 `tests/cross_client_effects.rs` covers retained creation keys and ciphertext, two
 client profiles for one principal/context, other principals and contexts, current
@@ -764,6 +772,12 @@ The retained owner can inspect and repair the Task link after agent access ends.
 The shared Task remains attributed to the agent. Public lifecycle inputs and grant
 discovery remain inactive until the service projection is qualified.
 
+`operation_reads.rs` selects only the parent Computer, action and named grant under
+the caller's complete owner or actor identity and clearance. Current Task policy
+resolves those private lookup fields before the operation state is decoded. The
+final query repeats participant admission and binds the selected parent, action,
+grant and retained owner. An owner's recovery read preserves the original Task actor.
+
 Migration 0076 backfills retained ownership from existing owner-only operation rows.
 Drain Computers readers and lifecycle workers before applying it, then start the
 new fleet before admitting named lifecycle work. Older writers cannot create the
@@ -944,11 +958,14 @@ update permission with the same named tool policy and a five-second freshness bo
 
 ### Public File Authority
 
-`files/access.rs` selects only journal metadata before authorizing a public Task.
-The current direct owner can observe with Read and cancel with Stop policy. The original
-agent principal and OAuth client require the current named Execute grant and file tool
-policy. Result labels must still fit the caller. These short permits bind the Computer,
-transfer and stored Task owner; the service enforces their deadline during projection.
+`task_access.rs` supplies the shared command and file Task admission path. SQL selects
+private lookup fields under the direct owner's identity or the accepted actor/client
+binding and applies the caller's label clearance. The current direct owner can observe
+with Read and cancel with Stop policy. An agent requires its current Execute grant;
+file Tasks also require file-tool policy. A private typed permit then admits the
+journal metadata query. The query binds the selected Task, Computer, grant, provider
+and retained owner before decoding the stored authority. The service checks the permit
+deadline during projection.
 
 `active_execution.rs` reads the exact visible collection's execution slots in one batch.
 The metadata projection checks each slot's Computer and target record identity. It

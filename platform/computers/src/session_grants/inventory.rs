@@ -17,18 +17,16 @@ impl ComputersStore {
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
             let owner = owner_key(&computer.owner)?;
+            let mut params = crate::store::owner_query_bindings(actor.owner())?;
+            params.extend([
+                ("provider", self.provider_instance_id.into_value()),
+                ("owner_key", owner.clone().into_value()),
+                ("computer_id", computer_id.into_uuid().into_value()),
+            ]);
             let mut response = self
                 .query(
-                    "SELECT * FROM computer_session_grant WHERE owner_key = $owner_key \
-                     AND computer_id = $computer_id AND revoked_at = NONE \
-                     AND expires_at > time::now() AND idle_expires_at > time::now() \
-                     AND family.revoked_at = NONE AND family.expires_at > time::now() \
-                     AND (connection_id != NONE OR ticket_expires_at > time::now()) \
-                     ORDER BY grant_id DESC LIMIT 129;",
-                    vec![
-                        ("owner_key", owner.clone().into_value()),
-                        ("computer_id", computer_id.into_uuid().into_value()),
-                    ],
+                    include_str!("../../queries/browser_access_grants.surql"),
+                    params,
                 )
                 .await?;
             let rows: Vec<model::Record> =

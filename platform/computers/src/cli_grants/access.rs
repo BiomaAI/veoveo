@@ -17,7 +17,18 @@ impl ComputersStore {
     ) -> Result<CliConnectionHandle> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let (grant_id, hash) = secret::parse(credential)?;
-            let grant = self.cli_grant(grant_id).await?;
+            let mut read = self.query("SELECT * FROM ONLY $grant WHERE provider_instance_id = $provider AND credential_hash = $credential_hash
+                AND authority.profile = $profile AND ($computer = NONE OR computer_id = $computer)
+                AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
+                AND family.revoked_at = NONE AND family.expires_at > time::now();", vec![
+                ("grant", super::grant_record(grant_id).into_value()),
+                ("provider", self.provider_instance_id.into_value()),
+                ("credential_hash", hash.clone().into_value()),
+                ("profile", expected_profile.to_string().into_value()),
+                ("computer", expected_computer.map(crate::api::ComputerId::into_uuid).into_value()),
+            ]).await?;
+            let grant: Option<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let grant = grant.ok_or(ComputerError::Forbidden)?;
             let computer_id = grant.computer_id()?;
             if expected_computer.is_some_and(|id| id != computer_id) {
                 return Err(ComputerError::Forbidden);
@@ -90,16 +101,6 @@ impl ComputersStore {
         .await
         .map_err(|_| ComputerError::Unavailable)?
     }
-    pub(super) async fn cli_grant(&self, id: Uuid) -> Result<model::Grant> {
-        let mut read = self
-            .query(
-                "SELECT * FROM ONLY $grant;",
-                vec![("grant", super::grant_record(id).into_value())],
-            )
-            .await?;
-        let grant: Option<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
-        grant.ok_or(ComputerError::NotFound)
-    }
     pub async fn cli_access_grants(
         &self,
         actor: &ComputerActor,
@@ -110,25 +111,61 @@ impl ComputersStore {
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
             let owner = owner_key(&computer.owner)?;
-            let mut read = self.query("SELECT * FROM computer_cli_grant WHERE owner_key = $owner_key AND computer_id = $computer_id \
-                AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now() \
-                AND family.revoked_at = NONE AND family.expires_at > time::now() ORDER BY grant_id DESC LIMIT 129;", vec![
-                ("owner_key", owner.clone().into_value()), ("computer_id", computer_id.into_uuid().into_value()),
-            ]).await?;
+            let mut params = crate::store::owner_query_bindings(actor.owner())?;
+            params.extend([
+                ("provider", self.provider_instance_id.into_value()),
+                ("owner_key", owner.clone().into_value()),
+                ("computer_id", computer_id.into_uuid().into_value()),
+            ]);
+            let mut read = self
+                .query(
+                    include_str!("../../queries/cli_access_grants.surql"),
+                    params,
+                )
+                .await?;
             let rows: Vec<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
-            if rows.len() > 128 { return Err(ComputerError::Unavailable); }
-            let family = actor.accepted().request_context.access_token.session_family.as_ref();
-            let result = rows.into_iter().map(|row| {
-                let accepted = row.accepted()?;
-                crate::identity::verify_retained_owner(&computer.owner, &row.owner_key, &accepted.task_owner())?;
-                if row.owner_key != owner || row.computer_id != computer_id.into_uuid() { return Err(ComputerError::Unavailable); }
-                Ok(CliGrantView { grant_id:row.grant_id, name:row.name,
-                    current_session:family.is_some() && family == accepted.request_context.access_token.session_family.as_ref(),
-                    issued_at:row.issued_at, expires_at:row.expires_at, last_activity_at:row.last_activity_at })
-            }).collect::<Result<Vec<_>>>()?;
+            if rows.len() > 128 {
+                return Err(ComputerError::Unavailable);
+            }
+            let family = actor
+                .accepted()
+                .request_context
+                .access_token
+                .session_family
+                .as_ref();
+            let result = rows
+                .into_iter()
+                .map(|row| {
+                    let accepted = row.accepted()?;
+                    crate::identity::verify_retained_owner(
+                        &computer.owner,
+                        &row.owner_key,
+                        &accepted.task_owner(),
+                    )?;
+                    if row.owner_key != owner || row.computer_id != computer_id.into_uuid() {
+                        return Err(ComputerError::Unavailable);
+                    }
+                    Ok(CliGrantView {
+                        grant_id: row.grant_id,
+                        name: row.name,
+                        current_session: family.is_some()
+                            && family
+                                == accepted
+                                    .request_context
+                                    .access_token
+                                    .session_family
+                                    .as_ref(),
+                        issued_at: row.issued_at,
+                        expires_at: row.expires_at,
+                        last_activity_at: row.last_activity_at,
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
             control.require_read(Some(computer_id))?;
             Ok(result)
-        }).await.map_err(|_| ComputerError::Unavailable)?
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
     }
     pub async fn revoke_cli_grant(
         &self,
@@ -137,13 +174,24 @@ impl ComputersStore {
         grant_id: Uuid,
     ) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            let row = self.cli_grant(grant_id).await?;
-            if row.computer_id != computer_id.into_uuid() {
-                return Err(ComputerError::NotFound);
-            }
             let control = self.control_authority(actor).await?;
             control.require_read(Some(computer_id))?;
             let computer = self.get(actor.owner(), computer_id).await?;
+            let mut params = crate::store::owner_query_bindings(actor.owner())?;
+            params.extend([
+                ("grant", super::grant_record(grant_id).into_value()),
+                ("computer_id", computer_id.into_uuid().into_value()),
+                ("owner_key", owner_key(&computer.owner)?.into_value()),
+                ("provider", self.provider_instance_id.into_value()),
+            ]);
+            let mut read = self
+                .query(
+                    include_str!("../../queries/owned_access_grant.surql"),
+                    params,
+                )
+                .await?;
+            let row: Option<model::Grant> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let row = row.ok_or(ComputerError::NotFound)?;
             crate::identity::verify_retained_owner(
                 &computer.owner,
                 &row.owner_key,

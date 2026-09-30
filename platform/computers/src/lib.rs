@@ -20,9 +20,11 @@ mod observed_restart;
 mod operation;
 mod operation_admission;
 mod operation_authority;
+mod operation_reads;
 pub mod secrets;
 pub mod session_grants;
 mod store;
+mod task_access;
 mod worker_journal;
 mod worker_queue;
 

@@ -17,8 +17,18 @@ impl ComputersStore {
     ) -> Result<CliGrantLease> {
         tokio::time::timeout(Duration::from_secs(5), async {
             let started = Instant::now();
-            let mut read = self.query("SELECT * FROM ONLY $grant; SELECT * FROM ONLY $connection; SELECT * FROM ONLY $policy; RETURN time::now();", vec![
+            let mut read = self.query("SELECT * FROM ONLY $grant WHERE provider_instance_id = $provider AND revoked_at = NONE
+                AND expires_at > time::now() AND idle_expires_at > time::now()
+                AND family.revoked_at = NONE AND family.expires_at > time::now()
+                AND $connection.grant_id = $grant_id AND $connection.connection_id = $connection_id
+                AND $connection.closed_at = NONE AND $connection.expires_at > time::now();
+                SELECT * FROM ONLY $connection WHERE grant_id = $grant_id AND connection_id = $connection_id
+                AND closed_at = NONE AND expires_at > time::now();
+                SELECT * FROM ONLY $policy; RETURN time::now();", vec![
                 ("grant", super::grant_record(handle.grant_id).into_value()),
+                ("provider", self.provider_instance_id.into_value()),
+                ("grant_id", handle.grant_id.into_value()),
+                ("connection_id", handle.connection_id.into_value()),
                 ("connection", super::connection_record(handle.connection_id).into_value()),
                 ("policy", self.session_policy_record().into_value()),
             ]).await?;

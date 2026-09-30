@@ -195,6 +195,7 @@ designs above.
 | `platform/computers/src/authority.rs` | verified identity for operation admission and the source context that execution policy checks |
 | `platform/computers/src/current_authority.rs` | fresh policy and directory checks, dispatch authorization, and recorded policy decisions |
 | `platform/computers/src/operation_authority.rs` and `operation_admission.rs` | separates the owner from the principal acting on the lifecycle; named Start/Stop admission, grant-bound Task access and owner recovery through the public Computers application |
+| `platform/computers/src/operation_reads.rs` and `task_access.rs` | participant-scoped SQL lookups, current lifecycle/command/file policy and typed permits before private Task state or metadata decoding |
 | `platform/computers/src/computer_access.rs` | merged owner/grantee discovery, Read access checks, named action scopes and batch owner lookup |
 | `servers/computers-mcp/src/application/lifecycle.rs` | named Start/Stop grants over the shared operation journal, retry authorization and owner Task recovery |
 | `platform/computers/src/authority_snapshot.rs` and `control_authority.rs` | policy/directory snapshot and request-scoped action/read permissions; public read paths cannot obtain a dispatch ticket |

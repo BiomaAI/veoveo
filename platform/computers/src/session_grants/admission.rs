@@ -142,7 +142,29 @@ impl ComputersStore {
     ) -> Result<SessionGrantHandle> {
         actor.check_admission()?;
         let (grant_id, hash) = secret::parse(token)?;
-        let row = self.session_grant(grant_id).await?;
+        let mut params = crate::store::owner_query_bindings(actor.owner())?;
+        params.extend(crate::computer_access::scope(actor.accepted())?);
+        params.extend([
+            ("grant", super::record(grant_id).into_value()),
+            ("provider", self.provider_instance_id.into_value()),
+            ("ticket_hash", hash.clone().into_value()),
+            (
+                "session_family",
+                actor
+                    .accepted()
+                    .request_context
+                    .access_token
+                    .session_family
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .into_value(),
+            ),
+        ]);
+        let mut read = self
+            .query(include_str!("../../queries/browser_ticket.surql"), params)
+            .await?;
+        let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let row = row.ok_or(ComputerError::Forbidden)?;
         if row.ticket_expires_at <= Utc::now()
             || row.connection_id.is_some()
             || row.revoked_at.is_some()
@@ -217,15 +239,5 @@ impl ComputersStore {
             grant_id,
             connection_id,
         })
-    }
-    pub(super) async fn session_grant(&self, grant_id: Uuid) -> Result<model::Record> {
-        let mut result = self
-            .query(
-                "SELECT * FROM ONLY $grant;",
-                vec![("grant", super::record(grant_id).into_value())],
-            )
-            .await?;
-        let row: Option<model::Record> = result.take(0).map_err(|_| ComputerError::Unavailable)?;
-        row.ok_or(ComputerError::NotFound)
     }
 }

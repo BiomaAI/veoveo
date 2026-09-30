@@ -95,11 +95,20 @@ impl ComputersStore {
             authority::require_attach(&snapshot, computer_id)?;
             let computer = self.get(actor.owner(), computer_id).await?;
             authority::ready(&computer, self.provider_instance_id)?;
+            let owner = owner_key(&computer.owner)?;
+            let family = model::family(actor.accepted())?;
+            let binding = model::binding_hash(actor.accepted())?;
             let mut read = self
                 .query(
-                    "SELECT * FROM ONLY $pairing; SELECT * FROM ONLY $policy;",
+                    "SELECT * FROM ONLY $pairing WHERE computer_id = $computer_id AND owner_key = $owner_key
+                     AND family = $family AND binding_hash = $binding_hash
+                     AND consumed_at = NONE AND expires_at > time::now(); SELECT * FROM ONLY $policy;",
                     vec![
                         ("pairing", super::pairing_record(pairing_id).into_value()),
+                        ("computer_id", computer_id.into_uuid().into_value()),
+                        ("owner_key", owner.clone().into_value()),
+                        ("family", family.clone().into_value()),
+                        ("binding_hash", binding.clone().into_value()),
                         ("policy", self.session_policy_record().into_value()),
                     ],
                 )
@@ -111,9 +120,6 @@ impl ComputersStore {
                 read.take(1).map_err(|_| ComputerError::Unavailable)?;
             let policy = policy.ok_or(ComputerError::Unavailable)?;
             let limits = policy.checked()?;
-            let owner = owner_key(&computer.owner)?;
-            let family = model::family(actor.accepted())?;
-            let binding = model::binding_hash(actor.accepted())?;
             if pairing.pairing_id != pairing_id
                 || pairing.computer_id != computer_id.into_uuid()
                 || pairing.owner_key != owner

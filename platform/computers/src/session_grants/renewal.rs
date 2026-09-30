@@ -27,9 +27,14 @@ impl ComputersStore {
         let started = Instant::now();
         let mut read = self
             .query(
-                "SELECT * FROM ONLY $grant; SELECT * FROM ONLY $policy; RETURN time::now();",
+                "SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider
+                 AND revoked_at = NONE AND expires_at > time::now() AND idle_expires_at > time::now()
+                 AND family.revoked_at = NONE AND family.expires_at > time::now();
+                 SELECT * FROM ONLY $policy; RETURN time::now();",
                 vec![
                     ("grant", super::record(handle.grant_id).into_value()),
+                    ("connection", handle.connection_id.into_value()),
+                    ("provider", self.provider_instance_id.into_value()),
                     ("policy", self.session_policy_record().into_value()),
                 ],
             )
@@ -134,13 +139,28 @@ impl ComputersStore {
             if grant_id.is_nil() {
                 return Err(ComputerError::InvalidInput);
             }
-            let row = self.session_grant(grant_id).await?;
-            if row.computer_id()? != computer_id {
-                return Err(ComputerError::NotFound);
-            }
             let control = self.control_authority(actor).await?;
-            control.require_read(Some(row.computer_id()?))?;
-            let computer = self.get(actor.owner(), row.computer_id()?).await?;
+            control.require_read(Some(computer_id))?;
+            let computer = self.get(actor.owner(), computer_id).await?;
+            let mut params = crate::store::owner_query_bindings(actor.owner())?;
+            params.extend([
+                ("grant", super::record(grant_id).into_value()),
+                ("computer_id", computer_id.into_uuid().into_value()),
+                (
+                    "owner_key",
+                    crate::identity::owner_key(&computer.owner)?.into_value(),
+                ),
+                ("provider", self.provider_instance_id.into_value()),
+            ]);
+            let mut read = self
+                .query(
+                    include_str!("../../queries/owned_access_grant.surql"),
+                    params,
+                )
+                .await?;
+            let row: Option<model::Record> =
+                read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let row = row.ok_or(ComputerError::NotFound)?;
             verify_retained_owner(
                 &computer.owner,
                 &row.owner_key,
@@ -177,7 +197,13 @@ impl ComputersStore {
     /// Transport cleanup uses only the exact successfully redeemed connection.
     pub async fn close_browser_grant(&self, handle: &SessionGrantHandle) -> Result<()> {
         tokio::time::timeout(Duration::from_secs(5), async {
-            let row = self.session_grant(handle.grant_id).await?;
+            let mut read = self.query("SELECT * FROM ONLY $grant WHERE connection_id = $connection AND provider_instance_id = $provider;", vec![
+                ("grant", super::record(handle.grant_id).into_value()),
+                ("connection", handle.connection_id.into_value()),
+                ("provider", self.provider_instance_id.into_value()),
+            ]).await?;
+            let row: Option<model::Record> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
+            let row = row.ok_or(ComputerError::Forbidden)?;
             if row.connection_id != Some(handle.connection_id) {
                 return Err(ComputerError::Forbidden);
             }

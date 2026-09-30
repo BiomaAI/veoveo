@@ -1,9 +1,9 @@
 //! Current public Task authority. Read metadata without loading protected payloads.
 use crate::{
     AcceptedAuthority, ComputerActor, ComputerError, ComputersStore, Result,
-    api::{Action, AutomationPermission, FileTransferDirection, FileTransferStage},
-    identity::owner_key,
+    api::{FileTransferDirection, FileTransferStage},
     secrets::FileTransferBinding,
+    task_access::TaskSelection,
 };
 use serde::Deserialize;
 use std::time::{Duration, Instant};
@@ -97,10 +97,20 @@ impl ComputersStore {
         transfer: veoveo_computers_contract::FileTransferId,
         action: FileTaskAction,
     ) -> Result<FileTaskAccess> {
-        let mut read = self.query(
-            "SELECT id, transfer_id, computer_id, provider_instance_id, actor_key, binding, authority, task, stage FROM ONLY $execution;",
-            vec![("execution", super::record(transfer).into_value())],
-        ).await?;
+        let permit = self
+            .admit_task_metadata(
+                actor,
+                TaskSelection::File(transfer),
+                super::actor_key(actor.accepted())?,
+                matches!(action, FileTaskAction::Cancel),
+            )
+            .await?;
+        let mut read = self
+            .query(
+                include_str!("../../queries/task_metadata.surql"),
+                permit.bindings(self.provider_instance_id)?,
+            )
+            .await?;
         let row: Option<Metadata> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let row = row.ok_or(ComputerError::NotFound)?;
         let decode =
@@ -140,51 +150,16 @@ impl ComputersStore {
         {
             return Err(ComputerError::NotFound);
         }
-        let direct_owner =
-            if actor.accepted().actor.id == actor.accepted().request_context.principal.id {
-                self.retained_owner_computer(actor.owner(), binding.computer_id, &binding.owner_key)
-                    .await?
-            } else {
-                None
-            };
-        let (deadline, can_cancel) = if let Some(computer) = direct_owner {
-            let control = self.control_authority(actor).await?;
-            control.require_read(Some(binding.computer_id))?;
-            if computer.provider_instance_id != self.provider_instance_id {
-                return Err(ComputerError::NotFound);
-            }
-            if matches!(action, FileTaskAction::Cancel) {
-                control.require_action(Action::Stop)?;
-            }
-            (control.valid_until(), control.allows_action(Action::Stop))
-        } else {
-            if super::actor_key(actor.accepted())? != binding.actor_key {
-                return Err(ComputerError::NotFound);
-            }
-            let authority = self
-                .authorize_automation_grant(
-                    actor,
-                    binding.computer_id,
-                    binding.grant_id.ok_or(ComputerError::NotFound)?,
-                    AutomationPermission::Execute,
-                )
-                .await?;
-            authority.require_file_transfer()?;
-            if owner_key(&authority.computer()?.owner)? != binding.owner_key {
-                return Err(ComputerError::NotFound);
-            }
-            (authority.valid_until(), true)
-        };
         actor.check_admission()?;
         let access = FileTaskAccess {
             owner: accepted.task_owner(),
             computer_id: binding.computer_id,
             transfer_id: transfer,
-            deadline,
+            deadline: permit.valid_until(),
             direction: binding.direction,
             stage: serde_json::from_value(row.stage.into())
                 .map_err(|_| ComputerError::Unavailable)?,
-            can_cancel,
+            can_cancel: permit.can_cancel(),
         };
         access.owner()?;
         Ok(access)

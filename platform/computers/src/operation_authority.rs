@@ -2,7 +2,7 @@
 use crate::{
     ComputerActor, ComputerError, ComputersStore, Operation, Result,
     api::{Action, AutomationPermission},
-    identity::permits,
+    operation_reads::{OperationLookup, OperationParticipant},
 };
 use std::time::{Duration, Instant};
 use surrealdb::types::SurrealValue;
@@ -78,60 +78,88 @@ impl ComputersStore {
         id: Uuid,
         cancel: bool,
     ) -> Result<OperationAccess> {
-        let started = Instant::now();
-        let operation = self.read_operation(id).await?;
-        let control = self.control_authority(actor).await?;
-        control.require_read(Some(operation.computer_id))?;
-        let mut deadline = control.valid_until().min(started + Duration::from_secs(5));
-        if permits(&operation.owner, actor.owner()).is_ok() {
-            self.get(actor.owner(), operation.computer_id).await?;
-            if cancel {
-                control.require_action(operation.action)?;
-            }
-        } else {
-            let authority = self
-                .automation_operation_authority(actor, &operation)
-                .await?;
-            deadline = deadline.min(authority.valid_until());
-        }
-        let access = OperationAccess {
-            operation,
-            deadline,
-        };
-        access.operation()?;
-        Ok(access)
+        actor.check_admission()?;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let started = Instant::now();
+            let control = self.control_authority(actor).await?;
+            let mut deadline = control.valid_until().min(started + Duration::from_secs(5));
+            let operation = match self
+                .operation_lookup(actor.owner(), id, OperationParticipant::Owner)
+                .await
+            {
+                Ok(lookup) => {
+                    control.require_read(Some(lookup.computer))?;
+                    if cancel {
+                        control.require_action(lookup.action)?;
+                    }
+                    let computer = self.get(actor.owner(), lookup.computer).await?;
+                    self.read_admitted_operation(actor.owner(), lookup, &computer.owner)
+                        .await?
+                }
+                Err(ComputerError::NotFound) => {
+                    let lookup = self
+                        .operation_lookup(actor.owner(), id, OperationParticipant::Actor)
+                        .await?;
+                    control.require_read(Some(lookup.computer))?;
+                    let authority = self.automation_operation_authority(actor, &lookup).await?;
+                    control.require_same_revision(authority.control_revision())?;
+                    deadline = deadline.min(authority.valid_until());
+                    let operation = self
+                        .read_admitted_operation(
+                            actor.owner(),
+                            lookup,
+                            &authority.computer()?.owner,
+                        )
+                        .await?;
+                    authority.computer()?;
+                    operation
+                }
+                Err(error) => return Err(error),
+            };
+            control.require_actor(actor)?;
+            let access = OperationAccess {
+                operation,
+                deadline,
+            };
+            access.operation()?;
+            Ok(access)
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
     }
 
     /// The original caller may inspect its Task while its named action grant is
     /// current. This supplies no authority over another actor's lifecycle work.
     pub async fn automation_operation(&self, actor: &ComputerActor, id: Uuid) -> Result<Operation> {
-        let operation = self.read_operation(id).await?;
-        self.automation_operation_authority(actor, &operation)
-            .await?;
-        Ok(operation)
+        actor.check_admission()?;
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let lookup = self
+                .operation_lookup(actor.owner(), id, OperationParticipant::Actor)
+                .await?;
+            let authority = self.automation_operation_authority(actor, &lookup).await?;
+            let operation = self
+                .read_admitted_operation(actor.owner(), lookup, &authority.computer()?.owner)
+                .await?;
+            authority.computer()?;
+            actor.check_admission()?;
+            Ok(operation)
+        })
+        .await
+        .map_err(|_| ComputerError::Unavailable)?
     }
 
     async fn automation_operation_authority(
         &self,
         actor: &ComputerActor,
-        operation: &Operation,
+        lookup: &OperationLookup,
     ) -> Result<crate::automation_grants::AutomationAuthority> {
-        permits(&operation.actor, actor.owner())?;
-        let grant = operation
-            .automation_grant_id
-            .ok_or(ComputerError::NotFound)?;
-        let authority = self
-            .authorize_automation_grant(
-                actor,
-                operation.computer_id,
-                grant,
-                permission(operation.action)?,
-            )
-            .await?;
-        if authority.computer()?.owner != operation.owner {
-            return Err(ComputerError::Forbidden);
-        }
-        Ok(authority)
+        self.authorize_automation_grant(
+            actor,
+            lookup.computer,
+            lookup.grant.ok_or(ComputerError::NotFound)?,
+            permission(lookup.action)?,
+        )
+        .await
     }
 
     pub async fn ensure_automation_operation_task(

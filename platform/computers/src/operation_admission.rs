@@ -4,7 +4,7 @@ use crate::{
     automation_grants::AutomationAuthority,
     identity::{can_mutate, digest, owner_key, permits},
     model::computer_record,
-    operation::OperationRecord,
+    operation_reads::OperationParticipant,
 };
 use serde::Serialize;
 use std::collections::BTreeSet;
@@ -219,8 +219,15 @@ impl ComputersStore {
             )
             .await?;
         let operation: Option<Uuid> = selected.take(0).map_err(|_| ComputerError::Unavailable)?;
+        let lookup = self
+            .operation_lookup(
+                caller,
+                operation.ok_or(ComputerError::Unavailable)?,
+                OperationParticipant::Actor,
+            )
+            .await?;
         let operation = self
-            .read_operation(operation.ok_or(ComputerError::Unavailable)?)
+            .read_admitted_operation(caller, lookup, &computer.owner)
             .await?;
         permits(&operation.actor, caller)?;
         if operation.automation_grant_id != grant_id {
@@ -229,26 +236,12 @@ impl ComputersStore {
         Ok(operation)
     }
     pub async fn operation(&self, caller: &TaskOwner, id: Uuid) -> Result<Operation> {
-        owner_key(caller)?;
-        let operation = self.read_operation(id).await?;
-        self.get(caller, operation.computer_id).await?;
-        permits(&operation.owner, caller)?;
-        Ok(operation)
-    }
-    pub(crate) async fn read_operation(&self, id: Uuid) -> Result<Operation> {
-        let mut response = self
-            .query(
-                "SELECT * FROM ONLY $operation;",
-                vec![("operation", operation_record(id).into_value())],
-            )
+        let lookup = self
+            .operation_lookup(caller, id, OperationParticipant::Owner)
             .await?;
-        let record: Option<OperationRecord> =
-            response.take(0).map_err(|_| ComputerError::Unavailable)?;
-        let operation = Operation::try_from(record.ok_or(ComputerError::NotFound)?)?;
-        if operation.provider_instance_id != self.provider_instance_id {
-            return Err(ComputerError::NotFound);
-        }
-        Ok(operation)
+        let computer = self.get(caller, lookup.computer).await?;
+        self.read_admitted_operation(caller, lookup, &computer.owner)
+            .await
     }
     /// Idempotent second half of acceptance. The durable operation reconstructs the
     /// same Task after a process crash or lost task-creation reply.

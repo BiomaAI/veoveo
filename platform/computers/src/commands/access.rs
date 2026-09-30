@@ -1,9 +1,7 @@
 //! Current public Task authority. Read metadata without loading protected payloads.
 use crate::{
     AcceptedAuthority, ComputerActor, ComputerError, ComputersStore, Result,
-    api::{Action, AutomationPermission},
-    identity::owner_key,
-    secrets::CommandBinding,
+    secrets::CommandBinding, task_access::TaskSelection,
 };
 use serde::Deserialize;
 use std::time::{Duration, Instant};
@@ -84,10 +82,20 @@ impl ComputersStore {
         execution: veoveo_computers_contract::ExecutionId,
         action: CommandTaskAction,
     ) -> Result<CommandTaskAccess> {
-        let mut read = self.query(
-            "SELECT id, execution_id, computer_id, provider_instance_id, actor_key, binding, authority, task FROM ONLY $execution;",
-            vec![("execution", super::record(execution).into_value())],
-        ).await?;
+        let permit = self
+            .admit_task_metadata(
+                actor,
+                TaskSelection::Command(execution),
+                super::actor_key(actor.accepted())?,
+                matches!(action, CommandTaskAction::Cancel),
+            )
+            .await?;
+        let mut read = self
+            .query(
+                include_str!("../../queries/task_metadata.surql"),
+                permit.bindings(self.provider_instance_id)?,
+            )
+            .await?;
         let row: Option<Metadata> = read.take(0).map_err(|_| ComputerError::Unavailable)?;
         let row = row.ok_or(ComputerError::NotFound)?;
         let decode =
@@ -126,46 +134,12 @@ impl ComputersStore {
         {
             return Err(ComputerError::NotFound);
         }
-        let direct_owner =
-            if actor.accepted().actor.id == actor.accepted().request_context.principal.id {
-                self.retained_owner_computer(actor.owner(), binding.computer_id, &binding.owner_key)
-                    .await?
-            } else {
-                None
-            };
-        let deadline = if let Some(computer) = direct_owner {
-            let control = self.control_authority(actor).await?;
-            control.require_read(Some(binding.computer_id))?;
-            if computer.provider_instance_id != self.provider_instance_id {
-                return Err(ComputerError::NotFound);
-            }
-            if matches!(action, CommandTaskAction::Cancel) {
-                control.require_action(Action::Stop)?;
-            }
-            control.valid_until()
-        } else {
-            if super::actor_key(actor.accepted())? != binding.actor_key {
-                return Err(ComputerError::NotFound);
-            }
-            let authority = self
-                .authorize_automation_grant(
-                    actor,
-                    binding.computer_id,
-                    binding.grant_id,
-                    AutomationPermission::Execute,
-                )
-                .await?;
-            if owner_key(&authority.computer()?.owner)? != binding.owner_key {
-                return Err(ComputerError::NotFound);
-            }
-            authority.valid_until()
-        };
         actor.check_admission()?;
         let access = CommandTaskAccess {
             owner: accepted.task_owner(),
             computer_id: binding.computer_id,
             execution_id: execution,
-            deadline,
+            deadline: permit.valid_until(),
         };
         access.owner()?;
         Ok(access)

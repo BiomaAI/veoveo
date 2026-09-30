@@ -91,22 +91,6 @@ impl ComputersStore {
         Ok(computer)
     }
 
-    pub(crate) async fn retained_owner_computer(
-        &self,
-        caller: &TaskOwner,
-        id: crate::api::ComputerId,
-        retained_key: &str,
-    ) -> Result<Option<Computer>> {
-        match self.get(caller, id).await {
-            Ok(computer) => {
-                verify_retained_owner(&computer.owner, retained_key, caller)?;
-                Ok(Some(computer))
-            }
-            Err(ComputerError::NotFound) => Ok(None),
-            Err(error) => Err(error),
-        }
-    }
-
     pub async fn list(
         &self,
         caller: &TaskOwner,
