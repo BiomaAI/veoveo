@@ -716,13 +716,14 @@ Current MCP crates under `servers/` are indexed here:
 | `platform/frames/contract/src/` and `servers/frames-mcp/src/contract.rs` | isolated public world, frame, conversion and provenance types; typed world/revision/frame resource builders |
 | `platform/frames/contract/src/tree.rs` and `metadata.rs` | complete-tree admission and hashing, immutable revision construction, checked world heads and source identities shared by producers and consumers |
 | `platform/frames/contract/src/streams.rs` | typed concrete producer references and bounded entity selectors for dynamic frame transforms; producer route ownership stays outside Frames |
+| `servers/frames-mcp/src/contract/resources.rs`, `scopes.rs`, `src/uris.rs` | server-owned resource vocabulary, empty domain scope declaration and fixed templates available without hosted features |
 | `servers/frames-mcp/src/state/worlds.rs`, `state/worlds/`, and `state/records.rs` | typed world mutations, private driver records, transactional owner/label/head checks, immutable publication and replay; Store owns connections and schemas |
 | `platform/frames/contract/src/catalog.rs` | typed world-page cursor, collection response, and query-address construction |
 | `platform/frames/contract/src/usage.rs` | native Task usage addresses, typed collection cursors, and checked page/entry construction without runtime dependencies |
 | `servers/frames-mcp/src/state/reads.rs` | typed world/revision/frame queries; SQL tenant and label visibility, linked-parent integrity, and consistent head selection through the shared Store connection |
 | `servers/frames-mcp/src/state/operations.rs`, `operations/record.surql` | required typed operation authority, SQL access checks, atomic Task admission and immutable provenance/event recording |
 | `servers/frames-mcp/src/state/completion.rs` | world/revision/frame SQL completion with typed parents and matching before limits |
-| `servers/frames-mcp/src/bin/server/discovery.rs`, `resources.rs`, `completion.rs` | fixed discovery, resource payloads, and MCP completion adapters |
+| `servers/frames-mcp/src/bin/server/setup.rs`, `resources.rs`, `completion.rs` | checked startup/discovery, typed resource dispatch, and MCP completion adapters |
 | `servers/map-mcp/src/contract/geodetic_ids.rs` | CRS, datum, and ellipsoid IDs shared through Map's contract feature |
 | `servers/frames-mcp/src/bin/server/subscriptions.rs` | mutable world and usage admission, shared Store LIVE observation, and shutdown of the resource observer |
 | `servers/map-mcp` | Earth geography, feature authoring and products, source and raster releases, reusable spatial derivation, mobility validation, logistics routing, and immutable cuOpt travel models |
@@ -738,6 +739,7 @@ Current MCP crates under `servers/` are indexed here:
 | `servers/recording-mcp/src/service/index.rs`, `servers/recording-mcp/src/index.rs` | authorized catalog pages and completion, with versioned cursors and SQL layer counts |
 | `servers/timeseries-mcp` | time-series analysis, forecasting, evaluation, and artifact output |
 | `servers/timeseries-mcp/src/contract/usage.rs` | isolated public usage address, cursor and page contracts; native Task IDs and checked component builders |
+| `servers/timeseries-mcp/src/contract/resources.rs`, `artifact_uri.rs`, `src/bin/server/setup.rs`, `resources.rs` | typed Artifact and hosted routes, checked startup/discovery and exhaustive authorized resource dispatch |
 | `servers/timeseries-mcp/src/usage.rs` | Timeseries usage pages and exact reads through TaskRuntime's SQL owner policy before grouping and limits |
 | `servers/time-mcp` | temporal authority, clock assessment, operational calendars, mission timelines, and events |
 | `servers/view-mcp` | immutable scene compositions, owner and Work Context scoped geospatial views, shared 3D Tiles streaming, GPU overlays, and captured frames |
@@ -1411,7 +1413,7 @@ dispatch preflights and budgeted execution.
 | `mcp/conformance` | reusable domain-neutral MCP certification library, thin CLI, schemas, profiles, authenticated same-origin well-known-surface checks, live declaration binding, and standalone image |
 | `testing/fixtures/store.rs`, `store/container.rs`, `connection_switch.rs` | owned disposable database setup, cancellable Docker subprocesses and acknowledged TCP connection loss for native recovery tests; `platform/store/tests/fixture_lifecycle.rs` owns CLI lifecycle fault injection |
 | [`testing/fixtures/modular-mcp/`](../testing/fixtures/modular-mcp/DESIGN.md) | independent scope/resource library with isolated contract and MCP features; `mcp/conformance/tests/modular_server.rs` owns hosted qualification and fixture cleanup |
-| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers and Speech library consumer; rejects service dependencies in their contract features |
+| [`testing/fixtures/server-contract-consumer/`](../testing/fixtures/server-contract-consumer/DESIGN.md) | independently resolved Artifact, Computers, Speech, Frames and Timeseries library consumer; rejects service dependencies in their contract features |
 | `testing/flight-smoke/` | [focused composed-flight harness](../testing/flight-smoke/DESIGN.md), with server-owned wire types and client-only dependency closure |
 | `testing/browser-smoke/src/cli.rs` and `main.rs` | installation-selected browser acceptance arguments and scenario dispatch; `support.rs` reuses the shared installed-target loader; `browser.rs` owns headed hardware checks and browser assertions shared with flight acceptance |
 | `testing/smoke/src/bin/smoke.rs` | smoke command dispatcher and digest-addressed simulation certification entrypoint |

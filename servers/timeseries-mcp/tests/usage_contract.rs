@@ -179,3 +179,66 @@ fn usage_preserves_published_cursor_envelope_and_page_fields() {
     assert_eq!(schema["properties"]["limit"]["minimum"], 100);
     assert_eq!(schema["properties"]["limit"]["maximum"], 100);
 }
+
+#[test]
+fn hosted_resources_admit_only_their_typed_families() {
+    use veoveo_artifact_contract::ArtifactId;
+    use veoveo_timeseries_mcp::contract::{
+        TimeseriesArtifactUri, TimeseriesDocument, TimeseriesResource,
+    };
+    let id = ArtifactId::new();
+    let artifact = TimeseriesArtifactUri::new(id);
+    assert_eq!(artifact.artifact_id(), id);
+    assert_eq!(
+        TimeseriesArtifactUri::parse(artifact.as_str()).unwrap(),
+        artifact
+    );
+    let task = task(7);
+    let cursor = TimeseriesUsageCursor::new(task).unwrap();
+    for address in [
+        TimeseriesResource::Docs,
+        TimeseriesResource::Document(TimeseriesDocument::Agents),
+        TimeseriesResource::Document(TimeseriesDocument::Design),
+        TimeseriesResource::Contract,
+        TimeseriesResource::ForecastApp,
+        TimeseriesResource::Usage(TimeseriesUsageIndexUri::new(None)),
+        TimeseriesResource::Usage(TimeseriesUsageIndexUri::new(Some(&cursor))),
+        TimeseriesResource::TaskUsage(TimeseriesTaskUsageUri::new(task).unwrap()),
+        TimeseriesResource::Artifact(artifact.clone()),
+    ] {
+        let uri = address.to_uri().unwrap();
+        assert_eq!(TimeseriesResource::parse(uri.as_str()).unwrap(), address);
+        assert_eq!(
+            serde_json::from_value::<TimeseriesResource>(json!(uri)).unwrap(),
+            address
+        );
+        for invalid in [
+            format!("{uri}#fragment"),
+            format!("{uri}/extra"),
+            uri.as_str().replace("timeseries", "other"),
+        ] {
+            assert!(TimeseriesResource::parse(&invalid).is_err(), "{invalid}");
+        }
+    }
+    for invalid in [
+        "timeseries://docs/unknown",
+        "timeseries://docs/%61gents",
+        "timeseries://contract?extra=x",
+        "timeseries://artifact/00000000-0000-0000-0000-000000000000",
+        "ui://timeseries/forecast.html?token=secret",
+    ] {
+        assert!(TimeseriesResource::parse(invalid).is_err(), "{invalid}");
+    }
+    for invalid in [
+        format!("{artifact}?query=x"),
+        format!("{artifact}#fragment"),
+        format!("{artifact}/extra"),
+        format!("other://artifact/{id}"),
+        format!("artifact://{id}"),
+        format!("timeseries://artifact/{{{id}}}"),
+        format!("timeseries://artifact/{}", id.to_string().replace('-', "")),
+    ] {
+        assert!(TimeseriesArtifactUri::parse(&invalid).is_err(), "{invalid}");
+        assert!(serde_json::from_value::<TimeseriesArtifactUri>(json!(invalid)).is_err());
+    }
+}

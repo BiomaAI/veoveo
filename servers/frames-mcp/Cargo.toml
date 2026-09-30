@@ -18,16 +18,18 @@ required-features = ["contract"]
 
 [features]
 default = ["mcp"]
-contract = ["dep:veoveo-frames-contract"]
-runtime = [
-    "contract",
-    "chrono/clock",
+contract = [
+    "dep:veoveo-frames-contract",
+    "dep:veoveo-types",
+    "dep:veoveo-artifact-contract",
     "dep:schemars",
     "dep:serde",
     "dep:serde_json",
-    "dep:veoveo-artifact-contract",
+]
+runtime = [
+    "contract",
+    "chrono/clock",
     "dep:veoveo-map-mcp",
-    "dep:veoveo-types",
     "dep:anyhow",
     "dep:glam",
     "dep:rayon",

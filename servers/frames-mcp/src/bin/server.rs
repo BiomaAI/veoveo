@@ -49,8 +49,7 @@ use veoveo_frames_mcp::{
 use veoveo_mcp_contract::{
     GATEWAY_INTERNAL_TOKEN_ISSUER, GatewayInternalTokenVerifier, GatewayInternalTrustBundle,
     IssueArtifactWriteCapabilityRequest, IssuedArtifactWriteCapability, Page, ServerSlug,
-    TelemetryGuard, TokenIssuer, docs::ServerDocs, init_server_telemetry, paginate,
-    public_allowed_hosts,
+    TelemetryGuard, TokenIssuer, init_server_telemetry, paginate, public_allowed_hosts,
 };
 use veoveo_task_runtime::{
     CreateTask as DurableCreateTask, DurableTaskService, RecoveryClass, TaskError, TaskFailure,
@@ -66,8 +65,6 @@ mod app_state;
 mod completion;
 #[path = "server/config.rs"]
 mod config;
-#[path = "server/discovery.rs"]
-mod discovery;
 #[path = "server/host.rs"]
 mod host;
 #[path = "server/internal_auth.rs"]
@@ -80,6 +77,8 @@ mod ownership;
 mod prompts;
 #[path = "server/resources.rs"]
 mod resources;
+#[path = "server/setup.rs"]
+mod setup;
 #[path = "server/subscriptions.rs"]
 mod subscriptions;
 #[path = "server/task_extension.rs"]
@@ -93,6 +92,7 @@ use ownership::{
     frame_scope_from_identity, frame_scope_from_runtime, internal_identity, runtime_owner,
 };
 use prompts::FramesPrompt;
+use setup::{SERVER_DOCS, SERVER_SETUP};
 use task_extension::FramesTaskService;
 
 const MCP_TASK_POLL_INTERVAL_MS: u64 = 3_000;
@@ -103,12 +103,6 @@ const ARTIFACT_CAPABILITY_TTL: TimeDelta = TimeDelta::hours(24);
 const SERVER_SLUG: &str = "frames";
 const LIST_PAGE_SIZE: usize = 100;
 const BATCH_ARTIFACT_MIME: &str = "application/json";
-
-/// The crate documents embedded at build time and served under the well-known
-/// surface: `frames://docs`, `frames://docs/{doc_id}`, `frames://contract`,
-/// and the administrative `admin/docs` routes (contract C18-C21).
-static SERVER_DOCS: LazyLock<ServerDocs> =
-    LazyLock::new(|| veoveo_mcp_contract::server_docs!(SERVER_SLUG));
 
 fn install_rustls_provider() {
     let _ = rustls::crypto::ring::default_provider().install_default();
@@ -125,6 +119,7 @@ struct FramesMcp {
 #[tool_router]
 impl FramesMcp {
     fn new(state: Arc<AppState>) -> Self {
+        LazyLock::force(&SERVER_SETUP);
         Self {
             task_service: FramesTaskService::new(state.clone()),
             state,
@@ -323,17 +318,7 @@ impl ServerHandler for FramesMcp {
     }
 
     fn get_info(&self) -> ServerConfig {
-        let mut info = ServerConfig::default();
-        info.capabilities = discovery::capabilities();
-        info.server_info = rmcp::model::Implementation::new("frames", env!("CARGO_PKG_VERSION"));
-        info.instructions = Some(
-            "Coordinate frames and frame worlds. Create a world, publish its frame tree as a \
-             revision, and reference frames by their revision URIs in sessions and recordings. \
-             Use `convert_frame` for small conversions and `batch_transform` as an MCP Task for \
-             bulk conversion with artifact output."
-                .into(),
-        );
-        info
+        SERVER_SETUP.server_config().clone()
     }
 
     async fn call_tool(
@@ -443,7 +428,14 @@ impl ServerHandler for FramesMcp {
         context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
         internal_identity(&context)?;
-        let page = mcp_page(discovery::resources(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resources()
+                .iter()
+                .map(|resource| resource.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourcesResult {
             resources: page.items,
             next_cursor: page.next_cursor,
@@ -459,7 +451,14 @@ impl ServerHandler for FramesMcp {
         request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourceTemplatesResult, McpError> {
-        let page = mcp_page(discovery::resource_templates(), request.as_ref())?;
+        let page = mcp_page(
+            SERVER_SETUP
+                .resource_templates()
+                .iter()
+                .map(|template| template.descriptor().clone())
+                .collect(),
+            request.as_ref(),
+        )?;
         Ok(ListResourceTemplatesResult {
             resource_templates: page.items,
             next_cursor: page.next_cursor,
@@ -780,6 +779,7 @@ async fn run_task_inner(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    LazyLock::force(&SERVER_SETUP);
     install_rustls_provider();
     let _ = dotenvy::dotenv();
     let _telemetry: TelemetryGuard =

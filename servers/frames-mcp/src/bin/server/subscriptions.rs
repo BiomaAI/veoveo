@@ -4,10 +4,7 @@ use veoveo_task_runtime::TaskUsageAccess;
 use futures::StreamExt;
 use rmcp::{ErrorData as McpError, service::SubscriptionContext};
 use tokio_util::sync::CancellationToken;
-use veoveo_frames_mcp::contract::{
-    FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldId, FrameWorldsUri,
-};
-use veoveo_frames_mcp::uris;
+use veoveo_frames_mcp::contract::{FrameWorldId, FramesResource};
 use veoveo_platform_store::PlatformTable;
 use veoveo_types::TaskId;
 
@@ -25,22 +22,16 @@ enum Resource {
 }
 
 fn parse_resource(uri: &str) -> Result<Resource, McpError> {
-    if FrameWorldsUri::parse(uri).is_ok() {
-        return Ok(Resource::Worlds);
+    match FramesResource::parse(uri) {
+        Ok(FramesResource::Worlds(_)) => Ok(Resource::Worlds),
+        Ok(FramesResource::Usage(_)) => Ok(Resource::Usage),
+        Ok(FramesResource::World(world)) => Ok(Resource::World(world.world_id())),
+        Ok(FramesResource::TaskUsage(usage)) => Ok(Resource::TaskUsage(usage.task_id())),
+        _ => Err(McpError::invalid_params(
+            "resource is immutable or not subscribable",
+            None,
+        )),
     }
-    if FrameUsageIndexUri::parse(uri).is_ok() {
-        return Ok(Resource::Usage);
-    }
-    if let Some(world) = uris::parse_world_uri(uri) {
-        return Ok(Resource::World(world.world_id()));
-    }
-    if let Ok(usage) = FrameTaskUsageUri::parse(uri) {
-        return Ok(Resource::TaskUsage(usage.task_id()));
-    }
-    Err(McpError::invalid_params(
-        "resource is immutable or not subscribable",
-        None,
-    ))
 }
 
 pub(super) async fn authorize(
@@ -113,6 +104,10 @@ pub(super) fn spawn_observer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use veoveo_frames_mcp::{
+        contract::{FrameTaskUsageUri, FrameUsageIndexUri, FrameWorldsUri},
+        uris,
+    };
 
     #[test]
     fn subscriptions_admit_mutable_worlds_and_usage() {

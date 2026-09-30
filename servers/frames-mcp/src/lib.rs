@@ -6,7 +6,7 @@ pub mod contract;
 pub mod engine;
 #[cfg(feature = "runtime")]
 pub mod state;
-#[cfg(feature = "runtime")]
+#[cfg(feature = "contract")]
 pub mod uris;
 #[cfg(feature = "runtime")]
 pub mod world;

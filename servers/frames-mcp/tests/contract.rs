@@ -13,3 +13,64 @@ fn contract_feature_exposes_shared_frames_types() {
     assert_eq!(frame.revision_uri(), revision);
     let _: veoveo_frames_contract::WorldFrameUri = frame;
 }
+
+#[test]
+fn hosted_addresses_compose_the_domain_owners_and_reject_uri_aliases() {
+    use veoveo_artifact_contract::ArtifactId;
+    use veoveo_frames_mcp::contract::*;
+    use veoveo_types::{ResourceAddress, TaskId};
+    let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
+    let revision = world.revision(&FrameWorldRevisionId::new("revision-1").unwrap());
+    let task = TaskId::new();
+    let cursor = FrameWorldCursor::new(&world.world_id());
+    let usage_cursor = FrameUsageCursor::new(task).unwrap();
+    let addresses = [
+        FramesResource::Docs,
+        FramesResource::Document(FramesDocument::Agents),
+        FramesResource::Document(FramesDocument::Design),
+        FramesResource::Contract,
+        FramesResource::WorkspaceApp,
+        FramesResource::Worlds(FrameWorldsUri::new(None)),
+        FramesResource::Worlds(FrameWorldsUri::new(Some(&cursor))),
+        FramesResource::World(world.clone()),
+        FramesResource::Revision(revision.clone()),
+        FramesResource::Frame(revision.frame(&FrameId::new("camera").unwrap())),
+        FramesResource::Operation(FrameOperationUri::new(
+            &CoordinateOperationId::new("conversion-1").unwrap(),
+        )),
+        FramesResource::Usage(FrameUsageIndexUri::new(None)),
+        FramesResource::Usage(FrameUsageIndexUri::new(Some(&usage_cursor))),
+        FramesResource::TaskUsage(FrameTaskUsageUri::new(task).unwrap()),
+        FramesResource::Artifact(ArtifactId::new()),
+    ];
+    for address in addresses {
+        let uri = address.to_uri().unwrap();
+        assert_eq!(FramesResource::parse(uri.as_str()).unwrap(), address);
+        assert_eq!(
+            serde_json::from_value::<FramesResource>(serde_json::json!(uri)).unwrap(),
+            address
+        );
+        for invalid in [
+            format!("{uri}#fragment"),
+            format!("{uri}/extra"),
+            uri.as_str().replace("frames", "other"),
+        ] {
+            if invalid != uri.as_str() {
+                assert!(FramesResource::parse(&invalid).is_err(), "{invalid}");
+            }
+        }
+    }
+    for invalid in [
+        "frames://docs/unknown",
+        "frames://docs/%61gents",
+        "frames://contract?extra=x",
+        "frames://artifact/00000000-0000-0000-0000-000000000000",
+        "frames://world/survey?cursor=x",
+        "frames://worlds?unknown=x",
+        "frames://world/survey/revision",
+        "ui://frames/workspace.html?token=secret",
+        "frames://world/survey/revision/revision-1/frame/camera/extra",
+    ] {
+        assert!(FramesResource::parse(invalid).is_err(), "{invalid}");
+    }
+}

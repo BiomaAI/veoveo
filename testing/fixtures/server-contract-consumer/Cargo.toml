@@ -11,3 +11,6 @@ resolver = "3"
 veoveo-artifact-mcp = { path = "../../../servers/artifact-mcp", default-features = false, features = ["contract"] }
 veoveo-computers-mcp = { path = "../../../servers/computers-mcp", default-features = false, features = ["contract"] }
 veoveo-speech-mcp = { path = "../../../servers/speech-mcp", default-features = false, features = ["contract"] }
+veoveo-frames-mcp = { path = "../../../servers/frames-mcp", default-features = false, features = ["contract"] }
+veoveo-timeseries-mcp = { path = "../../../servers/timeseries-mcp", default-features = false, features = ["contract"] }
+veoveo-types = { path = "../../../platform/types" }

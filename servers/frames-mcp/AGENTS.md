@@ -43,6 +43,10 @@ work, geodesics, geofences, and routing belong to `map-mcp`.
   revision references and typed SHA-256 digests for only the frame-world
   revisions traversed by the conversion.
 
+- Use `FramesResource` for hosted route admission and its typed document and Artifact
+  variants for construction. The contract feature owns these routes without MCP or
+  service dependencies. Startup and discovery consume the checked server setup.
+
 ## Build And Test
 
 - `cargo check -p veoveo-frames-mcp`

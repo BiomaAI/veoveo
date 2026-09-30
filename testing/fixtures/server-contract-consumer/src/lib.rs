@@ -45,6 +45,40 @@ mod tests {
     }
 
     #[test]
+    fn resource_contracts_share_typed_artifact_and_frame_owners() {
+        use veoveo_frames_mcp::contract::{
+            FrameId, FrameWorldId, FrameWorldRevisionId, FrameWorldUri, FramesResource,
+        };
+        use veoveo_timeseries_mcp::contract::{TimeseriesArtifactUri, TimeseriesResource};
+        use veoveo_types::ResourceAddress;
+        let id = ArtifactId::new();
+        let forecast = TimeseriesArtifactUri::new(id);
+        assert_eq!(forecast.artifact_id(), id);
+        for resource in [
+            TimeseriesResource::ForecastApp,
+            TimeseriesResource::Artifact(forecast),
+        ] {
+            assert_eq!(
+                TimeseriesResource::parse(resource.to_uri().unwrap().as_str()).unwrap(),
+                resource
+            );
+        }
+        let world = FrameWorldUri::new(&FrameWorldId::new("survey").unwrap());
+        let revision = world.revision(&FrameWorldRevisionId::new("revision-1").unwrap());
+        let frame = revision.frame(&FrameId::new("camera").unwrap());
+        for resource in [
+            FramesResource::World(world),
+            FramesResource::Frame(frame),
+            FramesResource::Artifact(id),
+        ] {
+            assert_eq!(
+                FramesResource::parse(resource.to_uri().unwrap().as_str()).unwrap(),
+                resource
+            );
+        }
+    }
+
+    #[test]
     fn resolved_graph_contains_only_public_contracts() {
         let output = std::process::Command::new("timeout")
             .args([
@@ -78,6 +112,10 @@ mod tests {
                 "veoveo-artifact-mcp",
                 "veoveo-computers-mcp",
                 "veoveo-speech-mcp",
+                "veoveo-frames-mcp",
+                "veoveo-timeseries-mcp",
+                "veoveo-map-mcp",
+                "veoveo-duckdb-mcp",
             ]
             .contains(&name)
             {
@@ -100,6 +138,11 @@ mod tests {
                         "veoveo-artifact-contract",
                         "veoveo-computers-contract",
                         "veoveo-speech-contract",
+                        "veoveo-frames-mcp",
+                        "veoveo-timeseries-mcp",
+                        "veoveo-frames-contract",
+                        "veoveo-map-mcp",
+                        "veoveo-duckdb-mcp",
                         "veoveo-types"
                     ]
                     .contains(&name),

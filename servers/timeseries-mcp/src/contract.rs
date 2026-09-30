@@ -1,68 +1,19 @@
+mod artifact_uri;
+pub use artifact_uri::*;
+mod resources;
+pub use resources::*;
+mod scopes;
+pub use scopes::*;
 mod task_kind;
 pub use task_kind::TimeseriesTaskKind;
 mod usage;
 pub use usage::*;
 
-use std::{error::Error, fmt};
-
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use veoveo_artifact_contract::{ArtifactId, ArtifactMetadata};
+use veoveo_artifact_contract::ArtifactMetadata;
 use veoveo_duckdb_mcp::contract::DuckDbSource;
-
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
-)]
-#[serde(try_from = "String", into = "String")]
-#[schemars(with = "String")]
-pub struct TimeseriesArtifactUri(String);
-
-impl TimeseriesArtifactUri {
-    pub fn parse(value: impl Into<String>) -> Result<Self, TimeseriesArtifactUriError> {
-        let value = value.into();
-        value
-            .strip_prefix("timeseries://artifact/")
-            .and_then(|id| ArtifactId::parse(id).ok())
-            .ok_or(TimeseriesArtifactUriError)?;
-        Ok(Self(value))
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for TimeseriesArtifactUri {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&self.0)
-    }
-}
-
-impl TryFrom<String> for TimeseriesArtifactUri {
-    type Error = TimeseriesArtifactUriError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::parse(value)
-    }
-}
-
-impl From<TimeseriesArtifactUri> for String {
-    fn from(value: TimeseriesArtifactUri) -> Self {
-        value.0
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TimeseriesArtifactUriError;
-
-impl fmt::Display for TimeseriesArtifactUriError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("invalid Timeseries artifact URI")
-    }
-}
-
-impl Error for TimeseriesArtifactUriError {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct TimeseriesTableMapping {

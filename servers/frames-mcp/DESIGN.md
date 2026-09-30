@@ -25,7 +25,7 @@ server-owned `ui://frames/workspace.html` Frame Editor application.
 Published revision integrity uses SHA-256 with the repository-owned canonical
 `sha256:` plus 64 lowercase hexadecimal representation. Frame-world and
 operation resources are Veoveo extensions rather than external protocols.
-World, operation, usage and dynamic stream addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
+World, operation, usage, document, Artifact and dynamic stream addresses use the [foundational concrete URI profile](../../platform/types/DESIGN.md#concrete-resource-components):
 URL 2.5.8 implements WHATWG parsing for these hierarchical custom-scheme routes,
 with the domain restrictions described below.
 Resource templates use RFC 6570 path variables and the optional `cursor` query
@@ -66,6 +66,21 @@ routes. Parsers validate the complete route and retain the decoded typed identit
 They reject credentials, ports, queries, fragments, escaped aliases, extra segments,
 and URI spellings that require normalization. Each address implements `ResourceAddress`.
 A typed address grants no authority and does not establish persisted parent membership.
+
+### Hosted Resources And Setup
+
+The server library adds `FramesResource` and `FramesDocument` to its isolated contract
+feature. The resource enum composes the shared world's typed addresses with operation,
+usage, Artifact and embedded-document routes. Request dispatch parses this enum once;
+subscription admission accepts only its mutable world and usage variants. Dynamic
+routes use the foundational URI builder. Parsers reject unknown documents, aliases,
+unsupported query fields and cross-family paths before accessing services.
+
+`FramesContract` implements the open `McpServerContract` trait. Startup checks the
+configuration, fixed descriptors and templates before connecting to Store. Discovery
+and initialization read that setup. The empty `FramesScope` vocabulary adds no domain
+permissions; gateway operation policy and SQL owner/label selection govern access.
+The fixed catalog declares resource subscriptions and omits resource-list changes.
 
 ### Frame Identity Admission
 
@@ -381,6 +396,8 @@ qualification is tracked in the
 ```text
 servers/frames-mcp/src/
   contract.rs             re-exports platform/frames/contract public models
+  contract/resources.rs   complete hosted route vocabulary
+  contract/scopes.rs      domain scope declaration
   engine.rs               coordinate conversion
   world.rs                transform resolution
   state.rs                typed world scope and revision adapters
@@ -394,13 +411,13 @@ servers/frames-mcp/src/
   state/read_tests.rs     isolated database authorization and parent-integrity cases
   state/catalog_tests.rs  keyset paging and completion beyond initial result windows
   artifacts.rs            artifact-plane integration
-  uris.rs                 canonical identities
+  uris.rs                 fixed route declarations and templates
   bin/server.rs           transport and MCP composition
   bin/server/
     app_state.rs
     config.rs
     completion.rs
-    discovery.rs
+    setup.rs
     host.rs
     internal_auth.rs
     outputs.rs

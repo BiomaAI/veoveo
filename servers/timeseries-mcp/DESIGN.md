@@ -33,12 +33,29 @@ renders admitted options through the same infallible SQL helper.
 
 ## Library Features
 
-The library's `contract` feature exposes forecast DTOs and typed usage addresses,
-cursor positions, and pages. Consumers disable default features. Its dependencies
+The library's `contract` feature exposes forecast DTOs, the complete `TimeseriesResource`
+vocabulary, typed Artifact and usage addresses, cursor positions, and pages. Consumers disable default features. Its dependencies
 contain serialization, schema and foundational values plus DuckDB's contract feature;
 they exclude the MCP runtime, database engines, network clients and Rerun runtime.
 `runtime` adds forecasting, Artifact access, owner models and the usage reader.
 `mcp` adds the hosted binary and is enabled by default.
+
+## Hosted Resource Admission
+
+`TimeseriesArtifactUri::new` requires an Artifact occurrence ID and delegates component
+construction to the Artifact contract. The decoder requires the Timeseries scheme and
+rejects escaped aliases, extra segments, queries and fragments. The forecast producer
+constructs its result address from the returned occurrence ID. Public resource dispatch
+parses `TimeseriesResource` once and matches its closed route variants; embedded document
+IDs use `TimeseriesDocument`.
+
+These routes use the foundational URL 2.5.8 concrete-resource profile and their declared
+RFC 6570 templates. `TimeseriesContract` implements `McpServerContract` and validates
+startup configuration, resource descriptors and templates before Store initialization.
+MCP initialization and discovery consume that setup. The empty `TimeseriesScope` enum
+declares no additional permissions; gateway policy, Task owner selection and the Artifact
+service continue to authorize requests. Native template expansion and an independent
+contract consumer qualify route admission without a hosted service.
 
 ## MCP surface
 

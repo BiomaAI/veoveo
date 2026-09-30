@@ -41,6 +41,10 @@ returns structured output with a bounded chartable preview.
   isolated `contract` feature owns usage addresses and pages; use its component
   builders at callers and keep runtime dependencies outside that feature.
 
+- Use `TimeseriesResource` for hosted route admission and its typed document and Artifact
+  variants for construction. The contract feature owns these routes without MCP or
+  service dependencies. Startup and discovery consume the checked server setup.
+
 ## Build And Test
 
 - `cargo check -p veoveo-timeseries-mcp`
@@ -61,8 +65,8 @@ returns structured output with a bounded chartable preview.
 
 Contract revision: 3
 
-Typed usage contracts and contract-only library consumption are implemented. Broader
-resource builders and checked MCP setup remain in the
+Typed resource contracts, contract-only consumption and checked MCP setup are
+implemented. Installed qualification remains in the
 [foundations plan](../../docs/PLATFORM_FOUNDATIONS_PLAN.md#modular-types-and-server-contracts).
 
 - C01: met
